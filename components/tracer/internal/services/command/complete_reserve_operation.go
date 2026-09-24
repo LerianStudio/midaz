@@ -287,7 +287,7 @@ func recordReserveCompletionError(span trace.Span, err error) {
 		return
 	}
 
-	for _, business := range []error{constant.ErrInvalidRequestBody, constant.ErrInsufficientPrivileges, constant.ErrReservationTenantRequired, constant.ErrReserveOperationConflict} {
+	for _, business := range []error{constant.ErrInvalidRequestBody, constant.ErrInsufficientPrivileges, constant.ErrReservationTenantRequired, constant.ErrReserveOperationConflict, constant.ErrReservationNotFound} {
 		if errors.Is(err, business) {
 			libOtel.HandleSpanBusinessErrorEvent(span, "reserve completion rejected", err)
 			return

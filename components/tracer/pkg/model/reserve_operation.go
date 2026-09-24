@@ -68,3 +68,19 @@ func (s ReserveOperationState) Validate() error {
 
 	return nil
 }
+
+// ReserveReservationOwner is immutable addressing data, not another operation
+// state. A reservation ID in the coordinated profile addresses its full operation.
+type ReserveReservationOwner struct {
+	ReservationID uuid.UUID
+	EvaluationID  uuid.UUID
+	Operation     ReserveOperationIdentity
+}
+
+func (o ReserveReservationOwner) Validate() error {
+	if o.ReservationID == uuid.Nil || o.EvaluationID == uuid.Nil {
+		return constant.ErrInvalidRequestBody
+	}
+
+	return o.Operation.Validate()
+}

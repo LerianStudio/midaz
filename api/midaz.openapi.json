@@ -22433,9 +22433,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/ReserveRequest"
               }
             }
           },
@@ -22446,11 +22444,61 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReserveResponse"
+                  "$ref": "#/components/schemas/ReserveResult"
                 }
               }
             },
             "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
           },
           "422": {
             "content": {
@@ -22472,7 +22520,7 @@
             },
             "description": "Internal Server Error"
           },
-          "default": {
+          "503": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22480,18 +22528,15 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Service Unavailable"
           }
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
+            "ProducerMTLS": []
           }
         ],
-        "summary": "Reserve transaction capacity (phase one)",
+        "summary": "Evaluate rules and reserve account capacity",
         "tags": [
           "Midaz_Tracer_API_Reservations"
         ]
@@ -22502,26 +22547,91 @@
         "operationId": "confirmReservationByTransaction",
         "parameters": [
           {
-            "description": "Transaction ID (UUID)",
             "in": "path",
             "name": "transaction_id",
             "required": true,
             "schema": {
-              "description": "Transaction ID (UUID)",
               "type": "string"
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "description": "A contractRevision body completes a coordinated operation. An absent body addresses only legacy reservations and additionally requires the configured legacy API-key/Bearer authorization."
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TransactionActionResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TransactionCompletionResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TransactionActionResponse"
+                    }
+                  ]
                 }
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
           },
           "422": {
             "content": {
@@ -22543,7 +22653,7 @@
             },
             "description": "Internal Server Error"
           },
-          "default": {
+          "503": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22551,18 +22661,15 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Service Unavailable"
           }
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
+            "ProducerMTLS": []
           }
         ],
-        "summary": "Confirm a transaction's reservations (phase two — commit by transaction)",
+        "summary": "Confirm a known transaction outcome",
         "tags": [
           "Midaz_Tracer_API_Reservations"
         ]
@@ -22573,26 +22680,91 @@
         "operationId": "releaseReservationByTransaction",
         "parameters": [
           {
-            "description": "Transaction ID (UUID)",
             "in": "path",
             "name": "transaction_id",
             "required": true,
             "schema": {
-              "description": "Transaction ID (UUID)",
               "type": "string"
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "description": "A contractRevision body completes a coordinated operation. An absent body addresses only legacy reservations and additionally requires the configured legacy API-key/Bearer authorization."
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TransactionActionResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TransactionCompletionResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TransactionActionResponse"
+                    }
+                  ]
                 }
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
           },
           "422": {
             "content": {
@@ -22614,7 +22786,7 @@
             },
             "description": "Internal Server Error"
           },
-          "default": {
+          "503": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22622,18 +22794,15 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Service Unavailable"
           }
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
+            "ProducerMTLS": []
           }
         ],
-        "summary": "Release a transaction's reservations (phase two — abort by transaction)",
+        "summary": "Release a known aborted transaction",
         "tags": [
           "Midaz_Tracer_API_Reservations"
         ]
@@ -22644,26 +22813,101 @@
         "operationId": "confirmReservation",
         "parameters": [
           {
-            "description": "Reservation ID (UUID)",
             "in": "path",
             "name": "id",
             "required": true,
             "schema": {
-              "description": "Reservation ID (UUID)",
               "type": "string"
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "description": "The revision body completes every reservation in the addressed coordinated operation atomically. An absent body addresses only a legacy reservation and requires legacy API-key/Bearer authorization."
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReservationActionResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ReservationCompletionResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReservationActionResponse"
+                    }
+                  ]
                 }
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
           },
           "422": {
             "content": {
@@ -22685,7 +22929,7 @@
             },
             "description": "Internal Server Error"
           },
-          "default": {
+          "503": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22693,18 +22937,15 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Service Unavailable"
           }
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
+            "ProducerMTLS": []
           }
         ],
-        "summary": "Confirm a reservation (phase two — commit)",
+        "summary": "Confirm the entire operation addressed by a reservation",
         "tags": [
           "Midaz_Tracer_API_Reservations"
         ]
@@ -22715,26 +22956,101 @@
         "operationId": "releaseReservation",
         "parameters": [
           {
-            "description": "Reservation ID (UUID)",
             "in": "path",
             "name": "id",
             "required": true,
             "schema": {
-              "description": "Reservation ID (UUID)",
               "type": "string"
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "description": "The revision body completes every reservation in the addressed coordinated operation atomically. An absent body addresses only a legacy reservation and requires legacy API-key/Bearer authorization."
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReservationActionResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ReservationCompletionResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReservationActionResponse"
+                    }
+                  ]
                 }
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
           },
           "422": {
             "content": {
@@ -22756,7 +23072,7 @@
             },
             "description": "Internal Server Error"
           },
-          "default": {
+          "503": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22764,18 +23080,15 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Service Unavailable"
           }
         },
         "security": [
           {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
+            "ProducerMTLS": []
           }
         ],
-        "summary": "Release a reservation (phase two — abort)",
+        "summary": "Release the entire operation addressed by a reservation",
         "tags": [
           "Midaz_Tracer_API_Reservations"
         ]
@@ -31392,6 +31705,43 @@
         ],
         "type": "object"
       },
+      "CompletionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "contractRevision": {
+            "enum": [
+              "context-reserve-1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contractRevision"
+        ],
+        "type": "object"
+      },
+      "Context": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationAccount"
+            },
+            "type": "array"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts",
+          "entries"
+        ],
+        "type": "object"
+      },
       "ContextPolicyBindingDocument": {
         "additionalProperties": false,
         "properties": {
@@ -31805,6 +32155,64 @@
           "windowStart",
           "windowEnd",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "Entry": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetRef"
+          },
+          "direction": {
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "type": "string"
+          },
+          "external": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "direction",
+          "amount",
+          "asset"
+        ],
+        "type": "object"
+      },
+      "EvaluationAccount": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetRef"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "blocked",
+          "asset"
         ],
         "type": "object"
       },
@@ -32300,34 +32708,168 @@
         ],
         "type": "object"
       },
-      "ReserveResponse": {
+      "ReservationCompletionResult": {
         "additionalProperties": false,
         "properties": {
-          "denied": {
-            "examples": [
-              false
+          "contractRevision": {
+            "enum": [
+              "context-reserve-1"
             ],
-            "type": "boolean"
+            "type": "string"
           },
-          "reservationIds": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
+          "evaluationId": {
+            "type": "string"
+          },
+          "reservationId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "CONFIRMED",
+              "RELEASED"
+            ],
+            "type": "string"
           },
           "transactionId": {
-            "format": "uuid",
             "type": "string"
           }
         },
         "required": [
+          "contractRevision",
           "transactionId",
-          "denied",
-          "reservationIds"
+          "reservationId",
+          "status",
+          "evaluationId"
+        ],
+        "type": "object"
+      },
+      "ReserveControls": {
+        "additionalProperties": false,
+        "properties": {
+          "limits": {
+            "enum": [
+              "EVALUATED",
+              "SKIPPED_RULE_DENY"
+            ],
+            "type": "string"
+          },
+          "rules": {
+            "enum": [
+              "EVALUATED",
+              "NOT_REQUESTED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rules",
+          "limits"
+        ],
+        "type": "object"
+      },
+      "ReserveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetRef"
+          },
+          "context": {
+            "$ref": "#/components/schemas/Context"
+          },
+          "contextId": {
+            "type": "string"
+          },
+          "contractRevision": {
+            "enum": [
+              "context-reserve-1"
+            ],
+            "type": "string"
+          },
+          "longLived": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "transactionId": {
+            "type": "string"
+          },
+          "transactionTimestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationMode": {
+            "enum": [
+              "limits",
+              "rules-and-limits"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contractRevision",
+          "transactionId",
+          "requestId",
+          "contextId",
+          "validationMode",
+          "transactionTimestamp",
+          "longLived",
+          "amount",
+          "asset",
+          "context"
+        ],
+        "type": "object"
+      },
+      "ReserveResult": {
+        "additionalProperties": false,
+        "properties": {
+          "contractRevision": {
+            "enum": [
+              "context-reserve-1"
+            ],
+            "type": "string"
+          },
+          "controls": {
+            "$ref": "#/components/schemas/ReserveControls"
+          },
+          "decision": {
+            "enum": [
+              "ALLOW",
+              "DENY",
+              "REVIEW"
+            ],
+            "type": "string"
+          },
+          "evaluationId": {
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reservationIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "transactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contractRevision",
+          "transactionId",
+          "evaluationId",
+          "decision",
+          "controls",
+          "reservationIds",
+          "reasons"
         ],
         "type": "object"
       },
@@ -32577,6 +33119,42 @@
           }
         },
         "required": [
+          "transactionId",
+          "status",
+          "flipped"
+        ],
+        "type": "object"
+      },
+      "TransactionCompletionResult": {
+        "additionalProperties": false,
+        "properties": {
+          "contractRevision": {
+            "enum": [
+              "context-reserve-1"
+            ],
+            "type": "string"
+          },
+          "evaluationId": {
+            "type": "string"
+          },
+          "flipped": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "CONFIRMED",
+              "RELEASED"
+            ],
+            "type": "string"
+          },
+          "transactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contractRevision",
           "transactionId",
           "status",
           "flipped"
@@ -33018,7 +33596,7 @@
         "type": "apiKey"
       },
       "ProducerMTLS": {
-        "description": "Verified native client certificate whose URI SAN is registered to the producer namespace.",
+        "description": "Verified producer certificate registered to the integration namespace.",
         "type": "mutualTLS"
       }
     }

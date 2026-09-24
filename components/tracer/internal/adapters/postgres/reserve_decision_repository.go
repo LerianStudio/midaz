@@ -62,22 +62,9 @@ func (r *ReserveDecisionRepository) Get(ctx context.Context, key model.ReserveOp
 		return nil, err
 	}
 
-	db, err := r.conn.GetDB(ctx)
+	db, err := r.primaryDatabase(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve decision database: %w", err)
-	}
-
-	if primary, ok := db.(interface{ ReadWrite() *sql.DB }); ok {
-		primaryDB := primary.ReadWrite()
-		if primaryDB == nil {
-			return nil, pgdb.ErrNilConnection
-		}
-
-		db = primaryDB
-	}
-
-	if db == nil {
-		return nil, pgdb.ErrNilConnection
+		return nil, err
 	}
 
 	logging.WithTrace(ctx, logger).Log(ctx, libLog.LevelDebug, "Looking up reserve decision on primary")

@@ -44,28 +44,10 @@ func loadLimitAssetConfig(cfg *Config) (*limitAssetConfig, error) {
 	if cfg.ContextLimitMaxScopes <= 0 || cfg.ContextLimitMaxScopeBytes <= 0 || cfg.ContextLimitMaxBodyBytes <= 0 {
 		return nil, fmt.Errorf("CONTEXT_LIMIT_MAX_SCOPES, CONTEXT_LIMIT_MAX_SCOPE_BYTES and CONTEXT_LIMIT_MAX_BODY_BYTES must be positive")
 	}
-	// Operator configuration has a fixed boot-time size cap, separate from the
-	// measured financial request envelope. Never decode an unbounded env value.
-	if len(cfg.ContextProducerBindings) == 0 || len(cfg.ContextProducerBindings) > 65536 {
-		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain 1 to 65536 bytes of JSON")
-	}
 
-	var bindings []seamidentity.Binding
-
-	decoder := json.NewDecoder(bytes.NewBufferString(cfg.ContextProducerBindings))
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&bindings); err != nil {
-		return nil, fmt.Errorf("decode CONTEXT_PRODUCER_BINDINGS: %w", err)
-	}
-
-	if err := decoder.Decode(new(any)); err != io.EOF {
-		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain one JSON array")
-	}
-
-	identity, err := seamidentity.NewResolver(bindings, facts.MaxTextBytes)
+	identity, err := loadContextProducerIdentity(cfg, facts)
 	if err != nil {
-		return nil, fmt.Errorf("invalid CONTEXT_PRODUCER_BINDINGS: %w", err)
+		return nil, err
 	}
 
 	return &limitAssetConfig{
@@ -106,4 +88,32 @@ func initLimitAssetAdmin(cfg *Config, tx pgdb.TxBeginner, audit command.AuditEve
 	}
 
 	return in.NewLimitAssetHandler(binder, config.identity, config.facts, config.maxBodyBytes)
+}
+
+func loadContextProducerIdentity(cfg *Config, facts tracercontract.Limits) (*seamidentity.Resolver, error) {
+	// Operator configuration has a fixed boot-time size cap, separate from the
+	// measured financial request envelope. Never decode an unbounded env value.
+	if len(cfg.ContextProducerBindings) == 0 || len(cfg.ContextProducerBindings) > 65536 {
+		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain 1 to 65536 bytes of JSON")
+	}
+
+	var bindings []seamidentity.Binding
+
+	decoder := json.NewDecoder(bytes.NewBufferString(cfg.ContextProducerBindings))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&bindings); err != nil {
+		return nil, fmt.Errorf("decode CONTEXT_PRODUCER_BINDINGS: %w", err)
+	}
+
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain one JSON array")
+	}
+
+	identity, err := seamidentity.NewResolver(bindings, facts.MaxTextBytes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid CONTEXT_PRODUCER_BINDINGS: %w", err)
+	}
+
+	return identity, nil
 }

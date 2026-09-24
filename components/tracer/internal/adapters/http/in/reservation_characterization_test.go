@@ -21,29 +21,27 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/mocks"
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
-	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	contractpb "github.com/LerianStudio/midaz/v4/pkg/tracercontract/protobuf"
 )
 
-func scopedReserveFixture(t *testing.T) ([]byte, *reservationv1.ReserveRequest, time.Time) {
+func scopedReserveFixture(t *testing.T) ([]byte, *ReserveRequest, time.Time) {
 	t.Helper()
-	// One fixture locks the actual Ledger encoder and both Tracer adapters.
+	// Preserve the legacy REST baseline during the coordinated rollout.
 	raw, err := os.ReadFile("../../../../../ledger/internal/adapters/tracer/testdata/reserve_scoped.json")
 	require.NoError(t, err)
-	request := &reservationv1.ReserveRequest{}
-	require.NoError(t, protojson.Unmarshal(raw, request))
-	now, err := time.Parse(time.RFC3339, request.TransactionTimestamp)
-	require.NoError(t, err)
+	request := &ReserveRequest{}
+	require.NoError(t, json.Unmarshal(raw, request))
+	now := request.TransactionTimestamp
 	return raw, request, now
 }
 
@@ -68,58 +66,51 @@ func postCharacterizationReserve(t *testing.T, app *fiber.App, raw []byte) *http
 	return response
 }
 
-// Known defect baseline: the same Ledger JSON becomes full scopes over protobuf
-// and silently loses the three flat scope IDs over REST. This is not the desired
-// future behavior; migration must replace this assertion with equality.
-func TestReserveCharacterizationTransportScopeLoss(t *testing.T) {
-	raw, request, now := scopedReserveFixture(t)
-	service := mocks.NewMockReservationService(gomock.NewController(t))
-	txID := uuid.MustParse(request.TransactionId)
-	var inputs []*model.CheckLimitsInput
-	service.EXPECT().Reserve(gomock.Any(), txID, gomock.Any(), true).DoAndReturn(
-		func(_ context.Context, _ uuid.UUID, input *model.CheckLimitsInput, _ bool) (*services.ReserveResult, error) {
-			inputs = append(inputs, input)
-			return &services.ReserveResult{}, nil
-		},
-	).Times(2)
-	response := postCharacterizationReserve(t, characterizationReserveApp(t, service, now), raw)
+// Both replacement transports pass identical native facts to the same command.
+// BTC, native account vocabulary and sub-cent amounts are preserved verbatim.
+func TestContextReserveTransportEquivalence(t *testing.T) {
+	raw, err := os.ReadFile("../../../../../../pkg/tracercontract/testdata/reserve_request.json")
+	require.NoError(t, err)
+	bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
+	expected, err := tracercontract.DecodeReserveJSON(t.Context(), raw, 65536, bounds)
+	require.NoError(t, err)
+	ctrl := gomock.NewController(t)
+	admission := mocks.NewMockContextReserveAdmitter(ctrl)
+	completion := mocks.NewMockContextReserveCompleter(ctrl)
+	legacy := mocks.NewMockReservationService(ctrl)
+	var inputs []tracercontract.ReserveRequest
+	outcome := &tracercontract.ReserveResult{ContractRevision: expected.ContractRevision, TransactionID: expected.TransactionID, EvaluationID: testutil.MustDeterministicUUID(88201), Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}}
+	admission.EXPECT().Execute(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, input tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+		inputs = append(inputs, input)
+		return outcome, nil
+	}).Times(2)
+	identity := contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "origin-a"}
+	app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
+	app.Use(func(c fiber.Ctx) error {
+		c.SetContext(contextutil.WithIntegrationIdentity(c.Context(), identity))
+		return c.Next()
+	})
+	libProblem.Install()
+	api := openapi.New(app, app.Group("/v1"), openapi.Config{Title: "context reservation", Version: "test"})
+	handler, err := NewContextReservationHandler(admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), bounds, 65536, 100)
+	require.NoError(t, err)
+	RegisterContextReservationRoutes(api, handler, nil)
+	response := postCharacterizationReserve(t, app, raw)
 	require.Equal(t, http.StatusCreated, response.StatusCode)
-	server, err := grpcin.NewReservationServer(service, clock.NewFixedClock(now))
+	var rest tracercontract.ReserveResult
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&rest))
+	server, err := grpcin.NewContextReservationServer(legacy, clock.NewFixedClock(testutil.FixedTime()), admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
 	require.NoError(t, err)
-	_, err = server.Reserve(context.Background(), request)
+	request, err := contractpb.EncodeReserve(t.Context(), expected, identity.AssetNamespace, bounds)
 	require.NoError(t, err)
+	wire, err := server.Reserve(contextutil.WithIntegrationIdentity(t.Context(), identity), request)
+	require.NoError(t, err)
+	rpc, err := contractpb.DecodeResult(wire, 100)
+	require.NoError(t, err)
+	require.Equal(t, rest, *rpc)
 	require.Len(t, inputs, 2)
-	rest, rpc := inputs[0], inputs[1]
-	require.Nil(t, rest.SegmentID)
-	require.Nil(t, rest.PortfolioID)
-	require.Nil(t, rest.MerchantID)
-	require.NotNil(t, rpc.SegmentID)
-	require.NotNil(t, rpc.PortfolioID)
-	require.NotNil(t, rpc.MerchantID)
-	require.Equal(t, request.SegmentId, rpc.SegmentID.String())
-	require.Equal(t, request.PortfolioId, rpc.PortfolioID.String())
-	require.Equal(t, request.MerchantId, rpc.MerchantID.String())
-	rpc.SegmentID, rpc.PortfolioID, rpc.MerchantID = nil, nil, nil
-	require.Equal(t, rest, rpc, "all other normalized inputs must agree, including the exact fractional amount")
-}
-
-func TestReserveCharacterizationNativeAssetRejectedByBothTransports(t *testing.T) {
-	raw, request, now := scopedReserveFixture(t)
-	raw = bytes.Replace(raw, []byte(`"BRL"`), []byte(`"BTC"`), 1)
-	request.Asset = "BTC"
-	service := mocks.NewMockReservationService(gomock.NewController(t))
-	response := postCharacterizationReserve(t, characterizationReserveApp(t, service, now), raw)
-	require.Equal(t, http.StatusBadRequest, response.StatusCode)
-	var problem struct {
-		Code string `json:"code"`
-	}
-	require.NoError(t, json.NewDecoder(response.Body).Decode(&problem))
-	require.Equal(t, constant.ErrValidationInvalidCurrency.Error(), problem.Code)
-	server, err := grpcin.NewReservationServer(service, clock.NewFixedClock(now))
-	require.NoError(t, err)
-	_, err = server.Reserve(context.Background(), request)
-	require.Equal(t, codes.InvalidArgument, status.Code(err))
-	require.Equal(t, constant.ErrValidationInvalidCurrency.Error(), status.Convert(err).Message())
+	require.Equal(t, expected, inputs[0])
+	require.Equal(t, inputs[0], inputs[1])
 }
 
 func TestReserveCharacterizationNativeAccountVocabulary(t *testing.T) {
@@ -151,7 +142,7 @@ func TestReserveCharacterizationNativeAccountVocabulary(t *testing.T) {
 
 func TestReserveCharacterizationNativeAssetLimit(t *testing.T) {
 	_, request, now := scopedReserveFixture(t)
-	accountID := uuid.MustParse(request.Account.AccountId)
+	accountID := request.Account.ID
 	for _, asset := range []string{"BRL", "BTC"} {
 		t.Run(asset, func(t *testing.T) {
 			limit, err := model.NewLimit("account daily limit", model.LimitTypeDaily, decimal.NewFromInt(100), asset,

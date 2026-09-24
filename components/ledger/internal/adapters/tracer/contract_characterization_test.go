@@ -14,12 +14,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // This baseline intentionally records the current flat scope fields. The Tracer
 // adapter characterization consumes this same fixture and proves the REST loss.
-// Replace both expectations during the coordinated contract migration.
+// The replacement gRPC contract rejects this legacy shape instead of inventing facts.
 func TestReserveCharacterizationScopedLedgerWire(t *testing.T) {
 	t.Parallel()
 	fixture, err := os.ReadFile("testdata/reserve_scoped.json")
@@ -49,7 +48,4 @@ func TestReserveCharacterizationScopedLedgerWire(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, input.TransactionID, result.TransactionID)
 	require.JSONEq(t, string(fixture), string(<-captured))
-	encoded, err := protojson.Marshal(toProtoReserveRequest(input))
-	require.NoError(t, err)
-	require.JSONEq(t, string(fixture), string(encoded))
 }

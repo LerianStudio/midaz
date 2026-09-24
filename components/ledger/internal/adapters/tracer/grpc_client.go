@@ -12,7 +12,6 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -23,6 +22,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
@@ -132,39 +132,10 @@ func (c *TracerGRPCClient) Close() error {
 // Reserve holds limit capacity for a transaction (phase one). A DENIED decision
 // comes back as a successful ReserveResult with Denied=true (not an error); only
 // transport / availability failures return ErrTracerUnavailable.
-func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*ReserveResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "tracer.grpc_client.reserve")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("app.request.transaction_id", req.TransactionID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	resp, err := c.client.Reserve(ctx, toProtoReserveRequest(req))
-	if err != nil {
-		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", mapped)
-
-		return nil, mapped
-	}
-
-	result, err := fromProtoReserveResult(resp)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to map reserve response", err)
-		return nil, err
-	}
-
-	logger.Log(
-		ctx, libLog.LevelDebug, "Reservation processed",
-		libLog.String("transaction_id", req.TransactionID.String()),
-		libLog.Bool("denied", result.Denied),
-		libLog.Int("reservations", len(result.ReservationIDs)),
-	)
-
-	return result, nil
+func (c *TracerGRPCClient) Reserve(_ context.Context, _ ReserveRequest) (*ReserveResult, error) {
+	// A legacy envelope has no authenticated asset identity or complete facts.
+	// Never manufacture a context or send it under the replacement wire contract.
+	return nil, constant.ErrInvalidRequestBody
 }
 
 // Confirm commits a held reservation by id (phase two — commit).
@@ -281,58 +252,6 @@ func tenantUnaryInterceptor(
 	}
 
 	return invoker(ctx, method, req, reply, cc, opts...)
-}
-
-// toProtoReserveRequest mirrors the REST ReserveRequest onto the proto message
-// field-for-field. The account is always sent as a populated message; an empty
-// AccountID serializes to an empty account_id, which the tracer's relaxed reserve
-// validation treats the same way the REST {} body is treated.
-func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
-	return &reservationv1.ReserveRequest{
-		TransactionId:        req.TransactionID.String(),
-		RequestId:            req.RequestID,
-		Amount:               req.Amount,
-		Asset:                req.Asset,
-		Account:              &reservationv1.ReserveAccount{AccountId: req.Account.AccountID},
-		SegmentId:            req.SegmentID,
-		PortfolioId:          req.PortfolioID,
-		MerchantId:           req.MerchantID,
-		TransactionType:      req.TransactionType,
-		TransactionTimestamp: req.TransactionTimestamp,
-		LongLived:            req.LongLived,
-	}
-}
-
-// fromProtoReserveResult maps the proto reserve response back onto the REST
-// result type the TracerReserver port speaks. Reservation ids are parsed back to
-// uuid.UUID; a malformed id from the tracer is a contract violation, surfaced as
-// an error rather than silently dropped.
-func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, error) {
-	if resp == nil {
-		return nil, errors.New("nil reserve result from tracer")
-	}
-
-	transactionID, err := uuid.Parse(resp.GetTransactionId())
-	if err != nil {
-		return nil, fmt.Errorf("parse reserve result transaction id: %w", err)
-	}
-
-	ids := make([]uuid.UUID, 0, len(resp.GetReservationIds()))
-
-	for _, raw := range resp.GetReservationIds() {
-		id, err := uuid.Parse(raw)
-		if err != nil {
-			return nil, fmt.Errorf("parse reservation id: %w", err)
-		}
-
-		ids = append(ids, id)
-	}
-
-	return &ReserveResult{
-		TransactionID:  transactionID,
-		Denied:         resp.GetDenied(),
-		ReservationIDs: ids,
-	}, nil
 }
 
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.

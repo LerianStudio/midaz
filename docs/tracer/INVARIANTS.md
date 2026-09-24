@@ -373,7 +373,7 @@ Configuration is copied at construction. A namespace has one integration owner,
 and an integration has one namespace. Multiple exact URI registrations may map
 to that same pair for certificate/workload identity rotation. The registry checks
 the explicit context namespace byte bound, without normalization or wildcards.
-It is currently a composition API, not a new environment flag or deployed route.
+The context Reserve bootstrap consumes this registry only in native mTLS mode.
 
 `ResolveContextPolicyQuery` receives the opaque producer-derived context ID and
 reads the integration identity from authenticated request context. It returns
@@ -396,9 +396,8 @@ is shared with waiters, while canceling a waiter does not cancel the leader.
 Saturation returns an availability error without an internal retry or queue.
 This query does not cache decisions or activate the new Reserve path.
 
-These adapters are foundations for the coordinated Reserve migration. Existing
-Reserve remains unchanged until durable decision recording and the new contract
-are ready. Mesh-terminated plaintext is rejected by this native TLS resolver;
+The context Reserve bootstrap mounts these adapters on the existing routes when
+explicitly enabled. Mesh-terminated plaintext is rejected by this native TLS resolver;
 context Reserve in mesh mode still requires a separately verified workload
 identity source and deployment wiring. No identity header is trusted implicitly.
 
@@ -430,10 +429,35 @@ successful decision and are never retried internally. Existing completion settle
 the saved handles without reevaluating policy. The reservation expiry column is
 informational for this profile; TTL never proves an accounting outcome.
 
-This command is not yet wired into the REST/gRPC routes or the Ledger client.
-The coordinated transport replacement and durable Ledger recovery remain required
-before activation. Timestamp, resource and retention values must be supplied by
-the composition root; test values are not production defaults.
+The REST and gRPC adapters share this command and the contract codecs. Bootstrap
+is opt-in through `CONTEXT_RESERVE_ENABLED`; body, fact, limit, reservation, CEL
+and compiled-policy-cache bounds are explicit, not inferred from test fixtures.
+Native mTLS and a registered producer URI are mandatory. Reserve uses producer
+certificate authorization; administrative endpoints retain their separate RBAC.
+HTTP completion without a revision body additionally requires the legacy guard.
+
+The protobuf Reserve replacement intentionally removes its old fields and reserves
+their numbers/names. Its RPC and HTTP URLs do not change. An absent/unknown revision,
+legacy payload, missing explicit boolean or contradictory namespace is rejected;
+clients require the revision and completed-control echo and reject legacy replies.
+The protobuf breaking check therefore reports the approved removals; it is not
+silently disabled. Coordinated deployment must prevent old and new admission
+traffic from mixing. This change does not authorize activation or deployment.
+
+A revised completion addressed by reservation ID resolves its immutable owner on
+the tenant primary and completes the **entire operation** through the same atomic
+coordinator as transaction-addressed completion. It cannot partially confirm/release
+one of that operation's holds. Replay adds no capacity movements or audit events;
+opposite outcomes conflict. Foreign producer, tenant and legacy reservation IDs
+cannot resolve to a new operation. Empty-revision legacy lifecycle calls retain
+their old individual/transaction semantics and cannot mutate coordinated records.
+
+Shared-contract Ledger HTTP/gRPC clients are available. The Ledger transaction
+anchor, official-facts loading and durable recovery still require wiring before
+activation. The old Ledger gRPC Reserve DTO is rejected locally rather than
+inventing missing facts; legacy completion remains available for draining old
+reservations. Timestamp, resource and retention values come from the composition
+root; test values are not production defaults.
 
 ### Evaluation semantics
 
