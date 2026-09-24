@@ -304,6 +304,8 @@ func allSentinels() map[string]error {
 		"ErrReserveOperationConflict":                 constant.ErrReserveOperationConflict,
 		"ErrContextLimitsUnavailable":                 constant.ErrContextLimitsUnavailable,
 		"ErrTracerFactsUnavailable":                   constant.ErrTracerFactsUnavailable,
+		"ErrTracerContractUnavailable":                constant.ErrTracerContractUnavailable,
+		"ErrTransactionReviewRequired":                constant.ErrTransactionReviewRequired,
 		"ErrLimitAssetReferenceConflict":              constant.ErrLimitAssetReferenceConflict,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
@@ -1127,4 +1129,18 @@ func TestGolden_TracerFactsUnavailable(t *testing.T) {
 	status, code := driveWithError(t, err)
 	assert.Equal(t, fiber.StatusServiceUnavailable, status)
 	assert.Equal(t, "0524", code)
+}
+
+func TestGolden_TracerContractUnavailable(t *testing.T) {
+	t.Parallel()
+	status, code := driveWithError(t, pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, "GoldenEntity"))
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, "0525", code)
+}
+
+func TestGolden_TransactionReviewRequired(t *testing.T) {
+	t.Parallel()
+	status, code := driveWithError(t, pkg.ValidateBusinessError(constant.ErrTransactionReviewRequired, "GoldenEntity"))
+	assert.Equal(t, fiber.StatusUnprocessableEntity, status)
+	assert.Equal(t, "0526", code)
 }
