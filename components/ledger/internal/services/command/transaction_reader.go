@@ -74,6 +74,21 @@ type TransactionGroupReader interface {
 	FindTransactionsByGroupID(context.Context, uuid.UUID) ([]*transaction.Transaction, error)
 }
 
+// TransactionGroupMemberResolver locates the members of a cross-ledger group
+// for the lifecycle paths, which run before the asynchronous projection may
+// have reached PostgreSQL.
+type TransactionGroupMemberResolver interface {
+	// ResolveTransactionGroupMembers returns the members of the grouped
+	// execution that last applied the addressed transaction, the addressed one
+	// included: a hold's origins, or every part of a direct group or a commit.
+	// When the addressed transaction has no engine index, or its execution
+	// recorded no member manifest, it returns the group's rows read from the
+	// primary by groupID. A manifest member that cannot be found answers
+	// ErrCrossLedgerGroupIncomplete; the result never mixes the manifest with a
+	// partial primary listing.
+	ResolveTransactionGroupMembers(ctx context.Context, organizationID, ledgerID, transactionID, groupID uuid.UUID) ([]*transaction.Transaction, error)
+}
+
 func resolveTransactionProjection(
 	ctx context.Context,
 	reader TransactionReader,

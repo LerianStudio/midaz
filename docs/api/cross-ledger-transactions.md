@@ -79,12 +79,32 @@ cancel; destination reservations are created only for commit. `/v1` commit,
 cancel, or revert cannot return a group and rejects a group member with `0252`
 (HTTP 422).
 
+## Member resolution
+
+Commit, cancel, and revert answer the same way right after the create as they
+do once the members are persisted, including when the ledger projects
+transactions asynchronously. Every grouped accounting execution records the
+transactions it applied, each with its organization and ledger, and the
+engine index of each of those transactions points at its latest execution.
+The lifecycle reads that list from the addressed member and resolves each
+listed transaction through the engine index, falling back to the PostgreSQL
+primary for a member that is no longer indexed:
+
+- after a hold, an origin lists every origin, which commit and cancel need;
+- after a direct create or a commit, any member lists the whole approved
+  group, which revert needs.
+
+When the addressed member has no index, or its execution recorded no list, the
+members are read from the PostgreSQL primary by `groupId`. A listed member
+found in neither source returns `0253` (HTTP 422). Roles still come from the
+persisted intent, never from the list.
+
 ## Revert
 
-A v2 revert addressed to any member loads every transaction with the same
-`groupId` inside the authenticated tenant, validates each member in its own
-organization and ledger, and submits every reversal in one accounting-engine
-invocation. Any ineligible or missing member refuses the operation before
+A v2 revert addressed to any member loads every member of the group (see
+[Member resolution](#member-resolution)) inside the authenticated tenant,
+validates each member in its own organization and ledger, and submits every
+reversal in one accounting-engine invocation. Any ineligible or missing member refuses the operation before
 accounting. Reversals are returned in the reverse order of the original parts.
 
 The HTTP 201 response uses the grouped create shape. `groupId` identifies the

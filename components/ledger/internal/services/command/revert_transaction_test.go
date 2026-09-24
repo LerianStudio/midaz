@@ -67,6 +67,10 @@ func (r *revertReader) FindTransactionsByGroupID(context.Context, uuid.UUID) ([]
 	return r.groupMembers, r.groupErr
 }
 
+func (r *revertReader) ResolveTransactionGroupMembers(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) ([]*transaction.Transaction, error) {
+	return r.groupMembers, r.groupErr
+}
+
 // revertibleOrigin builds an APPROVED transaction with one unrouted operation pair, the
 // minimum TransactionRevert needs to produce a non-empty reversal.
 func revertibleOrigin() *transaction.Transaction {

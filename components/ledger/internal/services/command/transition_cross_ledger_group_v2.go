@@ -118,12 +118,18 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	roles := crossLedgerIntentRoles(*intent)
 	roleOf := func(member *transaction.Transaction) string { return roles[crossLedgerMemberLedgerRef(member)] }
 
-	reader, ok := uc.TransactionReader.(TransactionGroupReader)
+	resolver, ok := uc.TransactionReader.(TransactionGroupMemberResolver)
 	if !ok {
-		return nil, errors.New("cross-ledger transaction group reader is not configured")
+		return nil, errors.New("cross-ledger transaction group member resolver is not configured")
 	}
 
-	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), groupID)
+	members, err := resolver.ResolveTransactionGroupMembers(
+		readrouting.WithPrimaryRead(ctx),
+		in.OrganizationID,
+		in.LedgerID,
+		in.TransactionID,
+		groupID,
+	)
 	if err != nil {
 		return nil, err
 	}

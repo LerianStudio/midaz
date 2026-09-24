@@ -23,6 +23,7 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -31,7 +32,32 @@ import (
 
 type crossLedgerLifecycleReader struct {
 	*atomicTransactionBatchSettingsReader
-	members []*transaction.Transaction
+	members        []*transaction.Transaction
+	membersErr     error
+	memberRequests []crossLedgerGroupMemberRequest
+}
+
+type crossLedgerGroupMemberRequest struct {
+	primary                                          bool
+	organizationID, ledgerID, transactionID, groupID uuid.UUID
+}
+
+// ResolveTransactionGroupMembers answers with the group's rows, as the query
+// side does once they are persisted, and records what was addressed.
+func (reader *crossLedgerLifecycleReader) ResolveTransactionGroupMembers(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID, groupID uuid.UUID,
+) ([]*transaction.Transaction, error) {
+	reader.memberRequests = append(reader.memberRequests, crossLedgerGroupMemberRequest{
+		primary:        readrouting.IsPrimaryRead(ctx),
+		organizationID: organizationID, ledgerID: ledgerID, transactionID: transactionID, groupID: groupID,
+	})
+
+	if reader.membersErr != nil {
+		return nil, reader.membersErr
+	}
+
+	return reader.FindTransactionsByGroupID(ctx, groupID)
 }
 
 // FindTransactionsByGroupID answers like the repository: transaction rows only,
@@ -206,6 +232,12 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 				assert.Empty(t, engine.executions[0].Guards[1].ExpectedToken)
 			}
 
+			reader := uc.TransactionReader.(*crossLedgerLifecycleReader)
+			assert.Equal(t, []crossLedgerGroupMemberRequest{{
+				primary:        true,
+				organizationID: in.OrganizationID, ledgerID: in.LedgerID, transactionID: in.TransactionID, groupID: group.ID,
+			}}, reader.memberRequests, "members are resolved once, from the addressed transaction, on the primary")
+
 			action := "commit"
 			if test.status == constant.CANCELED {
 				action = "cancel"
@@ -217,6 +249,63 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 			assert.Equal(t, 1, idempotency.finalizations)
 		})
 	}
+}
+
+func TestTransitionCrossLedgerGroupV2_UnresolvableMemberIsIncompleteBeforeLocksOrEngine(t *testing.T) {
+	organizationID, ledgerA, ledgerB := uuid.New(), uuid.New(), uuid.New()
+	parts, err := decomposeCrossLedgerTransaction(crossLedgerTestTransaction(
+		"100",
+		[]mtransaction.FromTo{crossLedgerAmountLeg("@debit", "100", true)},
+		[]mtransaction.FromTo{crossLedgerAmountLeg("@credit", "100", false)},
+	), crossLedgerTransactionScopes{
+		from: []atomicTransactionBatchLedgerRef{{organizationID: organizationID, ledgerID: ledgerA}},
+		to:   []atomicTransactionBatchLedgerRef{{organizationID: organizationID, ledgerID: ledgerB}},
+	})
+	require.NoError(t, err)
+	intent, err := buildCrossLedgerGroupIntent("BRL", parts)
+	require.NoError(t, err)
+	rawIntent, err := encodeCrossLedgerGroupIntent(intent)
+	require.NoError(t, err)
+
+	group := &transactiongroup.TransactionGroup{
+		ID: uuid.New(), OrganizationID: organizationID, LedgerID: ledgerA,
+		Status: constant.PENDING, AssetCode: "BRL", Intent: rawIntent,
+	}
+	groupText := group.ID.String()
+	target := &transaction.Transaction{
+		ID: uuid.NewString(), OrganizationID: organizationID.String(), LedgerID: ledgerA.String(),
+		GroupID: &groupText, Status: transaction.Status{Code: constant.PENDING},
+	}
+
+	ctrl := gomock.NewController(t)
+	repo := transactiongroup.NewMockRepository(ctrl)
+	repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
+	engine := &applyingCrossLedgerLifecycleEngine{t: t}
+	reader := &crossLedgerLifecycleReader{
+		atomicTransactionBatchSettingsReader: &atomicTransactionBatchSettingsReader{},
+		membersErr:                           pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction),
+	}
+	idempotency := &atomicTransactionBatchClaimRepositoryFake{}
+	uc := &UseCase{
+		TransactionGroupRepo:                  repo,
+		TransactionReader:                     reader,
+		TransactionRedisRepo:                  txRedis.NewMockRedisRepository(ctrl),
+		AtomicTransactionBatchIdempotencyRepo: idempotency,
+		Engine:                                engine,
+		AppliedTransactionCompleter:           &createAppliedTransactionCompleter{},
+	}
+
+	result, err := uc.transitionCrossLedgerGroupV2(context.Background(), pendingTransitionInputFor(target), target, constant.APPROVED)
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	var business pkg.UnprocessableOperationError
+	require.True(t, errors.As(err, &business))
+	assert.Equal(t, constant.ErrCrossLedgerGroupIncomplete.Error(), business.Code)
+	assert.Len(t, reader.memberRequests, 1)
+	assert.Empty(t, engine.executions)
+	assert.Empty(t, engine.guards)
+	assert.Zero(t, idempotency.claims)
 }
 
 func newCrossLedgerLifecycleFixture(

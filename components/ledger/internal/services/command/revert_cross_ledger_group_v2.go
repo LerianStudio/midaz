@@ -99,12 +99,18 @@ func (uc *UseCase) revertCrossLedgerGroupV2(
 		attribute.String("app.request.group_id", revertedGroupID.String()),
 	)
 
-	reader, ok := uc.TransactionReader.(TransactionGroupReader)
+	resolver, ok := uc.TransactionReader.(TransactionGroupMemberResolver)
 	if !ok {
-		return nil, errors.New("cross-ledger transaction group reader is not configured")
+		return nil, errors.New("cross-ledger transaction group member resolver is not configured")
 	}
 
-	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), revertedGroupID)
+	members, err := resolver.ResolveTransactionGroupMembers(
+		readrouting.WithPrimaryRead(ctx),
+		in.OrganizationID,
+		in.LedgerID,
+		in.TransactionID,
+		revertedGroupID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -337,12 +343,18 @@ func (uc *UseCase) withCrossLedgerRevertMemberError(
 		return primary
 	}
 
-	reader, ok := uc.TransactionReader.(TransactionGroupReader)
+	resolver, ok := uc.TransactionReader.(TransactionGroupMemberResolver)
 	if !ok {
 		return primary
 	}
 
-	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), groupID)
+	members, err := resolver.ResolveTransactionGroupMembers(
+		readrouting.WithPrimaryRead(ctx),
+		in.OrganizationID,
+		in.LedgerID,
+		in.TransactionID,
+		groupID,
+	)
 	if err != nil {
 		return primary
 	}
