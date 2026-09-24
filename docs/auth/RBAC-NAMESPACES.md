@@ -338,3 +338,20 @@ Application tokens additionally require `AUTH_M2M_INVERSION_ENABLED=true` and
 `AUTH_M2M_PRODUCT_FORWARD_ENABLED=true`, so Access Manager checks their actual
 subject in the Tracer namespace. Legacy fabricated editor-role authorization is
 refused. These routes do not enable shared-context evaluation in Reserve.
+
+
+## Tracer official asset association
+
+`PUT /v1/limits/{id}/asset-reference` requires both a verified producer identity
+from the native mTLS connection and `tracer:limit-asset-references:put` through
+Access Manager. This grant administers limits within the authenticated tenant;
+it does not grant access to another tenant. A certificate alone, a JWT alone,
+a validation API key or forwarded identity headers are insufficient.
+
+`CONTEXT_LIMIT_ADMIN_ENABLED=true` requires plugin auth, `TRACER_TLS_MODE=mtls`,
+the explicit fact/scope/body bounds and `CONTEXT_PRODUCER_BINDINGS` documented in
+the Tracer `.env.example`. Policy administration need not be enabled. Application
+tokens require the same real-subject M2M settings as policy administration. The
+producer must obtain complete official account/asset facts; a human-entered code
+is not a substitute. Association is immutable, audited and conflicts on repeat.
+Enabling this route does not enable the new Reserve contract or migrate data.

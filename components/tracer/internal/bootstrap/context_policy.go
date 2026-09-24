@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
-	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 type contextPolicyConfig struct {
@@ -34,14 +33,9 @@ func loadContextPolicyConfig(cfg *Config) (*contextPolicyConfig, error) {
 		return nil, fmt.Errorf("CONTEXT_POLICY_ADMIN_ENABLED requires PLUGIN_AUTH_ENABLED")
 	}
 
-	fraction, err := strconv.Atoi(cfg.ContextMaxFractionDigits)
-	if err != nil || fraction < 0 {
-		return nil, fmt.Errorf("CONTEXT_MAX_FRACTION_DIGITS must be explicitly set to a nonnegative integer")
-	}
-
-	bounds := tracercontract.Limits{MaxAccounts: cfg.ContextMaxAccounts, MaxEntries: cfg.ContextMaxEntries, MaxTextBytes: cfg.ContextMaxTextBytes, MaxIntegerDigits: cfg.ContextMaxIntegerDigits, MaxFractionDigits: fraction}
-	if err := bounds.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid CONTEXT resource bounds: %w", err)
+	bounds, err := loadContextFactBounds(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	cost, err := strconv.ParseUint(cfg.ContextCELCostLimit, 10, 64)

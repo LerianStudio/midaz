@@ -20,9 +20,9 @@ import (
 // exactly match the client leaf's sole URI SAN. Multiple bindings may map
 // rotating service identities to the same integration and asset namespace.
 type Binding struct {
-	URI            string
-	IntegrationID  string
-	AssetNamespace string
+	URI            string `json:"uri"`
+	IntegrationID  string `json:"integrationId"`
+	AssetNamespace string `json:"assetNamespace"`
 }
 
 // Resolver holds an immutable allowlist shared by HTTP and gRPC adapters.

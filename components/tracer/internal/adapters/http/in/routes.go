@@ -153,6 +153,7 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 //     The two-phase reservation API is additive; a build that has not wired the
 //     reservation service simply does not expose it.
 type RoutesDeps struct {
+	LimitAssetAdmin              *LimitAssetHandler
 	ContextPolicyService         ContextPolicyAdminService
 	ContextPolicyMaxRules        int
 	ContextPolicyMaxBodyBytes    int
@@ -456,6 +457,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	registerTracerHumaRoutes(api, humaAPI, tracerHumaHandlers{
 		Guard:                 guard,
 		ContextPolicy:         contextPolicyHandler,
+		LimitAssetAdmin:       deps.LimitAssetAdmin,
 		APIKeyOnlyValidation:  cfg.APIKeyOnlyValidation,
 		Rule:                  NewHandler(ruleService),
 		Limit:                 NewLimitHandler(limitService),
@@ -504,6 +506,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 //     NewRoutes from pgManager+multiTenantEnabled. Tests may pass nil (the
 //     reservation routes are skipped when Reservation is nil anyway).
 type tracerHumaHandlers struct {
+	LimitAssetAdmin       *LimitAssetHandler
 	ContextPolicy         *ContextPolicyHandler
 	Guard                 *middleware.AuthGuard
 	APIKeyOnlyValidation  bool
@@ -522,7 +525,7 @@ type tracerHumaHandlers struct {
 	Dashboard *DashboardHandler
 }
 
-// registerTracerHumaRoutes mounts all 32 tracer Huma operations on the given
+// registerTracerHumaRoutes mounts all tracer Huma operations on the given
 // Huma API, attaching each op's pre-Huma Fiber auth chain to the SAME /v1 group
 // first. It is the single registration seam shared by production (NewRoutes) and
 // the http/in tests, so the mounted surface is identical without a running
@@ -535,6 +538,10 @@ type tracerHumaHandlers struct {
 // behavior.
 func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
 	guard := h.Guard
+	if h.LimitAssetAdmin != nil {
+		api.Put("/limits/:id/asset-reference", NewReservationIdentityMiddleware(h.LimitAssetAdmin.identity), guard.WithPolicyPermission("limit-asset-references", "put"))
+		RegisterLimitAssetRoutes(humaAPI, h.LimitAssetAdmin)
+	}
 	if h.ContextPolicy != nil {
 		api.Post("/policies", guard.WithPolicyPermission("policies", "post"))
 		api.Get("/policies/:id/revisions/:revision", guard.WithPolicyPermission("policies", "get"))
