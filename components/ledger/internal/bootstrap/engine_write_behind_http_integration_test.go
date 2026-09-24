@@ -40,6 +40,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	transactionMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
@@ -57,6 +58,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -87,6 +89,7 @@ type engineWriteBehindHTTPIntegration struct {
 
 type engineWriteBehindHTTPResponse struct {
 	status   int
+	header   http.Header
 	body     []byte
 	decoded  map[string]any
 	replayed string
@@ -202,6 +205,51 @@ func TestIntegrationEngineWriteBehindHTTPReturnsBeforeProjectionAndConverges(t *
 		require.NoError(t, err)
 		assert.False(t, queued, "an unroutable publish must not be reported as queued")
 	})
+}
+
+func TestIntegrationEngineWriteBehindHTTPGetResolvesMissingAndOperationlessTransactions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+
+	infra := setupEngineWriteBehindHTTPIntegration(t)
+	app := infra.newHTTPApp("")
+
+	missing := map[string]uuid.UUID{"random missing ID": uuid.New(), "nil ID": uuid.Nil}
+	for name, transactionID := range missing {
+		t.Run(name+" is not found on v1 legacy envelope", func(t *testing.T) {
+			get := infra.getTransaction(t, app, "v1", transactionID)
+			require.Equalf(t, http.StatusNotFound, get.status, "GET must report a missing transaction: %s", get.body)
+			assert.Equal(t, fiber.MIMEApplicationJSON, get.header.Get(fiber.HeaderContentType))
+			assert.Equal(t, constant.ErrEntityNotFound.Error(), get.decoded["code"])
+			assert.Contains(t, get.decoded, "message")
+		})
+
+		t.Run(name+" is not found on v2 problem document", func(t *testing.T) {
+			get := infra.getTransaction(t, app, "v2", transactionID)
+			require.Equalf(t, http.StatusNotFound, get.status, "GET must report a missing transaction: %s", get.body)
+			assert.Equal(t, "application/problem+json", get.header.Get(fiber.HeaderContentType))
+			assert.Equal(t, constant.ErrEntityNotFound.Error(), get.decoded["code"])
+			assert.Contains(t, get.decoded, "detail")
+		})
+	}
+
+	persisted := infra.createTransactionWithoutOperations(t)
+	for _, version := range []string{"v1", "v2"} {
+		t.Run("row without persisted operations is returned with an empty list on "+version, func(t *testing.T) {
+			get := infra.getTransaction(t, app, version, persisted)
+			require.Equalf(t, http.StatusOK, get.status, "GET must return the persisted row: %s", get.body)
+			assert.Equal(t, persisted.String(), get.decoded["id"])
+			status, ok := get.decoded["status"].(map[string]any)
+			require.Truef(t, ok, "response must carry a status object: %s", get.body)
+			assert.Equal(t, constant.NOTED, status["code"])
+			assert.Equal(t, []any{}, get.decoded["operations"])
+			assert.Equal(t, "false", get.header.Get("X-Cache-Hit"))
+		})
+	}
 }
 
 func TestIntegrationEngineWriteBehindConsumerWiring(t *testing.T) {
@@ -404,6 +452,8 @@ func setupEngineWriteBehindHTTPIntegration(tb testing.TB) *engineWriteBehindHTTP
 
 func (infra *engineWriteBehindHTTPIntegration) newHTTPApp(tenantID string) *fiber.App {
 	app := fiber.New()
+	app.Use(ledgerMiddleware.ErrorEnvelope())
+
 	if tenantID != "" {
 		app.Use(func(c fiber.Ctx) error {
 			c.SetContext(tmcore.ContextWithTenantID(c.Context(), tenantID))
@@ -533,6 +583,28 @@ func (infra *engineWriteBehindHTTPIntegration) postCreate(tb testing.TB, app *fi
 	return performEngineWriteBehindHTTPRequest(t, app, request)
 }
 
+// createTransactionWithoutOperations persists only the transaction row, the
+// shape a reader observes while the legacy persistence path has written the row
+// but not yet its operations.
+func (infra *engineWriteBehindHTTPIntegration) createTransactionWithoutOperations(tb testing.TB) uuid.UUID {
+	tb.Helper()
+	t := tb
+	transactionID := uuid.New()
+	amount := decimal.NewFromInt(100)
+	recordedAt := time.Date(2026, time.September, 24, 12, 0, 0, 0, time.UTC)
+
+	_, err := infra.query.TransactionRepo.Create(context.Background(), &transaction.Transaction{
+		ID: transactionID.String(), Description: "annotation", Status: transaction.Status{Code: constant.NOTED},
+		Amount: &amount, AssetCode: "USD", ChartOfAccountsGroupName: "annotation",
+		OrganizationID: infra.organization.String(), LedgerID: infra.ledger.String(),
+		CreatedAt: recordedAt, UpdatedAt: recordedAt,
+	})
+	require.NoError(t, err)
+	infra.requireProjection(t, context.Background(), transactionID, 1, 0, 0)
+
+	return transactionID
+}
+
 func (infra *engineWriteBehindHTTPIntegration) getTransaction(tb testing.TB, app *fiber.App, version string, transactionID uuid.UUID) engineWriteBehindHTTPResponse {
 	tb.Helper()
 	t := tb
@@ -550,7 +622,7 @@ func performEngineWriteBehindHTTPRequest(tb testing.TB, app *fiber.App, request 
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
 
-	result := engineWriteBehindHTTPResponse{status: response.StatusCode, body: body, replayed: response.Header.Get("X-Idempotency-Replayed")}
+	result := engineWriteBehindHTTPResponse{status: response.StatusCode, header: response.Header, body: body, replayed: response.Header.Get("X-Idempotency-Replayed")}
 	_ = json.Unmarshal(body, &result.decoded)
 
 	return result

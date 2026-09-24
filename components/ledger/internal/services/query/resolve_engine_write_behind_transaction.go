@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
@@ -66,7 +67,8 @@ func (uc *UseCase) CanResolveEngineWriteBehind() bool {
 // An index read that fails on transport is not an absence: a reachable index
 // may already describe an execution SQL has not received, so the read
 // propagates instead of falling back. Only ErrEngineWriteBehindNotFound proves
-// there is no newer accounting state to miss.
+// there is no newer accounting state to miss. A scope carrying a nil ID skips
+// the index: the engine never indexes one, so only the primary can answer it.
 //
 //nolint:gocognit,gocyclo // the materialized/evidence/primary chain deliberately classifies each corruption and miss independently
 func (uc *UseCase) ResolveEngineWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*EngineTransactionResolution, error) {
@@ -75,7 +77,7 @@ func (uc *UseCase) ResolveEngineWriteBehindTransaction(ctx context.Context, orga
 		repository, _ = uc.TransactionRedisRepo.(redis.EngineWriteBehindRepository)
 	}
 
-	if repository == nil {
+	if repository == nil || organizationID == uuid.Nil || ledgerID == uuid.Nil || transactionID == uuid.Nil {
 		return uc.resolveEngineTransactionFromPrimary(ctx, organizationID, ledgerID, transactionID)
 	}
 
@@ -172,9 +174,24 @@ func (uc *UseCase) resolveEngineTransactionFromPrimary(ctx context.Context, orga
 		return nil, redis.ErrEngineWriteBehindNotFound
 	}
 
-	tran, err := uc.TransactionRepo.FindWithOperations(readrouting.WithPrimaryRead(ctx), organizationID, ledgerID, transactionID)
-	if err != nil || tran == nil {
+	primaryCtx := readrouting.WithPrimaryRead(ctx)
+
+	tran, err := uc.TransactionRepo.FindWithOperations(primaryCtx, organizationID, ledgerID, transactionID)
+	if err != nil {
 		return nil, err
+	}
+
+	// FindWithOperations joins on operations, so a missing transaction and a row
+	// whose operations are not persisted yet both come back as an empty value. The
+	// row-only read tells them apart: not-found for the first, the real row for
+	// the second.
+	if tran == nil || tran.ID == "" {
+		tran, err = uc.TransactionRepo.Find(primaryCtx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			return nil, err
+		}
+
+		tran.Operations = []*operation.Operation{}
 	}
 
 	if uc.TransactionMetadataRepo != nil {
