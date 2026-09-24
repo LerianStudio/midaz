@@ -183,9 +183,20 @@ func validateAccount(account Account, namespace string, limits Limits, accounts 
 	return validateAsset(account.Asset, namespace, limits, assets)
 }
 
-func validateAsset(asset AssetRef, namespace string, limits Limits, seen map[AssetIdentity]string) error {
-	if asset.Namespace != namespace || !validText(asset.ID, limits.MaxTextBytes) || !validText(asset.Code, limits.MaxTextBytes) {
+// Validate checks one reference against an already authorized namespace. It
+// does not resolve an asset registry or authorize caller-supplied namespaces.
+func (a AssetRef) Validate(namespace string, maxTextBytes int) error {
+	if !validText(namespace, maxTextBytes) || a.Namespace != namespace ||
+		!validText(a.ID, maxTextBytes) || !validText(a.Code, maxTextBytes) {
 		return invalid("asset reference")
+	}
+
+	return nil
+}
+
+func validateAsset(asset AssetRef, namespace string, limits Limits, seen map[AssetIdentity]string) error {
+	if err := asset.Validate(namespace, limits.MaxTextBytes); err != nil {
+		return err
 	}
 
 	if code, exists := seen[asset.Identity()]; exists && code != asset.Code {

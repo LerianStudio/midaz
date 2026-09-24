@@ -497,6 +497,10 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrContextLimitsUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrContextLimitsUnavailable.Error(),
+			Title: "Account Limits Unavailable", Message: "The account and asset limit configuration is incomplete or cannot be evaluated safely.",
+		},
 		constant.ErrReserveOperationConflict: EntityConflictError{
 			EntityType: entityType, Code: constant.ErrReserveOperationConflict.Error(),
 			Title: "Reserve Operation Conflict", Message: "The operation has already completed or the requested completion contradicts its recorded outcome.",

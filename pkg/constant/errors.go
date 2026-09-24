@@ -682,6 +682,8 @@ var (
 	ErrReserveDecisionConflict = errors.New("0539")
 	// ErrReserveOperationConflict reports a late evaluation or contradictory completion.
 	ErrReserveOperationConflict = errors.New("0540")
+	// ErrContextLimitsUnavailable reports incomplete or unusable account/asset limit configuration.
+	ErrContextLimitsUnavailable = errors.New("0531")
 )
 
 // List of CRM domain errors.
