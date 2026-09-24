@@ -71,6 +71,54 @@ func TestObligationDurabilityAndFencing(t *testing.T) {
 	require.Error(t, err, "rollback must preserve coordination history")
 }
 
+func TestObligationBatchFenceIsAtomicAndOrdered(t *testing.T) {
+	infra := pgtestutil.SetupMigratedContainer(t, "transaction")
+	ctx := tmcore.ContextWithPG(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), dbresolver.New(dbresolver.WithPrimaryDBs(infra.DB)), constant.ModuleTransaction)
+	first, cfg := obligationFixture(t)
+	repo, err := NewRepository(nil, cfg, true, 10)
+	require.NoError(t, err)
+	_, err = repo.Prepare(ctx, first)
+	require.NoError(t, err)
+	request, err := first.Request(ctx, cfg)
+	require.NoError(t, err)
+	request.TransactionID = uuid.MustParse("ffffffff-ffff-4fff-8fff-ffffffffffff")
+	request.RequestID = uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	secondKey := first.Key
+	secondKey.TransactionID = request.TransactionID
+	second, err := tracerreservation.NewIntent(ctx, secondKey, first.ExecutionID, first.Scope, request, first.CreatedAt, first.PrepareDeadline, cfg)
+	require.NoError(t, err)
+	keys := []tracerreservation.Key{first.Key, second.Key}
+	at := first.CreatedAt.Add(time.Millisecond)
+	require.ErrorIs(t, repo.BeginExecutions(ctx, keys, at), constant.ErrReserveOperationConflict)
+	stored, err := repo.Find(ctx, first.Key)
+	require.NoError(t, err)
+	require.Equal(t, tracerreservation.Prepared, stored.State, "missing second member rolls back first acquisition")
+	_, err = repo.Prepare(ctx, second)
+	require.NoError(t, err)
+	require.ErrorIs(t, repo.BeginExecutions(ctx, []tracerreservation.Key{first.Key, first.Key}, at), constant.ErrInvalidRequestBody)
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, order := range [][]tracerreservation.Key{keys, {second.Key, first.Key}} {
+		go func() { <-start; results <- repo.BeginExecutions(ctx, order, at) }()
+	}
+	close(start)
+	left, right := <-results, <-results
+	if left == nil {
+		require.ErrorIs(t, right, constant.ErrReserveOperationConflict)
+	} else {
+		require.ErrorIs(t, left, constant.ErrReserveOperationConflict)
+		require.NoError(t, right)
+	}
+	for _, key := range keys {
+		stored, err := repo.Find(ctx, key)
+		require.NoError(t, err)
+		require.Equal(t, tracerreservation.Executing, stored.State)
+		foreign, err := repo.Find(tmcore.ContextWithTenantID(ctx, "tenant-b"), key)
+		require.NoError(t, err)
+		require.Nil(t, foreign)
+	}
+}
+
 func TestObligationExpiryRacesExecution(t *testing.T) {
 	infra := pgtestutil.SetupMigratedContainer(t, "transaction")
 	ctx := tmcore.ContextWithPG(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), dbresolver.New(dbresolver.WithPrimaryDBs(infra.DB)), constant.ModuleTransaction)

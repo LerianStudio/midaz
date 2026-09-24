@@ -7,10 +7,12 @@
 package tracerobligation
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
@@ -185,49 +187,71 @@ func (r *Repository) readIntent(ctx context.Context, tx dbresolver.Tx, key trace
 
 // BeginExecution is a one-time CAS. A replay or expired/preempted intent cannot
 // dispatch accounting. An indeterminate commit is returned, never retried.
-func (r *Repository) BeginExecution(ctx context.Context, key tracerreservation.Key, now time.Time) (retErr error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (r *Repository) BeginExecution(ctx context.Context, key tracerreservation.Key, now time.Time) error {
+	return r.BeginExecutions(ctx, []tracerreservation.Key{key}, now)
+}
 
+// BeginExecutions fences an entire batch in one SQL transaction. Deterministic
+// lock order avoids opposing batches deadlocking; any refused member rolls back
+// every acquisition. An unknown commit is never retried.
+func (r *Repository) BeginExecutions(ctx context.Context, keys []tracerreservation.Key, now time.Time) (retErr error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 	// Nest the repository work under its semantic coordination span.
 	ctx, span := tracer.Start(ctx, "postgres.start_tracer_accounting")
 	defer span.End()
 	defer func() { finish(span, retErr) }()
 
-	if err := key.Validate(); err != nil {
-		return err
-	}
-
-	if now.IsZero() {
+	if now.IsZero() || len(keys) == 0 || len(keys) > r.maxBatch {
 		return constant.ErrInvalidRequestBody
 	}
 
+	ordered := slices.Clone(keys)
+	slices.SortFunc(ordered, compareObligationKeys)
+
+	for i, key := range ordered {
+		if err := key.Validate(); err != nil {
+			return err
+		}
+
+		if i > 0 && key == ordered[i-1] {
+			return constant.ErrInvalidRequestBody
+		}
+	}
 	tx, err := r.begin(ctx)
 	if err != nil {
 		return err
 	}
-
 	defer func() { _ = tx.Rollback() }()
 
-	result, err := tx.ExecContext(ctx, `UPDATE tracer_reservation_obligation SET state='EXECUTING',updated_at=GREATEST(updated_at,$5)
- WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4 AND state='PREPARED' AND prepare_deadline>$5`,
-		key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx), now.UTC())
-	if err != nil {
-		return fmt.Errorf("acquire accounting dispatch: %w", err)
-	}
+	for _, key := range ordered {
+		result, err := tx.ExecContext(ctx, `UPDATE tracer_reservation_obligation SET state='EXECUTING',updated_at=GREATEST(updated_at,$5)
+ WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4 AND state='PREPARED' AND prepare_deadline>$5`, key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx), now.UTC())
+		if err != nil {
+			return fmt.Errorf("acquire accounting dispatch: %w", err)
+		}
 
-	if err := requireOne(result); err != nil {
-		return err
+		if err := requireOne(result); err != nil {
+			return err
+		}
 	}
-
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit accounting dispatch: %w", err)
 	}
-
 	return nil
 }
 
-// SetOutcome accepts only proven terminal results. The caller owns the proof;
-// neither an elapsed lease nor an absent receipt is accepted as such evidence.
+func compareObligationKeys(left, right tracerreservation.Key) int {
+	if order := bytes.Compare(left.OrganizationID[:], right.OrganizationID[:]); order != 0 {
+		return order
+	}
+
+	if order := bytes.Compare(left.LedgerID[:], right.LedgerID[:]); order != 0 {
+		return order
+	}
+
+	return bytes.Compare(left.TransactionID[:], right.TransactionID[:])
+}
+
 func (r *Repository) SetOutcome(ctx context.Context, key tracerreservation.Key, outcome tracerreservation.State, now time.Time) (retErr error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

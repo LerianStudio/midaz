@@ -151,6 +151,11 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	prepared PreparedEngineExecution,
 	admissions *accountprotection.Sink,
 ) (EngineExecutionOutcome, error) {
+	if err := uc.beginAtomicContextReservations(ctx, run); err != nil {
+		// An unknown fence commit must not be retried or treated as an abort
+		// of a previously dispatched execution. Recovery retains its evidence.
+		return EngineExecutionOutcome{}, err
+	}
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
 	resolveEngineAdmissions(admissions, prepared.Execution.Execution, outcome, executeErr)
 

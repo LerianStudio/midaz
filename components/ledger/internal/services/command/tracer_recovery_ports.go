@@ -20,8 +20,10 @@ import (
 // TracerObligationStore commits coordination before Reserve and fences dispatch
 // independently of the accounting engine. Outcome setters require known evidence.
 type TracerObligationStore interface {
+	Find(context.Context, tracerreservation.Key) (*tracerreservation.Pending, error)
 	Prepare(context.Context, tracerreservation.Intent) (*tracerreservation.Record, error)
 	BeginExecution(context.Context, tracerreservation.Key, time.Time) error
+	BeginExecutions(context.Context, []tracerreservation.Key, time.Time) error
 	SetOutcome(context.Context, tracerreservation.Key, tracerreservation.State, time.Time) error
 	ExpirePrepared(context.Context, tracerreservation.Key, time.Time) (bool, error)
 	MarkDelivered(context.Context, tracerreservation.Key, tracerreservation.State, time.Time) error

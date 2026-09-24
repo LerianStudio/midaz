@@ -31,6 +31,9 @@ type ContextTracerInput struct {
 	Entries     []traceradapter.PreparedEntry
 	HonoredSkip bool
 	LongLived   bool
+	// DispatchDeadline shares a preparation window across an atomic batch.
+	// It is internal producer input, never copied from an HTTP request field.
+	DispatchDeadline time.Time
 }
 
 // ContextTracerAttempt distinguishes a failed preflight from an uncertain
@@ -81,7 +84,12 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 	scope := tracercontract.ReserveScope{TenantID: tmcore.GetTenantIDContext(ctx), IntegrationID: c.recovery.config.IntegrationID, AssetNamespace: c.recovery.config.Namespace, SingleTenant: c.recovery.config.SingleTenant}
 	// The dispatch grace is bounded independently of Reserve. This permits the
 	// configured fail-open path to acquire its fence after a Reserve timeout.
-	intent, err := tracerreservation.NewIntent(ctx, input.Key, input.ExecutionID, scope, request, created, created.Add(budget).Add(c.recovery.config.AttemptTimeout), c.config.Facts)
+	deadline := input.DispatchDeadline
+	if deadline.IsZero() {
+		deadline = created.Add(budget).Add(c.recovery.config.AttemptTimeout)
+	}
+
+	intent, err := tracerreservation.NewIntent(ctx, input.Key, input.ExecutionID, scope, request, created, deadline, c.config.Facts)
 	if err != nil {
 		return attempt, err
 	}
