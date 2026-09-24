@@ -59,11 +59,9 @@ const (
 // business outcome the anchor handles separately.
 var ErrTracerUnavailable = errors.New("tracer reservation service unavailable")
 
-// ReserveAccount is the account scope the tracer matches limits against. It
-// serializes to the tracer's AccountContext shape ({"accountId": "..."}). The
-// ledger populates AccountID with the source balance's account UUID; Type and
-// Status are left empty (the ledger does not carry the tracer's card-account
-// taxonomy), which the tracer treats as unconstrained optional fields.
+// ReserveAccount is the account identity in the legacy reservation envelope.
+// It contains only accountId. The shared reservation contract uses complete
+// official account facts from pkg/tracercontract instead.
 type ReserveAccount struct {
 	// AccountID is omitempty: when the ledger has no internal source account
 	// (an external-only source), the account object serializes as {} rather than

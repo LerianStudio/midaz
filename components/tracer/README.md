@@ -55,7 +55,7 @@ released on the single unified Midaz version.
 
 Every transaction submitted to Tracer contains:
 - **Request ID** - Unique identifier for idempotency
-- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), currency, timestamp
+- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), asset code, timestamp
 - **Account context** - Account ID, type, status (required)
 - **Optional contexts** - Segment, portfolio, merchant information
 - **Metadata** - Custom key-value pairs for business rules
@@ -810,3 +810,32 @@ See the [LICENSE](LICENSE) file for details.
 ---
 
 Built with ❤️ by LerianStudio Engineering Team
+
+
+### Ledger shared reservation profile
+
+Ledger integration uses the existing `POST /v1/reservations` and
+`ReservationService.Reserve` RPC. It does not call `/v1/validations` first.
+`CONTEXT_RESERVE_ENABLED` installs the shared contract on Tracer;
+`TRACER_CONTEXT_ENABLED` installs the matching Ledger coordinator and recovery.
+The replacement reservation payload requires coordinated client/rule migration.
+
+The synchronous validation examples above retain their own context and enums.
+Shared reservation policies instead receive `accounts`, `entries` and Tracer's
+computed `debits`. Account classifications come from the producer's official
+facts, without translating them into the checking/savings/credit taxonomy.
+`AssetRef { namespace, id, code }` identifies an asset by namespace plus ID;
+code is descriptive. Decimal expressions use exact values, for example:
+
+```cel
+accounts.exists(a, a.type == "deposit" && a.status == "ACTIVE" && !a.blocked)
+entries.exists(e, e.direction == "DEBIT" && e.amount.equal(decimal("0.00000001")))
+entries.exists(e, e.external && !has(e.accountId))
+```
+
+Rules and limits execute in one reservation admission. Gross debits include fees;
+credits do not offset consumption. Enforced REVIEW blocks accounting without
+creating a pending hold. Confirmation/release follows the accounting outcome;
+unknown outcomes are retained for recovery, never resolved by repeating accounting.
+See [invariants](../../docs/tracer/INVARIANTS.md) and
+[deployment and recovery configuration](../../docs/architecture/ledger-tracer-topology.md).
