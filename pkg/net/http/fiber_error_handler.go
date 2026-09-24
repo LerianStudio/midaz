@@ -20,8 +20,9 @@ import (
 
 // CanonicalFiberErrorHandler is the Fiber ErrorHandler that renders the canonical
 // {code,title,message} envelope (E13) for errors that escape the handler chain —
-// chiefly *fiber.Error producers: auth assertions (401), Fiber's router (404/405),
-// the body-limit guard (413), and the header-size guard (431). Any unmapped error
+// chiefly *fiber.Error producers: authorization refusals returned by lib-auth
+// (401, 403, and 503 when the Access Manager never decided), Fiber's router
+// (404/405), the body-limit guard (413), and the header-size guard (431). Any unmapped error
 // degrades to a generic 500 with no raw error text (E9).
 //
 // Reuse this handler in every fiber.Config{ErrorHandler: ...} so all Midaz fiber
@@ -39,6 +40,10 @@ func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
 		switch fiberErr.Code {
 		case fiber.StatusUnauthorized:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidToken, ""))
+		case fiber.StatusForbidden:
+			return WithError(c, pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, ""))
+		case fiber.StatusServiceUnavailable:
+			return WithError(c, pkg.ValidateBusinessError(constant.ErrAuthorizationServiceUnavailable, ""))
 		case fiber.StatusNotFound:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrRouteNotFound, ""))
 		case fiber.StatusMethodNotAllowed:
