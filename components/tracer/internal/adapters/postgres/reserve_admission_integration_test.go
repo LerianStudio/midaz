@@ -41,9 +41,13 @@ func admissionFixture(t *testing.T, db *sql.DB, evaluationTime ...time.Time) (*c
 	return admissionFixtureWithConnection(t, db, &testutil.IntegrationDBAdapter{DB: db}, now, true)
 }
 
-func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connection, now time.Time, singleTenant bool) (*command.ReserveAdmissionCommand, *ContextPolicyRepository, tracercontract.ReserveRequest) {
+func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connection, now time.Time, singleTenant bool, accountBounds ...int) (*command.ReserveAdmissionCommand, *ContextPolicyRepository, tracercontract.ReserveRequest) {
 	t.Helper()
-	facts := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
+	maxAccounts := 10
+	if len(accountBounds) > 0 {
+		maxAccounts = accountBounds[0]
+	}
+	facts := tracercontract.Limits{MaxAccounts: maxAccounts, MaxEntries: 2 * maxAccounts, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
 	engine, err := cel.NewContextAdapter(cel.ContextAdapterConfig{Limits: facts, CostLimit: 100000, MaxExpressionBytes: 5000})
 	require.NoError(t, err)
 	evaluator, err := query.NewContextPolicyEvaluator(engine, query.ContextPolicyConfig{MaxRules: 10, TotalCost: 100000})
@@ -58,9 +62,11 @@ func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connecti
 	require.NoError(t, err)
 	beginner := pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db)))
 	beginner.SetMultiTenantEnabled(!singleTenant)
+	limits, err := NewContextLimitRepository(ContextLimitRepositoryConfig{MaxAccounts: maxAccounts, MaxLimits: 10, MaxScopes: maxAccounts, MaxScopeBytes: 256 * maxAccounts, MaxTextBytes: 256})
+	require.NoError(t, err)
 	c, err := command.NewReserveAdmissionCommand(command.ReserveAdmissionDependencies{
-		Decisions: decisions, Operations: NewReserveOperationRepository(), Capacity: newReservationRepoIntegration(db), Limits: contextLimitRepository(t, 10), Policies: compiled, Evaluator: evaluator, Audit: NewAuditEventRepositoryWithConnection(conn), Transactions: beginner,
-	}, clock.NewFixedClock(now), command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: singleTenant, MaxTimestampAge: 24 * time.Hour, ClockSkewTolerance: time.Second, ReservationLifetime: time.Hour})
+		Decisions: decisions, Operations: NewReserveOperationRepository(), Capacity: newReservationRepoIntegration(db), Limits: limits, Policies: compiled, Evaluator: evaluator, Audit: NewAuditEventRepositoryWithConnection(conn), Transactions: beginner,
+	}, clock.NewFixedClock(now), command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: 10, MaxScopesPerLimit: maxAccounts, MaxReservations: 100}, MaxRules: 10, SingleTenant: singleTenant, MaxTimestampAge: 24 * time.Hour, ClockSkewTolerance: time.Second, ReservationLifetime: time.Hour})
 	require.NoError(t, err)
 	account := testutil.MustDeterministicUUID(89001)
 	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "official-asset", Code: "USD"}
