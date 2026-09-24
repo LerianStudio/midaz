@@ -11,6 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -51,7 +52,26 @@ func NewResolveContextPolicyQuery(repository ActiveContextPolicyRepository, maxR
 // Execute accepts only an opaque context derived by the trusted producer. The
 // payload cannot select a policy, an integration, or an asset namespace. Tenant
 // context is preserved unchanged; policy identity alone is not a tenant key.
-func (q *ResolveContextPolicyQuery) Execute(ctx context.Context, contextID string) (_ *ResolvedContextPolicy, retErr error) {
+func (q *ResolveContextPolicyQuery) Execute(ctx context.Context, contextID string) (*ResolvedContextPolicy, error) {
+	return q.resolve(ctx, contextID, q.repository.GetActive)
+}
+
+// ExecuteWithTx avoids acquiring another pool connection while admission owns
+// an operation lock. The repository must explicitly support transactional reads.
+func (q *ResolveContextPolicyQuery) ExecuteWithTx(ctx context.Context, tx pgdb.Tx, contextID string) (*ResolvedContextPolicy, error) {
+	repo, ok := q.repository.(interface {
+		GetActiveWithTx(context.Context, pgdb.Tx, model.PolicyBindingKey) (*model.BoundContextPolicy, error)
+	})
+	if !ok || tx == nil {
+		return nil, constant.ErrContextPolicyUnavailable
+	}
+
+	return q.resolve(ctx, contextID, func(ctx context.Context, key model.PolicyBindingKey) (*model.BoundContextPolicy, error) {
+		return repo.GetActiveWithTx(ctx, tx, key)
+	})
+}
+
+func (q *ResolveContextPolicyQuery) resolve(ctx context.Context, contextID string, read func(context.Context, model.PolicyBindingKey) (*model.BoundContextPolicy, error)) (_ *ResolvedContextPolicy, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -74,7 +94,7 @@ func (q *ResolveContextPolicyQuery) Execute(ctx context.Context, contextID strin
 		return nil, err
 	}
 
-	policy, err := q.repository.GetActive(ctx, key)
+	policy, err := read(ctx, key)
 	if err != nil {
 		return nil, err
 	}

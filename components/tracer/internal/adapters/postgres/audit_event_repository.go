@@ -164,7 +164,8 @@ func (r *AuditEventRepository) insertInternal(
 		return fmt.Errorf("failed to insert audit event: %w", err)
 	}
 
-	// Completion and limit updates require a durable event. Their commands own
+	// Reserve admission/completion and limit updates require a durable event.
+	// Their commands own
 	// conflicts/idempotency; neither uses transaction-validation deduplication.
 	// Never interpret a silently suppressed insert as an audited outcome.
 	if event.ResourceType == model.ResourceTypeReserveOperation ||

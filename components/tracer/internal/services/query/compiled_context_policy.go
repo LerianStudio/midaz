@@ -13,6 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -71,7 +72,18 @@ func NewCompiledContextPolicyQuery(resolver *ResolveContextPolicyQuery, compiler
 
 // Execute requires authenticated producer and resolved tenant database context.
 // A binding read failure never falls back to a previously cached binding.
-func (q *CompiledContextPolicyQuery) Execute(ctx context.Context, contextID string) (_ *PreparedContextPolicy, retErr error) {
+func (q *CompiledContextPolicyQuery) Execute(ctx context.Context, contextID string) (*PreparedContextPolicy, error) {
+	return q.prepare(ctx, contextID, q.resolver.Execute)
+}
+
+// ExecuteWithTx uses the admission connection for current binding resolution.
+func (q *CompiledContextPolicyQuery) ExecuteWithTx(ctx context.Context, tx pgdb.Tx, contextID string) (*PreparedContextPolicy, error) {
+	return q.prepare(ctx, contextID, func(ctx context.Context, id string) (*ResolvedContextPolicy, error) {
+		return q.resolver.ExecuteWithTx(ctx, tx, id)
+	})
+}
+
+func (q *CompiledContextPolicyQuery) prepare(ctx context.Context, contextID string, resolve func(context.Context, string) (*ResolvedContextPolicy, error)) (_ *PreparedContextPolicy, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -87,7 +99,7 @@ func (q *CompiledContextPolicyQuery) Execute(ctx context.Context, contextID stri
 		return nil, constant.ErrReservationTenantRequired
 	}
 
-	resolved, err := q.resolver.Execute(ctx, contextID)
+	resolved, err := resolve(ctx, contextID)
 	if err != nil {
 		return nil, err
 	}

@@ -62,7 +62,7 @@ func (r *ContextPolicyRepository) GetActive(ctx context.Context, key model.Polic
 	defer span.End()
 	defer func() { recordPolicyRepositoryError(span, retErr) }()
 
-	logger = logging.WithTrace(ctx, logger)
+	logging.WithTrace(ctx, logger).Log(ctx, libLog.LevelDebug, "Resolving active policy")
 
 	if err := key.Validate(); err != nil {
 		return nil, err
@@ -73,6 +73,36 @@ func (r *ContextPolicyRepository) GetActive(ctx context.Context, key model.Polic
 		return nil, err
 	}
 
+	return r.readActive(ctx, db, key)
+}
+
+// GetActiveWithTx reads the binding snapshot on the admission transaction's
+// primary connection. It never acquires a second pool connection under locks.
+func (r *ContextPolicyRepository) GetActiveWithTx(ctx context.Context, tx pgdb.Tx, key model.PolicyBindingKey) (_ *model.BoundContextPolicy, retErr error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.get_context_policy_in_transaction")
+	defer span.End()
+	defer func() { recordPolicyRepositoryError(span, retErr) }()
+
+	logging.WithTrace(ctx, logger).Log(ctx, libLog.LevelDebug, "Resolving policy in admission transaction")
+
+	if tx == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := key.Validate(); err != nil {
+		return nil, err
+	}
+
+	return r.readActive(ctx, tx, key)
+}
+
+func (r *ContextPolicyRepository) readActive(ctx context.Context, db pgdb.DB, key model.PolicyBindingKey) (*model.BoundContextPolicy, error) {
 	maxRules := r.maxRules
 	if maxRules <= 0 {
 		return nil, constant.ErrContextPolicyUnavailable
@@ -102,8 +132,6 @@ func (r *ContextPolicyRepository) GetActive(ctx context.Context, key model.Polic
 	if err != nil {
 		return nil, err
 	}
-
-	logger.With(libLog.Int("rules.count", len(policy.Rules))).Log(ctx, libLog.LevelDebug, "Selected policy revision")
 
 	return &model.BoundContextPolicy{ContextPolicy: *policy, BindingVersion: bindingVersion}, nil
 }
