@@ -684,6 +684,8 @@ var (
 	ErrReserveOperationConflict = errors.New("0540")
 	// ErrContextLimitsUnavailable reports incomplete or unusable account/asset limit configuration.
 	ErrContextLimitsUnavailable = errors.New("0531")
+	// ErrLimitAssetReferenceConflict reports an already bound immutable limit identity.
+	ErrLimitAssetReferenceConflict = errors.New("0532")
 )
 
 // List of CRM domain errors.
