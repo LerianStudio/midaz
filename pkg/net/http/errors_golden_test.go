@@ -1025,19 +1025,20 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 
 	cases := []struct {
 		name       string
-		fiberCode  int
+		err        error
 		wantStatus int
 		wantCode   string
 	}{
 		{
+			// Only the router's singleton is "wrong method"; a fresh 405 is a refusal.
 			name:       "method_not_allowed_0485_405",
-			fiberCode:  fiber.StatusMethodNotAllowed,
+			err:        fiber.ErrMethodNotAllowed,
 			wantStatus: fiber.StatusMethodNotAllowed,         // 405
 			wantCode:   constant.ErrMethodNotAllowed.Error(), // 0485
 		},
 		{
 			name:       "payload_too_large_0143_413",
-			fiberCode:  fiber.StatusRequestEntityTooLarge,
+			err:        fiber.NewError(fiber.StatusRequestEntityTooLarge, "escaped error"),
 			wantStatus: fiber.StatusRequestEntityTooLarge,   // 413
 			wantCode:   constant.ErrPayloadTooLarge.Error(), // 0143
 		},
@@ -1052,8 +1053,8 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 			app := fiber.New(fiber.Config{
 				ErrorHandler: CanonicalFiberErrorHandler,
 			})
-			app.Get("/probe", func(c fiber.Ctx) error {
-				return fiber.NewError(tc.fiberCode, "escaped error")
+			app.Get("/probe", func(fiber.Ctx) error {
+				return tc.err
 			})
 
 			resp, testErr := app.Test(httptest.NewRequest(fiber.MethodGet, "/probe", nil))

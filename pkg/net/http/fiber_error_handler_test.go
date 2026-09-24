@@ -122,8 +122,6 @@ func TestCanonicalFiberErrorHandler_Forbidden(t *testing.T) {
 	require.Equal(t, constant.ErrInsufficientPrivileges.Error(), env.Code)
 	require.NotEmpty(t, env.Title)
 	require.NotEmpty(t, env.Detail)
-	// E9: never leak the raw fiber message verbatim.
-	require.NotEqual(t, "Forbidden", env.Code)
 }
 
 func TestCanonicalFiberErrorHandler_ServiceUnavailable(t *testing.T) {
