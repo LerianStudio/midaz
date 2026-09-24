@@ -63,6 +63,7 @@ type reservationOutcome struct {
 // and how much spending went uncounted, and the reservation id alone says
 // neither.
 type reservationHandle struct {
+	ContextAttempt *ContextTracerAttempt
 	ReservationIDs []uuid.UUID
 	TransactionID  uuid.UUID
 	Amount         decimal.Decimal
@@ -302,6 +303,10 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 // request path until the tracer accepts it or the budget runs out. A nil
 // reserver or empty handle is a no-op.
 func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
+	if handle.ContextAttempt != nil {
+		uc.concludeContextReservation(ctx, span, handle, true)
+		return
+	}
 	if uc.TracerReserver == nil {
 		return
 	}
@@ -320,6 +325,10 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 // that never lands leaves capacity held against a transaction that moved no
 // money — which is why the report distinguishes them.
 func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
+	if handle.ContextAttempt != nil {
+		uc.concludeContextReservation(ctx, span, handle, false)
+		return
+	}
 	if uc.TracerReserver == nil {
 		return
 	}

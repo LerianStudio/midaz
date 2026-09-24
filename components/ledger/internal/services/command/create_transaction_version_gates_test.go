@@ -192,7 +192,7 @@ func TestRevertV2_NeverAppliesFees(t *testing.T) {
 	}
 
 	engineNames := calledNames(t, readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine"), "executeCreateEngine")
-	if !containsName(engineNames, "reserveTransaction") {
+	if !containsName(engineNames, "reservePreparedTransaction") {
 		t.Error("the engine create path must still reserve: limits measure GROSS activity, so a revert is a chargeable transaction of its own")
 	}
 }

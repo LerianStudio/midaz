@@ -214,6 +214,10 @@ type UseCase struct {
 	// from it, and balance deletion and account closing read the debts owed to a balance.
 	FeeDebts FeeDebtRecorder
 
+	// ContextTracer owns the replacement contract and durable coordination.
+	// Bootstrap installs it only together with its independent recovery worker.
+	ContextTracer *ContextTracerCoordinator
+
 	// TracerActivation is installed only by the complete context integration.
 	// A nil verifier prevents enabling combined rules while allowing configuration
 	// with mode=off and preserving existing limits-only settings.
