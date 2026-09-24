@@ -52,6 +52,8 @@ type Repository interface {
 	// Create persists a new segment and returns the stored entity.
 	Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error)
 	// ExistsByName reports whether a non-deleted segment name already exists in an organization ledger.
+	// Returns (true, ErrDuplicateSegmentName) when found, (false, nil) when not found.
+	// Comparison is case-insensitive equality: % and _ are literal characters.
 	ExistsByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
 	// FindAll retrieves non-deleted segments for an organization ledger using pagination filters.
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error)
@@ -198,13 +200,13 @@ func (p *SegmentPostgreSQLRepository) ExistsByName(ctx context.Context, organiza
 		return false, err
 	}
 
-	query, args, err := squirrel.Select(segmentColumnList...).
+	query, args, err := squirrel.Select("1").
 		From(p.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Expr("name LIKE ?", name)).
+		Where(squirrel.Expr("LOWER(name) = LOWER(?)", name)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
+		Limit(1).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
