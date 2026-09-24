@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/stretchr/testify/require"
 )
@@ -159,6 +160,49 @@ func TestCollectNullByteViolations_MapWithNullBytes(t *testing.T) {
 			wantErr:   true,
 			wantField: "data",
 		},
+		{
+			name: "top-level map key with null byte",
+			input: map[string]any{
+				"k\x00x": "v",
+			},
+			wantErr:   true,
+			wantField: "value",
+		},
+		{
+			name: "nested map key with null byte",
+			input: map[string]any{
+				"outer": map[string]any{
+					"k\x00": "v",
+				},
+			},
+			wantErr:   true,
+			wantField: "outer",
+		},
+		{
+			name: "null byte in both key and value",
+			input: map[string]any{
+				"k\x00": "v\x00",
+			},
+			wantErr:   true,
+			wantField: "value",
+		},
+		{
+			name: "struct metadata key with null byte",
+			input: &mmodel.CreateAccountInput{
+				AssetCode: "USD",
+				Type:      "deposit",
+				Metadata:  map[string]any{"k\x00x": "v"},
+			},
+			wantErr:   true,
+			wantField: "metadata",
+		},
+		{
+			name: "map with non-ASCII key",
+			input: map[string]any{
+				"chave_ção": "v",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tc := range cases {
@@ -179,6 +223,69 @@ func TestCollectNullByteViolations_MapWithNullBytes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A raw NUL echoed back in a field name or message would reach response bodies and logs.
+func TestValidateStruct_NullByteMapKey_ReportsNoNullByte(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input any
+	}{
+		{
+			name:  "top-level key",
+			input: map[string]any{"k\x00x": "v"},
+		},
+		{
+			name:  "nested key",
+			input: map[string]any{"outer": map[string]any{"k\x00": "v"}},
+		},
+		{
+			name:  "key and value",
+			input: map[string]any{"k\x00": "v\x00"},
+		},
+		{
+			name: "struct metadata key",
+			input: &mmodel.CreateAccountInput{
+				AssetCode: "USD",
+				Type:      "deposit",
+				Metadata:  map[string]any{"k\x00x": "v"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateStruct(tc.input)
+			require.Error(t, err, "expected validation error for null byte in map key")
+
+			var vErr pkg.ValidationKnownFieldsError
+			require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
+			require.Len(t, vErr.Fields, 1, "expected exactly one violation, got fields: %q", vErr.Fields)
+
+			for field, message := range vErr.Fields {
+				require.NotContains(t, field, "\x00", "field name must not carry the null byte")
+				require.NotContains(t, message, "\x00", "message must not carry the null byte")
+			}
+		})
+	}
+}
+
+func TestDecodeAndValidate_NullByteMetadataKey(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"assetCode":"USD","type":"deposit","metadata":{"k\u0000x":"v"}}`)
+
+	_, err := DecodeAndValidate(body, &mmodel.CreateAccountInput{})
+	require.Error(t, err, "expected a null byte in a metadata key to be rejected at decode")
+
+	var vErr pkg.ValidationKnownFieldsError
+	require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
+	require.Equal(t, cn.ErrBadRequest.Error(), vErr.Code)
+	require.Contains(t, vErr.Fields, "metadata")
 }
 
 func TestValidateStruct_JSONNestingDepthLimit(t *testing.T) {
@@ -255,6 +362,12 @@ func TestValidateStruct_JSONKeyCountLimit(t *testing.T) {
 			wantCode: "0145",
 		},
 		{
+			name:     "key with null byte counts toward the limit",
+			input:    withEntry(buildFlatMap(100), "k\x00x", "v"),
+			wantErr:  true,
+			wantCode: "0145",
+		},
+		{
 			name:     "nested key count exceeds limit",
 			input:    buildNestedMapWithKeys(5, 25), // 5 levels * ~25 keys each > 100
 			wantErr:  true,
@@ -309,6 +422,13 @@ func buildFlatMap(keyCount int) map[string]any {
 	}
 
 	return result
+}
+
+// withEntry adds one entry to m and returns it.
+func withEntry(m map[string]any, key string, value any) map[string]any {
+	m[key] = value
+
+	return m
 }
 
 // buildNestedMapWithKeys creates a nested map with multiple keys at each level.

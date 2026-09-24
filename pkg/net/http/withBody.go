@@ -917,6 +917,8 @@ func collectNullBytesFromSliceOrArray(rv reflect.Value, jsonPath string, out pkg
 
 // collectNullBytesFromMap iterates over map entries, building key paths for string keys.
 // Increments depth and key count for DoS protection.
+// A key containing a null byte is reported on the parent path and its value is not
+// visited, so the null byte never reaches a field name; MongoDB cannot store such a key.
 func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
 	// Increment depth when entering a map (nested object)
 	state.depth++
@@ -936,11 +938,27 @@ func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldVal
 		}
 
 		k := iter.Key()
+		if k.Kind() == reflect.String && strings.ContainsRune(k.String(), '\x00') {
+			collectNullByteMapKey(jsonPath, out)
+
+			continue
+		}
+
 		v := iter.Value()
 		keyPath := buildMapKeyPath(k, jsonPath)
 
 		collectNullByteViolations(v, keyPath, out, state)
 	}
+}
+
+// collectNullByteMapKey records a null-byte key violation on the map's own path.
+func collectNullByteMapKey(jsonPath string, out pkg.FieldValidations) {
+	key := jsonPath
+	if key == "" {
+		key = "value"
+	}
+
+	out[key] = key + " keys cannot contain null byte (\\x00)"
 }
 
 // buildMapKeyPath constructs the JSON path for a map entry key.
