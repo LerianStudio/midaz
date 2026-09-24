@@ -230,6 +230,7 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	worker := newRealReaper(t, db, conn, txb, clk, "", nil)
 
 	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	done := make(chan error, 1)
 
 	go func() { done <- worker.RunWithContext(runCtx) }()
@@ -240,6 +241,14 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	require.Eventually(t, func() bool {
 		return readReservationStatus(t, db, expired.ID) == string(model.StatusExpired)
 	}, 5*time.Second, 20*time.Millisecond, "expired reservation must be released within the sub-minute cadence")
+
+	// The legacy worker commits each release before writing its batch summary.
+	// Cancelling at the row flip can abort that later write and manufacture an
+	// audit failure in this cadence test. Observe the complete sweep first; this
+	// does not claim that the legacy release and summary are one transaction.
+	require.Eventually(t, func() bool {
+		return countExpiryAuditRows(t, db, now) >= 1
+	}, 5*time.Second, 20*time.Millisecond, "completed sweep must persist its batch audit before shutdown")
 
 	cancel()
 	require.NoError(t, <-done, "reaper loop must stop cleanly on context cancel")
