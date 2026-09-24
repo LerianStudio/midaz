@@ -187,6 +187,7 @@ func (r *ContextLimitRepository) ListCandidatesWithTx(ctx context.Context, tx pg
 		if limit.Asset != (tracercontract.AssetRef{}) && limit.Asset.Namespace != namespace {
 			return nil, constant.ErrContextLimitsUnavailable
 		}
+
 		limits = append(limits, limit)
 	}
 

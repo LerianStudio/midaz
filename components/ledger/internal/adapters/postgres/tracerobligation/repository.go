@@ -217,10 +217,12 @@ func (r *Repository) BeginExecutions(ctx context.Context, keys []tracerreservati
 			return constant.ErrInvalidRequestBody
 		}
 	}
+
 	tx, err := r.begin(ctx)
 	if err != nil {
 		return err
 	}
+
 	defer func() { _ = tx.Rollback() }()
 
 	for _, key := range ordered {
@@ -234,9 +236,11 @@ func (r *Repository) BeginExecutions(ctx context.Context, keys []tracerreservati
 			return err
 		}
 	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit accounting dispatch: %w", err)
 	}
+
 	return nil
 }
 

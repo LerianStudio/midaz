@@ -553,6 +553,7 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 		api.Put("/limits/:id/asset-reference", NewReservationIdentityMiddleware(h.LimitAssetAdmin.identity), guard.WithPolicyPermission("limit-asset-references", "put"))
 		RegisterLimitAssetRoutes(humaAPI, h.LimitAssetAdmin)
 	}
+
 	if h.ContextPolicy != nil {
 		api.Post("/policies", guard.WithPolicyPermission("policies", "post"))
 		api.Get("/policies/:id/revisions/:revision", guard.WithPolicyPermission("policies", "get"))

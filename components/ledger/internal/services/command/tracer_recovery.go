@@ -87,7 +87,7 @@ func (p *TracerRecoveryProcessor) RunOnce(ctx context.Context) (summary TracerRe
 	ctx, span := tracer.Start(ctx, "command.recover_tracer_reservations")
 	defer span.End()
 	defer func() {
-		span.SetAttributes(attribute.Int("app.tracer.recovery.claimed", summary.Claimed), attribute.Int("app.tracer.recovery.delivered", summary.Delivered), attribute.Int("app.tracer.recovery.unresolved", summary.Unresolved), attribute.Int("app.tracer.recovery.failed", summary.Failed))
+		span.SetAttributes(attribute.Int("app.response.tracer.recovery.claimed", summary.Claimed), attribute.Int("app.response.tracer.recovery.delivered", summary.Delivered), attribute.Int("app.response.tracer.recovery.unresolved", summary.Unresolved), attribute.Int("app.response.tracer.recovery.failed", summary.Failed))
 
 		recordTracerCoordinationError(span, retErr)
 	}()
@@ -173,6 +173,7 @@ func (p *TracerRecoveryProcessor) process(ctx context.Context, record tracerrese
 
 		emitTracerMetric(ctx, p.MetricsFactory, operation, result, time.Since(started))
 	}()
+
 	if err := p.validatePending(ctx, record); err != nil {
 		return false, err
 	}

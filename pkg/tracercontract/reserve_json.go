@@ -173,6 +173,7 @@ func (s *reserveJSONShape) readObject(ctx context.Context, d *json.Decoder, limi
 			return invalid("missing reserve JSON field")
 		}
 	}
+
 	token, err := d.Token()
 	if err != nil || token != json.Delim('}') {
 		return invalid("reserve JSON object end")

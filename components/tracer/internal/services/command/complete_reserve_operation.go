@@ -240,6 +240,7 @@ func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx
 
 		report.Flipped = len(moved)
 	}
+
 	event.CreatedAt = *state.CompletedAt
 	event.WithContext(map[string]any{
 		"integrationId": key.IntegrationID, "transactionId": key.TransactionID,
