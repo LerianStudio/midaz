@@ -116,16 +116,37 @@ statement defines the selected set; it does not prevent subsequent insertions.
 Migration 000032 adds immutable `limit_asset_references`, preserving limit IDs,
 usage counters and reservations. Its composite foreign key requires the existing
 asset code and prevents later code changes. No code-only identity backfill is
-performed. Binding requires the caller's transaction; namespace authorization,
-official account/asset resolution and mandatory audit still belong to the future
-administrative/migration command. Duplicate binding returns 0523/409. Down is
-allowed only with no stored association and no conflicting active locks.
+performed. Binding requires the caller's transaction. Duplicate binding returns
+0523/409. Down is allowed only with no stored association and no conflicting
+active locks.
+
+`BindLimitAssetCommand` requires both verified integration identity and a user or
+system administrative principal; neither identity substitutes for the other, and
+API-key principals are refused. Multi-tenant calls require tenant and resolved
+pool context. The command locks the current limit, requires producer-attested
+facts for exactly every account scope and one matching asset, then commits the
+association and mandatory audit together. DRAFT/INACTIVE limits stay inactive;
+no usage or reservation is moved. Repeated bindings conflict without extra audit,
+and commit uncertainty is returned without retry. Resource-level authorization
+still belongs to the administrative transport, which is not mounted yet.
+
+The shared `AccountAsset` fact contains only account UUID and `AssetRef`. Ledger's
+`BuildAccountAssets` maps already loaded official records, resolving the asset
+UUID within the organization/ledger and rejecting missing or ambiguous records.
+It does not fetch data. Tracer trusts the verified producer's attestation, as for
+Reserve facts; it neither queries nor replicates the Midaz asset registry.
+
+Binding uses the existing LIMIT_UPDATED event, retaining its CRUD snapshot and
+adding assetRef, integrationId, ordered accountAssets and the operation marker
+asset_reference_binding. All limit UPDATE audit writes must insert exactly one
+row; silent suppression is an error and rolls back the enclosing transaction.
+The existing transaction-validation audit deduplication remains separate.
 
 Legacy limit administration and its asset-code storage restrictions are unchanged.
 Unmapped broad limits can block the new account-only profile and must be inventoried
-before activation. Audited administration, official-reference migration, admission
-composition and integrated query/lock performance checks remain prerequisites;
-neither this repository nor the resolver is mounted on Reserve yet.
+before activation. Administrative transport/RBAC, official-record batch reads,
+reference migration, admission composition and integrated performance checks remain
+prerequisites; these components are not mounted on Reserve yet.
 
 Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
 a bounded decimal string literal, checked at compile time. Supported member

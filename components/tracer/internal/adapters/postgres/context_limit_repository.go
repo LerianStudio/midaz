@@ -179,11 +179,14 @@ func (r *ContextLimitRepository) ListCandidatesWithTx(ctx context.Context, tx pg
 			return nil, constant.ErrContextLimitsUnavailable
 		}
 
-		limit, err := r.scanCandidate(rows, namespace)
+		limit, err := r.scanCandidate(rows)
 		if err != nil {
 			return nil, err
 		}
 
+		if limit.Asset != (tracercontract.AssetRef{}) && limit.Asset.Namespace != namespace {
+			return nil, constant.ErrContextLimitsUnavailable
+		}
 		limits = append(limits, limit)
 	}
 
@@ -221,7 +224,7 @@ func (r *ContextLimitRepository) validateLookup(namespace string, accountIDs []u
 	return accounts, nil
 }
 
-func (r *ContextLimitRepository) candidateQuery(namespace string, accounts []string) sq.SelectBuilder {
+func (r *ContextLimitRepository) limitSnapshotQuery() sq.SelectBuilder {
 	return sq.Select("l.id", "l.name", "l.description", "l.limit_type", "l.max_amount", "l.asset").
 		Column(sq.Expr(`CASE WHEN jsonb_typeof(l.scopes)='array' THEN
    CASE WHEN jsonb_array_length(l.scopes)<=? AND octet_length(l.scopes::text)<=? THEN l.scopes END ELSE NULL END`, r.config.MaxScopes, r.config.MaxScopeBytes)).
@@ -229,7 +232,11 @@ func (r *ContextLimitRepository) candidateQuery(namespace string, accounts []str
 		Column(sq.Expr("CASE WHEN octet_length(a.asset_namespace)<=? THEN a.asset_namespace ELSE '' END", r.config.MaxTextBytes)).
 		Column(sq.Expr("CASE WHEN octet_length(a.asset_id)<=? THEN a.asset_id ELSE '' END", r.config.MaxTextBytes)).
 		Column(sq.Expr("CASE WHEN octet_length(a.asset_code)<=? THEN a.asset_code ELSE '' END", r.config.MaxTextBytes)).
-		Columns("a.limit_id").From("limits l").LeftJoin("limit_asset_references a ON a.limit_id=l.id").
+		Columns("a.limit_id").From("limits l").LeftJoin("limit_asset_references a ON a.limit_id=l.id")
+}
+
+func (r *ContextLimitRepository) candidateQuery(namespace string, accounts []string) sq.SelectBuilder {
+	return r.limitSnapshotQuery().
 		Where(sq.Eq{"l.status": model.LimitStatusActive, "l.deleted_at": nil}).
 		Where(sq.Or{sq.Eq{"a.limit_id": nil}, sq.Eq{"a.asset_namespace": namespace}}).
 		Where(sq.Expr(`CASE WHEN jsonb_typeof(l.scopes)='array' THEN
@@ -242,7 +249,7 @@ func (r *ContextLimitRepository) candidateQuery(namespace string, accounts []str
 		OrderBy("l.id").Limit(r.fetchLimit).Suffix("FOR SHARE OF l").PlaceholderFormat(sq.Dollar)
 }
 
-func (r *ContextLimitRepository) scanCandidate(rows *sql.Rows, namespace string) (model.ContextAccountLimit, error) {
+func (r *ContextLimitRepository) scanCandidate(rows *sql.Rows) (model.ContextAccountLimit, error) {
 	var (
 		stored              LimitPostgreSQLModel
 		scopes              []byte
@@ -281,7 +288,7 @@ func (r *ContextLimitRepository) scanCandidate(rows *sql.Rows, namespace string)
 	limit := model.ContextAccountLimit{Definition: *definition}
 	if owner.Valid {
 		limit.Asset = tracercontract.AssetRef{Namespace: ns.String, ID: id.String, Code: code.String}
-		if err := limit.Asset.Validate(namespace, r.config.MaxTextBytes); err != nil {
+		if err := limit.Asset.Validate(limit.Asset.Namespace, r.config.MaxTextBytes); err != nil {
 			return model.ContextAccountLimit{}, constant.ErrContextLimitsUnavailable
 		}
 
@@ -298,7 +305,7 @@ func recordContextLimitRepositoryError(span trace.Span, err error) {
 		return
 	}
 
-	if errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrLimitAssetReferenceConflict) {
+	if errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrLimitAssetReferenceConflict) || errors.Is(err, constant.ErrLimitNotFound) {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid limit asset operation", err)
 		return
 	}
