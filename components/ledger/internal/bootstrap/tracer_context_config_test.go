@@ -16,7 +16,8 @@ import (
 
 func contextTracerTestConfig() Config {
 	return Config{
-		TracerContextEnabled: true, TracerBaseURL: "https://tracer.test:4020", TracerTLSMode: "mtls", TracerTimeoutMs: 250, TracerIntegrationID: "producer", TracerAssetNamespace: "origin-a",
+		TracerRecoveryMaxRetryIntervalMs: 300000,
+		TracerContextEnabled:             true, TracerBaseURL: "https://tracer.test:4020", TracerTLSMode: "mtls", TracerTimeoutMs: 250, TracerIntegrationID: "producer", TracerAssetNamespace: "origin-a",
 		TracerContextMaxBodyBytes: 65536, TracerContextMaxAccounts: 10, TracerContextMaxEntries: 20, TracerContextMaxTextBytes: 256, TracerContextMaxIntegerDigits: 128, TracerContextMaxFractionDigits: "128", TracerContextMaxReservations: 100,
 		TracerRecoveryBatchSize: 10, TracerRecoveryIntervalMs: 1000, TracerRecoveryCycleTimeoutMs: 1000, TracerRecoveryTenantTimeoutMs: 500, TracerRecoveryAttemptTimeoutMs: 250, TracerRecoveryMaxTenants: 10, TracerRecoveryMaxCatalogTenants: 100,
 	}

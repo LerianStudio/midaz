@@ -367,7 +367,7 @@ type Config struct {
 	TracerContextMaxReservations     int    `env:"TRACER_CONTEXT_MAX_RESERVATIONS"`
 	TracerRecoveryBatchSize          int    `env:"TRACER_RECOVERY_BATCH_SIZE"`
 	TracerRecoveryIntervalMs         int    `env:"TRACER_RECOVERY_INTERVAL_MS"`
-	TracerRecoveryMaxRetryIntervalMs int    `env:"TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS" envDefault:"300000"`
+	TracerRecoveryMaxRetryIntervalMs int    `env:"TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS"`
 	TracerRecoveryCycleTimeoutMs     int    `env:"TRACER_RECOVERY_CYCLE_TIMEOUT_MS"`
 	TracerRecoveryTenantTimeoutMs    int    `env:"TRACER_RECOVERY_TENANT_TIMEOUT_MS"`
 	TracerRecoveryAttemptTimeoutMs   int    `env:"TRACER_RECOVERY_ATTEMPT_TIMEOUT_MS"`
@@ -2080,6 +2080,7 @@ func midazErrorMapper(c fiber.Ctx, err error, tenantID string) error {
 // zero value after SetConfigFromEnvVars. This replaces the inert `default` struct tags
 // which are not interpreted by SetConfigFromEnvVars.
 func applyConfigDefaults(cfg *Config) {
+	applyTracerContextDefaults(cfg)
 	intDefault := func(field *int, fallback int) {
 		if *field == 0 {
 			*field = fallback
