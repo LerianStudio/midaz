@@ -1073,6 +1073,10 @@ type limitServiceDeps struct {
 // The txBeginner is shared with the validation service so the limit lifecycle
 // commands persist the status/update and the audit event atomically.
 func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
+	definitionPolicy, err := initContextLimitDefinitionPolicy(cfg)
+	if err != nil {
+		return nil, err
+	}
 	limitRepo := postgres.NewLimitRepositoryWithConnection(pgConn)
 
 	usageCounterRepo := postgres.NewUsageCounterRepositoryWithConnection(pgConn)
@@ -1084,6 +1088,7 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 
 	createLimitCmd.Streaming = streaming
 	createLimitCmd.NativeAssetCodes = cfg.ContextReserveEnabled
+	createLimitCmd.ContextLimits = definitionPolicy
 
 	updateLimitCmd, err := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
@@ -1091,6 +1096,7 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	}
 
 	updateLimitCmd.Streaming = streaming
+	updateLimitCmd.ContextLimits = definitionPolicy
 
 	activateLimitCmd, err := command.NewActivateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
@@ -1098,6 +1104,7 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	}
 
 	activateLimitCmd.Streaming = streaming
+	activateLimitCmd.ContextLimits = definitionPolicy
 
 	deactivateLimitCmd, err := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {

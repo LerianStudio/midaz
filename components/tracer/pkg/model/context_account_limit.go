@@ -50,6 +50,24 @@ func (l ContextAccountLimit) Validate(ctx context.Context, namespace string, bou
 		return constant.ErrContextLimitsUnavailable
 	}
 
+	return ValidateContextLimitDefinition(ctx, d, bounds, maxScopes)
+}
+
+// ValidateContextLimitDefinition checks shared-profile definitions before
+// persistence, including draft limits which have not received an AssetRef yet.
+func ValidateContextLimitDefinition(ctx context.Context, d Limit, bounds tracercontract.Limits, maxScopes int) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if err := bounds.Validate(); err != nil {
+		return err
+	}
+
+	if !d.MaxAmount.IsPositive() {
+		return constant.ErrContextLimitsUnavailable
+	}
+
 	if _, err := tracercontract.AmountFromDecimal(ctx, d.MaxAmount, bounds); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()

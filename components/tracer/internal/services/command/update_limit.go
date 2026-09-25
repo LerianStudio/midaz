@@ -57,10 +57,11 @@ type UpdateLimitInput struct {
 
 // UpdateLimitCommand handles limit updates.
 type UpdateLimitCommand struct {
-	repo        LimitRepository
-	clock       clock.Clock
-	auditWriter AuditWriter
-	txBeginner  pgdb.TxBeginner
+	ContextLimits *ContextLimitDefinitionPolicy
+	repo          LimitRepository
+	clock         clock.Clock
+	auditWriter   AuditWriter
+	txBeginner    pgdb.TxBeginner
 
 	// Streaming is the lib-streaming Emitter used to publish past-tense domain
 	// events; nil disables emission and never fails the request. Set
@@ -204,6 +205,11 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		).Log(ctx, libLog.LevelWarn, "Context cancelled")
 
 		return nil, ctx.Err()
+	}
+
+	if err := c.ContextLimits.validate(ctx, limit); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid shared limit definition", err)
+		return nil, err
 	}
 
 	txErr := executeInTx(ctx, c.txBeginner, func(db pgdb.DB) error {

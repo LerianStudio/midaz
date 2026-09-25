@@ -77,6 +77,7 @@ type CreateLimitInput struct {
 // either both land or neither does. Audit failure rolls the limit insert back,
 // so a successful Create implies a successful audit record.
 type CreateLimitCommand struct {
+	ContextLimits *ContextLimitDefinitionPolicy
 	// NativeAssetCodes is enabled only with the shared Reserve deployment profile.
 	NativeAssetCodes bool
 	repo             LimitRepository
@@ -258,6 +259,11 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	if !c.NativeAssetCodes && !tracerpkg.IsValidCurrency(input.Asset) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid legacy asset code", constant.ErrLimitInvalidCurrency)
 		return nil, constant.ErrLimitInvalidCurrency
+	}
+
+	if err := c.ContextLimits.validate(ctx, limit); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid shared limit definition", err)
+		return nil, err
 	}
 
 	// Check for context cancellation before repository call

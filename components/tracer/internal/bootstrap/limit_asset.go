@@ -27,6 +27,24 @@ type limitAssetConfig struct {
 	maxBodyBytes int
 }
 
+func initContextLimitDefinitionPolicy(cfg *Config) (*command.ContextLimitDefinitionPolicy, error) {
+	if !cfg.ContextReserveEnabled {
+		return nil, nil
+	}
+
+	facts, err := loadContextFactBounds(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	repository, err := postgres.NewContextLimitRepository(postgres.ContextLimitRepositoryConfig{MaxAccounts: facts.MaxAccounts, MaxLimits: 1, MaxScopes: cfg.ContextLimitMaxScopes, MaxScopeBytes: cfg.ContextLimitMaxScopeBytes, MaxTextBytes: facts.MaxTextBytes})
+	if err != nil {
+		return nil, err
+	}
+
+	return command.NewContextLimitDefinitionPolicy(repository, facts, cfg.ContextLimitMaxScopes, cfg.ContextLimitMaxScopeBytes)
+}
+
 func loadLimitAssetConfig(cfg *Config) (*limitAssetConfig, error) {
 	if !cfg.ContextLimitAdminEnabled {
 		return nil, nil
