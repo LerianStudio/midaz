@@ -461,12 +461,6 @@ func TestFirstSourceAccountID(t *testing.T) {
 	})
 }
 
-func TestReservationTTLForStatus(t *testing.T) {
-	assert.Equal(t, reservationTTLLongLived, reservationTTLForStatus(constant.PENDING))
-	assert.Equal(t, reservationTTLDefault, reservationTTLForStatus(constant.APPROVED))
-	assert.Equal(t, reservationTTLDefault, reservationTTLForStatus(constant.CREATED))
-}
-
 func TestConfirmReservations(t *testing.T) {
 	withFastSharedRetrier(t)
 

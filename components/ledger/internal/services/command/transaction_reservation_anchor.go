@@ -433,14 +433,3 @@ func (uc *UseCase) recordReservationByTransactionFailure(ctx context.Context, sp
 
 	uc.scheduleReservationRetry(ctx, logger, transition, err)
 }
-
-// reservationTTLForStatus selects the TTL policy from the transaction status:
-// PENDING transactions get the long-lived hint, everything else gets the
-// default reaper-swept TTL.
-func reservationTTLForStatus(transactionStatus string) reservationTTLPolicy {
-	if transactionStatus == constant.PENDING {
-		return reservationTTLLongLived
-	}
-
-	return reservationTTLDefault
-}

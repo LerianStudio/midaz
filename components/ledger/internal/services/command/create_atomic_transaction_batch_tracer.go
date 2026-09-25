@@ -41,11 +41,14 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 	var deadline time.Time
 
 	if uc.ContextTracer != nil {
-		participants := 0
-		var budget time.Duration
+		var (
+			participants int
+			budget       time.Duration
+		)
 
 		for index := range run.items {
 			item := &run.items[index]
+
 			settings := run.itemLedgerSettings(item).Tracer
 			if item.honoredTracerSkip || settings.Mode == "" || settings.Mode == mmodel.TracerModeOff {
 				continue
@@ -71,6 +74,7 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 		item := &run.items[index]
 
 		organizationID, ledgerID := run.itemScope(item)
+
 		reservation := uc.reservePreparedTransaction(ctx, span, logger, ContextTracerInput{
 			Key:         tracerreservation.Key{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: item.transactionID},
 			ExecutionID: run.executionID, Settings: run.itemLedgerSettings(item).Tracer,
