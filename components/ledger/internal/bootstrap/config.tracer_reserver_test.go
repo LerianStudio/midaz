@@ -96,6 +96,7 @@ func TestBuildTracerReserver_MTLSGuard(t *testing.T) {
 			cfg := &Config{
 				MultiTenantEnabled: tt.multiTenantEnabled,
 				TracerBaseURL:      tt.tracerBaseURL,
+				TracerTransport:    tracerTransportREST,
 				TracerTLSMode:      tt.tlsMode,
 			}
 
@@ -179,8 +180,9 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				TracerBaseURL:   "http://tracer:4020",
-				TracerTransport: tt.transport,
+				TracerBaseURL:        "http://tracer:4020",
+				TracerTransport:      tt.transport,
+				TracerContextEnabled: true,
 			}
 
 			reserver, err := buildTracerReserver(cfg, logger)
@@ -202,6 +204,17 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 			if closer, ok := reserver.(interface{ Close() error }); ok {
 				t.Cleanup(func() { _ = closer.Close() })
 			}
+		})
+	}
+}
+
+func TestBuildTracerReserverRejectsLegacyGRPC(t *testing.T) {
+	for _, transport := range []string{"", "grpc", " GRPC "} {
+		t.Run(transport, func(t *testing.T) {
+			cfg := &Config{TracerBaseURL: "http://tracer:4020", TracerTransport: transport}
+			reserver, err := buildTracerReserver(cfg, newBootstrapTestLogger(t))
+			require.ErrorContains(t, err, "TRACER_CONTEXT_ENABLED")
+			require.Nil(t, reserver)
 		})
 	}
 }
