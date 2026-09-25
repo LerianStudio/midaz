@@ -75,9 +75,12 @@ func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connecti
 	return c, policies, r
 }
 
-func admissionPolicy(t *testing.T, db *sql.DB, repo *ContextPolicyRepository, action model.Decision) {
+func admissionPolicy(t *testing.T, db *sql.DB, repo *ContextPolicyRepository, action model.Decision, rules ...model.ContextPolicyRule) {
 	t.Helper()
 	policy := model.ContextPolicy{ID: testutil.MustDeterministicUUID(89004), Revision: 1, DefaultDecision: model.DecisionDeny, Rules: []model.ContextPolicyRule{{ID: testutil.MustDeterministicUUID(89005), Revision: 1, Expression: "true", Action: action}}}
+	if len(rules) > 0 {
+		policy.Rules = rules
+	}
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
