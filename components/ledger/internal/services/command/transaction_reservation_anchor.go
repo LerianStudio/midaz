@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -192,12 +193,10 @@ func (uc *UseCase) reserveTransaction(
 	}
 }
 
-// handleReserveError maps a reserve transport failure to an outcome. An
-// availability failure (tracer.ErrTracerUnavailable) is gated by failPosture;
-// advisory never blocks regardless. A non-availability error (e.g. a bad
-// request the tracer rejects) is treated like an availability failure for
-// gating purposes so a tracer defect cannot silently let an enforce ledger
-// commit unchecked under fail-closed, while fail-open still proceeds.
+// handleReserveError maps a reserve failure to an outcome. Only availability
+// failures (tracer.ErrTracerUnavailable) follow failPosture. Deterministic
+// contract and validation failures reject in every mode: retrying or ignoring
+// them cannot make the same request valid and would bypass configured controls.
 func (uc *UseCase) handleReserveError(
 	ctx context.Context,
 	span trace.Span,
@@ -208,6 +207,16 @@ func (uc *UseCase) handleReserveError(
 	err error,
 ) reservationOutcome {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation call failed", err)
+
+	if !errors.Is(err, tracer.ErrTracerUnavailable) {
+		rejectErr := pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction)
+
+		logger.Log(ctx, libLog.LevelWarn, "Tracer rejected the reservation contract; rejecting transaction",
+			libLog.String("transaction_id", transactionID.String()),
+			libLog.Err(err))
+
+		return reservationOutcome{Kind: reservationReject, Err: rejectErr}
+	}
 
 	if advisory {
 		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation failed in advisory mode; proceeding",

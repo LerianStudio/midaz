@@ -310,6 +310,29 @@ func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
 	})
 }
 
+func TestReserveTransaction_DeterministicFailure_AlwaysRejects(t *testing.T) {
+	tracerCtx, sp, logger := anchorDeps()
+
+	for _, settings := range []mmodel.TracerSettings{
+		{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureOpen},
+		{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+	} {
+		t.Run(string(settings.Mode), func(t *testing.T) {
+			reserver := &stubReserver{reserveErr: constant.ErrInvalidRequestBody}
+			uc := &UseCase{TracerReserver: reserver}
+
+			out := uc.reserveTransaction(tracerCtx, sp, logger, settings,
+				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+
+			require.Equal(t, reservationReject, out.Kind)
+
+			var contractErr pkg.ServiceUnavailableError
+			require.ErrorAs(t, out.Err, &contractErr)
+			assert.Equal(t, constant.ErrTracerContractUnavailable.Error(), contractErr.Code)
+		})
+	}
+}
+
 func TestReserveTransaction_FailOpen_SkipsAndProceeds(t *testing.T) {
 	tracerCtx, sp, logger := anchorDeps()
 
