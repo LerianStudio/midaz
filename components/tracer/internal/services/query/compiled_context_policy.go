@@ -7,6 +7,7 @@ package query
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -40,6 +41,11 @@ type PreparedContextPolicy struct {
 
 // Compilation is shared across callers and therefore has its own deadline.
 const policyCompilationTimeout = 5 * time.Second
+
+// ErrContextPolicyCompilationBusy identifies transient compiler saturation.
+// It remains wrapped with ErrContextPolicyUnavailable so internal callers keep
+// the policy error vocabulary while transports can expose retry semantics.
+var ErrContextPolicyCompilationBusy = errors.New("context policy compilation capacity exhausted")
 
 type compiledPolicyKey struct {
 	tenant   string
@@ -154,7 +160,7 @@ func (q *CompiledContextPolicyQuery) program(ctx context.Context, key compiledPo
 		case q.compiling <- struct{}{}:
 			defer func() { <-q.compiling }()
 		default:
-			return nil, constant.ErrContextPolicyUnavailable
+			return nil, fmt.Errorf("%w: %w", ErrContextPolicyCompilationBusy, constant.ErrContextPolicyUnavailable)
 		}
 
 		compileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), policyCompilationTimeout)

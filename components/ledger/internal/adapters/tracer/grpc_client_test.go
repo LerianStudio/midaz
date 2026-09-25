@@ -199,12 +199,8 @@ func TestContextGRPCClientReserve(t *testing.T) {
 				require.Error(t, err)
 				require.Nil(t, result)
 			}
-			if scenario == "unavailable" {
+			if scenario == "unavailable" || scenario == "internal" {
 				require.ErrorIs(t, err, ErrTracerUnavailable)
-			}
-			if scenario == "internal" {
-				require.Equal(t, codes.Internal, status.Code(err))
-				require.NotErrorIs(t, err, ErrTracerUnavailable)
 			}
 			if scenario == "invalid request" {
 				require.Zero(t, calls)
@@ -432,9 +428,12 @@ func TestMapGRPCError(t *testing.T) {
 		{"context deadline", context.DeadlineExceeded, true},
 		{"context canceled", context.Canceled, true},
 		{"not found", status.Error(codes.NotFound, "x"), false},
-		{"internal", status.Error(codes.Internal, "x"), false},
+		{"internal", status.Error(codes.Internal, "x"), true},
+		{"unknown", status.Error(codes.Unknown, "x"), true},
+		{"resource exhausted", status.Error(codes.ResourceExhausted, "x"), true},
+		{"deterministic resource exhausted", status.Error(codes.ResourceExhausted, constant.ErrInvalidRequestBody.Error()), false},
 		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false},
-		{"plain error", errors.New("x"), false},
+		{"plain error", errors.New("x"), true},
 	}
 
 	for _, tt := range tests {

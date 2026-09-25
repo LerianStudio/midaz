@@ -155,7 +155,7 @@ func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []by
 	}
 
 	if len(raw) > c.config.MaxBodyBytes {
-		return nil, constant.ErrPayloadTooLarge
+		return nil, fmt.Errorf("%w: response exceeds configured limit", ErrTracerUnavailable)
 	}
 
 	if response.StatusCode != expectedStatus {
@@ -166,6 +166,10 @@ func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []by
 }
 
 func contextHTTPResponseError(status int, body []byte) error {
+	if status == http.StatusTooManyRequests {
+		return fmt.Errorf("%w: HTTP %d", ErrTracerUnavailable, status)
+	}
+
 	// Canonical codes distinguish unusable policy/configuration from a service
 	// outage even when both use HTTP 503. Never copy remote error text.
 	var envelope struct {
@@ -179,7 +183,7 @@ func contextHTTPResponseError(status int, body []byte) error {
 		}
 	}
 
-	if status == http.StatusServiceUnavailable || status == http.StatusGatewayTimeout || status == http.StatusTooManyRequests {
+	if status >= http.StatusInternalServerError || status == http.StatusRequestTimeout {
 		return fmt.Errorf("%w: HTTP %d", ErrTracerUnavailable, status)
 	}
 

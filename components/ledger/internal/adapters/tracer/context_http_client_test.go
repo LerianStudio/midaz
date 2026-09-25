@@ -6,6 +6,7 @@ package tracer
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -85,10 +86,40 @@ func TestContextHTTPClientReserve(t *testing.T) {
 			if scenario == "unavailable" {
 				require.ErrorIs(t, err, ErrTracerUnavailable)
 			}
+			if scenario == "oversized" {
+				require.ErrorIs(t, err, ErrTracerUnavailable)
+			}
 			if scenario == "invalid request" {
 				require.Empty(t, received)
 			} else {
 				require.Equal(t, request, <-received)
+			}
+		})
+	}
+}
+
+func TestContextHTTPResponseErrorClassifiesAvailability(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      int
+		body        string
+		unavailable bool
+		cause       error
+	}{
+		{name: "internal", status: http.StatusInternalServerError, unavailable: true},
+		{name: "bad gateway", status: http.StatusBadGateway, unavailable: true},
+		{name: "request timeout", status: http.StatusRequestTimeout, unavailable: true},
+		{name: "saturated canonical response", status: http.StatusTooManyRequests, body: `{"code":"0518"}`, unavailable: true},
+		{name: "missing policy", status: http.StatusServiceUnavailable, body: `{"code":"0518"}`, cause: constant.ErrContextPolicyUnavailable},
+		{name: "invalid request", status: http.StatusBadRequest, body: `{"code":"0094"}`, cause: constant.ErrInvalidRequestBody},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := contextHTTPResponseError(test.status, []byte(test.body))
+			require.Equal(t, test.unavailable, errors.Is(err, ErrTracerUnavailable))
+			if test.cause != nil {
+				require.ErrorIs(t, err, test.cause)
 			}
 		})
 	}
