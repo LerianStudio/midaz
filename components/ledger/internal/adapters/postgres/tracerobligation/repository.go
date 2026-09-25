@@ -291,7 +291,7 @@ func (r *Repository) SetOutcome(ctx context.Context, key tracerreservation.Key, 
 	}
 
 	if state != outcome {
-		_, err = tx.ExecContext(ctx, `UPDATE tracer_reservation_obligation SET state=$5,updated_at=GREATEST(updated_at,$6),next_attempt_at=$6
+		_, err = tx.ExecContext(ctx, `UPDATE tracer_reservation_obligation SET state=$5,updated_at=GREATEST(updated_at,$6),next_attempt_at=$6,recovery_attempts=0
  WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4`, key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx), outcome, now.UTC())
 		if err != nil {
 			return fmt.Errorf("persist tracer outcome: %w", err)
@@ -328,7 +328,7 @@ func (r *Repository) ExpirePrepared(ctx context.Context, key tracerreservation.K
 
 	defer func() { _ = tx.Rollback() }()
 
-	result, err := tx.ExecContext(ctx, `UPDATE tracer_reservation_obligation SET state='RELEASED',updated_at=GREATEST(updated_at,$5),next_attempt_at=$5
+	result, err := tx.ExecContext(ctx, `UPDATE tracer_reservation_obligation SET state='RELEASED',updated_at=GREATEST(updated_at,$5),next_attempt_at=$5,recovery_attempts=0
  WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4 AND state='PREPARED' AND prepare_deadline<=$5`, key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx), now.UTC())
 	if err != nil {
 		return false, fmt.Errorf("fence abandoned tracer preparation: %w", err)

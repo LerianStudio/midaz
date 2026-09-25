@@ -28,6 +28,7 @@ type TracerObligationStore interface {
 	ExpirePrepared(context.Context, tracerreservation.Key, time.Time) (bool, error)
 	MarkDelivered(context.Context, tracerreservation.Key, tracerreservation.State, time.Time) error
 	ClaimDue(context.Context, time.Time, time.Time, int) ([]tracerreservation.Pending, error)
+	ScheduleRetry(context.Context, tracerreservation.Pending, time.Time, bool) error
 }
 
 // ContextTracerReserver exposes only the complete shared contract. Recovery

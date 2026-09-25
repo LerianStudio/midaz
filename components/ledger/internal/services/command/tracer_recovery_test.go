@@ -18,6 +18,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
+func TestTracerRecoveryBackoffIsBounded(t *testing.T) {
+	p := &TracerRecoveryProcessor{config: TracerRecoveryConfig{RetryInterval: time.Second, MaxRetryInterval: time.Minute}}
+	require.Equal(t, time.Second, p.retryDelay(1))
+	for _, attempt := range []int{2, 10, 100, 2147483647} {
+		for range 20 {
+			delay := p.retryDelay(attempt)
+			require.GreaterOrEqual(t, delay, time.Second)
+			require.LessOrEqual(t, delay, time.Minute)
+		}
+	}
+}
+
 func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
 	for _, scenario := range []string{"prepared expired", "prepared dispatched", "executing approved", "executing canceled", "missing accounting", "pending accounting", "terminal replay", "unknown producer", "unknown revision", "remote failure", "invalid reply", "acknowledgement failure"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -28,7 +40,7 @@ func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
 			instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 			cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}
 			key := tracerreservation.Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: uuid.MustParse("1e1dd8ae-cd4b-4cb6-a88e-2926c47906aa")}
-			entry := tracerreservation.Pending{Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Executing, PrepareDeadline: instant.Add(-time.Second)}
+			entry := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Executing, PrepareDeadline: instant.Add(-time.Second)}
 			known := true
 			failed := false
 			outcome := tracerreservation.Confirmed
@@ -92,6 +104,10 @@ func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
 					}
 					store.EXPECT().MarkDelivered(gomock.Any(), key, outcome, instant).Return(ackErr)
 				}
+			}
+			if !known || failed {
+				quarantine := scenario == "unknown producer" || scenario == "unknown revision"
+				store.EXPECT().ScheduleRetry(gomock.Any(), entry, instant.Add(time.Second), quarantine).Return(nil)
 			}
 			processor, err := NewTracerRecoveryProcessor(store, client, evidence, cfg, func() time.Time { return instant })
 			require.NoError(t, err)
