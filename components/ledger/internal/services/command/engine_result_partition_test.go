@@ -321,3 +321,34 @@ func refingerprintPreparedPartitionFixture(t *testing.T, prepared *PreparedEngin
 		})
 	}
 }
+
+func TestPartitionEngineResultAcceptsInheritedBalanceScope(t *testing.T) {
+	t.Parallel()
+
+	prepared, result := repeatedBalancePartitionFixture(t, 2)
+	execution := &prepared.Execution.Execution
+	require.NotEqual(t, uuid.Nil, execution.OrganizationID)
+	require.NotEqual(t, uuid.Nil, execution.LedgerID)
+
+	execution.Balances[0].OrganizationID = uuid.Nil
+	execution.Balances[0].LedgerID = uuid.Nil
+	result.Final[0].OrganizationID = execution.OrganizationID
+	result.Final[0].LedgerID = execution.LedgerID
+
+	partitions, err := PartitionEngineResult(prepared, result)
+	require.NoError(t, err, "a balance inheriting the execution scope names the same balance as its scoped final snapshot")
+	require.Len(t, partitions, 2)
+
+	t.Run("a different explicit scope is still rejected", func(t *testing.T) {
+		t.Parallel()
+
+		prepared, result := repeatedBalancePartitionFixture(t, 2)
+		prepared.Execution.Execution.Balances[0].OrganizationID = uuid.Nil
+		prepared.Execution.Execution.Balances[0].LedgerID = uuid.Nil
+		result.Final[0].OrganizationID = uuid.MustParse("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+		result.Final[0].LedgerID = uuid.MustParse("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
+
+		_, err := PartitionEngineResult(prepared, result)
+		require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
+	})
+}

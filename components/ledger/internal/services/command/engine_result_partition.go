@@ -173,7 +173,7 @@ func validateGlobalEngineFinal(
 			return nil, invalidTransactionCompletionRecord("engine final snapshot order does not match first touch")
 		}
 
-		if !sameEngineBalanceIdentity(balance, snapshot) {
+		if !sameEngineBalanceIdentity(request, balance, snapshot) {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot identity differs from execution balance")
 		}
 
@@ -193,8 +193,13 @@ func validateGlobalEngineFinal(
 	return byRef, nil
 }
 
-func sameEngineBalanceIdentity(left, right accounting.BalanceSnapshot) bool {
+// sameEngineBalanceIdentity compares effective scopes: a balance without its
+// own scope belongs to the execution's scope.
+func sameEngineBalanceIdentity(request accounting.Execution, left, right accounting.BalanceSnapshot) bool {
+	leftOrganizationID, leftLedgerID := completionBalanceScope(request, left)
+	rightOrganizationID, rightLedgerID := completionBalanceScope(request, right)
+
 	return left.BalanceRef == right.BalanceRef && left.ID == right.ID && left.AccountID == right.AccountID &&
-		left.OrganizationID == right.OrganizationID && left.LedgerID == right.LedgerID &&
+		leftOrganizationID == rightOrganizationID && leftLedgerID == rightLedgerID &&
 		left.AccountType == right.AccountType && left.AssetCode == right.AssetCode && left.Alias == right.Alias && left.Key == right.Key
 }
