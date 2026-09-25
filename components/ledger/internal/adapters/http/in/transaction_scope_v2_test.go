@@ -200,8 +200,6 @@ func TestCreateTransactionV2_RetryReplaysTheStoredTransaction(t *testing.T) {
 		"the replayed slot must be the one scoped by the body")
 }
 
-// TestCreateTransactionHoldV2_ScopeMismatchInBodyIsRejected proves mixed scope
-// remains outside the hold lifecycle milestone.
 // v2MixedScopeBody names one scope on the debit and another on the credit.
 const v2MixedScopeBody = `{"asset":"BRL","amount":"100",` +
 	`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +

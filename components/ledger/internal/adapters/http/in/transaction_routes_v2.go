@@ -141,7 +141,7 @@ func publishV2SingularTransactionResponseSchemas(api huma.API) {
 	}
 
 	singular := map[string]struct{}{
-		"createTransactionHoldV2": {}, "createTransactionBlockV2": {}, "createTransactionUnblockV2": {},
+		"createTransactionBlockV2": {}, "createTransactionUnblockV2": {},
 	}
 	t := reflect.TypeFor[TransactionV2]()
 
@@ -181,7 +181,7 @@ func publishV2TransactionOrGroupResponseSchemas(api huma.API) {
 	for _, item := range api.OpenAPI().Paths {
 		for _, op := range operationsOf(item) {
 			switch op.OperationID {
-			case "createTransactionDirectV2", "commitTransactionV2", "cancelTransactionV2", "revertTransactionV2":
+			case "createTransactionDirectV2", "createTransactionHoldV2", "commitTransactionV2", "cancelTransactionV2", "revertTransactionV2":
 			default:
 				continue
 			}
@@ -305,8 +305,8 @@ const v2CreateMaxBodyBytes int64 = 1 << 20
 const v2CreateBodyDescription = "Transaction request body. `debits` and `credits` are the two " +
 	"required, non-empty leg arrays of the transaction; one debit paired with many credits, or " +
 	"the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its " +
-	"account belongs to. The direct action accepts multiple enabled ledgers and returns an atomic " +
-	"group; hold, block and unblock still require every leg to name the same pair. `asset`, " +
+	"account belongs to. The direct and hold actions accept multiple enabled ledgers and return an " +
+	"atomic group; block and unblock still require every leg to name the same pair. `asset`, " +
 	"`amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
 	"`metadata` sit alongside the two leg arrays, and `amount` is the transaction total that " +
 	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."

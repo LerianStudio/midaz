@@ -356,7 +356,7 @@ type CreateTransactionOutputV2 struct {
 }
 
 // CreateTransactionV2Response preserves the historical singular wire shape by
-// anonymously embedding TransactionV2. Cross-ledger direct creation instead
+// anonymously embedding TransactionV2. Cross-ledger direct and hold creation instead
 // leaves that embedding nil and returns the atomic group envelope fields.
 type CreateTransactionV2Response struct {
 	*TransactionV2

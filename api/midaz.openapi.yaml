@@ -12982,7 +12982,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionV2'
+                oneOf:
+                  - $ref: '#/components/schemas/TransactionV2'
+                  - $ref: '#/components/schemas/CrossLedgerTransactionGroupV2'
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -16939,9 +16941,9 @@ components:
         Transaction request body. `debits` and `credits` are the two required,
         non-empty leg arrays of the transaction; one debit paired with many
         credits, or the reverse, is a valid request. Every leg names the
-        `organizationId` and `ledgerId` its account belongs to. The direct
-        action accepts multiple enabled ledgers and returns an atomic group;
-        hold, block and unblock still require every leg to name the same pair.
+        `organizationId` and `ledgerId` its account belongs to. The direct and
+        hold actions accept multiple enabled ledgers and return an atomic group;
+        block and unblock still require every leg to name the same pair.
         `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId`
         and `metadata` sit alongside the two leg arrays, and `amount` is the
         transaction total that the legs' `share` expressions divide. Each leg
