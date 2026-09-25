@@ -21,6 +21,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1005,4 +1006,39 @@ func TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource(t 
 			assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing %s claim with a cached canonical value replays → 201", tc.name)
 		})
 	}
+}
+
+// TestNewCrossLedgerCreateOutputV2_NilResultIsAnInternalError proves a cross-ledger command
+// answering neither a result nor an error surfaces as a 500 problem instead of a panic.
+func TestNewCrossLedgerCreateOutputV2_NilResultIsAnInternalError(t *testing.T) {
+	t.Parallel()
+
+	out, err := newCrossLedgerCreateOutputV2(nil)
+
+	require.Error(t, err)
+	assert.Nil(t, out)
+
+	var statusErr huma.StatusError
+	require.ErrorAs(t, err, &statusErr)
+	assert.Equal(t, http.StatusInternalServerError, statusErr.GetStatus())
+}
+
+// TestNewCrossLedgerCreateOutputV2_ProjectsTheGroupEnvelope proves a cross-ledger result is
+// answered as the group envelope: the group id plus the ordered member transactions.
+func TestNewCrossLedgerCreateOutputV2_ProjectsTheGroupEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := uuid.MustParse("01994f13-29b7-7000-8000-000000000701")
+
+	out, err := newCrossLedgerCreateOutputV2(&command.CreateAtomicTransactionBatchV2Result{BatchID: groupID, Replayed: true})
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, out.Body)
+	assert.Equal(t, http.StatusCreated, out.Status)
+	assert.Equal(t, "true", out.IdempotencyReplayed)
+	assert.Nil(t, out.Body.TransactionV2)
+	require.NotNil(t, out.Body.GroupID)
+	assert.Equal(t, groupID.String(), *out.Body.GroupID)
+	assert.Empty(t, out.Body.Transactions)
 }

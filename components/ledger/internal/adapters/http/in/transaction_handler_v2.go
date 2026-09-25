@@ -147,17 +147,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 			return nil, pkgHTTP.HumaProblem(err)
 		}
 
-		groupID := result.BatchID.String()
-
-		transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
-		for index := range result.Transactions {
-			transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
-		}
-
-		return &CreateTransactionOutputV2{
-			Status: http.StatusCreated, IdempotencyReplayed: replayedHeader(result.Replayed),
-			Body: &CreateTransactionV2Response{GroupID: &groupID, Transactions: transactions},
-		}, nil
+		return newCrossLedgerCreateOutputV2(result)
 	}
 
 	scope := normalized.scopes[0]
@@ -186,6 +176,26 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
 		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(tran)},
+	}, nil
+}
+
+// newCrossLedgerCreateOutputV2 projects a cross-ledger direct or hold result onto the group
+// envelope. A nil result without an error is a command defect, answered as an internal error.
+func newCrossLedgerCreateOutputV2(result *command.CreateAtomicTransactionBatchV2Result) (*CreateTransactionOutputV2, error) {
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("cross-ledger transaction command returned no result"))
+	}
+
+	groupID := result.BatchID.String()
+
+	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
+	for index := range result.Transactions {
+		transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
+	}
+
+	return &CreateTransactionOutputV2{
+		Status: http.StatusCreated, IdempotencyReplayed: replayedHeader(result.Replayed),
+		Body: &CreateTransactionV2Response{GroupID: &groupID, Transactions: transactions},
 	}, nil
 }
 
