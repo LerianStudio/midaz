@@ -82,6 +82,62 @@ func TestObligationDurabilityAndFencing(t *testing.T) {
 	require.Error(t, err, "rollback must preserve coordination history")
 }
 
+func TestObligationRecoveryPriorityAndQuarantine(t *testing.T) {
+	infra := pgtestutil.SetupMigratedContainer(t, "transaction")
+	database := dbresolver.New(dbresolver.WithPrimaryDBs(infra.DB))
+	ctx := tmcore.ContextWithPG(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), database, constant.ModuleTransaction)
+	old, cfg := obligationFixture(t)
+	repo, err := NewRepository(nil, cfg, true, 10)
+	require.NoError(t, err)
+	_, err = repo.Prepare(ctx, old)
+	require.NoError(t, err)
+	require.NoError(t, repo.BeginExecution(ctx, old.Key, old.CreatedAt))
+	request, err := old.Request(ctx, cfg)
+	require.NoError(t, err)
+	request.TransactionID = uuid.MustParse("ffffffff-ffff-4fff-8fff-ffffffffffff")
+	request.RequestID = uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	key := old.Key
+	key.TransactionID = request.TransactionID
+	newer, err := tracerreservation.NewIntent(ctx, key, old.ExecutionID, old.Scope, request, old.CreatedAt.Add(time.Second), old.PrepareDeadline.Add(time.Second), cfg)
+	require.NoError(t, err)
+	_, err = repo.Prepare(ctx, newer)
+	require.NoError(t, err)
+	require.NoError(t, repo.BeginExecution(ctx, key, newer.CreatedAt))
+	require.NoError(t, repo.SetOutcome(ctx, key, tracerreservation.Confirmed, newer.CreatedAt))
+	now := newer.PrepareDeadline
+	claimed, err := repo.ClaimDue(ctx, now, now.Add(time.Second), 1)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	require.Equal(t, key, claimed[0].Key, "a fresh terminal outcome must precede an older PENDING obligation")
+	require.Equal(t, 1, claimed[0].RecoveryAttempts)
+	terminal := claimed[0]
+	require.NoError(t, repo.ScheduleRetry(ctx, claimed[0], now.Add(time.Hour), false))
+	claimed, err = repo.ClaimDue(ctx, now, now.Add(time.Second), 1)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	require.Equal(t, old.Key, claimed[0].Key)
+	require.NoError(t, repo.ScheduleRetry(ctx, claimed[0], now.Add(time.Second), true))
+	claimed, err = repo.ClaimDue(ctx, now.Add(time.Minute), now.Add(2*time.Minute), 10)
+	require.NoError(t, err)
+	require.Empty(t, claimed)
+	pending, err := HasUndelivered(ctx, database)
+	require.NoError(t, err)
+	require.True(t, pending, "quarantine must not count as delivery or permit shutdown")
+	var state string
+	require.NoError(t, infra.DB.QueryRowContext(ctx, `SELECT state FROM tracer_reservation_obligation WHERE transaction_id=$1`, old.Key.TransactionID).Scan(&state))
+	require.Equal(t, string(tracerreservation.Executing), state)
+	claimed, err = repo.ClaimDue(ctx, now.Add(time.Hour), now.Add(time.Hour+time.Second), 1)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	require.Equal(t, 2, claimed[0].RecoveryAttempts)
+	require.NoError(t, repo.ScheduleRetry(ctx, terminal, now.Add(24*time.Hour), true))
+	var next time.Time
+	var quarantined bool
+	require.NoError(t, infra.DB.QueryRowContext(ctx, `SELECT next_attempt_at,recovery_quarantined FROM tracer_reservation_obligation WHERE transaction_id=$1`, key.TransactionID).Scan(&next, &quarantined))
+	require.Equal(t, now.Add(time.Hour+time.Second), next.UTC(), "stale scheduling must not postpone the newer claim")
+	require.False(t, quarantined)
+}
+
 func TestObligationBatchFenceIsAtomicAndOrdered(t *testing.T) {
 	infra := pgtestutil.SetupMigratedContainer(t, "transaction")
 	ctx := tmcore.ContextWithPG(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), dbresolver.New(dbresolver.WithPrimaryDBs(infra.DB)), constant.ModuleTransaction)

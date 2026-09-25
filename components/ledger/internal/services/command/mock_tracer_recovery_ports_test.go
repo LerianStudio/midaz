@@ -147,6 +147,20 @@ func (mr *MockTracerObligationStoreMockRecorder) Prepare(arg0, arg1 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockTracerObligationStore)(nil).Prepare), arg0, arg1)
 }
 
+// ScheduleRetry mocks base method.
+func (m *MockTracerObligationStore) ScheduleRetry(arg0 context.Context, arg1 tracerreservation.Pending, arg2 time.Time, arg3 bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScheduleRetry", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ScheduleRetry indicates an expected call of ScheduleRetry.
+func (mr *MockTracerObligationStoreMockRecorder) ScheduleRetry(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScheduleRetry", reflect.TypeOf((*MockTracerObligationStore)(nil).ScheduleRetry), arg0, arg1, arg2, arg3)
+}
+
 // SetOutcome mocks base method.
 func (m *MockTracerObligationStore) SetOutcome(arg0 context.Context, arg1 tracerreservation.Key, arg2 tracerreservation.State, arg3 time.Time) error {
 	m.ctrl.T.Helper()

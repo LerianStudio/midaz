@@ -145,6 +145,29 @@ cycle. A suspended/deleted tenant cannot be drained through an active-only catal
 drain before removal or restore authorized access. Do not change integration ID,
 namespace or contract revision while their obligations still need this worker.
 
+Recovery prioritizes due CONFIRMED/RELEASED obligations over unresolved work.
+Attempts are persisted before delivery. Failed or unresolved attempts use bounded
+exponential backoff with jitter (at least the poll interval, capped by
+`TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS`, default 300000 ms). Recording a new
+accounting outcome resets the delay and attempt count. Scheduling uses the claimed
+state and attempt number, so an old worker cannot postpone a newer outcome.
+Transport failures remain retryable; an incompatible owner, contract or malformed
+record is quarantined without changing its outcome or acknowledging delivery.
+Quarantined records still prevent disabling recovery and require intervention:
+
+```sql
+SELECT organization_id, ledger_id, transaction_id, state, recovery_attempts
+FROM tracer_reservation_obligation
+WHERE delivered_at IS NULL AND recovery_quarantined;
+```
+
+Restore the correct producer configuration/compatible worker and investigate the
+record before resuming it. Never edit immutable intent or infer a financial outcome
+from age. An authorized operator can clear `recovery_quarantined` and set
+`next_attempt_at` for the exact inspected primary key in its tenant database.
+Migration 000037 must precede the new worker; use the coordinated maintenance
+window. Its downgrade is blocked to avoid silently discarding quarantine state.
+
 PREPARED can expire only before it acquires accounting dispatch ownership.
 EXECUTING requires authoritative outcome evidence: APPROVED confirms and CANCELED
 releases; missing/PENDING stays unresolved. A lost fence commit can leave an

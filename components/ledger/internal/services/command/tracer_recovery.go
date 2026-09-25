@@ -13,6 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
@@ -28,15 +29,19 @@ import (
 )
 
 type TracerRecoveryConfig struct {
-	IntegrationID  string
-	Namespace      string
-	SingleTenant   bool
-	MaxBatch       int
-	RetryInterval  time.Duration
-	AttemptTimeout time.Duration
+	IntegrationID    string
+	Namespace        string
+	SingleTenant     bool
+	MaxBatch         int
+	RetryInterval    time.Duration
+	AttemptTimeout   time.Duration
+	MaxRetryInterval time.Duration
 }
 
 func (c TracerRecoveryConfig) Validate() error {
+	if c.MaxRetryInterval < 0 || (c.MaxRetryInterval > 0 && c.MaxRetryInterval < c.RetryInterval) {
+		return constant.ErrInvalidRequestBody
+	}
 	if !validTracerIdentity(c.IntegrationID) || !validTracerIdentity(c.Namespace) || c.MaxBatch <= 0 || c.RetryInterval <= 0 || c.AttemptTimeout <= 0 {
 		return constant.ErrInvalidRequestBody
 	}
@@ -75,6 +80,10 @@ func NewTracerRecoveryProcessor(store TracerObligationStore, client ContextTrace
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+
+	if cfg.MaxRetryInterval == 0 {
+		cfg.MaxRetryInterval = max(5*time.Minute, cfg.RetryInterval)
 	}
 
 	return &TracerRecoveryProcessor{store: store, client: client, evidence: evidence, config: cfg, now: now}, nil
@@ -126,6 +135,15 @@ func (p *TracerRecoveryProcessor) RunOnce(ctx context.Context) (summary TracerRe
 
 		cancel()
 
+		if !delivered {
+			quarantine := p.validatePending(ctx, record) != nil
+
+			next := p.now().UTC().Add(p.retryDelay(record.RecoveryAttempts))
+			if scheduleErr := p.store.ScheduleRetry(ctx, record, next, quarantine); scheduleErr != nil {
+				err = errors.Join(err, fmt.Errorf("schedule tracer retry: %w", scheduleErr))
+			}
+		}
+
 		switch {
 		case err != nil:
 			summary.Failed++
@@ -139,6 +157,12 @@ func (p *TracerRecoveryProcessor) RunOnce(ctx context.Context) (summary TracerRe
 	}
 
 	return summary, errors.Join(failures...)
+}
+
+func (p *TracerRecoveryProcessor) retryDelay(attempts int) time.Duration {
+	ceiling := min(backoff.Exponential(p.config.RetryInterval, max(0, attempts-1)), p.config.MaxRetryInterval)
+	// Keep at least one poll interval, with jitter over the remaining range.
+	return p.config.RetryInterval + backoff.FullJitter(ceiling-p.config.RetryInterval)
 }
 
 func recordTracerCoordinationError(span trace.Span, err error) {

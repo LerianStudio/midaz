@@ -355,23 +355,24 @@ type Config struct {
 
 	// Context activation requires explicit work bounds and a recovery worker.
 	// Per-ledger mode=off stops admission, never recovery of existing records.
-	TracerContextEnabled            bool   `env:"TRACER_CONTEXT_ENABLED"`
-	TracerIntegrationID             string `env:"TRACER_INTEGRATION_ID"`
-	TracerAssetNamespace            string `env:"TRACER_ASSET_NAMESPACE"`
-	TracerContextMaxBodyBytes       int    `env:"TRACER_CONTEXT_MAX_BODY_BYTES"`
-	TracerContextMaxAccounts        int    `env:"TRACER_CONTEXT_MAX_ACCOUNTS"`
-	TracerContextMaxEntries         int    `env:"TRACER_CONTEXT_MAX_ENTRIES"`
-	TracerContextMaxTextBytes       int    `env:"TRACER_CONTEXT_MAX_TEXT_BYTES"`
-	TracerContextMaxIntegerDigits   int    `env:"TRACER_CONTEXT_MAX_INTEGER_DIGITS"`
-	TracerContextMaxFractionDigits  string `env:"TRACER_CONTEXT_MAX_FRACTION_DIGITS"`
-	TracerContextMaxReservations    int    `env:"TRACER_CONTEXT_MAX_RESERVATIONS"`
-	TracerRecoveryBatchSize         int    `env:"TRACER_RECOVERY_BATCH_SIZE"`
-	TracerRecoveryIntervalMs        int    `env:"TRACER_RECOVERY_INTERVAL_MS"`
-	TracerRecoveryCycleTimeoutMs    int    `env:"TRACER_RECOVERY_CYCLE_TIMEOUT_MS"`
-	TracerRecoveryTenantTimeoutMs   int    `env:"TRACER_RECOVERY_TENANT_TIMEOUT_MS"`
-	TracerRecoveryAttemptTimeoutMs  int    `env:"TRACER_RECOVERY_ATTEMPT_TIMEOUT_MS"`
-	TracerRecoveryMaxTenants        int    `env:"TRACER_RECOVERY_MAX_TENANTS"`
-	TracerRecoveryMaxCatalogTenants int    `env:"TRACER_RECOVERY_MAX_CATALOG_TENANTS"`
+	TracerContextEnabled             bool   `env:"TRACER_CONTEXT_ENABLED"`
+	TracerIntegrationID              string `env:"TRACER_INTEGRATION_ID"`
+	TracerAssetNamespace             string `env:"TRACER_ASSET_NAMESPACE"`
+	TracerContextMaxBodyBytes        int    `env:"TRACER_CONTEXT_MAX_BODY_BYTES"`
+	TracerContextMaxAccounts         int    `env:"TRACER_CONTEXT_MAX_ACCOUNTS"`
+	TracerContextMaxEntries          int    `env:"TRACER_CONTEXT_MAX_ENTRIES"`
+	TracerContextMaxTextBytes        int    `env:"TRACER_CONTEXT_MAX_TEXT_BYTES"`
+	TracerContextMaxIntegerDigits    int    `env:"TRACER_CONTEXT_MAX_INTEGER_DIGITS"`
+	TracerContextMaxFractionDigits   string `env:"TRACER_CONTEXT_MAX_FRACTION_DIGITS"`
+	TracerContextMaxReservations     int    `env:"TRACER_CONTEXT_MAX_RESERVATIONS"`
+	TracerRecoveryBatchSize          int    `env:"TRACER_RECOVERY_BATCH_SIZE"`
+	TracerRecoveryIntervalMs         int    `env:"TRACER_RECOVERY_INTERVAL_MS"`
+	TracerRecoveryMaxRetryIntervalMs int    `env:"TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS" envDefault:"300000"`
+	TracerRecoveryCycleTimeoutMs     int    `env:"TRACER_RECOVERY_CYCLE_TIMEOUT_MS"`
+	TracerRecoveryTenantTimeoutMs    int    `env:"TRACER_RECOVERY_TENANT_TIMEOUT_MS"`
+	TracerRecoveryAttemptTimeoutMs   int    `env:"TRACER_RECOVERY_ATTEMPT_TIMEOUT_MS"`
+	TracerRecoveryMaxTenants         int    `env:"TRACER_RECOVERY_MAX_TENANTS"`
+	TracerRecoveryMaxCatalogTenants  int    `env:"TRACER_RECOVERY_MAX_CATALOG_TENANTS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
