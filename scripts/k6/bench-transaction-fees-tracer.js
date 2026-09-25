@@ -34,7 +34,7 @@
 
 import {
   LEDGER, post, createOrg, createLedger, createAsset, createAccount, createFlatFeePackage, fund,
-  transferBody, leg, record, summaryWriter,
+  transferBodyV2, leg, record, summaryWriter,
 } from './lib/midaz.js';
 
 const RATE = parseInt(__ENV.RATE || '50', 10);
@@ -42,6 +42,24 @@ const DURATION = __ENV.DURATION || '30s';
 const GAP = 5;
 const WITH_TRACER = __ENV.WITH_TRACER === '1';
 const LEDGER_P99_MS = parseInt(__ENV.LEDGER_P99_MS || '500', 10);
+
+function durationSeconds(value) {
+  const units = { ms: 0.001, s: 1, m: 60, h: 3600 };
+  const pattern = /(\d+(?:\.\d+)?)(ms|s|m|h)/g;
+  let seconds = 0;
+  let consumed = '';
+  let match;
+  while ((match = pattern.exec(value)) !== null) {
+    seconds += parseFloat(match[1]) * units[match[2]];
+    consumed += match[0];
+  }
+  if (consumed !== value || seconds <= 0) {
+    throw new Error(`DURATION must use k6 duration units (ms, s, m, h): ${value}`);
+  }
+  return seconds;
+}
+
+const DURATION_SECONDS = durationSeconds(DURATION);
 if (WITH_TRACER && !__ENV.TRACER_SEED) {
   throw new Error('WITH_TRACER=1 requires a pre-attested TRACER_SEED file');
 }
@@ -69,7 +87,7 @@ function legScenario(exec, slot) {
     executor: 'constant-arrival-rate',
     rate: RATE, timeUnit: '1s', duration: DURATION,
     preAllocatedVUs: RATE, maxVUs: RATE * 4,
-    exec: exec, startTime: `${slot * (parseInt(DURATION) + GAP)}s`,
+    exec: exec, startTime: `${slot * (DURATION_SECONDS + GAP)}s`,
   };
 }
 
@@ -83,6 +101,7 @@ const thresholds = {
   err_txn_fees: ['count<1'],
   lat_txn_baseline_ms: [`p(99)<${LEDGER_P99_MS}`],
   lat_txn_fees_ms: [`p(99)<${LEDGER_P99_MS}`],
+  dropped_iterations: ['count<1'],
 };
 if (WITH_TRACER) {
   scenarios.C_tracer = legScenario('legTracer', 2);
@@ -130,8 +149,8 @@ export function setup() {
 }
 
 function doTransfer(arm, metric) {
-  const res = post(`${LEDGER}/v2/organizations/${arm.org}/ledgers/${arm.ledger}/transactions/json`,
-    transferBody(arm.src, arm.dst, XFER));
+  const res = post(`${LEDGER}/v2/transactions/direct`,
+    transferBodyV2(arm.org, arm.ledger, arm.src, arm.dst, XFER));
   record(metric, res);
 }
 

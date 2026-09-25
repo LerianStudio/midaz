@@ -104,8 +104,8 @@ export function createHolder(org) {
 
 // createFlatFeePackage registers an enabled flat-fee package on the ledger.
 export function createFlatFeePackage(org, ledger, creditAlias, flatValue) {
-  const res = post(`${LEDGER}/v1/organizations/${org}/packages`, {
-    feeGroupLabel: 'k6 Std', ledgerId: ledger,
+  const res = post(`${LEDGER}/v2/organizations/${org}/ledgers/${ledger}/packages`, {
+    feeGroupLabel: 'k6 Std',
     minimumAmount: '0', maximumAmount: '1000000000', enable: true,
     fees: {
       adminFee: {
@@ -116,6 +116,21 @@ export function createFlatFeePackage(org, ledger, creditAlias, flatValue) {
     },
   });
   abortOn(res, 'create fee package');
+}
+
+// transferBodyV2 builds the flat /v2 transaction body. Organization and ledger
+// are explicit on every leg because the /v2 create route carries no scope path.
+export function transferBodyV2(org, ledger, from, to, value, skip) {
+  const scope = { organizationId: org, ledgerId: ledger };
+  const body = {
+    description: `xfer ${uuidv4()}`,
+    asset: 'USD',
+    amount: value,
+    debits: [{ alias: from, amount: value, ...scope }],
+    credits: [{ alias: to, amount: value, ...scope }],
+  };
+  if (skip) body.skip = skip;
+  return body;
 }
 
 // fund credits alias with value USD from the external account via an inflow.
