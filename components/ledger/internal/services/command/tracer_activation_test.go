@@ -112,8 +112,8 @@ func TestLegacyReserveCannotDowngradeCombinedControls(t *testing.T) {
 		rejected            bool
 	}{
 		{"enforce closed", "enforce", "closed", false, true},
-		{"enforce open", "enforce", "open", false, false},
-		{"advisory", "advisory", "closed", false, false},
+		{"enforce open", "enforce", "open", false, true},
+		{"advisory", "advisory", "closed", false, true},
 		{"off", "off", "closed", false, false},
 		{"authorized skip", "enforce", "closed", true, false},
 	} {
