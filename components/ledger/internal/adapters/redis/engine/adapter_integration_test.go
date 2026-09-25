@@ -83,6 +83,14 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 	request.ExecutionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":execution"))
 	request.OrganizationID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":organization"))
 	request.LedgerID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":ledger"))
+	for index := range request.Balances {
+		request.Balances[index].OrganizationID = request.OrganizationID
+		request.Balances[index].LedgerID = request.LedgerID
+	}
+	for index := range request.Transactions {
+		request.Transactions[index].OrganizationID = request.OrganizationID
+		request.Transactions[index].LedgerID = request.LedgerID
+	}
 	request.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":transaction"))
 	request.Transactions[0].Postings[0].DrawPolicy = core.DrawForbidden
 	input := command.EngineExecution{Execution: request}
@@ -115,21 +123,7 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.TransactionCompletionPlan) json.RawMessage {
 	t.Helper()
 	require.Len(t, input.Execution.Transactions, 1)
-	transaction := command.EngineTransactionIntent{
-		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
-		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
-		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
-		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-		PostingRefs:         make([]string, 0, len(input.Execution.Transactions[0].Postings)),
-		BalanceRequirements: append([]core.BalanceRequirement(nil), input.Execution.Transactions[0].BalanceRequirements...),
-		OperationSpecs:      make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs)),
-	}
-	for _, posting := range input.Execution.Transactions[0].Postings {
-		transaction.PostingRefs = append(transaction.PostingRefs, posting.Ref)
-	}
-	for _, projection := range payload.OperationSpecs {
-		transaction.OperationSpecs = append(transaction.OperationSpecs, projection.Intent())
-	}
+	transaction := command.BuildTransactionCompletionIntent(input.Execution.Transactions[0], payload)
 	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		TenantID: payload.TenantID, OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
 		ExecutionID: input.Execution.ExecutionID, Transactions: []command.EngineTransactionIntent{transaction},
@@ -456,11 +450,7 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecutionKeys) map[string]any {
 	t.Helper()
 	state := make(map[string]any)
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex}
-	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
-	}
-	for _, key := range inventory {
+	for _, key := range adapterStateInventory(keys) {
 		dump, err := client.Dump(context.Background(), key).Result()
 		if errors.Is(err, redis.Nil) {
 			dump, err = "", nil
@@ -471,6 +461,20 @@ func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecut
 		state[key] = []any{dump, expiry}
 	}
 	return state
+}
+
+// adapterStateInventory names every key an execution may write: the primary
+// scope's evidence and every foreign coordination scope included.
+func adapterStateInventory(keys resolvedExecutionKeys) []string {
+	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex, keys.Evidence}
+	for _, balance := range keys.Balances {
+		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
+	}
+	for _, coordination := range keys.Coordination {
+		inventory = append(inventory, coordination.Receipts, coordination.Guards, coordination.Protection,
+			coordination.TransactionIndex, coordination.Evidence)
+	}
+	return inventory
 }
 
 func TestIntegration_AdapterExecute_RejectsRecoveryTenantBeforeProvider(t *testing.T) {

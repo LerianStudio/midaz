@@ -63,19 +63,21 @@ type TransactionWriteBehindEnvelope struct {
 // record and receipt named here, then compose the requested representation in
 // Go.
 type TransactionEvidenceIndex struct {
-	FormatVersion    int                            `json:"formatVersion"`
-	TenantID         string                         `json:"tenantId"`
-	OrganizationID   uuid.UUID                      `json:"organizationId"`
-	LedgerID         uuid.UUID                      `json:"ledgerId"`
-	TransactionID    uuid.UUID                      `json:"transactionId"`
-	ExecutionID      uuid.UUID                      `json:"executionId"`
-	Action           string                         `json:"action"`
-	ApplicationState string                         `json:"applicationState"`
-	ReplayState      string                         `json:"replayState"`
-	DurabilityState  string                         `json:"durabilityState"`
-	RecoveryField    string                         `json:"recoveryField"`
-	ReceiptField     string                         `json:"receiptField"`
-	Dependencies     []TransactionEvidenceReference `json:"dependencies"`
+	FormatVersion         int                            `json:"formatVersion"`
+	TenantID              string                         `json:"tenantId"`
+	OrganizationID        uuid.UUID                      `json:"organizationId"`
+	LedgerID              uuid.UUID                      `json:"ledgerId"`
+	TransactionID         uuid.UUID                      `json:"transactionId"`
+	ExecutionID           uuid.UUID                      `json:"executionId"`
+	Action                string                         `json:"action"`
+	ApplicationState      string                         `json:"applicationState"`
+	ReplayState           string                         `json:"replayState"`
+	DurabilityState       string                         `json:"durabilityState"`
+	RecoveryField         string                         `json:"recoveryField"`
+	ReceiptField          string                         `json:"receiptField"`
+	ReceiptOrganizationID *uuid.UUID                     `json:"receiptOrganizationId,omitempty"`
+	ReceiptLedgerID       *uuid.UUID                     `json:"receiptLedgerId,omitempty"`
+	Dependencies          []TransactionEvidenceReference `json:"dependencies"`
 }
 
 func EncodeTransactionEvidenceIndex(index TransactionEvidenceIndex) (json.RawMessage, error) {
@@ -305,7 +307,7 @@ func validateTransactionEvidenceReferences(record TransactionCompletionRecord, d
 	return nil
 }
 
-//nolint:gocyclo // versioned index validation rejects each malformed identity and reference combination explicitly
+//nolint:gocyclo,gocognit // versioned index validation rejects each malformed identity and reference combination explicitly
 func validateTransactionEvidenceIndex(index TransactionEvidenceIndex) error {
 	if index.FormatVersion != TransactionEvidenceIndexFormatVersion || index.OrganizationID == uuid.Nil || index.LedgerID == uuid.Nil || index.TransactionID == uuid.Nil || index.ExecutionID == uuid.Nil || index.Action == "" {
 		return invalidTransactionCompletionRecord("invalid transaction evidence index identity")
@@ -319,6 +321,11 @@ func validateTransactionEvidenceIndex(index TransactionEvidenceIndex) error {
 
 	if index.RecoveryField != index.TransactionID.String()+":"+index.ExecutionID.String() || index.ReceiptField != index.ExecutionID.String() || len(index.Dependencies) > 2 {
 		return invalidTransactionCompletionRecord("invalid transaction evidence index correlation")
+	}
+
+	if (index.ReceiptOrganizationID == nil) != (index.ReceiptLedgerID == nil) ||
+		(index.ReceiptOrganizationID != nil && (*index.ReceiptOrganizationID == uuid.Nil || *index.ReceiptLedgerID == uuid.Nil)) {
+		return invalidTransactionCompletionRecord("invalid transaction evidence receipt scope")
 	}
 
 	seenKinds := make(map[string]struct{}, len(index.Dependencies))

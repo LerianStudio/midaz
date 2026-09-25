@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // This file is the /v2 transaction RESPONSE contract seam. Every v2 transaction op answers with
@@ -38,6 +39,11 @@ type TransactionV2 struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	ParentTransactionID *string `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Atomic cross-ledger group identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	GroupID *string `json:"groupId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Human-readable description of the transaction
 	// example: Transaction description
@@ -269,6 +275,7 @@ func newTransactionV2(t *transaction.Transaction) *TransactionV2 {
 	return &TransactionV2{
 		ID:                  t.ID,
 		ParentTransactionID: t.ParentTransactionID,
+		GroupID:             t.GroupID,
 		Description:         t.Description,
 		Status:              t.Status,
 		Amount:              t.Amount,
@@ -345,7 +352,52 @@ func newOperationV2(op *operation.Operation) *OperationV2 {
 type CreateTransactionOutputV2 struct {
 	Status              int
 	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
-	Body                *TransactionV2
+	Body                *CreateTransactionV2Response
+}
+
+// CreateTransactionV2Response preserves the historical singular wire shape by
+// anonymously embedding TransactionV2. Cross-ledger direct and hold creation instead
+// leaves that embedding nil and returns the atomic group envelope fields.
+type CreateTransactionV2Response struct {
+	*TransactionV2
+	GroupID         *string                                `json:"groupId,omitempty" format:"uuid"`
+	RevertedGroupID *string                                `json:"revertedGroupId,omitempty" format:"uuid"`
+	Transactions    []*AtomicTransactionBatchV2Transaction `json:"transactions,omitempty"`
+}
+
+func newPendingTransitionV2Response(result *command.PendingTransitionV2Result) *CreateTransactionV2Response {
+	if result == nil {
+		return nil
+	}
+
+	if result.Group == nil {
+		return &CreateTransactionV2Response{TransactionV2: newTransactionV2(result.Transaction)}
+	}
+
+	groupID := result.Group.BatchID.String()
+
+	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Group.Transactions))
+	for index := range result.Group.Transactions {
+		transactions[index] = &AtomicTransactionBatchV2Transaction{
+			TransactionV2: newTransactionV2(result.Group.Transactions[index]),
+			Order:         index + 1,
+		}
+	}
+
+	return &CreateTransactionV2Response{
+		GroupID:      &groupID,
+		Transactions: transactions,
+	}
+}
+
+// CrossLedgerTransactionGroupV2 is the documented cross-ledger branch of the
+// direct-create response. The runtime response above keeps its optional fields
+// flattened so the historical singular JSON remains byte-compatible; this type
+// gives OpenAPI a strict group envelope whose two fields are both required.
+type CrossLedgerTransactionGroupV2 struct {
+	GroupID         string                                 `json:"groupId" format:"uuid"`
+	RevertedGroupID *string                                `json:"revertedGroupId,omitempty" format:"uuid" doc:"Original group reversed by this group. Present only on grouped revert responses."`
+	Transactions    []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created per-ledger transactions in deterministic decomposition order."`
 }
 
 // StateTransactionOutputV2 pins 201 (matching http.Created) and carries the resulting
@@ -353,5 +405,5 @@ type CreateTransactionOutputV2 struct {
 // commit/cancel ops.
 type StateTransactionOutputV2 struct {
 	Status int
-	Body   *TransactionV2
+	Body   *CreateTransactionV2Response
 }

@@ -164,6 +164,21 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, fil
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, ledgerID, filter)
 }
 
+// FindByGroupID mocks base method.
+func (m *MockRepository) FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByGroupID", ctx, groupID)
+	ret0, _ := ret[0].([]*Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByGroupID indicates an expected call of FindByGroupID.
+func (mr *MockRepositoryMockRecorder) FindByGroupID(ctx, groupID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByGroupID", reflect.TypeOf((*MockRepository)(nil).FindByGroupID), ctx, groupID)
+}
+
 // FindByParentID mocks base method.
 func (m *MockRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	m.ctrl.T.Helper()

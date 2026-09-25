@@ -390,6 +390,72 @@ func TestIntegrationAtomicTransactionBatchRecoveryAckRetainsMemberWhenReceiptCha
 	assert.Equal(t, time.Duration(-1), container.Client.TTL(fixture.ctx, fixture.recordKey).Val())
 }
 
+func TestIntegrationAtomicTransactionBatchRecoveryAckUsesCoordinationIndexAndPrimaryReceipt(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+	container := redistestutil.SetupReusableContainer(t)
+	fixture := newAtomicBatchRecoveryAckFixture(t, container.Client)
+	coordinationLedgerID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	coordinationRecordKey, err := tenantKeyFromContextOrError(fixture.ctx,
+		utils.AtomicTransactionBatchIdempotencyInternalKey(fixture.organizationID, coordinationLedgerID, "recovery-ack"))
+	require.NoError(t, err)
+	coordinationIndexKey, err := tenantKeyFromContextOrError(fixture.ctx,
+		utils.AtomicTransactionBatchExecutionIndexInternalKey(fixture.organizationID, coordinationLedgerID, fixture.executionID))
+	require.NoError(t, err)
+	fixture.record.ReceiptOrganizationID = &fixture.organizationID
+	fixture.record.ReceiptLedgerID = &fixture.ledgerID
+	recordPayload, err := json.Marshal(fixture.record)
+	require.NoError(t, err)
+	require.NoError(t, container.Client.Del(fixture.ctx, fixture.recordKey, fixture.indexKey).Err())
+	require.NoError(t, container.Client.Set(fixture.ctx, coordinationRecordKey, recordPayload, 0).Err())
+	require.NoError(t, container.Client.Set(fixture.ctx, coordinationIndexKey, coordinationRecordKey, 0).Err())
+	t.Cleanup(func() {
+		require.NoError(t, container.Client.Del(context.Background(), coordinationRecordKey, coordinationIndexKey).Err())
+	})
+	for index, transactionID := range fixture.record.TransactionIDs {
+		payload, err := json.Marshal(map[string]any{"record": map[string]string{
+			"organizationId":             fixture.organizationID.String(),
+			"ledgerId":                   fixture.ledgerID.String(),
+			"transactionId":              transactionID.String(),
+			"executionId":                fixture.executionID.String(),
+			"coordinationOrganizationId": fixture.organizationID.String(),
+			"coordinationLedgerId":       coordinationLedgerID.String(),
+			"receiptOrganizationId":      fixture.organizationID.String(),
+			"receiptLedgerId":            fixture.ledgerID.String(),
+		}})
+		require.NoError(t, err)
+		fixture.payloads[index] = string(payload)
+		require.NoError(t, container.Client.HSet(fixture.ctx, fixture.queueKey, fixture.fields[index], payload).Err())
+	}
+	completedAt := time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC)
+	status, err := fixture.repository.CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
+		fixture.ctx, RecoveryQueueSourceEngineRecover, fixture.organizationID, fixture.ledgerID,
+		fixture.fields[0], fixture.payloads[0], true, completedAt, "", nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckDeleted, status)
+	candidate, err := fixture.repository.GetAtomicTransactionBatchFinalizationCandidate(
+		fixture.ctx, fixture.organizationID, coordinationLedgerID, fixture.executionID, fixture.record.TransactionIDs[1],
+	)
+	require.NoError(t, err)
+	require.True(t, candidate.Candidate)
+	require.NotEmpty(t, candidate.ReceiptToken)
+	responses := map[uuid.UUID]json.RawMessage{
+		fixture.record.TransactionIDs[0]: json.RawMessage(`{"id":"first"}`),
+		fixture.record.TransactionIDs[1]: json.RawMessage(`{"id":"second"}`),
+	}
+	status, err = fixture.repository.CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
+		fixture.ctx, RecoveryQueueSourceEngineRecover, fixture.organizationID, fixture.ledgerID,
+		fixture.fields[1], fixture.payloads[1], true, completedAt.Add(time.Second), candidate.ReceiptToken, responses,
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckDeleted, status)
+	var complete AtomicTransactionBatchIdempotencyRecord
+	require.NoError(t, json.Unmarshal([]byte(container.Client.Get(fixture.ctx, coordinationRecordKey).Val()), &complete))
+	require.Equal(t, AtomicTransactionBatchStateComplete, complete.State)
+}
+
 func newAtomicBatchRecoveryAckFixture(
 	t *testing.T,
 	client goredis.UniversalClient,

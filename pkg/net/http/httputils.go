@@ -40,6 +40,7 @@ type QueryHeader struct {
 	OperationType                                 string
 	Direction                                     *string
 	RouteID                                       *string
+	GroupID                                       *string
 	RouteCode                                     *string
 	ToAssetCodes                                  []string
 	HolderID                                      *string
@@ -78,6 +79,7 @@ type Pagination struct {
 	SortOrder  string    `json:"-"`
 	StartDate  time.Time `json:"-"`
 	EndDate    time.Time `json:"-"`
+	GroupID    *string   `json:"-"`
 	NextCursor string    `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
 	PrevCursor string    `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
 } //	@name CursorPagination
@@ -112,6 +114,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		operationType                       string
 		direction                           *string
 		routeID                             *string
+		groupID                             *string
 		routeCode                           *string
 		toAssetCodes                        []string
 		startDate                           time.Time
@@ -198,6 +201,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			direction = &v
 		case key == "route_id":
 			routeID = &value
+		case key == "groupId":
+			groupID = &value
 		case key == "route_code":
 			routeCode = &value
 		case strings.Contains(key, "to"):
@@ -309,6 +314,12 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if groupID != nil {
+		if _, err := uuid.Parse(*groupID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "groupId")
+		}
+	}
+
 	if parentAccountID != nil {
 		if _, err := uuid.Parse(*parentAccountID); err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "parent_account_id")
@@ -329,6 +340,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		OperationType:                   operationType,
 		Direction:                       direction,
 		RouteID:                         routeID,
+		GroupID:                         groupID,
 		RouteCode:                       routeCode,
 		ToAssetCodes:                    toAssetCodes,
 		HolderID:                        holderID,
@@ -524,6 +536,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
+		GroupID:   qh.GroupID,
 	}
 }
 
@@ -539,6 +552,7 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
+		GroupID:   qh.GroupID,
 	}
 }
 

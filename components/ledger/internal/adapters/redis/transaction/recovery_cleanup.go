@@ -100,6 +100,7 @@ func (rr *RedisConsumerRepository) CleanupEngineRecovery(ctx context.Context, no
 	return result, nil
 }
 
+//nolint:gocognit,gocyclo // cleanup validates the complete scoped receipt and key inventory before one atomic script
 func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 	ctx context.Context,
 	client redis.UniversalClient,
@@ -153,21 +154,58 @@ func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 		var receipt struct {
 			Protection struct {
 				Transactions []uuid.UUID `json:"transactions"`
+				Scopes       []struct {
+					OrganizationID uuid.UUID `json:"organizationId"`
+					LedgerID       uuid.UUID `json:"ledgerId"`
+				} `json:"scopes"`
 			} `json:"protection"`
 		}
 		if json.Unmarshal(rawReceipt, &receipt) == nil {
-			for _, transactionID := range receipt.Protection.Transactions {
+			if len(receipt.Protection.Scopes) > 0 && len(receipt.Protection.Scopes) != len(receipt.Protection.Transactions) {
+				return recoveryCleanupNoop, fmt.Errorf("invalid engine recovery cleanup receipt scopes")
+			}
+
+			for index, transactionID := range receipt.Protection.Transactions {
 				if transactionID == uuid.Nil {
 					break
 				}
 
+				partScope := scope
+
+				if len(receipt.Protection.Scopes) > 0 {
+					part := receipt.Protection.Scopes[index]
+					if part.OrganizationID == uuid.Nil || part.LedgerID == uuid.Nil {
+						return recoveryCleanupNoop, fmt.Errorf("invalid engine recovery cleanup transaction scope")
+					}
+
+					partScope = part.OrganizationID.String() + ":" + part.LedgerID.String()
+				}
+
 				materialized, keyErr := tenantKeyFromContextOrError(ctx,
-					"engine:"+cachepolicy.HashTag+":materialized:"+scope+":"+transactionID.String())
+					"engine:"+cachepolicy.HashTag+":materialized:"+partScope+":"+transactionID.String())
 				if keyErr != nil {
 					return recoveryCleanupNoop, fmt.Errorf("resolve materialized transaction cleanup key: %w", keyErr)
 				}
 
 				keys = append(keys, materialized)
+			}
+
+			if len(receipt.Protection.Scopes) > 0 {
+				for _, part := range receipt.Protection.Scopes {
+					partScope := part.OrganizationID.String() + ":" + part.LedgerID.String()
+
+					partKeys, keyErr := tenantKeysFromContext(ctx, []string{
+						"engine:" + cachepolicy.HashTag + ":guards:" + partScope,
+						"engine:" + cachepolicy.HashTag + ":protection:" + partScope,
+						"engine:" + cachepolicy.HashTag + ":evidence:" + partScope,
+						"engine:" + cachepolicy.HashTag + ":transaction-index:" + partScope,
+					})
+					if keyErr != nil {
+						return recoveryCleanupNoop, fmt.Errorf("resolve scoped engine recovery cleanup keys: %w", keyErr)
+					}
+
+					keys = append(keys, partKeys...)
+				}
 			}
 		}
 	}

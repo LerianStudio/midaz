@@ -44,6 +44,22 @@ func TestNormalizeCreateTransactionV2Body_PublicTranslateParity(t *testing.T) {
 	}
 }
 
+func TestNormalizeCreateCrossLedgerTransactionV2Body_PreservesLegScopes(t *testing.T) {
+	t.Parallel()
+
+	input := validV2Input()
+	input.Credits[0].LedgerID = "33333333-3333-4333-8333-333333333333"
+
+	normalized, err := normalizeCreateCrossLedgerTransactionV2Body(input, false)
+
+	require.NoError(t, err)
+	require.Len(t, normalized.scopes, 2)
+	assert.Equal(t, input.Debits[0].LedgerID, normalized.debitScopes[0].LedgerID)
+	assert.Equal(t, input.Credits[0].LedgerID, normalized.creditScopes[0].LedgerID)
+	assert.Equal(t, input.Debits[0].Alias, normalized.transaction.Send.Source.From[0].AccountAlias)
+	assert.Equal(t, input.Credits[0].Alias, normalized.transaction.Send.Distribute.To[0].AccountAlias)
+}
+
 func TestNormalizeCreateTransactionV2Body_PreservesSingularRulePrecedence(t *testing.T) {
 	t.Parallel()
 

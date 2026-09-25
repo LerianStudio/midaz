@@ -63,7 +63,7 @@ func buildAtomicTransactionBatchPreparedExecution(
 			CompletionPlanRecord{
 				TransactionID: item.transactionID,
 				Payload:       append(json.RawMessage(nil), item.completionPlanPayload...),
-				Dependencies:  []TransactionEvidenceReference{},
+				Dependencies:  append([]TransactionEvidenceReference(nil), item.dependencies...),
 			},
 		)
 		prepared.CompletionPlans = append(prepared.CompletionPlans, item.completionPlan)
@@ -88,8 +88,8 @@ func (uc *UseCase) prepareAtomicTransactionBatchIdempotency(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.TransitionAtomicTransactionBatch(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 		txRedis.AtomicTransactionBatchStateClaimed,
@@ -120,8 +120,8 @@ func (uc *UseCase) handoffAtomicTransactionBatchExecution(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.HandoffAtomicTransactionBatchExecution(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 		next,
@@ -167,11 +167,12 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	}
 
 	var failure *accounting.Failure
-	if !outcome.Executed ||
-		!errors.As(executeErr, &failure) || failure == nil ||
-		!confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
+
+	if !outcome.Executed || !confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 		return outcome, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
+
+	errors.As(executeErr, &failure)
 
 	mapped := MapEngineError(prepared.Execution.Execution, executeErr)
 
@@ -187,11 +188,15 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 		atomicTransactionBatchReservationConfirmedAbort,
 	)
 
-	return outcome, withAtomicTransactionBatchRunItemError(
-		mapped,
-		&run.items[failure.TransactionIndex],
-		"accounting execution refused",
-	)
+	if failure != nil {
+		return outcome, withAtomicTransactionBatchRunItemError(
+			mapped,
+			&run.items[failure.TransactionIndex],
+			"accounting execution refused",
+		)
+	}
+
+	return outcome, mapped
 }
 
 func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
@@ -202,8 +207,8 @@ func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.AbortAtomicTransactionBatchConfirmedRefusal(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 		run.executionID,
@@ -229,7 +234,7 @@ func atomicTransactionBatchIdempotencyRecord(
 	run *atomicTransactionBatchRun,
 	state txRedis.AtomicTransactionBatchIdempotencyState,
 ) txRedis.AtomicTransactionBatchIdempotencyRecord {
-	return txRedis.AtomicTransactionBatchIdempotencyRecord{
+	record := txRedis.AtomicTransactionBatchIdempotencyRecord{
 		FormatVersion:      txRedis.AtomicTransactionBatchIdempotencyFormatVersion,
 		State:              state,
 		RequestFingerprint: run.idempotencyFingerprint,
@@ -237,6 +242,12 @@ func atomicTransactionBatchIdempotencyRecord(
 		BatchID:            run.batchID,
 		TransactionIDs:     atomicTransactionBatchTransactionIDs(run),
 	}
+	if run.coordinationOrganizationID != run.organizationID || run.coordinationLedgerID != run.ledgerID {
+		record.ReceiptOrganizationID = &run.organizationID
+		record.ReceiptLedgerID = &run.ledgerID
+	}
+
+	return record
 }
 
 func atomicTransactionBatchTransactionIDs(run *atomicTransactionBatchRun) []uuid.UUID {

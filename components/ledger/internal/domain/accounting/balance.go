@@ -13,6 +13,8 @@ import (
 // exists, implementations use its live state and settings. A snapshot in the
 // pool need not be touched; overdraft companions are required only when needed.
 type BalanceSnapshot struct {
+	OrganizationID        uuid.UUID       `json:"organizationId"`
+	LedgerID              uuid.UUID       `json:"ledgerId"`
 	BalanceRef            string          `json:"balanceRef"`
 	ID                    uuid.UUID       `json:"id"`
 	AccountID             uuid.UUID       `json:"accountId"`

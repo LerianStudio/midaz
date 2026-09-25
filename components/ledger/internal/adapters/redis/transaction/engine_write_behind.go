@@ -83,7 +83,7 @@ func (rr *RedisConsumerRepository) GetEngineTransactionEvidence(ctx context.Cont
 	pipe := client.Pipeline()
 	evidenceCmd := pipe.HGet(ctx, keys.evidence, transactionID.String()+":"+executionID.String())
 	recoveryCmd := pipe.HGet(ctx, keys.recovery, transactionID.String()+":"+executionID.String())
-	receiptCmd := pipe.HGet(ctx, keys.receipt, executionID.String())
+	indexCmd := pipe.HGet(ctx, keys.index, transactionID.String())
 
 	_, execErr := pipe.Exec(ctx)
 	if execErr != nil && !errors.Is(execErr, redisgo.Nil) {
@@ -95,8 +95,41 @@ func (rr *RedisConsumerRepository) GetEngineTransactionEvidence(ctx context.Cont
 		envelope, envelopeErr = recoveryCmd.Bytes()
 	}
 
-	receipt, receiptErr := receiptCmd.Bytes()
-	if errors.Is(envelopeErr, redisgo.Nil) || errors.Is(receiptErr, redisgo.Nil) {
+	if errors.Is(envelopeErr, redisgo.Nil) {
+		return nil, nil, ErrEngineWriteBehindNotFound
+	}
+
+	receiptKey := keys.receipt
+
+	if rawIndex, indexErr := indexCmd.Bytes(); indexErr == nil {
+		var index struct {
+			TransactionID         uuid.UUID `json:"transactionId"`
+			ExecutionID           uuid.UUID `json:"executionId"`
+			ReceiptOrganizationID uuid.UUID `json:"receiptOrganizationId"`
+			ReceiptLedgerID       uuid.UUID `json:"receiptLedgerId"`
+		}
+		if err := json.Unmarshal(rawIndex, &index); err != nil {
+			return nil, nil, fmt.Errorf("decode engine transaction receipt scope: %w", err)
+		}
+
+		if index.TransactionID != transactionID {
+			return nil, nil, errors.New("engine transaction index identity mismatch")
+		}
+
+		if index.ReceiptOrganizationID != uuid.Nil && index.ReceiptLedgerID != uuid.Nil {
+			receiptKeys, err := engineWriteBehindKeys(ctx, index.ReceiptOrganizationID, index.ReceiptLedgerID, transactionID)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			receiptKey = receiptKeys.receipt
+		}
+	} else if !errors.Is(indexErr, redisgo.Nil) {
+		return nil, nil, fmt.Errorf("read engine transaction index: %w", indexErr)
+	}
+
+	receipt, receiptErr := client.HGet(ctx, receiptKey, executionID.String()).Bytes()
+	if errors.Is(receiptErr, redisgo.Nil) {
 		return nil, nil, ErrEngineWriteBehindNotFound
 	}
 

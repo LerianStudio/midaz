@@ -131,6 +131,72 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	publishV2CreateBodySchema(api)
 	attachTypedRequestBody[CreateAtomicTransactionBatchV2Request](api, v2AtomicTransactionBatchOperationID)
 	publishV2LifecycleBodySchema(api)
+	publishV2SingularTransactionResponseSchemas(api)
+	publishV2TransactionOrGroupResponseSchemas(api)
+}
+
+func publishV2SingularTransactionResponseSchemas(api huma.API) {
+	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
+		return
+	}
+
+	singular := map[string]struct{}{
+		"createTransactionBlockV2": {}, "createTransactionUnblockV2": {},
+	}
+	t := reflect.TypeFor[TransactionV2]()
+
+	schema := api.OpenAPI().Components.Schemas.Schema(t, true, t.Name())
+	for _, item := range api.OpenAPI().Paths {
+		for _, op := range operationsOf(item) {
+			if _, ok := singular[op.OperationID]; !ok {
+				continue
+			}
+
+			for status, response := range op.Responses {
+				if status == "" || status[0] != '2' || response == nil {
+					continue
+				}
+
+				if media, ok := response.Content["application/json"]; ok && media != nil {
+					media.Schema = schema
+				}
+			}
+		}
+	}
+}
+
+func publishV2TransactionOrGroupResponseSchemas(api huma.API) {
+	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
+		return
+	}
+
+	registry := api.OpenAPI().Components.Schemas
+	transactionType := reflect.TypeFor[TransactionV2]()
+	groupType := reflect.TypeFor[CrossLedgerTransactionGroupV2]()
+	schema := &huma.Schema{OneOf: []*huma.Schema{
+		registry.Schema(transactionType, true, transactionType.Name()),
+		registry.Schema(groupType, true, groupType.Name()),
+	}}
+
+	for _, item := range api.OpenAPI().Paths {
+		for _, op := range operationsOf(item) {
+			switch op.OperationID {
+			case "createTransactionDirectV2", "createTransactionHoldV2", "commitTransactionV2", "cancelTransactionV2", "revertTransactionV2":
+			default:
+				continue
+			}
+
+			for status, response := range op.Responses {
+				if status == "" || status[0] != '2' || response == nil {
+					continue
+				}
+
+				if media, ok := response.Content["application/json"]; ok && media != nil {
+					media.Schema = schema
+				}
+			}
+		}
+	}
 }
 
 // v2LifecycleBodyOperationIDs are the /v2 lifecycle ops that accept the optional
@@ -239,9 +305,9 @@ const v2CreateMaxBodyBytes int64 = 1 << 20
 const v2CreateBodyDescription = "Transaction request body. `debits` and `credits` are the two " +
 	"required, non-empty leg arrays of the transaction; one debit paired with many credits, or " +
 	"the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its " +
-	"account belongs to; all of them must name the SAME pair, and that pair is the organization " +
-	"and ledger the transaction is created in. A request whose accounts name different pairs is " +
-	"rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
+	"account belongs to. The direct and hold actions accept multiple enabled ledgers and return an " +
+	"atomic group; block and unblock still require every leg to name the same pair. `asset`, " +
+	"`amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
 	"`metadata` sit alongside the two leg arrays, and `amount` is the transaction total that " +
 	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."
 

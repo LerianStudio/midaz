@@ -51,8 +51,8 @@ func (uc *UseCase) finalizeAtomicTransactionBatch(
 	// execution receipt's frozen protection window in the same-slot CAS.
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.FinalizeAtomicTransactionBatch(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.executionID,
 		run.idempotencyOwnerToken,
 		responses,

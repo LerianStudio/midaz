@@ -123,12 +123,19 @@ var TransactionRevertedDefinition = Definition{
 // will all omit this field; transaction.reverted will always populate
 // it.
 //
+// GroupID and GroupRole are set only on a member of a cross-ledger group.
+// GroupRole is one of TransactionGroupRoleOrigin / TransactionGroupRoleDestination,
+// so a consumer can tell the receiving part apart without waiting for the
+// transaction_group event.
+//
 // Amount is `*decimal.Decimal` because the underlying Transaction.Amount
 // is also a pointer (some PENDING transactions can have unset amount
 // until the operations resolve). omitempty drops the field when nil.
 type TransactionPayload struct {
 	ID                       string            `json:"id"`
 	ParentTransactionID      *string           `json:"parentTransactionId,omitempty"`
+	GroupID                  *string           `json:"groupId,omitempty"`
+	GroupRole                *string           `json:"groupRole,omitempty"`
 	OrganizationID           string            `json:"organizationId"`
 	LedgerID                 string            `json:"ledgerId"`
 	Status                   mmodel.Status     `json:"status"`
@@ -161,6 +168,8 @@ type TransactionPayload struct {
 type TransactionSource struct {
 	ID                       string
 	ParentTransactionID      *string
+	GroupID                  *string
+	GroupRole                *string
 	OrganizationID           string
 	LedgerID                 string
 	Status                   mmodel.Status
@@ -192,6 +201,8 @@ func newTransactionPayload(src TransactionSource) TransactionPayload {
 	return TransactionPayload{
 		ID:                       src.ID,
 		ParentTransactionID:      src.ParentTransactionID,
+		GroupID:                  src.GroupID,
+		GroupRole:                src.GroupRole,
 		OrganizationID:           src.OrganizationID,
 		LedgerID:                 src.LedgerID,
 		Status:                   src.Status,

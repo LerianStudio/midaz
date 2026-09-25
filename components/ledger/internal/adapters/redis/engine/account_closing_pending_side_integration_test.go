@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	postgresTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -51,7 +50,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 
 	for _, test := range []struct {
 		name           string
-		transition     func(*command.UseCase, context.Context, command.PendingTransitionInput) (*postgresTransaction.Transaction, error)
+		transition     func(*command.UseCase, context.Context, command.PendingTransitionInput) (*command.PendingTransitionV2Result, error)
 		terminalStatus string
 		refused        bool
 	}{

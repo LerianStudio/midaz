@@ -112,8 +112,17 @@ revert, commit, or cancel that reaches the engine:
    not implement stale-balance or conflict retry.
 6. `redis/engine.Adapter.Execute` resolves tenant-scoped physical keys, including
    an ordered tail key for every presented account-block exception, builds the
-   bounded wire request, obtains a supported standalone/Sentinel client, and sends
-   the assembled Lua script with Redis client retries disabled.
+   bounded protocol-v3 wire request, obtains a supported standalone/Sentinel
+   client, and sends the assembled Lua script with Redis client retries disabled.
+   The execution-level organization and ledger remain the primary scope for
+   compatibility, while each balance and transaction carries its effective scope.
+   Receipts remain in the primary scope. Each transaction's index, evidence,
+   guard, and protection use that transaction's own scope; the index records
+   the receipt's scope for dependency validation and recovery. Multi-scope
+   requests append the additional scope keys after the account controls.
+   Single-scope requests keep the existing key and wire layout. Keys and
+   references include their scope, so equal raw balance UUIDs in different
+   ledgers cannot collide.
 7. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
    receipt replay and validates guards/key types. Immediately after the replay
    short-circuit, it reads Redis `TIME` once; it then loads authoritative live
@@ -130,7 +139,12 @@ revert, commit, or cancel that reaches the engine:
 9. SQL/MongoDB failure after accounting is confirmed is deferred to recovery and
    does not turn the already-applied financial operation into an HTTP failure.
    The recovery record was written atomically with accounting. Events are emitted
-   only after SQL and frozen metadata are confirmed.
+   only after SQL and frozen metadata are confirmed. Multi-scope completion groups
+   projections by each transaction's organization and ledger; recovery preserves
+   those frozen per-transaction scopes and never re-derives them from the primary
+   execution scope. Multi-scope batch recovery records also carry the
+   idempotency coordination scope and the primary receipt scope. Older records
+   without these optional fields continue to use their original scope.
 10. After validating a durable outcome, the completion path asks
    `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
    that it represents the completed execution, and run the protected
@@ -261,6 +275,14 @@ Execution identity is distinct from transaction identity: pending creation,
 commitment, and cancellation share a transaction ID but require different
 execution IDs. Retries of one logical action preserve its execution ID.
 
+A cross-ledger group commit is a mixed execution: existing origin transaction
+IDs carry `PENDING -> APPROVED` guards and `unreserve` postings, while new
+destination transaction IDs carry empty guards and direct bridge-credit
+postings. One ordered snapshot pool, fingerprint, receipt, and Lua invocation
+cover both kinds. Group cancel contains only guarded origin transitions. The
+command persists the normalized destination intent at hold time, but prepares
+destination fees and live balance decisions only at commit time.
+
 ## Posting arithmetic
 
 Let `A` denote Available, `H` OnHold, `U` OverdraftUsed, and `x` the positive
@@ -388,10 +410,12 @@ lookup. These preparation functions do not mutate balances; only the subsequent
 engine execution can approve the transaction and publish monetary state.
 
 Pending commit/cancel resolves the freshest indexed engine evidence first and
-falls back to scoped primary SQL. If the hold projection is still pending, the
-new execution carries an immutable predecessor reference and recovery projects
-the hold before its transition. A missing `PENDING` guard is bootstrapped;
-existing terminal guards are never replaced.
+falls back to scoped primary SQL. The initial load and the classification of a
+lost guard race resolve the same way, so a hold created asynchronously can be
+committed or canceled before its projection reaches PostgreSQL. If the hold
+projection is still pending, the new execution carries an immutable predecessor
+reference and recovery projects the hold before its transition. A missing
+`PENDING` guard is bootstrapped; existing terminal guards are never replaced.
 Cancellation reads source balances only and derives any historical repayment
 cap from persisted operations, never from current overdraft debt. Cloning the
 persisted input preserves JSON numeric metadata without a float conversion.
@@ -406,6 +430,12 @@ must name the parent. Its v2 path performs a new tracer
 reservation and does not inherit the original transaction's tracer skip. Neither
 revert nor pending transitions rewrite the engine recover record through the
 legacy write-behind path.
+
+The engine never indexes a NOTED annotation. When the index and the primary both
+answer not-found, commit, cancel, revert, and the by-id GET read the legacy
+write-behind entry the annotation path writes, so an unprojected annotation is
+returned, or refused with `0099`, exactly as a persisted one. Any other lookup
+error propagates instead of falling back.
 
 ## Precision and cache representation
 
@@ -660,7 +690,8 @@ path reserves once; v1 does not invoke fees or tracer. NOTED stays on its separa
 legacy path.
 Unknown or indeterminate execution failures, malformed results, and failures
 after confirmed accounting retain the idempotency claim and recovery evidence.
-Only confirmed precommit failures permit compensation. Normal completion uses
+Only confirmed precommit failures permit compensation and release of the batch
+idempotency claim. Normal completion uses
 the stable completion plan and applied transaction completer, without invoking legacy
 queue seeds, recover rewrites, or BTO persistence. The normal response preserves
 CREATED while SQL stores APPROVED. The normal path attempts exact protected
@@ -756,6 +787,7 @@ different failure window:
 | Mechanism | Checked/created | Protects against | Does not prove |
 | --- | --- | --- | --- |
 | HTTP transaction idempotency claim | Command layer before preparation | A client resubmitting the same API operation and expecting its first outcome | That an attempted engine call did or did not mutate balances |
+| Cross-ledger lifecycle claim | Command layer under `group-commit:{groupId}` or `group-cancel:{groupId}` | Concurrent or repeated publication of a grouped commit/cancel that has no caller key | Durable projection of every member or the terminal group status label |
 | Engine receipt | Read first and written last by the accounting Lua execution | Re-executing the same execution ID after a lost response; replay returns the exact recorded result | SQL/MongoDB projection or event delivery |
 | Execution guard | Compared and advanced by Lua with the mutation | Competing lifecycle actions, especially commit versus cancel | Durable completion of the winning action |
 | Recovery record | Written by Lua with balance changes, then exact-ACKed by recovery | Losing the information needed to complete an already-applied result | Permission to invoke the engine again |
@@ -974,6 +1006,26 @@ above. Missing records are already acknowledged; replacements and failed or
 unknown acknowledgments are never assumed to have deleted it. The consumer later
 reconciles any record that remains. The ACK never deletes receipt, guard, or
 protection data and never assigns a TTL.
+
+After the recovery consumers, the same runner and lock run two
+reconciliations that never execute accounting. The account closing pass resolves
+closing protection. The cross-ledger group pass aligns the `transaction_group`
+status label with its members, which are the truth: a grouped commit or cancel
+applies and projects its movement before it compares the row from PENDING to the
+terminal status, so a crash or projection deferral between the two leaves a
+PENDING label over settled members. For groups whose row and latest member change
+are both at least five minutes old, the pass reads the members from the primary
+and moves the row only when every part is APPROVED or every origin is CANCELED,
+publishing the group fact the coordinator did not. Member roles come from the
+persisted intent, because a row read back from the transaction table carries no
+source or destination legs. Approved origins with a destination not yet projected
+are left alone for a day for the same reason. A member-less intent is deleted
+only after a day, by a statement that also requires that no transaction row
+references the group, so a hold whose projection is still waiting in `recover`
+keeps its intent. Members
+that disagree are logged and counted, never written. The coordinator treats a row
+already moved to its own status as settled, and only the writer whose
+compare-and-swap succeeded publishes.
 
 Immediate acknowledgment reduces the common-case cardinality of
 `recover`; it is not by itself a hard memory bound. Prolonged completion or

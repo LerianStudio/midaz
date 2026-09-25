@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -45,6 +46,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	second, err := prepareExecution(context.Background(), input, limits, resolved)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+	require.NotContains(t, string(first.Payload), `"scopeKeys"`, "single-scope protocol bytes must retain their existing shape")
 	require.Contains(t, string(first.Payload), `"completionPlan":`)
 	require.NotContains(t, string(first.Payload), `"recoveryPayload":`)
 	after, err := json.Marshal(input)
@@ -53,7 +55,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(first.Payload, &wire))
-	require.Equal(t, 2, wire.ProtocolVersion)
+	require.Equal(t, 3, wire.ProtocolVersion)
 	require.Equal(t, resolved.TenantID, wire.TenantID)
 	require.Equal(t, input.Execution.OrganizationID.String(), wire.OrganizationID)
 	require.Equal(t, input.Execution.LedgerID.String(), wire.LedgerID)
@@ -94,6 +96,57 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	input.CompletionPlans[0].Payload[0] = '['
 	input.Execution.Transactions[0].Postings[0].Ref = "changed"
 	require.Equal(t, first.Payload, second.Payload, "prepared bytes must not alias input storage")
+}
+
+func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	organizationID := uuid.MustParse("a998807f-5e85-4469-8c9d-e40880113bb0")
+	ledgerID := uuid.MustParse("f334b1ce-f18f-4163-b326-713cf7011fe2")
+	input.Execution.Balances[0].OrganizationID = organizationID
+	input.Execution.Balances[0].LedgerID = ledgerID
+	input.Execution.Transactions[0].OrganizationID = organizationID
+	input.Execution.Transactions[0].LedgerID = ledgerID
+
+	ctx := core.ContextWithTenantID(context.Background(), "fixture")
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
+	require.NoError(t, err)
+	prepared, err := prepareExecution(ctx, input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.Equal(t, 3, wire.ProtocolVersion)
+	require.Equal(t, organizationID.String(), wire.Balances[0].OrganizationID)
+	require.Equal(t, ledgerID.String(), wire.Balances[0].LedgerID)
+	require.Equal(t, organizationID.String(), wire.Transactions[0].OrganizationID)
+	require.Equal(t, ledgerID.String(), wire.Transactions[0].LedgerID)
+	require.Len(t, wire.ScopeKeys, 2)
+	foreign := wire.ScopeKeys[1]
+	require.Equal(t, organizationID.String(), foreign.OrganizationID)
+	require.Equal(t, ledgerID.String(), foreign.LedgerID)
+	require.Equal(t, len(prepared.Keys)-4, foreign.ReceiptKeyIndex)
+	require.Contains(t, prepared.Keys[foreign.TransactionIndexKeyIndex-1], ":transaction-index:"+organizationID.String()+":"+ledgerID.String())
+}
+
+func TestResolveAdapterKeysUsesBalanceAndTransactionScope(t *testing.T) {
+	t.Parallel()
+
+	input, _, _ := validWireExecutionWithGrant()
+	organizationID := uuid.MustParse("a998807f-5e85-4469-8c9d-e40880113bb0")
+	ledgerID := uuid.MustParse("f334b1ce-f18f-4163-b326-713cf7011fe2")
+	input.Execution.Balances[0].OrganizationID = organizationID
+	input.Execution.Balances[0].LedgerID = ledgerID
+	input.Execution.Transactions[0].OrganizationID = organizationID
+	input.Execution.Transactions[0].LedgerID = ledgerID
+
+	ctx := core.ContextWithTenantID(context.Background(), "fixture")
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
+	require.NoError(t, err)
+	key := scopedBalanceRef(organizationID, ledgerID, "@source#default")
+	require.Contains(t, resolved.Balances[key].Balance, organizationID.String()+":"+ledgerID.String())
+	require.Contains(t, resolved.AccountBlockExceptions[input.Execution.Transactions[0].AccountBlockException.ExceptionID], organizationID.String()+":"+ledgerID.String())
 }
 
 func TestEngineWriteBehindAtomicTransactionBatchBudgetCountsDependenciesAndIndexWire(t *testing.T) {
@@ -620,9 +673,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2717, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 17221, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 82741, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 3247, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 21567, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 104047, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -712,7 +765,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 11175426, len(recovery))
-	require.Equal(t, 13064355, len(prepared.Payload))
+	require.Equal(t, 13064885, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")

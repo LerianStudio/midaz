@@ -895,6 +895,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
 		TransactionRepo:                       txnPG.transactionRepo,
+		TransactionGroupRepo:                  txnPG.transactionGroupRepo,
 		OperationRepo:                         txnPG.operationRepo,
 		AssetRateRepo:                         txnPG.assetRateRepo,
 		BalanceRepo:                           txnPG.balanceRepo,

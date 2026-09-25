@@ -113,22 +113,41 @@ func (s *engineMarkerStore) ReleaseAccountAdminOwnership(ctx context.Context, or
 	return s.client.Del(ctx, key).Val() == 1, nil
 }
 
-// engineAccountIDs lists the accounts a declared pool touches.
-func engineAccountIDs(request core.Execution) []uuid.UUID {
-	return protectedAccounts(request)
-}
-
 // admitEngineSeeds gives the caller the administrative ownership of every account
 // of the pool and returns the context that carries it into the adapter, which is
 // what a cache-miss balance load leaves behind for the execution that admits its
-// seed. A context without it may only use balances the cache already holds.
+// seed. A context without it may only use balances the cache already holds. A
+// multi-scope pool takes one admission per ledger, as one load per ledger does.
 func admitEngineSeeds(t testing.TB, ctx context.Context, client redis.UniversalClient, request core.Execution) context.Context {
 	t.Helper()
 
 	ctx, _ = accountprotection.ContextWithSink(ctx)
 
-	admission := admitEngineAccounts(t, ctx, client, request.OrganizationID, request.LedgerID, engineAccountIDs(request))
-	require.True(t, accountprotection.AdoptAdmission(ctx, admission))
+	type ledgerScope struct{ organizationID, ledgerID uuid.UUID }
+
+	scopes := make([]ledgerScope, 0, 1)
+	accountsByScope := make(map[ledgerScope][]uuid.UUID)
+	seen := make(map[uuid.UUID]bool, len(request.Balances))
+
+	for _, balance := range request.Balances {
+		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
+		require.True(t, ok)
+
+		scope := ledgerScope{organizationID: organizationID, ledgerID: ledgerID}
+		if _, known := accountsByScope[scope]; !known {
+			scopes = append(scopes, scope)
+		}
+
+		if !seen[balance.AccountID] {
+			seen[balance.AccountID] = true
+			accountsByScope[scope] = append(accountsByScope[scope], balance.AccountID)
+		}
+	}
+
+	for _, scope := range scopes {
+		admission := admitEngineAccounts(t, ctx, client, scope.organizationID, scope.ledgerID, accountsByScope[scope])
+		require.True(t, accountprotection.AdoptAdmission(ctx, admission))
+	}
 
 	return ctx
 }

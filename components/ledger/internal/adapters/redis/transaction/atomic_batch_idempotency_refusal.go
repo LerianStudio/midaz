@@ -80,10 +80,20 @@ func (rr *RedisConsumerRepository) AbortAtomicTransactionBatchConfirmedRefusal(
 		return nil, fmt.Errorf("encode atomic transaction batch refusal members: %w", err)
 	}
 
+	_, existing, err := rr.getAtomicTransactionBatchByExecutionID(ctx, organizationID, ledgerID, executionID)
+	if err != nil {
+		return nil, err
+	}
+
+	receiptOrganizationID, receiptLedgerID := organizationID, ledgerID
+	if existing != nil {
+		receiptOrganizationID, receiptLedgerID = atomicTransactionBatchReceiptScope(*existing, organizationID, ledgerID)
+	}
+
 	keys, err := tenantKeysFromContext(ctx, []string{
 		utils.AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, effectiveKey),
 		utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID),
-		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
+		atomicTransactionBatchEngineReceiptInternalKey(receiptOrganizationID, receiptLedgerID),
 		cachepolicy.EngineRecoverQueue,
 	})
 	if err != nil {

@@ -21,11 +21,13 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -237,6 +239,21 @@ func TestCreateTransactionHoldV2_ValidBodyEntersFunnel(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
 		"valid hold body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500)")
+}
+
+func TestCreateTransactionHoldV2_CrossLedgerBodyEntersGroupCoordinator(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{Command: &command.UseCase{}}).CreateTransactionHoldV2)
+	foreignLedgerID := "99999999-9999-4999-8999-999999999999"
+	body := `{"description":"cross-ledger hold","asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@dst","organizationId":"` + v2ScopeOrgID + `","ledgerId":"` + foreignLedgerID + `","amount":"100"}]}`
+
+	resp := postActionV2(t, app, "hold", body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+		"a valid mixed-scope hold must enter the cross-ledger coordinator; the bare use case then fails on its unwired dependencies")
 }
 
 // TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByDiscriminatedRawV2Body proves the hold
@@ -989,4 +1006,39 @@ func TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource(t 
 			assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing %s claim with a cached canonical value replays → 201", tc.name)
 		})
 	}
+}
+
+// TestNewCrossLedgerCreateOutputV2_NilResultIsAnInternalError proves a cross-ledger command
+// answering neither a result nor an error surfaces as a 500 problem instead of a panic.
+func TestNewCrossLedgerCreateOutputV2_NilResultIsAnInternalError(t *testing.T) {
+	t.Parallel()
+
+	out, err := newCrossLedgerCreateOutputV2(nil)
+
+	require.Error(t, err)
+	assert.Nil(t, out)
+
+	var statusErr huma.StatusError
+	require.ErrorAs(t, err, &statusErr)
+	assert.Equal(t, http.StatusInternalServerError, statusErr.GetStatus())
+}
+
+// TestNewCrossLedgerCreateOutputV2_ProjectsTheGroupEnvelope proves a cross-ledger result is
+// answered as the group envelope: the group id plus the ordered member transactions.
+func TestNewCrossLedgerCreateOutputV2_ProjectsTheGroupEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := uuid.MustParse("01994f13-29b7-7000-8000-000000000701")
+
+	out, err := newCrossLedgerCreateOutputV2(&command.CreateAtomicTransactionBatchV2Result{BatchID: groupID, Replayed: true})
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, out.Body)
+	assert.Equal(t, http.StatusCreated, out.Status)
+	assert.Equal(t, "true", out.IdempotencyReplayed)
+	assert.Nil(t, out.Body.TransactionV2)
+	require.NotNil(t, out.Body.GroupID)
+	assert.Equal(t, groupID.String(), *out.Body.GroupID)
+	assert.Empty(t, out.Body.Transactions)
 }
