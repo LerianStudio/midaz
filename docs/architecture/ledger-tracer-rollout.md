@@ -45,6 +45,10 @@ not certify the remote Tracer's version, policies or readiness.
    contains official `accountAssets`; the certificate fixes the namespace.
    Never infer identity from a code such as USD. A contradictory or already-bound
    association conflicts rather than rewriting existing accounting history.
+   After association, account scopes are immutable (migration 000034); updates
+   return an asset-reference conflict. To change the covered account set, create
+   and attest a new limit and coordinate its activation with the existing usage.
+   Never transfer a binding or reset consumption to bypass this protection.
 5. Inspect all candidate limits, including unmapped and broad scopes. The shared
    profile supports account limits; unsupported aggregation must be resolved
    before activation. Admission also rejects invalid candidate configurations;

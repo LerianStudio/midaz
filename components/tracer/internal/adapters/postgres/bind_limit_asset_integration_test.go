@@ -89,6 +89,26 @@ func TestIntegrationBindLimitAssetAuditsAndPreservesCapacity(t *testing.T) {
 	require.Equal(t, "DRAFT", status)
 }
 
+func TestIntegrationBoundLimitRejectsUnattestedScopeChange(t *testing.T) {
+	db := completionDatabase(t)
+	binder, _ := assetBindingCommand(t, db, true)
+	account := testutil.MustDeterministicUUID(83901)
+	id := contextLimitRow(t, db, 83902, account)
+	_, err := binder.Execute(assetBindingContext(t.Context()), id, assetBindingFacts(account))
+	require.NoError(t, err)
+	repo := NewLimitRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
+	limit, err := repo.GetByID(t.Context(), id)
+	require.NoError(t, err)
+	other := testutil.MustDeterministicUUID(83903)
+	limit.Scopes = []model.Scope{{AccountID: &other}}
+	require.ErrorIs(t, repo.UpdateWithTx(t.Context(), db, limit), constant.ErrLimitAssetReferenceConflict)
+	stored, err := repo.GetByID(t.Context(), id)
+	require.NoError(t, err)
+	require.Equal(t, account, *stored.Scopes[0].AccountID)
+	stored.Name = "same-attested-accounts"
+	require.NoError(t, repo.UpdateWithTx(t.Context(), db, stored))
+}
+
 func TestIntegrationBindLimitAssetAuditFailureRollsBack(t *testing.T) {
 	for _, suppress := range []bool{false, true} {
 		t.Run(map[bool]string{false: "SQL failure", true: "suppressed row"}[suppress], func(t *testing.T) {
