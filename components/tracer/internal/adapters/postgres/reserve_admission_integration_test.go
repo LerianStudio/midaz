@@ -19,6 +19,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -89,13 +90,66 @@ func admissionPolicy(t *testing.T, db *sql.DB, repo *ContextPolicyRepository, ac
 	require.NoError(t, tx.Commit())
 }
 
-func admissionLimit(t *testing.T, db *sql.DB, r tracercontract.ReserveRequest, seed int64, maxAmount string) uuid.UUID {
+func admissionLimit(t *testing.T, db *sql.DB, r tracercontract.ReserveRequest, seed int64, maxAmount string, scopes ...model.Scope) uuid.UUID {
 	t.Helper()
 	id := contextLimitRow(t, db, seed, r.Context.Accounts[0].ID)
 	_, err := db.ExecContext(t.Context(), "UPDATE limits SET max_amount=$2 WHERE id=$1", id, maxAmount)
 	require.NoError(t, err)
+	if len(scopes) > 0 {
+		raw, err := json.Marshal(scopes)
+		require.NoError(t, err)
+		_, err = db.ExecContext(t.Context(), "UPDATE limits SET scopes=$2 WHERE id=$1", id, raw)
+		require.NoError(t, err)
+	}
 	bindContextLimit(t, db, contextLimitRepository(t, 10), id, r.Asset)
 	return id
+}
+
+func TestIntegrationReserveAdmissionConcurrentLimitExhaustion(t *testing.T) {
+	db := completionDatabase(t)
+	admission, policies, request := admissionFixture(t, db)
+	admissionPolicy(t, db, policies, model.DecisionAllow)
+	limit := admissionLimit(t, db, request, 89901, "100")
+	ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 15*time.Second)
+	defer cancel()
+	const calls = 20
+	start := make(chan struct{})
+	type outcome struct {
+		result *tracercontract.ReserveResult
+		err    error
+	}
+	results := make(chan outcome, calls)
+	for i := range calls {
+		go func() {
+			<-start
+			input := request
+			input.TransactionID = testutil.MustDeterministicUUID(89910 + int64(i))
+			input.RequestID = testutil.MustDeterministicUUID(89940 + int64(i))
+			result, err := admission.Execute(ctx, input)
+			results <- outcome{result, err}
+		}()
+	}
+	close(start)
+	allowed, denied := 0, 0
+	for range calls {
+		result := <-results
+		require.NoError(t, result.err)
+		switch result.result.Decision {
+		case tracercontract.DecisionAllow:
+			allowed++
+			require.Len(t, result.result.ReservationIDs, 1)
+		case tracercontract.DecisionDeny:
+			denied++
+			require.Empty(t, result.result.ReservationIDs)
+		default:
+			t.Fatalf("unexpected decision %s", result.result.Decision)
+		}
+	}
+	require.Equal(t, 9, allowed, "ten exact 10.125 debits would exceed 100")
+	require.Equal(t, 11, denied)
+	used, held := readCounterDecimal(t, db, limit, "acct:"+request.Context.Accounts[0].ID.String(), request.TransactionTimestamp.Format("2006-01-02"))
+	require.True(t, used.IsZero())
+	require.True(t, held.Equal(decimal.RequireFromString("91.125")), held.String())
 }
 
 func TestIntegrationReserveAdmissionDecisionsAndReplay(t *testing.T) {
@@ -207,13 +261,9 @@ func TestIntegrationReserveAdmissionConcurrentCrossedAccounts(t *testing.T) {
 	db := completionDatabase(t)
 	c, _, r := admissionFixture(t, db)
 	r.ValidationMode = tracercontract.ValidationLimits
-	sharedLimit := admissionLimit(t, db, r, 89301, "100")
 	other := r.Context.Accounts[0]
 	other.ID = testutil.MustDeterministicUUID(89302)
-	scopes, err := json.Marshal([]model.Scope{{AccountID: &r.Context.Accounts[0].ID}, {AccountID: &other.ID}})
-	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), "UPDATE limits SET scopes=$2 WHERE id=$1", sharedLimit, scopes)
-	require.NoError(t, err)
+	admissionLimit(t, db, r, 89301, "100", model.Scope{AccountID: &r.Context.Accounts[0].ID}, model.Scope{AccountID: &other.ID})
 	r.Context.Accounts = append(r.Context.Accounts, other)
 	entry := r.Context.Entries[0]
 	entry.AccountID = other.ID
