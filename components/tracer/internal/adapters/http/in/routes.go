@@ -313,72 +313,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	//
 	// Registered ONLY on /v1, keeping /health, /readyz, /version
 	// callable without a token (public endpoints).
-	if multiTenantEnabled && pgManager != nil {
-		tenantMW := tmmiddleware.NewTenantMiddleware(
-			tmmiddleware.WithPG(pgManager),
-		)
-
-		// The reservation surface is the service-to-service seam: the ledger
-		// authenticates over mTLS (not a user JWT) and forwards a TRUSTED
-		// X-Tenant-Id header. Those routes resolve their tenant via their own
-		// reservationTenantMiddleware, so the JWT-claim path must NOT gate them
-		// (it would 401 the seam for lacking a Bearer token). Skip the shared
-		// middleware on /v1/reservations* and leave it intact for every other
-		// /v1 user route.
-		api.Use(func(c fiber.Ctx) error {
-			if isReservationPath(c.Path()) {
-				return c.Next()
-			}
-
-			return tenantMW.WithTenantDB(c)
-		})
-
-		// Second middleware: lazy-spawn per-tenant workers on the first request
-		// that surfaces a tenant. Covers pod restarts where the Pub/Sub
-		// tenant-created event was missed, and new-tenant sign-ups that arrive
-		// before the listener has delivered the add event.
-		//
-		// M3: log EnsureWorkers failures at Warn so silent degradation is
-		// visible to operators. The request proceeds — background sync may be
-		// unavailable for this tenant but the validation path can still serve
-		// from the DB directly.
-		//
-		// M18: when the supervisor declines because MaxTenants is reached,
-		// surface 503 + Retry-After to the client. Cap events must be visible,
-		// not swallowed.
-		if supervisor != nil {
-			api.Use(func(c fiber.Ctx) error {
-				tid := tmcore.GetTenantIDContext(c.Context())
-				if tid == "" {
-					return c.Next()
-				}
-
-				if err := supervisor.EnsureWorkers(c.Context(), tid); err != nil {
-					if errors.Is(err, workers.ErrTenantCapReached) {
-						lg.With(
-							libLog.String("operation", "routes.lazy_spawn_workers"),
-							libLog.String("tenant_id", tid),
-							libLog.String("error.message", err.Error()),
-						).Log(c.Context(), libLog.LevelWarn,
-							"Tenant worker cap reached; responding 503 so client backs off")
-
-						c.Set("Retry-After", tenantCapRetryAfterHeader())
-
-						return writeTenantCapReached(c)
-					}
-
-					lg.With(
-						libLog.String("operation", "routes.lazy_spawn_workers"),
-						libLog.String("tenant_id", tid),
-						libLog.String("error.message", err.Error()),
-					).Log(c.Context(), libLog.LevelWarn,
-						"Failed to ensure workers for tenant; request will proceed but background sync may be unavailable")
-				}
-
-				return c.Next()
-			})
-		}
-	}
+	mountTenantMiddleware(api, multiTenantEnabled, pgManager, supervisor, lg)
 
 	// Huma bootstrap (Phase 2a). problem.Install() overrides the process-global
 	// huma.NewError to the org-wide RFC 9457 model; it MUST run before any
@@ -499,6 +434,57 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	}
 
 	return f, nil
+}
+
+func mountTenantMiddleware(api fiber.Router, enabled bool, pgManager *tmpostgres.Manager, supervisor WorkerEnsurer, logger libLog.Logger) {
+	if !enabled || pgManager == nil {
+		return
+	}
+
+	tenantMW := tmmiddleware.NewTenantMiddleware(tmmiddleware.WithPG(pgManager))
+
+	api.Use(func(c fiber.Ctx) error {
+		if isReservationPath(c.Path()) {
+			return c.Next()
+		}
+
+		return tenantMW.WithTenantDB(c)
+	})
+
+	if supervisor == nil {
+		return
+	}
+
+	api.Use(func(c fiber.Ctx) error {
+		tenantID := tmcore.GetTenantIDContext(c.Context())
+		if tenantID == "" {
+			return c.Next()
+		}
+
+		if err := supervisor.EnsureWorkers(c.Context(), tenantID); err != nil {
+			return handleWorkerEnsureError(c, logger, tenantID, err)
+		}
+
+		return c.Next()
+	})
+}
+
+func handleWorkerEnsureError(c fiber.Ctx, logger libLog.Logger, tenantID string, err error) error {
+	log := logger.With(
+		libLog.String("operation", "routes.lazy_spawn_workers"),
+		libLog.String("tenant_id", tenantID),
+		libLog.String("error.message", err.Error()),
+	)
+	if errors.Is(err, workers.ErrTenantCapReached) {
+		log.Log(c.Context(), libLog.LevelWarn, "Tenant worker cap reached; responding 503 so client backs off")
+		c.Set("Retry-After", tenantCapRetryAfterHeader())
+
+		return writeTenantCapReached(c)
+	}
+
+	log.Log(c.Context(), libLog.LevelWarn, "Failed to ensure workers for tenant; request will proceed but background sync may be unavailable")
+
+	return c.Next()
 }
 
 // tracerHumaHandlers bundles everything registerTracerHumaRoutes needs to mount

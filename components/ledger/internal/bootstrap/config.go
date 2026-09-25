@@ -2081,6 +2081,7 @@ func midazErrorMapper(c fiber.Ctx, err error, tenantID string) error {
 // which are not interpreted by SetConfigFromEnvVars.
 func applyConfigDefaults(cfg *Config) {
 	applyTracerContextDefaults(cfg)
+
 	intDefault := func(field *int, fallback int) {
 		if *field == 0 {
 			*field = fallback

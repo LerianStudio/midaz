@@ -142,7 +142,7 @@ func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []by
 		return nil, constant.ErrPayloadTooLarge
 	}
 
-	response, err := c.transport.do(ctx, http.MethodPost, path, body)
+	response, err := c.transport.post(ctx, path, body)
 	if err != nil {
 		return nil, err
 	}

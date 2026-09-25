@@ -103,6 +103,7 @@ func (q *ContextPolicyEvaluator) Compile(ctx context.Context, policy model.Conte
 	}
 
 	remainingCost := q.config.TotalCost
+
 	for _, rule := range rules {
 		if err := ctx.Err(); err != nil {
 			return nil, err

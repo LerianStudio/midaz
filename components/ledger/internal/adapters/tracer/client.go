@@ -194,7 +194,7 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		return nil, fmt.Errorf("marshal reserve request: %w", err)
 	}
 
-	resp, err := c.do(ctx, http.MethodPost, "/v1/reservations", body)
+	resp, err := c.post(ctx, "/v1/reservations", body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", err)
 		return nil, err
@@ -267,7 +267,7 @@ func (c *TracerClient) transitionByTransaction(ctx context.Context, action strin
 
 	path := fmt.Sprintf("/v1/reservations/transaction/%s/%s", transactionID.String(), action)
 
-	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	resp, err := c.post(ctx, path, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reservation by-transaction transition transport failed", err)
 		return err
@@ -297,7 +297,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 
 	path := fmt.Sprintf("/v1/reservations/%s/%s", reservationID.String(), action)
 
-	resp, err := c.do(ctx, http.MethodPost, path, nil)
+	resp, err := c.post(ctx, path, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Reservation transition transport failed", err)
 		return err
@@ -315,7 +315,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 	return nil
 }
 
-// do executes a request against the tracer API applying the per-operation
+// post executes a POST request against the tracer API applying the per-operation
 // context timeout, the W3C trace context, and the M2M auth header. The caller
 // owns the returned response body and MUST close it.
 //
@@ -323,7 +323,7 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 // ErrTracerUnavailable so the reserve anchor can branch on tracer.failPosture;
 // a non-2xx status is NOT an availability failure and is surfaced verbatim by
 // the caller's status check.
-func (c *TracerClient) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+func (c *TracerClient) post(ctx context.Context, path string, body []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 
 	var bodyReader io.Reader
@@ -332,7 +332,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bodyReader)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("build tracer request: %w", err)

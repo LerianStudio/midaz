@@ -42,6 +42,7 @@ func (c TracerRecoveryConfig) Validate() error {
 	if c.MaxRetryInterval < 0 || (c.MaxRetryInterval > 0 && c.MaxRetryInterval < c.RetryInterval) {
 		return constant.ErrInvalidRequestBody
 	}
+
 	if !validTracerIdentity(c.IntegrationID) || !validTracerIdentity(c.Namespace) || c.MaxBatch <= 0 || c.RetryInterval <= 0 || c.AttemptTimeout <= 0 {
 		return constant.ErrInvalidRequestBody
 	}

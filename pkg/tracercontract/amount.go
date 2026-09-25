@@ -38,6 +38,7 @@ func AmountFromDecimal(ctx context.Context, value decimal.Decimal, limits Limits
 	exponent := int64(value.Exponent())
 	integerDigits := max(int64(value.NumDigits())+exponent, 1)
 	fractionDigits := max(-exponent, 0)
+
 	if fractionDigits > 0 {
 		// Decimal arithmetic retains trailing coefficient zeros (for example
 		// percentage division). Count the exact canonical scale without first

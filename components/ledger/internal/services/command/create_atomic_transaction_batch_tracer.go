@@ -66,6 +66,7 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 		// Reserve budgets. All members share this immutable dispatch deadline.
 		deadline = uc.ContextTracer.recovery.now().UTC().Add(budget).Add(uc.ContextTracer.recovery.config.AttemptTimeout)
 	}
+
 	for index := range run.items {
 		item := &run.items[index]
 

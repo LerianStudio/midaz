@@ -95,6 +95,7 @@ func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reser
 
 		return &reservationv1.ConfirmByTransactionResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), Status: result.Status, Flipped: flipped, EvaluationId: completionEvaluationID(result)}, nil
 	}
+
 	if err := s.terminateByTransaction(ctx, "grpc.reservations.confirm_by_transaction", string(model.StatusConfirmed), req.GetTransactionId(), s.service.ConfirmByTransaction); err != nil {
 		return nil, err
 	}
@@ -123,6 +124,7 @@ func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reser
 
 		return &reservationv1.ReleaseByTransactionResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), Status: result.Status, Flipped: flipped, EvaluationId: completionEvaluationID(result)}, nil
 	}
+
 	if err := s.terminateByTransaction(ctx, "grpc.reservations.release_by_transaction", string(model.StatusReleased), req.GetTransactionId(), s.service.ReleaseByTransaction); err != nil {
 		return nil, err
 	}
@@ -274,37 +276,4 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 		libOpentelemetry.HandleSpanError(span, msg, err)
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
-}
-
-// optionalContextID parses an optional uuid-bearing context id (segment /
-// portfolio / merchant). An empty string means the field is absent (nil);
-// a present-but-malformed value is rejected.
-func optionalContextID(raw string) (*uuid.UUID, error) {
-	if raw == "" {
-		return nil, nil
-	}
-
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return nil, constant.ErrInvalidPathParameter
-	}
-
-	return &id, nil
-}
-
-// reservationIDStrings renders the reservation ids as proto-friendly strings.
-// A nil/empty input yields a nil slice — proto serializes a repeated field's
-// absence and an empty slice identically, so no [] sentinel is needed (unlike
-// the REST JSON path).
-func reservationIDStrings(ids []uuid.UUID) []string {
-	if len(ids) == 0 {
-		return nil
-	}
-
-	out := make([]string, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, id.String())
-	}
-
-	return out
 }
