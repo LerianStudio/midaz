@@ -24,7 +24,7 @@ import (
 )
 
 func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
-	for _, scenario := range []string{"allow", "deny", "review", "off", "skip", "facts unavailable", "journal unknown", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
+	for _, scenario := range []string{"allow", "backdated", "deny", "review", "off", "skip", "facts unavailable", "journal unknown", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store := NewMockTracerObligationStore(ctrl)
@@ -56,6 +56,9 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 			require.NotEmpty(t, request.Context.Accounts)
 			entries := []traceradapter.PreparedEntry{{AccountID: request.Context.Accounts[0].ID, Direction: tracercontract.Debit, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset.Code}}
 			input := ContextTracerInput{Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Settings: settings, Timestamp: instant, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset.Code, Entries: entries, HonoredSkip: scenario == "skip"}
+			if scenario == "backdated" {
+				input.Timestamp = instant.AddDate(-5, 0, 0)
+			}
 			if scenario != "off" && scenario != "skip" {
 				var factsErr, errorJournal, errorReserve error
 				if scenario == "facts unavailable" {
@@ -104,6 +107,7 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 							require.True(t, ok)
 							require.Equal(t, admissionDeadline, deadline, "Reserve must retain the facts/journal deadline")
 							require.True(t, frozen)
+							require.Equal(t, instant, sent.TransactionTimestamp, "freshness is processing time, never the business date")
 							require.Equal(t, key.LedgerID.String(), sent.ContextID)
 							require.Equal(t, reservationRequestID(key.TransactionID), sent.RequestID)
 							require.Equal(t, request.Asset, sent.Asset)

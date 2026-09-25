@@ -76,7 +76,7 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 
 	created := c.recovery.now().UTC()
 
-	request, err := c.request(ctx, input)
+	request, err := c.request(ctx, input, created)
 	if err != nil {
 		return attempt, err
 	}
@@ -130,7 +130,7 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 	return attempt, nil
 }
 
-func (c *ContextTracerCoordinator) request(ctx context.Context, input ContextTracerInput) (tracercontract.ReserveRequest, error) {
+func (c *ContextTracerCoordinator) request(ctx context.Context, input ContextTracerInput, admittedAt time.Time) (tracercontract.ReserveRequest, error) {
 	amount, err := tracercontract.AmountFromDecimal(ctx, input.Amount, c.config.Facts.Bounds)
 	if err != nil {
 		return tracercontract.ReserveRequest{}, err
@@ -159,7 +159,9 @@ func (c *ContextTracerCoordinator) request(ctx context.Context, input ContextTra
 		return tracercontract.ReserveRequest{}, constant.ErrInvalidRequestBody
 	}
 
-	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: input.Key.TransactionID, RequestID: reservationRequestID(input.Key.TransactionID), ContextID: input.Key.LedgerID.String(), ValidationMode: tracercontract.ValidationMode(input.Settings.ValidationMode), TransactionTimestamp: input.Timestamp.UTC(), LongLived: &input.LongLived, Amount: amount, Asset: asset, Context: facts}, nil
+	// Freshness describes this admission attempt. The caller's business date
+	// remains on the Ledger transaction and must not bypass current controls.
+	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: input.Key.TransactionID, RequestID: reservationRequestID(input.Key.TransactionID), ContextID: input.Key.LedgerID.String(), ValidationMode: tracercontract.ValidationMode(input.Settings.ValidationMode), TransactionTimestamp: admittedAt.UTC(), LongLived: &input.LongLived, Amount: amount, Asset: asset, Context: facts}, nil
 }
 
 // A durable acknowledgement must name the same execution and frozen facts.
