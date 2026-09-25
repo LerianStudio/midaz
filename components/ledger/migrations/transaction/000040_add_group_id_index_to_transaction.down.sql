@@ -1,1 +1,1 @@
-DROP INDEX IF EXISTS idx_transaction_group;
+DROP INDEX CONCURRENTLY IF EXISTS idx_transaction_group;

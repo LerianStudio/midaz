@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration000039_AddsNullableGroupIDAndScopedIndex(t *testing.T) {
+func TestMigration000039_AddsNullableGroupID(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
@@ -26,10 +26,9 @@ func TestMigration000039_AddsNullableGroupIDAndScopedIndex(t *testing.T) {
 	upSQL := strings.ToLower(string(up))
 	assert.Contains(t, upSQL, "add column if not exists group_id uuid")
 	assert.NotContains(t, upSQL, "group_id uuid not null")
-	assert.Contains(t, upSQL, "create index if not exists")
-	assert.Contains(t, upSQL, "organization_id, ledger_id, group_id")
+	assert.NotContains(t, upSQL, "create index", "indexes on group_id live in their own CONCURRENTLY migrations")
 
 	downSQL := strings.ToLower(string(down))
-	assert.Contains(t, downSQL, "drop index if exists")
 	assert.Contains(t, downSQL, "drop column if exists group_id")
+	assert.NotContains(t, downSQL, "drop index", "each index migration drops its own index")
 }
