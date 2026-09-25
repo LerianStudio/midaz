@@ -113,6 +113,13 @@ type Repository interface {
 	Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
 	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
 	FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
+	// FindByAlias reports whether an active account with the given alias exists
+	// in the organization and ledger. Returns (true, ErrAliasUnavailability) when
+	// found, (false, nil) when not found.
+	// Comparison is exact, case-sensitive equality: % and _ are literal characters.
+	// Unlike ledger, asset and segment names, which compare case-insensitively, an
+	// alias is an account address resolved by exact equality everywhere else.
+	// Uniqueness is enforced by this lookup at request time; concurrent creates of the same alias are not serialized.
 	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
@@ -794,7 +801,6 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 	return acc.ToEntity(), nil
 }
 
-// FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -812,9 +818,8 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Expr("alias LIKE ?", alias)).
+		Where(squirrel.Eq{"alias": alias}).
 		Where(squirrel.Expr("deleted_at IS NULL")).
-		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
