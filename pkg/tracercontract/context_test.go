@@ -150,3 +150,44 @@ func TestAmountFromDecimalBoundsBeforeFormatting(t *testing.T) {
 		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 	}
 }
+
+func TestAmountFromDecimalUsesSignificantFractionDigits(t *testing.T) {
+	t.Parallel()
+
+	hundred := decimal.RequireFromString("100.00")
+	cases := []struct {
+		name     string
+		value    decimal.Decimal
+		fraction int
+		want     string
+	}{
+		{"share", hundred.Mul(decimal.NewFromInt(50).Div(decimal.NewFromInt(100))).Mul(decimal.NewFromInt(100).Div(decimal.NewFromInt(100))), 0, "50"},
+		{"percentage fee", hundred.Mul(decimal.RequireFromString("1.5").Div(decimal.NewFromInt(100))), 1, "1.5"},
+		{"integer padding", decimal.RequireFromString("100.000000000"), 0, "100"},
+		{"fraction padding", decimal.RequireFromString("-1.230000000"), 2, "-1.23"},
+		{"leading fractional zeros", decimal.RequireFromString("0.00000001000"), 8, "0.00000001"},
+		{"zero extreme negative exponent", decimal.New(0, -2147483648), 0, "0"},
+		{"zero extreme positive exponent", decimal.New(0, 2147483647), 0, "0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			limits := testLimits()
+			limits.MaxFractionDigits = tc.fraction
+			amount, err := tracercontract.AmountFromDecimal(context.Background(), tc.value, limits)
+			require.NoError(t, err)
+			require.Equal(t, tracercontract.Amount(tc.want), amount)
+			parsed, err := amount.Decimal(context.Background(), limits)
+			require.NoError(t, err)
+			if tc.value.IsZero() {
+				require.True(t, parsed.IsZero())
+			} else {
+				require.True(t, tc.value.Equal(parsed))
+			}
+			if tc.fraction > 0 {
+				limits.MaxFractionDigits--
+				_, err := tracercontract.AmountFromDecimal(context.Background(), tc.value, limits)
+				require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+			}
+		})
+	}
+}

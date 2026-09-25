@@ -29,9 +29,23 @@ func AmountFromDecimal(ctx context.Context, value decimal.Decimal, limits Limits
 		return "", invalid("decimal limits")
 	}
 
+	// Zero has no significant fractional digits, regardless of its stored
+	// exponent. Avoid expanding an arbitrarily scaled zero when formatting.
+	if value.IsZero() {
+		return "0", nil
+	}
+
 	exponent := int64(value.Exponent())
 	integerDigits := max(int64(value.NumDigits())+exponent, 1)
 	fractionDigits := max(-exponent, 0)
+	if fractionDigits > 0 {
+		// Decimal arithmetic retains trailing coefficient zeros (for example
+		// percentage division). Count the exact canonical scale without first
+		// expanding the exponent into a potentially enormous decimal string.
+		coefficient := value.Coefficient().String()
+		trailingZeros := len(coefficient) - len(strings.TrimRight(coefficient, "0"))
+		fractionDigits = max(fractionDigits-int64(trailingZeros), 0)
+	}
 
 	if integerDigits > int64(limits.MaxIntegerDigits) || fractionDigits > int64(limits.MaxFractionDigits) {
 		return "", invalid("decimal size")
