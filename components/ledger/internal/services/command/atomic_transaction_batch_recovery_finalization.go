@@ -131,7 +131,7 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 		candidate.Record = captured.Record
 	}
 
-	uc.reconcileAtomicTransactionBatchRecoveredMember(ctx, completion.Record.Transaction)
+	uc.reconcileAtomicTransactionBatchRecoveredMember(ctx, completion.Record.Transaction, completion.Outcome.TransactionStatus)
 
 	prepared := &AtomicTransactionBatchRecoveryFinalization{}
 	if candidate.Record.State == txRedis.AtomicTransactionBatchStateComplete || !candidate.Candidate {
@@ -207,10 +207,13 @@ func validateAtomicTransactionBatchRecoveredMember(
 		return errors.New("atomic transaction batch recovery transaction is not indexed")
 	}
 
+	// CANCELED is the terminal outcome of a grouped cancel, the only batch
+	// execution that releases members instead of creating them.
 	if completion.Outcome.TransactionStatus != constant.APPROVED &&
-		completion.Outcome.TransactionStatus != constant.PENDING {
+		completion.Outcome.TransactionStatus != constant.PENDING &&
+		completion.Outcome.TransactionStatus != constant.CANCELED {
 		return fmt.Errorf(
-			"atomic transaction batch recovery requires durable APPROVED or PENDING status, got %q",
+			"atomic transaction batch recovery requires durable APPROVED, PENDING, or CANCELED status, got %q",
 			completion.Outcome.TransactionStatus,
 		)
 	}
@@ -235,6 +238,10 @@ func atomicTransactionBatchRecoveredInitialResponse(
 		if public.Status.Code != constant.PENDING {
 			return nil, fmt.Errorf("atomic transaction batch recovery hold status differs: got %q", public.Status.Code)
 		}
+	case constant.CANCELED:
+		if public.Status.Code != constant.CANCELED {
+			return nil, fmt.Errorf("atomic transaction batch recovery canceled status differs: got %q", public.Status.Code)
+		}
 	default:
 		return nil, fmt.Errorf("atomic transaction batch recovery has unsupported initial status %q", completion.Outcome.TransactionStatus)
 	}
@@ -250,6 +257,7 @@ func atomicTransactionBatchRecoveredInitialResponse(
 func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	ctx context.Context,
 	tran *transaction.Transaction,
+	status string,
 ) {
 	if tran == nil || tran.TracerSkipped || uc.TracerReserver == nil {
 		return
@@ -271,12 +279,19 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	}
 
 	identity := reservationHandle{TransactionID: transactionID, Amount: amount, Asset: tran.AssetCode}
-	if err := uc.TracerReserver.ConfirmByTransaction(ctx, transactionID); err != nil {
+
+	// A canceled member moved no funds, so its capacity is returned rather than counted.
+	action, settle := reservationActionConfirm, uc.TracerReserver.ConfirmByTransaction
+	if status == constant.CANCELED {
+		action, settle = reservationActionRelease, uc.TracerReserver.ReleaseByTransaction
+	}
+
+	if err := settle(ctx, transactionID); err != nil {
 		uc.recordReservationByTransactionFailure(
 			ctx,
 			span,
 			logger,
-			identity.transitionByTransaction(reservationActionConfirm),
+			identity.transitionByTransaction(action),
 			err,
 		)
 	}

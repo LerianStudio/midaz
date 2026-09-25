@@ -93,6 +93,40 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesPendingHold
 	assert.Equal(t, constant.PENDING, public.Status.Code)
 }
 
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesCanceledGroupMember(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateApplied
+	fixture.repository.candidate.Candidate = false
+	canceled := constant.CANCELED
+	fixture.completion.Outcome.TransactionStatus = canceled
+	fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: canceled, Description: &canceled}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err, "a canceled group member must not strand its recovery record")
+	require.NotNil(t, prepared)
+	assert.Zero(t, fixture.reader.calls)
+	require.Len(t, fixture.repository.captures, 1)
+
+	var public transactionPostgres.Transaction
+	require.NoError(t, json.Unmarshal(fixture.repository.captures[0], &public))
+	assert.Equal(t, constant.CANCELED, public.Status.Code)
+	assert.Empty(t, fixture.tracer.confirmed, "a canceled member's reservation must not be counted")
+	assert.Equal(t, []uuid.UUID{fixture.transactionIDs[0]}, fixture.tracer.released)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCanceledStatusDrift(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateApplied
+	fixture.completion.Outcome.TransactionStatus = constant.CANCELED
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	assert.Nil(t, prepared)
+	require.ErrorContains(t, err, "canceled status differs")
+	assert.Empty(t, fixture.repository.captures)
+}
+
 func (repository *atomicTransactionBatchRecoveryRepositoryFake) GetAtomicTransactionBatchFinalizationCandidate(
 	_ context.Context,
 	organizationID, ledgerID, executionID, transactionID uuid.UUID,
@@ -127,6 +161,7 @@ func (reader *atomicTransactionBatchProjectionReaderFake) GetAtomicTransactionBa
 
 type atomicTransactionBatchRecoveryTracerFake struct {
 	confirmed []uuid.UUID
+	released  []uuid.UUID
 }
 
 func (*atomicTransactionBatchRecoveryTracerFake) Reserve(
@@ -153,8 +188,13 @@ func (fake *atomicTransactionBatchRecoveryTracerFake) ConfirmByTransaction(
 	return nil
 }
 
-func (*atomicTransactionBatchRecoveryTracerFake) ReleaseByTransaction(context.Context, uuid.UUID) error {
-	return errors.New("unexpected recovery release by transaction")
+func (fake *atomicTransactionBatchRecoveryTracerFake) ReleaseByTransaction(
+	_ context.Context,
+	transactionID uuid.UUID,
+) error {
+	fake.released = append(fake.released, transactionID)
+
+	return nil
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_NonBatchPreservesLegacyAck(t *testing.T) {
