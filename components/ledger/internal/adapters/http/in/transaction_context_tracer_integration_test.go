@@ -25,6 +25,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	pgtest "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -34,13 +36,21 @@ import (
 // real. The HTTP peer is a contract fixture, not a deployed Tracer or mTLS proof.
 func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 	for _, decision := range []tracercontract.Decision{tracercontract.DecisionAllow, tracercontract.DecisionDeny, tracercontract.DecisionReview} {
-		t.Run(string(decision), func(t *testing.T) { testMountedContextDecision(t, decision) })
+		t.Run(string(decision), func(t *testing.T) { testMountedContextDecision(t, decision, mmodel.TracerModeEnforce, nil) })
 	}
 }
 
-func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) {
+func TestIntegrationContextTracerPolicyFailureNeverPosts(t *testing.T) {
+	for _, mode := range []string{mmodel.TracerModeEnforce, mmodel.TracerModeAdvisory} {
+		for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrExpressionCostExceeded} {
+			t.Run(mode+"/"+cause.Error(), func(t *testing.T) { testMountedContextDecision(t, tracercontract.DecisionAllow, mode, cause) })
+		}
+	}
+}
+
+func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, mode string, peerError error) {
 	t.Helper()
-	allowed := decision == tracercontract.DecisionAllow
+	allowed := decision == tracercontract.DecisionAllow && peerError == nil
 	expectedState := tracerreservation.Confirmed
 	completionPath := "/confirm"
 	reason := tracercontract.ReasonRuleAllow
@@ -57,6 +67,12 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) 
 	h.seedEnforceClosedTracer(t)
 	_, err := h.db.Exec(`UPDATE ledger SET settings='{"tracer":{"mode":"enforce","failPosture":"closed","validationMode":"rules-and-limits","timeoutMs":5000}}'::jsonb WHERE id=$1`, h.ledgerID)
 	require.NoError(t, err)
+	if peerError != nil {
+		settings, err := json.Marshal(mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mode, FailPosture: mmodel.TracerFailPostureOpen, ValidationMode: string(tracercontract.ValidationRulesAndLimits), TimeoutMs: 5000}})
+		require.NoError(t, err)
+		_, err = h.db.ExecContext(t.Context(), `UPDATE ledger SET settings=$1::jsonb WHERE id=$2`, string(settings), h.ledgerID)
+		require.NoError(t, err)
+	}
 	assetID := pgtest.CreateTestAsset(t, h.db, h.orgID, h.ledgerID, "USD")
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100), "deposit")
 	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
@@ -86,6 +102,11 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) 
 			case received <- request:
 			default:
 				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			if peerError != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(map[string]string{"code": peerError.Error()})
 				return
 			}
 			w.WriteHeader(http.StatusCreated)
@@ -130,6 +151,13 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) 
 	response := h.createV2Direct(t, h.newV2App(), h.v2Body("context integration", "USD", "10.125", []string{h.v2Leg("@payer", "10.125")}, []string{h.v2Leg("@receiver", "10.125")}), nil)
 	if allowed {
 		require.Equal(t, http.StatusCreated, response.status, string(response.rawBody))
+	} else if peerError != nil {
+		expectedStatus := http.StatusServiceUnavailable
+		if peerError == constant.ErrExpressionCostExceeded {
+			expectedStatus = http.StatusUnprocessableEntity
+		}
+		require.Equal(t, expectedStatus, response.status, string(response.rawBody))
+		require.Equal(t, peerError.Error(), response.body["code"])
 	} else {
 		require.Equal(t, http.StatusUnprocessableEntity, response.status, string(response.rawBody))
 		code := "0177"
@@ -151,7 +179,7 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) 
 		require.Equal(t, 1, transactionCount)
 		require.Equal(t, 2, operationCount)
 	} else {
-		require.Zero(t, transactionCount, "DENY/REVIEW must not create a PENDING transaction")
+		require.Zero(t, transactionCount, "rejected admission must not create a PENDING transaction")
 		require.Zero(t, operationCount)
 	}
 	require.Equal(t, tracercontract.AssetRef{Namespace: "origin-a", ID: assetID.String(), Code: "USD"}, request.Asset)

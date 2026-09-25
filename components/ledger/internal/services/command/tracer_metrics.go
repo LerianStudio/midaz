@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -14,7 +13,6 @@ import (
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
@@ -61,7 +59,7 @@ func tracerAdmissionMetric(attempt ContextTracerAttempt, outcome reservationOutc
 			return "fail_open"
 		}
 
-		if errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrPayloadTooLarge) || errors.Is(err, constant.ErrTracerFactsUnavailable) {
+		if !tracerAdmissionUnavailable(err) {
 			return "context_invalid"
 		}
 

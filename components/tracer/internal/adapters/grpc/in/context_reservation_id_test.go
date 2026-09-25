@@ -79,3 +79,11 @@ func TestContextReservationByID(t *testing.T) {
 		})
 	}
 }
+
+func TestContextReservationPolicyFailuresAreNotUnavailable(t *testing.T) {
+	for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrContextLimitsUnavailable, constant.ErrExpressionCostExceeded, constant.ErrExpressionEvaluation} {
+		err := contextReservationError(cause)
+		require.Equal(t, codes.FailedPrecondition, status.Code(err))
+		require.Equal(t, cause.Error(), status.Convert(err).Message())
+	}
+}

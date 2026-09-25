@@ -210,6 +210,10 @@ func (h *ContextReservationHandler) completeLegacy(ctx context.Context, id strin
 }
 
 func canonicalContextReservationError(err error) error {
+	if errors.Is(err, constant.ErrExpressionEvaluation) {
+		return pkg.ValidateBusinessError(constant.ErrExpressionEvaluation, constant.EntityReservation)
+	}
+
 	if errors.Is(err, context.Canceled) {
 		return pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityReservation)
 	}

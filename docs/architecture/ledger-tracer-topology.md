@@ -289,9 +289,13 @@ at the transport boundary so `failPosture` can branch on them: gRPC `Unavailable
 `DeadlineExceeded` / `Canceled` and context deadline/cancellation are folded into `ErrTracerUnavailable`
 (`grpc_client.go:343-358`), and the REST client wraps transport errors equivalently
 (`client.go:53-60, 351-354`). A business **DENIED** decision is a *successful result*, not an error.
-`handleReserveError` additionally treats **any** non-availability reserve error as fail-posture-gated,
+The legacy `handleReserveError` additionally treats **any** non-availability reserve error as fail-posture-gated,
 so a tracer defect cannot let an `enforce`+`closed` ledger commit unchecked
 (`transaction_reservation_anchor.go:143-148`).
+The shared profile uses `contextTracerDisposition` instead: only identified
+availability failures follow posture. Invalid context, unusable policies/limits,
+CEL failures and unknown errors reject in both advisory and enforce modes.
+They are recorded as `context_invalid`, never as `fail_open`.
 
 **Boot-time graceful absence even when configured.** The gRPC client uses one persistent lazy
 connection — `grpc.NewClient` does not dial until the first RPC — so wiring the client never blocks on

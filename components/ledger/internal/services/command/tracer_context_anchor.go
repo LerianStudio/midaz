@@ -6,12 +6,14 @@ package command
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -61,6 +63,10 @@ func contextTracerDisposition(settings mmodel.TracerSettings, attempt ContextTra
 	}
 
 	if admissionErr != nil {
+		if !tracerAdmissionUnavailable(admissionErr) {
+			return reservationOutcome{Kind: reservationReject, Err: contextTracerRejection(admissionErr)}
+		}
+
 		if settings.Mode == mmodel.TracerModeAdvisory || settings.FailPosture == mmodel.TracerFailPostureOpen {
 			return reservationOutcome{Kind: reservationProceed}
 		}
@@ -81,6 +87,30 @@ func contextTracerDisposition(settings mmodel.TracerSettings, attempt ContextTra
 	}
 
 	return reservationOutcome{Kind: reservationReject, Err: pkg.ValidateBusinessError(constant.ErrTransactionReservationDenied, constant.EntityTransaction)}
+}
+
+func tracerAdmissionUnavailable(err error) bool {
+	return errors.Is(err, traceradapter.ErrTracerUnavailable) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// Failure posture applies only to positively identified availability failures.
+// Invalid facts, policy defects and unknown errors never authorize accounting.
+func contextTracerRejection(err error) error {
+	if errors.Is(err, constant.ErrInvalidRequestBody) {
+		return pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Invalid Tracer Context", Message: "The transaction cannot be represented within the supported validation contract."}
+	}
+
+	if errors.Is(err, constant.ErrPayloadTooLarge) {
+		return pkg.PayloadTooLargeError{Code: constant.ErrPayloadTooLarge.Error(), Title: "Payload Too Large", Message: "The validation context exceeds the configured size limit."}
+	}
+
+	for _, cause := range []error{constant.ErrTracerFactsUnavailable, constant.ErrContextPolicyUnavailable, constant.ErrContextLimitsUnavailable, constant.ErrExpressionCostExceeded, constant.ErrExpressionEvaluation} {
+		if errors.Is(err, cause) {
+			return pkg.ValidateBusinessError(cause, constant.EntityTransaction)
+		}
+	}
+
+	return pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction)
 }
 
 func (uc *UseCase) beginContextReservation(ctx context.Context, handle reservationHandle) error {

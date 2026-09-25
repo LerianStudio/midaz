@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
@@ -164,6 +165,24 @@ func TestContextHTTPClientCompletion(t *testing.T) {
 			if scenario == "unavailable" {
 				require.ErrorIs(t, err, ErrTracerUnavailable)
 			}
+		})
+	}
+}
+
+func TestContextHTTPClientDoesNotTreatPolicyFailuresAsAvailability(t *testing.T) {
+	for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrContextLimitsUnavailable, constant.ErrExpressionCostExceeded, constant.ErrExpressionEvaluation} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			request, config := contextClientFixture(t)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(map[string]string{"code": cause.Error()})
+			}))
+			t.Cleanup(server.Close)
+			client, err := NewContextHTTPClient(server.URL, config)
+			require.NoError(t, err)
+			_, err = client.Reserve(t.Context(), request)
+			require.ErrorIs(t, err, cause)
+			require.NotErrorIs(t, err, ErrTracerUnavailable)
 		})
 	}
 }
