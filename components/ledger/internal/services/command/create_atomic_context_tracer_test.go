@@ -52,7 +52,7 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 			reader.settings.Tracer.Mode, reader.settings.Tracer.ValidationMode, reader.settings.Tracer.FailPosture = "enforce", "rules-and-limits", "closed"
 			now := uc.Clock()
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100}
+			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
 			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, uc.Clock)
 			require.NoError(t, err)
 			uc.ContextTracer, err = NewContextTracerCoordinator(recovery, loader, cfg)

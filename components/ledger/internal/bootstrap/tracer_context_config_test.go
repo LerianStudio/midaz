@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"errors"
 	"testing"
+	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -47,9 +48,11 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 			case "empty catalog bound":
 				cfg.TracerRecoveryMaxCatalogTenants = 0
 			}
-			_, err := parseContextTracerConfig(&cfg, "ledger")
+			parsed, err := parseContextTracerConfig(&cfg, "ledger")
 			if scenario == "valid" || scenario == "zero precision" {
 				require.NoError(t, err)
+				require.Equal(t, 250*time.Millisecond, parsed.coordinator.AdmissionTimeout)
+				require.Equal(t, parsed.operationTimeout, parsed.coordinator.AdmissionTimeout)
 			} else {
 				require.Error(t, err)
 			}

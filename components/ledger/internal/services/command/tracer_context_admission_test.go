@@ -24,7 +24,7 @@ import (
 )
 
 func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
-	for _, scenario := range []string{"allow", "deny", "review", "off", "skip", "facts unavailable", "journal unknown", "response lost", "controls missing"} {
+	for _, scenario := range []string{"allow", "deny", "review", "off", "skip", "facts unavailable", "journal unknown", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store := NewMockTracerObligationStore(ctrl)
@@ -33,7 +33,7 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 			evidence := NewMockTracerAccountingEvidence(ctrl)
 			instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100}
+			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
 			raw, err := os.ReadFile("../../../../../pkg/tracercontract/testdata/reserve_request.json")
 			require.NoError(t, err)
 			request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, cfg.Facts.MaxBodyBytes, bounds)
@@ -41,6 +41,15 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 			key := tracerreservation.Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: request.TransactionID}
 			settings := mmodel.DefaultLedgerSettings().Tracer
 			settings.Mode, settings.ValidationMode = "enforce", "rules-and-limits"
+			budget := 250 * time.Millisecond
+			var callerDeadline time.Time
+			if scenario == "global timeout" {
+				settings.TimeoutMs = 5000
+			}
+			if scenario == "ledger timeout" {
+				settings.TimeoutMs = 100
+				budget = 100 * time.Millisecond
+			}
 			if scenario == "off" {
 				settings.Mode = "off"
 			}
@@ -58,14 +67,27 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 				if scenario == "response lost" {
 					errorReserve = errors.New("reserve response lost")
 				}
-				read := loader.EXPECT().EvaluationContext(gomock.Any(), key.OrganizationID, key.LedgerID, entries).Return(request.Context, factsErr)
+				var admissionDeadline time.Time
+				read := loader.EXPECT().EvaluationContext(gomock.Any(), key.OrganizationID, key.LedgerID, entries).DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ []traceradapter.PreparedEntry) (tracercontract.Context, error) {
+					var bounded bool
+					admissionDeadline, bounded = ctx.Deadline()
+					require.True(t, bounded)
+					if !callerDeadline.IsZero() {
+						require.Equal(t, callerDeadline, admissionDeadline)
+					}
+					require.LessOrEqual(t, time.Until(admissionDeadline), budget, "global cap must cover facts, before the client starts")
+					return request.Context, factsErr
+				})
 				if factsErr == nil {
 					frozen := false
 					persist := store.EXPECT().Prepare(gomock.Any(), gomock.Any()).After(read).DoAndReturn(func(ctx context.Context, intent tracerreservation.Intent) (*tracerreservation.Record, error) {
 						require.NoError(t, intent.Validate(ctx, cfg.Facts))
 						require.Equal(t, input.ExecutionID, intent.ExecutionID)
 						require.Equal(t, key, intent.Key)
-						require.Equal(t, time.Second+250*time.Millisecond, intent.PrepareDeadline.Sub(intent.CreatedAt))
+						require.Equal(t, time.Second+budget, intent.PrepareDeadline.Sub(intent.CreatedAt))
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.Equal(t, admissionDeadline, deadline)
 						frozen = true
 						return &tracerreservation.Record{Intent: intent, State: tracerreservation.Prepared}, errorJournal
 					})
@@ -77,7 +99,10 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 						if scenario == "review" {
 							decision = tracercontract.DecisionReview
 						}
-						client.EXPECT().Reserve(gomock.Any(), gomock.Any()).After(persist).DoAndReturn(func(_ context.Context, sent tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+						client.EXPECT().Reserve(gomock.Any(), gomock.Any()).After(persist).DoAndReturn(func(ctx context.Context, sent tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+							deadline, ok := ctx.Deadline()
+							require.True(t, ok)
+							require.Equal(t, admissionDeadline, deadline, "Reserve must retain the facts/journal deadline")
 							require.True(t, frozen)
 							require.Equal(t, key.LedgerID.String(), sent.ContextID)
 							require.Equal(t, reservationRequestID(key.TransactionID), sent.RequestID)
@@ -103,7 +128,15 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 			require.NoError(t, err)
 			coordinator, err := NewContextTracerCoordinator(recovery, loader, cfg)
 			require.NoError(t, err)
-			attempt, err := coordinator.Admit(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), input)
+			parent := tmcore.ContextWithTenantID(t.Context(), "tenant-a")
+			if scenario == "caller timeout" {
+				var cancel context.CancelFunc
+				parent, cancel = context.WithTimeout(parent, 100*time.Millisecond)
+				defer cancel()
+				callerDeadline, _ = parent.Deadline()
+				budget = 250 * time.Millisecond
+			}
+			attempt, err := coordinator.Admit(parent, input)
 			switch scenario {
 			case "off", "skip":
 				require.NoError(t, err)

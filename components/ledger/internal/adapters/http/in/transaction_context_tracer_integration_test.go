@@ -103,7 +103,7 @@ func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	recovery, err := command.NewTracerRecoveryProcessor(journal, client, journal, command.TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}, func() time.Time { return instant })
 	require.NoError(t, err)
-	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, command.ContextTracerConfig{Facts: config, MaxReservations: 100})
+	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, command.ContextTracerConfig{Facts: config, MaxReservations: 100, AdmissionTimeout: 5 * time.Second})
 	require.NoError(t, err)
 	h.handler.Command.ContextTracer = coordinator
 	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}

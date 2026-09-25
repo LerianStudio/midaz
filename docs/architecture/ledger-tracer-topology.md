@@ -421,7 +421,7 @@ truth for their **existence and semantics**.
 |---|---|---|---|
 | `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration; empty → disabled | `config.go:285-304, 1548-1554` |
 | `TRACER_TRANSPORT` | ledger | `grpc`\|`rest`; empty → `grpc` | `config.go:294-297, 1569-1588` |
-| `TRACER_TIMEOUT_MS` | ledger | reserve RPC timeout | struct tag, `config.go:304-310` |
+| `TRACER_TIMEOUT_MS` | ledger | shared admission cap (facts, journal and Reserve); client RPC cap | bootstrap context configuration and client |
 | `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `config.go:298-303` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `tls_seam.go:67-77` |
 | `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `config.go:310`, `tls_seam.go:87-90` |
@@ -437,3 +437,9 @@ settings; the Tracer template lists producer bindings and shared Reserve budgets
 The shared reservation profile requires native mTLS even though older seam
 configuration also supports mesh mode. Explicit workload budgets must be selected
 and measured before enabling the profile; commented empty entries are not defaults.
+
+The shared admission phase starts before official fact loading. Its deadline is
+the earliest of the caller deadline, per-ledger `timeoutMs`, and the global
+`TRACER_TIMEOUT_MS` cap. Fact loading, journal persistence and Reserve receive the
+same deadline; entering the transport does not restart that budget. Completion
+and recovery retain their separate operational timeout.
