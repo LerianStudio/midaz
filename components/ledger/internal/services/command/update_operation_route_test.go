@@ -58,6 +58,13 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 			return expectedOperationRoute, nil
 		})
 
+	// An account rule is cached with the transaction routes that link the
+	// operation route, so the update refreshes them.
+	mockOperationRouteRepo.EXPECT().
+		FindTransactionRouteIDs(gomock.Any(), operationRouteID).
+		Return([]uuid.UUID{}, nil).
+		Times(1)
+
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
@@ -114,6 +121,13 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 			return expectedOperationRoute, nil
 		})
 
+	// An account rule is cached with the transaction routes that link the
+	// operation route, so the update refreshes them.
+	mockOperationRouteRepo.EXPECT().
+		FindTransactionRouteIDs(gomock.Any(), operationRouteID).
+		Return([]uuid.UUID{}, nil).
+		Times(1)
+
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
@@ -160,6 +174,13 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
+		Times(1)
+
+	// An account rule is cached with the transaction routes that link the
+	// operation route, so the update refreshes them.
+	mockRepo.EXPECT().
+		FindTransactionRouteIDs(gomock.Any(), operationRouteID).
+		Return([]uuid.UUID{}, nil).
 		Times(1)
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)

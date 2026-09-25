@@ -426,6 +426,10 @@ func TestUpdateOperationRoute_MergePatch(t *testing.T) {
 
 			metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperationRoute, id.String(), gomock.Any()).Return(nil).Times(1)
 
+			// Accounting entries are cached with the transaction routes that link
+			// the operation route, so the update refreshes them.
+			orRepo.EXPECT().FindTransactionRouteIDs(gomock.Any(), id).Return([]uuid.UUID{}, nil).Times(1)
+
 			handler := &OperationRouteHandler{
 				Command: &command.UseCase{OperationRouteRepo: orRepo, TransactionMetadataRepo: metaRepo},
 				Query:   &query.UseCase{OperationRouteRepo: orRepo, TransactionMetadataRepo: metaRepo},

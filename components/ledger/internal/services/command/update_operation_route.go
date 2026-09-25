@@ -74,6 +74,14 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id 
 
 	uc.emitOperationRouteUpdatedEvent(ctx, span, logger, operationRouteUpdated)
 
+	if changesCachedOperationRoute(input) {
+		// ReloadOperationRouteCache logs its own failures. A stale cache is left
+		// to the next route write rather than failing an update that persisted.
+		if err := uc.ReloadOperationRouteCache(ctx, organizationID, id); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to reload operation route cache", err)
+		}
+	}
+
 	metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, constant.EntityOperationRoute, id.String(), input.Metadata)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to update metadata on repo by id", err, libLog.String("operation_route_id", id.String()))
@@ -84,6 +92,15 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id 
 	operationRouteUpdated.Metadata = metadataUpdated
 
 	return operationRouteUpdated, nil
+}
+
+// changesCachedOperationRoute reports whether the update touches a field the
+// transaction route cache carries for route validation and rubric stamping.
+func changesCachedOperationRoute(input *mmodel.UpdateOperationRouteInput) bool {
+	return input.Account != nil ||
+		input.Code != "" || //nolint:staticcheck // the legacy Code field is still cached
+		input.AccountingEntries != nil ||
+		len(input.AccountingEntriesRaw) > 0
 }
 
 // rejectSecondCrossLedgerBridgeRoute keeps a transaction route at one bridge

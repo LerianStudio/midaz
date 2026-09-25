@@ -123,7 +123,7 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 // bytes. Feed anything but the unparsed request body and the PATCH breaks silently.
 // Also reproduces the accountingEntries unknown-key probe.
 func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
@@ -192,13 +192,6 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 		handleSpanByErrorClass(span, "Failed to update Operation Route on command", err)
 
 		return nil, err
-	}
-
-	if payload.Account != nil {
-		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, id); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to reload operation route cache", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to reload operation route cache", libLog.Err(err), libLog.String("operation_route_id", id.String()))
-		}
 	}
 
 	return operationRoute, nil

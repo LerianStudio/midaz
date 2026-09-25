@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,9 +17,11 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func bridgeOperationRoute(id uuid.UUID) *mmodel.OperationRoute {
@@ -171,16 +174,23 @@ func TestUpdateOperationRoute_BridgeEntryKeepsOneBridgePerTransactionRoute(t *te
 		transactionRoutes := transactionroute.NewMockRepository(ctrl)
 		metadata := mongodb.NewMockRepository(ctrl)
 
-		operationRoutes.EXPECT().FindTransactionRouteIDs(gomock.Any(), operationRouteID).Return([]uuid.UUID{transactionRouteID}, nil)
+		cache := redis.NewMockRedisRepository(ctrl)
+
+		// Once for the one-bridge check, once to refresh the linked transaction
+		// route's cache with the new entry.
+		operationRoutes.EXPECT().FindTransactionRouteIDs(gomock.Any(), operationRouteID).Return([]uuid.UUID{transactionRouteID}, nil).Times(2)
 		transactionRoutes.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{transactionRouteID}).
 			Return(map[uuid.UUID][]uuid.UUID{transactionRouteID: {operationRouteID, otherRouteID}}, nil)
 		operationRoutes.EXPECT().FindByIDs(gomock.Any(), organizationID, []uuid.UUID{otherRouteID}).
 			Return([]*mmodel.OperationRoute{{ID: otherRouteID, OperationType: constant.OperationRouteTypeSource}}, nil)
 		operationRoutes.EXPECT().Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
 			Return(bridgeOperationRoute(operationRouteID), nil)
+		transactionRoutes.EXPECT().FindByID(gomock.Any(), organizationID, transactionRouteID).
+			Return(&mmodel.TransactionRoute{ID: transactionRouteID, OrganizationID: organizationID}, nil)
+		cache.EXPECT().SetBytes(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, transactionRouteID), gomock.Any(), time.Duration(0)).Return(nil)
 		metadata.EXPECT().Update(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String(), gomock.Any()).Return(nil)
 
-		uc := &UseCase{OperationRouteRepo: operationRoutes, TransactionRouteRepo: transactionRoutes, TransactionMetadataRepo: metadata}
+		uc := &UseCase{OperationRouteRepo: operationRoutes, TransactionRouteRepo: transactionRoutes, TransactionRedisRepo: cache, TransactionMetadataRepo: metadata}
 
 		result, err := uc.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, patch)
 
