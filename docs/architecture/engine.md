@@ -431,6 +431,12 @@ reservation and does not inherit the original transaction's tracer skip. Neither
 revert nor pending transitions rewrite the engine recover record through the
 legacy write-behind path.
 
+The engine never indexes a NOTED annotation. When the index and the primary both
+answer not-found, commit, cancel, revert, and the by-id GET read the legacy
+write-behind entry the annotation path writes, so an unprojected annotation is
+returned, or refused with `0099`, exactly as a persisted one. Any other lookup
+error propagates instead of falling back.
+
 ## Precision and cache representation
 
 Money crosses the wire as canonical decimal strings, produced with

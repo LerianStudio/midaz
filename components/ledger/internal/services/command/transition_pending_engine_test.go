@@ -719,6 +719,11 @@ type indexedPendingReader struct {
 	lastResolutionPrim bool
 	// row is what the PostgreSQL read answers; nil means the row is missing.
 	row *transaction.Transaction
+	// resolveErr, when set, is what the engine-aware lookup fails with.
+	resolveErr error
+	// legacy is the legacy write-behind entry; nil means there is none.
+	legacy      *transaction.Transaction
+	legacyReads int
 }
 
 func (reader *indexedPendingReader) ResolveTransactionProjection(
@@ -728,6 +733,10 @@ func (reader *indexedPendingReader) ResolveTransactionProjection(
 	reader.resolutions++
 	reader.lastResolutionPrim = readrouting.IsPrimaryRead(ctx)
 
+	if reader.resolveErr != nil {
+		return nil, uuid.Nil, false, reader.resolveErr
+	}
+
 	if reader.indexed == nil {
 		return nil, uuid.Nil, false, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 	}
@@ -736,7 +745,17 @@ func (reader *indexedPendingReader) ResolveTransactionProjection(
 }
 
 func (reader *indexedPendingReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
-	return nil, errors.New("write-behind entry not found")
+	reader.legacyReads++
+
+	if reader.legacy == nil {
+		return nil, errors.New("write-behind entry not found")
+	}
+
+	return reader.legacy, nil
+}
+
+func (reader *indexedPendingReader) GetParentByTransactionID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return nil, nil
 }
 
 func (reader *indexedPendingReader) GetTransactionWithOperationsByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
@@ -830,6 +849,157 @@ func TestPendingTransitionUnknownTransactionIsNotFoundBeforeLock(t *testing.T) {
 			}
 		})
 	}
+}
+
+// annotationTransaction is a NOTED transaction as both the legacy write-behind
+// entry and the primary row describe it.
+func annotationTransaction(in PendingTransitionInput) *transaction.Transaction {
+	return &transaction.Transaction{
+		ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+		Status: transaction.Status{Code: constant.NOTED}, CreatedAt: fixedPendingCreatedAt,
+	}
+}
+
+func TestPendingTransitionRefusesUnprojectedAnnotationLikeAPersistedOne(t *testing.T) {
+	for _, test := range pendingTransitionCalls() {
+		for _, source := range []struct {
+			name   string
+			reader func(*transaction.Transaction) *indexedPendingReader
+			legacy int
+		}{
+			{"persisted", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, indexed: noted}
+			}, 0},
+			{"legacy write-behind entry only", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, legacy: noted}
+			}, 1},
+		} {
+			t.Run(test.name+" "+source.name, func(t *testing.T) {
+				in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+				reader := source.reader(annotationTransaction(in))
+				executor := &transitionEngineExecutor{t: t}
+				ctrl := gomock.NewController(t)
+				redisRepo := txRedis.NewMockRedisRepository(ctrl)
+				redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+				uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
+
+				_, err := test.call(uc, t.Context(), in)
+
+				var conflict pkg.EntityConflictError
+				require.ErrorAs(t, err, &conflict)
+				assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), conflict.Code)
+				assert.Empty(t, executor.requests)
+				assert.Equal(t, source.legacy, reader.legacyReads)
+			})
+		}
+	}
+}
+
+func TestPendingTransitionEngineStateShadowsTheLegacyEntry(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	for _, test := range pendingTransitionCalls() {
+		t.Run(test.name, func(t *testing.T) {
+			uc, reader, executor, in := newIndexedPendingUseCase(t, test.status)
+			stale := annotationTransaction(in)
+			reader.legacy = stale
+
+			got, err := test.call(uc, tmcore.ContextWithTenantID(t.Context(), "tenant-indexed"), in)
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, test.status, got.Status.Code)
+			assert.Zero(t, reader.legacyReads, "an indexed transaction must never be read from the legacy entry")
+			require.Len(t, executor.requests, 1)
+		})
+	}
+}
+
+func TestPendingTransitionEngineLookupFailureIsNotAnAbsence(t *testing.T) {
+	for _, test := range pendingTransitionCalls() {
+		t.Run(test.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			lookupErr := errors.New("read engine transaction index: connection refused")
+			reader := &indexedPendingReader{
+				transitionEngineReader: &transitionEngineReader{}, resolveErr: lookupErr, legacy: annotationTransaction(in),
+			}
+			executor := &transitionEngineExecutor{t: t}
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
+
+			_, err := test.call(uc, t.Context(), in)
+
+			require.ErrorIs(t, err, lookupErr)
+			assert.Zero(t, reader.legacyReads)
+			assert.Empty(t, executor.requests)
+		})
+	}
+}
+
+func TestRevertRefusesUnprojectedAnnotationLikeAPersistedOne(t *testing.T) {
+	reverts := []struct {
+		name string
+		call func(*UseCase, context.Context, RevertTransactionInput) error
+	}{
+		{"v1", func(uc *UseCase, ctx context.Context, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV1(ctx, in)
+			return err
+		}},
+		{"v2", func(uc *UseCase, ctx context.Context, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV2(ctx, in)
+			return err
+		}},
+	}
+
+	for _, revert := range reverts {
+		for _, source := range []struct {
+			name   string
+			reader func(*transaction.Transaction) *indexedPendingReader
+			legacy int
+		}{
+			{"persisted", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, indexed: noted}
+			}, 0},
+			{"legacy write-behind entry only", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, legacy: noted}
+			}, 1},
+		} {
+			t.Run(revert.name+" "+source.name, func(t *testing.T) {
+				in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+				reader := source.reader(annotationTransaction(in))
+				executor := &transitionEngineExecutor{t: t}
+				uc := &UseCase{TransactionReader: reader, Engine: executor}
+
+				err := revert.call(uc, t.Context(), RevertTransactionInput{
+					OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
+				})
+
+				var conflict pkg.EntityConflictError
+				require.ErrorAs(t, err, &conflict)
+				assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), conflict.Code)
+				assert.Empty(t, executor.requests)
+				assert.Equal(t, source.legacy, reader.legacyReads)
+			})
+		}
+	}
+
+	t.Run("engine lookup failure propagates without the legacy entry", func(t *testing.T) {
+		in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+		lookupErr := errors.New("decode engine transaction index: corrupt")
+		reader := &indexedPendingReader{
+			transitionEngineReader: &transitionEngineReader{}, resolveErr: lookupErr, legacy: annotationTransaction(in),
+		}
+		uc := &UseCase{TransactionReader: reader, Engine: &transitionEngineExecutor{t: t}}
+
+		_, _, err := uc.RevertTransactionV2(t.Context(), RevertTransactionInput{
+			OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
+		})
+
+		require.ErrorIs(t, err, lookupErr)
+		assert.Zero(t, reader.legacyReads)
+	})
 }
 
 func TestPendingTransitionIndexedGroupedMemberFollowsGroupContract(t *testing.T) {

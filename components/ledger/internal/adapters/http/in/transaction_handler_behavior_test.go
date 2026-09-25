@@ -733,9 +733,17 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 		Return(nil, nil).
 		AnyTimes()
 
+	// Mock: no legacy write-behind entry either
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("cache miss")).
+		Times(1)
+
 	queryUC := &query.UseCase{
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 

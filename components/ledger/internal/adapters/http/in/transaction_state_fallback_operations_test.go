@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations pins the money-path
@@ -97,8 +99,8 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 		},
 	}
 
-	// No engine index is configured, so the lookup reads PostgreSQL. The strict
-	// Redis mock fails the test on any read of the legacy write-behind entry.
+	// No engine index is configured, so the lookup reads PostgreSQL. Only once the
+	// primary answers not-found is the legacy write-behind entry consulted.
 
 	// The fallback MUST use the with-operations read.
 	mockTransactionRepo.EXPECT().
@@ -190,6 +192,11 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 			Title:      "Entity Not Found",
 			Message:    "Transaction not found",
 		}).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), utils.WriteBehindTransactionKey(orgID, ledgerID, transactionID.String())).
+		Return(nil, errors.New("cache miss")).
 		Times(1)
 
 	queryUC := &query.UseCase{

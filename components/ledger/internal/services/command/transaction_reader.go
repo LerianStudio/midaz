@@ -6,10 +6,12 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -109,4 +111,43 @@ func resolveTransactionProjection(
 	}
 
 	return &TransactionProjectionResolution{Transaction: tran}, nil
+}
+
+// loadLifecycleTransaction returns the transaction a commit, cancel, or revert
+// acts on: the engine index, then the primary PostgreSQL, then the legacy
+// write-behind entry. The engine never indexes an annotation, so until its
+// projection lands only the legacy entry can name it. That entry is consulted
+// only once both other sources answer not-found, so it never shadows a newer
+// engine or persisted state; any other error propagates unchanged.
+func (uc *UseCase) loadLifecycleTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+	tran, err := uc.loadIndexedOrPersistedTransaction(ctx, organizationID, ledgerID, transactionID)
+
+	var notFound pkg.EntityNotFoundError
+	if !errors.As(err, &notFound) {
+		return tran, err
+	}
+
+	legacy, legacyErr := uc.TransactionReader.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
+	if legacyErr != nil || legacy == nil || legacy.ID == "" {
+		return nil, err
+	}
+
+	return legacy, nil
+}
+
+func (uc *UseCase) loadIndexedOrPersistedTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+	resolution, err := resolveTransactionProjection(ctx, uc.TransactionReader, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if resolution.Transaction != nil && resolution.Transaction.ID != "" {
+		return resolution.Transaction, nil
+	}
+
+	// A reader without the engine index answers from FindWithOperations, which
+	// joins on operations, so a transaction with no rows comes back as an empty
+	// value with no error. The row-only read tells a missing transaction from an
+	// operationless one.
+	return uc.TransactionReader.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 }

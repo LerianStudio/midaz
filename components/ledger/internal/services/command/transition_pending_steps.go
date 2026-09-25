@@ -19,30 +19,15 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// loadPendingTransaction resolves the transaction the transition acts on through
-// the engine index first and the primary PostgreSQL second. An asynchronous create
-// answers before its projection reaches PostgreSQL, so only the index can name a
-// transaction that is still in that window.
+// loadPendingTransaction resolves the transaction the transition acts on. An
+// asynchronous create answers before its projection reaches PostgreSQL, so the
+// load must reach the sources that can name a transaction still in that window.
 func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, in PendingTransitionInput) (*transaction.Transaction, error) {
-	resolution, err := resolveTransactionProjection(ctx, uc.TransactionReader, in.OrganizationID, in.LedgerID, in.TransactionID)
+	tran, err := uc.loadLifecycleTransaction(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		return nil, err
-	}
-
-	tran := resolution.Transaction
-
-	// A reader without the engine index answers from FindWithOperations, which
-	// joins on operations, so a transaction with no rows comes back as an empty
-	// value with no error. Fall back to the row-only read.
-	if tran == nil || tran.ID == "" {
-		tran, err = uc.TransactionReader.GetTransactionByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
-		if err != nil {
-			spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
-
-			return nil, err
-		}
 	}
 
 	return tran, nil

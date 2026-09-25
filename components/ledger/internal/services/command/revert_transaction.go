@@ -189,26 +189,11 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return uc.rejectAlreadyRevertedTransaction(readCtx, span, in, parent)
 	}
 
-	resolution, err := resolveTransactionProjection(readCtx, uc.TransactionReader, in.OrganizationID, in.LedgerID, in.TransactionID)
+	tran, err := uc.loadLifecycleTransaction(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		return mtransaction.Transaction{}, nil, err
-	}
-
-	tran := resolution.Transaction
-
-	// FindWithOperations joins on operations, so a transaction with no rows comes back
-	// as an empty value with no error. Fall back to the row-only read, which reports
-	// not-found for a missing transaction and returns the real row for an
-	// operation-less one — either way the gate never inspects an empty transaction.
-	if tran == nil || tran.ID == "" {
-		tran, err = uc.TransactionReader.GetTransactionByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
-		if err != nil {
-			spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
-
-			return mtransaction.Transaction{}, nil, err
-		}
 	}
 
 	if tran.ParentTransactionID != nil {
