@@ -153,6 +153,7 @@ help:
 	@echo "  make test-integration-shard      - Run one bounded shard (INTEGRATION_SHARD=<name>)"
 	@echo "  make test-integration-shards     - Run all five bounded integration shards"
 	@echo "  make test-integration-shard-contract - Verify shard membership, isolation, and observers"
+	@echo "  make test-tracer-admission-latency - Run the isolated Tracer admission latency gate"
 	@echo "  make list-property-tests         - List property tests selected by build tags (no Docker)"
 	@echo "  make test-gate-selection         - Verify the Make test-selection contract"
 	@echo "  make wait-for-services           - Wait for backend services to be healthy"
@@ -177,6 +178,12 @@ help:
 #-------------------------------------------------------
 # Build Commands
 #-------------------------------------------------------
+
+.PHONY: test-tracer-admission-latency
+test-tracer-admission-latency:
+	@ALLOW_INSECURE_TLS=true TRACER_MEASURE_ADMISSION=true go test -tags=integration \
+		./components/tracer/internal/adapters/postgres \
+		-run '^TestIntegrationReserveAdmissionLatencyUnderContention$$' -count=1
 
 .PHONY: build
 build:
