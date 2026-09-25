@@ -27,7 +27,7 @@ import (
 var OperationRouteUpdatedDefinition = Definition{
 	ResourceType:  "operation_route",
 	EventType:     "updated",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // OperationRouteUpdatedPayload is the wire payload for operation_route.updated.
@@ -37,9 +37,11 @@ var OperationRouteUpdatedDefinition = Definition{
 // render the row. CreatedAt is intentionally omitted — pinned at create
 // time and not part of the update fact.
 type OperationRouteUpdatedPayload struct {
-	ID                string                    `json:"id"`
-	OrganizationID    string                    `json:"organizationId"`
-	LedgerID          string                    `json:"ledgerId"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organizationId"`
+	// LedgerID is the ledger the route was created under, absent for a route
+	// created at organization level.
+	LedgerID          string                    `json:"ledgerId,omitempty"`
 	Title             string                    `json:"title"`
 	Description       string                    `json:"description,omitempty"`
 	Code              string                    `json:"code,omitempty"`

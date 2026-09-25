@@ -17,7 +17,7 @@ func TestOperationRouteDeletedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "operation_route.deleted", events.OperationRouteDeletedDefinition.Key())
 	assert.Equal(t, "operation_route", events.OperationRouteDeletedDefinition.ResourceType)
 	assert.Equal(t, "deleted", events.OperationRouteDeletedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.OperationRouteDeletedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.OperationRouteDeletedDefinition.SchemaVersion)
 }
 
 func TestNewOperationRouteDeleted_MapsIdentity(t *testing.T) {

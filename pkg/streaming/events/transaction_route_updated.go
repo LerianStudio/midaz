@@ -28,7 +28,7 @@ import (
 var TransactionRouteUpdatedDefinition = Definition{
 	ResourceType:  "transaction_route",
 	EventType:     "updated",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // TransactionRouteUpdatedPayload is the wire payload for transaction_route.updated.
@@ -42,9 +42,11 @@ var TransactionRouteUpdatedDefinition = Definition{
 // Consumers replace their cached join-table set with this slice on
 // every update event.
 type TransactionRouteUpdatedPayload struct {
-	ID                string   `json:"id"`
-	OrganizationID    string   `json:"organizationId"`
-	LedgerID          string   `json:"ledgerId"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organizationId"`
+	// LedgerID is the ledger the route was created under, absent for a route
+	// created at organization level.
+	LedgerID          string   `json:"ledgerId,omitempty"`
 	Title             string   `json:"title"`
 	Description       string   `json:"description,omitempty"`
 	OperationRouteIDs []string `json:"operationRouteIds,omitempty"`

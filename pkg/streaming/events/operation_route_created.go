@@ -27,7 +27,7 @@ import (
 var OperationRouteCreatedDefinition = Definition{
 	ResourceType:  "operation_route",
 	EventType:     "created",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // OperationRouteCreatedPayload is the wire payload for operation_route.created.
@@ -42,9 +42,11 @@ var OperationRouteCreatedDefinition = Definition{
 // expect. The same shape is documented in the OpenAPI spec for
 // OperationRoute create responses, so we keep one source of truth.
 type OperationRouteCreatedPayload struct {
-	ID                string                    `json:"id"`
-	OrganizationID    string                    `json:"organizationId"`
-	LedgerID          string                    `json:"ledgerId"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organizationId"`
+	// LedgerID is the ledger the route was created under, absent for a route
+	// created at organization level.
+	LedgerID          string                    `json:"ledgerId,omitempty"`
 	Title             string                    `json:"title"`
 	Description       string                    `json:"description,omitempty"`
 	Code              string                    `json:"code,omitempty"`
