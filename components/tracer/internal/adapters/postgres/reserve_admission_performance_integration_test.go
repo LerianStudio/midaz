@@ -8,7 +8,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"slices"
@@ -37,7 +36,6 @@ func TestIntegrationReserveAdmissionMeasuredEnvelope(t *testing.T) {
 			db := completionDatabase(t)
 			admission, policies, request := admissionFixtureWithConnection(t, db, &testutil.IntegrationDBAdapter{DB: db}, testutil.FixedTime(), true, accounts)
 			admissionPolicy(t, db, policies, model.DecisionAllow)
-			limit := admissionLimit(t, db, request, 89501, "1000000000000")
 			account, entry := request.Context.Accounts[0], request.Context.Entries[0]
 			scopes := make([]model.Scope, 0, accounts)
 			request.Context.Accounts = nil
@@ -51,10 +49,7 @@ func TestIntegrationReserveAdmissionMeasuredEnvelope(t *testing.T) {
 				request.Context.Entries = append(request.Context.Entries, nextEntry)
 				scopes = append(scopes, model.Scope{AccountID: &next.ID})
 			}
-			raw, err := json.Marshal(scopes)
-			require.NoError(t, err)
-			_, err = db.ExecContext(t.Context(), "UPDATE limits SET scopes=$2 WHERE id=$1", limit, raw)
-			require.NoError(t, err)
+			admissionLimit(t, db, request, 89501, "1000000000000", scopes...)
 			ctx := completionContext(t.Context(), "producer")
 			iteration := 0
 			measurementFailed := false
