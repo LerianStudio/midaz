@@ -65,7 +65,9 @@ func checkProfiles(ledgerPath, tracerPath string) error {
 }
 
 func readEnvironment(path string) (map[string]string, error) {
-	file, err := os.Open(path)
+	// Local operator CLI: the explicit input path is not supplied by a network
+	// caller. Reading arbitrary deployment files is intentional; contents stay private.
+	file, err := os.Open(path) // #nosec G304 -- operator-selected, read-only input; bounded below.
 	if err != nil {
 		return nil, fmt.Errorf("open deployment environment: %w", err)
 	}

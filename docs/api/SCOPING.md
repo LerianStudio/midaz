@@ -154,9 +154,9 @@ those packages apply only to the transactions it posts on `/v2`.
 
 ### The tracer reservation is a `/v2` contract too
 
-The same boundary governs the tracer. The reservation lifecycle is **`/v2`-only** across all three
-of its seams: the reserve anchor on create and revert, and the by-transaction confirm/release on
-commit and cancel. A `/v1` route never reaches the tracer — no reserve request is built, no
+New Tracer admission is **`/v2`-only**. The synchronous legacy lifecycle has three
+seams: the reserve anchor on create and revert, and the by-transaction confirm/release on
+commit and cancel. A `/v1` create/revert never starts Tracer admission — no reserve request is built, no
 connection is dialled, and a `/v1` create can never answer `0177` (reservation denied) or `0178`
 (reservation unavailable). Like fees, `/v1` shipped before the tracer existed, and the per-ledger
 `tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
@@ -210,13 +210,16 @@ row they are always `false`, and they stay distinguishable from `fees_route_elig
 This differs from `skip.holder`, which remains a known — but inert — field on the `/v1`
 account body.
 
-**Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
-confirm/release cannot tell whether the transaction holds reservations, so a PENDING created on
-`/v2` and committed through `/v1` never receives its confirm — `transitionPendingV1` names no
-reservation seam: the reservation stays RESERVED until the TTL reaper releases it, and the
-committed amount is never counted against the usage limit. Commit and cancel a transaction on the
-same contract that created it. Closing this needs create-time reservation state persisted on the
-transaction row for the `/v1` pipeline to read.
+**Use the same route contract throughout a transaction lifecycle.** In the legacy
+profile, `/v1` completion does not call the reservation seam for a PENDING created
+on `/v2`; its TTL can release capacity instead of recording consumption.
+
+The shared profile persists a separate reservation obligation. Recovery reads the
+transaction outcome and delivers confirm/release even when completion used `/v1`.
+This is asynchronous recovery, not new admission on `/v1`. Decision reservations
+are not released by the TTL reaper. Keep recovery and the original producer identity
+available until all obligations are delivered; unknown/PENDING outcomes retain capacity.
+
 ## The holder seam is `/v2`-only
 
 The same contract-versus-scope split applies to accounts. The **holder seam** on account create —
