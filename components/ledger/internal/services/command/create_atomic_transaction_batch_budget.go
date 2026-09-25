@@ -77,6 +77,25 @@ type atomicTransactionBatchBudgetMeasurements struct {
 	cachedResponseBytes    []int
 }
 
+// atomicTransactionBatchMeasuredProtection mirrors the cleanup protection the
+// engine seals into the receipt; scopes are written only for a multi-scope
+// execution, one per transaction in execution order.
+type atomicTransactionBatchMeasuredProtection struct {
+	FormatVersion         int                                   `json:"formatVersion"`
+	RetentionSeconds      int64                                 `json:"retentionSeconds"`
+	Transactions          []uuid.UUID                           `json:"transactions"`
+	RecoveryFields        []string                              `json:"recoveryFields"`
+	IndexFields           []uuid.UUID                           `json:"indexFields"`
+	Acknowledged          map[string]bool                       `json:"acknowledged"`
+	TerminalCompletedAtMS map[string]int64                      `json:"terminalCompletedAtMs"`
+	Scopes                []atomicTransactionBatchMeasuredScope `json:"scopes,omitempty"`
+}
+
+type atomicTransactionBatchMeasuredScope struct {
+	OrganizationID uuid.UUID `json:"organizationId"`
+	LedgerID       uuid.UUID `json:"ledgerId"`
+}
+
 func (uc *UseCase) enforceAtomicTransactionBatchExpandedPostings(run *atomicTransactionBatchRun) error {
 	cumulative := make([]int, len(run.items))
 
@@ -298,6 +317,8 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	protectedTransactions := make([]uuid.UUID, 0, len(run.items))
 	protectedRecoveryFields := make([]string, 0, len(run.items))
 	protectedIndexFields := make([]uuid.UUID, 0, len(run.items))
+
+	var protectedScopes []atomicTransactionBatchMeasuredScope
 	capturedResponses := make(map[string]string, len(run.items))
 	publicResponsePayloads := make([]json.RawMessage, 0, len(run.items))
 
@@ -382,13 +403,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 
 		recoveryField := item.transactionID.String() + ":" + run.executionID.String()
 
-		indexPayload, err := EncodeTransactionEvidenceIndex(TransactionEvidenceIndex{
-			FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: item.completionPlan.TenantID,
-			OrganizationID: item.organizationID, LedgerID: item.ledgerID, TransactionID: item.transactionID,
-			ExecutionID: run.executionID, Action: item.action, ApplicationState: TransactionApplicationConfirmed,
-			ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
-			RecoveryField: recoveryField, ReceiptField: run.executionID.String(), Dependencies: dependencies,
-		})
+		indexPayload, err := EncodeTransactionEvidenceIndex(atomicTransactionBatchMeasuredIndex(run, item, recoveryField, dependencies))
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch index: %w", err)
 		}
@@ -400,6 +415,12 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		protectedTransactions = append(protectedTransactions, item.transactionID)
 		protectedRecoveryFields = append(protectedRecoveryFields, recoveryField)
 		protectedIndexFields = append(protectedIndexFields, item.transactionID)
+
+		if run.multiScope {
+			protectedScopes = append(protectedScopes, atomicTransactionBatchMeasuredScope{
+				OrganizationID: item.organizationID, LedgerID: item.ledgerID,
+			})
+		}
 
 		responsePayload, err := json.Marshal(publicTransactions[len(publicTransactions)-1])
 		if err != nil {
@@ -424,30 +445,15 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			ExecutionID       uuid.UUID `json:"executionId"`
 			IntentFingerprint string    `json:"intentFingerprint"`
 			Response          string    `json:"response"`
-			Protection        struct {
-				FormatVersion         int              `json:"formatVersion"`
-				RetentionSeconds      int64            `json:"retentionSeconds"`
-				Transactions          []uuid.UUID      `json:"transactions"`
-				RecoveryFields        []string         `json:"recoveryFields"`
-				IndexFields           []uuid.UUID      `json:"indexFields"`
-				Acknowledged          map[string]bool  `json:"acknowledged"`
-				TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
-			} `json:"protection"`
+
+			Protection atomicTransactionBatchMeasuredProtection `json:"protection"`
 		}{
 			FormatVersion: 1, TenantID: item.completionPlan.TenantID, OrganizationID: run.organizationID,
 			LedgerID: run.ledgerID, ExecutionID: run.executionID, IntentFingerprint: run.engineIntentFingerprint,
-			Response: string(batchResponsePayload), Protection: struct {
-				FormatVersion         int              `json:"formatVersion"`
-				RetentionSeconds      int64            `json:"retentionSeconds"`
-				Transactions          []uuid.UUID      `json:"transactions"`
-				RecoveryFields        []string         `json:"recoveryFields"`
-				IndexFields           []uuid.UUID      `json:"indexFields"`
-				Acknowledged          map[string]bool  `json:"acknowledged"`
-				TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
-			}{
+			Response: string(batchResponsePayload), Protection: atomicTransactionBatchMeasuredProtection{
 				FormatVersion: 2, RetentionSeconds: atomicTransactionBatchRetentionSeconds(run.idempotencyTTL),
 				Transactions: protectedTransactions, RecoveryFields: protectedRecoveryFields, IndexFields: protectedIndexFields,
-				Acknowledged: map[string]bool{}, TerminalCompletedAtMS: map[string]int64{},
+				Acknowledged: map[string]bool{}, TerminalCompletedAtMS: map[string]int64{}, Scopes: protectedScopes,
 			},
 		})
 		if err != nil {
@@ -471,6 +477,25 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	}
 
 	return measurements, nil
+}
+
+// atomicTransactionBatchMeasuredIndex mirrors the transaction index entry the
+// engine writes, which always names the receipt scope.
+func atomicTransactionBatchMeasuredIndex(
+	run *atomicTransactionBatchRun,
+	item *atomicTransactionBatchItemRun,
+	recoveryField string,
+	dependencies []TransactionEvidenceReference,
+) TransactionEvidenceIndex {
+	return TransactionEvidenceIndex{
+		FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: item.completionPlan.TenantID,
+		OrganizationID: item.organizationID, LedgerID: item.ledgerID, TransactionID: item.transactionID,
+		ExecutionID: run.executionID, Action: item.action, ApplicationState: TransactionApplicationConfirmed,
+		ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+		RecoveryField: recoveryField, ReceiptField: run.executionID.String(),
+		ReceiptOrganizationID: cloneUUIDPointer(&run.organizationID), ReceiptLedgerID: cloneUUIDPointer(&run.ledgerID),
+		Dependencies: dependencies,
+	}
 }
 
 func encodeAtomicTransactionBatchCachedBudget(

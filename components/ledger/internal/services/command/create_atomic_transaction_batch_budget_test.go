@@ -486,3 +486,108 @@ func TestCreateAtomicTransactionBatchV2_GroupRevertPlansCarryTheReversalMembers(
 			"plan %d must list the reversal transactions, never the reverted parents", index)
 	}
 }
+
+func TestMeasureAtomicTransactionBatchBudgets_ChargesTheEngineReceiptAndIndexScopes(t *testing.T) {
+	organizationID := uuid.MustParse("0199a620-0000-7000-8000-000000000001")
+	primaryLedgerID := uuid.MustParse("0199a620-0000-7000-8000-000000000002")
+	foreignLedgerID := uuid.MustParse("0199a620-0000-7000-8000-000000000003")
+	primaryRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: primaryLedgerID}
+	foreignRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: foreignLedgerID}
+	reader := &atomicTransactionBatchSettingsReader{
+		settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+			primaryRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+			foreignRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+		},
+		balances: []*mmodel.Balance{
+			atomicTransactionBatchTestBalance(organizationID, primaryLedgerID, "0199a620-0000-7000-8000-000000000011", "@source", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, primaryLedgerID, "0199a620-0000-7000-8000-000000000012", "@destination", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, foreignLedgerID, "0199a620-0000-7000-8000-000000000013", "@source", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, foreignLedgerID, "0199a620-0000-7000-8000-000000000014", "@destination", "BRL"),
+		},
+	}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			uuid.MustParse("0199a620-0000-7000-8000-000000000004"),
+			uuid.MustParse("0199a620-0000-7000-8000-000000000005"),
+			uuid.MustParse("0199a620-0000-7000-8000-000000000006"),
+			uuid.MustParse("0199a620-0000-7000-8000-000000000007"),
+		),
+		Clock: func() time.Time { return time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC) },
+	}
+	items := []CreateAtomicTransactionBatchV2ItemInput{
+		atomicTransactionBatchItemInput(organizationID, primaryLedgerID, "@source", "@destination"),
+		atomicTransactionBatchItemInput(organizationID, foreignLedgerID, "@source", "@destination"),
+	}
+
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{Transactions: items})
+	require.NoError(t, err)
+	require.True(t, run.multiScope)
+	require.NoError(t, uc.prepareAtomicTransactionBatchItems(context.Background(), nil, nil, run))
+
+	t.Run("index entries name the receipt scope", func(t *testing.T) {
+		for index := range run.items {
+			item := &run.items[index]
+			encoded, err := EncodeTransactionEvidenceIndex(atomicTransactionBatchMeasuredIndex(
+				run, item, item.transactionID.String()+":"+run.executionID.String(), nil,
+			))
+			require.NoError(t, err)
+
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(encoded, &fields))
+			assert.Equal(t, run.organizationID.String(), fields["receiptOrganizationId"], "item %d", index)
+			assert.Equal(t, run.ledgerID.String(), fields["receiptLedgerId"], "item %d", index)
+		}
+	})
+
+	t.Run("the receipt protection charges one scope per transaction", func(t *testing.T) {
+		multi, err := measureAtomicTransactionBatchBudgets(run)
+		require.NoError(t, err)
+
+		run.multiScope = false
+		single, err := measureAtomicTransactionBatchBudgets(run)
+		run.multiScope = true
+		require.NoError(t, err)
+
+		coordinationScope := TransactionCompletionRecord{
+			CoordinationOrganizationID: &run.coordinationOrganizationID, CoordinationLedgerID: &run.coordinationLedgerID,
+			ReceiptOrganizationID: &run.organizationID, ReceiptLedgerID: &run.ledgerID,
+		}
+		withScope, err := json.Marshal(coordinationScope)
+		require.NoError(t, err)
+		withoutScope, err := json.Marshal(TransactionCompletionRecord{})
+		require.NoError(t, err)
+		recoveryScopeBytes := len(withScope) - len(withoutScope)
+
+		scopes := make([]atomicTransactionBatchMeasuredScope, 0, len(run.items))
+		for index := range run.items {
+			scopes = append(scopes, atomicTransactionBatchMeasuredScope{
+				OrganizationID: run.items[index].organizationID, LedgerID: run.items[index].ledgerID,
+			})
+			encodedScopes, err := json.Marshal(scopes)
+			require.NoError(t, err)
+
+			want := (index+1)*recoveryScopeBytes + len(`,"scopes":`) + len(encodedScopes)
+			assert.Equal(t, want, multi.preparedResponseBytes[index]-single.preparedResponseBytes[index], "item %d", index)
+		}
+	})
+
+	t.Run("the prepared budget holds at its exact boundary", func(t *testing.T) {
+		measured, err := measureAtomicTransactionBatchBudgets(run)
+		require.NoError(t, err)
+		prepared := measured.preparedResponseBytes[len(measured.preparedResponseBytes)-1]
+
+		limits := defaultAtomicTransactionBatchBudgetLimits
+		limits.preparedResponseBytes = prepared
+		uc.atomicTransactionBatchBudgetLimitOverride = &limits
+		require.NoError(t, uc.prepareAndEnforceAtomicTransactionBatchBudgets(context.Background(), run))
+
+		limits.preparedResponseBytes = prepared - 1
+		err = uc.prepareAndEnforceAtomicTransactionBatchBudgets(context.Background(), run)
+		assertAtomicTransactionBatchBudgetError(
+			t, err, atomicTransactionBatchBudgetPreparedResponseBytes, len(run.items)-1, prepared, prepared-1,
+		)
+		assert.Equal(t, atomicTransactionBatchBudgetPreparedResponseBytes, run.rejectionDimension)
+	})
+}
