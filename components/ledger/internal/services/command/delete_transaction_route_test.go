@@ -25,7 +25,6 @@ func TestDeleteTransactionRouteByIDSuccess(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	operationRouteID1 := uuid.New()
 	operationRouteID2 := uuid.New()
 
@@ -43,16 +42,16 @@ func TestDeleteTransactionRouteByIDSuccess(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, transactionRouteID, gomock.Any()).
+		Delete(gomock.Any(), organizationID, transactionRouteID, gomock.Any()).
 		Return(nil).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.NoError(t, err)
 }
@@ -64,7 +63,6 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -72,11 +70,11 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 
@@ -92,7 +90,6 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	databaseError := errors.New("database connection error")
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
@@ -101,11 +98,11 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, databaseError).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, databaseError, err)
@@ -118,7 +115,6 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	operationRouteID := uuid.New()
 	databaseError := errors.New("database deletion error")
 
@@ -135,16 +131,16 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, transactionRouteID, gomock.Any()).
+		Delete(gomock.Any(), organizationID, transactionRouteID, gomock.Any()).
 		Return(databaseError).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, databaseError, err)

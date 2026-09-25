@@ -168,7 +168,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_ReloadOperationRouteCache(t *tes
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): verifying ReloadOperationRouteCache succeeds through proxy")
 
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 	require.NoError(t, err, "Phase 1: ReloadOperationRouteCache should succeed through proxy")
 
 	// Verify cache was stored
@@ -198,7 +198,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_ReloadOperationRouteCache(t *tes
 	var chaosErr error
 
 	require.NotPanics(t, func() {
-		chaosErr = infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+		chaosErr = infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 	}, "Phase 3: ReloadOperationRouteCache must not panic on Redis connection loss")
 
 	// The function uses `continue` on cache write failures, so it returns nil.
@@ -217,7 +217,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_ReloadOperationRouteCache(t *tes
 	t.Log("Phase 5 (Recovery): verifying ReloadOperationRouteCache repopulates cache after proxy restoration")
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		reloadErr := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+		reloadErr := infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 		if reloadErr != nil {
 			return reloadErr
 		}

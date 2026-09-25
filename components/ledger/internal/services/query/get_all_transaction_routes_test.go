@@ -55,14 +55,14 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 		{
 			ID:             transactionRouteID1,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "route1",
 			Description:    "Description 1",
 		},
 		{
 			ID:             transactionRouteID2,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "route2",
 			Description:    "Description 2",
 		},
@@ -87,7 +87,7 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedTransactionRoutes, expectedCursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -99,7 +99,7 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
 		Return(map[uuid.UUID][]uuid.UUID{}, nil)
 
-	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedCursor, cursor)
@@ -138,7 +138,7 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 		{
 			ID:             transactionRouteID1,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "route1",
 			Description:    "Description 1",
 		},
@@ -158,7 +158,7 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedTransactionRoutes, expectedCursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -170,7 +170,7 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
 		Return(map[uuid.UUID][]uuid.UUID{}, nil)
 
-	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedCursor, cursor)
@@ -199,10 +199,10 @@ func TestGetAllTransactionRoutesNotFound(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
-	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
@@ -234,10 +234,10 @@ func TestGetAllTransactionRoutesRepositoryError(t *testing.T) {
 	expectedError := errors.New("database connection error")
 
 	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, expectedError)
 
-	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
@@ -270,7 +270,7 @@ func TestGetAllTransactionRoutesMetadataError(t *testing.T) {
 		{
 			ID:             transactionRouteID1,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "route1",
 			Description:    "Description 1",
 		},
@@ -284,14 +284,14 @@ func TestGetAllTransactionRoutesMetadataError(t *testing.T) {
 	expectedMetadataError := errors.New("metadata repository error")
 
 	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedTransactionRoutes, expectedCursor, nil)
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(nil, expectedMetadataError)
 
-	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
@@ -326,10 +326,10 @@ func TestGetAllTransactionRoutesNilTransactionRoutes(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, expectedCursor, nil)
 
-	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Nil(t, result)

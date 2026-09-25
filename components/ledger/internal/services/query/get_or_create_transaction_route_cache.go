@@ -76,7 +76,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 		}
 	}
 
-	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
+	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, transactionRouteID)
 	if err != nil {
 		var entityNotFound pkg.EntityNotFoundError
 

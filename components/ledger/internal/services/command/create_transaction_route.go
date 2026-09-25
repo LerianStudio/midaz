@@ -25,8 +25,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// CreateTransactionRoute creates a new transaction route.
-func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (_ *mmodel.TransactionRoute, err error) {
+// CreateTransactionRoute creates a transaction route in the organization, linking operation routes
+// created under any of its ledgers. ledgerID records the ledger the route was created under; nil
+// creates it at organization level.
+func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (_ *mmodel.TransactionRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route")
@@ -50,7 +52,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		UpdatedAt:      now,
 	}
 
-	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRouteIDs())
+	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, payload.OperationRouteIDs())
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to find operation routes", err)
 

@@ -33,7 +33,7 @@ func newCreateOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Cont
 
 	mockOperationRouteRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, in *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, in *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			out := *in
 			out.ID = uuid.New()
 			return &out, nil
@@ -70,7 +70,7 @@ func TestCreateOperationRoute_EmitsOperationRouteCreatedEvent(t *testing.T) {
 		},
 	}
 
-	o, err := uc.CreateOperationRoute(ctx, orgID, ledgerID, input)
+	o, err := uc.CreateOperationRoute(ctx, orgID, &ledgerID, input)
 	require.NoError(t, err)
 	require.NotNil(t, o)
 
@@ -116,7 +116,7 @@ func TestCreateOperationRoute_NoopEmitterDoesNotPanic(t *testing.T) {
 		OperationType: "source",
 	}
 
-	o, err := uc.CreateOperationRoute(context.Background(), uuid.New(), uuid.New(), input)
+	o, err := uc.CreateOperationRoute(context.Background(), uuid.New(), new(uuid.New()), input)
 	require.NoError(t, err)
 	require.NotNil(t, o)
 }
@@ -137,7 +137,7 @@ func TestCreateOperationRoute_EmitFailureDoesNotFailRequest(t *testing.T) {
 		OperationType: "source",
 	}
 
-	o, err := uc.CreateOperationRoute(context.Background(), uuid.New(), uuid.New(), input)
+	o, err := uc.CreateOperationRoute(context.Background(), uuid.New(), new(uuid.New()), input)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, o)
 }
@@ -156,7 +156,7 @@ func TestCreateOperationRoute_NilStreamingDoesNotPanic(t *testing.T) {
 		OperationType: "source",
 	}
 
-	o, err := uc.CreateOperationRoute(context.Background(), uuid.New(), uuid.New(), input)
+	o, err := uc.CreateOperationRoute(context.Background(), uuid.New(), new(uuid.New()), input)
 	require.NoError(t, err)
 	require.NotNil(t, o)
 }

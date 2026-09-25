@@ -18,8 +18,8 @@ type TransactionRoute struct {
 	ID uuid.UUID `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 	// The unique identifier of the Organization.
 	OrganizationID uuid.UUID `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
-	// The unique identifier of the Ledger.
-	LedgerID uuid.UUID `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	// The ledger the route was created under. Absent for routes created at organization level.
+	LedgerID *uuid.UUID `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
 	Title string `json:"title,omitempty" example:"Charge Settlement"`
 	// A description for the Transaction Route.

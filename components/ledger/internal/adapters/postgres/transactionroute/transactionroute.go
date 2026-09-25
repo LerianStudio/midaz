@@ -14,14 +14,14 @@ import (
 
 // TransactionRoutePostgreSQLModel represents the database model for transaction routes
 type TransactionRoutePostgreSQLModel struct {
-	ID             uuid.UUID    `db:"id"`
-	OrganizationID uuid.UUID    `db:"organization_id"`
-	LedgerID       uuid.UUID    `db:"ledger_id"`
-	Title          string       `db:"title"`
-	Description    string       `db:"description"`
-	CreatedAt      time.Time    `db:"created_at"`
-	UpdatedAt      time.Time    `db:"updated_at"`
-	DeletedAt      sql.NullTime `db:"deleted_at"`
+	ID             uuid.UUID     `db:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id"`
+	LedgerID       uuid.NullUUID `db:"ledger_id"`
+	Title          string        `db:"title"`
+	Description    string        `db:"description"`
+	CreatedAt      time.Time     `db:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at"`
+	DeletedAt      sql.NullTime  `db:"deleted_at"`
 }
 
 // ToEntity converts the database model to a domain model
@@ -29,7 +29,7 @@ func (m *TransactionRoutePostgreSQLModel) ToEntity() *mmodel.TransactionRoute {
 	e := &mmodel.TransactionRoute{
 		ID:             m.ID,
 		OrganizationID: m.OrganizationID,
-		LedgerID:       m.LedgerID,
+		LedgerID:       nullUUIDToPointer(m.LedgerID),
 		Title:          m.Title,
 		Description:    m.Description,
 		CreatedAt:      m.CreatedAt,
@@ -47,7 +47,7 @@ func (m *TransactionRoutePostgreSQLModel) ToEntity() *mmodel.TransactionRoute {
 func (m *TransactionRoutePostgreSQLModel) FromEntity(transactionRoute *mmodel.TransactionRoute) {
 	m.ID = transactionRoute.ID
 	m.OrganizationID = transactionRoute.OrganizationID
-	m.LedgerID = transactionRoute.LedgerID
+	m.LedgerID = pointerToNullUUID(transactionRoute.LedgerID)
 	m.Title = transactionRoute.Title
 	m.Description = transactionRoute.Description
 	m.CreatedAt = transactionRoute.CreatedAt
@@ -61,4 +61,22 @@ func (m *TransactionRoutePostgreSQLModel) FromEntity(transactionRoute *mmodel.Tr
 	} else {
 		m.DeletedAt = sql.NullTime{}
 	}
+}
+
+func nullUUIDToPointer(v uuid.NullUUID) *uuid.UUID {
+	if !v.Valid {
+		return nil
+	}
+
+	id := v.UUID
+
+	return &id
+}
+
+func pointerToNullUUID(v *uuid.UUID) uuid.NullUUID {
+	if v == nil {
+		return uuid.NullUUID{}
+	}
+
+	return uuid.NullUUID{UUID: *v, Valid: true}
 }

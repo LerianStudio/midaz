@@ -53,7 +53,7 @@ func TestIntegration_TransactionRouteRepository_Create(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Settlement Route",
 		Description:    "Route for settlement transactions",
 		OperationRoutes: []mmodel.OperationRoute{
@@ -66,7 +66,7 @@ func TestIntegration_TransactionRouteRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	created, err := repo.Create(ctx, orgID, ledgerID, transactionRoute)
+	created, err := repo.Create(ctx, orgID, &ledgerID, transactionRoute)
 
 	// Assert
 	require.NoError(t, err, "Create should not return error")
@@ -74,7 +74,7 @@ func TestIntegration_TransactionRouteRepository_Create(t *testing.T) {
 
 	assert.Equal(t, transactionRoute.ID, created.ID, "ID should match")
 	assert.Equal(t, orgID, created.OrganizationID, "organization ID should match")
-	assert.Equal(t, ledgerID, created.LedgerID, "ledger ID should match")
+	assert.Equal(t, &ledgerID, created.LedgerID, "ledger ID should match")
 	assert.Equal(t, "Settlement Route", created.Title, "title should match")
 	assert.Equal(t, "Route for settlement transactions", created.Description, "description should match")
 }
@@ -89,7 +89,7 @@ func TestIntegration_TransactionRouteRepository_Create_WithoutOperationRoutes(t 
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID:  orgID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Minimal Route",
 		OperationRoutes: []mmodel.OperationRoute{},
 		CreatedAt:       time.Now().Truncate(time.Microsecond),
@@ -99,7 +99,7 @@ func TestIntegration_TransactionRouteRepository_Create_WithoutOperationRoutes(t 
 	ctx := context.Background()
 
 	// Act
-	created, err := repo.Create(ctx, orgID, ledgerID, transactionRoute)
+	created, err := repo.Create(ctx, orgID, &ledgerID, transactionRoute)
 
 	// Assert
 	require.NoError(t, err, "Create should not return error")
@@ -123,7 +123,7 @@ func TestIntegration_TransactionRouteRepository_Create_MultipleOperationRoutes(t
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Multi-Route Settlement",
 		Description:    "Settlement with source and destination",
 		OperationRoutes: []mmodel.OperationRoute{
@@ -137,7 +137,7 @@ func TestIntegration_TransactionRouteRepository_Create_MultipleOperationRoutes(t
 	ctx := context.Background()
 
 	// Act
-	created, err := repo.Create(ctx, orgID, ledgerID, transactionRoute)
+	created, err := repo.Create(ctx, orgID, &ledgerID, transactionRoute)
 
 	// Assert
 	require.NoError(t, err, "Create should not return error")
@@ -146,7 +146,7 @@ func TestIntegration_TransactionRouteRepository_Create_MultipleOperationRoutes(t
 	assert.Equal(t, "Multi-Route Settlement", created.Title, "title should match")
 
 	// Verify the links were created by fetching the route
-	found, err := repo.FindByID(ctx, orgID, ledgerID, created.ID)
+	found, err := repo.FindByID(ctx, orgID, created.ID)
 	require.NoError(t, err, "FindByID should not return error")
 	assert.Len(t, found.OperationRoutes, 2, "should have 2 operation routes linked")
 }
@@ -178,7 +178,7 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, orgID, transactionRouteID)
 
 	// Assert
 	require.NoError(t, err, "FindByID should not return error")
@@ -186,7 +186,7 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 
 	assert.Equal(t, transactionRouteID, found.ID, "ID should match")
 	assert.Equal(t, orgID, found.OrganizationID, "organization ID should match")
-	assert.Equal(t, ledgerID, found.LedgerID, "ledger ID should match")
+	assert.Equal(t, &ledgerID, found.LedgerID, "ledger ID should match")
 	assert.Equal(t, "Findable Route", found.Title, "title should match")
 	assert.Equal(t, "Route to be found", found.Description, "description should match")
 	assert.Len(t, found.OperationRoutes, 1, "should have 1 operation route linked")
@@ -218,7 +218,7 @@ func TestIntegration_TransactionRouteRepository_FindByID_WithMultipleOperationRo
 	ctx := context.Background()
 
 	// Act
-	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, orgID, transactionRouteID)
 
 	// Assert
 	require.NoError(t, err, "FindByID should not return error")
@@ -251,7 +251,7 @@ func TestIntegration_TransactionRouteRepository_FindByID_WithoutOperationRoutes(
 	ctx := context.Background()
 
 	// Act
-	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, orgID, transactionRouteID)
 
 	// Assert
 	require.NoError(t, err, "FindByID should not return error")
@@ -267,13 +267,12 @@ func TestIntegration_TransactionRouteRepository_FindByID_NotFound(t *testing.T) 
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
 	// Act
-	found, err := repo.FindByID(ctx, orgID, ledgerID, nonExistentID)
+	found, err := repo.FindByID(ctx, orgID, nonExistentID)
 
 	// Assert
 	require.Error(t, err, "FindByID should return error for non-existent ID")
@@ -298,7 +297,7 @@ func TestIntegration_TransactionRouteRepository_FindByID_WrongOrganization(t *te
 	ctx := context.Background()
 
 	// Act - try to find with different org
-	found, err := repo.FindByID(ctx, otherOrgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, otherOrgID, transactionRouteID)
 
 	// Assert
 	require.Error(t, err, "FindByID should return error for wrong organization")
@@ -322,7 +321,7 @@ func TestIntegration_TransactionRouteRepository_FindByID_SoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, orgID, transactionRouteID)
 
 	// Assert
 	require.Error(t, err, "FindByID should return error for soft-deleted record")
@@ -352,7 +351,7 @@ func TestIntegration_TransactionRouteRepository_Update(t *testing.T) {
 	}
 
 	// Act - no operation routes to add or remove
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, nil)
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -384,7 +383,7 @@ func TestIntegration_TransactionRouteRepository_Update_PartialFields(t *testing.
 	}
 
 	// Act
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, nil)
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -414,14 +413,14 @@ func TestIntegration_TransactionRouteRepository_Update_AddOperationRoutes(t *tes
 	}
 
 	// Act - add operation routes
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []uuid.UUID{opRouteID1, opRouteID2}, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, []uuid.UUID{opRouteID1, opRouteID2}, nil)
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
 	require.NotNil(t, updated, "updated transaction route should not be nil")
 
 	// Verify links were added
-	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, orgID, transactionRouteID)
 	require.NoError(t, err, "FindByID should not return error")
 	assert.Len(t, found.OperationRoutes, 2, "should have 2 operation routes linked")
 }
@@ -450,14 +449,14 @@ func TestIntegration_TransactionRouteRepository_Update_RemoveOperationRoutes(t *
 	}
 
 	// Act - remove one operation route
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []uuid.UUID{opRouteID2})
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, []uuid.UUID{opRouteID2})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
 	require.NotNil(t, updated, "updated transaction route should not be nil")
 
 	// Verify link was removed (soft-deleted)
-	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, err := repo.FindByID(ctx, orgID, transactionRouteID)
 	require.NoError(t, err, "FindByID should not return error")
 	assert.Len(t, found.OperationRoutes, 1, "should have 1 operation route linked")
 	assert.Equal(t, opRouteID1, found.OperationRoutes[0].ID, "remaining route should be opRouteID1")
@@ -468,7 +467,6 @@ func TestIntegration_TransactionRouteRepository_Update_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
@@ -478,7 +476,7 @@ func TestIntegration_TransactionRouteRepository_Update_NotFound(t *testing.T) {
 	}
 
 	// Act
-	updated, err := repo.Update(ctx, orgID, ledgerID, nonExistentID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, nonExistentID, updateData, nil, nil)
 
 	// Assert
 	require.Error(t, err, "Update should return error for non-existent ID")
@@ -507,7 +505,7 @@ func TestIntegration_TransactionRouteRepository_Update_SoftDeleted(t *testing.T)
 	}
 
 	// Act
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, nil)
 
 	// Assert
 	require.Error(t, err, "Update should return error for soft-deleted record")
@@ -531,13 +529,13 @@ func TestIntegration_TransactionRouteRepository_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	// Act - no operation routes to remove
-	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, nil)
+	err := repo.Delete(ctx, orgID, transactionRouteID, nil)
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")
 
 	// Verify it's soft-deleted (FindByID should fail)
-	found, findErr := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, findErr := repo.FindByID(ctx, orgID, transactionRouteID)
 	require.Error(t, findErr, "FindByID should return error after delete")
 	assert.Nil(t, found, "found should be nil after delete")
 }
@@ -561,13 +559,13 @@ func TestIntegration_TransactionRouteRepository_Delete_WithOperationRoutes(t *te
 	ctx := context.Background()
 
 	// Act - delete with operation route removals
-	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []uuid.UUID{opRouteID1, opRouteID2})
+	err := repo.Delete(ctx, orgID, transactionRouteID, []uuid.UUID{opRouteID1, opRouteID2})
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")
 
 	// Verify it's soft-deleted
-	found, findErr := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+	found, findErr := repo.FindByID(ctx, orgID, transactionRouteID)
 	require.Error(t, findErr, "FindByID should return error after delete")
 	assert.Nil(t, found, "found should be nil after delete")
 }
@@ -588,13 +586,9 @@ func TestIntegration_TransactionRouteRepository_Delete_AlreadyDeleted(t *testing
 
 	ctx := context.Background()
 
-	// Act - delete already deleted record
-	// Note: The current implementation doesn't check rows affected for delete,
-	// so this will succeed silently (no error returned)
-	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, nil)
+	err := repo.Delete(ctx, orgID, transactionRouteID, nil)
 
-	// Assert - current behavior: no error (DELETE WHERE deleted_at IS NULL affects 0 rows)
-	require.NoError(t, err, "Delete does not return error for already-deleted record (known behavior)")
+	require.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "deleting an already-deleted route affects no row")
 }
 
 // ============================================================================
@@ -628,7 +622,7 @@ func TestIntegration_TransactionRouteRepository_FindAll(t *testing.T) {
 	}
 
 	// Act
-	routes, pagination, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	routes, pagination, err := repo.FindAll(ctx, orgID, &ledgerID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -655,7 +649,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_Empty(t *testing.T) {
 	}
 
 	// Act
-	routes, _, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	routes, _, err := repo.FindAll(ctx, orgID, &ledgerID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error for empty result")
@@ -688,7 +682,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_Pagination(t *testing.T)
 	}
 
 	// Act
-	routes, pagination, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	routes, pagination, err := repo.FindAll(ctx, orgID, &ledgerID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -725,7 +719,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_ExcludesSoftDeleted(t *t
 	}
 
 	// Act
-	routes, _, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	routes, _, err := repo.FindAll(ctx, orgID, &ledgerID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -757,7 +751,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_IsolatedByOrganization(t
 	}
 
 	// Act - query only org1
-	routes, _, err := repo.FindAll(ctx, orgID1, ledgerID, filter)
+	routes, _, err := repo.FindAll(ctx, orgID1, &ledgerID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -953,7 +947,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_EnrichmentRoundTrip(t *t
 		EndDate:   endDate,
 	}
 
-	routes, _, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	routes, _, err := repo.FindAll(ctx, orgID, &ledgerID, filter)
 	require.NoError(t, err, "FindAll should not return error")
 	require.Len(t, routes, 2, "should return both transaction routes")
 
@@ -1019,7 +1013,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_EnrichmentExcludesSoftDe
 		EndDate:   endDate,
 	}
 
-	routes, _, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	routes, _, err := repo.FindAll(ctx, orgID, &ledgerID, filter)
 	require.NoError(t, err, "FindAll should not return error")
 	require.Len(t, routes, 1, "should return the transaction route")
 
@@ -1037,4 +1031,142 @@ func TestIntegration_TransactionRouteRepository_FindAll_EnrichmentExcludesSoftDe
 	assert.True(t, activeIDs[opRouteKeep1], "active link opRouteKeep1 should be present")
 	assert.True(t, activeIDs[opRouteKeep2], "active link opRouteKeep2 should be present")
 	assert.False(t, activeIDs[opRouteSoftDeleted], "soft-deleted link opRouteSoftDeleted should be excluded")
+}
+
+// ============================================================================
+// Organization scope
+// ============================================================================
+
+func wideDateRange(limit int) http.Pagination {
+	return http.Pagination{
+		Limit:     limit,
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+}
+
+func TestIntegration_TransactionRouteRepository_FindByID_ResolvesByOrganizationWhateverTheLedger(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerA := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerA, "Route Under Ledger A")
+
+	found, err := repo.FindByID(context.Background(), orgID, transactionRouteID)
+	require.NoError(t, err)
+	assert.Equal(t, &ledgerA, found.LedgerID, "the ledger the route was created under stays as provenance")
+
+	_, err = repo.FindByID(context.Background(), otherOrgID, transactionRouteID)
+	var entityNotFound pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &entityNotFound, "a route of another organization is not found")
+	assert.Equal(t, constant.ErrTransactionRouteNotFound.Error(), entityNotFound.Code)
+}
+
+func TestIntegration_TransactionRouteRepository_CreateWithoutLedger_LinksOperationRoutesOfDifferentLedgers(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerA := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerB := uuid.Must(libCommons.GenerateUUIDv7())
+
+	sourceUnderA := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerA, "Source Under A", "source")
+	destinationUnderB := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerB, "Destination Under B", "destination")
+
+	now := time.Now().Truncate(time.Microsecond)
+	created, err := repo.Create(context.Background(), orgID, nil, &mmodel.TransactionRoute{
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID:  orgID,
+		Title:           "Organization Route",
+		OperationRoutes: []mmodel.OperationRoute{{ID: sourceUnderA}, {ID: destinationUnderB}},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, created.LedgerID, "a route created at organization level has no ledger")
+
+	found, err := repo.FindByID(context.Background(), orgID, created.ID)
+	require.NoError(t, err)
+	assert.Nil(t, found.LedgerID)
+	require.Len(t, found.OperationRoutes, 2)
+
+	ledgerByOperationRoute := map[uuid.UUID]*uuid.UUID{}
+	for _, operationRoute := range found.OperationRoutes {
+		ledgerByOperationRoute[operationRoute.ID] = operationRoute.LedgerID
+	}
+
+	assert.Equal(t, &ledgerA, ledgerByOperationRoute[sourceUnderA])
+	assert.Equal(t, &ledgerB, ledgerByOperationRoute[destinationUnderB])
+}
+
+func TestIntegration_TransactionRouteRepository_FindAll_LedgerFilterIsOptional(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerA := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerB := uuid.Must(libCommons.GenerateUUIDv7())
+
+	underA := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerA, "Under A")
+	underB := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerB, "Under B")
+
+	now := time.Now().Truncate(time.Microsecond)
+	withoutLedger, err := repo.Create(context.Background(), orgID, nil, &mmodel.TransactionRoute{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID: orgID,
+		Title:          "Organization Route",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	require.NoError(t, err)
+
+	onlyA, _, err := repo.FindAll(context.Background(), orgID, &ledgerA, wideDateRange(10))
+	require.NoError(t, err)
+	require.Len(t, onlyA, 1)
+	assert.Equal(t, underA, onlyA[0].ID)
+
+	all, _, err := repo.FindAll(context.Background(), orgID, nil, wideDateRange(10))
+	require.NoError(t, err)
+
+	ledgerByRoute := map[uuid.UUID]*uuid.UUID{}
+	for _, route := range all {
+		ledgerByRoute[route.ID] = route.LedgerID
+	}
+
+	require.Len(t, ledgerByRoute, 3)
+	assert.Equal(t, &ledgerA, ledgerByRoute[underA])
+	assert.Equal(t, &ledgerB, ledgerByRoute[underB])
+	assert.Contains(t, ledgerByRoute, withoutLedger.ID)
+	assert.Nil(t, ledgerByRoute[withoutLedger.ID], "a NULL ledger scans as no ledger")
+}
+
+func TestIntegration_TransactionRouteRepository_UpdateAndDelete_AreScopedByOrganization(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerA := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerA, "Under A")
+	ctx := context.Background()
+
+	_, err := repo.Update(ctx, otherOrgID, transactionRouteID, &mmodel.TransactionRoute{Title: "Hijacked"}, nil, nil)
+	require.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "another organization cannot update the route")
+
+	err = repo.Delete(ctx, otherOrgID, transactionRouteID, nil)
+	require.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "another organization cannot delete the route")
+
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, &mmodel.TransactionRoute{Title: "Renamed"}, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed", updated.Title)
+	assert.Equal(t, &ledgerA, updated.LedgerID, "an update keeps the provenance ledger")
+
+	require.NoError(t, repo.Delete(ctx, orgID, transactionRouteID, nil))
+
+	_, err = repo.FindByID(ctx, orgID, transactionRouteID)
+	require.Error(t, err, "the deleted route is no longer found")
 }

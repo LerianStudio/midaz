@@ -37,8 +37,8 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID uuid.UUID, ledID *uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, payload.Title, operationRoute.Title)
 			assert.Equal(t, payload.Description, operationRoute.Description)
 			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
@@ -50,7 +50,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
+	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, operationRoute)
@@ -80,8 +80,8 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID uuid.UUID, ledID *uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, payload.Title, operationRoute.Title)
 			assert.Equal(t, payload.Description, operationRoute.Description)
 			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
@@ -93,7 +93,7 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
+	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, operationRoute)
@@ -120,7 +120,7 @@ func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             uuid.New(),
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          payload.Title,
 		Description:    payload.Description,
 		OperationType:  payload.OperationType,
@@ -132,11 +132,11 @@ func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
-	result, err := uc.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateOperationRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Equal(t, expectedOperationRoute, result)
 	assert.Nil(t, err)
@@ -162,14 +162,14 @@ func TestCreateOperationRouteError(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, errors.New("failed to create operation route"))
 
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
+	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)

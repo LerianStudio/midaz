@@ -27,7 +27,7 @@ func minimalTransactionRoute() *mmodel.TransactionRoute {
 	return &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: transactionRouteOrg,
-		LedgerID:       transactionRouteLed,
+		LedgerID:       &transactionRouteLed,
 		Title:          "Charge Settlement",
 		OperationRoutes: []mmodel.OperationRoute{
 			{ID: transactionRouteOR1, OperationType: "source"},

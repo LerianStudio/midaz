@@ -9,6 +9,7 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -28,7 +29,12 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route_cache")
 	defer span.End()
 
-	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
+	ledgerID := uuid.Nil
+	if route.LedgerID != nil {
+		ledgerID = *route.LedgerID
+	}
+
+	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, ledgerID, route.ID)
 
 	cacheData := route.ToCache()
 

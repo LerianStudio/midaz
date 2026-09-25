@@ -82,7 +82,7 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 		}
 	}
 
-	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
+	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, &ledgerID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
 
@@ -101,13 +101,13 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 }
 
 // getOperationRouteByID owns the span + service call for GET-by-id.
-func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
 	defer span.End()
 
-	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, id)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve operation route on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
@@ -124,7 +124,7 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 // AccountingEntries, so the core re-derives payload.AccountingEntriesRaw from these
 // bytes. Feed anything but the unparsed request body and the PATCH breaks silently.
 // Also reproduces the accountingEntries unknown-key probe.
-func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
@@ -162,7 +162,7 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 	// We need to fetch the existing route to get operation type and merge entries
 	// Validation runs when accountingEntries is present (even if removing entries via explicit null)
 	if payload.AccountingEntries != nil || len(payload.AccountingEntriesRaw) > 0 {
-		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, id)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
 			return nil, err
@@ -189,7 +189,7 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 
 	recordSafePayloadAttributes(span, payload)
 
-	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
+	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, id, payload)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to update Operation Route on command", err)
 
@@ -197,7 +197,7 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 	}
 
 	if payload.Account != nil {
-		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
+		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, id); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to reload operation route cache", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to reload operation route cache", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 		}
@@ -207,13 +207,13 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 }
 
 // deleteOperationRouteByID owns the span + service call for DELETE.
-func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
 	defer span.End()
 
-	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
+	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, id); err != nil {
 		handleSpanByErrorClass(span, "Failed to delete operation route on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 
@@ -250,7 +250,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 	}
 
 	if headerParams.Metadata != nil {
-		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, &ledgerID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
@@ -266,7 +266,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 
 	headerParams.Metadata = &bson.M{}
 
-	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, &ledgerID, *headerParams)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all operation routes on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))

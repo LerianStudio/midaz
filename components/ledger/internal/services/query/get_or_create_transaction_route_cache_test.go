@@ -96,7 +96,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -121,7 +121,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -158,7 +158,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -173,7 +173,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -210,7 +210,7 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -225,7 +225,7 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -267,7 +267,7 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -313,7 +313,7 @@ func TestGetOrCreateTransactionRouteCache_DBNotFound_ReturnsTypedNotFound(t *tes
 
 	// Production shape: the PostgreSQL repository returns the typed business error.
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)).
 		Times(1)
 
@@ -357,7 +357,7 @@ func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, dbError).
 		Times(1)
 
@@ -390,7 +390,7 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -406,7 +406,7 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -517,7 +517,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_NotFound_StoresSentinel(t *t
 
 	// DB returns not found
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -568,7 +568,7 @@ func TestGetOrCreateTransactionRouteCache_CacheHit_CorruptedData_FallsBackToDB(t
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -588,7 +588,7 @@ func TestGetOrCreateTransactionRouteCache_CacheHit_CorruptedData_FallsBackToDB(t
 	require.NoError(t, err)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -632,7 +632,7 @@ func TestGetOrCreateTransactionRouteCache_SentinelSetBytesFails(t *testing.T) {
 
 	// DB returns not found
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -672,7 +672,7 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -693,7 +693,7 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 

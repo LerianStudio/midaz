@@ -71,7 +71,7 @@ func NewTransactionRouteUpdated(tr *mmodel.TransactionRoute) TransactionRouteUpd
 	return TransactionRouteUpdatedPayload{
 		ID:                tr.ID.String(),
 		OrganizationID:    tr.OrganizationID.String(),
-		LedgerID:          tr.LedgerID.String(),
+		LedgerID:          derefUUIDString(tr.LedgerID),
 		Title:             tr.Title,
 		Description:       tr.Description,
 		OperationRouteIDs: operationRouteIDs,

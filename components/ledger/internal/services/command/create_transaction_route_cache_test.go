@@ -32,14 +32,14 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:                operationRouteID,
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
@@ -78,14 +78,14 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:                operationRouteID,
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account:           nil, // No account rule
@@ -120,7 +120,7 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 	route := &mmodel.TransactionRoute{
 		ID:              routeID,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route",
 		Description:     "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{}, // Empty operation routes
@@ -155,14 +155,14 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:                operationRouteID1,
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
@@ -173,7 +173,7 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 			{
 				ID:                operationRouteID2,
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "destination",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
@@ -211,14 +211,14 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:                uuid.UUID{}, // Invalid UUID
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
@@ -252,14 +252,14 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:                operationRouteID,
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
@@ -300,14 +300,14 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:                operationRouteID,
 				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
+				LedgerID:          &ledgerID,
 				OperationType:     "source",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{

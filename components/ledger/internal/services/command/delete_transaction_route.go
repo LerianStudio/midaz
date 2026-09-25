@@ -24,8 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// DeleteTransactionRouteByID deletes a transaction route and its operation-route links.
-func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (err error) {
+// DeleteTransactionRouteByID deletes a transaction route of the organization and its operation-route links.
+func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationID, transactionRouteID uuid.UUID) (err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_transaction_route_by_id")
@@ -37,7 +37,7 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_transaction_route", start, err)
 	}()
 
-	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
+	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, transactionRouteID)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			logger.Log(ctx, libLog.LevelWarn, "Transaction route ID not found", libLog.String("transaction_route_id", transactionRouteID.String()))
@@ -56,14 +56,23 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		operationRoutesToRemove = append(operationRoutesToRemove, operationRoute.ID)
 	}
 
-	if err := uc.TransactionRouteRepo.Delete(ctx, organizationID, ledgerID, transactionRouteID, operationRoutesToRemove); err != nil {
+	if err := uc.TransactionRouteRepo.Delete(ctx, organizationID, transactionRouteID, operationRoutesToRemove); err != nil {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
+
+			logger.Log(ctx, libLog.LevelWarn, "Transaction route ID not found", libLog.String("transaction_route_id", transactionRouteID.String()))
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found", err)
+
+			return err
+		}
+
 		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route", libLog.Err(err), libLog.String("transaction_route_id", transactionRouteID.String()))
 		libOpentelemetry.HandleSpanError(span, "Failed to delete transaction route", err)
 
 		return err
 	}
 
-	uc.emitTransactionRouteDeletedEvent(ctx, span, logger, transactionRouteID.String(), organizationID.String(), ledgerID.String(), time.Now())
+	uc.emitTransactionRouteDeletedEvent(ctx, span, logger, transactionRouteID.String(), organizationID.String(), routeLedgerIDString(transactionRoute.LedgerID), time.Now())
 
 	return nil
 }
@@ -78,7 +87,8 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 // succeeds (which also cascade-soft-deletes the join-table
 // operation_transaction_route rows). The use case does not return the
 // persisted struct on delete, so the payload sources identity from the
-// use-case parameters (request path) and stamps deletedAt with the
+// use-case parameters, the ledger from the route read before the delete
+// (empty for a route created at organization level), and stamps deletedAt with the
 // wall-clock instant captured by the caller. The PG deleted_at column
 // is set by the same wall clock at row-update time, so the values are
 // effectively identical up to clock skew.
@@ -89,4 +99,14 @@ func (uc *UseCase) emitTransactionRouteDeletedEvent(ctx context.Context, span tr
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewTransactionRouteDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})
+}
+
+// routeLedgerIDString renders the ledger a route was created under for event payloads,
+// or an empty string for a route created at organization level.
+func routeLedgerIDString(ledgerID *uuid.UUID) string {
+	if ledgerID == nil {
+		return ""
+	}
+
+	return ledgerID.String()
 }

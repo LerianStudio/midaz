@@ -23,8 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// CreateOperationRoute creates a new operation route.
-func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
+// CreateOperationRoute creates an operation route in the organization. ledgerID records the ledger
+// the route was created under; nil creates it at organization level.
+func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, payload *mmodel.CreateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation_route")

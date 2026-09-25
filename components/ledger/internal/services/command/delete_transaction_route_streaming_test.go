@@ -25,18 +25,18 @@ import (
 // UseCase suitable for exercising the transaction_route.deleted
 // emission. FindByID returns a minimal record with one operation
 // route (so the toRemove slice is non-empty), and Delete returns nil.
-func newDeleteTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter) *UseCase {
+func newDeleteTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, routeLedgerID uuid.UUID) *UseCase {
 	t.Helper()
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orgID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 			return &mmodel.TransactionRoute{
 				ID:             id,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &routeLedgerID,
 				OperationRoutes: []mmodel.OperationRoute{
 					{ID: uuid.New()},
 				},
@@ -44,7 +44,7 @@ func newDeleteTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 		}).AnyTimes()
 
 	mockTransactionRouteRepo.EXPECT().
-		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
 	return &UseCase{
@@ -65,10 +65,10 @@ func TestDeleteTransactionRouteByID_EmitsTransactionRouteDeletedEvent(t *testing
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, mockEmitter)
+	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, mockEmitter, ledgerID)
 
 	before := time.Now()
-	err := uc.DeleteTransactionRouteByID(context.Background(), orgID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), orgID, transactionRouteID)
 	after := time.Now()
 	require.NoError(t, err)
 
@@ -102,9 +102,9 @@ func TestDeleteTransactionRouteByID_NoopEmitterDoesNotPanic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter())
+	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter(), uuid.New())
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err)
 }
 
@@ -114,9 +114,9 @@ func TestDeleteTransactionRouteByID_EmitFailureDoesNotFailRequest(t *testing.T) 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{})
+	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{}, uuid.New())
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 }
 
@@ -126,8 +126,8 @@ func TestDeleteTransactionRouteByID_NilStreamingDoesNotPanic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, nil)
+	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, nil, uuid.New())
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err)
 }

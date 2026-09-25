@@ -48,8 +48,9 @@ type TransactionReader interface {
 	// GetTransactionByID returns a single transaction row, without its operations.
 	GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error)
 
-	// GetOperationRouteByID returns a single operation route.
-	GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error)
+	// GetOperationRouteByID returns an active operation route of the organization, whatever
+	// ledger it was created under.
+	GetOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.OperationRoute, error)
 }
 
 // TransactionProjectionResolution describes the freshest transaction view

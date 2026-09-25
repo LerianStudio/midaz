@@ -57,15 +57,15 @@ func TestGetAllTransactionRoutes_OperationRoutesPopulated(t *testing.T) {
 	}
 
 	transactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
-		{ID: trID2, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route2"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
+		{ID: trID2, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route2"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	// FindAll returns transaction routes without operation routes
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(transactionRoutes, cursor, nil)
 
 	// Metadata lookup
@@ -84,15 +84,15 @@ func TestGetAllTransactionRoutes_OperationRoutesPopulated(t *testing.T) {
 
 	// Batch fetch operation routes
 	opRoutes := []*mmodel.OperationRoute{
-		{ID: orID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "op1", OperationType: "source"},
-		{ID: orID2, OrganizationID: organizationID, LedgerID: ledgerID, Title: "op2", OperationType: "destination"},
-		{ID: orID3, OrganizationID: organizationID, LedgerID: ledgerID, Title: "op3", OperationType: "source"},
+		{ID: orID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op1", OperationType: "source"},
+		{ID: orID2, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op2", OperationType: "destination"},
+		{ID: orID3, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op3", OperationType: "source"},
 	}
 	mockORRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindByIDs(gomock.Any(), organizationID, gomock.Any()).
 		Return(opRoutes, nil)
 
-	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	require.NoError(t, err)
 	assert.Equal(t, cursor, curResult)
@@ -137,13 +137,13 @@ func TestGetAllTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T) {
 	}
 
 	transactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -158,7 +158,7 @@ func TestGetAllTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T) {
 	// FindByIDs should NOT be called when there are no operation route IDs
 	// (no expectation set — gomock will fail if it's called)
 
-	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	require.NoError(t, err)
 	require.Len(t, result, 1)
@@ -195,13 +195,13 @@ func TestGetAllTransactionRoutes_EmptyResultNoExtraDBCalls(t *testing.T) {
 	cursor := libHTTP.CursorPagination{}
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, cursor, nil)
 
 	// No calls to FindOperationRouteIDsByTransactionRouteIDs or FindByIDs expected
 	// gomock will fail if they are called
 
-	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Nil(t, result)
@@ -234,13 +234,13 @@ func TestGetAllTransactionRoutes_JunctionQueryError(t *testing.T) {
 	}
 
 	transactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -253,7 +253,7 @@ func TestGetAllTransactionRoutes_JunctionQueryError(t *testing.T) {
 		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
 		Return(nil, junctionErr)
 
-	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, curResult)
@@ -291,13 +291,13 @@ func TestGetAllTransactionRoutes_FindByIDsError(t *testing.T) {
 	}
 
 	transactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -315,10 +315,10 @@ func TestGetAllTransactionRoutes_FindByIDsError(t *testing.T) {
 	// FindByIDs returns error
 	findByIDsErr := errors.New("operation route batch fetch timeout")
 	mockORRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindByIDs(gomock.Any(), organizationID, gomock.Any()).
 		Return(nil, findByIDsErr)
 
-	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, curResult)
@@ -359,15 +359,15 @@ func TestGetAllTransactionRoutes_MixedLinksAndNoLinks(t *testing.T) {
 	}
 
 	transactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route-with-link"},
-		{ID: trID2, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route-without-link"},
-		{ID: trID3, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route-empty-link"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route-with-link"},
+		{ID: trID2, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route-without-link"},
+		{ID: trID3, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route-empty-link"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(transactionRoutes, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -384,13 +384,13 @@ func TestGetAllTransactionRoutes_MixedLinksAndNoLinks(t *testing.T) {
 		Return(junctionMap, nil)
 
 	opRoutes := []*mmodel.OperationRoute{
-		{ID: orID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "op1", OperationType: "source"},
+		{ID: orID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op1", OperationType: "source"},
 	}
 	mockORRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindByIDs(gomock.Any(), organizationID, gomock.Any()).
 		Return(opRoutes, nil)
 
-	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	require.NoError(t, err)
 	require.Len(t, result, 3)
@@ -440,7 +440,7 @@ func TestGetAllTransactionRoutes_EmptyTransactionRoutesSlice(t *testing.T) {
 	cursor := libHTTP.CursorPagination{}
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(emptySlice, cursor, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -450,7 +450,7 @@ func TestGetAllTransactionRoutes_EmptyTransactionRoutesSlice(t *testing.T) {
 	// No calls to FindOperationRouteIDsByTransactionRouteIDs or FindByIDs expected
 	// since the enrichment function returns early for an empty slice
 
-	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Empty(t, result)

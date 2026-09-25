@@ -20,11 +20,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	// GetAllTransactionRoutes fetch all Transaction Routes from the repository
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
+// GetAllTransactionRoutes lists the organization's transaction routes with their metadata and operation routes.
+// A non-nil ledgerID keeps only the routes created under that ledger.
+func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transaction_routes")

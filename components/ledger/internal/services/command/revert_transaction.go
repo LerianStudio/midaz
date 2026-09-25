@@ -237,7 +237,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 			return mtransaction.Transaction{}, tran, parseValidationErr
 		}
 
-		operationRoute, routeErr := uc.TransactionReader.GetOperationRouteByID(ctx, in.OrganizationID, in.LedgerID, nil, routeUUID)
+		operationRoute, routeErr := uc.TransactionReader.GetOperationRouteByID(ctx, in.OrganizationID, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
 

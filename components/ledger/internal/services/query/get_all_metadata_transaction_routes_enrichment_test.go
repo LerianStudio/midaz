@@ -64,8 +64,8 @@ func TestGetAllMetadataTransactionRoutes_OperationRoutesPopulated(t *testing.T) 
 	}
 
 	allTransactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
-		{ID: uuid.New(), OrganizationID: organizationID, LedgerID: ledgerID, Title: "route2"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
+		{ID: uuid.New(), OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route2"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
@@ -75,7 +75,7 @@ func TestGetAllMetadataTransactionRoutes_OperationRoutesPopulated(t *testing.T) 
 		Return(expectedMetadata, nil)
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(allTransactionRoutes, cursor, nil)
 
 	// Junction: trID1 -> [orID1, orID2]
@@ -87,14 +87,14 @@ func TestGetAllMetadataTransactionRoutes_OperationRoutesPopulated(t *testing.T) 
 		Return(junctionMap, nil)
 
 	opRoutes := []*mmodel.OperationRoute{
-		{ID: orID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "op1", OperationType: "source"},
-		{ID: orID2, OrganizationID: organizationID, LedgerID: ledgerID, Title: "op2", OperationType: "destination"},
+		{ID: orID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op1", OperationType: "source"},
+		{ID: orID2, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op2", OperationType: "destination"},
 	}
 	mockORRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindByIDs(gomock.Any(), organizationID, gomock.Any()).
 		Return(opRoutes, nil)
 
-	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	require.NoError(t, err)
 	assert.Equal(t, cursor, curResult)
@@ -144,7 +144,7 @@ func TestGetAllMetadataTransactionRoutes_JunctionQueryError(t *testing.T) {
 	}
 
 	allTransactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
@@ -154,7 +154,7 @@ func TestGetAllMetadataTransactionRoutes_JunctionQueryError(t *testing.T) {
 		Return(expectedMetadata, nil)
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(allTransactionRoutes, cursor, nil)
 
 	// Junction table query returns error
@@ -163,7 +163,7 @@ func TestGetAllMetadataTransactionRoutes_JunctionQueryError(t *testing.T) {
 		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
 		Return(nil, junctionErr)
 
-	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, curResult)
@@ -208,7 +208,7 @@ func TestGetAllMetadataTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T
 	}
 
 	allTransactionRoutes := []*mmodel.TransactionRoute{
-		{ID: trID1, OrganizationID: organizationID, LedgerID: ledgerID, Title: "route1"},
+		{ID: trID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "route1"},
 	}
 
 	cursor := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
@@ -218,7 +218,7 @@ func TestGetAllMetadataTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T
 		Return(expectedMetadata, nil)
 
 	mockTRRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(allTransactionRoutes, cursor, nil)
 
 	// Junction returns empty map — no linked operation routes
@@ -226,7 +226,7 @@ func TestGetAllMetadataTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T
 		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
 		Return(map[uuid.UUID][]uuid.UUID{}, nil)
 
-	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	require.NoError(t, err)
 	assert.Equal(t, cursor, curResult)

@@ -110,7 +110,7 @@ func makeTestRoute() *mmodel.TransactionRoute {
 	return &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Chaos Test Route",
 		Description:    "Route for chaos testing cache writes",
 		OperationRoutes: []mmodel.OperationRoute{
@@ -174,7 +174,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_CreateAccountingRouteCache(t *te
 	require.NoError(t, err, "Phase 1: CreateAccountingRouteCache should succeed through proxy")
 
 	// Verify cache was stored
-	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
+	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, *route.LedgerID, route.ID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "Phase 1: cache should be readable after write")
 	assert.NotEmpty(t, cachedBytes, "Phase 1: cached bytes should not be empty")
@@ -220,7 +220,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_CreateAccountingRouteCache(t *te
 	}, 10*time.Second, "Phase 5: CreateAccountingRouteCache should recover after proxy restoration")
 
 	// Verify the recovery route was actually stored
-	recoveryKey := utils.AccountingRoutesInternalKey(recoveryRoute.OrganizationID, recoveryRoute.LedgerID, recoveryRoute.ID)
+	recoveryKey := utils.AccountingRoutesInternalKey(recoveryRoute.OrganizationID, *recoveryRoute.LedgerID, recoveryRoute.ID)
 	recoveryBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, recoveryKey)
 	require.NoError(t, err, "Phase 5: recovery cache should be readable")
 	assert.NotEmpty(t, recoveryBytes, "Phase 5: recovery cache bytes should not be empty")

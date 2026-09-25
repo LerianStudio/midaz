@@ -96,7 +96,7 @@ func TestIntegration_ReloadOperationRouteCache_RebuildsSingleTransactionRoute(t 
 
 	// Act - reload cache for this operation route
 	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID)
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")
@@ -124,7 +124,7 @@ func TestIntegration_ReloadOperationRouteCache_NoTransactionRoutes(t *testing.T)
 	ctx := context.Background()
 
 	// Act
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, opRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, opRouteID)
 
 	// Assert - should succeed without error (no-op)
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error for unlinked operation route")
@@ -155,7 +155,7 @@ func TestIntegration_ReloadOperationRouteCache_MultipleTransactionRoutes(t *test
 	ctx := context.Background()
 
 	// Act - reload for the shared operation route should rebuild both transaction route caches
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sharedSourceID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sharedSourceID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")
@@ -210,7 +210,7 @@ func TestIntegration_ReloadOperationRouteCache_ActionGroupingVerified(t *testing
 	ctx := context.Background()
 
 	// Act
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")
@@ -255,7 +255,7 @@ func TestIntegration_ReloadOperationRouteCache_ReplacesExistingCache(t *testing.
 	require.NoError(t, err)
 
 	// Act
-	err = infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	err = infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")

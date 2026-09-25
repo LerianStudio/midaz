@@ -25,8 +25,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// UpdateOperationRoute updates an operation route by ID.
-func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
+// UpdateOperationRoute updates an operation route of the organization by ID.
+func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_operation_route")
@@ -47,7 +47,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 		AccountingEntriesRaw: input.AccountingEntriesRaw,
 	}
 
-	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, ledgerID, id, operationRoute)
+	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, id, operationRoute)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)

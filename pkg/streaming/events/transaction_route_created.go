@@ -69,7 +69,7 @@ func NewTransactionRouteCreated(tr *mmodel.TransactionRoute) TransactionRouteCre
 	return TransactionRouteCreatedPayload{
 		ID:                tr.ID.String(),
 		OrganizationID:    tr.OrganizationID.String(),
-		LedgerID:          tr.LedgerID.String(),
+		LedgerID:          derefUUIDString(tr.LedgerID),
 		Title:             tr.Title,
 		Description:       tr.Description,
 		OperationRouteIDs: operationRouteIDs,

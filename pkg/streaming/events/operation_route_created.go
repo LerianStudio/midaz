@@ -67,7 +67,7 @@ func NewOperationRouteCreated(o *mmodel.OperationRoute) OperationRouteCreatedPay
 	return OperationRouteCreatedPayload{
 		ID:                o.ID.String(),
 		OrganizationID:    o.OrganizationID.String(),
-		LedgerID:          o.LedgerID.String(),
+		LedgerID:          derefUUIDString(o.LedgerID),
 		Title:             o.Title,
 		Description:       o.Description,
 		Code:              o.Code, //nolint:staticcheck // legacy Code field emitted for backward compatibility

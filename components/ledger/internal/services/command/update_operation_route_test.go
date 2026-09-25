@@ -41,7 +41,7 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          input.Title,
 		Description:    input.Description,
 		OperationType:  "source",
@@ -50,8 +50,8 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, input.Title, operationRoute.Title)
 			assert.Equal(t, input.Description, operationRoute.Description)
 			assert.Equal(t, input.Account, operationRoute.Account)
@@ -69,7 +69,7 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, operationRoute)
@@ -97,7 +97,7 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          input.Title,
 		Description:    input.Description,
 		OperationType:  "source",
@@ -106,8 +106,8 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, input.Title, operationRoute.Title)
 			assert.Equal(t, input.Description, operationRoute.Description)
 			assert.Equal(t, input.Account, operationRoute.Account)
@@ -125,7 +125,7 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, operationRoute)
@@ -151,14 +151,14 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 	updatedRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		OperationType:  "source",
 		Account:        input.Account,
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	mockRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
+		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
 		Times(1)
 
@@ -173,7 +173,7 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 
-	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedRoute, result)
@@ -186,7 +186,6 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
 		Title:       "Updated Operation Route",
@@ -199,7 +198,7 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
+		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -207,7 +206,7 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, input)
 
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)
@@ -221,7 +220,6 @@ func TestUpdateOperationRouteError(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
 		Title:       "Updated Operation Route",
@@ -234,14 +232,14 @@ func TestUpdateOperationRouteError(t *testing.T) {
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
+		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
 		Return(nil, errors.New("failed to update operation route"))
 
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, input)
 
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)
@@ -263,7 +261,7 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 	updatedRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "", // Title not provided in input
 		Description:    input.Description,
 		OperationType:  "source",
@@ -271,7 +269,7 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	mockRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
+		Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
 		Times(1)
 
@@ -286,7 +284,7 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 
-	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedRoute, result)

@@ -25,7 +25,7 @@ func minimalOperationRoute() *mmodel.OperationRoute {
 	return &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: operationRouteOrg,
-		LedgerID:       operationRouteLed,
+		LedgerID:       &operationRouteLed,
 		Title:          "Cashin from service charge",
 		OperationType:  "source",
 		CreatedAt:      fixedTime,

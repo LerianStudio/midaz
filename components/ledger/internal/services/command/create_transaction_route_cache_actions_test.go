@@ -36,7 +36,7 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Action-Aware Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -109,7 +109,7 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Multi-Action Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{

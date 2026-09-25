@@ -73,7 +73,7 @@ func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testin
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Settlement Route",
 		Description:    "Route with action-aware cache",
 		OperationRoutes: []mmodel.OperationRoute{
@@ -145,7 +145,7 @@ func TestIntegration_CreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Multi-Action Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -212,7 +212,7 @@ func TestIntegration_CreateAccountingRouteCache_BidirectionalRoute(t *testing.T)
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Bidirectional Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -257,7 +257,7 @@ func TestIntegration_CreateAccountingRouteCache_EmptyOperationRoutes(t *testing.
 	route := &mmodel.TransactionRoute{
 		ID:              routeID,
 		OrganizationID:  orgID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Empty Route",
 		OperationRoutes: []mmodel.OperationRoute{},
 		CreatedAt:       time.Now(),
@@ -295,7 +295,7 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 	route1 := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Route v1",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -319,7 +319,7 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 	route2 := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Route v2",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -367,7 +367,7 @@ func TestIntegration_CreateAccountingRouteCache_AccountRulePreserved(t *testing.
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Route With Account Rules",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -420,7 +420,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 	route1 := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: org1,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Org1 Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{ID: sourceID1, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
@@ -432,7 +432,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 	route2 := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: org2,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Org2 Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{ID: sourceID2, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}}},

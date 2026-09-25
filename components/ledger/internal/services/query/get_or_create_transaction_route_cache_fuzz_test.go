@@ -113,7 +113,7 @@ func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
 		fallbackRoute := &mmodel.TransactionRoute{
 			ID:             transactionRouteID,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Fuzz Fallback Route",
 			OperationRoutes: []mmodel.OperationRoute{
 				{
@@ -137,7 +137,7 @@ func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
 
 		// Allow DB and Redis SetBytes calls (they may or may not be called depending on the path)
 		mockTransactionRouteRepo.EXPECT().
-			FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+			FindByID(gomock.Any(), organizationID, transactionRouteID).
 			Return(fallbackRoute, nil).
 			AnyTimes()
 

@@ -91,23 +91,31 @@ func scanOperationRoute(row interface{ Scan(...any) error }, m *OperationRoutePo
 }
 
 // Repository provides the persistence contract for operation routes and their transaction-route links.
+// Operation routes belong to an organization: every lookup and write is scoped by organization and
+// ID, and the ledger a route was created under is provenance only.
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=operationroute.postgresql_mock.go --package=operationroute . Repository
 type Repository interface {
-	// Create persists a new operation route in the given organization and ledger.
-	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
-	// FindByID returns one active operation route by scoped ID.
-	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error)
-	// FindByIDs returns active operation routes matching every requested scoped ID.
-	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error)
-	// Update applies partial changes to an active operation route by scoped ID.
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
-	// Delete soft-deletes an active operation route by scoped ID.
-	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
-	// FindAll returns active operation routes for a ledger using cursor pagination and date filtering.
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
-	// HasTransactionRouteLinks reports whether an active operation route is linked to active transaction routes in the same scope.
-	HasTransactionRouteLinks(ctx context.Context, organizationID, ledgerID, operationRouteID uuid.UUID) (bool, error)
+	// Create persists a new operation route in the organization. ledgerID records the ledger the
+	// route was created under; nil stores none.
+	Create(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
+	// FindByID returns one active operation route of the organization.
+	FindByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.OperationRoute, error)
+	// FindByIDs returns the active operation routes of the organization matching every requested ID,
+	// whatever ledger each was created under.
+	FindByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error)
+	// Update applies partial changes to an active operation route of the organization.
+	// It returns services.ErrDatabaseItemNotFound when no active route matches.
+	Update(ctx context.Context, organizationID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
+	// Delete soft-deletes an active operation route of the organization.
+	// It returns services.ErrDatabaseItemNotFound when no active route matches.
+	Delete(ctx context.Context, organizationID, id uuid.UUID) error
+	// FindAll returns active operation routes of the organization using cursor pagination and date
+	// filtering. A non-nil ledgerID keeps only the routes created under that ledger.
+	FindAll(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
+	// HasTransactionRouteLinks reports whether an active operation route of the organization is
+	// linked to any active transaction route.
+	HasTransactionRouteLinks(ctx context.Context, organizationID, operationRouteID uuid.UUID) (bool, error)
 	// FindTransactionRouteIDs returns active transaction-route IDs linked to an operation route.
 	FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error)
 }
@@ -157,7 +165,7 @@ func (r *OperationRoutePostgreSQLRepository) getDB(ctx context.Context) (dbresol
 	return r.connection.Resolver(ctx)
 }
 
-func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	operationRouteID := uuid.Nil
@@ -170,9 +178,12 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.operation_route_id", operationRouteID.String()),
 	)
+
+	if ledgerID != nil {
+		span.SetAttributes(attribute.String("app.request.ledger_id", ledgerID.String()))
+	}
 
 	if err := ctx.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Context finished before creating operation route", err)
@@ -189,6 +200,8 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 	record := &OperationRoutePostgreSQLModel{}
 	record.FromEntity(operationRoute)
+	record.OrganizationID = organizationID
+	record.LedgerID = pointerToNullUUID(ledgerID)
 
 	query, args, err := squirrel.Insert(r.tableName).
 		Columns(operationRouteInsertColumnList...).
@@ -225,7 +238,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	return inserted.ToEntity(), nil
 }
 
-func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route")
@@ -233,7 +246,6 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.operation_route_id", id.String()),
 	)
 
@@ -252,7 +264,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 	query, args, err := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "code", "operation_type", "account_rule_type", "account_rule_valid_if", "accounting_entries", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Where(squirrel.Eq{"organization_id": organizationID, "id": id, "deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
@@ -298,7 +310,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 	return operationRoute.ToEntity(), nil
 }
 
-func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
+func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_routes_by_ids")
@@ -306,7 +318,6 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.Int("app.request.operation_route_ids_count", len(ids)),
 	)
 
@@ -330,7 +341,6 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "code", "operation_type", "account_rule_type", "account_rule_valid_if", "accounting_entries", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"id": ids}).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
@@ -410,7 +420,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 	return operationRoutes, nil
 }
 
-func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation_route")
@@ -418,7 +428,6 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.operation_route_id", id.String()),
 	)
 
@@ -479,7 +488,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 	record.UpdatedAt = time.Now()
 	qb = qb.Set("updated_at", record.UpdatedAt).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Where(squirrel.Eq{"organization_id": organizationID, "id": id, "deleted_at": nil}).
 		Suffix("RETURNING " + operationRouteReturningColumns).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -519,7 +528,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	return updated.ToEntity(), nil
 }
 
-func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
@@ -527,7 +536,6 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.operation_route_id", id.String()),
 	)
 
@@ -547,7 +555,6 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 		Set("deleted_at", squirrel.Expr("now()")).
 		Where(squirrel.Eq{
 			"organization_id": organizationID,
-			"ledger_id":       ledgerID,
 			"id":              id,
 			"deleted_at":      nil,
 		}).
@@ -588,7 +595,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	return nil
 }
 
-func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
+func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
@@ -596,10 +603,13 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.Int("app.request.query.limit", filter.Limit),
 		attribute.String("app.request.query.cursor", filter.Cursor),
 	)
+
+	if ledgerID != nil {
+		span.SetAttributes(attribute.String("app.request.ledger_id", ledgerID.String()))
+	}
 
 	if err := ctx.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Context finished before finding operation routes", err)
@@ -632,9 +642,12 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 	).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if ledgerID != nil {
+		findAll = findAll.Where(squirrel.Eq{"ledger_id": *ledgerID})
+	}
 
 	if !filter.StartDate.IsZero() {
 		findAll = findAll.
@@ -712,7 +725,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 	return operationRoutes, cur, nil
 }
 
-func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, organizationID, ledgerID, operationRouteID uuid.UUID) (bool, error) {
+func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, organizationID, operationRouteID uuid.UUID) (bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
@@ -720,7 +733,6 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.operation_route_id", operationRouteID.String()),
 	)
 
@@ -744,10 +756,9 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 		JOIN operation_route opr ON opr.id = otr.operation_route_id
 		WHERE otr.operation_route_id = ?
 		AND opr.organization_id = ?
-		AND opr.ledger_id = ?
 		AND otr.deleted_at IS NULL
 		AND opr.deleted_at IS NULL
-	)`, operationRouteID, organizationID, ledgerID)).
+	)`, operationRouteID, organizationID)).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {

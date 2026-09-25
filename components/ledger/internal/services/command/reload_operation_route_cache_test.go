@@ -46,7 +46,7 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 	transactionRoute1 := &mmodel.TransactionRoute{
 		ID:              transactionRouteID1,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route 1",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -54,7 +54,7 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 	transactionRoute2 := &mmodel.TransactionRoute{
 		ID:              transactionRouteID2,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route 2",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -66,12 +66,12 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID1).
+		FindByID(gomock.Any(), organizationID, transactionRouteID1).
 		Return(transactionRoute1, nil).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID2).
+		FindByID(gomock.Any(), organizationID, transactionRouteID2).
 		Return(transactionRoute2, nil).
 		Times(1)
 
@@ -80,7 +80,7 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 		Return(nil).
 		Times(2)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 }
@@ -91,7 +91,6 @@ func TestReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 	defer ctrl.Finish()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -109,7 +108,7 @@ func TestReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 		Return([]uuid.UUID{}, nil).
 		Times(1)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 }
@@ -120,7 +119,6 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 	defer ctrl.Finish()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -140,7 +138,7 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 		Return(nil, dbError).
 		Times(1)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, dbError, err)
@@ -152,7 +150,6 @@ func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
@@ -176,11 +173,11 @@ func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 	dbError := errors.New("transaction route not found")
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, dbError).
 		Times(1)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 }
@@ -210,7 +207,7 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:              transactionRouteID,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -221,7 +218,7 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -232,7 +229,7 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 		Return(redisError).
 		Times(1)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 }
@@ -263,7 +260,7 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 	transactionRoute2 := &mmodel.TransactionRoute{
 		ID:              transactionRouteID2,
 		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
+		LedgerID:        &ledgerID,
 		Title:           "Test Route 2",
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
@@ -274,12 +271,12 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID1).
+		FindByID(gomock.Any(), organizationID, transactionRouteID1).
 		Return(nil, errors.New("route not found")).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID2).
+		FindByID(gomock.Any(), organizationID, transactionRouteID2).
 		Return(transactionRoute2, nil).
 		Times(1)
 
@@ -288,7 +285,7 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 }
