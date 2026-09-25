@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -14,6 +15,8 @@ import (
 type ContextTracerConfig struct {
 	Facts           tracerreservation.Config
 	MaxReservations int
+	// AdmissionTimeout caps the entire facts/journal/Reserve phase.
+	AdmissionTimeout time.Duration
 }
 
 // ContextTracerCoordinator composes admission with its durable recovery. A
@@ -25,7 +28,7 @@ type ContextTracerCoordinator struct {
 }
 
 func NewContextTracerCoordinator(recovery *TracerRecoveryProcessor, facts TracerFactsLoader, cfg ContextTracerConfig) (*ContextTracerCoordinator, error) {
-	if recovery == nil || facts == nil || cfg.MaxReservations <= 0 {
+	if recovery == nil || facts == nil || cfg.MaxReservations <= 0 || cfg.AdmissionTimeout <= 0 {
 		return nil, constant.ErrTracerContractUnavailable
 	}
 

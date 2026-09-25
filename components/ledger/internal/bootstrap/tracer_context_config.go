@@ -78,7 +78,7 @@ func parseContextTracerConfig(cfg *Config, service string) (contextTracerRuntime
 		return contextTracerRuntimeConfig{}, constant.ErrTracerContractUnavailable
 	}
 
-	return contextTracerRuntimeConfig{client: client, coordinator: command.ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: client.MaxBodyBytes}, MaxReservations: client.MaxReservations}, recovery: recovery, worker: worker, operationTimeout: time.Duration(cfg.TracerTimeoutMs) * time.Millisecond}, nil
+	return contextTracerRuntimeConfig{client: client, coordinator: command.ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: client.MaxBodyBytes}, MaxReservations: client.MaxReservations, AdmissionTimeout: time.Duration(cfg.TracerTimeoutMs) * time.Millisecond}, recovery: recovery, worker: worker, operationTimeout: time.Duration(cfg.TracerTimeoutMs) * time.Millisecond}, nil
 }
 
 func tracerRecoveryDuration(milliseconds int) (time.Duration, error) {

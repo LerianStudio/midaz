@@ -51,7 +51,7 @@ func TestCreateContextTracerFencesAccounting(t *testing.T) {
 				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil)
 			}
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100}
+			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
 			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return now })
 			require.NoError(t, err)
 			coordinator, err := NewContextTracerCoordinator(recovery, loader, cfg)

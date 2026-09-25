@@ -69,7 +69,7 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 		return attempt, constant.ErrInvalidRequestBody
 	}
 
-	budget := time.Duration(input.Settings.TimeoutMs) * time.Millisecond
+	budget := min(time.Duration(input.Settings.TimeoutMs)*time.Millisecond, c.config.AdmissionTimeout)
 
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
