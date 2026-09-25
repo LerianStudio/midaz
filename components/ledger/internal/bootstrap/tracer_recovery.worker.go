@@ -14,8 +14,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -160,32 +158,53 @@ func (w *TracerRecoveryWorker) activeTenants(ctx context.Context) ([]string, err
 		return nil, fmt.Errorf("discover tracer recovery tenants: %w", err)
 	}
 
-	if len(entries) > w.config.MaxCatalogTenants {
-		return nil, constant.ErrTracerContractUnavailable
-	}
-
-	ids := make([]string, 0, len(entries))
+	// The catalog API returns the full inventory. Retain only a bounded window
+	// following the cursor, wrapping at the end; never drop later tenants just
+	// because the inventory grew beyond the local window size.
+	ids := make([]string, 0, min(len(entries), w.config.MaxCatalogTenants))
+	skipped := 0
 	for _, entry := range entries {
-		if entry == nil || !validRecoveryTenantID(entry.ID) || !strings.EqualFold(entry.Status, "active") {
-			return nil, constant.ErrTracerContractUnavailable
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 
-		ids = append(ids, entry.ID)
+		if entry == nil || !tmcore.IsValidTenantID(entry.ID) || !strings.EqualFold(entry.Status, "active") {
+			skipped++
+			continue
+		}
+
+		ids = recoveryTenantWindow(ids, entry.ID, w.after, w.config.MaxCatalogTenants)
+	}
+
+	if skipped > 0 {
+		w.logger.Log(ctx, libLog.LevelWarn, "Tracer recovery skipped invalid or inactive catalog entries", libLog.Int("count", skipped))
 	}
 
 	sort.Strings(ids)
-
-	for index := 1; index < len(ids); index++ {
-		if ids[index] == ids[index-1] {
-			return nil, constant.ErrTracerContractUnavailable
-		}
-	}
-
 	return ids, nil
 }
 
-func validRecoveryTenantID(id string) bool {
-	return id != "" && len(id) <= 256 && utf8.ValidString(id) && strings.TrimSpace(id) == id && strings.IndexFunc(id, unicode.IsControl) < 0
+// Keep the smallest distinct identifiers in cursor order using bounded storage.
+func recoveryTenantWindow(ids []string, id, after string, limit int) []string {
+	index := sort.Search(len(ids), func(i int) bool {
+		if (ids[i] > after) != (id > after) {
+			return ids[i] <= after
+		}
+
+		return ids[i] >= id
+	})
+	if index == limit || (index < len(ids) && ids[index] == id) {
+		return ids
+	}
+
+	if len(ids) < limit {
+		ids = append(ids, "")
+	}
+
+	copy(ids[index+1:], ids[index:len(ids)-1])
+	ids[index] = id
+
+	return ids
 }
 
 func (w *TracerRecoveryWorker) recoverTenant(ctx context.Context, tenantID string) (command.TracerRecoverySummary, error) {
