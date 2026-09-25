@@ -19,12 +19,13 @@ import (
 
 	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
-	for _, scenario := range []string{"allow", "backdated", "deny", "review", "off", "skip", "facts unavailable", "journal unknown", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
+	for _, scenario := range []string{"allow", "backdated", "deny", "review", "off", "skip", "facts unavailable", "facts timeout", "journal unknown", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store := NewMockTracerObligationStore(ctrl)
@@ -70,27 +71,32 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 				if scenario == "response lost" {
 					errorReserve = errors.New("reserve response lost")
 				}
-				var admissionDeadline time.Time
+				var factsDeadline, admissionDeadline time.Time
 				read := loader.EXPECT().EvaluationContext(gomock.Any(), key.OrganizationID, key.LedgerID, entries).DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ []traceradapter.PreparedEntry) (tracercontract.Context, error) {
 					var bounded bool
-					admissionDeadline, bounded = ctx.Deadline()
+					factsDeadline, bounded = ctx.Deadline()
 					require.True(t, bounded)
 					if !callerDeadline.IsZero() {
-						require.Equal(t, callerDeadline, admissionDeadline)
+						require.Equal(t, callerDeadline, factsDeadline)
 					}
-					require.LessOrEqual(t, time.Until(admissionDeadline), budget, "global cap must cover facts, before the client starts")
+					require.LessOrEqual(t, time.Until(factsDeadline), budget, "facts loading must have its own bounded deadline")
+					if scenario == "facts timeout" {
+						<-ctx.Done()
+						return tracercontract.Context{}, ctx.Err()
+					}
 					return request.Context, factsErr
 				})
-				if factsErr == nil {
+				if factsErr == nil && scenario != "facts timeout" {
 					frozen := false
 					persist := store.EXPECT().Prepare(gomock.Any(), gomock.Any()).After(read).DoAndReturn(func(ctx context.Context, intent tracerreservation.Intent) (*tracerreservation.Record, error) {
 						require.NoError(t, intent.Validate(ctx, cfg.Facts))
 						require.Equal(t, input.ExecutionID, intent.ExecutionID)
 						require.Equal(t, key, intent.Key)
 						require.Equal(t, time.Second+budget, intent.PrepareDeadline.Sub(intent.CreatedAt))
-						deadline, ok := ctx.Deadline()
+						var ok bool
+						admissionDeadline, ok = ctx.Deadline()
 						require.True(t, ok)
-						require.Equal(t, admissionDeadline, deadline)
+						require.False(t, admissionDeadline.Before(factsDeadline))
 						frozen = true
 						return &tracerreservation.Record{Intent: intent, State: tracerreservation.Prepared}, errorJournal
 					})
@@ -146,9 +152,12 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, attempt.Skipped)
 				require.False(t, attempt.IntentAttempted)
-			case "facts unavailable":
+			case "facts unavailable", "facts timeout":
 				require.Error(t, err)
 				require.False(t, attempt.IntentAttempted)
+				if scenario == "facts timeout" {
+					require.ErrorIs(t, err, constant.ErrTracerFactsUnavailable)
+				}
 			case "journal unknown":
 				require.Error(t, err)
 				require.True(t, attempt.IntentAttempted)
