@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -71,15 +72,16 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 
 	budget := min(time.Duration(input.Settings.TimeoutMs)*time.Millisecond, c.config.AdmissionTimeout)
 
-	ctx, cancel := context.WithTimeout(ctx, budget)
-	defer cancel()
-
-	created := c.recovery.now().UTC()
-
-	request, err := c.request(ctx, input, created)
+	request, err := c.requestWithLocalDeadline(ctx, input, budget)
 	if err != nil {
 		return attempt, err
 	}
+
+	ctx, cancelAdmission := context.WithTimeout(ctx, budget)
+	defer cancelAdmission()
+
+	created := c.recovery.now().UTC()
+	request.TransactionTimestamp = created
 
 	scope := tracercontract.ReserveScope{TenantID: tmcore.GetTenantIDContext(ctx), IntegrationID: c.recovery.config.IntegrationID, AssetNamespace: c.recovery.config.Namespace, SingleTenant: c.recovery.config.SingleTenant}
 	// The dispatch grace is bounded independently of Reserve. This permits the
@@ -128,6 +130,19 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 	attempt.Result = result
 
 	return attempt, nil
+}
+
+func (c *ContextTracerCoordinator) requestWithLocalDeadline(ctx context.Context, input ContextTracerInput, budget time.Duration) (tracercontract.ReserveRequest, error) {
+	factsCtx, cancel := context.WithTimeout(ctx, budget)
+	request, err := c.request(factsCtx, input, c.recovery.now().UTC())
+
+	cancel()
+
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		return tracercontract.ReserveRequest{}, constant.ErrTracerFactsUnavailable
+	}
+
+	return request, err
 }
 
 func (c *ContextTracerCoordinator) request(ctx context.Context, input ContextTracerInput, admittedAt time.Time) (tracercontract.ReserveRequest, error) {
