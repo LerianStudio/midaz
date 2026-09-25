@@ -120,7 +120,8 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) 
 	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Namespace: "origin-a", Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
 	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-	recovery, err := command.NewTracerRecoveryProcessor(journal, client, journal, command.TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}, func() time.Time { return instant })
+	recoveryConfig := command.TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}
+	recovery, err := command.NewTracerRecoveryProcessor(journal, client, journal, recoveryConfig, func() time.Time { return instant })
 	require.NoError(t, err)
 	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, command.ContextTracerConfig{Facts: config, MaxReservations: 100, AdmissionTimeout: 5 * time.Second})
 	require.NoError(t, err)
@@ -186,6 +187,17 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) 
 		}
 	}
 	assertBalances()
+	// Reconstruct every recovery collaborator and turn off new admission. The
+	// stored terminal obligation must suffice without the original request,
+	// facts loader, coordinator or today's ledger settings.
+	_, err = h.db.ExecContext(t.Context(), `UPDATE ledger SET settings=jsonb_set(settings,'{tracer,mode}','"off"'::jsonb) WHERE id=$1`, h.ledgerID)
+	require.NoError(t, err)
+	journal, err = tracerobligation.NewRepository(h.pgConn, config, false, 10)
+	require.NoError(t, err)
+	client, err = tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Namespace: "origin-a", Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
+	require.NoError(t, err)
+	recovery, err = command.NewTracerRecoveryProcessor(journal, client, journal, recoveryConfig, func() time.Time { return instant })
+	require.NoError(t, err)
 	instant = instant.Add(time.Second)
 	summary, err := recovery.RunOnce(t.Context())
 	require.NoError(t, err)
