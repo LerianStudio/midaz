@@ -43,6 +43,13 @@ type ContextProgram struct {
 	owner   *ContextAdapter
 	checked *celgo.Ast
 	program celgo.Program
+	maxCost uint64
+}
+
+// EstimatedMaxCost is the conservative cost for the configured context bounds.
+// Publication uses it to reject policies exceeding the aggregate work budget.
+func (p *ContextProgram) EstimatedMaxCost() uint64 {
+	return p.maxCost
 }
 
 // NewContextAdapter creates the strictly typed shared-contract environment.
@@ -120,7 +127,7 @@ func (a *ContextAdapter) Compile(ctx context.Context, expression string) (*Conte
 
 	logger.With(libLog.Int("expression.bytes", len(expression))).Log(ctx, libLog.LevelDebug, "Context expression compiled")
 
-	return &ContextProgram{owner: a, checked: checked, program: program}, nil
+	return &ContextProgram{owner: a, checked: checked, program: program, maxCost: estimate.Max}, nil
 }
 
 func (a *ContextAdapter) program(checked *celgo.Ast, cost uint64) (celgo.Program, error) {

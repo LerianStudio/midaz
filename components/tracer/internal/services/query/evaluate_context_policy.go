@@ -102,6 +102,7 @@ func (q *ContextPolicyEvaluator) Compile(ctx context.Context, policy model.Conte
 		rules: make([]compiledContextRule, 0, len(rules)),
 	}
 
+	remainingCost := q.config.TotalCost
 	for _, rule := range rules {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -111,6 +112,16 @@ func (q *ContextPolicyEvaluator) Compile(ctx context.Context, policy model.Conte
 		if err != nil {
 			return nil, err
 		}
+
+		if program == nil {
+			return nil, constant.ErrExpressionProgram
+		}
+
+		if program.EstimatedMaxCost() > remainingCost {
+			return nil, constant.ErrExpressionCostExceeded
+		}
+
+		remainingCost -= program.EstimatedMaxCost()
 
 		compiled.rules = append(compiled.rules, compiledContextRule{
 			reference: model.RuleRevision{ID: rule.ID, Revision: rule.Revision}, action: rule.Action, program: program,
