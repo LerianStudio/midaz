@@ -158,6 +158,15 @@ func TestIntegrationContextTracerFeesAndRevert(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, summary.Delivered)
 	require.Len(t, fixture.completions, 2)
+	completedByTransaction := make(map[uuid.UUID]string, 2)
+	for range 2 {
+		completion := <-fixture.completions
+		completedByTransaction[completion.TransactionID] = completion.Status
+	}
+	require.Equal(t, string(tracerreservation.Confirmed), completedByTransaction[forward.TransactionID],
+		"the original reservation remains consumed after a revert")
+	require.Equal(t, string(tracerreservation.Confirmed), completedByTransaction[reverse.TransactionID],
+		"the revert consumes its own reservation instead of refunding the original")
 }
 
 func TestIntegrationContextTracerPendingLifecycle(t *testing.T) {
