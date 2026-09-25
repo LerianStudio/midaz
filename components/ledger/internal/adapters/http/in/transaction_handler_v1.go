@@ -493,6 +493,7 @@ type ListTransactionsRequest struct {
 	EndDate        string `query:"end_date" doc:"Filter transactions created on/before this date"`
 	SortOrder      string `query:"sort_order" doc:"Sort direction (asc, desc)"`
 	Cursor         string `query:"cursor" doc:"Pagination cursor"`
+	GroupID        string `query:"groupId" doc:"Filter transactions by atomic cross-ledger group UUID"`
 
 	rawQuery url.Values
 }

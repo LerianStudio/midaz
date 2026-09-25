@@ -1940,6 +1940,8 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
 // CompareAndDeleteRecoveryWithProtectionFrom acknowledges a durably finalized
 // record only in its owning origin while preserving the shared receipt, guard,
 // protection coordinator, and cleanup protocol.
+//
+//nolint:gocyclo // protected ACK validates source, transaction index, receipt scope, and coordinator keys together
 func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 	ctx context.Context,
 	source RecoveryQueueSource,
@@ -1995,6 +1997,40 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 		return 0, fmt.Errorf("get protected recovery acknowledgement client: %w", err)
 	}
 
+	indexRaw, indexErr := client.HGet(ctx, keys[7], transactionRaw).Bytes()
+	if indexErr == nil {
+		var index struct {
+			OrganizationID        uuid.UUID `json:"organizationId"`
+			LedgerID              uuid.UUID `json:"ledgerId"`
+			TransactionID         uuid.UUID `json:"transactionId"`
+			ReceiptOrganizationID uuid.UUID `json:"receiptOrganizationId"`
+			ReceiptLedgerID       uuid.UUID `json:"receiptLedgerId"`
+		}
+		if err := json.Unmarshal(indexRaw, &index); err != nil {
+			return 0, fmt.Errorf("decode protected recovery receipt scope: %w", err)
+		}
+
+		if index.OrganizationID != organizationID || index.LedgerID != ledgerID || index.TransactionID.String() != transactionRaw {
+			return 0, errors.New("protected recovery transaction index scope differs")
+		}
+
+		if index.ReceiptOrganizationID != uuid.Nil && index.ReceiptLedgerID != uuid.Nil {
+			receiptScope := index.ReceiptOrganizationID.String() + ":" + index.ReceiptLedgerID.String()
+
+			keys[2], err = tenantKeyFromContextOrError(ctx, "engine:"+cachepolicy.HashTag+":receipts:"+receiptScope)
+			if err != nil {
+				return 0, fmt.Errorf("resolve protected recovery receipt key: %w", err)
+			}
+		}
+	} else if !errors.Is(indexErr, redis.Nil) {
+		return 0, fmt.Errorf("read protected recovery transaction index: %w", indexErr)
+	}
+
+	keys, err = appendRecoveryReceiptProtectionKeys(ctx, client, keys, 2, executionRaw)
+	if err != nil {
+		return 0, err
+	}
+
 	terminalFlag := "0"
 	if terminal {
 		terminalFlag = "1"
@@ -2016,6 +2052,63 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 	}
 
 	return result, nil
+}
+
+// appendRecoveryReceiptProtectionKeys keeps the original key layout for
+// single-scope receipts. Cross-ledger receipts carry each part's scope, so the
+// acknowledgment can publish a ready deadline to every part coordinator.
+func appendRecoveryReceiptProtectionKeys(
+	ctx context.Context,
+	client redis.UniversalClient,
+	keys []string,
+	receiptKeyIndex int,
+	executionID string,
+) ([]string, error) {
+	raw, err := client.HGet(ctx, keys[receiptKeyIndex], executionID).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return keys, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("read protected recovery receipt scopes: %w", err)
+	}
+
+	var receipt struct {
+		Protection struct {
+			Transactions []uuid.UUID `json:"transactions"`
+			Scopes       []struct {
+				OrganizationID uuid.UUID `json:"organizationId"`
+				LedgerID       uuid.UUID `json:"ledgerId"`
+			} `json:"scopes"`
+		} `json:"protection"`
+	}
+	if err := json.Unmarshal(raw, &receipt); err != nil {
+		return nil, fmt.Errorf("decode protected recovery receipt scopes: %w", err)
+	}
+
+	if len(receipt.Protection.Scopes) == 0 {
+		return keys, nil
+	}
+
+	if len(receipt.Protection.Scopes) != len(receipt.Protection.Transactions) {
+		return nil, errors.New("protected recovery receipt scopes differ from transactions")
+	}
+
+	for _, part := range receipt.Protection.Scopes {
+		if part.OrganizationID == uuid.Nil || part.LedgerID == uuid.Nil {
+			return nil, errors.New("invalid protected recovery receipt scope")
+		}
+
+		key, err := tenantKeyFromContextOrError(ctx,
+			"engine:"+cachepolicy.HashTag+":protection:"+part.OrganizationID.String()+":"+part.LedgerID.String())
+		if err != nil {
+			return nil, fmt.Errorf("resolve protected recovery part coordinator: %w", err)
+		}
+
+		keys = append(keys, key)
+	}
+
+	return keys, nil
 }
 
 func protectedRecoveryIDs(

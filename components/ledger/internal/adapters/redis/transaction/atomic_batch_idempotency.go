@@ -51,13 +51,15 @@ const (
 // for one atomic-batch request. TransactionIDs are always in request order and
 // Response contains the terminal public JSON representation only at complete.
 type AtomicTransactionBatchIdempotencyRecord struct {
-	FormatVersion      int                                    `json:"formatVersion"`
-	State              AtomicTransactionBatchIdempotencyState `json:"state"`
-	RequestFingerprint string                                 `json:"requestFingerprint"`
-	OwnerToken         string                                 `json:"ownerToken"`
-	BatchID            uuid.UUID                              `json:"batchId"`
-	ExecutionID        *uuid.UUID                             `json:"executionId,omitempty"`
-	TransactionIDs     []uuid.UUID                            `json:"transactionIds,omitempty"`
+	FormatVersion         int                                    `json:"formatVersion"`
+	State                 AtomicTransactionBatchIdempotencyState `json:"state"`
+	RequestFingerprint    string                                 `json:"requestFingerprint"`
+	OwnerToken            string                                 `json:"ownerToken"`
+	BatchID               uuid.UUID                              `json:"batchId"`
+	ExecutionID           *uuid.UUID                             `json:"executionId,omitempty"`
+	TransactionIDs        []uuid.UUID                            `json:"transactionIds,omitempty"`
+	ReceiptOrganizationID *uuid.UUID                             `json:"receiptOrganizationId,omitempty"`
+	ReceiptLedgerID       *uuid.UUID                             `json:"receiptLedgerId,omitempty"`
 	// InitialResponses freezes the creation representation per transaction ID.
 	// Values are base64-encoded JSON to retain the exact response bytes while
 	// keeping the ephemeral record independent from public response DTOs.
@@ -279,6 +281,10 @@ func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBat
 
 	if record.ExecutionID != nil && *record.ExecutionID == uuid.Nil {
 		return errors.New("execution ID cannot be nil UUID")
+	}
+	if (record.ReceiptOrganizationID == nil) != (record.ReceiptLedgerID == nil) ||
+		(record.ReceiptOrganizationID != nil && (*record.ReceiptOrganizationID == uuid.Nil || *record.ReceiptLedgerID == uuid.Nil)) {
+		return errors.New("atomic batch receipt scope must be complete")
 	}
 
 	if err := validateAtomicTransactionBatchTransactionIDs(record.TransactionIDs); err != nil {

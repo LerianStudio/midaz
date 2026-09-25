@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -34,6 +36,7 @@ const v2TransactionSchemaName = "TransactionV2"
 func buildCanonicalTransactionFixture() *transaction.Transaction {
 	amount := decimal.NewFromInt(1500)
 	parentID := "11111111-1111-1111-1111-111111111111"
+	groupID := "88888888-8888-8888-8888-888888888888"
 	routeID := "22222222-2222-2222-2222-222222222222"
 	statusDescription := "Active status"
 	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -43,6 +46,7 @@ func buildCanonicalTransactionFixture() *transaction.Transaction {
 	return &transaction.Transaction{
 		ID:                       "33333333-3333-3333-3333-333333333333",
 		ParentTransactionID:      &parentID,
+		GroupID:                  &groupID,
 		Description:              "v2 fixture transaction",
 		Status:                   transaction.Status{Code: "APPROVED", Description: &statusDescription},
 		Amount:                   &amount,
@@ -80,6 +84,7 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 
 	assert.Equal(t, canonical.ID, got.ID)
 	assert.Equal(t, canonical.ParentTransactionID, got.ParentTransactionID)
+	assert.Equal(t, canonical.GroupID, got.GroupID)
 	assert.Equal(t, canonical.Description, got.Description)
 	assert.Equal(t, canonical.Status.Code, got.Status.Code)
 	assert.Equal(t, canonical.Status.Description, got.Status.Description)
@@ -128,6 +133,76 @@ func TestTransactionV2_JSONUsesDebitCreditKeys(t *testing.T) {
 	assert.Contains(t, asMap, "credit", "the v2 wire body must carry the credit key")
 	assert.NotContains(t, asMap, "source", "the v2 wire body must not carry the v1 source key")
 	assert.NotContains(t, asMap, "destination", "the v2 wire body must not carry the v1 destination key")
+}
+
+func TestCreateTransactionV2Response_CrossLedgerEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := "88888888-8888-4888-8888-888888888888"
+	response := &CreateTransactionV2Response{
+		GroupID: &groupID,
+		Transactions: []*AtomicTransactionBatchV2Transaction{
+			{TransactionV2: newTransactionV2(buildCanonicalTransactionFixture()), Order: 1},
+		},
+	}
+
+	raw, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.Equal(t, groupID, body["groupId"])
+	assert.Len(t, body["transactions"], 1)
+	assert.NotContains(t, body, "id", "a group envelope must not masquerade as one transaction")
+}
+
+func TestCreateTransactionV2Response_CrossLedgerRevertEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := "88888888-8888-4888-8888-888888888888"
+	revertedGroupID := "99999999-9999-4999-8999-999999999999"
+	response := &CreateTransactionV2Response{
+		GroupID:         &groupID,
+		RevertedGroupID: &revertedGroupID,
+		Transactions: []*AtomicTransactionBatchV2Transaction{
+			{TransactionV2: newTransactionV2(buildCanonicalTransactionFixture()), Order: 1},
+		},
+	}
+
+	raw, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.Equal(t, groupID, body["groupId"])
+	assert.Equal(t, revertedGroupID, body["revertedGroupId"])
+	assert.Len(t, body["transactions"], 1)
+	assert.NotContains(t, body, "id", "a revert group envelope must not masquerade as one transaction")
+}
+
+func TestNewPendingTransitionV2Response_PreservesSingularOrGroupedShape(t *testing.T) {
+	t.Parallel()
+
+	singular := buildCanonicalTransactionFixture()
+	assert.Equal(t, newTransactionV2(singular), newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Transaction: singular,
+	}).TransactionV2)
+
+	groupID := uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	second := buildCanonicalTransactionFixture()
+	second.ID = "99999999-9999-4999-8999-999999999999"
+	response := newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Group: &command.CreateAtomicTransactionBatchV2Result{
+			BatchID:      groupID,
+			Transactions: []*transaction.Transaction{singular, second},
+		},
+	})
+
+	require.NotNil(t, response.GroupID)
+	assert.Equal(t, groupID.String(), *response.GroupID)
+	require.Len(t, response.Transactions, 2)
+	assert.Equal(t, []int{1, 2}, []int{response.Transactions[0].Order, response.Transactions[1].Order})
+	assert.Nil(t, response.TransactionV2)
 }
 
 // TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction locks the v2 response

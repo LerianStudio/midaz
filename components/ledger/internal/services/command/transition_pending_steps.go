@@ -19,31 +19,15 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// loadPendingTransaction resolves the transaction the transition acts on, reading
-// the write-behind cache first and falling back to the database.
+// loadPendingTransaction resolves the transaction the transition acts on. An
+// asynchronous create answers before its projection reaches PostgreSQL, so the
+// load must reach the sources that can name a transaction still in that window.
 func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, in PendingTransitionInput) (*transaction.Transaction, error) {
-	tran, err := uc.TransactionReader.GetWriteBehindTransaction(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	tran, err := uc.loadLifecycleTransaction(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
-		// Load the operations with the transaction: cancel needs them to unwind an
-		// overdraft hold. The write-behind cache is cleared once the create persists,
-		// so this fallback carries the transaction into the engine transition.
-		tran, err = uc.TransactionReader.GetTransactionWithOperationsByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
-		if err != nil {
-			spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
+		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-			return nil, err
-		}
-
-		// FindWithOperations joins on operations, so a transaction with no rows comes
-		// back as an empty value with no error. Fall back to the row-only read.
-		if tran == nil || tran.ID == "" {
-			tran, err = uc.TransactionReader.GetTransactionByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
-			if err != nil {
-				spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
-
-				return nil, err
-			}
-		}
+		return nil, err
 	}
 
 	return tran, nil

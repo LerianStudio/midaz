@@ -107,6 +107,9 @@ func (uc *UseCase) prepareEngineTransactionWithPool(
 		return enginePreparedTransaction{}, err
 	}
 
+	translated.OrganizationID = input.organizationID
+	translated.LedgerID = input.ledgerID
+
 	return enginePreparedTransaction{pool: itemPool, transaction: translated, projection: projection}, nil
 }
 

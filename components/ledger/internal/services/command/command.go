@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
@@ -27,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
@@ -64,6 +66,17 @@ type UseCase struct {
 
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
+
+	// TransactionGroupRepo persists normalized cross-ledger hold intent and its
+	// PENDING-to-terminal lifecycle state.
+	TransactionGroupRepo transactiongroup.Repository
+
+	// TransactionGroupReconcileMinAge is how long a PENDING group, and the latest
+	// change to any of its members, must be at rest before the reconciler reads
+	// it. TransactionGroupOrphanMinAge is how old a group with no member at all
+	// must be before its intent is deleted. Zero selects the defaults.
+	TransactionGroupReconcileMinAge time.Duration
+	TransactionGroupOrphanMinAge    time.Duration
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository
@@ -140,6 +153,14 @@ type UseCase struct {
 	// values so ordering and replay-sensitive context remain deterministic.
 	UUIDv7Generator UUIDv7Generator
 	Clock           Clock
+
+	// createAtomicTransactionBatchV2 is a focused orchestration seam for tests.
+	// Production leaves it nil and calls CreateAtomicTransactionBatchV2.
+	createAtomicTransactionBatchV2 func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error)
+
+	// transitionCrossLedgerGroupV2Fn isolates grouped lifecycle dispatch in
+	// focused unit tests. Production leaves it nil and uses the coordinator.
+	transitionCrossLedgerGroupV2Fn func(context.Context, PendingTransitionInput, *transaction.Transaction, string) (*CreateAtomicTransactionBatchV2Result, error)
 
 	// AtomicTransactionBatchIdempotencyRepo owns the batch-only claim,
 	// execution handoff, refusal cleanup, and terminal state machine. It is

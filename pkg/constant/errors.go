@@ -230,6 +230,25 @@ var (
 	// instead skipped (a SKIPPED audit is recorded) and the transaction
 	// proceeds, so this error is the fail-closed path only.
 	ErrTransactionReservationUnavailable = errors.New("0178")
+	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
+	// references a ledger that has not opted in through crossLedger.enabled.
+	ErrCrossLedgerNotEnabled = errors.New("0249")
+	// ErrCrossLedgerAssetMismatch is returned when a cross-ledger request
+	// attempts to move more than one asset in the same atomic group.
+	ErrCrossLedgerAssetMismatch = errors.New("0250")
+	// ErrCrossLedgerRouteValidationUnsupported is returned when accounting
+	// route validation is enabled on a participating ledger. The synthetic
+	// external bridge legs do not have an accounting route in this milestone.
+	ErrCrossLedgerRouteValidationUnsupported = errors.New("0251")
+	// ErrCrossLedgerLifecycleRequiresV2 prevents the legacy contract from
+	// transitioning only one member of an atomic cross-ledger group.
+	ErrCrossLedgerLifecycleRequiresV2 = errors.New("0252")
+	// ErrCrossLedgerGroupIncomplete prevents a partial group lookup from
+	// producing a lifecycle operation that would leave the movement unbalanced.
+	ErrCrossLedgerGroupIncomplete = errors.New("0253")
+	// ErrCrossLedgerGroupNotPending rejects a second or conflicting terminal
+	// transition after a cross-ledger hold group has left PENDING.
+	ErrCrossLedgerGroupNotPending = errors.New("0254")
 	// ErrOverdraftRouteNotConfigured is returned when route validation is
 	// enabled but the accounting route applied to an overdraft companion
 	// operation does not define an overdraft entry carrying the rubric for

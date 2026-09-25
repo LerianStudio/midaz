@@ -288,6 +288,10 @@ func midazEventDefinitions() []events.Definition {
 		events.TransactionCommittedDefinition,
 		events.TransactionCanceledDefinition,
 		events.TransactionRevertedDefinition,
+		events.TransactionGroupPostedDefinition,
+		events.TransactionGroupCommittedDefinition,
+		events.TransactionGroupCanceledDefinition,
+		events.TransactionGroupRevertedDefinition,
 		// Fees
 		events.FeesPackageCreatedDefinition,
 		events.FeesPackageUpdatedDefinition,

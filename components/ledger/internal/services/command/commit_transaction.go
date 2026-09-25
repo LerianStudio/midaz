@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -29,6 +30,14 @@ type PendingTransitionInput struct {
 	AccountBlockExceptionID *uuid.UUID
 }
 
+// PendingTransitionV2Result is the v2 lifecycle response union. Singular
+// transitions preserve the historical transaction shape; grouped transitions
+// expose every member under one group envelope.
+type PendingTransitionV2Result struct {
+	*transaction.Transaction
+	Group *CreateAtomicTransactionBatchV2Result
+}
+
 // CommitTransactionV1 approves a PENDING transaction under the /v1 contract, frozen
 // at what /v1 shipped with: no tracer reservation lifecycle. A client integrated
 // against it must not acquire a reservation rejection, or a confirm it never asked
@@ -42,6 +51,10 @@ func (uc *UseCase) CommitTransactionV1(ctx context.Context, in PendingTransition
 
 	tran, err := uc.loadPendingTransaction(ctx, span, in)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePendingTransitionV1Scope(tran); err != nil {
 		return nil, err
 	}
 
@@ -67,6 +80,10 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
+	if err := validatePendingTransitionV1Scope(tran); err != nil {
+		return nil, err
+	}
+
 	return uc.transitionPendingV1(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
 		ledgerID:       in.LedgerID,
@@ -75,10 +92,18 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 	})
 }
 
+func validatePendingTransitionV1Scope(tran *transaction.Transaction) error {
+	if tran.GroupID == nil {
+		return nil
+	}
+
+	return pkg.ValidateBusinessError(constant.ErrCrossLedgerLifecycleRequiresV2, constant.EntityTransaction)
+}
+
 // CommitTransactionV2 approves a PENDING transaction under the /v2 contract, which
 // includes the tracer reservation lifecycle: the create-pending reserve is confirmed
 // by transaction id once the balances have moved.
-func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.commit_transaction_v2")
@@ -89,7 +114,16 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
-	return uc.transitionPendingV2(ctx, &pendingTransitionRun{
+	if tran.GroupID != nil {
+		group, err := uc.dispatchCrossLedgerGroupTransitionV2(ctx, in, tran, constant.APPROVED)
+		if err != nil {
+			return nil, err
+		}
+
+		return &PendingTransitionV2Result{Group: group}, nil
+	}
+
+	result, err := uc.transitionPendingV2(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
 		ledgerID:       in.LedgerID,
 		tran:           tran,
@@ -97,11 +131,16 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 
 		accountBlockExceptionID: in.AccountBlockExceptionID,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &PendingTransitionV2Result{Transaction: result}, nil
 }
 
 // CancelTransactionV2 cancels a PENDING transaction under the /v2 contract, releasing
 // the reservations the create-pending held.
-func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.cancel_transaction_v2")
@@ -112,12 +151,39 @@ func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
-	return uc.transitionPendingV2(ctx, &pendingTransitionRun{
+	if tran.GroupID != nil {
+		group, err := uc.dispatchCrossLedgerGroupTransitionV2(ctx, in, tran, constant.CANCELED)
+		if err != nil {
+			return nil, err
+		}
+
+		return &PendingTransitionV2Result{Group: group}, nil
+	}
+
+	result, err := uc.transitionPendingV2(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
 		ledgerID:       in.LedgerID,
 		tran:           tran,
 		status:         constant.CANCELED,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &PendingTransitionV2Result{Transaction: result}, nil
+}
+
+func (uc *UseCase) dispatchCrossLedgerGroupTransitionV2(
+	ctx context.Context,
+	in PendingTransitionInput,
+	target *transaction.Transaction,
+	status string,
+) (*CreateAtomicTransactionBatchV2Result, error) {
+	if uc.transitionCrossLedgerGroupV2Fn != nil {
+		return uc.transitionCrossLedgerGroupV2Fn(ctx, in, target, status)
+	}
+
+	return uc.transitionCrossLedgerGroupV2(ctx, in, target, status)
 }
 
 // transitionPendingV1 is the /v1 state-transition pipeline: lock, prepare, commit the

@@ -35,12 +35,22 @@ import (
 
 type pendingLifecycleReader struct {
 	command.TransactionReader
-	balances  []*mmodel.Balance
-	persisted *postgresTransaction.Transaction
-	settings  mmodel.LedgerSettings
+	balances    []*mmodel.Balance
+	persisted   *postgresTransaction.Transaction
+	settings    mmodel.LedgerSettings
+	executionID uuid.UUID
 	// client lets the stub take the administrative admission of the accounts it
 	// serves, as the real cache-miss load does.
 	client redis.UniversalClient
+}
+
+func (r *pendingLifecycleReader) ResolveTransactionProjection(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	uuid.UUID,
+) (*postgresTransaction.Transaction, uuid.UUID, bool, error) {
+	return clonePendingLifecycleTransaction(r.persisted), r.executionID, false, nil
 }
 
 func (r *pendingLifecycleReader) GetParsedLedgerSettings(context.Context, uuid.UUID, uuid.UUID) (mmodel.LedgerSettings, error) {
@@ -92,6 +102,38 @@ func clonePendingLifecycleTransaction(input *postgresTransaction.Transaction) *p
 
 type pendingLifecycleClientProvider struct {
 	client redis.UniversalClient
+}
+
+type pendingLifecycleEvidenceResolver struct {
+	client     *redis.Client
+	executions func() []command.EngineExecution
+}
+
+func (resolver *pendingLifecycleEvidenceResolver) ResolveTransactionEvidence(
+	ctx context.Context,
+	reference command.TransactionEvidenceReference,
+) (*command.TransactionWriteBehindEnvelope, error) {
+	for _, execution := range resolver.executions() {
+		if execution.Execution.ExecutionID != reference.ExecutionID {
+			continue
+		}
+		keys, err := resolveAdapterKeys(ctx, execution.Execution)
+		if err != nil {
+			return nil, err
+		}
+		raw, err := resolver.client.HGet(
+			ctx,
+			keys.Recovery,
+			reference.TransactionID.String()+":"+reference.ExecutionID.String(),
+		).Bytes()
+		if err != nil {
+			return nil, err
+		}
+
+		return command.DecodeTransactionWriteBehindEnvelope(raw)
+	}
+
+	return nil, errors.New("pending lifecycle evidence execution not found")
 }
 
 func (p pendingLifecycleClientProvider) GetClient(context.Context) (redis.UniversalClient, error) {
@@ -212,7 +254,7 @@ func (f *pendingLifecycleFinalizer) Complete(_ context.Context, envelope *comman
 
 	return command.TransactionCompletionResult{
 		Record:  record,
-		Outcome: command.TransactionPersistenceOutcome{TransactionStatus: f.outcomes[len(f.envelopes)-1]},
+		Outcome: command.TransactionPersistenceOutcome{TransactionStatus: payload.TransactionStatus},
 	}, nil
 }
 
@@ -263,7 +305,13 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 		{
 			name:           "commit confirms reservation and moves held funds",
 			terminalStatus: constant.APPROVED,
-			transition:     (*command.UseCase).CommitTransactionV2,
+			transition: func(uc *command.UseCase, ctx context.Context, in command.PendingTransitionInput) (*postgresTransaction.Transaction, error) {
+				result, err := uc.CommitTransactionV2(ctx, in)
+				if result == nil {
+					return nil, err
+				}
+				return result.Transaction, err
+			},
 			transitionTypes: []core.PostingType{
 				core.PostingUnreserve,
 				core.PostingCredit,
@@ -274,9 +322,15 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			},
 		},
 		{
-			name:            "cancel releases reservation and held funds",
-			terminalStatus:  constant.CANCELED,
-			transition:      (*command.UseCase).CancelTransactionV2,
+			name:           "cancel releases reservation and held funds",
+			terminalStatus: constant.CANCELED,
+			transition: func(uc *command.UseCase, ctx context.Context, in command.PendingTransitionInput) (*postgresTransaction.Transaction, error) {
+				result, err := uc.CancelTransactionV2(ctx, in)
+				if result == nil {
+					return nil, err
+				}
+				return result.Transaction, err
+			},
 			transitionTypes: []core.PostingType{core.PostingRelease},
 			expectedBalances: []pendingLifecycleBalanceExpectation{
 				{ref: "@source#default", available: "100", onHold: "0", version: 9},
@@ -319,7 +373,13 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 				TransactionReader:           reader,
 				Engine:                      executor,
 				AppliedTransactionCompleter: finalizer,
-				TracerReserver:              tracerControl,
+				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+					client: client,
+					executions: func() []command.EngineExecution {
+						return append([]command.EngineExecution(nil), executor.executions...)
+					},
+				},
+				TracerReserver: tracerControl,
 			}
 
 			amount := decimal.NewFromInt(30)
@@ -366,6 +426,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			}
 
 			reader.persisted = pending
+			reader.executionID = executor.executions[0].Execution.ExecutionID
 			reader.balances[0].Available = decimal.NewFromInt(70)
 			reader.balances[0].OnHold = decimal.NewFromInt(30)
 			reader.balances[0].Version = 8
@@ -388,10 +449,16 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			require.Equal(t, pending.ID, transitionExecution.Execution.Transactions[0].ID.String())
 			require.Equal(t, command.ExecutionGuard{TransactionID: uuid.MustParse(pending.ID), NextToken: constant.PENDING}, createExecution.Guards[0])
 			require.Equal(t, command.ExecutionGuard{TransactionID: uuid.MustParse(pending.ID), ExpectedToken: constant.PENDING, NextToken: test.terminalStatus}, transitionExecution.Guards[0])
-			require.Len(t, finalizer.envelopes, 2)
+			require.Len(t, finalizer.envelopes, 3)
+			require.Equal(t, finalizer.envelopes[0].ExecutionID, finalizer.envelopes[1].ExecutionID,
+				"dependency-aware completion must replay the exact pending predecessor before the transition")
 			transactions := []*postgresTransaction.Transaction{pending, transitioned}
 			for index, execution := range executor.executions {
-				envelope := finalizer.envelopes[index]
+				envelopeIndex := index
+				if index == 1 {
+					envelopeIndex = 2
+				}
+				envelope := finalizer.envelopes[envelopeIndex]
 				require.Equal(t, execution.Execution.ExecutionID, envelope.ExecutionID)
 				require.Equal(t, execution.IntentFingerprint, envelope.IntentFingerprint)
 				assertPendingLifecycleProjection(t, envelope, transactions[index])
@@ -465,7 +532,14 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 		TransactionReader:           reader,
 		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
-		TracerReserver:              tracerControl,
+		TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+			client: client,
+			executions: func() []command.EngineExecution {
+				executions, _ := executor.captured()
+				return executions
+			},
+		},
+		TracerReserver: tracerControl,
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -501,6 +575,8 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	}
 
 	reader.persisted = pending
+	executions, _ := executor.captured()
+	reader.executionID = executions[0].Execution.ExecutionID
 	reader.balances[0].Available = decimal.NewFromInt(70)
 	reader.balances[0].OnHold = decimal.NewFromInt(30)
 	reader.balances[0].Version = 8
@@ -522,11 +598,19 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	}
 	outcomes := make(chan raceOutcome, 2)
 	go func() {
-		transaction, transitionErr := uc.CommitTransactionV2(ctx, transitionInput)
+		result, transitionErr := uc.CommitTransactionV2(ctx, transitionInput)
+		var transaction *postgresTransaction.Transaction
+		if result != nil {
+			transaction = result.Transaction
+		}
 		outcomes <- raceOutcome{requestedStatus: constant.APPROVED, transaction: transaction, err: transitionErr}
 	}()
 	go func() {
-		transaction, transitionErr := uc.CancelTransactionV2(ctx, transitionInput)
+		result, transitionErr := uc.CancelTransactionV2(ctx, transitionInput)
+		var transaction *postgresTransaction.Transaction
+		if result != nil {
+			transaction = result.Transaction
+		}
 		outcomes <- raceOutcome{requestedStatus: constant.CANCELED, transaction: transaction, err: transitionErr}
 	}()
 
@@ -571,8 +655,8 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	require.NotEqual(t, uuid.Nil, winningExecution.Execution.ExecutionID)
 	require.NotEqual(t, uuid.Nil, losingExecution.Execution.ExecutionID)
 	require.NotEqual(t, winningExecution.Execution.ExecutionID, losingExecution.Execution.ExecutionID)
-	require.Len(t, finalizer.envelopes, 2)
-	winnerEnvelope := finalizer.envelopes[1]
+	require.Len(t, finalizer.envelopes, 3)
+	winnerEnvelope := finalizer.envelopes[2]
 	require.Equal(t, winningExecution.Execution.ExecutionID, winnerEnvelope.ExecutionID)
 	require.Equal(t, winningExecution.IntentFingerprint, winnerEnvelope.IntentFingerprint)
 	assertPendingLifecycleProjection(t, winnerEnvelope, winner.transaction)
@@ -642,12 +726,18 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	require.NoError(t, err)
 	executor := &pendingLifecycleAdapter{delegate: realAdapter}
 	finalizationErr := errors.New("pending transition persistence unavailable")
-	finalizer := &pendingLockExpiryFinalizer{failAfter: 1, err: finalizationErr}
+	finalizer := &pendingLockExpiryFinalizer{failAfter: 2, err: finalizationErr}
 	uc := &command.UseCase{
 		TransactionRedisRepo:        redisRepository,
 		TransactionReader:           reader,
 		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
+		TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+			client: client,
+			executions: func() []command.EngineExecution {
+				return append([]command.EngineExecution(nil), executor.executions...)
+			},
+		},
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -683,6 +773,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	}
 
 	reader.persisted = pending
+	reader.executionID = executor.executions[0].Execution.ExecutionID
 	reader.balances[0].Available = decimal.NewFromInt(70)
 	reader.balances[0].OnHold = decimal.NewFromInt(30)
 	reader.balances[0].Version = 8
@@ -698,11 +789,11 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	}
 
 	transitioned, err := uc.CommitTransactionV2(ctx, transitionInput)
-	require.ErrorIs(t, err, finalizationErr)
-	require.Nil(t, transitioned)
+	require.NoError(t, err)
+	require.NotNil(t, transitioned)
 	require.Equal(t, 1, lockAcquisitions)
 	require.Len(t, executor.executions, 2)
-	require.Len(t, finalizer.envelopes, 2)
+	require.Len(t, finalizer.envelopes, 3)
 	winningExecution := executor.executions[1]
 	keys, err := resolveAdapterKeys(ctx, winningExecution.Execution)
 	require.NoError(t, err)
@@ -726,7 +817,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	require.Nil(t, transitioned)
 	require.Equal(t, 3, lockAcquisitions)
 	require.Len(t, executor.executions, 4)
-	require.Len(t, finalizer.envelopes, 2)
+	require.Len(t, finalizer.envelopes, 3)
 	require.Equal(t, command.ExecutionGuard{TransactionID: transitionInput.TransactionID, ExpectedToken: constant.PENDING, NextToken: constant.APPROVED}, executor.executions[2].Guards[0])
 	require.Equal(t, command.ExecutionGuard{TransactionID: transitionInput.TransactionID, ExpectedToken: constant.PENDING, NextToken: constant.CANCELED}, executor.executions[3].Guards[0])
 	require.Equal(t, constant.APPROVED, client.HGet(ctx, keys.Guards, pending.ID).Val())
@@ -736,9 +827,9 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+rejected.Execution.ExecutionID.String()).Val())
 		require.False(t, client.HExists(ctx, keys.Receipts, rejected.Execution.ExecutionID.String()).Val())
 	}
-	winningPayload, err := command.DecodeTransactionCompletionPlan([]byte(finalizer.envelopes[1].Payload))
+	winningPayload, err := command.DecodeTransactionCompletionPlan([]byte(finalizer.envelopes[2].Payload))
 	require.NoError(t, err)
-	winningRecord, err := command.BuildTransactionWriteSet(*winningPayload, finalizer.envelopes[1].Result)
+	winningRecord, err := command.BuildTransactionWriteSet(*winningPayload, finalizer.envelopes[2].Result)
 	require.NoError(t, err)
 	assertPendingLifecycleRecovery(t, ctx, client, keys, winningExecution, winningRecord.Transaction)
 	assertPendingLifecycleBalances(t, ctx, client, keys, []pendingLifecycleBalanceExpectation{
@@ -751,7 +842,7 @@ func requirePendingLifecycleLockConflict(t *testing.T, err error) {
 	t.Helper()
 	require.Error(t, err)
 	var conflict pkg.EntityConflictError
-	require.True(t, errors.As(err, &conflict))
+	require.True(t, errors.As(err, &conflict), "expected entity conflict, got %T: %v", err, err)
 	require.Equal(t, constant.ErrPendingTransactionLocked.Error(), conflict.Code)
 }
 

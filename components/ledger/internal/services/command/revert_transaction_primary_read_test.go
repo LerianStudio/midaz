@@ -36,8 +36,7 @@ func TestRevert_PrimaryReadWrapPlacement(t *testing.T) {
 		takesCtx bool
 	}{
 		{"GetParentByTransactionID", positions.getParent, positions.getParentTakesReadCtx},
-		{"resolveTransactionProjection", positions.getWithOperations, positions.getWithOperationsTakesReadCtx},
-		{"GetTransactionByID", positions.getTransaction, positions.getTransactionTakesReadCtx},
+		{"loadLifecycleTransaction", positions.loadTransaction, positions.loadTransactionTakesReadCtx},
 	}
 
 	for _, read := range reads {
@@ -60,31 +59,37 @@ func TestRevert_PrimaryReadWrapPlacement(t *testing.T) {
 }
 
 // TestRevert_ProjectionHelperForwardsContext closes the indirection the placement guard
-// above now depends on: prepareRevertTransaction hands readCtx to
-// resolveTransactionProjection, so the marker only reaches the database if the helper
-// forwards its own ctx to both reads instead of substituting a fresh one.
+// above depends on: prepareRevertTransaction hands readCtx to loadLifecycleTransaction,
+// so the marker only reaches the database if every helper on the way forwards its own
+// ctx to each read instead of substituting a fresh one.
 func TestRevert_ProjectionHelperForwardsContext(t *testing.T) {
 	src := readTransportSource(t, "transaction_reader.go", "func resolveTransactionProjection")
 
-	fn := findFuncDecl(t, src, "resolveTransactionProjection")
+	for _, helper := range []struct {
+		name  string
+		reads []string
+	}{
+		{"loadLifecycleTransaction", []string{"loadIndexedOrPersistedTransaction", "GetWriteBehindTransaction"}},
+		{"loadIndexedOrPersistedTransaction", []string{"resolveTransactionProjection", "GetTransactionByID"}},
+		{"resolveTransactionProjection", []string{"ResolveTransactionProjection", "GetTransactionWithOperationsByID"}},
+	} {
+		fn := findFuncDecl(t, src, helper.name)
 
-	if fn.Body == nil {
-		t.Fatal("resolveTransactionProjection has no body")
-	}
+		if fn.Body == nil {
+			t.Fatalf("%s has no body", helper.name)
+		}
 
-	forwardsResolver, forwardsFallback := false, false
+		for _, read := range helper.reads {
+			forwards := false
 
-	for _, stmt := range fn.Body.List {
-		forwardsResolver = forwardsResolver || callFirstArgIsIdent(stmt, "ResolveTransactionProjection", "ctx")
-		forwardsFallback = forwardsFallback || callFirstArgIsIdent(stmt, "GetTransactionWithOperationsByID", "ctx")
-	}
+			for _, stmt := range fn.Body.List {
+				forwards = forwards || callFirstArgIsIdent(stmt, read, "ctx")
+			}
 
-	if !forwardsResolver {
-		t.Error("resolveTransactionProjection must pass its own ctx to ResolveTransactionProjection; a substituted context drops the caller's primary-read marker")
-	}
-
-	if !forwardsFallback {
-		t.Error("resolveTransactionProjection must pass its own ctx to GetTransactionWithOperationsByID; a substituted context drops the caller's primary-read marker")
+			if !forwards {
+				t.Errorf("%s must pass its own ctx to %s; a substituted context drops the caller's primary-read marker", helper.name, read)
+			}
+		}
 	}
 }
 
@@ -92,22 +97,19 @@ func TestRevert_ProjectionHelperForwardsContext(t *testing.T) {
 // eligibility-gate reads it must precede, plus the arg-identity checks that scope the
 // marker to the transaction and parent reads.
 type revertWrapPositions struct {
-	wrap              int
-	getParent         int
-	getWithOperations int
-	getTransaction    int
+	wrap            int
+	getParent       int
+	loadTransaction int
 
 	getParentTakesReadCtx         bool
-	getWithOperationsTakesReadCtx bool
-	getTransactionTakesReadCtx    bool
+	loadTransactionTakesReadCtx   bool
 	getOperationRouteTakesReadCtx bool
 }
 
 // analyzeRevertWrap returns, within the named function body, the top-level statement
 // indices of the dedicated `readCtx := readrouting.WithPrimaryRead(ctx)` wrap and of the
-// three eligibility-gate reads (each -1 when absent), and which reads receive `readCtx`
-// as their context argument. Top-level indices are sufficient even for the fallback read:
-// it sits inside a top-level if-block, whose own index still orders it against the wrap.
+// eligibility-gate reads (each -1 when absent), and which reads receive `readCtx` as
+// their context argument.
 func analyzeRevertWrap(t *testing.T, src, funcName string) revertWrapPositions {
 	t.Helper()
 
@@ -117,7 +119,7 @@ func analyzeRevertWrap(t *testing.T, src, funcName string) revertWrapPositions {
 		t.Fatalf("function %q has no body", funcName)
 	}
 
-	positions := revertWrapPositions{wrap: -1, getParent: -1, getWithOperations: -1, getTransaction: -1}
+	positions := revertWrapPositions{wrap: -1, getParent: -1, loadTransaction: -1}
 
 	for i, stmt := range fn.Body.List {
 		if positions.wrap == -1 && stmtDefinesReadCtxFromPrimaryRead(stmt) {
@@ -128,22 +130,15 @@ func analyzeRevertWrap(t *testing.T, src, funcName string) revertWrapPositions {
 			positions.getParent = i
 		}
 
-		if positions.getWithOperations == -1 && stmtCallsFunc(stmt, "resolveTransactionProjection") {
-			positions.getWithOperations = i
-		}
-
-		if positions.getTransaction == -1 && stmtCallsMethod(stmt, "GetTransactionByID") {
-			positions.getTransaction = i
+		if positions.loadTransaction == -1 && stmtCallsFunc(stmt, "loadLifecycleTransaction") {
+			positions.loadTransaction = i
 		}
 
 		positions.getParentTakesReadCtx = positions.getParentTakesReadCtx ||
 			callFirstArgIsIdent(stmt, "GetParentByTransactionID", "readCtx")
 
-		positions.getWithOperationsTakesReadCtx = positions.getWithOperationsTakesReadCtx ||
-			callFirstArgIsIdent(stmt, "resolveTransactionProjection", "readCtx")
-
-		positions.getTransactionTakesReadCtx = positions.getTransactionTakesReadCtx ||
-			callFirstArgIsIdent(stmt, "GetTransactionByID", "readCtx")
+		positions.loadTransactionTakesReadCtx = positions.loadTransactionTakesReadCtx ||
+			callFirstArgIsIdent(stmt, "loadLifecycleTransaction", "readCtx")
 
 		positions.getOperationRouteTakesReadCtx = positions.getOperationRouteTakesReadCtx ||
 			callFirstArgIsIdent(stmt, "GetOperationRouteByID", "readCtx")
@@ -159,8 +154,7 @@ func TestAnalyzeRevertWrap_DetectsUnmarkedReads(t *testing.T) {
 	src := "package p\n\nfunc unmarkedGate() {\n" +
 		"\treadCtx := readrouting.WithPrimaryRead(ctx)\n" +
 		"\tuc.TransactionReader.GetParentByTransactionID(ctx)\n" +
-		"\tresolveTransactionProjection(ctx, uc.TransactionReader)\n" +
-		"\tuc.TransactionReader.GetTransactionByID(ctx)\n" +
+		"\tuc.loadLifecycleTransaction(ctx)\n" +
 		"\t_ = readCtx\n}\n"
 
 	positions := analyzeRevertWrap(t, src, "unmarkedGate")
@@ -169,7 +163,7 @@ func TestAnalyzeRevertWrap_DetectsUnmarkedReads(t *testing.T) {
 		t.Fatal("the analyzer failed to find the wrap it is built to find")
 	}
 
-	if positions.getParentTakesReadCtx || positions.getWithOperationsTakesReadCtx || positions.getTransactionTakesReadCtx {
+	if positions.getParentTakesReadCtx || positions.loadTransactionTakesReadCtx {
 		t.Error("the analyzer reported an unmarked read as marked; the placement guard would pass over a regressed gate")
 	}
 }

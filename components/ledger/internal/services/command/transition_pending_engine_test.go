@@ -17,6 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -34,7 +35,11 @@ var fixedPendingCreatedAt = time.Date(2026, time.September, 7, 10, 15, 0, 0, tim
 
 type transitionEngineReader struct {
 	TransactionReader
-	writeBehind        *transaction.Transaction
+	// loaded, when set, answers the first read (the pre-lock load) so a test can
+	// tell which read supplied the transition's intent. Every later read answers
+	// persisted.
+	loaded             *transaction.Transaction
+	loadServed         bool
 	persisted          *transaction.Transaction
 	settings           mmodel.LedgerSettings
 	balances           []*mmodel.Balance
@@ -58,11 +63,12 @@ func (reader *pendingProjectionReader) ResolveTransactionProjection(
 	return reader.persisted, reader.executionID, !reader.durable, nil
 }
 
-func (reader *transitionEngineReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
-	return reader.writeBehind, nil
-}
-
 func (reader *transitionEngineReader) GetTransactionWithOperationsByID(ctx context.Context, _, _, _ uuid.UUID) (*transaction.Transaction, error) {
+	if reader.loaded != nil && !reader.loadServed {
+		reader.loadServed = true
+		return reader.loaded, nil
+	}
+
 	reader.persistedReads++
 	reader.persistedOnPrimary = readrouting.IsPrimaryRead(ctx)
 	return reader.persisted, nil
@@ -249,8 +255,20 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 	}{
 		{"commit v1", constant.APPROVED, false, (*UseCase).CommitTransactionV1},
 		{"cancel v1", constant.CANCELED, false, (*UseCase).CancelTransactionV1},
-		{"commit v2", constant.APPROVED, true, (*UseCase).CommitTransactionV2},
-		{"cancel v2", constant.CANCELED, true, (*UseCase).CancelTransactionV2},
+		{"commit v2", constant.APPROVED, true, func(uc *UseCase, ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+			result, err := uc.CommitTransactionV2(ctx, in)
+			if result == nil {
+				return nil, err
+			}
+			return result.Transaction, err
+		}},
+		{"cancel v2", constant.CANCELED, true, func(uc *UseCase, ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+			result, err := uc.CancelTransactionV2(ctx, in)
+			if result == nil {
+				return nil, err
+			}
+			return result.Transaction, err
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, test.status)
@@ -447,7 +465,7 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 }
 
 func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.T) {
-	t.Run("terminal SQL wins over write-behind pending", func(t *testing.T) {
+	t.Run("terminal SQL wins over a pending pre-lock view", func(t *testing.T) {
 		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 		reader.persisted.Status.Code = constant.APPROVED
 		reader.persisted.Body = mtransaction.Transaction{}
@@ -463,6 +481,32 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 		executor.before = func(EngineExecution) error {
 			return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
+		}
+		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+		_, err := uc.CommitTransactionV1(context.Background(), in)
+		assertBusinessCode(t, err, constant.ErrPendingTransactionLocked.Error())
+		assert.Equal(t, 2, reader.persistedReads)
+		assert.Len(t, executor.requests, 1)
+	})
+
+	t.Run("transaction state conflict with pending SQL is locked", func(t *testing.T) {
+		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
+		executor.before = func(EngineExecution) error {
+			return testEngineTechnicalError{code: "transaction_state_conflict", cause: errors.New("transaction state changed")}
+		}
+		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+		_, err := uc.CommitTransactionV1(context.Background(), in)
+		assertBusinessCode(t, err, constant.ErrPendingTransactionLocked.Error())
+		assert.Equal(t, 2, reader.persistedReads)
+		assert.Len(t, executor.requests, 1)
+	})
+
+	t.Run("dependency evidence conflict with pending SQL is locked", func(t *testing.T) {
+		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
+		executor.before = func(EngineExecution) error {
+			return testEngineTechnicalError{code: "dependency_evidence_conflict", cause: errors.New("dependency changed")}
 		}
 		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
@@ -553,10 +597,10 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 		FeesSkipped: true, TracerSkipped: true,
 		Operations: []*operation.Operation{{ID: uuid.New().String(), AccountAlias: "@source", BalanceKey: constant.DefaultBalanceKey, Type: constant.ONHOLD}},
 	}
-	writeBehind := *persisted
-	writeBehind.Body.Description = "unconfirmed write-behind body"
+	loaded := *persisted
+	loaded.Body.Description = "unconfirmed pre-lock body"
 	reader := &transitionEngineReader{
-		writeBehind: &writeBehind, persisted: persisted,
+		loaded: &loaded, persisted: persisted,
 		balances: []*mmodel.Balance{
 			transitionBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@source", amount),
 			transitionBalance(organizationID, ledgerID, "55555555-5555-4555-8555-555555555555", "@target", decimal.Zero),
@@ -583,3 +627,475 @@ func transitionBalance(organizationID, ledgerID uuid.UUID, id, alias string, ava
 }
 
 var _ EngineGuardBootstrapper = (*transitionEngineExecutor)(nil)
+
+func TestPendingTransitionV1_CrossLedgerGroupRequiresV2BeforeLock(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		invoke func(*UseCase, context.Context, PendingTransitionInput) (*transaction.Transaction, error)
+	}{
+		{name: "commit", invoke: (*UseCase).CommitTransactionV1},
+		{name: "cancel", invoke: (*UseCase).CancelTransactionV1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			groupID := uuid.New().String()
+			pending := &transaction.Transaction{
+				ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+				Status: transaction.Status{Code: constant.PENDING}, GroupID: &groupID,
+			}
+			reader := &transitionEngineReader{persisted: pending}
+			executor := &transitionEngineExecutor{t: t}
+
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
+
+			_, err := tc.invoke(uc, t.Context(), in)
+			require.Error(t, err)
+
+			var business pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &business, "expected HTTP 422 business error, got %T", err)
+			assert.Equal(t, constant.ErrCrossLedgerLifecycleRequiresV2.Error(), business.Code)
+			assert.Empty(t, executor.requests)
+			assert.Empty(t, executor.guardCalls)
+		})
+	}
+}
+
+func TestPendingTransitionV2_GroupedMemberDispatchesWholeGroupBeforeLock(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		wantStatus string
+		invoke     func(*UseCase, PendingTransitionInput) (*PendingTransitionV2Result, error)
+	}{
+		{name: "commit", wantStatus: constant.APPROVED, invoke: func(uc *UseCase, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
+			return uc.CommitTransactionV2(context.Background(), in)
+		}},
+		{name: "cancel", wantStatus: constant.CANCELED, invoke: func(uc *UseCase, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
+			return uc.CancelTransactionV2(context.Background(), in)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			groupID := uuid.New()
+			groupText := groupID.String()
+			pending := &transaction.Transaction{
+				ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+				Status: transaction.Status{Code: constant.PENDING}, GroupID: &groupText,
+			}
+			want := &CreateAtomicTransactionBatchV2Result{BatchID: groupID, Transactions: []*transaction.Transaction{pending}}
+			calls := 0
+
+			uc := &UseCase{
+				TransactionReader: &transitionEngineReader{persisted: pending},
+				transitionCrossLedgerGroupV2Fn: func(_ context.Context, got PendingTransitionInput, target *transaction.Transaction, status string) (*CreateAtomicTransactionBatchV2Result, error) {
+					calls++
+					assert.Equal(t, in, got)
+					assert.Same(t, pending, target)
+					assert.Equal(t, tc.wantStatus, status)
+					return want, nil
+				},
+			}
+
+			got, err := tc.invoke(uc, in)
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Nil(t, got.Transaction)
+			assert.Same(t, want, got.Group)
+			assert.Equal(t, 1, calls)
+		})
+	}
+}
+
+// indexedPendingReader answers like the production query use case while an
+// asynchronous create has not reached PostgreSQL: the engine index resolves the
+// transaction, and the PostgreSQL row does not exist yet.
+type indexedPendingReader struct {
+	*transitionEngineReader
+	indexed            *transaction.Transaction
+	executionID        uuid.UUID
+	resolutions        int
+	lastResolutionPrim bool
+	// row is what the PostgreSQL read answers; nil means the row is missing.
+	row *transaction.Transaction
+	// resolveErr, when set, is what the engine-aware lookup fails with.
+	resolveErr error
+	// legacy is the legacy write-behind entry; nil means there is none.
+	legacy      *transaction.Transaction
+	legacyReads int
+}
+
+func (reader *indexedPendingReader) ResolveTransactionProjection(
+	ctx context.Context,
+	_, _, _ uuid.UUID,
+) (*transaction.Transaction, uuid.UUID, bool, error) {
+	reader.resolutions++
+	reader.lastResolutionPrim = readrouting.IsPrimaryRead(ctx)
+
+	if reader.resolveErr != nil {
+		return nil, uuid.Nil, false, reader.resolveErr
+	}
+
+	if reader.indexed == nil {
+		return nil, uuid.Nil, false, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
+	}
+
+	return reader.indexed, reader.executionID, true, nil
+}
+
+func (reader *indexedPendingReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	reader.legacyReads++
+
+	if reader.legacy == nil {
+		return nil, errors.New("write-behind entry not found")
+	}
+
+	return reader.legacy, nil
+}
+
+func (reader *indexedPendingReader) GetParentByTransactionID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return nil, nil
+}
+
+func (reader *indexedPendingReader) GetTransactionWithOperationsByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	if reader.row == nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
+	}
+
+	return reader.row, nil
+}
+
+func newIndexedPendingUseCase(t *testing.T, terminalStatus string) (*UseCase, *indexedPendingReader, *transitionEngineExecutor, PendingTransitionInput) {
+	t.Helper()
+	uc, base, executor, _, in := newTransitionEngineUseCase(t, terminalStatus)
+	reader := &indexedPendingReader{transitionEngineReader: base, indexed: base.persisted, executionID: uuid.New()}
+	uc.TransactionReader = reader
+
+	return uc, reader, executor, in
+}
+
+func pendingTransitionCalls() []struct {
+	name   string
+	status string
+	call   func(*UseCase, context.Context, PendingTransitionInput) (*transaction.Transaction, error)
+} {
+	return []struct {
+		name   string
+		status string
+		call   func(*UseCase, context.Context, PendingTransitionInput) (*transaction.Transaction, error)
+	}{
+		{"commit v1", constant.APPROVED, (*UseCase).CommitTransactionV1},
+		{"cancel v1", constant.CANCELED, (*UseCase).CancelTransactionV1},
+		{"commit v2", constant.APPROVED, func(uc *UseCase, ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+			result, err := uc.CommitTransactionV2(ctx, in)
+			if result == nil {
+				return nil, err
+			}
+			return result.Transaction, err
+		}},
+		{"cancel v2", constant.CANCELED, func(uc *UseCase, ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+			result, err := uc.CancelTransactionV2(ctx, in)
+			if result == nil {
+				return nil, err
+			}
+			return result.Transaction, err
+		}},
+	}
+}
+
+func TestPendingTransitionLoadsEngineIndexedTransactionBeforeProjection(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	for _, test := range pendingTransitionCalls() {
+		t.Run(test.name, func(t *testing.T) {
+			uc, reader, executor, in := newIndexedPendingUseCase(t, test.status)
+
+			got, err := test.call(uc, tmcore.ContextWithTenantID(t.Context(), "tenant-indexed"), in)
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, test.status, got.Status.Code)
+			assert.Equal(t, 2, reader.resolutions, "the load and the confirmation both resolve through the engine index")
+			require.Len(t, executor.requests, 1)
+			require.Len(t, executor.requests[0].CompletionPlans, 1)
+			require.Len(t, executor.requests[0].CompletionPlans[0].Dependencies, 1)
+			assert.Equal(t, reader.executionID, executor.requests[0].CompletionPlans[0].Dependencies[0].ExecutionID)
+		})
+	}
+}
+
+func TestPendingTransitionUnknownTransactionIsNotFoundBeforeLock(t *testing.T) {
+	for _, test := range pendingTransitionCalls() {
+		t.Run(test.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			executor := &transitionEngineExecutor{t: t}
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			uc := &UseCase{
+				TransactionReader:    &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}},
+				TransactionRedisRepo: redisRepo, Engine: executor,
+			}
+			ctx, recorder := recordingContext()
+
+			_, err := test.call(uc, ctx, in)
+
+			var notFound pkg.EntityNotFoundError
+			require.ErrorAs(t, err, &notFound)
+			assert.Equal(t, constant.ErrEntityNotFound.Error(), notFound.Code)
+			assert.Empty(t, executor.requests)
+			for _, span := range recorder.Ended() {
+				assert.NotEqualf(t, codes.Error, span.Status().Code, "a missing transaction is a business outcome; span %q turned red", span.Name())
+			}
+		})
+	}
+}
+
+// annotationTransaction is a NOTED transaction as both the legacy write-behind
+// entry and the primary row describe it.
+func annotationTransaction(in PendingTransitionInput) *transaction.Transaction {
+	return &transaction.Transaction{
+		ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+		Status: transaction.Status{Code: constant.NOTED}, CreatedAt: fixedPendingCreatedAt,
+	}
+}
+
+func TestPendingTransitionRefusesUnprojectedAnnotationLikeAPersistedOne(t *testing.T) {
+	for _, test := range pendingTransitionCalls() {
+		for _, source := range []struct {
+			name   string
+			reader func(*transaction.Transaction) *indexedPendingReader
+			legacy int
+		}{
+			{"persisted", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, indexed: noted}
+			}, 0},
+			{"legacy write-behind entry only", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, legacy: noted}
+			}, 1},
+		} {
+			t.Run(test.name+" "+source.name, func(t *testing.T) {
+				in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+				reader := source.reader(annotationTransaction(in))
+				executor := &transitionEngineExecutor{t: t}
+				ctrl := gomock.NewController(t)
+				redisRepo := txRedis.NewMockRedisRepository(ctrl)
+				redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+				uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
+
+				_, err := test.call(uc, t.Context(), in)
+
+				var conflict pkg.EntityConflictError
+				require.ErrorAs(t, err, &conflict)
+				assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), conflict.Code)
+				assert.Empty(t, executor.requests)
+				assert.Equal(t, source.legacy, reader.legacyReads)
+			})
+		}
+	}
+}
+
+func TestPendingTransitionEngineStateShadowsTheLegacyEntry(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	for _, test := range pendingTransitionCalls() {
+		t.Run(test.name, func(t *testing.T) {
+			uc, reader, executor, in := newIndexedPendingUseCase(t, test.status)
+			stale := annotationTransaction(in)
+			reader.legacy = stale
+
+			got, err := test.call(uc, tmcore.ContextWithTenantID(t.Context(), "tenant-indexed"), in)
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, test.status, got.Status.Code)
+			assert.Zero(t, reader.legacyReads, "an indexed transaction must never be read from the legacy entry")
+			require.Len(t, executor.requests, 1)
+		})
+	}
+}
+
+func TestPendingTransitionEngineLookupFailureIsNotAnAbsence(t *testing.T) {
+	for _, test := range pendingTransitionCalls() {
+		t.Run(test.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			lookupErr := errors.New("read engine transaction index: connection refused")
+			reader := &indexedPendingReader{
+				transitionEngineReader: &transitionEngineReader{}, resolveErr: lookupErr, legacy: annotationTransaction(in),
+			}
+			executor := &transitionEngineExecutor{t: t}
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
+
+			_, err := test.call(uc, t.Context(), in)
+
+			require.ErrorIs(t, err, lookupErr)
+			assert.Zero(t, reader.legacyReads)
+			assert.Empty(t, executor.requests)
+		})
+	}
+}
+
+func TestRevertRefusesUnprojectedAnnotationLikeAPersistedOne(t *testing.T) {
+	reverts := []struct {
+		name string
+		call func(*UseCase, context.Context, RevertTransactionInput) error
+	}{
+		{"v1", func(uc *UseCase, ctx context.Context, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV1(ctx, in)
+			return err
+		}},
+		{"v2", func(uc *UseCase, ctx context.Context, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV2(ctx, in)
+			return err
+		}},
+	}
+
+	for _, revert := range reverts {
+		for _, source := range []struct {
+			name   string
+			reader func(*transaction.Transaction) *indexedPendingReader
+			legacy int
+		}{
+			{"persisted", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, indexed: noted}
+			}, 0},
+			{"legacy write-behind entry only", func(noted *transaction.Transaction) *indexedPendingReader {
+				return &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}, legacy: noted}
+			}, 1},
+		} {
+			t.Run(revert.name+" "+source.name, func(t *testing.T) {
+				in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+				reader := source.reader(annotationTransaction(in))
+				executor := &transitionEngineExecutor{t: t}
+				uc := &UseCase{TransactionReader: reader, Engine: executor}
+
+				err := revert.call(uc, t.Context(), RevertTransactionInput{
+					OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
+				})
+
+				var conflict pkg.EntityConflictError
+				require.ErrorAs(t, err, &conflict)
+				assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), conflict.Code)
+				assert.Empty(t, executor.requests)
+				assert.Equal(t, source.legacy, reader.legacyReads)
+			})
+		}
+	}
+
+	t.Run("engine lookup failure propagates without the legacy entry", func(t *testing.T) {
+		in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+		lookupErr := errors.New("decode engine transaction index: corrupt")
+		reader := &indexedPendingReader{
+			transitionEngineReader: &transitionEngineReader{}, resolveErr: lookupErr, legacy: annotationTransaction(in),
+		}
+		uc := &UseCase{TransactionReader: reader, Engine: &transitionEngineExecutor{t: t}}
+
+		_, _, err := uc.RevertTransactionV2(t.Context(), RevertTransactionInput{
+			OrganizationID: in.OrganizationID, LedgerID: in.LedgerID, TransactionID: in.TransactionID,
+		})
+
+		require.ErrorIs(t, err, lookupErr)
+		assert.Zero(t, reader.legacyReads)
+	})
+}
+
+func TestPendingTransitionIndexedGroupedMemberFollowsGroupContract(t *testing.T) {
+	newGroupedIndexed := func(t *testing.T) (*UseCase, PendingTransitionInput, *transaction.Transaction, *transitionEngineExecutor) {
+		t.Helper()
+		in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+		groupID := uuid.New().String()
+		pending := &transaction.Transaction{
+			ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+			Status: transaction.Status{Code: constant.PENDING}, GroupID: &groupID,
+		}
+		executor := &transitionEngineExecutor{t: t}
+		ctrl := gomock.NewController(t)
+		redisRepo := txRedis.NewMockRedisRepository(ctrl)
+		redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+		uc := &UseCase{
+			TransactionReader: &indexedPendingReader{
+				transitionEngineReader: &transitionEngineReader{}, indexed: pending, executionID: uuid.New(),
+			},
+			TransactionRedisRepo: redisRepo, Engine: executor,
+		}
+
+		return uc, in, pending, executor
+	}
+
+	for _, invoke := range []struct {
+		name string
+		call func(*UseCase, context.Context, PendingTransitionInput) (*transaction.Transaction, error)
+	}{
+		{"commit v1", (*UseCase).CommitTransactionV1},
+		{"cancel v1", (*UseCase).CancelTransactionV1},
+	} {
+		t.Run(invoke.name+" refuses the grouped member", func(t *testing.T) {
+			uc, in, _, executor := newGroupedIndexed(t)
+
+			_, err := invoke.call(uc, t.Context(), in)
+
+			var business pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &business, "expected HTTP 422 business error, got %T", err)
+			assert.Equal(t, constant.ErrCrossLedgerLifecycleRequiresV2.Error(), business.Code)
+			assert.Empty(t, executor.requests)
+		})
+	}
+
+	for _, invoke := range []struct {
+		name   string
+		status string
+		call   func(*UseCase, context.Context, PendingTransitionInput) (*PendingTransitionV2Result, error)
+	}{
+		{"commit v2", constant.APPROVED, (*UseCase).CommitTransactionV2},
+		{"cancel v2", constant.CANCELED, (*UseCase).CancelTransactionV2},
+	} {
+		t.Run(invoke.name+" dispatches the whole group", func(t *testing.T) {
+			uc, in, pending, _ := newGroupedIndexed(t)
+			calls := 0
+			uc.transitionCrossLedgerGroupV2Fn = func(_ context.Context, _ PendingTransitionInput, target *transaction.Transaction, status string) (*CreateAtomicTransactionBatchV2Result, error) {
+				calls++
+				assert.Same(t, pending, target)
+				assert.Equal(t, invoke.status, status)
+				return &CreateAtomicTransactionBatchV2Result{}, nil
+			}
+
+			_, err := invoke.call(uc, t.Context(), in)
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, calls)
+		})
+	}
+}
+
+func TestPendingGuardConflictClassifiesAgainstEngineIndex(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	for _, test := range []struct {
+		name string
+		row  func(*transaction.Transaction) *transaction.Transaction
+	}{
+		{name: "row not projected yet", row: func(*transaction.Transaction) *transaction.Transaction { return nil }},
+		{name: "row still pending", row: func(pending *transaction.Transaction) *transaction.Transaction { return pending }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			uc, reader, executor, in := newIndexedPendingUseCase(t, constant.APPROVED)
+			reader.row = test.row(reader.indexed)
+			executor.before = func(EngineExecution) error {
+				winner := *reader.indexed
+				winner.Status.Code = constant.CANCELED
+				reader.indexed = &winner
+				return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
+			}
+			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+			_, err := uc.CommitTransactionV2(t.Context(), in)
+
+			assertBusinessCode(t, err, constant.ErrCommitTransactionNotPending.Error())
+			assert.Equal(t, 3, reader.resolutions)
+			assert.True(t, reader.lastResolutionPrim, "the conflict classification must read the primary view")
+			assert.Len(t, executor.requests, 1)
+		})
+	}
+}

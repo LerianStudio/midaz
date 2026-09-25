@@ -611,6 +611,42 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
+			Title:      "Cross-Ledger Not Enabled Error",
+			Message:    fmt.Sprintf("Ledger %v is not enabled for cross-ledger transactions. Enable crossLedger.enabled on every ledger involved.", args...),
+		},
+		constant.ErrCrossLedgerAssetMismatch: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerAssetMismatch.Error(),
+			Title:      "Cross-Ledger Asset Mismatch Error",
+			Message:    "Cross-ledger transactions must use the same asset on every leg.",
+		},
+		constant.ErrCrossLedgerRouteValidationUnsupported: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerRouteValidationUnsupported.Error(),
+			Title:      "Cross-Ledger Route Validation Unsupported Error",
+			Message:    "Cross-ledger transactions are not supported when accounting route validation is enabled on a participating ledger.",
+		},
+		constant.ErrCrossLedgerLifecycleRequiresV2: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerLifecycleRequiresV2.Error(),
+			Title:      "Cross-Ledger Lifecycle Requires V2 Error",
+			Message:    "A transaction that belongs to a cross-ledger group must be committed, canceled, or reverted through the v2 API so the complete group is transitioned atomically.",
+		},
+		constant.ErrCrossLedgerGroupIncomplete: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerGroupIncomplete.Error(),
+			Title:      "Cross-Ledger Group Incomplete Error",
+			Message:    "The cross-ledger transaction group is incomplete and cannot be transitioned safely.",
+		},
+		constant.ErrCrossLedgerGroupNotPending: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerGroupNotPending.Error(),
+			Title:      "Cross-Ledger Group Not Pending Error",
+			Message:    fmt.Sprintf("The cross-ledger transaction group is %v and can no longer be committed or canceled.", args...),
+		},
 		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrBalanceSeedRebuildInconsistent.Error(),

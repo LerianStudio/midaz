@@ -26,7 +26,9 @@ type AccountBlockException struct {
 
 // Transaction groups postings in their execution order.
 type Transaction struct {
-	ID uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organizationId"`
+	LedgerID       uuid.UUID `json:"ledgerId"`
+	ID             uuid.UUID `json:"id"`
 	// RejectBlockedBalances applies the live account-level barrier to every
 	// balance this transaction touches. Cancellation disables the barrier so
 	// held funds can always be returned.
@@ -36,9 +38,11 @@ type Transaction struct {
 	Postings              []Posting              `json:"postings"`
 }
 
-// Execution is one ordered accounting operation within an authenticated ledger
-// scope. All UUIDs must be nonzero. ExecutionID identifies one execution of an
-// action and differs between creation, commitment and cancellation.
+// Execution is one ordered accounting operation whose organization and ledger
+// identify the primary scope for receipts, guards, protection, and recovery.
+// Individual transactions and balances may belong to other scopes. All UUIDs
+// must be nonzero. ExecutionID identifies one execution of an action and differs
+// between creation, commitment and cancellation.
 // Balances is the available snapshot pool, not the set of explicit input legs.
 // Implementations validate references and numeric invariants before any writes,
 // and evaluate balance requirements against live cached values before writes.

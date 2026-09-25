@@ -77,6 +77,25 @@ type atomicTransactionBatchBudgetMeasurements struct {
 	cachedResponseBytes    []int
 }
 
+// atomicTransactionBatchMeasuredProtection mirrors the cleanup protection the
+// engine seals into the receipt; scopes are written only for a multi-scope
+// execution, one per transaction in execution order.
+type atomicTransactionBatchMeasuredProtection struct {
+	FormatVersion         int                                   `json:"formatVersion"`
+	RetentionSeconds      int64                                 `json:"retentionSeconds"`
+	Transactions          []uuid.UUID                           `json:"transactions"`
+	RecoveryFields        []string                              `json:"recoveryFields"`
+	IndexFields           []uuid.UUID                           `json:"indexFields"`
+	Acknowledged          map[string]bool                       `json:"acknowledged"`
+	TerminalCompletedAtMS map[string]int64                      `json:"terminalCompletedAtMs"`
+	Scopes                []atomicTransactionBatchMeasuredScope `json:"scopes,omitempty"`
+}
+
+type atomicTransactionBatchMeasuredScope struct {
+	OrganizationID uuid.UUID `json:"organizationId"`
+	LedgerID       uuid.UUID `json:"ledgerId"`
+}
+
 func (uc *UseCase) enforceAtomicTransactionBatchExpandedPostings(run *atomicTransactionBatchRun) error {
 	cumulative := make([]int, len(run.items))
 
@@ -206,15 +225,18 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			ExpectedToken: "",
 			NextToken:     item.status,
 		}
+
 		item.completionPlan = TransactionCompletionPlan{
 			FormatVersion:        TransactionCompletionFormatVersion,
 			TenantID:             intent.TenantID,
 			HeaderID:             headerID,
 			TransactionID:        item.transactionID,
+			ParentTransactionID:  cloneUUIDPointer(item.parentTransactionID),
+			GroupID:              run.groupID,
 			FeesSkipped:          item.honoredFeeSkip,
 			TracerSkipped:        item.honoredTracerSkip,
-			OrganizationID:       run.organizationID,
-			LedgerID:             run.ledgerID,
+			OrganizationID:       item.organizationID,
+			LedgerID:             item.ledgerID,
 			ExecutionID:          run.executionID,
 			TransactionInput:     item.input,
 			TTL:                  item.operationUpdatedAt,
@@ -227,7 +249,23 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			OperationUpdatedAt:   item.operationUpdatedAt,
 			OperationSpecs:       item.prepared.projection,
 		}
+		if run.multiScope {
+			item.completionPlan.CoordinationOrganizationID = &run.coordinationOrganizationID
+			item.completionPlan.CoordinationLedgerID = &run.coordinationLedgerID
+			item.completionPlan.ReceiptOrganizationID = &run.organizationID
+			item.completionPlan.ReceiptLedgerID = &run.ledgerID
+		}
+
 		intent.Transactions[index] = transactionCompletionIntent(item.prepared.transaction, item.completionPlan)
+	}
+
+	if run.groupID != nil {
+		plans := make([]*TransactionCompletionPlan, len(run.items))
+		for index := range run.items {
+			plans[index] = &run.items[index].completionPlan
+		}
+
+		stampTransactionCompletionMembers(plans)
 	}
 
 	fingerprint, err := ComputeEngineIntentFingerprint(intent)
@@ -279,13 +317,14 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	protectedTransactions := make([]uuid.UUID, 0, len(run.items))
 	protectedRecoveryFields := make([]string, 0, len(run.items))
 	protectedIndexFields := make([]uuid.UUID, 0, len(run.items))
+	protectedScopes := make([]atomicTransactionBatchMeasuredScope, 0, len(run.items))
 	capturedResponses := make(map[string]string, len(run.items))
 	publicResponsePayloads := make([]json.RawMessage, 0, len(run.items))
 
 	for index := range run.items {
 		item := &run.items[index]
 		expandedPostings += len(item.prepared.transaction.Postings)
-		dependencies := []TransactionEvidenceReference{}
+		dependencies := append([]TransactionEvidenceReference(nil), item.dependencies...)
 
 		dependencyPayload, err := json.Marshal(dependencies)
 		if err != nil {
@@ -301,7 +340,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			Dependencies:  dependencies,
 		})
 		plans = append(plans, item.completionPlan)
-		publicTransactions = append(publicTransactions, atomicTransactionBatchFoundationResult(run, item))
+		publicTransactions = append(publicTransactions, atomicTransactionBatchFoundationResult(item))
 
 		request := accounting.Execution{
 			OrganizationID: run.organizationID,
@@ -333,16 +372,23 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		}
 
 		result := atomicTransactionBatchBudgetResult(*item)
+
 		recovery := TransactionCompletionRecord{
 			FormatVersion:     TransactionCompletionFormatVersion,
 			TenantID:          item.completionPlan.TenantID,
-			OrganizationID:    run.organizationID,
-			LedgerID:          run.ledgerID,
+			OrganizationID:    item.organizationID,
+			LedgerID:          item.ledgerID,
 			ExecutionID:       run.executionID,
 			IntentFingerprint: run.engineIntentFingerprint,
 			TransactionID:     item.transactionID,
 			Payload:           string(item.completionPlanPayload),
 			Result:            result,
+		}
+		if run.multiScope {
+			recovery.CoordinationOrganizationID = &run.coordinationOrganizationID
+			recovery.CoordinationLedgerID = &run.coordinationLedgerID
+			recovery.ReceiptOrganizationID = &run.organizationID
+			recovery.ReceiptLedgerID = &run.ledgerID
 		}
 
 		recoveryPayload, err := json.Marshal(TransactionWriteBehindEnvelope{
@@ -356,13 +402,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 
 		recoveryField := item.transactionID.String() + ":" + run.executionID.String()
 
-		indexPayload, err := EncodeTransactionEvidenceIndex(TransactionEvidenceIndex{
-			FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: item.completionPlan.TenantID,
-			OrganizationID: run.organizationID, LedgerID: run.ledgerID, TransactionID: item.transactionID,
-			ExecutionID: run.executionID, Action: item.action, ApplicationState: TransactionApplicationConfirmed,
-			ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
-			RecoveryField: recoveryField, ReceiptField: run.executionID.String(), Dependencies: dependencies,
-		})
+		indexPayload, err := EncodeTransactionEvidenceIndex(atomicTransactionBatchMeasuredIndex(run, item, recoveryField, dependencies))
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch index: %w", err)
 		}
@@ -374,6 +414,12 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		protectedTransactions = append(protectedTransactions, item.transactionID)
 		protectedRecoveryFields = append(protectedRecoveryFields, recoveryField)
 		protectedIndexFields = append(protectedIndexFields, item.transactionID)
+
+		if run.multiScope {
+			protectedScopes = append(protectedScopes, atomicTransactionBatchMeasuredScope{
+				OrganizationID: item.organizationID, LedgerID: item.ledgerID,
+			})
+		}
 
 		responsePayload, err := json.Marshal(publicTransactions[len(publicTransactions)-1])
 		if err != nil {
@@ -398,30 +444,15 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			ExecutionID       uuid.UUID `json:"executionId"`
 			IntentFingerprint string    `json:"intentFingerprint"`
 			Response          string    `json:"response"`
-			Protection        struct {
-				FormatVersion         int              `json:"formatVersion"`
-				RetentionSeconds      int64            `json:"retentionSeconds"`
-				Transactions          []uuid.UUID      `json:"transactions"`
-				RecoveryFields        []string         `json:"recoveryFields"`
-				IndexFields           []uuid.UUID      `json:"indexFields"`
-				Acknowledged          map[string]bool  `json:"acknowledged"`
-				TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
-			} `json:"protection"`
+
+			Protection atomicTransactionBatchMeasuredProtection `json:"protection"`
 		}{
 			FormatVersion: 1, TenantID: item.completionPlan.TenantID, OrganizationID: run.organizationID,
 			LedgerID: run.ledgerID, ExecutionID: run.executionID, IntentFingerprint: run.engineIntentFingerprint,
-			Response: string(batchResponsePayload), Protection: struct {
-				FormatVersion         int              `json:"formatVersion"`
-				RetentionSeconds      int64            `json:"retentionSeconds"`
-				Transactions          []uuid.UUID      `json:"transactions"`
-				RecoveryFields        []string         `json:"recoveryFields"`
-				IndexFields           []uuid.UUID      `json:"indexFields"`
-				Acknowledged          map[string]bool  `json:"acknowledged"`
-				TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
-			}{
+			Response: string(batchResponsePayload), Protection: atomicTransactionBatchMeasuredProtection{
 				FormatVersion: 2, RetentionSeconds: atomicTransactionBatchRetentionSeconds(run.idempotencyTTL),
 				Transactions: protectedTransactions, RecoveryFields: protectedRecoveryFields, IndexFields: protectedIndexFields,
-				Acknowledged: map[string]bool{}, TerminalCompletedAtMS: map[string]int64{},
+				Acknowledged: map[string]bool{}, TerminalCompletedAtMS: map[string]int64{}, Scopes: protectedScopes,
 			},
 		})
 		if err != nil {
@@ -445,6 +476,25 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	}
 
 	return measurements, nil
+}
+
+// atomicTransactionBatchMeasuredIndex mirrors the transaction index entry the
+// engine writes, which always names the receipt scope.
+func atomicTransactionBatchMeasuredIndex(
+	run *atomicTransactionBatchRun,
+	item *atomicTransactionBatchItemRun,
+	recoveryField string,
+	dependencies []TransactionEvidenceReference,
+) TransactionEvidenceIndex {
+	return TransactionEvidenceIndex{
+		FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: item.completionPlan.TenantID,
+		OrganizationID: item.organizationID, LedgerID: item.ledgerID, TransactionID: item.transactionID,
+		ExecutionID: run.executionID, Action: item.action, ApplicationState: TransactionApplicationConfirmed,
+		ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+		RecoveryField: recoveryField, ReceiptField: run.executionID.String(),
+		ReceiptOrganizationID: cloneUUIDPointer(&run.organizationID), ReceiptLedgerID: cloneUUIDPointer(&run.ledgerID),
+		Dependencies: dependencies,
+	}
 }
 
 func encodeAtomicTransactionBatchCachedBudget(
@@ -471,23 +521,27 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 		return nil, errors.New("atomic transaction batch has no prepared items")
 	}
 
-	shared := run.items[0].prepared.pool.Snapshots
+	byRef := make(map[string]accounting.BalanceSnapshot)
 
-	byRef := make(map[string]accounting.BalanceSnapshot, len(shared))
-	for _, snapshot := range shared {
-		byRef[snapshot.BalanceRef] = snapshot
+	for index := range run.items {
+		for _, snapshot := range run.items[index].prepared.pool.Snapshots {
+			byRef[atomicTransactionBatchScopedSnapshotRef(snapshot)] = snapshot
+		}
 	}
 
-	seen := make(map[string]struct{}, len(shared))
-	ordered := make([]accounting.BalanceSnapshot, 0, len(shared))
+	seen := make(map[string]struct{}, len(byRef))
+	ordered := make([]accounting.BalanceSnapshot, 0, len(byRef))
 
 	prefixes := make([][]accounting.BalanceSnapshot, len(run.items))
 	for index := range run.items {
+		item := &run.items[index]
 		for _, balance := range run.items[index].prepared.pool.ExplicitBalances {
 			ref := atomicTransactionBatchPreparedBalanceRef(balance)
-			if snapshot, ok := byRef[ref]; ok {
-				if _, exists := seen[ref]; !exists {
-					seen[ref] = struct{}{}
+
+			scopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, ref)
+			if snapshot, ok := byRef[scopedRef]; ok {
+				if _, exists := seen[scopedRef]; !exists {
+					seen[scopedRef] = struct{}{}
 
 					ordered = append(ordered, snapshot)
 				}
@@ -498,9 +552,11 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 			}
 
 			companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
-			if snapshot, ok := byRef[companionRef]; ok {
-				if _, exists := seen[companionRef]; !exists {
-					seen[companionRef] = struct{}{}
+
+			companionScopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, companionRef)
+			if snapshot, ok := byRef[companionScopedRef]; ok {
+				if _, exists := seen[companionScopedRef]; !exists {
+					seen[companionScopedRef] = struct{}{}
 
 					ordered = append(ordered, snapshot)
 				}
@@ -510,11 +566,19 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 		prefixes[index] = append([]accounting.BalanceSnapshot(nil), ordered...)
 	}
 
-	if len(seen) != len(shared) {
+	if len(seen) != len(byRef) {
 		return nil, errors.New("atomic transaction batch shared pool contains an unowned execution balance")
 	}
 
 	return prefixes, nil
+}
+
+func atomicTransactionBatchScopedSnapshotRef(snapshot accounting.BalanceSnapshot) string {
+	return atomicTransactionBatchScopedRef(snapshot.OrganizationID, snapshot.LedgerID, snapshot.BalanceRef)
+}
+
+func atomicTransactionBatchScopedRef(organizationID, ledgerID uuid.UUID, ref string) string {
+	return organizationID.String() + ":" + ledgerID.String() + ":" + ref
 }
 
 func atomicTransactionBatchPreparedBalanceRef(balance *mmodel.Balance) string {

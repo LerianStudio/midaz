@@ -36,6 +36,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
@@ -59,6 +60,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -249,6 +251,158 @@ func TestIntegrationEngineWriteBehindHTTPGetResolvesMissingAndOperationlessTrans
 			assert.Equal(t, []any{}, get.decoded["operations"])
 			assert.Equal(t, "false", get.header.Get("X-Cache-Hit"))
 		})
+	}
+}
+
+func TestIntegrationEngineWriteBehindHTTPCommitsAndCancelsBeforeProjection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	infra := setupEngineWriteBehindHTTPIntegration(t)
+	producer, err := ledgerRabbitMQ.NewSingleTenantEngineWriteBehindProducer(
+		infra.rabbitConn, infra.exchange, infra.routingKey, time.Second,
+	)
+	require.NoError(t, err)
+	infra.command.TransactionWriteBehindDispatcher = engineWriteBehindDispatcher{publisher: producer}
+	app := infra.newHTTPApp("")
+	dispatcher := requireRabbitTransactionDispatcher(t, infra.command, rabbitEngineSingleTenant, false)
+
+	for _, testCase := range []struct {
+		version string
+		action  string
+		status  string
+	}{
+		{version: "v1", action: "commit", status: constant.APPROVED},
+		{version: "v1", action: "cancel", status: constant.CANCELED},
+		{version: "v2", action: "commit", status: constant.APPROVED},
+		{version: "v2", action: "cancel", status: constant.CANCELED},
+	} {
+		t.Run(testCase.version+" "+testCase.action, func(t *testing.T) {
+			ctx := context.Background()
+			aliases := infra.seedTransfer(t, "lifecycle-"+testCase.version+"-"+testCase.action+"-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
+			created := infra.postPendingCreate(t, app, testCase.version, aliases)
+			require.Equalf(t, http.StatusCreated, created.status, "async pending create must return 201: %s", created.body)
+			transactionID := created.transactionID(t)
+			infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+			infra.requireBalance(t, ctx, aliases.source, 900, 100)
+
+			transition := infra.postTransition(t, app, testCase.version, transactionID, testCase.action)
+			require.Equalf(t, http.StatusCreated, transition.status, "%s before projection must succeed: %s", testCase.action, transition.body)
+			require.Equal(t, transactionID, transition.transactionID(t))
+			status, ok := transition.decoded["status"].(map[string]any)
+			require.Truef(t, ok, "response must carry a status object: %s", transition.body)
+			assert.Equal(t, testCase.status, status["code"])
+			infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+
+			if testCase.status == constant.APPROVED {
+				infra.requireBalance(t, ctx, aliases.source, 900, 0)
+				infra.requireBalance(t, ctx, aliases.destination, 100, 0)
+			} else {
+				infra.requireBalance(t, ctx, aliases.source, 1000, 0)
+			}
+
+			repeated := infra.postTransition(t, app, testCase.version, transactionID, testCase.action)
+			require.NotEqualf(t, http.StatusCreated, repeated.status, "a second %s must be refused: %s", testCase.action, repeated.body)
+			// The pending lock still held by the first transition or the terminal
+			// status refuses the repeat; either way no second movement happens.
+			assert.Contains(t, []any{constant.ErrPendingTransactionLocked.Error(), constant.ErrCommitTransactionNotPending.Error()}, repeated.decoded["code"])
+
+			for range 2 {
+				delivery, queued, err := infra.rabbit.Channel.Get(infra.queue, false)
+				require.NoError(t, err)
+				require.True(t, queued, "the create and the transition must each publish their evidence")
+				require.NoError(t, dispatcher.handle(ctx, delivery.Body))
+				require.NoError(t, delivery.Ack(false))
+			}
+
+			_, queued, err := infra.rabbit.Channel.Get(infra.queue, true)
+			require.NoError(t, err)
+			assert.False(t, queued, "the refused repeat must not publish evidence")
+
+			var projected string
+			require.NoError(t, infra.db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, transactionID).Scan(&projected))
+			assert.Equal(t, testCase.status, projected)
+			if testCase.status == constant.APPROVED {
+				infra.requireBalance(t, ctx, aliases.source, 900, 0)
+				infra.requireBalance(t, ctx, aliases.destination, 100, 0)
+			} else {
+				infra.requireBalance(t, ctx, aliases.source, 1000, 0)
+			}
+		})
+	}
+}
+
+func TestIntegrationEngineWriteBehindHTTPServesAnnotationBeforeProjection(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	infra := setupEngineWriteBehindHTTPIntegration(t)
+	producer := &heldBalanceOperationProducer{}
+	infra.command.RabbitMQRepo = producer
+	app := infra.newHTTPApp("")
+	ctx := context.Background()
+
+	aliases := infra.seedTransfer(t, "annotation-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
+	created := infra.postAnnotationCreate(t, app, aliases)
+	require.Equalf(t, http.StatusCreated, created.status, "async annotation create must return 201: %s", created.body)
+	transactionID := created.transactionID(t)
+	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+	require.Len(t, producer.messages, 1, "the annotation must be queued for projection, not written")
+
+	for _, version := range []string{"v1", "v2"} {
+		get := infra.getTransaction(t, app, version, transactionID)
+		require.Equalf(t, http.StatusOK, get.status, "%s GET before projection must find the annotation: %s", version, get.body)
+		assert.Equal(t, transactionID.String(), get.decoded["id"])
+		status, ok := get.decoded["status"].(map[string]any)
+		require.Truef(t, ok, "response must carry a status object: %s", get.body)
+		assert.Equal(t, constant.NOTED, status["code"])
+	}
+
+	lifecycle := []struct{ version, action string }{
+		{"v1", "commit"},
+		{"v1", "cancel"},
+		{"v1", "revert"},
+		{"v2", "commit"},
+		{"v2", "cancel"},
+		{"v2", "revert"},
+	}
+	refuse := func(stage string) map[string]engineWriteBehindHTTPResponse {
+		refusals := make(map[string]engineWriteBehindHTTPResponse, len(lifecycle))
+		for _, call := range lifecycle {
+			response := infra.postTransition(t, app, call.version, transactionID, call.action)
+			assert.Equalf(t, http.StatusConflict, response.status, "%s %s %s of an annotation: %s", stage, call.version, call.action, response.body)
+			assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), response.decoded["code"], "%s %s %s of an annotation: %s", stage, call.version, call.action, response.body)
+			refusals[call.version+" "+call.action] = response
+		}
+
+		return refusals
+	}
+
+	beforeProjection := refuse("before projection")
+	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+
+	var queued mmodel.Queue
+	require.NoError(t, msgpack.Unmarshal(producer.messages[0], &queued))
+	require.NoError(t, infra.command.CreateBalanceTransactionOperationsAsync(ctx, queued))
+
+	var projected string
+	require.NoError(t, infra.db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, transactionID).Scan(&projected))
+	require.Equal(t, constant.NOTED, projected)
+
+	afterProjection := refuse("after projection")
+	for call, response := range afterProjection {
+		assert.Equalf(t, response.status, beforeProjection[call].status, "%s must refuse the same way before and after projection", call)
+		assert.Equalf(t, response.decoded["code"], beforeProjection[call].decoded["code"], "%s must refuse the same way before and after projection", call)
 	}
 }
 
@@ -583,6 +737,55 @@ func (infra *engineWriteBehindHTTPIntegration) postCreate(tb testing.TB, app *fi
 	return performEngineWriteBehindHTTPRequest(t, app, request)
 }
 
+func (infra *engineWriteBehindHTTPIntegration) postAnnotationCreate(tb testing.TB, app *fiber.App, aliases engineWriteBehindAliases) engineWriteBehindHTTPResponse {
+	tb.Helper()
+	t := tb
+	path := "/v1/organizations/" + infra.organization.String() + "/ledgers/" + infra.ledger.String() + "/transactions/annotation"
+	body := fmt.Sprintf(`{"description":"async annotation","send":{"asset":"USD","value":"100","source":{"from":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]},"distribute":{"to":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]}}}`, aliases.source, aliases.destination)
+
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Idempotency", "annotation-"+uuid.NewString())
+
+	return performEngineWriteBehindHTTPRequest(t, app, request)
+}
+
+func (infra *engineWriteBehindHTTPIntegration) postPendingCreate(tb testing.TB, app *fiber.App, version string, aliases engineWriteBehindAliases) engineWriteBehindHTTPResponse {
+	tb.Helper()
+	t := tb
+	path := "/v1/organizations/" + infra.organization.String() + "/ledgers/" + infra.ledger.String() + "/transactions/json"
+	body := fmt.Sprintf(`{"description":"async pending","pending":true,"send":{"asset":"USD","value":"100","source":{"from":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]},"distribute":{"to":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]}}}`, aliases.source, aliases.destination)
+	if version == "v2" {
+		path = "/v2/transactions/hold"
+		body = fmt.Sprintf(`{"description":"async pending","asset":"USD","amount":"100","debits":[{"alias":%q,"organizationId":%q,"ledgerId":%q,"amount":"100"}],"credits":[{"alias":%q,"organizationId":%q,"ledgerId":%q,"amount":"100"}]}`,
+			aliases.source, infra.organization.String(), infra.ledger.String(), aliases.destination, infra.organization.String(), infra.ledger.String())
+	}
+
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Idempotency", "pending-lifecycle-"+uuid.NewString())
+
+	return performEngineWriteBehindHTTPRequest(t, app, request)
+}
+
+func (infra *engineWriteBehindHTTPIntegration) postTransition(tb testing.TB, app *fiber.App, version string, transactionID uuid.UUID, action string) engineWriteBehindHTTPResponse {
+	tb.Helper()
+	t := tb
+	path := "/" + version + "/organizations/" + infra.organization.String() + "/ledgers/" + infra.ledger.String() + "/transactions/" + transactionID.String() + "/" + action
+
+	return performEngineWriteBehindHTTPRequest(t, app, httptest.NewRequest(http.MethodPost, path, nil))
+}
+
+func (infra *engineWriteBehindHTTPIntegration) requireBalance(tb testing.TB, ctx context.Context, alias string, available, onHold int64) {
+	tb.Helper()
+	t := tb
+	current, err := infra.redisRepo.ListBalanceByKey(ctx, infra.organization, infra.ledger, alias+"#default")
+	require.NoError(t, err)
+	require.NotNil(t, current)
+	assert.Truef(t, current.Available.Equal(decimal.NewFromInt(available)), "%s available: got %s, want %d", alias, current.Available, available)
+	assert.Truef(t, current.OnHold.Equal(decimal.NewFromInt(onHold)), "%s on hold: got %s, want %d", alias, current.OnHold, onHold)
+}
+
 // createTransactionWithoutOperations persists only the transaction row, the
 // shape a reader observes while the legacy persistence path has written the row
 // but not yet its operations.
@@ -668,5 +871,27 @@ func (infra *engineWriteBehindHTTPIntegration) requireProjection(tb testing.TB, 
 	assert.Equal(t, operations, operationCount)
 	assert.Equal(t, metadata, metadataCount)
 }
+
+// heldBalanceOperationProducer accepts the legacy projection message without
+// delivering it, so a test controls when the annotation reaches PostgreSQL.
+type heldBalanceOperationProducer struct {
+	messages [][]byte
+}
+
+func (producer *heldBalanceOperationProducer) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
+	return producer.ProducerDefaultWithContext(ctx, exchange, key, message)
+}
+
+func (producer *heldBalanceOperationProducer) ProducerDefaultWithContext(_ context.Context, _, _ string, message []byte) (*string, error) {
+	producer.messages = append(producer.messages, bytes.Clone(message))
+
+	return nil, nil
+}
+
+func (*heldBalanceOperationProducer) CheckRabbitMQHealth() bool { return true }
+
+func (*heldBalanceOperationProducer) Close() error { return nil }
+
+var _ ledgerRabbitMQ.ProducerRepository = (*heldBalanceOperationProducer)(nil)
 
 var _ ledgerRabbitMQ.ChannelProvider = integrationTenantChannelProvider{}

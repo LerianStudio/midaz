@@ -22,7 +22,7 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 	run *atomicTransactionBatchRun,
 	outcome EngineExecutionOutcome,
 ) ([]*transaction.Transaction, error) {
-	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome)
+	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome, run)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,52 @@ func (uc *UseCase) completeAtomicTransactionBatchFallback(
 	envelopes []*TransactionWriteBehindEnvelope,
 ) ([]TransactionCompletionResult, error) {
 	if bulk, ok := uc.AppliedTransactionCompleter.(AppliedTransactionBulkCompleter); ok {
-		return CompleteTransactionWriteBehindBulk(ctx, envelopes, uc.TransactionEvidenceResolver, bulk)
+		type completionScope struct {
+			organizationID string
+			ledgerID       string
+		}
+
+		type scopedEnvelope struct {
+			index    int
+			envelope *TransactionWriteBehindEnvelope
+		}
+
+		order := make([]completionScope, 0)
+		groups := make(map[completionScope][]scopedEnvelope)
+
+		for index, envelope := range envelopes {
+			scope := completionScope{
+				organizationID: envelope.Record.OrganizationID.String(),
+				ledgerID:       envelope.Record.LedgerID.String(),
+			}
+			if _, exists := groups[scope]; !exists {
+				order = append(order, scope)
+			}
+
+			groups[scope] = append(groups[scope], scopedEnvelope{index: index, envelope: envelope})
+		}
+
+		completions := make([]TransactionCompletionResult, len(envelopes))
+
+		for _, scope := range order {
+			group := groups[scope]
+
+			batch := make([]*TransactionWriteBehindEnvelope, len(group))
+			for index := range group {
+				batch[index] = group[index].envelope
+			}
+
+			completed, err := CompleteTransactionWriteBehindBulk(ctx, batch, uc.TransactionEvidenceResolver, bulk)
+			if err != nil {
+				return nil, err
+			}
+
+			for index := range completed {
+				completions[group[index].index] = completed[index]
+			}
+		}
+
+		return completions, nil
 	}
 
 	completions := make([]TransactionCompletionResult, len(envelopes))
@@ -136,8 +181,8 @@ func (uc *UseCase) completeAtomicTransactionBatchFallback(
 	return completions, nil
 }
 
-func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome) ([]*TransactionWriteBehindEnvelope, error) {
-	records, err := atomicTransactionBatchCompletionRecords(outcome)
+func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome, run *atomicTransactionBatchRun) ([]*TransactionWriteBehindEnvelope, error) {
+	records, err := atomicTransactionBatchCompletionRecords(outcome, run)
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +203,7 @@ func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome) 
 
 func atomicTransactionBatchCompletionRecords(
 	outcome EngineExecutionOutcome,
+	run *atomicTransactionBatchRun,
 ) ([]*TransactionCompletionRecord, error) {
 	if !outcome.Executed || outcome.Result == nil {
 		return nil, invalidEngineResult(errors.New("successful atomic batch has no engine result"))
@@ -191,6 +237,12 @@ func atomicTransactionBatchCompletionRecords(
 			TransactionID:     plan.TransactionID,
 			Payload:           string(embedded.Payload),
 			Result:            outcome.Partitions[index],
+		}
+		if run != nil && run.multiScope {
+			records[index].CoordinationOrganizationID = &run.coordinationOrganizationID
+			records[index].CoordinationLedgerID = &run.coordinationLedgerID
+			records[index].ReceiptOrganizationID = &run.organizationID
+			records[index].ReceiptLedgerID = &run.ledgerID
 		}
 	}
 

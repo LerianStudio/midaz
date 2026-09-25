@@ -11,7 +11,7 @@ atomic execution.
 | `json.lua` | Exact JSON parsing and deterministic serialization, including preservation of large numeric tokens. |
 | `protocol.lua` | Shared protocol primitives and validation of text, UUIDs, integers, references, and money. |
 | `balance_cache.lua` | Compatibility decoding, validation, and encoding of live balance-cache records. |
-| `request.lua` | Redis key-type checks and validation of the complete execution request. |
+| `request.lua` | Redis key-type checks and validation of the protocol-v3 execution request, including per-balance and per-transaction scope. |
 | `receipt.lua` | Validation and replay of engine execution receipts; this closes the lost-response window independently of HTTP idempotency. |
 | `posting_algebra.lua` | Monetary meaning of each supported posting type. |
 | `execution.lua` | Protection checks, live-state loading, in-memory application, write preparation, and commit. |
@@ -87,19 +87,23 @@ seconds plus fractional microseconds.
 
 ## Declared key layout
 
-`KEYS[1..7]` are the schedule, recovery, receipt, guard, protection, transaction-index, and evidence
-transaction-state index keys. The state index is scoped by tenant,
-organization, and ledger; its transaction field points to the current
-execution's receipt and immutable recovery evidence. A dependency is accepted
-only while that index still names the referenced execution and both evidence
-records remain present.
+`KEYS[1..7]` are the schedule, recovery, receipt, guard, protection,
+transaction-index, and evidence keys for the execution's primary scope. The
+receipt remains in that scope. Each transaction's guard, protection, index,
+and evidence live in the scope of that transaction. Its index records the
+scope of the receipt that wrote it. A dependency is accepted only while the
+index still names the referenced execution and both evidence and receipt
+remain present.
 Each balance then contributes one ordered triplet: live balance, dedicated
 deletion marker, and compatibility deletion marker. After all balance triplets,
 each transaction that presents an account-block exception contributes exactly
 one grant key, in transaction order. The request carries the corresponding
 one-based key index; Lua verifies the tail position and exception-ID suffix.
+Balance triplets and grant keys are derived from their balance or transaction scope;
+logical balance references are indexed by organization, ledger, and reference
+inside Lua so equal aliases in different ledgers cannot collide.
 
-The inventory closes with one triplet per account of the balance pool, in
+The account block has one triplet per account of the balance pool, in
 ascending account order: the account-closing marker, the account-closed marker,
 and the administrative ownership key. Every one of them carries the complete
 organization, ledger, and account scope, and Lua verifies that each ends in its
@@ -107,6 +111,13 @@ own account identifier. The request declares those accounts in the same order,
 each with the administrative admission token its caller holds — empty when the
 caller owns none. The token is private to that boundary and reaches no receipt,
 recovery record, or public contract.
+
+For multi-scope executions, five keys per additional transaction scope follow
+the account block: receipt, guard, protection, transaction index, and evidence.
+They are ordered by organization and ledger ID. The receipt key for an
+additional scope is available to validate a dependency on an earlier execution
+whose primary scope was that ledger; the new execution still writes one receipt
+at `KEYS[3]`. A single-scope request has no added keys or `scopeKeys` field.
 
 A valid stored receipt is checked before the live grant. Replaying the same
 execution therefore returns its prior result after the grant has been consumed;

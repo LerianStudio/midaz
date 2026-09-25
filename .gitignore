@@ -13,6 +13,7 @@ tmp/
 .run/transaction.run.xml
 .ring/
 docs/ring*/
+docs/.plans/
 .worktrees/
 
 # OS generated files

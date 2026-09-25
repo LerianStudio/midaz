@@ -170,6 +170,8 @@ func TestLoadEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pool.Snapshots, 1)
 	assert.Equal(t, accounting.BalanceSnapshot{
+		OrganizationID:        organizationID,
+		LedgerID:              ledgerID,
 		BalanceRef:            "@alice#available",
 		ID:                    balanceID,
 		AccountID:             accountID,
