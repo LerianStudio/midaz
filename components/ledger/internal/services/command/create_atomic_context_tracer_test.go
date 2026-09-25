@@ -93,9 +93,9 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 					return nil
 				})
 			}
-			if scenario == "allow" || scenario == "second denies" || scenario == "accounting refusal" {
+			if scenario == "allow" || scenario == "second denies" || scenario == "accounting refusal" || scenario == "fence unknown" {
 				outcome := tracerreservation.Confirmed
-				if scenario == "second denies" || scenario == "accounting refusal" {
+				if scenario == "second denies" || scenario == "accounting refusal" || scenario == "fence unknown" {
 					outcome = tracerreservation.Released
 				}
 				store.EXPECT().SetOutcome(gomock.Any(), gomock.Any(), outcome, now).Return(nil).Times(2)
