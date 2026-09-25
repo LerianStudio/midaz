@@ -32,14 +32,20 @@ not certify the remote Tracer's version, policies or readiness.
    migration followed by an ordinary mixed-version rolling update is unsafe.
    Apply the forward Tracer and Ledger transaction migrations using the normal
    runner, then start only compatible Tracer instances and verify their configured
-   transport/profile before resuming traffic. Preserve reservation, limit and
-   counter IDs. Migration 000030 bounds lock acquisition to five seconds; if it
+   transport/profile. Keep participating ledgers in `mode=off` and transaction
+   admission paused until the activation sequence in step 7 completes. Preserve
+   reservation, limit and counter IDs. Migration 000030 bounds lock acquisition to five seconds; if it
    times out, investigate remaining database users rather than retrying against
    live traffic. Index construction still requires the maintenance window.
    Rehearse with existing usage and pending holds; an empty database is
    insufficient evidence. Zero-downtime rollout requires a separate
    expand/contract migration design, not an exception to this procedure.
-4. Resolve each participating account's official asset within its Ledger scope.
+4. While participating ledgers remain `mode=off`, provision separate producer
+   bindings for `asset-admin` and `reserve`. Enable `CONTEXT_LIMIT_ADMIN_ENABLED`
+   with native mTLS and the required Access Manager permission, but keep
+   `CONTEXT_RESERVE_ENABLED=false` and `TRACER_CONTEXT_ENABLED=false`. Verify the
+   administrative certificate before changing financial data. Then resolve each
+   participating account's official asset within its Ledger scope.
    Associate eligible limits through `PUT /v1/limits/{id}/asset-reference`, using
    verified producer mTLS plus the required administrative permission. Its body
    contains official `accountAssets`; the certificate fixes the namespace.
@@ -99,16 +105,21 @@ not certify the remote Tracer's version, policies or readiness.
    also increase static cost. Do not reduce budgets on a live binding without
    this check and a coordinated replacement; bootstrap alone does not scan all
    tenant policies or certify compatibility after reconfiguration.
-7. Provision producer certificate bindings and matching integration/namespace
-   settings. Each binding must explicitly grant `purposes`: `reserve` for
-   admission/completion or `asset-admin` for asset associations. Provision
-   separate certificates for the Ledger and administrative tooling; sharing a
-   namespace does not grant the other purpose. Administrative access additionally
-   requires Access Manager permission. Missing/unknown purposes fail bootstrap.
-   Enable Tracer's shared Reserve and Ledger's context runtime only with
-   compatible artifacts and explicit resource budgets. Mesh mode is not supported
-   for this profile. Prevent mixed incompatible callers at the routing boundary;
-   the old Ledger gRPC Reserve method is not a fallback for the new contract.
+7. Render the final Tracer and Ledger environments with matching integration,
+   namespace and resource settings, then run `check-integration-profile` against
+   those rendered files. Keep transaction admission paused and every participating
+   ledger in `mode=off`. Enable `CONTEXT_RESERVE_ENABLED=true` on compatible Tracer
+   replicas, verify their readiness and shared Reserve contract, and then enable
+   `TRACER_CONTEXT_ENABLED=true` on compatible Ledger replicas. Do not let a legacy
+   caller reach the context-enabled reservation route during this transition.
+   Verify completion/recovery and the checker again against the deployed values;
+   only then resume traffic and move selected ledgers from `off` to `advisory`.
+   Restore `enforce` only after the advisory evidence passes its acceptance gates.
+   Shared resource keys may use the documented defaults when absent, but the two
+   rendered sides must agree. Empty rendered values are invalid and do not select
+   defaults. Mesh mode is not supported for this profile. The old Ledger gRPC
+   Reserve method is not a fallback for the new contract.
+
    `TRACER_CONTEXT_ENABLED` is deployment-wide: it switches every participating
    advisory/enforce ledger across all served tenants. Prepare their complete
    policy/limit inventory before enabling it; this flag is not a per-ledger
@@ -171,7 +182,7 @@ journal writes continue to block regardless of posture.
 
 ### Resource defaults and alignment
 
-Absent resource variables now receive bootstrap defaults, using a shared profile
+Absent resource variables receive bootstrap defaults, using a shared profile
 for 128 accounts, 512 entries, 256-byte text, 128 integer/significant fractional
 digits, a 1 MiB body and 1024 reservations. Additional CEL/cache/recovery defaults
 are listed in each `.env.example`. These are technical ceilings, not a currency
@@ -193,7 +204,9 @@ go run ./components/tracer/cmd/check-integration-profile \
 ```
 
 The command applies the same shared defaults to absent resource keys and exits
-nonzero when resource profiles differ. It also requires both context activation
+nonzero when resource profiles differ. A key rendered with an empty value is
+explicit and fails validation; it does not receive the absent-key default. The
+checker also requires both context activation
 flags to be explicitly true, verifies that a Tracer producer binding with the
 `reserve` purpose matches the Ledger integration and asset namespace, and checks
 that recovery can cover the configured transaction batch size. It does not print
