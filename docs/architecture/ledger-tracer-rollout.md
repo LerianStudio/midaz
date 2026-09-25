@@ -199,14 +199,20 @@ prove deployed manifests match those files. Run it on the actual rendered files
 in the deployment gate; comparing only examples is not environment evidence.
 
 Before setting `TRACER_CONTEXT_ENABLED=false`, stop new admissions and drain
-all obligations while recovery remains enabled. Ledger bootstrap now checks the
-transaction primary (every active tenant in multi-tenant mode) and refuses to
-start disabled if any obligation is undelivered or inspection fails. The check
-has a 30-second overall deadline and does not require the removed producer
-credentials. An absent journal is accepted for installations predating the
-migration. This guard cannot prevent writes from old running pods after the
-check, inspect tenants removed from the active catalog, or protect a rollback
-to a binary without the guard; coordinated drainage remains mandatory.
+all obligations while recovery remains enabled. Keep `TRACER_INTEGRATION_ID` or
+`TRACER_ASSET_NAMESPACE` configured during the disabled boot: either value marks
+that the shared profile was previously used and activates the drain guard. Remove
+both only after the guarded boot succeeds. The default configuration and a legacy
+REST-only integration do not query the tenant catalog at boot.
+
+The guard checks the transaction primary for every eligible active tenant and
+refuses to start disabled if an obligation is undelivered or a participating
+database cannot be inspected. Invalid/inactive catalog rows and tenants without
+transaction storage are skipped consistently with the recovery worker. The check
+has a 30-second overall deadline. An absent journal is accepted for installations
+predating the migration. This guard cannot prevent writes from old running pods
+after the check, inspect tenants removed from the active catalog, or protect a
+rollback to a binary without the guard; coordinated drainage remains mandatory.
 
 Use `tracer_coordination_total`, `tracer_coordination_duration_ms` and
 `tracer_obligation_age_ms` with their bounded labels. Age observations cover
