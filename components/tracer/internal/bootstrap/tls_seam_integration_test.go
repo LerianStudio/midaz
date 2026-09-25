@@ -76,7 +76,7 @@ func TestReservationMTLS(t *testing.T) {
 			Reserve(ctx, &reservationv1.ReserveRequest{TransactionId: "tx-1"})
 		require.NoError(t, err, "CA-signed client must complete the RPC")
 		require.NotNil(t, resp)
-		require.True(t, resp.GetDenied(), "stub returns the sentinel denied=true")
+		require.Equal(t, "DENY", resp.GetDecision(), "stub returns the sentinel decision")
 
 		// Uncertified client: server verifies the CA but presents NO client
 		// cert, so the handshake must fail and the RPC must error.
@@ -203,7 +203,7 @@ type deniedReservationServer struct {
 }
 
 func (deniedReservationServer) Reserve(context.Context, *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-	return &reservationv1.ReserveResult{TransactionId: "tx-1", Denied: true}, nil
+	return &reservationv1.ReserveResult{TransactionId: "tx-1", Decision: "DENY"}, nil
 }
 
 // writeMTLSConfig materializes the fixture certs to disk and returns a Config
