@@ -38,6 +38,25 @@ func TestNewListLimitsQuery_NilRepository(t *testing.T) {
 	assert.Nil(t, query)
 }
 
+func TestListLimitsAssetSemanticsFollowDeploymentProfile(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		repo := NewMockLimitRepository(gomock.NewController(t))
+		q, err := NewListLimitsQuery(repo)
+		require.NoError(t, err)
+		q.NativeAssetCodes = native
+		code, expected := "usd", "USD"
+		if native {
+			expected = code
+		}
+		repo.EXPECT().List(gomock.Any(), gomock.Cond(func(value any) bool {
+			filter, ok := value.(*model.ListLimitsFilter)
+			return ok && filter.Asset != nil && *filter.Asset == expected
+		})).Return(&model.ListLimitsResult{}, nil)
+		_, err = q.Execute(t.Context(), &model.ListLimitsFilter{Asset: &code})
+		require.NoError(t, err)
+	}
+}
+
 func TestListLimitsQuery_Execute(t *testing.T) {
 	now := testutil.FixedTime().UTC()
 

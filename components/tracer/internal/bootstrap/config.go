@@ -1072,7 +1072,7 @@ type limitServiceDeps struct {
 // tenant pool fails fast in MT mode rather than silently using root (M1).
 // The txBeginner is shared with the validation service so the limit lifecycle
 // commands persist the status/update and the audit event atomically.
-func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
+func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
 	limitRepo := postgres.NewLimitRepositoryWithConnection(pgConn)
 
 	usageCounterRepo := postgres.NewUsageCounterRepositoryWithConnection(pgConn)
@@ -1083,6 +1083,7 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 	}
 
 	createLimitCmd.Streaming = streaming
+	createLimitCmd.NativeAssetCodes = cfg.ContextReserveEnabled
 
 	updateLimitCmd, err := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
@@ -1125,6 +1126,8 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list limits query: %w", err)
 	}
+
+	listLimitsQuery.NativeAssetCodes = cfg.ContextReserveEnabled
 
 	service := services.NewLimitService(createLimitCmd, updateLimitCmd, activateLimitCmd, deactivateLimitCmd, draftLimitCmd, deleteLimitCmd, getLimitQuery, listLimitsQuery, usageCounterRepo)
 
@@ -2140,7 +2143,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init Limit service with audit writer for SOX/GLBA compliance
-	limitDeps, err := initLimitService(pgConn, auditWriter, clk, txBeginner, streamingEmitter)
+	limitDeps, err := initLimitService(cfg, pgConn, auditWriter, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
 	}
