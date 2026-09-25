@@ -62,8 +62,6 @@ func TestLoadContextPolicyConfig(t *testing.T) {
 	}
 	input := validContextPolicyConfig()
 	input.ContextMaxFractionDigits = "0"
-	cfg, err = loadContextPolicyConfig(input)
-	require.NoError(t, err)
-	require.Zero(t, cfg.CEL.Limits.MaxFractionDigits)
-	require.Equal(t, input.ContextMaxRules, cfg.Policy.MaxRules)
+	_, err = loadContextPolicyConfig(input)
+	require.Error(t, err)
 }

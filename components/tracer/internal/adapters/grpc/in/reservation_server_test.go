@@ -64,6 +64,30 @@ func TestNewReservationServer_NilDeps(t *testing.T) {
 	})
 }
 
+func TestContextProfileRejectsRevisionlessLegacyCompletion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	server, err := NewContextReservationServer(
+		mocks.NewMockReservationService(ctrl),
+		testutil.NewDefaultMockClock(),
+		mocks.NewMockContextReserveAdmitter(ctrl),
+		mocks.NewMockContextReserveCompleter(ctrl),
+		mocks.NewMockContextReserveIDCompleter(ctrl),
+		ContextReservationConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100},
+	)
+	require.NoError(t, err)
+
+	transactionID := uuid.New().String()
+	reservationID := uuid.New().String()
+	_, err = server.ConfirmByTransaction(t.Context(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = server.ReleaseByTransaction(t.Context(), &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = server.ConfirmById(t.Context(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = server.ReleaseById(t.Context(), &reservationv1.ReleaseByIdRequest{ReservationId: reservationID})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
 func TestReservationServer_Reserve(t *testing.T) {
 	for _, scenario := range []string{"allow", "deny", "review", "long lived", "invalid id", "zero amount", "missing presence", "identity absent", "deadline", "mismatched result", "oversize"} {
 		t.Run(scenario, func(t *testing.T) {

@@ -451,6 +451,12 @@ func TestMapGRPCError(t *testing.T) {
 	}
 }
 
+func TestMapGRPCErrorPreservesCanonicalCause(t *testing.T) {
+	err := mapGRPCError(status.Error(codes.FailedPrecondition, constant.ErrTracerContractUnavailable.Error()))
+	require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
+	require.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
 func TestContextGRPCClientCompletion(t *testing.T) {
 	for _, scenario := range []string{"confirm", "release", "before admission", "wrong transaction", "wrong revision", "wrong status", "missing evaluation with movement", "malformed evaluation", "unknown field", "unavailable"} {
 		t.Run(scenario, func(t *testing.T) {

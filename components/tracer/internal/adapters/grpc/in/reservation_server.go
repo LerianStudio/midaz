@@ -96,6 +96,10 @@ func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reser
 		return &reservationv1.ConfirmByTransactionResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), Status: result.Status, Flipped: flipped, EvaluationId: completionEvaluationID(result)}, nil
 	}
 
+	if s.admission != nil {
+		return nil, contextReservationError(constant.ErrTracerContractUnavailable)
+	}
+
 	if err := s.terminateByTransaction(ctx, "grpc.reservations.confirm_by_transaction", string(model.StatusConfirmed), req.GetTransactionId(), s.service.ConfirmByTransaction); err != nil {
 		return nil, err
 	}
@@ -125,6 +129,10 @@ func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reser
 		return &reservationv1.ReleaseByTransactionResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), Status: result.Status, Flipped: flipped, EvaluationId: completionEvaluationID(result)}, nil
 	}
 
+	if s.admission != nil {
+		return nil, contextReservationError(constant.ErrTracerContractUnavailable)
+	}
+
 	if err := s.terminateByTransaction(ctx, "grpc.reservations.release_by_transaction", string(model.StatusReleased), req.GetTransactionId(), s.service.ReleaseByTransaction); err != nil {
 		return nil, err
 	}
@@ -150,6 +158,10 @@ func (s *ReservationServer) ConfirmById(ctx context.Context, req *reservationv1.
 		return &reservationv1.ConfirmByIdResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), ReservationId: result.ReservationID.String(), Status: result.Status, EvaluationId: &evaluation}, nil
 	}
 
+	if s.admission != nil {
+		return nil, contextReservationError(constant.ErrTracerContractUnavailable)
+	}
+
 	if err := s.terminateByID(ctx, "grpc.reservations.confirm", string(model.StatusConfirmed), req.GetReservationId(), s.service.Confirm); err != nil {
 		return nil, err
 	}
@@ -173,6 +185,10 @@ func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.
 		evaluation := result.EvaluationID.String()
 
 		return &reservationv1.ReleaseByIdResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), ReservationId: result.ReservationID.String(), Status: result.Status, EvaluationId: &evaluation}, nil
+	}
+
+	if s.admission != nil {
+		return nil, contextReservationError(constant.ErrTracerContractUnavailable)
 	}
 
 	if err := s.terminateByID(ctx, "grpc.reservations.release", string(model.StatusReleased), req.GetReservationId(), s.service.Release); err != nil {

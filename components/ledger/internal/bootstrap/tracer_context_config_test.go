@@ -52,7 +52,7 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 				cfg.TransactionBatchMaxSize = cfg.TracerRecoveryBatchSize + 1
 			}
 			parsed, err := parseContextTracerConfig(&cfg, "ledger")
-			if scenario == "valid" || scenario == "zero precision" {
+			if scenario == "valid" {
 				require.NoError(t, err)
 				require.Equal(t, 250*time.Millisecond, parsed.coordinator.AdmissionTimeout)
 				require.Equal(t, parsed.operationTimeout, parsed.coordinator.AdmissionTimeout)

@@ -183,6 +183,7 @@ func contextReservationError(err error) error {
 		{constant.ErrContextLimitsUnavailable, codes.FailedPrecondition},
 		{constant.ErrExpressionCostExceeded, codes.FailedPrecondition},
 		{constant.ErrExpressionEvaluation, codes.FailedPrecondition},
+		{constant.ErrTracerContractUnavailable, codes.FailedPrecondition},
 	}
 	for _, mapping := range mappings {
 		if errors.Is(err, mapping.cause) {
