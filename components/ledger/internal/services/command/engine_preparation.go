@@ -62,31 +62,8 @@ func (uc *UseCase) prepareEngineTransactionWithPool(
 	input enginePreparationInput,
 	pool EngineSnapshotPool,
 ) (enginePreparedTransaction, error) {
-	if err := ctx.Err(); err != nil {
-		return enginePreparedTransaction{}, err
-	}
-
-	if uc == nil || uc.TransactionReader == nil || input.translation.Validate == nil {
-		return enginePreparedTransaction{}, invalidEngineTranslation("preparation requires a reader and validated intent")
-	}
-
-	ctx = readrouting.WithPrimaryRead(ctx)
-
-	itemPool, err := selectEnginePreparationPool(input, pool)
+	ctx, itemPool, operations, err := uc.engineValidationOperations(ctx, input, pool)
 	if err != nil {
-		return enginePreparedTransaction{}, err
-	}
-
-	if err := rejectInternalScopeBalances(ctx, itemPool.ExplicitBalances); err != nil {
-		return enginePreparedTransaction{}, err
-	}
-
-	operations, err := orderedEngineValidationOperations(input.translation, itemPool.ExplicitBalances)
-	if err != nil {
-		return enginePreparedTransaction{}, err
-	}
-
-	if err := ctx.Err(); err != nil {
 		return enginePreparedTransaction{}, err
 	}
 
@@ -95,6 +72,55 @@ func (uc *UseCase) prepareEngineTransactionWithPool(
 		return enginePreparedTransaction{}, err
 	}
 
+	return translatePreparedEngineTransaction(ctx, input, itemPool, routeCache)
+}
+
+// engineValidationOperations selects the item's slice of the shared snapshot
+// inventory and builds the balance operations route validation reads.
+func (uc *UseCase) engineValidationOperations(
+	ctx context.Context,
+	input enginePreparationInput,
+	pool EngineSnapshotPool,
+) (context.Context, EngineSnapshotPool, []mmodel.BalanceOperation, error) {
+	if err := ctx.Err(); err != nil {
+		return ctx, EngineSnapshotPool{}, nil, err
+	}
+
+	if uc == nil || uc.TransactionReader == nil || input.translation.Validate == nil {
+		return ctx, EngineSnapshotPool{}, nil, invalidEngineTranslation("preparation requires a reader and validated intent")
+	}
+
+	ctx = readrouting.WithPrimaryRead(ctx)
+
+	itemPool, err := selectEnginePreparationPool(input, pool)
+	if err != nil {
+		return ctx, EngineSnapshotPool{}, nil, err
+	}
+
+	if err := rejectInternalScopeBalances(ctx, itemPool.ExplicitBalances); err != nil {
+		return ctx, EngineSnapshotPool{}, nil, err
+	}
+
+	operations, err := orderedEngineValidationOperations(input.translation, itemPool.ExplicitBalances)
+	if err != nil {
+		return ctx, EngineSnapshotPool{}, nil, err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return ctx, EngineSnapshotPool{}, nil, err
+	}
+
+	return ctx, itemPool, operations, nil
+}
+
+// translatePreparedEngineTransaction translates a route-validated item into
+// engine postings and its operation projection.
+func translatePreparedEngineTransaction(
+	ctx context.Context,
+	input enginePreparationInput,
+	itemPool EngineSnapshotPool,
+	routeCache *mmodel.TransactionRouteCache,
+) (enginePreparedTransaction, error) {
 	if err := ctx.Err(); err != nil {
 		return enginePreparedTransaction{}, err
 	}

@@ -121,6 +121,16 @@ type OperationRouteCache struct {
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty" msgpack:"accountingEntries"`
 }
 
+// AccountingRouteUse is one leg's use of an operation route, as a route check
+// spanning several transactions (the parts of a cross-ledger group) counts it.
+// Source tells the leg's side (from or to); Direction is the posted direction.
+type AccountingRouteUse struct {
+	Alias     string
+	RouteID   string
+	Source    bool
+	Direction string
+}
+
 // AccountCache represents the cached account rule data
 type AccountCache struct {
 	RuleType string `json:"ruleType" msgpack:"ruleType"`

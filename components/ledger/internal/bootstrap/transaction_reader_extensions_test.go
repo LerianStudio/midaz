@@ -15,4 +15,5 @@ import (
 var (
 	_ command.TransactionRouteCacheReader    = (*query.UseCase)(nil)
 	_ command.TransactionGroupMemberResolver = (*query.UseCase)(nil)
+	_ command.GroupAccountingRouteValidator  = (*query.UseCase)(nil)
 )

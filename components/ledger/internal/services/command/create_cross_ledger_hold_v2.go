@@ -206,9 +206,12 @@ func buildCrossLedgerHoldBatchInput(
 	intent CrossLedgerGroupIntent,
 ) (CreateAtomicTransactionBatchV2Input, error) {
 	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0, len(intent.Parts))
+	heldDestinations := make([]CrossLedgerGroupIntentPart, 0, len(intent.Parts))
+
 	for index := range intent.Parts {
 		part := intent.Parts[index]
 		if part.Role != CrossLedgerGroupRoleOrigin {
+			heldDestinations = append(heldDestinations, part)
 			continue
 		}
 
@@ -234,6 +237,7 @@ func buildCrossLedgerHoldBatchInput(
 		Transactions:       items,
 		GroupID:            &groupID,
 		CrossLedgerGroup:   true,
+		HeldDestinations:   heldDestinations,
 		CanonicalRequest:   append([]byte(nil), in.CanonicalRequest...),
 		RequestFingerprint: in.RequestFingerprint,
 		IdempotencyKey:     in.IdempotencyKey,

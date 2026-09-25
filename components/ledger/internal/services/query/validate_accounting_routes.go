@@ -14,6 +14,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -69,42 +70,8 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
 
-	ledgerSettings, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
-
-		return nil, err
-	}
-
-	if !ledgerSettings.Accounting.ValidateRoutes {
-		logger.Log(ctx, libLog.LevelDebug, "Route validation disabled, skipping accounting rules validation", libLog.String("ledger_id", ledgerID.String()))
-
-		return nil, nil
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, "Route validation enabled, validating accounting rules", libLog.String("ledger_id", ledgerID.String()))
-
-	transactionRouteID, err := resolveTransactionRouteID(validate)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve transaction route ID", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve transaction route ID", libLog.Err(err))
-
-		return nil, err
-	}
-
-	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, transactionRouteID)
-	if err != nil {
-		if pkg.IsBusinessError(err) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found in the organization", err)
-			logger.Log(ctx, libLog.LevelWarn, "Transaction route not found in the organization", libLog.String("transaction_route_id", transactionRouteID.String()))
-
-			return nil, err
-		}
-
-		libOpentelemetry.HandleSpanError(span, "Failed to load transaction route cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to load transaction route cache", libLog.Err(err))
-
+	transactionRouteCache, enabled, err := uc.loadValidatedTransactionRoute(ctx, span, organizationID, ledgerID, validate)
+	if err != nil || !enabled {
 		return nil, err
 	}
 
@@ -153,6 +120,68 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	}
 
 	return &transactionRouteCache, nil
+}
+
+// loadValidatedTransactionRoute returns the route cache of the transaction route
+// the operations name, and whether the ledger validates accounting routes at
+// all. When the ledger does not validate routes nothing is resolved and enabled
+// is false.
+func (uc *UseCase) loadValidatedTransactionRoute(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses) (mmodel.TransactionRouteCache, bool, error) {
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ledgerSettings, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		return mmodel.TransactionRouteCache{}, false, err
+	}
+
+	if !ledgerSettings.Accounting.ValidateRoutes {
+		logger.Log(ctx, libLog.LevelDebug, "Route validation disabled, skipping accounting rules validation", libLog.String("ledger_id", ledgerID.String()))
+
+		return mmodel.TransactionRouteCache{}, false, nil
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Route validation enabled, validating accounting rules", libLog.String("ledger_id", ledgerID.String()))
+
+	transactionRouteCache, err := uc.loadTransactionRouteCache(ctx, span, organizationID, validate)
+	if err != nil {
+		return mmodel.TransactionRouteCache{}, false, err
+	}
+
+	return transactionRouteCache, true, nil
+}
+
+// loadTransactionRouteCache resolves the transaction route named by validate
+// within the organization and returns its cached accounting view.
+func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Span, organizationID uuid.UUID, validate *mtransaction.Responses) (mmodel.TransactionRouteCache, error) {
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	transactionRouteID, err := resolveTransactionRouteID(validate)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve transaction route ID", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve transaction route ID", libLog.Err(err))
+
+		return mmodel.TransactionRouteCache{}, err
+	}
+
+	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, transactionRouteID)
+	if err != nil {
+		if pkg.IsBusinessError(err) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found in the organization", err)
+			logger.Log(ctx, libLog.LevelWarn, "Transaction route not found in the organization", libLog.String("transaction_route_id", transactionRouteID.String()))
+
+			return mmodel.TransactionRouteCache{}, err
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to load transaction route cache", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to load transaction route cache", libLog.Err(err))
+
+		return mmodel.TransactionRouteCache{}, err
+	}
+
+	return transactionRouteCache, nil
 }
 
 // validateOverdraftRoutes enforces that every overdraft companion operation is

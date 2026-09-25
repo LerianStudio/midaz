@@ -46,17 +46,26 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 	Dependencies            []TransactionEvidenceReference
 	AccountBlockExceptionID *uuid.UUID
 	Action                  string
-	Order                   int
-	OriginalIndex           int
+	// RouteAction names the accounting-route template a cross-ledger group
+	// part is validated and classified against when it differs from Action:
+	// the destinations a group commit creates post as direct and belong to the
+	// commit. Empty means Action.
+	RouteAction   string
+	Order         int
+	OriginalIndex int
 }
 
 // CreateAtomicTransactionBatchV2Input carries one ordered atomic request. The
 // canonical bytes and idempotency settings are retained for the batch-level
 // claim introduced by the later pre-publication phase.
 type CreateAtomicTransactionBatchV2Input struct {
-	Transactions       []CreateAtomicTransactionBatchV2ItemInput
-	GroupID            *uuid.UUID
-	CrossLedgerGroup   bool
+	Transactions     []CreateAtomicTransactionBatchV2ItemInput
+	GroupID          *uuid.UUID
+	CrossLedgerGroup bool
+	// HeldDestinations are the destination parts a cross-ledger hold defers to
+	// its commit. They execute nothing now; their client legs count toward the
+	// hold's route coverage.
+	HeldDestinations   []CrossLedgerGroupIntentPart
 	CanonicalRequest   []byte
 	RequestFingerprint string
 	IdempotencyKey     string
@@ -85,6 +94,8 @@ type atomicTransactionBatchRun struct {
 	coordinationOrganizationID uuid.UUID
 	coordinationLedgerID       uuid.UUID
 	multiScope                 bool
+	crossLedgerGroup           bool
+	heldDestinations           []CrossLedgerGroupIntentPart
 	ledgerSettings             mmodel.LedgerSettings
 	idempotencyTTL             time.Duration
 	idempotencyEffectiveKey    string
@@ -127,6 +138,8 @@ type atomicTransactionBatchItemRun struct {
 	validate                *mtransaction.Responses
 	fromTo                  []mtransaction.FromTo
 	action                  string
+	routeAction             string
+	groupRoutes             crossLedgerGroupRoutePart
 	honoredFeeSkip          bool
 	honoredTracerSkip       bool
 	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
@@ -194,6 +207,13 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
 		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+	}
+
+	if run.crossLedgerGroup {
+		if err := uc.validateCrossLedgerBatchGroupRoutes(ctx, run); err != nil {
+			uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
+			return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+		}
 	}
 
 	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
@@ -305,6 +325,8 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 		coordinationOrganizationID: coordinationOrganizationID,
 		coordinationLedgerID:       coordinationLedgerID,
 		multiScope:                 len(refs) > 1,
+		crossLedgerGroup:           in.CrossLedgerGroup,
+		heldDestinations:           in.HeldDestinations,
 		idempotencyTTL:             in.IdempotencyTTL,
 	}, nil
 }
@@ -501,13 +523,44 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 		preparation := createEnginePreparationInput(run.createTransactionRun(item))
 		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
 		var err error
-		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, pools[ref])
+		if run.crossLedgerGroup {
+			preparation.translation.RouteAction = item.routeAction
+			item.prepared, item.groupRoutes, err = uc.prepareCrossLedgerGroupPartWithPool(
+				readCtx, preparation, run.itemLedgerSettings(item).Accounting.ValidateRoutes, pools[ref],
+			)
+		} else {
+			item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, pools[ref])
+		}
 		if err != nil {
 			return withAtomicTransactionBatchRunItemError(err, item, "transaction preparation failed")
 		}
 	}
 
 	return nil
+}
+
+// validateCrossLedgerBatchGroupRoutes checks the route coverage of the group
+// phase a batch executes (direct, hold or revert) over its executed parts and,
+// for a hold, the destination parts deferred to the commit. A group commit
+// validates its own phase, because the phase spans the origin transitions too.
+func (uc *UseCase) validateCrossLedgerBatchGroupRoutes(ctx context.Context, run *atomicTransactionBatchRun) error {
+	phase := run.items[0].routeAction
+	parts := make([]crossLedgerGroupRoutePart, 0, len(run.items)+len(run.heldDestinations))
+
+	for index := range run.items {
+		if run.items[index].routeAction != phase {
+			return fmt.Errorf("cross-ledger group batch mixes route actions %q and %q", phase, run.items[index].routeAction)
+		}
+
+		parts = append(parts, run.items[index].groupRoutes)
+	}
+
+	held, err := uc.heldDestinationRouteParts(ctx, run.heldDestinations)
+	if err != nil {
+		return err
+	}
+
+	return uc.validateCrossLedgerGroupRoutes(ctx, phase, append(parts, held...))
 }
 
 func firstSeenAtomicTransactionBatchAliasesByLedger(run *atomicTransactionBatchRun) ([]atomicTransactionBatchLedgerRef, map[atomicTransactionBatchLedgerRef][]string) {
@@ -723,10 +776,19 @@ func initializeAtomicTransactionBatchItem(
 		input:                   input,
 		status:                  atomicTransactionBatchActionInitialStatus(action),
 		action:                  action,
+		routeAction:             atomicTransactionBatchItemRouteAction(in, action),
 		parentTransactionID:     cloneUUIDPointer(in.ParentTransactionID),
 		dependencies:            append([]TransactionEvidenceReference(nil), in.Dependencies...),
 		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
 	}, nil
+}
+
+func atomicTransactionBatchItemRouteAction(in CreateAtomicTransactionBatchV2ItemInput, action string) string {
+	if in.RouteAction == "" {
+		return action
+	}
+
+	return in.RouteAction
 }
 
 func atomicTransactionBatchItemOrder(in CreateAtomicTransactionBatchV2ItemInput, index int) int {
