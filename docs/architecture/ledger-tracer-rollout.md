@@ -56,6 +56,14 @@ not certify the remote Tracer's version, policies or readiness.
    exact revision through `PUT /v1/policy-bindings`. Use explicit DENY initially;
    ALLOW defaults require deliberate configuration. Updates require the current
    binding version. Publication/binding compiles the policy and records audit.
+   Compilation sums conservative maximum CEL costs across all rules and rejects
+   policies above the total budget before activation; runtime cost enforcement
+   remains in place. Resource limits are part of policy compatibility. Before
+   changing rule/expression/digit/input bounds or cost budgets, compile every
+   active policy under the proposed configuration. Increasing input bounds can
+   also increase static cost. Do not reduce budgets on a live binding without
+   this check and a coordinated replacement; bootstrap alone does not scan all
+   tenant policies or certify compatibility after reconfiguration.
 7. Provision producer certificate bindings and matching integration/namespace
    settings. Each binding must explicitly grant `purposes`: `reserve` for
    admission/completion or `asset-admin` for asset associations. Provision

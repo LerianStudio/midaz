@@ -131,21 +131,30 @@ func TestContextPolicyTotalBudgetAcrossRules(t *testing.T) {
 	_, perRule, err := engine.Evaluate(context.Background(), program, activation, 100000)
 	require.NoError(t, err)
 	require.Positive(t, perRule)
-	for _, budget := range []uint64{perRule, perRule*2 - 1, perRule * 2} {
+	estimatedTotal := program.EstimatedMaxCost() * 2
+	require.GreaterOrEqual(t, estimatedTotal, perRule*2)
+	for _, budget := range []uint64{program.EstimatedMaxCost(), estimatedTotal - 1, estimatedTotal} {
 		evaluator := policyEvaluator(t, engine, budget)
 		compiled, err := evaluator.Compile(context.Background(), input)
+		if budget < estimatedTotal {
+			require.ErrorIs(t, err, constant.ErrExpressionCostExceeded)
+			require.Nil(t, compiled)
+			continue
+		}
 		require.NoError(t, err)
-		for range 2 { // A cached snapshot gets a fresh aggregate budget each time.
+		for range 2 { // Cached policies retain independent runtime budgets.
 			result, err := evaluator.Execute(context.Background(), compiled, policyFacts(), "producer")
-			if budget < perRule*2 {
-				require.ErrorIs(t, err, constant.ErrExpressionCostExceeded)
-				require.Nil(t, result)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, perRule*2, result.Cost)
-			}
+			require.NoError(t, err)
+			require.Equal(t, perRule*2, result.Cost)
 		}
 	}
+}
+
+func TestContextPolicyRejectsAggregateCostBeforeActivation(t *testing.T) {
+	evaluator := policyEvaluator(t, policyEngine(t), 1)
+	compiled, err := evaluator.Compile(t.Context(), policySnapshot())
+	require.ErrorIs(t, err, constant.ErrExpressionCostExceeded)
+	require.Nil(t, compiled)
 }
 
 func TestContextPolicyErrorsNeverBecomeDecisions(t *testing.T) {
