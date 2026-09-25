@@ -317,8 +317,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	protectedTransactions := make([]uuid.UUID, 0, len(run.items))
 	protectedRecoveryFields := make([]string, 0, len(run.items))
 	protectedIndexFields := make([]uuid.UUID, 0, len(run.items))
-
-	var protectedScopes []atomicTransactionBatchMeasuredScope
+	protectedScopes := make([]atomicTransactionBatchMeasuredScope, 0, len(run.items))
 	capturedResponses := make(map[string]string, len(run.items))
 	publicResponsePayloads := make([]json.RawMessage, 0, len(run.items))
 

@@ -99,21 +99,31 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 		return nil, err
 	}
 
-	if result != nil && result.Replayed {
-		// A replay executes nothing and answers with the original group, so
-		// the intent row persisted for this request never gains members.
-		if result.BatchID != groupID {
-			uc.discardCrossLedgerHoldIntent(ctx, groupID)
-		}
-
-		return result, nil
-	}
-
-	if result != nil {
-		uc.recordCrossLedgerGroupLedgers(ctx, constant.ActionHold, ledgers)
-	}
+	uc.settleCrossLedgerHoldResult(ctx, groupID, ledgers, result)
 
 	return result, nil
+}
+
+func (uc *UseCase) settleCrossLedgerHoldResult(
+	ctx context.Context,
+	groupID uuid.UUID,
+	ledgers int,
+	result *CreateAtomicTransactionBatchV2Result,
+) {
+	if result == nil {
+		return
+	}
+
+	if !result.Replayed {
+		uc.recordCrossLedgerGroupLedgers(ctx, constant.ActionHold, ledgers)
+		return
+	}
+
+	// A replay executes nothing and answers with the original group, so the
+	// intent row persisted for this request never gains members.
+	if result.BatchID != groupID {
+		uc.discardCrossLedgerHoldIntent(ctx, groupID)
+	}
 }
 
 // discardCrossLedgerHoldIntent removes the PENDING group row of a hold that
