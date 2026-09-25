@@ -10,6 +10,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -49,6 +51,43 @@ func bindContextLimit(t *testing.T, db *sql.DB, repo *ContextLimitRepository, id
 	t.Cleanup(func() { _ = tx.Rollback() })
 	require.NoError(t, repo.BindAssetWithTx(t.Context(), tx, id, asset))
 	require.NoError(t, tx.Commit())
+}
+
+func contextLimitEligibilityReport(t *testing.T) string {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", "scripts", "tracer", "context-limit-eligibility.sql"))
+	require.NoError(t, err)
+
+	return string(data)
+}
+
+func countContextLimitEligibilityFailures(t *testing.T, db *sql.DB) int {
+	t.Helper()
+
+	rows, err := db.QueryContext(t.Context(), contextLimitEligibilityReport(t))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, rows.Close()) }()
+
+	count := 0
+	for rows.Next() {
+		count++
+	}
+	require.NoError(t, rows.Err())
+
+	return count
+}
+
+func TestIntegrationContextLimitEligibilityReport(t *testing.T) {
+	db := completionDatabase(t)
+	repo := contextLimitRepository(t, 10)
+	account := testutil.MustDeterministicUUID(81901)
+	eligible := contextLimitRow(t, db, 81902, account)
+	bindContextLimit(t, db, repo, eligible, tracercontract.AssetRef{Namespace: "ledger", ID: "usd", Code: "USD"})
+	require.Zero(t, countContextLimitEligibilityFailures(t, db))
+
+	contextLimitRow(t, db, 81903, account)
+	require.Equal(t, 1, countContextLimitEligibilityFailures(t, db))
 }
 
 func TestIntegrationContextLimitAssetPreservesHistory(t *testing.T) {
