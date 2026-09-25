@@ -1462,17 +1462,7 @@ func initGRPCServer(
 	var options []grpc.ServerOption
 
 	if cfg.ContextReserveEnabled {
-		identityInterceptor := grpcin.IdentityUnaryInterceptor(runtime.identity)
-		nextTenant := tenantInterceptor
-		tenantInterceptor = func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-			return identityInterceptor(ctx, req, info, func(verified context.Context, input any) (any, error) {
-				if nextTenant != nil {
-					return nextTenant(verified, input, info, handler)
-				}
-
-				return handler(verified, input)
-			})
-		}
+		tenantInterceptor = grpcin.ContextReservationUnaryInterceptor(runtime.identity, tenantResolver)
 
 		options = append(options, grpc.MaxRecvMsgSize(runtime.config.maxBodyBytes))
 	}
