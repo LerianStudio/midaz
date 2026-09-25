@@ -58,6 +58,32 @@ not certify the remote Tracer's version, policies or readiness.
    native codes are enabled with the shared Reserve profile, including when
    preparing new native limits before Ledger admissions are enabled. The legacy
    validation API does not gain native AssetRef semantics from this flag.
+   Shared-profile creation and updates validate account-only scopes, scope byte
+   limits and significant amount digits before persistence. Activation locks the
+   current definition and requires a valid AssetRef and the same admission
+   invariants; a draft must be associated before activation. These guards do not
+   repair already-active legacy data. Before enabling the profile, review every
+   active unmapped or unsupported limit, for example on each tenant primary:
+
+   ```sql
+   SELECT l.id, l.name, l.status, (a.limit_id IS NULL) AS unmapped
+   FROM limits l
+   LEFT JOIN limit_asset_references a ON a.limit_id = l.id
+   WHERE l.status = 'ACTIVE' AND l.deleted_at IS NULL
+     AND (a.limit_id IS NULL OR
+       CASE WHEN jsonb_typeof(l.scopes) = 'array' THEN
+         jsonb_array_length(l.scopes) = 0 OR EXISTS (
+           SELECT 1 FROM jsonb_array_elements(l.scopes) s
+           WHERE s->>'accountId' IS NULL OR s - 'accountId' <> '{}'::jsonb
+              OR NOT pg_input_is_valid(s->>'accountId', 'uuid')
+         )
+       ELSE true END);
+   ```
+
+   This query flags migration candidates; it is not a complete validator for
+   duplicate/nil account IDs, resource bounds, namespaces or official ownership.
+   Resolve all candidates and revalidate the complete inventory before traffic.
+   Never silently exclude a broad or unmapped active limit to make Reserve pass.
 6. Rewrite affected expressions against `accounts`, `entries` and `debits`, using
    exact Decimal operations. Classifications are native producer facts. There is
    no generic metadata, merchant, portfolio or segment fallback in this profile.

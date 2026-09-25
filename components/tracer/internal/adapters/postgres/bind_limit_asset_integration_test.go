@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -107,6 +108,50 @@ func TestIntegrationBoundLimitRejectsUnattestedScopeChange(t *testing.T) {
 	require.Equal(t, account, *stored.Scopes[0].AccountID)
 	stored.Name = "same-attested-accounts"
 	require.NoError(t, repo.UpdateWithTx(t.Context(), db, stored))
+}
+
+func TestIntegrationSharedLimitActivationRequiresEligibility(t *testing.T) {
+	db := completionDatabase(t)
+	beginner := pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db)))
+	repo := NewLimitRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
+	policy, err := command.NewContextLimitDefinitionPolicy(contextLimitRepository(t, 10), tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 30, MaxFractionDigits: 20}, 10, 32768)
+	require.NoError(t, err)
+	activate, err := command.NewActivateLimitCommand(repo, clock.NewFixedClock(testutil.FixedTime()), nil, beginner)
+	require.NoError(t, err)
+	activate.ContextLimits = policy
+	account := testutil.MustDeterministicUUID(83801)
+	id := contextLimitRow(t, db, 83802, account)
+	_, err = db.ExecContext(t.Context(), `UPDATE limits SET status='DRAFT' WHERE id=$1`, id)
+	require.NoError(t, err)
+	_, err = activate.Execute(t.Context(), id)
+	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable, "unmapped limits cannot be activated")
+	stored, err := repo.GetByID(t.Context(), id)
+	require.NoError(t, err)
+	require.Equal(t, model.LimitStatusDraft, stored.Status)
+	binder, _ := assetBindingCommand(t, db, true)
+	_, err = binder.Execute(assetBindingContext(t.Context()), id, assetBindingFacts(account))
+	require.NoError(t, err)
+	_, err = activate.Execute(t.Context(), id)
+	require.NoError(t, err)
+	stored, err = repo.GetByID(t.Context(), id)
+	require.NoError(t, err)
+	require.Equal(t, model.LimitStatusActive, stored.Status)
+	update, err := command.NewUpdateLimitCommand(repo, clock.NewFixedClock(testutil.FixedTime()), nil, beginner)
+	require.NoError(t, err)
+	update.ContextLimits = policy
+	invalidAmount := decimal.RequireFromString("0.000000000000000000001")
+	_, err = update.Execute(t.Context(), id, &command.UpdateLimitInput{MaxAmount: &invalidAmount})
+	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
+	after, err := repo.GetByID(t.Context(), id)
+	require.NoError(t, err)
+	require.True(t, stored.MaxAmount.Equal(after.MaxAmount))
+	broad := contextLimitRow(t, db, 83803, account)
+	scopes, err := json.Marshal([]model.Scope{{SegmentID: &account}})
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `UPDATE limits SET status='DRAFT',scopes=$2 WHERE id=$1`, broad, scopes)
+	require.NoError(t, err)
+	_, err = activate.Execute(t.Context(), broad)
+	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 }
 
 func TestIntegrationBindLimitAssetAuditFailureRollsBack(t *testing.T) {
