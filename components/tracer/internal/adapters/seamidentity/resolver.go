@@ -20,14 +20,24 @@ import (
 // exactly match the client leaf's sole URI SAN. Multiple bindings may map
 // rotating service identities to the same integration and asset namespace.
 type Binding struct {
-	URI            string `json:"uri"`
-	IntegrationID  string `json:"integrationId"`
-	AssetNamespace string `json:"assetNamespace"`
+	URI            string    `json:"uri"`
+	IntegrationID  string    `json:"integrationId"`
+	AssetNamespace string    `json:"assetNamespace"`
+	Purposes       []Purpose `json:"purposes"`
 }
+
+// Purpose separates administrative credentials from financial lifecycle access.
+type Purpose string
+
+const (
+	PurposeReserve    Purpose = "reserve"
+	PurposeAssetAdmin Purpose = "asset-admin"
+)
 
 // Resolver holds an immutable allowlist shared by HTTP and gRPC adapters.
 type Resolver struct {
 	identities map[string]contextutil.IntegrationIdentity
+	purposes   map[string]map[Purpose]bool
 }
 
 // NewResolver rejects conflicting ownership rather than selecting an arbitrary
@@ -37,11 +47,23 @@ func NewResolver(bindings []Binding, maxNamespaceBytes int) (*Resolver, error) {
 		return nil, constant.ErrContextPolicyUnavailable
 	}
 
-	resolver := &Resolver{identities: make(map[string]contextutil.IntegrationIdentity, len(bindings))}
+	resolver := &Resolver{identities: make(map[string]contextutil.IntegrationIdentity, len(bindings)), purposes: make(map[string]map[Purpose]bool, len(bindings))}
 	namespaces := make(map[string]string)
 	integrations := make(map[string]string)
 
 	for _, binding := range bindings {
+		permissions := make(map[Purpose]bool, len(binding.Purposes))
+		for _, purpose := range binding.Purposes {
+			if (purpose != PurposeReserve && purpose != PurposeAssetAdmin) || permissions[purpose] {
+				return nil, constant.ErrContextPolicyUnavailable
+			}
+
+			permissions[purpose] = true
+		}
+
+		if len(permissions) == 0 {
+			return nil, constant.ErrContextPolicyUnavailable
+		}
 		identity := contextutil.IntegrationIdentity{ID: binding.IntegrationID, AssetNamespace: binding.AssetNamespace}
 		if !identity.Valid() || len(identity.AssetNamespace) > maxNamespaceBytes || !validURI(binding.URI) {
 			return nil, constant.ErrContextPolicyUnavailable
@@ -60,6 +82,7 @@ func NewResolver(bindings []Binding, maxNamespaceBytes int) (*Resolver, error) {
 		}
 
 		resolver.identities[binding.URI] = identity
+		resolver.purposes[binding.URI] = permissions
 		namespaces[identity.AssetNamespace] = identity.ID
 		integrations[identity.ID] = identity.AssetNamespace
 	}
@@ -80,6 +103,11 @@ func validURI(value string) bool {
 // Mesh-terminated plaintext is deliberately unsupported: a separate verified
 // workload-identity adapter is required before enabling context Reserve there.
 func (r *Resolver) ResolveTLS(ctx context.Context, state *tls.ConnectionState) (contextutil.IntegrationIdentity, error) {
+	return r.ResolveTLSFor(ctx, state, PurposeReserve)
+}
+
+// ResolveTLSFor requires an explicitly configured purpose after verifying identity.
+func (r *Resolver) ResolveTLSFor(ctx context.Context, state *tls.ConnectionState, purpose Purpose) (contextutil.IntegrationIdentity, error) {
 	if err := ctx.Err(); err != nil {
 		return contextutil.IntegrationIdentity{}, err
 	}
@@ -100,7 +128,7 @@ func (r *Resolver) ResolveTLS(ctx context.Context, state *tls.ConnectionState) (
 	}
 
 	identity, ok := r.identities[leaf.URIs[0].String()]
-	if !ok {
+	if !ok || !r.purposes[leaf.URIs[0].String()][purpose] {
 		return contextutil.IntegrationIdentity{}, constant.ErrInsufficientPrivileges
 	}
 

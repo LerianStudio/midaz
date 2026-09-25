@@ -18,7 +18,7 @@ func validLimitAssetConfig() *Config {
 	cfg.ContextLimitMaxScopes = 100
 	cfg.ContextLimitMaxScopeBytes = 32768
 	cfg.ContextLimitMaxBodyBytes = 65536
-	cfg.ContextProducerBindings = `[{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger"}]`
+	cfg.ContextProducerBindings = `[{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger","purposes":["reserve"]}]`
 	return cfg
 }
 
@@ -39,7 +39,7 @@ func TestLimitAssetAdminConfig(t *testing.T) {
 			case "unknown field":
 				cfg.ContextProducerBindings = `[{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger","extra":true}]`
 			case "duplicate identity":
-				cfg.ContextProducerBindings = `[{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger"},{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger"}]`
+				cfg.ContextProducerBindings = `[{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger","purposes":["reserve"]},{"uri":"spiffe://example.test/ledger","integrationId":"ledger","assetNamespace":"ledger","purposes":["reserve"]}]`
 			case "invalid bounds":
 				cfg.ContextMaxAccounts = 0
 			case "no scopes":

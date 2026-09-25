@@ -32,7 +32,7 @@ import (
 )
 
 func TestContextReservationNativeProducerRoutes(t *testing.T) {
-	for _, scenario := range []string{"reserve", "confirm", "unknown producer", "forged namespace", "legacy requires guard", "legacy authorized", "by-id does not downgrade", "by-id complete"} {
+	for _, scenario := range []string{"reserve", "admin only", "admin completion", "confirm", "unknown producer", "forged namespace", "legacy requires guard", "legacy authorized", "by-id does not downgrade", "by-id complete"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			admission := mocks.NewMockContextReserveAdmitter(ctrl)
@@ -40,7 +40,11 @@ func TestContextReservationNativeProducerRoutes(t *testing.T) {
 			completionByID := mocks.NewMockContextReserveIDCompleter(ctrl)
 			legacyService := mocks.NewMockReservationService(ctrl)
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/ledger", IntegrationID: "producer", AssetNamespace: "origin-a"}}, 256)
+			purpose := seamidentity.PurposeReserve
+			if scenario == "admin only" || scenario == "admin completion" {
+				purpose = seamidentity.PurposeAssetAdmin
+			}
+			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/ledger", IntegrationID: "producer", AssetNamespace: "origin-a", Purposes: []seamidentity.Purpose{purpose}}}, 256)
 			require.NoError(t, err)
 			handler, err := NewContextReservationHandler(admission, completion, completionByID, bounds, 65536, 100)
 			require.NoError(t, err)
@@ -86,7 +90,11 @@ func TestContextReservationNativeProducerRoutes(t *testing.T) {
 				if scenario == "legacy authorized" {
 					legacyService.EXPECT().ConfirmByTransaction(gomock.Any(), request.TransactionID).Return(0, nil)
 				}
-			case "unknown producer":
+			case "unknown producer", "admin only", "admin completion":
+				if scenario == "admin completion" {
+					path += "/transaction/" + request.TransactionID.String() + "/release"
+					raw = []byte(`{"contractRevision":"context-reserve-1"}`)
+				}
 				expected = http.StatusForbidden
 			case "forged namespace":
 				request.Asset.Namespace = "forged"

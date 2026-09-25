@@ -29,7 +29,7 @@ func TestIdentityInterceptorIgnoresForgedMetadata(t *testing.T) {
 	t.Parallel()
 	uri, err := url.Parse("spiffe://example.test/service/producer")
 	require.NoError(t, err)
-	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", AssetNamespace: "assets"}}, 256)
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256)
 	require.NoError(t, err)
 	_, plaintextAuth, err := insecure.NewCredentials().ServerHandshake(nil)
 	require.NoError(t, err)
@@ -61,4 +61,18 @@ func TestIdentityInterceptorIgnoresForgedMetadata(t *testing.T) {
 			require.Equal(t, tc.want == codes.OK, called)
 		})
 	}
+}
+
+func TestIdentityInterceptorRejectsAdminCertificateForCompletion(t *testing.T) {
+	uri, err := url.Parse("spiffe://example.test/admin")
+	require.NoError(t, err)
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeAssetAdmin}}}, 256)
+	require.NoError(t, err)
+	leaf := &x509.Certificate{Raw: []byte("admin-leaf"), URIs: []*url.URL{uri}}
+	ctx := peer.NewContext(t.Context(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{HandshakeComplete: true, PeerCertificates: []*x509.Certificate{leaf}, VerifiedChains: [][]*x509.Certificate{{leaf}}}}})
+	_, err = IdentityUnaryInterceptor(resolver)(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/reservation.v1.ReservationService/ReleaseByTransaction"}, func(context.Context, any) (any, error) {
+		t.Fatal("administrative certificate reached completion")
+		return nil, nil
+	})
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
