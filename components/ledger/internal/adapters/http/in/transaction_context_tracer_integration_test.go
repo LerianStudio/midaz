@@ -33,6 +33,25 @@ import (
 // The mounted Ledger route, official facts, journal and accounting engine are
 // real. The HTTP peer is a contract fixture, not a deployed Tracer or mTLS proof.
 func TestIntegrationContextTracerMountedLedger(t *testing.T) {
+	for _, decision := range []tracercontract.Decision{tracercontract.DecisionAllow, tracercontract.DecisionDeny, tracercontract.DecisionReview} {
+		t.Run(string(decision), func(t *testing.T) { testMountedContextDecision(t, decision) })
+	}
+}
+
+func testMountedContextDecision(t *testing.T, decision tracercontract.Decision) {
+	t.Helper()
+	allowed := decision == tracercontract.DecisionAllow
+	expectedState := tracerreservation.Confirmed
+	completionPath := "/confirm"
+	reason := tracercontract.ReasonRuleAllow
+	if !allowed {
+		expectedState = tracerreservation.Released
+		completionPath = "/release"
+		reason = tracercontract.ReasonRuleDeny
+		if decision == tracercontract.DecisionReview {
+			reason = tracercontract.ReasonRuleReview
+		}
+	}
 	h := setupFeeHarness(t)
 	h.enableAccountingEngine(t)
 	h.seedEnforceClosedTracer(t)
@@ -70,15 +89,15 @@ func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(tracercontract.ReserveResult{ContractRevision: request.ContractRevision, TransactionID: request.TransactionID, EvaluationID: evaluationID, Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonRuleAllow}, ReservationIDs: []uuid.UUID{}})
+			_ = json.NewEncoder(w).Encode(tracercontract.ReserveResult{ContractRevision: request.ContractRevision, TransactionID: request.TransactionID, EvaluationID: evaluationID, Decision: decision, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, Reasons: []tracercontract.ReserveReason{reason}, ReservationIDs: []uuid.UUID{}})
 			return
 		}
 		path := strings.TrimPrefix(r.URL.Path, "/v1/reservations/transaction/")
-		if !strings.HasSuffix(path, "/confirm") {
+		if !strings.HasSuffix(path, completionPath) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		transactionID, err := uuid.Parse(strings.TrimSuffix(path, "/confirm"))
+		transactionID, err := uuid.Parse(strings.TrimSuffix(path, completionPath))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -89,7 +108,7 @@ func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: "CONFIRMED", EvaluationID: &evaluationID})
+		_ = json.NewEncoder(w).Encode(tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: string(expectedState), EvaluationID: &evaluationID})
 	}))
 	t.Cleanup(peer.Close)
 	facts, err := tracercontext.NewRepository(h.pgConn, bounds, false)
@@ -108,11 +127,32 @@ func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 	h.handler.Command.ContextTracer = coordinator
 	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 	response := h.createV2Direct(t, h.newV2App(), h.v2Body("context integration", "USD", "10.125", []string{h.v2Leg("@payer", "10.125")}, []string{h.v2Leg("@receiver", "10.125")}), nil)
-	require.Equal(t, http.StatusCreated, response.status, string(response.rawBody))
-	transactionID := mustTxID(t, response)
+	if allowed {
+		require.Equal(t, http.StatusCreated, response.status, string(response.rawBody))
+	} else {
+		require.Equal(t, http.StatusUnprocessableEntity, response.status, string(response.rawBody))
+		code := "0177"
+		if decision == tracercontract.DecisionReview {
+			code = "0526"
+		}
+		require.Equal(t, code, response.body["code"])
+	}
 	require.Len(t, received, 1)
 	request := <-received
-	require.Equal(t, transactionID, request.TransactionID)
+	transactionID := request.TransactionID
+	if allowed {
+		require.Equal(t, mustTxID(t, response), transactionID)
+	}
+	var transactionCount, operationCount int
+	require.NoError(t, h.db.QueryRowContext(t.Context(), `SELECT count(*) FROM transaction WHERE id=$1`, transactionID).Scan(&transactionCount))
+	require.NoError(t, h.db.QueryRowContext(t.Context(), `SELECT count(*) FROM operation WHERE transaction_id=$1`, transactionID).Scan(&operationCount))
+	if allowed {
+		require.Equal(t, 1, transactionCount)
+		require.Equal(t, 2, operationCount)
+	} else {
+		require.Zero(t, transactionCount, "DENY/REVIEW must not create a PENDING transaction")
+		require.Zero(t, operationCount)
+	}
 	require.Equal(t, tracercontract.AssetRef{Namespace: "origin-a", ID: assetID.String(), Code: "USD"}, request.Asset)
 	require.Len(t, request.Context.Accounts, 2)
 	require.Len(t, request.Context.Entries, 2)
@@ -121,10 +161,22 @@ func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 	record, err := journal.Find(t.Context(), key)
 	require.NoError(t, err)
 	require.NotNil(t, record)
-	require.Equal(t, tracerreservation.Confirmed, record.State)
+	require.Equal(t, expectedState, record.State)
 	assertBalances := func() {
 		t.Helper()
-		for alias, expected := range map[string]string{"@payer": "89.875", "@receiver": "10.125"} {
+		expectedBalances := map[string]string{"@payer": "89.875", "@receiver": "10.125"}
+		if !allowed {
+			expectedBalances = map[string]string{"@payer": "100", "@receiver": "0"}
+		}
+		for alias, expected := range expectedBalances {
+			if !allowed {
+				require.Equal(t, expected, postgresBalanceTotal(t, h, alias).String())
+				exists, err := h.redisContainer.Client.Exists(t.Context(), utils.BalanceInternalKey(h.orgID, h.ledgerID, alias+"#default")).Result()
+				require.NoError(t, err)
+				if exists == 0 {
+					continue
+				}
+			}
 			raw, err := h.redisContainer.Client.Get(t.Context(), utils.BalanceInternalKey(h.orgID, h.ledgerID, alias+"#default")).Bytes()
 			require.NoError(t, err)
 			balance, err := balancecache.Decode(raw)
