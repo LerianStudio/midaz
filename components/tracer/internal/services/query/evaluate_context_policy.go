@@ -49,7 +49,7 @@ type ContextPolicyEvaluator struct {
 }
 
 // CompiledContextPolicy is immutable and bound to its evaluator's resource limits.
-// Cache entries must include authenticated tenant/binding and policy revision;
+// Cache entries must include authenticated tenant and policy revision;
 // the policy ID alone is not a sufficient cache key across tenants.
 type CompiledContextPolicy struct {
 	owner           *ContextPolicyEvaluator
