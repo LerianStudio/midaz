@@ -207,3 +207,75 @@ func TestCompiledContextPolicyRevisionAndEmptyCompilation(t *testing.T) {
 		require.Same(t, program, result.Program)
 	}
 }
+
+func TestCompiledContextPolicySharesAcrossBindings(t *testing.T) {
+	repo := mocks.NewMockActiveContextPolicyRepository(gomock.NewController(t))
+	compiler := compiledmocks.NewMockContextPolicyCompiler(gomock.NewController(t))
+	resolver, err := query.NewResolveContextPolicyQuery(repo, 10)
+	require.NoError(t, err)
+	cache, err := query.NewCompiledContextPolicyQuery(resolver, compiler, query.CompiledPolicyCacheConfig{MaxEntries: 2, MaxCompilations: 1, SingleTenant: true})
+	require.NoError(t, err)
+	policy := policySnapshot()
+	program, err := policyEvaluator(t, policyEngine(t), 100000).Compile(t.Context(), policy)
+	require.NoError(t, err)
+	compiler.EXPECT().Compile(gomock.Any(), policy).Return(program, nil).Times(1)
+	for _, id := range []string{"ledger-one", "ledger-two", "ledger-one"} {
+		repo.EXPECT().GetActive(gomock.Any(), model.PolicyBindingKey{IntegrationID: "producer", ContextID: id}).Return(&model.BoundContextPolicy{ContextPolicy: policy, BindingVersion: 1}, nil)
+		prepared, err := cache.Execute(producerContext(), id)
+		require.NoError(t, err)
+		require.Equal(t, id, prepared.Resolved.Binding.ContextID)
+		require.Same(t, program, prepared.Program)
+	}
+}
+
+func TestCompiledContextPolicyLeaderCancellationKeepsProgram(t *testing.T) {
+	repo := mocks.NewMockActiveContextPolicyRepository(gomock.NewController(t))
+	compiler := compiledmocks.NewMockContextPolicyCompiler(gomock.NewController(t))
+	resolver, err := query.NewResolveContextPolicyQuery(repo, 10)
+	require.NoError(t, err)
+	cache, err := query.NewCompiledContextPolicyQuery(resolver, compiler, query.CompiledPolicyCacheConfig{MaxEntries: 2, MaxCompilations: 1, SingleTenant: true})
+	require.NoError(t, err)
+	policy := policySnapshot()
+	program, err := policyEvaluator(t, policyEngine(t), 100000).Compile(t.Context(), policy)
+	require.NoError(t, err)
+	repo.EXPECT().GetActive(gomock.Any(), gomock.Any()).Return(&model.BoundContextPolicy{ContextPolicy: policy, BindingVersion: 1}, nil).Times(2)
+	started, release := make(chan struct{}), make(chan struct{})
+	compiler.EXPECT().Compile(gomock.Any(), policy).DoAndReturn(func(ctx context.Context, _ model.ContextPolicy) (*query.CompiledContextPolicy, error) {
+		close(started)
+		select {
+		case <-release:
+			return program, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}).Times(1)
+	ctx, cancel := context.WithCancel(producerContext())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := cache.Execute(ctx, "official"); done <- err }()
+	<-started
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+	close(release)
+	prepared, err := cache.Execute(producerContext(), "official")
+	require.NoError(t, err)
+	require.Same(t, program, prepared.Program)
+}
+
+func TestCompiledContextPolicyEvictsLeastRecentlyUsed(t *testing.T) {
+	repo := mocks.NewMockActiveContextPolicyRepository(gomock.NewController(t))
+	compiler := compiledmocks.NewMockContextPolicyCompiler(gomock.NewController(t))
+	resolver, err := query.NewResolveContextPolicyQuery(repo, 10)
+	require.NoError(t, err)
+	cache, err := query.NewCompiledContextPolicyQuery(resolver, compiler, query.CompiledPolicyCacheConfig{MaxEntries: 2, MaxCompilations: 1, SingleTenant: true})
+	require.NoError(t, err)
+	policy := policySnapshot()
+	program, err := policyEvaluator(t, policyEngine(t), 100000).Compile(t.Context(), policy)
+	require.NoError(t, err)
+	repo.EXPECT().GetActive(gomock.Any(), gomock.Any()).Return(&model.BoundContextPolicy{ContextPolicy: policy, BindingVersion: 1}, nil).Times(6)
+	compiler.EXPECT().Compile(gomock.Any(), policy).Return(program, nil).Times(4)
+	for _, tenant := range []string{"a", "b", "a", "c", "a", "b"} {
+		_, err = cache.Execute(tmcore.ContextWithTenantID(producerContext(), tenant), "official")
+		require.NoError(t, err)
+	}
+}
