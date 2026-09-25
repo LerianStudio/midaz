@@ -450,11 +450,7 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecutionKeys) map[string]any {
 	t.Helper()
 	state := make(map[string]any)
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex}
-	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
-	}
-	for _, key := range inventory {
+	for _, key := range adapterStateInventory(keys) {
 		dump, err := client.Dump(context.Background(), key).Result()
 		if errors.Is(err, redis.Nil) {
 			dump, err = "", nil
@@ -465,6 +461,20 @@ func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecut
 		state[key] = []any{dump, expiry}
 	}
 	return state
+}
+
+// adapterStateInventory names every key an execution may write: the primary
+// scope's evidence and every foreign coordination scope included.
+func adapterStateInventory(keys resolvedExecutionKeys) []string {
+	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex, keys.Evidence}
+	for _, balance := range keys.Balances {
+		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
+	}
+	for _, coordination := range keys.Coordination {
+		inventory = append(inventory, coordination.Receipts, coordination.Guards, coordination.Protection,
+			coordination.TransactionIndex, coordination.Evidence)
+	}
+	return inventory
 }
 
 func TestIntegration_AdapterExecute_RejectsRecoveryTenantBeforeProvider(t *testing.T) {

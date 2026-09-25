@@ -184,7 +184,7 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 	inspector, _, _ := newAdapterValkey(t)
 
 	t.Run("one receipt covers balances in two ledgers", func(t *testing.T) {
-		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t)
+		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t, uuid.MustParse("95959595-9595-4959-8959-000000000001"))
 		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
 		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
@@ -201,6 +201,9 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 		require.Equal(t, foreignLedgerID, foreignTransaction.LedgerID)
 		require.True(t, inspector.HExists(ctx, foreignIndexKey, foreignTransaction.ID.String()).Val(),
 			"each transaction index must be stored in its own ledger scope")
+		foreignState, captured := captureAdapterState(t, inspector, keys)[foreignIndexKey].([]any)
+		require.True(t, captured, "the refusal snapshots must cover the foreign scope")
+		require.NotEmpty(t, foreignState[0])
 
 		var sawPrimary, sawForeign bool
 		for _, balance := range result.Final {
@@ -212,7 +215,7 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 	})
 
 	t.Run("later foreign-ledger refusal publishes nothing", func(t *testing.T) {
-		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t)
+		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t, uuid.MustParse("95959595-9595-4959-8959-000000000002"))
 		for index := range input.Execution.Balances {
 			if input.Execution.Balances[index].LedgerID == foreignLedgerID && input.Execution.Balances[index].Key == "default" {
 				input.Execution.Balances[index].Blocked = true
@@ -236,7 +239,7 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 	})
 
 	t.Run("mixed pending transition and create refusal preserves the pending guard", func(t *testing.T) {
-		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t)
+		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t, uuid.MustParse("95959595-9595-4959-8959-000000000003"))
 		transition := input.Execution.Transactions[0]
 		input.Guards[0] = command.ExecutionGuard{
 			TransactionID: transition.ID,
@@ -409,10 +412,11 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 	return input, limits
 }
 
-func multiScopeAcceptanceExecution(t *testing.T) (command.EngineExecution, Limits, uuid.UUID) {
+func multiScopeAcceptanceExecution(t *testing.T, executionID uuid.UUID) (command.EngineExecution, Limits, uuid.UUID) {
 	t.Helper()
 	input, limits := multiTransactionAcceptanceExecution(t)
 	request := &input.Execution
+	request.ExecutionID = executionID
 	foreignLedgerID := uuid.MustParse("91919191-9191-4919-8919-919191919191")
 	foreignAccountID := uuid.MustParse("92929292-9292-4929-8929-929292929292")
 
@@ -439,6 +443,7 @@ func multiScopeAcceptanceExecution(t *testing.T) (command.EngineExecution, Limit
 	for index := range input.CompletionPlans {
 		payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[index].Payload)
 		require.NoError(t, err)
+		payload.ExecutionID = executionID
 		payloads[index] = *payload
 	}
 	payloads[1].OrganizationID = request.OrganizationID
@@ -730,9 +735,5 @@ func requireJSONEqual(t *testing.T, expected, actual any) {
 
 func deleteMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client, keys resolvedExecutionKeys) {
 	t.Helper()
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex}
-	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
-	}
-	require.NoError(t, inspector.Del(context.Background(), inventory...).Err())
+	require.NoError(t, inspector.Del(context.Background(), adapterStateInventory(keys)...).Err())
 }
