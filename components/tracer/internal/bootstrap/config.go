@@ -2028,6 +2028,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// The expired-reservation sweep is on unless explicitly disabled: it is the
 	// only path that returns capacity held past a reservation's stated expiry.
 	ApplyReservationReaperDefaults(cfg)
+	applyContextDefaults(cfg)
 
 	// initCoreInfra also builds the streaming emitter once logger + telemetry
 	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close

@@ -136,6 +136,35 @@ journal writes continue to block regardless of posture.
 
 ## Observe and recover
 
+### Resource defaults and alignment
+
+Absent resource variables now receive bootstrap defaults, using a shared profile
+for 128 accounts, 512 entries, 256-byte text, 128 integer/significant fractional
+digits, a 1 MiB body and 1024 reservations. Additional CEL/cache/recovery defaults
+are listed in each `.env.example`. These are technical ceilings, not a currency
+scale, business limit, workload guarantee or measured SLO. Values outside them
+are rejected explicitly, never rounded. In particular, do not choose eight
+fraction digits merely because Bitcoin has that denomination: fee calculations
+may legitimately retain more precision. Explicit zero/empty values are preserved
+for validation; zero fractional digits means integer-only quantities. Identity,
+namespace, certificates, policies and activation flags receive no permissive
+defaults.
+
+Before activation, compare the **rendered deployment** settings, after resolving
+GitOps/environment overlays, with:
+
+```sh
+go run ./components/tracer/cmd/check-integration-profile \
+  --ledger-env /path/to/rendered-ledger.env \
+  --tracer-env /path/to/rendered-tracer.env
+```
+
+The command applies the same shared defaults to absent keys, rejects invalid
+values and exits nonzero on mismatched resource profiles. It does not print
+credentials, connect to remote services, establish identity/policy readiness or
+prove deployed manifests match those files. Run it on the actual rendered files
+in the deployment gate; comparing only examples is not environment evidence.
+
 Before setting `TRACER_CONTEXT_ENABLED=false`, stop new admissions and drain
 all obligations while recovery remains enabled. Ledger bootstrap now checks the
 transaction primary (every active tenant in multi-tenant mode) and refuses to
