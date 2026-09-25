@@ -138,7 +138,7 @@ const createEngineSeamFuncName = "executeCreateEngine"
 // failClosedSeamMetrics captures the statement-list ordering facts the Gate-5
 // structural assertion relies on, all within CreateTransactionV2.
 type failClosedSeamMetrics struct {
-	reservePos          int  // index of the reserveTransaction call (-1 if absent)
+	reservePos          int  // index of the reservePreparedTransaction call (-1 if absent)
 	rejectRollbackClaim bool // rollbackCreateClaim appears inside the reservationReject branch
 	rejectReturnsBefore bool // the reject branch returns (no fall-through to the balance commit)
 	executeEnginePos    int  // index of the top-level ExecutePreparedEngine call (-1)
@@ -174,7 +174,7 @@ func analyzeFailClosedSeam(t *testing.T, src string) failClosedSeamMetrics {
 	m := failClosedSeamMetrics{reservePos: -1, executeEnginePos: -1}
 
 	for i, stmt := range fn.Body.List {
-		if m.reservePos == -1 && stmtCallsMethod(stmt, "reserveTransaction") {
+		if m.reservePos == -1 && stmtCallsMethod(stmt, "reservePreparedTransaction") {
 			m.reservePos = i
 		}
 
@@ -260,7 +260,7 @@ func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *test
 
 	m := analyzeFailClosedSeam(t, src)
 
-	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found in CreateTransactionV2")
+	require.NotEqual(t, -1, m.reservePos, "reservePreparedTransaction call not found in CreateTransactionV2")
 	require.NotEqual(t, -1, m.executeEnginePos, "ExecutePreparedEngine call not found")
 
 	assert.Less(t, m.reservePos, m.executeEnginePos,
@@ -279,7 +279,7 @@ func TestTracerFailClosedSeam_Bites(t *testing.T) {
 	// Fixture 1: reject branch missing the rollback and the return.
 	leaky := `package command
 func (uc *UseCase) executeCreateEngine() error {
-	reservation := uc.reserveTransaction()
+	reservation := uc.reservePreparedTransaction()
 	if reservation.Kind == reservationReject {
 		// BUG: neither rolls back the claim and seed nor returns
 		_ = reservation.Err
@@ -306,7 +306,7 @@ func (uc *UseCase) executeCreateEngine() error {
 	// Fixture 2: the canonical, correct shape must pass both reject facts.
 	correct := `package command
 func (uc *UseCase) executeCreateEngine() error {
-	reservation := uc.reserveTransaction()
+	reservation := uc.reservePreparedTransaction()
 	if reservation.Kind == reservationReject {
 		uc.rollbackCreateClaim()
 		return reservation.Err

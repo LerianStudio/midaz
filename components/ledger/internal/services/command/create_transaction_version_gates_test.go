@@ -28,6 +28,7 @@ var versionedSeams = []string{
 	"resolveTransactionSkips",
 	"applyFees",
 	"reserveTransaction",
+	"reservePreparedTransaction",
 	"confirmReservations",
 	"releaseReservations",
 }
@@ -126,7 +127,7 @@ func TestCreateTransactionV2_ReferencesVersionedSeamsInOrder(t *testing.T) {
 	}
 
 	engineNames := calledNames(t, readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine"), "executeCreateEngine")
-	engineOrder := []string{"reserveTransaction", "ExecutePreparedEngine", "confirmReservations"}
+	engineOrder := []string{"reservePreparedTransaction", "ExecutePreparedEngine", "confirmReservations"}
 	previous = -1
 	for _, name := range engineOrder {
 		at := indexOfName(engineNames, name)
