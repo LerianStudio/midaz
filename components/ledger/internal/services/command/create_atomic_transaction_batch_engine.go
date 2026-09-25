@@ -152,8 +152,18 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	admissions *accountprotection.Sink,
 ) (EngineExecutionOutcome, error) {
 	if err := uc.beginAtomicContextReservations(ctx, run); err != nil {
-		// An unknown fence commit must not be retried or treated as an abort
-		// of a previously dispatched execution. Recovery retains its evidence.
+		// Accounting has not been invoked. Use the existing guarded abort to
+		// remove the handoff only if no execution receipt protects it. A lost
+		// fence acknowledgement is not an unknown accounting outcome.
+		abortCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), uc.ContextTracer.recovery.config.AttemptTimeout)
+		defer cancel()
+
+		if abortErr := uc.abortAtomicTransactionBatchConfirmedRefusal(abortCtx, run); abortErr != nil {
+			return EngineExecutionOutcome{}, abortErr
+		}
+
+		uc.settleAtomicTransactionBatchReservations(ctx, span, logger, run, atomicTransactionBatchReservationConfirmedAbort)
+
 		return EngineExecutionOutcome{}, err
 	}
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)

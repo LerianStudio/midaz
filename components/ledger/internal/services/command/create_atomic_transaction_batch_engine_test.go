@@ -13,10 +13,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -348,4 +350,45 @@ func atomicTransactionBatchCompletionRecordIDs(records []CompletionPlanRecord) [
 	}
 
 	return transactionIDs
+}
+
+func TestAtomicBatchFenceRefusalCleansHandoffBeforeAccounting(t *testing.T) {
+	for _, protected := range []bool{false, true} {
+		t.Run(map[bool]string{false: "clean abort", true: "protected abort"}[protected], func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := NewMockTracerObligationStore(ctrl)
+			repository := &atomicTransactionBatchClaimRepositoryFake{}
+			if protected {
+				repository.abortErr = txRedis.ErrAtomicTransactionBatchRefusalProtected
+			}
+			engine := &scriptedEngine{}
+			now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+			uc := &UseCase{Engine: engine, AtomicTransactionBatchIdempotencyRepo: repository, ContextTracer: &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{MaxBatch: 2, AttemptTimeout: time.Second}}}}
+			run := atomicTransactionBatchTracerTestRun(2)
+			run.executionID = uuid.MustParse("11111111-1111-4111-8111-111111111111")
+			run.idempotencyClaimed, run.idempotencyHandedOff = true, true
+			keys := make([]tracerreservation.Key, len(run.items))
+			for i := range run.items {
+				keys[i] = tracerreservation.Key{TransactionID: run.items[i].transactionID}
+				run.items[i].tracerReservation = reservationHandle{ContextAttempt: &ContextTracerAttempt{Key: keys[i], IntentAttempted: true, Frozen: true}}
+			}
+			store.EXPECT().BeginExecutions(gomock.Any(), keys, now).Return(constant.ErrReserveOperationConflict)
+			if !protected {
+				for _, key := range keys {
+					store.EXPECT().SetOutcome(gomock.Any(), key, tracerreservation.Released, now).Return(nil)
+				}
+			}
+			ctx, span, logger := anchorDeps()
+			_, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, PreparedEngineExecution{})
+			if protected {
+				require.ErrorIs(t, err, repository.abortErr)
+			} else {
+				require.ErrorIs(t, err, constant.ErrReserveOperationConflict)
+			}
+			require.Empty(t, engine.requests)
+			require.Equal(t, 1, repository.aborts)
+			require.Equal(t, protected, run.idempotencyHandedOff)
+			require.Equal(t, protected, run.idempotencyClaimed)
+		})
+	}
 }
