@@ -16,6 +16,26 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
+func (r *Repository) CountQuarantined(ctx context.Context) (count int64, retErr error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_quarantined_tracer_obligations")
+	defer span.End()
+	defer func() { finish(span, retErr) }()
+
+	db, err := r.database(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracer_reservation_obligation WHERE tenant_id=$1 AND delivered_at IS NULL AND recovery_quarantined`, tmcore.GetTenantIDContext(ctx)).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count quarantined tracer obligations: %w", err)
+	}
+
+	return count, nil
+}
+
 // ClaimDue schedules the next attempt before returning bounded, body-free work.
 // SKIP LOCKED lets workers share a tenant; retry after a crash or lost remote
 // acknowledgement is intentional. It never assigns an accounting outcome.

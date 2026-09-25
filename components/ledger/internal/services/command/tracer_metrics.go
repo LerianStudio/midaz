@@ -32,7 +32,7 @@ func emitTracerMetric(ctx context.Context, factory *metrics.MetricsFactory, oper
 	}
 
 	switch result {
-	case "allow", "deny", "review", "fail_open", "unavailable", "context_invalid", "coordination_uncertain", "delivered", "failed", "unresolved":
+	case "allow", "deny", "review", "fail_open", "unavailable", "context_invalid", "coordination_uncertain", "delivered", "failed", "unresolved", "quarantined":
 	default:
 		result = "unknown"
 	}
@@ -46,6 +46,33 @@ func emitTracerMetric(ctx context.Context, factory *metrics.MetricsFactory, oper
 
 	if err := factory.RecordHistogram(ctx, "tracer_coordination_duration_ms", "Tracer admission and durable delivery duration in milliseconds.", "ms", labels, float64(duration)/float64(time.Millisecond), tracerDurationBuckets); err != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Unable to record Tracer coordination duration", libLog.Err(err))
+	}
+}
+
+type tracerQuarantineCounter interface {
+	CountQuarantined(context.Context) (int64, error)
+}
+
+func emitTracerQuarantineGauge(ctx context.Context, factory *metrics.MetricsFactory, store TracerObligationStore) {
+	if factory == nil {
+		return
+	}
+
+	counter, ok := store.(tracerQuarantineCounter)
+	if !ok {
+		return
+	}
+
+	count, err := counter.CountQuarantined(ctx)
+
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Unable to count quarantined Tracer obligations", libLog.Err(err))
+		return
+	}
+
+	if err := factory.SetGauge(ctx, "tracer_obligations_quarantined", "Current number of quarantined Tracer obligations for the resolved tenant.", "1", nil, count); err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Unable to record quarantined Tracer obligation gauge", libLog.Err(err))
 	}
 }
 

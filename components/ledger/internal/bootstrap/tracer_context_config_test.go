@@ -24,7 +24,7 @@ func contextTracerTestConfig() Config {
 }
 
 func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
-	for _, scenario := range []string{"valid", "zero precision", "missing precision", "missing namespace", "missing producer", "mesh", "empty endpoint", "empty timeout", "empty interval", "empty batch", "empty catalog bound"} {
+	for _, scenario := range []string{"valid", "zero precision", "missing precision", "missing namespace", "missing producer", "mesh", "empty endpoint", "empty timeout", "empty interval", "empty batch", "empty catalog bound", "batch exceeds recovery"} {
 		t.Run(scenario, func(t *testing.T) {
 			cfg := contextTracerTestConfig()
 			switch scenario {
@@ -48,12 +48,15 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 				cfg.TracerRecoveryBatchSize = 0
 			case "empty catalog bound":
 				cfg.TracerRecoveryMaxCatalogTenants = 0
+			case "batch exceeds recovery":
+				cfg.TransactionBatchMaxSize = cfg.TracerRecoveryBatchSize + 1
 			}
 			parsed, err := parseContextTracerConfig(&cfg, "ledger")
 			if scenario == "valid" || scenario == "zero precision" {
 				require.NoError(t, err)
 				require.Equal(t, 250*time.Millisecond, parsed.coordinator.AdmissionTimeout)
 				require.Equal(t, parsed.operationTimeout, parsed.coordinator.AdmissionTimeout)
+				require.Equal(t, time.Duration(cfg.TracerRecoveryCycleTimeoutMs)*time.Millisecond, parsed.recovery.LeaseDuration)
 			} else {
 				require.Error(t, err)
 			}

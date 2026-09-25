@@ -42,6 +42,10 @@ func parseContextTracerConfig(cfg *Config, service string) (contextTracerRuntime
 		return contextTracerRuntimeConfig{}, err
 	}
 
+	if cfg.TransactionBatchMaxSize > 0 && cfg.TransactionBatchMaxSize > cfg.TracerRecoveryBatchSize {
+		return contextTracerRuntimeConfig{}, fmt.Errorf("TRANSACTION_BATCH_MAX_SIZE cannot exceed TRACER_RECOVERY_BATCH_SIZE when context tracer is enabled: %w", constant.ErrTracerContractUnavailable)
+	}
+
 	recovery, err := parseTracerRecoveryConfig(cfg)
 	if err != nil {
 		return contextTracerRuntimeConfig{}, err
@@ -87,7 +91,12 @@ func parseTracerRecoveryConfig(cfg *Config) (command.TracerRecoveryConfig, error
 		return command.TracerRecoveryConfig{}, fmt.Errorf("TRACER_RECOVERY_ATTEMPT_TIMEOUT_MS: %w", err)
 	}
 
-	recovery := command.TracerRecoveryConfig{IntegrationID: cfg.TracerIntegrationID, Namespace: cfg.TracerAssetNamespace, SingleTenant: !cfg.MultiTenantEnabled, MaxBatch: cfg.TracerRecoveryBatchSize, RetryInterval: interval, AttemptTimeout: attempt}
+	lease, err := tracerRecoveryDuration(cfg.TracerRecoveryCycleTimeoutMs)
+	if err != nil {
+		return command.TracerRecoveryConfig{}, fmt.Errorf("TRACER_RECOVERY_CYCLE_TIMEOUT_MS: %w", err)
+	}
+
+	recovery := command.TracerRecoveryConfig{IntegrationID: cfg.TracerIntegrationID, Namespace: cfg.TracerAssetNamespace, SingleTenant: !cfg.MultiTenantEnabled, MaxBatch: cfg.TracerRecoveryBatchSize, RetryInterval: interval, AttemptTimeout: attempt, LeaseDuration: lease}
 
 	recovery.MaxRetryInterval, err = tracerRecoveryDuration(cfg.TracerRecoveryMaxRetryIntervalMs)
 	if err != nil {
@@ -113,7 +122,7 @@ func parseTracerRecoveryWorkerConfig(cfg *Config, service string, interval time.
 	}
 
 	worker := TracerRecoveryWorkerConfig{MultiTenant: cfg.MultiTenantEnabled, Service: service, Interval: interval, CycleTimeout: cycle, TenantTimeout: tenant, MaxTenants: cfg.TracerRecoveryMaxTenants, MaxCatalogTenants: cfg.TracerRecoveryMaxCatalogTenants}
-	if worker.MaxTenants <= 0 || worker.MaxCatalogTenants < worker.MaxTenants || (worker.MultiTenant && strings.TrimSpace(service) == "") {
+	if worker.MaxTenants <= 0 || worker.MaxCatalogTenants < worker.MaxTenants || worker.CycleTimeout < worker.TenantTimeout || (worker.MultiTenant && strings.TrimSpace(service) == "") {
 		return TracerRecoveryWorkerConfig{}, constant.ErrTracerContractUnavailable
 	}
 

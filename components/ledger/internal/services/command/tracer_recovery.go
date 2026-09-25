@@ -16,7 +16,9 @@ import (
 	"github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,6 +37,7 @@ type TracerRecoveryConfig struct {
 	MaxBatch         int
 	RetryInterval    time.Duration
 	AttemptTimeout   time.Duration
+	LeaseDuration    time.Duration
 	MaxRetryInterval time.Duration
 }
 
@@ -43,7 +46,7 @@ func (c TracerRecoveryConfig) Validate() error {
 		return constant.ErrInvalidRequestBody
 	}
 
-	if !validTracerIdentity(c.IntegrationID) || !validTracerIdentity(c.Namespace) || c.MaxBatch <= 0 || c.RetryInterval <= 0 || c.AttemptTimeout <= 0 {
+	if !validTracerIdentity(c.IntegrationID) || !validTracerIdentity(c.Namespace) || c.MaxBatch <= 0 || c.RetryInterval <= 0 || c.AttemptTimeout <= 0 || c.LeaseDuration < c.AttemptTimeout {
 		return constant.ErrInvalidRequestBody
 	}
 
@@ -55,10 +58,11 @@ func validTracerIdentity(value string) bool {
 }
 
 type TracerRecoverySummary struct {
-	Claimed    int
-	Delivered  int
-	Unresolved int
-	Failed     int
+	Claimed     int
+	Delivered   int
+	Unresolved  int
+	Failed      int
+	Quarantined int
 }
 
 // TracerRecoveryProcessor finishes known outcomes. Its dependency list contains
@@ -79,6 +83,10 @@ func NewTracerRecoveryProcessor(store TracerObligationStore, client ContextTrace
 		return nil, constant.ErrTracerContractUnavailable
 	}
 
+	if cfg.LeaseDuration == 0 {
+		cfg.LeaseDuration = max(cfg.RetryInterval, cfg.AttemptTimeout)
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -91,15 +99,16 @@ func NewTracerRecoveryProcessor(store TracerObligationStore, client ContextTrace
 }
 
 func (p *TracerRecoveryProcessor) RunOnce(ctx context.Context) (summary TracerRecoverySummary, retErr error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Nest each reconciliation attempt under the cycle's semantic span.
 	ctx, span := tracer.Start(ctx, "command.recover_tracer_reservations")
 	defer span.End()
 	defer func() {
-		span.SetAttributes(attribute.Int("app.response.tracer.recovery.claimed", summary.Claimed), attribute.Int("app.response.tracer.recovery.delivered", summary.Delivered), attribute.Int("app.response.tracer.recovery.unresolved", summary.Unresolved), attribute.Int("app.response.tracer.recovery.failed", summary.Failed))
+		span.SetAttributes(attribute.Int("app.response.tracer.recovery.claimed", summary.Claimed), attribute.Int("app.response.tracer.recovery.delivered", summary.Delivered), attribute.Int("app.response.tracer.recovery.unresolved", summary.Unresolved), attribute.Int("app.response.tracer.recovery.failed", summary.Failed), attribute.Int("app.response.tracer.recovery.quarantined", summary.Quarantined))
 
 		recordTracerCoordinationError(span, retErr)
+		emitTracerQuarantineGauge(ctx, p.MetricsFactory, p.store)
 	}()
 
 	if err := ctx.Err(); err != nil {
@@ -110,54 +119,93 @@ func (p *TracerRecoveryProcessor) RunOnce(ctx context.Context) (summary TracerRe
 		return summary, constant.ErrTracerContractUnavailable
 	}
 
-	now := p.now().UTC()
-
-	records, err := p.store.ClaimDue(ctx, now, now.Add(p.config.RetryInterval), p.config.MaxBatch)
-	if err != nil {
-		return summary, fmt.Errorf("claim tracer obligations: %w", err)
-	}
-
-	summary.Claimed = len(records)
-	if len(records) > p.config.MaxBatch {
-		return summary, constant.ErrTracerContractUnavailable
-	}
-
 	var failures []error
 
-	for _, record := range records {
-		if err := ctx.Err(); err != nil {
-			return summary, errors.Join(append(failures, err)...)
+	for {
+		now := p.now().UTC()
+
+		records, err := p.store.ClaimDue(ctx, now, now.Add(p.config.LeaseDuration), p.config.MaxBatch)
+		if err != nil {
+			return summary, errors.Join(append(failures, fmt.Errorf("claim tracer obligations: %w", err))...)
 		}
 
-		emitTracerObligationAge(ctx, p.MetricsFactory, record, now)
+		summary.Claimed += len(records)
+		if len(records) > p.config.MaxBatch {
+			return summary, errors.Join(append(failures, constant.ErrTracerContractUnavailable)...)
+		}
 
-		attempt, cancel := context.WithTimeout(ctx, p.config.AttemptTimeout)
-		delivered, err := p.process(attempt, record)
+		for _, record := range records {
+			if err := ctx.Err(); err != nil {
+				return summary, errors.Join(append(failures, err)...)
+			}
 
-		cancel()
+			emitTracerObligationAge(ctx, p.MetricsFactory, record, now)
 
-		if !delivered {
-			quarantine := p.validatePending(ctx, record) != nil
+			attempt, cancel := context.WithTimeout(ctx, p.config.AttemptTimeout)
+			delivered, err := p.processSafely(attempt, record)
 
-			next := p.now().UTC().Add(p.retryDelay(record.RecoveryAttempts))
-			if scheduleErr := p.store.ScheduleRetry(ctx, record, next, quarantine); scheduleErr != nil {
-				err = errors.Join(err, fmt.Errorf("schedule tracer retry: %w", scheduleErr))
+			cancel()
+
+			if !delivered {
+				quarantine := quarantinePending(record)
+
+				next := p.now().UTC().Add(p.retryDelay(record.RecoveryAttempts))
+				if scheduleErr := p.store.ScheduleRetry(ctx, record, next, quarantine); scheduleErr != nil {
+					err = errors.Join(err, fmt.Errorf("schedule tracer retry: %w", scheduleErr))
+				} else if quarantine {
+					summary.Quarantined++
+
+					emitTracerMetric(ctx, p.MetricsFactory, "recovery", "quarantined", 0)
+					logger.Log(ctx, libLog.LevelWarn, "Malformed Tracer obligation quarantined", libLog.String("transaction_id", record.Key.TransactionID.String()))
+				}
+			}
+
+			switch {
+			case err != nil:
+				summary.Failed++
+
+				failures = append(failures, err)
+			case delivered:
+				summary.Delivered++
+			default:
+				summary.Unresolved++
 			}
 		}
 
-		switch {
-		case err != nil:
-			summary.Failed++
-
-			failures = append(failures, err)
-		case delivered:
-			summary.Delivered++
-		default:
-			summary.Unresolved++
+		if len(records) < p.config.MaxBatch {
+			return summary, errors.Join(failures...)
 		}
 	}
+}
 
-	return summary, errors.Join(failures...)
+func (p *TracerRecoveryProcessor) processSafely(ctx context.Context, record tracerreservation.Pending) (delivered bool, retErr error) {
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	completed := false
+
+	defer func() {
+		if !completed {
+			retErr = constant.ErrTracerContractUnavailable
+		}
+	}()
+	defer libRuntime.RecoverWithPolicyAndContext(ctx, logger, "ledger", "tracer-recovery-record", libRuntime.KeepRunning)
+
+	delivered, retErr = p.process(ctx, record)
+	completed = true
+
+	return delivered, retErr
+}
+
+func quarantinePending(record tracerreservation.Pending) bool {
+	if record.Key.Validate() != nil || record.ExecutionID == uuid.Nil {
+		return true
+	}
+
+	switch record.State {
+	case tracerreservation.Prepared, tracerreservation.Executing, tracerreservation.Confirmed, tracerreservation.Released:
+		return false
+	default:
+		return true
+	}
 }
 
 func (p *TracerRecoveryProcessor) retryDelay(attempts int) time.Duration {
