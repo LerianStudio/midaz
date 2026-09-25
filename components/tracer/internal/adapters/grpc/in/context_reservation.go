@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -159,6 +160,10 @@ func completionEvaluationID(result *tracercontract.TransactionCompletionResult) 
 }
 
 func contextReservationError(err error) error {
+	if errors.Is(err, query.ErrContextPolicyCompilationBusy) {
+		return status.Error(codes.ResourceExhausted, query.ErrContextPolicyCompilationBusy.Error())
+	}
+
 	mappings := []struct {
 		cause error
 		code  codes.Code

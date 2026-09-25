@@ -255,12 +255,12 @@ func tenantUnaryInterceptor(
 }
 
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
-// Availability-class status codes (Unavailable, DeadlineExceeded, Canceled) and
+// Availability-class status codes and
 // a context deadline / cancellation are folded into ErrTracerUnavailable so the
 // reserve anchor's fail-posture branch handles them, matching the REST client's
-// transport-failure normalisation. Other status codes (e.g. NotFound, Internal,
-// InvalidArgument) are returned verbatim — they are non-availability outcomes the
-// caller surfaces as-is.
+// transport-failure normalisation. A ResourceExhausted response carrying a
+// canonical request error remains deterministic; otherwise server saturation
+// and opaque Internal/Unknown responses are availability failures.
 func mapGRPCError(err error) error {
 	if err == nil {
 		return nil
@@ -270,10 +270,32 @@ func mapGRPCError(err error) error {
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	}
 
+	grpcStatus, ok := status.FromError(err)
+	if ok && grpcDeterministicCause(grpcStatus.Message()) != nil {
+		return err
+	}
+
 	switch status.Code(err) {
-	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled:
+	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled, codes.Internal, codes.Unknown, codes.ResourceExhausted:
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	default:
 		return err
 	}
+}
+
+func grpcDeterministicCause(message string) error {
+	for _, cause := range []error{
+		constant.ErrContextPolicyUnavailable,
+		constant.ErrContextLimitsUnavailable,
+		constant.ErrExpressionCostExceeded,
+		constant.ErrExpressionEvaluation,
+		constant.ErrInvalidRequestBody,
+		constant.ErrPayloadTooLarge,
+	} {
+		if message == cause.Error() {
+			return cause
+		}
+	}
+
+	return nil
 }

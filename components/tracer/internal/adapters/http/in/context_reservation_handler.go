@@ -17,6 +17,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -210,6 +211,10 @@ func (h *ContextReservationHandler) completeLegacy(ctx context.Context, id strin
 }
 
 func canonicalContextReservationError(err error) error {
+	if errors.Is(err, query.ErrContextPolicyCompilationBusy) {
+		return huma.Error429TooManyRequests("Context policy compilation capacity is temporarily exhausted.")
+	}
+
 	if errors.Is(err, constant.ErrExpressionEvaluation) {
 		return pkg.ValidateBusinessError(constant.ErrExpressionEvaluation, constant.EntityReservation)
 	}

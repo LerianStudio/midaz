@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -86,4 +87,10 @@ func TestContextReservationPolicyFailuresAreNotUnavailable(t *testing.T) {
 		require.Equal(t, codes.FailedPrecondition, status.Code(err))
 		require.Equal(t, cause.Error(), status.Convert(err).Message())
 	}
+}
+
+func TestContextReservationCompilationSaturationIsResourceExhausted(t *testing.T) {
+	err := contextReservationError(query.ErrContextPolicyCompilationBusy)
+	require.Equal(t, codes.ResourceExhausted, status.Code(err))
+	require.Equal(t, query.ErrContextPolicyCompilationBusy.Error(), status.Convert(err).Message())
 }
