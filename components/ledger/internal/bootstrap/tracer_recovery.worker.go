@@ -168,7 +168,7 @@ func (w *TracerRecoveryWorker) activeTenants(ctx context.Context) ([]string, err
 			return nil, err
 		}
 
-		if entry == nil || !tmcore.IsValidTenantID(entry.ID) || !strings.EqualFold(entry.Status, "active") {
+		if entry == nil || !eligibleTracerRecoveryTenant(entry.ID, entry.Status) {
 			skipped++
 			continue
 		}
@@ -183,6 +183,10 @@ func (w *TracerRecoveryWorker) activeTenants(ctx context.Context) ([]string, err
 	sort.Strings(ids)
 
 	return ids, nil
+}
+
+func eligibleTracerRecoveryTenant(id, status string) bool {
+	return tmcore.IsValidTenantID(id) && strings.EqualFold(status, "active")
 }
 
 // Keep the smallest distinct identifiers in cursor order using bounded storage.

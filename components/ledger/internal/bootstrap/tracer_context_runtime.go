@@ -47,8 +47,10 @@ func buildContextTracer(cfg *Config, deps contextTracerDependencies) (_ *context
 	}
 
 	if !cfg.TracerContextEnabled {
-		if err := verifyTracerDrain(context.Background(), cfg, deps); err != nil {
-			return nil, err
+		if tracerDrainRequired(cfg) {
+			if err := verifyTracerDrain(context.Background(), cfg, deps); err != nil {
+				return nil, err
+			}
 		}
 
 		return nil, nil
