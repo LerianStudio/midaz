@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	auth "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	auth "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"

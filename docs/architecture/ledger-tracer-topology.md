@@ -39,7 +39,7 @@ same values, and PATCH checks activation against the atomically merged settings.
 
 Combined controls can be configured while `mode=off`. Enabling advisory/enforce
 requires the context integration's activation verifier; absent readiness returns
-canonical `0525`/503 before settings are persisted. Disabling the profile remains
+canonical `0533`/503 before settings are persisted. Disabling the profile remains
 possible when that verifier is absent. The verifier belongs to the complete
 integration composition, including durable recovery; its presence is not inferred
 from a legacy client or from `/version`. It must perform a local readiness check,
@@ -64,7 +64,7 @@ bypassed by fail-open or advisory; those settings govern validation availability
 not ownership of accounting dispatch.
 
 In enforce, `DENY` retains code `0177`/422; its explanation covers rules and
-usage limits. `REVIEW` returns `0526`/422 and creates neither accounting entries
+usage limits. `REVIEW` returns `0534`/422 and creates neither accounting entries
 nor a pending hold. Advisory observes both decisions. Successful direct execution
 records confirmation for asynchronous delivery; PENDING retains its obligation
 until a terminal accounting outcome is proven. Recovery reads the tenant primary:

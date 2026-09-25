@@ -203,6 +203,6 @@ func TestContextPolicyWrappedUnavailable(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, response.StatusCode)
 	content, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
-	require.Contains(t, string(content), "0518")
+	require.Contains(t, string(content), "0526")
 	require.NotContains(t, string(content), "private storage details")
 }

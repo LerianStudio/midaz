@@ -98,7 +98,7 @@ debits, and sorts accounts and counter coordinates deterministically. One limit
 covering multiple accounts produces independent account counters, not a combined
 allowance. Unsupported scopes, missing associations, contradictory asset codes,
 and limits associated with a participating account's wrong asset return
-configuration error 0522/503; none is silently dropped or converted into DENY.
+configuration error 0530/503; none is silently dropped or converted into DENY.
 The complete snapshot is validated before checking caps or active windows.
 
 Periods and window checks use a single injected server time. Counter retention
@@ -119,7 +119,7 @@ Migration 000032 adds immutable `limit_asset_references`, preserving limit IDs,
 usage counters and reservations. Its composite foreign key requires the existing
 asset code and prevents later code changes. No code-only identity backfill is
 performed. Binding requires the caller's transaction. Duplicate binding returns
-0523/409. Down is allowed only with no stored association and no conflicting
+0531/409. Down is allowed only with no stored association and no conflicting
 active locks.
 
 `BindLimitAssetCommand` requires both verified integration identity and a user or
@@ -144,7 +144,7 @@ UUID within the organization/ledger and rejecting missing or ambiguous records.
 The separate Ledger `OfficialContextLoader` now uses a bounded batch reader
 on the tenant primary: a read-only repeatable-read transaction fetches accounts
 and assets in one snapshot, rejecting missing, deleted or ambiguous records
-with 0524/503. It includes external entry assets without fictitious accounts.
+with 0532/503. It includes external entry assets without fictitious accounts.
 The Ledger context coordinator loads these facts after off/skip gates and
 propagates the admission deadline. Bootstrap installs it together with durable
 recovery when `TRACER_CONTEXT_ENABLED=true`.
@@ -202,9 +202,9 @@ use case. These components do not activate the new contract on their own.
 Migration `000025` persists immutable policy and rule revisions, plus exact
 `(integration_id, context_id)` bindings within the authenticated tenant database.
 The policy repository reads the binding and its complete rule set from the
-primary in one query. Missing configuration is error `0518` (503), never an
+primary in one query. Missing configuration is error `0526` (503), never an
 implicit ALLOW. Immutable revision conflicts and stale binding updates use
-`0519` (409). Binding versions advance on every update, including a return to a
+`0527` (409). Binding versions advance on every update, including a return to a
 previous policy, so stale administrative writes cannot overwrite that change.
 
 The replacement reservation contract has shared request/response types in
@@ -219,7 +219,7 @@ integration. The original response and selected policy/binding/rule revisions
 survive policy rebindings and process restarts. `LookupReserveDecisionQuery`
 validates verified identity and the content fingerprint before returning a
 detached stored snapshot; it never evaluates current rules or repeats capacity
-or audit writes. Conflicting identity reuse is canonical error `0520` (409).
+or audit writes. Conflicting identity reuse is canonical error `0528` (409).
 Reads use the primary, including the repeated lookup available inside the caller's
 transaction. Parsing/storage bounds must continue to cover recoverable records.
 
@@ -238,11 +238,11 @@ creates an OPEN marker if absent and holds its row lock until the caller's
 transaction ends. Acquire this lock before account, counter and audit locks,
 then repeat the decision lookup. `CompleteWithTx` records CONFIRMED or RELEASED
 even before the first decision exists. Same-outcome replay preserves the original
-timestamp; a contradictory completion returns canonical error `0521` (409).
+timestamp; a contradictory completion returns canonical error `0529` (409).
 OPEN is not proof that accounting failed: there is no TTL-driven transition.
 
 A database trigger takes the same operation lock before a decision insert and
-rejects an already completed operation with `0521`. This is defense in depth,
+rejects an already completed operation with `0529`. This is defense in depth,
 not a substitute for acquiring the lock before capacity/audit work. An existing
 decision remains replayable after completion. Backfill marks old decisions OPEN
 without inferring an accounting outcome. Triggers forbid reopening, rewriting or
