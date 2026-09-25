@@ -386,6 +386,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
 		{constant.ActionBlock, entries.Block, constant.ErrAccountingEntryFieldRequired},
 		{constant.ActionUnblock, entries.Unblock, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionCrossLedger, entries.CrossLedger, constant.ErrAccountingEntryFieldRequired},
 	}
 
 	for _, action := range actions {
@@ -457,14 +458,15 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 // validAccountingEntryKeys defines the allowed top-level keys inside accountingEntries.
 var validAccountingEntryKeys = map[string]struct{}{
-	constant.ActionDirect:    {},
-	constant.ActionHold:      {},
-	constant.ActionCommit:    {},
-	constant.ActionCancel:    {},
-	constant.ActionRevert:    {},
-	constant.ActionOverdraft: {},
-	constant.ActionBlock:     {},
-	constant.ActionUnblock:   {},
+	constant.ActionDirect:      {},
+	constant.ActionHold:        {},
+	constant.ActionCommit:      {},
+	constant.ActionCancel:      {},
+	constant.ActionRevert:      {},
+	constant.ActionOverdraft:   {},
+	constant.ActionBlock:       {},
+	constant.ActionUnblock:     {},
+	constant.ActionCrossLedger: {},
 }
 
 // findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
@@ -516,6 +518,13 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 	// harder to accidentally loosen via future edits to the source/destination
 	// switches.
 	if scenario == constant.ActionOverdraft {
+		return fieldRequirement{debitRequired: true, creditRequired: true}
+	}
+
+	// The cross-ledger bridge route is credited in the part that sends value
+	// out and debited in the part that receives it, so both rubrics are always
+	// needed.
+	if scenario == constant.ActionCrossLedger {
 		return fieldRequirement{debitRequired: true, creditRequired: true}
 	}
 
@@ -587,6 +596,10 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 
 	// Check direction × scenario matrix (which scenarios are allowed)
 	if err := handler.validateDirectionScenarioMatrix(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	if err := handler.validateCrossLedgerEntry(ctx, operationType, entries, entityName); err != nil {
 		return err
 	}
 
@@ -766,7 +779,8 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	// Overdraft is a supplementary accounting scenario that still requires
 	// direct as a base. Without this, a payload setting only overdraft
 	// would bypass the direct-mandatory check and yield an incomplete
-	// accounting description.
+	// accounting description. crossLedger is deliberately absent: the bridge
+	// route stands alone (validateCrossLedgerEntry).
 	hasOtherScenarios := entries.Hold != nil || entries.Commit != nil ||
 		entries.Cancel != nil || entries.Revert != nil ||
 		entries.Overdraft != nil
@@ -781,6 +795,55 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direct scenario required", err)
 		logger.Log(ctx, libLog.LevelWarn, "Direct scenario is required when other scenarios are present")
+
+		return err
+	}
+
+	return nil
+}
+
+// validateCrossLedgerEntry enforces the shape of a cross-ledger bridge route. The
+// route is bidirectional because each group part posts it on the opposite side
+// (credited where value leaves a ledger, debited where it arrives) and a group
+// revert needs every routed operation to be reversible. It carries no other
+// entry, so the route ID alone identifies a bridge leg wherever the leg is
+// read back (the persisted transaction body, the hold intent, the operations)
+// and the route never counts in an action's template.
+func (handler *OperationRouteHandler) validateCrossLedgerEntry(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	if entries.CrossLedger == nil {
+		return nil
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_cross_ledger_entry")
+	defer span.End()
+
+	if operationType != constant.OperationRouteTypeBidirectional {
+		err := pkg.ValidateBusinessError(
+			constant.ErrScenarioNotAllowedForDirection,
+			entityName,
+			fmt.Sprintf("%s scenario is only allowed for bidirectional operation routes", constant.ActionCrossLedger),
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "crossLedger not allowed for a non-bidirectional route", err)
+
+		return err
+	}
+
+	if actions := entries.Actions(); len(actions) > 1 {
+		err := pkg.ValidateBusinessError(
+			constant.ErrInvalidCrossLedgerRoute,
+			entityName,
+			"An operation route with a crossLedger entry cannot carry other accounting entries.",
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "crossLedger combined with other accounting entries", err)
 
 		return err
 	}
@@ -820,6 +883,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 		{constant.ActionOverdraft, entries.Overdraft},
 		{constant.ActionBlock, entries.Block},
 		{constant.ActionUnblock, entries.Unblock},
+		{constant.ActionCrossLedger, entries.CrossLedger},
 	}
 
 	for _, action := range actions {
@@ -917,7 +981,8 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		return existingEntry
 	}
 
-	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft *mmodel.AccountingEntry
+	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft,
+		incomingBlock, incomingUnblock, incomingCrossLedger *mmodel.AccountingEntry
 	if incoming != nil {
 		incomingDirect = incoming.Direct
 		incomingHold = incoming.Hold
@@ -925,6 +990,9 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		incomingCancel = incoming.Cancel
 		incomingRevert = incoming.Revert
 		incomingOverdraft = incoming.Overdraft
+		incomingBlock = incoming.Block
+		incomingUnblock = incoming.Unblock
+		incomingCrossLedger = incoming.CrossLedger
 	}
 
 	merged.Direct = applyMerge(constant.ActionDirect, existing.Direct, incomingDirect)
@@ -933,11 +1001,15 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 	merged.Cancel = applyMerge(constant.ActionCancel, existing.Cancel, incomingCancel)
 	merged.Revert = applyMerge(constant.ActionRevert, existing.Revert, incomingRevert)
 	merged.Overdraft = applyMerge(constant.ActionOverdraft, existing.Overdraft, incomingOverdraft)
+	merged.Block = applyMerge(constant.ActionBlock, existing.Block, incomingBlock)
+	merged.Unblock = applyMerge(constant.ActionUnblock, existing.Unblock, incomingUnblock)
+	merged.CrossLedger = applyMerge(constant.ActionCrossLedger, existing.CrossLedger, incomingCrossLedger)
 
 	// Check if all entries are nil - return nil instead of empty struct
 	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
 		merged.Cancel == nil && merged.Revert == nil &&
-		merged.Overdraft == nil {
+		merged.Overdraft == nil && merged.Block == nil && merged.Unblock == nil &&
+		merged.CrossLedger == nil {
 		return nil
 	}
 
@@ -987,6 +1059,24 @@ func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) 
 		merged.Overdraft = incoming.Overdraft
 	} else if existing != nil {
 		merged.Overdraft = existing.Overdraft
+	}
+
+	if incoming.Block != nil {
+		merged.Block = incoming.Block
+	} else if existing != nil {
+		merged.Block = existing.Block
+	}
+
+	if incoming.Unblock != nil {
+		merged.Unblock = incoming.Unblock
+	} else if existing != nil {
+		merged.Unblock = existing.Unblock
+	}
+
+	if incoming.CrossLedger != nil {
+		merged.CrossLedger = incoming.CrossLedger
+	} else if existing != nil {
+		merged.CrossLedger = existing.CrossLedger
 	}
 
 	return merged

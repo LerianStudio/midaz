@@ -165,6 +165,8 @@ All models live in `pkg/mmodel/`. Key entities:
 - Operation routes define per-operation rules (source/destination/bidirectional)
 - Transaction routes compose multiple operation routes for accounting validation
 - Routes belong to the organization: lookups, updates and deletes resolve by `(organization, id)`, and a transaction route may link operation routes created under different ledgers of the organization. `ledgerId` is provenance only — the ledger the route was created under, omitted for a route created at organization level (`/v2/organizations/{organization_id}/{operation,transaction}-routes`, served on `/v2` only). The ledger paths (`/v1` and `/v2`) record the path ledger on create and reach every route of the organization on list, get, patch and delete. Both paths authorize with the same `("midaz","operation-routes"|"transaction-routes",verb)` tuples
+- `accountingEntries` keys: `direct`, `hold`, `commit`, `cancel`, `revert` (transaction-route actions) plus the entry-only `overdraft`, `block`, `unblock` and `crossLedger`
+- `crossLedger` marks the cross-ledger bridge route: debit rubric = arriving from another ledger, credit rubric = leaving to another ledger, both required; the operation route must be `bidirectional` (`0162` otherwise) and carry no other entry (`0256`); it needs no `direct` entry and never counts in an action's template. A transaction route links at most one (`0256` on transaction-route create/update, and on operation-route update when a linked transaction route already has one)
 - Account rules: alias-based or account-type-based validation
 
 ### 3.8 Account Type
@@ -575,7 +577,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0249–0254)
+#### Settings / Reservation Error Codes (0176–0178, 0249–0256)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
@@ -585,6 +587,8 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0252` ErrCrossLedgerLifecycleRequiresV2 — `/v1` attempted to commit, cancel, or revert a member of a cross-ledger group (HTTP 422)
 - `0253` ErrCrossLedgerGroupIncomplete — the requested cross-ledger group is missing or has inconsistent intent or members (HTTP 422)
 - `0254` ErrCrossLedgerGroupNotPending — grouped commit/cancel targeted a group whose current status is not PENDING (HTTP 422)
+- `0255` ErrCrossLedgerRouteNotConfigured — a participant validates routes but the request's transaction route links no operation route with a `crossLedger` entry for the bridge leg (HTTP 422)
+- `0256` ErrInvalidCrossLedgerRoute — the bridge route does not resolve to exactly one operation route: a `crossLedger` entry combined with other entries, or more than one `crossLedger` operation route in a transaction route (HTTP 422)
 
 #### CRM Error Codes (all 29)
 - `CRM-0006` ErrHolderNotFound — holder not found

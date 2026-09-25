@@ -38,6 +38,14 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id 
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_operation_route", start, err)
 	}()
 
+	if input.AccountingEntries != nil && input.AccountingEntries.CrossLedger != nil {
+		if err := uc.rejectSecondCrossLedgerBridgeRoute(ctx, organizationID, id); err != nil {
+			recordCommandError(ctx, span, logger, "Failed to check the cross-ledger bridge routes of linked transaction routes", err, libLog.String("operation_route_id", id.String()))
+
+			return nil, err
+		}
+	}
+
 	operationRoute := &mmodel.OperationRoute{
 		Title:                input.Title,
 		Description:          input.Description,
@@ -76,6 +84,51 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id 
 	operationRouteUpdated.Metadata = metadataUpdated
 
 	return operationRouteUpdated, nil
+}
+
+// rejectSecondCrossLedgerBridgeRoute keeps a transaction route at one bridge
+// route when an operation route it already links gains a crossLedger entry.
+func (uc *UseCase) rejectSecondCrossLedgerBridgeRoute(ctx context.Context, organizationID, operationRouteID uuid.UUID) error {
+	transactionRouteIDs, err := uc.OperationRouteRepo.FindTransactionRouteIDs(ctx, operationRouteID)
+	if err != nil || len(transactionRouteIDs) == 0 {
+		return err
+	}
+
+	linked, err := uc.TransactionRouteRepo.FindOperationRouteIDsByTransactionRouteIDs(ctx, transactionRouteIDs)
+	if err != nil {
+		return err
+	}
+
+	seen := map[uuid.UUID]struct{}{operationRouteID: {}}
+	siblings := make([]uuid.UUID, 0)
+
+	for _, transactionRouteID := range transactionRouteIDs {
+		for _, siblingID := range linked[transactionRouteID] {
+			if _, ok := seen[siblingID]; ok {
+				continue
+			}
+
+			seen[siblingID] = struct{}{}
+			siblings = append(siblings, siblingID)
+		}
+	}
+
+	if len(siblings) == 0 {
+		return nil
+	}
+
+	routes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, siblings)
+	if err != nil {
+		return err
+	}
+
+	for _, route := range routes {
+		if isCrossLedgerBridgeRoute(route) {
+			return errMultipleCrossLedgerBridgeRoutes()
+		}
+	}
+
+	return nil
 }
 
 // emitOperationRouteUpdatedEvent publishes the operation-route.updated

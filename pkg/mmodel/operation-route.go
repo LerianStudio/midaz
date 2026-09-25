@@ -30,7 +30,7 @@ type AccountingEntry struct {
 
 // AccountingEntries groups accounting entries by transaction action type.
 //
-// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, block, unblock).
+// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, block, unblock, crossLedger).
 type AccountingEntries struct {
 	// The accounting entry for the direct action.
 	Direct *AccountingEntry `json:"direct,omitempty" msgpack:"direct"`
@@ -51,6 +51,12 @@ type AccountingEntries struct {
 	Block *AccountingEntry `json:"block,omitempty" msgpack:"block"`
 	// The accounting entry for the unblock action.
 	Unblock *AccountingEntry `json:"unblock,omitempty" msgpack:"unblock"`
+	// The accounting entry of the bridge route of a cross-ledger transaction.
+	// Debit rubric classifies money arriving from another ledger; credit rubric
+	// classifies money leaving to another ledger. Both rubrics are REQUIRED, the
+	// operation route must be bidirectional and carry no other entry, and a
+	// transaction route links at most one such operation route.
+	CrossLedger *AccountingEntry `json:"crossLedger,omitempty" msgpack:"crossLedger"`
 } // @name AccountingEntries
 
 // Actions returns the action names for which this AccountingEntries has non-nil entries.
@@ -91,6 +97,10 @@ func (ae *AccountingEntries) Actions() []string {
 
 	if ae.Unblock != nil {
 		actions = append(actions, constant.ActionUnblock)
+	}
+
+	if ae.CrossLedger != nil {
+		actions = append(actions, constant.ActionCrossLedger)
 	}
 
 	return actions

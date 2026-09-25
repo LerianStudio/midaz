@@ -249,6 +249,17 @@ var (
 	// ErrCrossLedgerGroupNotPending rejects a second or conflicting terminal
 	// transition after a cross-ledger hold group has left PENDING.
 	ErrCrossLedgerGroupNotPending = errors.New("0254")
+	// ErrCrossLedgerRouteNotConfigured is returned when a participating ledger
+	// validates accounting routes but the transaction route named by the
+	// request links no operation route with a crossLedger accounting entry, so
+	// the synthetic bridge leg that closes that ledger's part has no route.
+	ErrCrossLedgerRouteNotConfigured = errors.New("0255")
+	// ErrInvalidCrossLedgerRoute is returned when a cross-ledger bridge route
+	// cannot be resolved to exactly one operation route: a crossLedger entry
+	// combined with other accounting entries on the same operation route, or a
+	// transaction route linking more than one operation route with a
+	// crossLedger entry.
+	ErrInvalidCrossLedgerRoute = errors.New("0256")
 	// ErrOverdraftRouteNotConfigured is returned when route validation is
 	// enabled but the accounting route applied to an overdraft companion
 	// operation does not define an overdraft entry carrying the rubric for

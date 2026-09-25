@@ -24599,6 +24599,9 @@
           "commit": {
             "$ref": "#/components/schemas/AccountingEntry"
           },
+          "crossLedger": {
+            "$ref": "#/components/schemas/AccountingEntry"
+          },
           "direct": {
             "$ref": "#/components/schemas/AccountingEntry"
           },
