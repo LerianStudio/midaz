@@ -181,6 +181,7 @@ func (w *TracerRecoveryWorker) activeTenants(ctx context.Context) ([]string, err
 	}
 
 	sort.Strings(ids)
+
 	return ids, nil
 }
 

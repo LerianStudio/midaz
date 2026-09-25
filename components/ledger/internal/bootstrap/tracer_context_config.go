@@ -69,6 +69,7 @@ func parseContextTracerConfig(cfg *Config, service string) (contextTracerRuntime
 	}
 
 	recovery := command.TracerRecoveryConfig{IntegrationID: cfg.TracerIntegrationID, Namespace: cfg.TracerAssetNamespace, SingleTenant: !cfg.MultiTenantEnabled, MaxBatch: cfg.TracerRecoveryBatchSize, RetryInterval: interval, AttemptTimeout: attempt}
+
 	recovery.MaxRetryInterval, err = tracerRecoveryDuration(cfg.TracerRecoveryMaxRetryIntervalMs)
 	if err != nil {
 		return contextTracerRuntimeConfig{}, fmt.Errorf("TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS: %w", err)
