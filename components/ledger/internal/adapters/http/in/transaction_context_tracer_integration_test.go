@@ -40,6 +40,14 @@ func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 	}
 }
 
+func TestIntegrationContextTracerLimitDenial(t *testing.T) {
+	testMountedContextDecision(t, tracercontract.DecisionDeny, mmodel.TracerModeEnforce, nil, tracercontract.ReasonLimitExceeded)
+}
+
+func TestIntegrationContextTracerUnavailableClosed(t *testing.T) {
+	testMountedContextDecision(t, tracercontract.DecisionAllow, mmodel.TracerModeEnforce, tracer.ErrTracerUnavailable)
+}
+
 func TestIntegrationContextTracerPolicyFailureNeverPosts(t *testing.T) {
 	for _, mode := range []string{mmodel.TracerModeEnforce, mmodel.TracerModeAdvisory} {
 		for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrExpressionCostExceeded} {
@@ -48,7 +56,7 @@ func TestIntegrationContextTracerPolicyFailureNeverPosts(t *testing.T) {
 	}
 }
 
-func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, mode string, peerError error) {
+func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, mode string, peerError error, reasonOverride ...tracercontract.ReserveReason) {
 	t.Helper()
 	allowed := decision == tracercontract.DecisionAllow && peerError == nil
 	expectedState := tracerreservation.Confirmed
@@ -62,13 +70,20 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 			reason = tracercontract.ReasonRuleReview
 		}
 	}
+	if len(reasonOverride) > 0 {
+		reason = reasonOverride[0]
+	}
 	h := setupFeeHarness(t)
 	h.enableAccountingEngine(t)
 	h.seedEnforceClosedTracer(t)
 	_, err := h.db.Exec(`UPDATE ledger SET settings='{"tracer":{"mode":"enforce","failPosture":"closed","validationMode":"rules-and-limits","timeoutMs":5000}}'::jsonb WHERE id=$1`, h.ledgerID)
 	require.NoError(t, err)
 	if peerError != nil {
-		settings, err := json.Marshal(mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mode, FailPosture: mmodel.TracerFailPostureOpen, ValidationMode: string(tracercontract.ValidationRulesAndLimits), TimeoutMs: 5000}})
+		posture := mmodel.TracerFailPostureOpen
+		if peerError == tracer.ErrTracerUnavailable {
+			posture = mmodel.TracerFailPostureClosed
+		}
+		settings, err := json.Marshal(mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mode, FailPosture: posture, ValidationMode: string(tracercontract.ValidationRulesAndLimits), TimeoutMs: 5000}})
 		require.NoError(t, err)
 		_, err = h.db.ExecContext(t.Context(), `UPDATE ledger SET settings=$1::jsonb WHERE id=$2`, string(settings), h.ledgerID)
 		require.NoError(t, err)
@@ -157,7 +172,11 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 			expectedStatus = http.StatusUnprocessableEntity
 		}
 		require.Equal(t, expectedStatus, response.status, string(response.rawBody))
-		require.Equal(t, peerError.Error(), response.body["code"])
+		code := peerError.Error()
+		if peerError == tracer.ErrTracerUnavailable {
+			code = "0178"
+		}
+		require.Equal(t, code, response.body["code"])
 	} else {
 		require.Equal(t, http.StatusUnprocessableEntity, response.status, string(response.rawBody))
 		code := "0177"
