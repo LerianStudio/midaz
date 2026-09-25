@@ -165,7 +165,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
-		return nil, err
+		return nil, markAtomicTransactionBatchPrePublication(err)
 	}
 
 	phaseStartedAt = time.Now()
@@ -173,7 +173,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "idempotency", time.Since(phaseStartedAt))
 
 	if err != nil {
-		return nil, err
+		return nil, markAtomicTransactionBatchPrePublication(err)
 	}
 
 	if replay != nil {

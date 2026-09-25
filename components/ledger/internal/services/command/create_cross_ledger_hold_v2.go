@@ -11,6 +11,7 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -85,24 +86,48 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 
 	batch, err := buildCrossLedgerHoldBatchInput(in, groupID, intent)
 	if err != nil {
-		_ = uc.TransactionGroupRepo.Delete(ctx, groupID)
+		uc.discardCrossLedgerHoldIntent(ctx, groupID)
 		return nil, err
 	}
 
 	result, err = uc.executeAtomicTransactionBatchV2(ctx, batch)
 	if err != nil {
 		if isAtomicTransactionBatchPrePublication(err) {
-			_ = uc.TransactionGroupRepo.Delete(ctx, groupID)
+			uc.discardCrossLedgerHoldIntent(ctx, groupID)
 		}
 
 		return nil, err
 	}
 
-	if result != nil && !result.Replayed {
+	if result != nil && result.Replayed {
+		// A replay executes nothing and answers with the original group, so
+		// the intent row persisted for this request never gains members.
+		if result.BatchID != groupID {
+			uc.discardCrossLedgerHoldIntent(ctx, groupID)
+		}
+
+		return result, nil
+	}
+
+	if result != nil {
 		uc.recordCrossLedgerGroupLedgers(ctx, constant.ActionHold, ledgers)
 	}
 
 	return result, nil
+}
+
+// discardCrossLedgerHoldIntent removes the PENDING group row of a hold that
+// executed nothing. It outlives the request context so a canceled request
+// still cleans up; a failure leaves the row to the group reconciler.
+func (uc *UseCase) discardCrossLedgerHoldIntent(ctx context.Context, groupID uuid.UUID) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+	defer cancel()
+
+	if err := uc.TransactionGroupRepo.Delete(cleanupCtx, groupID); err != nil {
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to discard cross-ledger hold intent",
+			libLog.String("group_id", groupID.String()), libLog.Err(err))
+	}
 }
 
 // persistCrossLedgerHoldIntent stores the PENDING group row, owned by the first

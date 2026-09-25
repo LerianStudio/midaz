@@ -1135,3 +1135,63 @@ func assertAtomicTransactionBatchValidationCode(t *testing.T, err error, code st
 	require.True(t, errors.As(err, &validation))
 	assert.Equal(t, code, validation.Code)
 }
+
+type atomicTransactionBatchFailingClaimRepository struct {
+	*atomicTransactionBatchClaimRepositoryFake
+	claimErr error
+}
+
+func (repository atomicTransactionBatchFailingClaimRepository) ClaimAtomicTransactionBatch(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	string,
+	txRedis.AtomicTransactionBatchIdempotencyRecord,
+) (*txRedis.AtomicTransactionBatchClaimResult, error) {
+	return nil, repository.claimErr
+}
+
+func TestCreateAtomicTransactionBatchV2_MarksIdentityAndClaimFailuresPrePublication(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000021")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000022")
+	otherLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000023")
+
+	t.Run("identity", func(t *testing.T) {
+		hold := atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1")
+		hold.Action = constant.ActionHold
+		uc := &UseCase{TransactionReader: &atomicTransactionBatchSettingsReader{}}
+
+		_, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+			Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+				atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
+				hold,
+			},
+		})
+		require.Error(t, err)
+		assert.True(t, isAtomicTransactionBatchPrePublication(err))
+
+		var scopeError pkg.UnprocessableOperationError
+		require.True(t, errors.As(err, &scopeError), "the marker must keep the business error reachable")
+		assert.Equal(t, constant.ErrTransactionScopeMismatch.Error(), scopeError.Code)
+	})
+
+	t.Run("claim", func(t *testing.T) {
+		claimErr := errors.New("claim unavailable")
+		uc := &UseCase{
+			UUIDv7Generator: func() (uuid.UUID, error) { return uuid.New(), nil },
+			AtomicTransactionBatchIdempotencyRepo: atomicTransactionBatchFailingClaimRepository{
+				atomicTransactionBatchClaimRepositoryFake: &atomicTransactionBatchClaimRepositoryFake{},
+				claimErr: claimErr,
+			},
+		}
+
+		_, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+			Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+				atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
+			},
+			IdempotencyKey: "claim-key",
+		})
+		require.ErrorIs(t, err, claimErr)
+		assert.True(t, isAtomicTransactionBatchPrePublication(err))
+	})
+}

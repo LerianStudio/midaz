@@ -161,3 +161,89 @@ func TestCreateCrossLedgerHoldV2_DeletesIntentOnlyForPrePublicationFailure(t *te
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "preparation failed")
 }
+
+func TestCreateCrossLedgerHoldV2_ReplayDiscardsOnlyTheNewIntent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := transactiongroup.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerA := uuid.New()
+	ledgerB := uuid.New()
+	newGroupID := uuid.New()
+	originalGroupID := uuid.New()
+	settings := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
+	uc := &UseCase{
+		TransactionGroupRepo: repo,
+		TransactionReader: &atomicTransactionBatchSettingsReader{settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+			{organizationID: organizationID, ledgerID: ledgerA}: settings,
+			{organizationID: organizationID, ledgerID: ledgerB}: settings,
+		}},
+		UUIDv7Generator: func() (uuid.UUID, error) { return newGroupID, nil },
+		Clock:           func() time.Time { return time.Date(2026, time.September, 22, 18, 0, 0, 0, time.UTC) },
+		createAtomicTransactionBatchV2: func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error) {
+			return &CreateAtomicTransactionBatchV2Result{
+				BatchID:      originalGroupID,
+				Transactions: []*transaction.Transaction{{ID: uuid.NewString()}},
+				Replayed:     true,
+			}, nil
+		},
+	}
+	repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+	repo.EXPECT().Delete(gomock.Any(), newGroupID).Return(nil)
+
+	result, err := uc.CreateCrossLedgerHoldV2(context.Background(), crossLedgerHoldTestInput(organizationID, ledgerA, ledgerB))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Replayed)
+	assert.Equal(t, originalGroupID, result.BatchID)
+}
+
+func TestCreateCrossLedgerHoldV2_DiscardsIntentAfterRequestCancellation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := transactiongroup.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerA := uuid.New()
+	ledgerB := uuid.New()
+	groupID := uuid.New()
+	settings := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	uc := &UseCase{
+		TransactionGroupRepo: repo,
+		TransactionReader: &atomicTransactionBatchSettingsReader{settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+			{organizationID: organizationID, ledgerID: ledgerA}: settings,
+			{organizationID: organizationID, ledgerID: ledgerB}: settings,
+		}},
+		UUIDv7Generator: func() (uuid.UUID, error) { return groupID, nil },
+		Clock:           func() time.Time { return time.Date(2026, time.September, 22, 19, 0, 0, 0, time.UTC) },
+		createAtomicTransactionBatchV2: func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error) {
+			cancel()
+			return nil, markAtomicTransactionBatchPrePublication(context.Canceled)
+		},
+	}
+	repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+	repo.EXPECT().Delete(gomock.Any(), groupID).DoAndReturn(func(cleanupCtx context.Context, _ uuid.UUID) error {
+		assert.NoError(t, cleanupCtx.Err(), "cleanup must not inherit the request cancellation")
+
+		_, hasDeadline := cleanupCtx.Deadline()
+		assert.True(t, hasDeadline, "cleanup must be bounded")
+
+		return errors.New("delete failed")
+	})
+
+	result, err := uc.CreateCrossLedgerHoldV2(ctx, crossLedgerHoldTestInput(organizationID, ledgerA, ledgerB))
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, result)
+}
+
+func crossLedgerHoldTestInput(organizationID, ledgerA, ledgerB uuid.UUID) CreateCrossLedgerTransactionV2Input {
+	return CreateCrossLedgerTransactionV2Input{
+		Transaction: crossLedgerTestTransaction("10",
+			[]mtransaction.FromTo{crossLedgerAmountLeg("@debit", "10", true)},
+			[]mtransaction.FromTo{crossLedgerAmountLeg("@credit", "10", false)}),
+		Scopes: CrossLedgerTransactionScopes{
+			Debits:  []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerA}},
+			Credits: []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerB}},
+		},
+	}
+}
