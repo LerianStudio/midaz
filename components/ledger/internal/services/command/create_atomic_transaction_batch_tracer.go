@@ -135,7 +135,9 @@ func (uc *UseCase) settleAtomicTransactionBatchReservations(
 		case atomicTransactionBatchReservationConfirmedAbort:
 			uc.releaseReservations(ctx, span, logger, handle)
 		case atomicTransactionBatchReservationKnownSuccess:
-			uc.confirmReservations(ctx, span, logger, handle)
+			if run.items[index].status != constant.PENDING {
+				uc.confirmReservations(ctx, span, logger, handle)
+			}
 		}
 	}
 }
