@@ -26,6 +26,29 @@ func recoveryWorkerConfig() TracerRecoveryWorkerConfig {
 	return TracerRecoveryWorkerConfig{MultiTenant: true, Service: "ledger", Interval: time.Second, CycleTimeout: time.Second, TenantTimeout: time.Second, MaxTenants: 1, MaxCatalogTenants: 10}
 }
 
+func TestTracerRecoveryWorkerContinuesAfterCyclePanic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	processor := NewMocktracerRecoveryProcessor(ctrl)
+	cfg := recoveryWorkerConfig()
+	cfg.MultiTenant = false
+	cfg.Interval = time.Millisecond
+	worker, err := NewTracerRecoveryWorker(processor, nil, nil, cfg, libLog.NewNop())
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	first := processor.EXPECT().RunOnce(gomock.Any()).DoAndReturn(func(context.Context) (command.TracerRecoverySummary, error) {
+		panic("injected processor panic")
+	})
+	delivered := false
+	processor.EXPECT().RunOnce(gomock.Any()).After(first).DoAndReturn(func(context.Context) (command.TracerRecoverySummary, error) {
+		delivered = true
+		cancel()
+		return command.TracerRecoverySummary{Delivered: 1}, nil
+	})
+	require.NoError(t, worker.run(ctx))
+	require.True(t, delivered, "the next cycle must deliver retained work after a panic")
+}
+
 func recoveryTestPool(t *testing.T) dbresolver.DB {
 	t.Helper()
 	db, _, err := sqlmock.New()
