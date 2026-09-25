@@ -152,3 +152,13 @@ and journal history remains immutable, and down migrations may refuse any histor
 including completed records. Never force-drop it to make a rollback succeed.
 Runtime recovery tests and this procedure do not replace a rehearsed deployment
 and reversal in the target environment.
+
+## Business date and admission freshness
+
+The shared Ledger client freezes its processing clock into Reserve's
+`transactionTimestamp`. A business date supplied to the internal command remains unchanged on
+the Ledger transaction; it is not used as admission freshness or to select a
+past spending period. The current flat public `/v2` create schema does not accept
+`transactionDate`; this change does not add that field to the API. Tracer evaluates the current period with its own clock.
+Backfills must pass the same current controls as other transactions. This does
+not expose a business-date variable in the minimal CEL context.

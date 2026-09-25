@@ -168,6 +168,7 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 	}
 	require.Len(t, received, 1)
 	request := <-received
+	require.Equal(t, instant, request.TransactionTimestamp, "freshness comes from the admission clock")
 	transactionID := request.TransactionID
 	if allowed {
 		require.Equal(t, mustTxID(t, response), transactionID)
