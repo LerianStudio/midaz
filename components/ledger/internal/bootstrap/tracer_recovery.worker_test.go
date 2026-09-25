@@ -100,15 +100,36 @@ func TestTracerRecoveryWorkerContinuesAfterTenantPoolFailure(t *testing.T) {
 	require.Equal(t, 1, summary.Delivered)
 }
 
-func TestTracerRecoveryWorkerRejectsIncompleteCatalog(t *testing.T) {
-	for _, entries := range [][]*tmclient.TenantSummary{{nil}, {{ID: "tenant-a", Status: "suspended"}}, {{ID: "tenant-a", Status: "active"}, {ID: "tenant-a", Status: "active"}}} {
-		ctrl := gomock.NewController(t)
-		processor, catalog, resolver := NewMocktracerRecoveryProcessor(ctrl), NewMocktracerRecoveryCatalog(ctrl), NewMocktracerRecoveryPoolResolver(ctrl)
-		worker, err := NewTracerRecoveryWorker(processor, catalog, resolver, recoveryWorkerConfig(), libLog.NewNop())
+func TestTracerRecoveryWorkerSkipsInvalidCatalogEntries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	processor, catalog, resolver := NewMocktracerRecoveryProcessor(ctrl), NewMocktracerRecoveryCatalog(ctrl), NewMocktracerRecoveryPoolResolver(ctrl)
+	worker, err := NewTracerRecoveryWorker(processor, catalog, resolver, recoveryWorkerConfig(), libLog.NewNop())
+	require.NoError(t, err)
+	catalog.EXPECT().GetActiveTenantsByService(gomock.Any(), "ledger").Return([]*tmclient.TenantSummary{nil, {ID: "tenant/a", Status: "active"}, {ID: "suspended", Status: "suspended"}, {ID: "tenant-a", Status: "active"}, {ID: "tenant-a", Status: "active"}}, nil)
+	resolver.EXPECT().GetDB(gomock.Any(), "tenant-a").Return(recoveryTestPool(t), nil)
+	processor.EXPECT().RunOnce(gomock.Any()).Return(command.TracerRecoverySummary{Delivered: 1}, nil)
+	summary, err := worker.runCycle(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, summary.Delivered)
+}
+
+func TestTracerRecoveryWorkerWindowsOversizedCatalogWithoutStarvation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	processor, catalog, resolver := NewMocktracerRecoveryProcessor(ctrl), NewMocktracerRecoveryCatalog(ctrl), NewMocktracerRecoveryPoolResolver(ctrl)
+	cfg := recoveryWorkerConfig()
+	cfg.MaxCatalogTenants = 2
+	worker, err := NewTracerRecoveryWorker(processor, catalog, resolver, cfg, libLog.NewNop())
+	require.NoError(t, err)
+	catalog.EXPECT().GetActiveTenantsByService(gomock.Any(), "ledger").Return([]*tmclient.TenantSummary{{ID: "tenant-c", Status: "active"}, {ID: "tenant-a", Status: "active"}, {ID: "tenant-b", Status: "active"}}, nil).Times(4)
+	for _, tenant := range []string{"tenant-a", "tenant-b", "tenant-c", "tenant-a"} {
+		resolver.EXPECT().GetDB(gomock.Any(), tenant).Return(recoveryTestPool(t), nil)
+		processor.EXPECT().RunOnce(gomock.Any()).DoAndReturn(func(ctx context.Context) (command.TracerRecoverySummary, error) {
+			require.Equal(t, tenant, tmcore.GetTenantIDContext(ctx))
+			return command.TracerRecoverySummary{Delivered: 1}, nil
+		})
+		summary, err := worker.runCycle(t.Context())
 		require.NoError(t, err)
-		catalog.EXPECT().GetActiveTenantsByService(gomock.Any(), "ledger").Return(entries, nil)
-		_, err = worker.runCycle(t.Context())
-		require.Error(t, err)
+		require.Equal(t, 1, summary.Delivered)
 	}
 }
 
