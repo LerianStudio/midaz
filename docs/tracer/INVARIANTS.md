@@ -42,18 +42,26 @@ core differentiator and carries rules that exist nowhere else in the monorepo.
 
 - Type-safe with compile-time validation; expressions compiled at rule create/update.
 - Cost limits (`CEL_COST_LIMIT`, default 10000) prevent DoS via expensive expressions.
+- The adapter checks both estimated compilation cost and actual execution cost.
+  Cached programs receive a fresh runtime budget for each evaluation. Evaluation
+  uses the caller's context, with interruption checks inside comprehensions;
+  canceled evaluations and exhausted budgets return errors, never matches.
+  Runtime cost is not a memory or wall-clock limit and does not preempt a long
+  custom Go function. Input-size bounds and bounded custom operations are still
+  required. The per-expression budget is not a total budget across multiple rules.
 - Compiled programs cached in-memory (L1); cache key is the expression hash; invalidated on
   expression change.
 
 ### Expression context
 
-Rules evaluate against the complete transaction context. Available variables:
+The synchronous `/v1/validations` evaluator uses the following variables.
+The shared reservation profile has a separate typed environment described below:
 
 ```cel
 transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
 subType               // String: "debit", "credit", "instant", etc.
 amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
-currency              // String (ISO 4217)
+asset                 // String asset code
 transactionTimestamp  // int64 Unix timestamp in nanoseconds
 account               // Map: account["id"], account["type"], account["status"]
 segment               // Map: segment["id"] (optional)
@@ -69,6 +77,393 @@ The `amount` variable is internally converted from `decimal.Decimal` to `float64
 to binary floating-point representation. Prefer range comparisons
 (`amount >= 100.00 && amount <= 100.02`) or integer thresholds (`amount > 100`) for reliable
 results.
+
+### Typed shared-context evaluator
+
+`ContextAdapter` compiles a separate, strictly typed environment for the shared
+`pkg/tracercontract` contract, mounted on the existing reservation endpoint when
+`CONTEXT_RESERVE_ENABLED=true`. The variables above belong to synchronous
+validations; reservation policy expressions require coordinated migration and
+recompilation.
+
+The new environment exposes `accounts`, `entries` and `debits`. The Tracer
+computes gross internal debits per account and asset; credits never offset them
+and external entries never create account counters. Asset identity is namespace
+plus ID; its code is descriptive. Prepared facts are detached snapshots.
+
+`ContextReservationResolver` prepares account-only limit reservations from a
+complete trusted active snapshot with explicit `AssetRef` associations. It keeps
+existing limit IDs and `acct:<UUID>`/period counter keys, computes gross exact
+debits, and sorts accounts and counter coordinates deterministically. One limit
+covering multiple accounts produces independent account counters, not a combined
+allowance. Unsupported scopes, missing associations, contradictory asset codes,
+and limits associated with a participating account's wrong asset return
+configuration error 0530/503; none is silently dropped or converted into DENY.
+The complete snapshot is validated before checking caps or active windows.
+
+Periods and window checks use a single injected server time. Counter retention
+is derived from that period, not a stale stored reset date or a reservation TTL.
+PER_TRANSACTION checks create no counter; any exceeded cap returns no provisional
+reservations. A non-denied plan still requires atomic current+reserved checks,
+policy precedence, decision persistence and mandatory audit. This resolver does
+not load limits, prove snapshot completeness, lock accounts or write capacity.
+`ContextLimitRepository` supplies that candidate snapshot only through a caller's
+tenant-primary transaction. It retains unresolved associations and unsupported
+broad scopes, filters mapped foreign namespaces, and refuses overflow instead of
+paginating. Scope JSON and reference text are bounded before decoding; unknown
+scope fields are rejected. It locks selected limit rows FOR SHARE in UUID order,
+after the caller's operation/account locks and before counters/audit. The SQL
+statement defines the selected set; it does not prevent subsequent insertions.
+
+Migration 000032 adds immutable `limit_asset_references`, preserving limit IDs,
+usage counters and reservations. Its composite foreign key requires the existing
+asset code and prevents later code changes. No code-only identity backfill is
+performed. Binding requires the caller's transaction. Duplicate binding returns
+0531/409. Down is allowed only with no stored association and no conflicting
+active locks.
+
+`BindLimitAssetCommand` requires both verified integration identity and a user or
+system administrative principal; neither identity substitutes for the other, and
+API-key principals are refused. Multi-tenant calls require tenant and resolved
+pool context. The command locks the current limit, requires producer-attested
+facts for exactly every account scope and one matching asset, then commits the
+association and mandatory audit together. DRAFT/INACTIVE limits stay inactive;
+no usage or reservation is moved. Repeated bindings conflict without extra audit,
+and commit uncertainty is returned without retry. Resource-level authorization
+is enforced by the opt-in `PUT /v1/limits/{id}/asset-reference` transport through
+Access Manager (`tracer:limit-asset-references:put`), in addition to native mTLS
+producer verification. Bootstrap rejects mesh/plaintext, disabled plugin auth,
+missing/ambiguous producer registry and absent explicit bounds. The same route
+mount is exercised by real TLS tests; a validation API key cannot administer.
+`CONTEXT_LIMIT_ADMIN_ENABLED` is independent of policy administration and does
+not enable Reserve. Operators still need to run the association/migration workflow.
+
+The shared `AccountAsset` fact contains only account UUID and `AssetRef`. Ledger's
+`BuildAccountAssets` maps already loaded official records, resolving the asset
+UUID within the organization/ledger and rejecting missing or ambiguous records.
+The separate Ledger `OfficialContextLoader` now uses a bounded batch reader
+on the tenant primary: a read-only repeatable-read transaction fetches accounts
+and assets in one snapshot, rejecting missing, deleted or ambiguous records
+with 0532/503. It includes external entry assets without fictitious accounts.
+The Ledger context coordinator loads these facts after off/skip gates and
+propagates the admission deadline. Bootstrap installs it together with durable
+recovery when `TRACER_CONTEXT_ENABLED=true`.
+A consistent snapshot does not freeze facts against later updates. Tracer trusts
+the verified producer's attestation, as for Reserve facts; it neither queries nor replicates the Midaz asset registry.
+
+Binding uses the existing LIMIT_UPDATED event, retaining its CRUD snapshot and
+adding assetRef, integrationId, ordered accountAssets and the operation marker
+asset_reference_binding. All limit UPDATE audit writes must insert exactly one
+row; silent suppression is an error and rolls back the enclosing transaction.
+The existing transaction-validation audit deduplication remains separate.
+
+Limit administration accepts exact native codes (1–256 UTF-8 bytes), without
+uppercasing or trimming; surrounding whitespace and NUL are rejected. Codes
+remain descriptive and cannot replace AssetRef identity. Migration 000033 widens
+limits.asset in place; IDs, references, counters and reservations are preserved.
+Its downgrade takes exclusive NOWAIT locks and refuses any code outside the
+previous validator's frozen ISO list, including three-letter BTC. It never
+truncates a code or erases history to permit rollback. Repository asset filters
+match exact case. Synchronous validations retain their separate contract. Shared Reserve uses
+explicit asset references; accepting native limit codes alone does not establish
+a valid reference or enable native-asset evaluation.
+Unmapped broad limits can block the new account-only profile and must be inventoried
+before activation. The batch loader and admission are composed in the shared
+runtime. Reference migration and integrated performance checks remain deployment
+prerequisites; see the [rollout procedure](../architecture/ledger-tracer-rollout.md).
+
+Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
+a bounded decimal string literal, checked at compile time. Supported member
+comparisons are `equal`, `lessThan`, `lessOrEqual`, `greaterThan` and
+`greaterOrEqual`; equality also works with `==`. There are no Decimal casts to
+string, integer or float, or monetary arithmetic operators. For example:
+
+```cel
+debits.exists(d, d.asset.namespace == "producer" && d.asset.id == "asset-id" &&
+  d.amount.greaterThan(decimal("100.01")))
+```
+
+Every adapter requires explicit input, numeric, expression-length and cost
+bounds. Custom Decimal calls charge for operand size. Runtime evaluation accepts
+the remaining request budget in addition to enforcing its expression ceiling;
+the orchestrator must account for returned actual cost across rules. Cached
+programs cannot be reused across adapters with different environments or bounds.
+Execution errors expose stable categories without expression literals or keys.
+
+`ContextPolicyEvaluator` compiles complete policy revisions before evaluation,
+validates an explicit ALLOW/DENY default and rejects excess or invalid rules
+without truncation. It evaluates every rule with one request-wide remaining
+budget and returns policy/rule revisions in deterministic order. A matching
+rule never masks an error from another rule. No decision is returned on failure.
+The result covers rules only: authenticated policy resolution, limit precedence,
+durable decisions and the reservation lifecycle still belong to the enclosing
+use case. These components do not activate the new contract on their own.
+
+Migration `000025` persists immutable policy and rule revisions, plus exact
+`(integration_id, context_id)` bindings within the authenticated tenant database.
+The policy repository reads the binding and its complete rule set from the
+primary in one query. Missing configuration is error `0526` (503), never an
+implicit ALLOW. Immutable revision conflicts and stale binding updates use
+`0527` (409). Binding versions advance on every update, including a return to a
+previous policy, so stale administrative writes cannot overwrite that change.
+
+The replacement reservation contract has shared request/response types in
+`pkg/tracercontract`. A framed SHA-256 fingerprint includes authenticated scope
+and ordered transaction facts, with exact decimal and UTC timestamp normalization.
+`ReserveResult` reports ALLOW/DENY/REVIEW, completed controls, reservation IDs and
+unique reason codes in lexicographic order. DENY/REVIEW never carry reservation IDs.
+
+Migration `000028` adds immutable `reserve_decisions` in each tenant database,
+independently of capacity rows. Transaction ID and request ID are each unique per
+integration. The original response and selected policy/binding/rule revisions
+survive policy rebindings and process restarts. `LookupReserveDecisionQuery`
+validates verified identity and the content fingerprint before returning a
+detached stored snapshot; it never evaluates current rules or repeats capacity
+or audit writes. Conflicting identity reuse is canonical error `0528` (409).
+Reads use the primary, including the repeated lookup available inside the caller's
+transaction. Parsing/storage bounds must continue to cover recoverable records.
+
+The decision repository only writes through the caller's transaction. The
+reservation use case must combine the decision, capacity and mandatory audit,
+and recheck replay under the operation lock. `ReserveAdmissionCommand` composes
+these components on the shared Reserve path. Migration `000030` separates reservation
+ownership while preserving existing rows and counter values; activation requires
+coordinated deployment.
+The decision migration can be rolled back only while its table is empty; an
+exclusive lock prevents a concurrent first insert from being lost during rollback.
+
+Migration `000029` adds durable `reserve_operations`, keyed by integration and
+transaction within the tenant database. `ReserveOperationRepository.LockWithTx`
+creates an OPEN marker if absent and holds its row lock until the caller's
+transaction ends. Acquire this lock before account, counter and audit locks,
+then repeat the decision lookup. `CompleteWithTx` records CONFIRMED or RELEASED
+even before the first decision exists. Same-outcome replay preserves the original
+timestamp; a contradictory completion returns canonical error `0529` (409).
+OPEN is not proof that accounting failed: there is no TTL-driven transition.
+
+A database trigger takes the same operation lock before a decision insert and
+rejects an already completed operation with `0529`. This is defense in depth,
+not a substitute for acquiring the lock before capacity/audit work. An existing
+decision remains replayable after completion. Backfill marks old decisions OPEN
+without inferring an accounting outcome. Triggers forbid reopening, rewriting or
+removing completed operations, and migration rollback refuses any operation
+history. Upgrade is atomic; empty rollback fails promptly on active writers.
+
+The operation repository does not move capacity, write audit or commit. The
+enclosing use case must settle existing decision-owned reservations and append
+mandatory audit in the same transaction as completion. No completion result is
+durable before commit, and an unknown commit result must not be retried blindly.
+Shared Reserve and completion commands compose this repository; the Ledger worker
+retries completion by transaction identity after a durable local outcome.
+
+Migration `000030` adds nullable `decision_id` to `usage_reservations`. Legacy
+rows retain their transaction/limit/scope/period uniqueness through a partial
+index; new rows use decision/limit/scope/period instead. A deferred composite FK
+requires the decision and reservation transaction IDs to match. A deferred
+constraint trigger requires an ALLOW response naming each owned reservation.
+This permits provisional capacity before the final decision within one transaction
+and rollback to a savepoint for DENY/REVIEW; it cannot commit orphaned capacity.
+Ownership and coordinates are immutable, and new rows cannot expire or be removed.
+
+`ReserveForDecisionWithTx` inserts and reserves exact positive amounts using the
+existing combined current-plus-reserved guard. Duplicate insertion conflicts;
+idempotent replay belongs to the decision query. Counter cleanup time is supplied
+from the resolved limit period, independently of reservation TTL.
+`SettleDecisionWithTx` locks rows in counter-coordinate order, then moves only
+the resolved decision's capacity. Identical repeats do not move it again;
+contradictory terminal states conflict. Authentication, operation locking and
+mandatory audit remain responsibilities of the enclosing transaction owner.
+
+Legacy by-ID/by-transaction settlement and the TTL reaper select only rows with
+NULL `decision_id`. Counter cleanup preserves nonzero `reserved_usage`, checking
+both expiry and held capacity on the DELETE target after a concurrent writer's
+lock wait. This guard also protects legacy holds. It does not reconstruct counters
+already removed by older binaries or prove the outcome of expired legacy holds.
+
+The index replacement is an atomic, coordinated schema/writer change. The old
+binary's ON CONFLICT clause cannot use the new partial index: suspend incompatible
+writers during rollout. Down restores full legacy indexes only when there is no
+decision-owned reservation history; it never drops or relabels such history to
+make a binary rollback succeed. These repositories do not implement authenticated
+Reserve admission or its required decision audit event.
+
+`CompleteReserveOperationCommand` composes known completion, decision-owned
+capacity settlement and mandatory audit in one tenant transaction. Integration
+identity comes only from verified transport context. Multi-tenant execution
+requires both tenant identity and a resolved pool; an administrative principal
+cannot stand in for a verified producer. Completion reads the original decision
+by integration/transaction without requiring its request ID, querying today's
+policy/settings or re-evaluating limits. Every expected reservation must move;
+missing, duplicate or unrelated capacity aborts the transaction.
+
+Migration `000031` adds RESERVE_OPERATION_CONFIRMED/RELEASED audit events and the
+`reserve_operation` resource type. This distinct resource avoids legacy audit
+deduplication by transaction ID alone, which would suppress another integration's
+event. The command appends one hash-chained event per first completion, with the
+verified producer, optional evaluation ID and exact before/after reservation
+movements. Zero-capacity completion still requires audit. SUCCESS describes
+recording the producer's outcome, not an invented ALLOW validation decision.
+Identical replay returns the first completion time without another movement or
+event; contradictory outcomes conflict. A failed or zero-row audit insertion
+rolls back operation state and capacity. Commit uncertainty returns no successful
+result and is never automatically retried. Enum rollback preserves audit history.
+
+`ExecuteReport` additionally reports the contract revision, transaction, outcome,
+actual capacity movements in this call and the original evaluation ID. Replay
+reads that immutable ID in the same tenant transaction and reports zero movements;
+it does not repeat settlement or audit. Completion before admission has no
+evaluation ID, while ALLOW without applicable limits still has its evaluation ID.
+The shared JSON completion decoder requires an explicit supported revision and
+rejects unknown/duplicate fields; empty legacy bodies are a transport concern.
+
+HTTP/gRPC shared-contract completion and Ledger durable recovery now use this
+command; Ledger recovery requires its runtime to remain enabled.
+The legacy reaper still commits releases separately from its batch audit; waiting
+for its whole cycle in the cadence test is not proof of atomic legacy shutdown.
+New decision-owned reservations never enter that TTL path.
+
+Publication requires the caller's transaction. Database constraints reject
+incomplete snapshots; triggers prevent rewriting or deleting published revisions.
+`PublishContextPolicyCommand` compiles the complete revision before opening a
+transaction and requires a principal supplied by authentication. Publication and
+its mandatory `POLICY_PUBLISHED` audit event commit together; audit failure rolls
+back the policy and newly inserted rules. Duplicate revisions conflict without
+another event. Publication alone never activates a binding, and an unknown commit
+outcome is not retried automatically. Migration `000026` adds the audit enum
+values; its rollback preserves immutable audit history.
+`BindContextPolicyCommand` reloads the immutable target revision from the primary
+and recompiles it before acquiring locks. Creation requires an absent binding;
+replacement requires its current version. The binding row is locked before the
+audit chain, and the prior/next revisions and binding versions are recorded in
+one `POLICY_BOUND` event in the same transaction. A concurrent create or stale
+update conflicts without another event. Failed audit rolls back both creation
+and replacement; unknown commit outcomes are not retried. Migration `000027`
+retains this event type on rollback to preserve the immutable history.
+Policy administration is opt-in via `CONTEXT_POLICY_ADMIN_ENABLED` and requires
+plugin authorization plus explicit `CONTEXT_*` resource bounds; no test fixture
+precision or CEL budget is a production default. The HTTP routes use the existing
+JWT tenant middleware and require separate `policies:post/get` and
+`policy-bindings:put/get` grants in the `tracer` namespace. There is no API-key or
+disabled-auth fallback. Application tokens require real-subject M2M authorization
+and product forwarding; legacy fabricated editor-role authorization is refused.
+
+The administration API is `POST /v1/policies`,
+`GET /v1/policies/{id}/revisions/{revision}`, and `PUT/GET /v1/policy-bindings`.
+Publishing requires an explicit ALLOW/DENY default and a rules array (empty is
+valid). Bindings use integration/context keys in the authorized tenant, with an
+optional expectedVersion only for creation; replacement requires the current
+version. Permissions are tenant-wide, including its integration/context bindings.
+Binding requests carry revision references, never tenant, principal, or rule content.
+Unknown body fields are rejected. The request-byte bound applies before JSON
+parsing, subject also to Fiber's global body limit. Audit reads accept the policy
+resource and POLICY_PUBLISHED/POLICY_BOUND event filters.
+
+These administrative endpoints do not activate context evaluation in Reserve.
+`CONTEXT_RESERVE_ENABLED` independently mounts native mTLS identity, policy
+selection and durable decision coordination on Reserve. Policy administration
+records configuration; admission records the resulting transaction decision.
+
+### Producer identity for shared-context reservations
+
+The `seamidentity` registry maps an exact URI SAN to an integration ID and its
+asset namespace. It requires a completed native TLS handshake and a verified
+chain matching the actual peer leaf. A certificate must contain exactly one URI
+SAN. Trusting its CA alone is insufficient: the URI must also be registered.
+Common names, DNS SANs, forwarded certificate headers and payload fields cannot
+select the integration or namespace. HTTP and gRPC use the same resolver.
+Unknown or ambiguous peers return 403/PermissionDenied; missing configuration
+returns 503/Unavailable. Diagnostic responses do not disclose certificate data.
+
+Configuration is copied at construction. A namespace has one integration owner,
+and an integration has one namespace. Multiple exact URI registrations may map
+to that same pair for certificate/workload identity rotation. The registry checks
+the explicit context namespace byte bound, without normalization or wildcards.
+The context Reserve bootstrap consumes this registry only in native mTLS mode.
+
+`ResolveContextPolicyQuery` receives the opaque producer-derived context ID and
+reads the integration identity from authenticated request context. It returns
+only the exact binding, immutable policy revision, binding version and configured
+namespace, preserving the tenant context. Missing/invalid policy configuration is
+an error, with no implicit ALLOW/DENY or hierarchical fallback. Tenant and database
+pool resolution must precede this query; producer authentication must precede
+trusting the tenant forwarded by that producer. This does not give an arbitrary
+end user permission to select another tenant or context.
+
+`CompiledContextPolicyQuery` resolves that binding on every request, then reuses
+only the immutable compiled revision. Keys include tenant, producer, namespace,
+context and policy revision. Compiler settings are immutable for the cache's
+lifetime; reconfiguration creates a new compiler/cache. Explicit entry and
+concurrent-compilation bounds prevent unbounded retained programs or work.
+Concurrent requests share compilation; FIFO eviction only removes programs.
+Binding failures never use stale configuration, and failed/canceled compilations
+are not cached. The initiating caller owns the compilation deadline; its failure
+is shared with waiters, while canceling a waiter does not cancel the leader.
+Saturation returns an availability error without an internal retry or queue.
+This query does not cache decisions or activate the new Reserve path.
+
+The context Reserve bootstrap mounts these adapters on the existing routes when
+explicitly enabled. Mesh-terminated plaintext is rejected by this native TLS resolver;
+context Reserve in mesh mode still requires a separately verified workload
+identity source and deployment wiring. No identity header is trusted implicitly.
+
+### Context Reserve admission
+
+`ReserveAdmissionCommand` performs authenticated structural validation and primary
+replay before checking freshness or the current policy. A miss opens one tenant
+transaction, locks the operation and checks replay again before rejecting a known
+terminal outcome. Only the winner evaluates the policy and attempts capacity.
+Policy resolution uses that same transaction connection, avoiding pool exhaustion
+when every request already owns an operation lock. Immutable compiled programs
+remain shared; mutable bindings and decisions are not cached.
+
+Account advisory locks use the historical FNV namespace, sorted and deduplicated
+by the physical signed lock key (including possible hash collisions). Candidate
+limit rows and counter coordinates retain their deterministic repository/planner
+order. Provisional capacity is protected by a savepoint: limit denial or final
+REVIEW rolls back every provisional hold before recording the immutable decision.
+Rule DENY can skip limits; REVIEW still checks limits, and limit DENY wins. Only
+ALLOW retains reservations. No admission operation increments current usage.
+
+Decision and one mandatory `TRANSACTION_VALIDATED` audit event commit together.
+The resource is `reserve_operation`, so legacy transaction-only audit deduplication
+cannot discard another integration's event. The result is ALLOW/DENY/REVIEW, with
+fingerprint, policy/binding/rule revisions and reservation handles in audit context.
+Replay does not duplicate audit or capacity, including after known completion,
+policy removal, restart or the timestamp window. Audit/commit failures return no
+successful decision and are never retried internally. Existing completion settles
+the saved handles without reevaluating policy. The reservation expiry column is
+informational for this profile; TTL never proves an accounting outcome.
+
+The REST and gRPC adapters share this command and the contract codecs. Bootstrap
+is opt-in through `CONTEXT_RESERVE_ENABLED`; body, fact, limit, reservation, CEL
+and compiled-policy-cache bounds are explicit, not inferred from test fixtures.
+Native mTLS and a registered producer URI are mandatory. Reserve uses producer
+certificate authorization; administrative endpoints retain their separate RBAC.
+HTTP completion without a revision body additionally requires the legacy guard.
+
+The protobuf Reserve replacement intentionally removes its old fields and reserves
+their numbers/names. Its RPC and HTTP URLs do not change. An absent/unknown revision,
+legacy payload, missing explicit boolean or contradictory namespace is rejected;
+clients require the revision and completed-control echo and reject legacy replies.
+The protobuf breaking check therefore reports the approved removals; it is not
+silently disabled. Coordinated deployment must prevent old and new admission
+traffic from mixing. This change does not authorize activation or deployment.
+
+A revised completion addressed by reservation ID resolves its immutable owner on
+the tenant primary and completes the **entire operation** through the same atomic
+coordinator as transaction-addressed completion. It cannot partially confirm/release
+one of that operation's holds. Replay adds no capacity movements or audit events;
+opposite outcomes conflict. Foreign producer, tenant and legacy reservation IDs
+cannot resolve to a new operation. Empty-revision legacy lifecycle calls retain
+their old individual/transaction semantics and cannot mutate coordinated records.
+
+Shared-contract Ledger HTTP/gRPC clients, transaction coordination, official-facts
+loading and durable recovery are composed under `TRACER_CONTEXT_ENABLED`. Activation
+requires native mTLS and explicit identity/resource configuration; local composition
+does not prove migration or deployment readiness. The old Ledger gRPC Reserve DTO is rejected locally rather than
+inventing missing facts; legacy completion remains available for draining old
+reservations. Timestamp, resource and retention values come from the composition
+root; test values are not production defaults.
 
 ### Evaluation semantics
 

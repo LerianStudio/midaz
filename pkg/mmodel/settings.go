@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // LedgerSettings represents the settings for a ledger.
@@ -27,6 +28,7 @@ import (
 //	  },
 //	  "tracer": {
 //	    "mode": "off",
+//	    "validationMode": "limits",
 //	    "failPosture": "open",
 //	    "timeoutMs": 250
 //	  },
@@ -129,6 +131,10 @@ var defaultCrossLedgerSettings = CrossLedgerSettings{
 // The struct holds only comparable scalar fields so LedgerSettings stays
 // ==-comparable (relied on by LedgerSettingsIsDefault).
 type TracerSettings struct {
+	// ValidationMode selects requested controls independently of participation.
+	// Absence defaults to limits; rules-and-limits requires explicit selection.
+	ValidationMode string `json:"validationMode" example:"limits" enum:"limits,rules-and-limits"`
+
 	// Mode controls tracer participation in transaction processing.
 	// One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
 	// Default: "off".
@@ -174,9 +180,10 @@ const tracerTimeoutMsAllowedRange = "1..30000"
 // defaultTracerSettings is the canonical source of default tracer settings.
 // Tracer integration is off by default for backwards compatibility.
 var defaultTracerSettings = TracerSettings{
-	Mode:        TracerModeOff,
-	FailPosture: TracerFailPostureOpen,
-	TimeoutMs:   defaultTracerTimeoutMs,
+	ValidationMode: string(tracercontract.ValidationLimits),
+	Mode:           TracerModeOff,
+	FailPosture:    TracerFailPostureOpen,
+	TimeoutMs:      defaultTracerTimeoutMs,
 }
 
 // allowedTracerModes is the membership set for TracerSettings.Mode, checked at write time.
@@ -213,9 +220,10 @@ func LedgerSettingsToMap(s LedgerSettings) map[string]any {
 			"requireHolder":       s.Accounting.RequireHolder,
 		},
 		"tracer": map[string]any{
-			"mode":        s.Tracer.Mode,
-			"failPosture": s.Tracer.FailPosture,
-			"timeoutMs":   s.Tracer.TimeoutMs,
+			"mode":           s.Tracer.Mode,
+			"validationMode": s.Tracer.ValidationMode,
+			"failPosture":    s.Tracer.FailPosture,
+			"timeoutMs":      s.Tracer.TimeoutMs,
 		},
 		"overrides": map[string]any{
 			"allowFeeSkip":    s.Overrides.AllowFeeSkip,
@@ -264,6 +272,10 @@ func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 	}
 
 	if tracerMap, ok := settings["tracer"].(map[string]any); ok {
+		if validationMode, ok := tracerMap["validationMode"].(string); ok {
+			result.Tracer.ValidationMode = validationMode
+		}
+
 		if mode, ok := tracerMap["mode"].(string); ok {
 			result.Tracer.Mode = mode
 		}
@@ -353,9 +365,10 @@ var settingsSchema = map[string]map[string]string{
 		"requireHolder":       "bool",
 	},
 	"tracer": {
-		"mode":        "string",
-		"failPosture": "string",
-		"timeoutMs":   "number",
+		"mode":           "string",
+		"validationMode": "string",
+		"failPosture":    "string",
+		"timeoutMs":      "number",
 	},
 	"overrides": {
 		"allowFeeSkip":    "bool",
@@ -495,6 +508,12 @@ func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPat
 	}
 
 	switch nestedKey {
+	case "validationMode":
+		str, ok := value.(string)
+		if !ok || (str != string(tracercontract.ValidationLimits) && str != string(tracercontract.ValidationRulesAndLimits)) {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "limits, rules-and-limits")
+		}
+
 	case "mode":
 		str, ok := value.(string)
 		if !ok {

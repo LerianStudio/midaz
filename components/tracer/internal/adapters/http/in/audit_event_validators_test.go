@@ -31,6 +31,12 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		valid bool
 	}{
 		// auditeventtype
+		{"operation confirmed", "auditeventtype", string(model.AuditEventOperationConfirmed), true},
+		{"operation released", "auditeventtype", string(model.AuditEventOperationReleased), true},
+		{"operation resource", "resourcetype", string(model.ResourceTypeReserveOperation), true},
+		{"operation release action", "auditaction", string(model.AuditActionRelease), true},
+		{"eventtype policy published", "auditeventtype", string(model.AuditEventPolicyPublished), true},
+		{"eventtype policy bound", "auditeventtype", string(model.AuditEventPolicyBound), true},
 		{"eventtype valid TRANSACTION_VALIDATED", "auditeventtype", string(model.AuditEventTransactionValidated), true},
 		{"eventtype valid RULE_DEACTIVATED", "auditeventtype", string(model.AuditEventRuleDeactivated), true},
 		{"eventtype valid LIMIT_DEACTIVATED", "auditeventtype", string(model.AuditEventLimitDeactivated), true},
@@ -41,7 +47,7 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		{"action valid VALIDATE", "auditaction", string(model.AuditActionValidate), true},
 		{"action valid DEACTIVATE", "auditaction", string(model.AuditActionDeactivate), true},
 		{"action rejects RESERVE (reservation surface)", "auditaction", string(model.AuditActionReserve), false},
-		{"action rejects CONFIRM (reservation surface)", "auditaction", string(model.AuditActionConfirm), false},
+		{"action confirms operation", "auditaction", string(model.AuditActionConfirm), true},
 		{"action rejects garbage", "auditaction", "FROBNICATE", false},
 
 		// auditresult
@@ -50,6 +56,7 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		{"result rejects garbage", "auditresult", "MAYBE", false},
 
 		// resourcetype
+		{"resourcetype policy", "resourcetype", string(model.ResourceTypePolicy), true},
 		{"resourcetype valid transaction", "resourcetype", string(model.ResourceTypeTransaction), true},
 		{"resourcetype valid rule", "resourcetype", string(model.ResourceTypeRule), true},
 		{"resourcetype valid limit", "resourcetype", string(model.ResourceTypeLimit), true},

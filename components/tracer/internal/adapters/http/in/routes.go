@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -153,6 +154,12 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 //     The two-phase reservation API is additive; a build that has not wired the
 //     reservation service simply does not expose it.
 type RoutesDeps struct {
+	ContextReservation           *ContextReservationHandler
+	ContextReservationIdentity   *seamidentity.Resolver
+	LimitAssetAdmin              *LimitAssetHandler
+	ContextPolicyService         ContextPolicyAdminService
+	ContextPolicyMaxRules        int
+	ContextPolicyMaxBodyBytes    int
 	Logger                       libLog.Logger
 	Telemetry                    *libOtel.Telemetry
 	HealthChecker                *HealthChecker
@@ -190,6 +197,10 @@ type RoutesDeps struct {
 // positional args. Fields left at their zero value follow the documented
 // zero-value semantics on RoutesDeps.
 func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
+	if deps.ContextReservation != nil && deps.ContextReservationIdentity == nil {
+		return nil, fmt.Errorf("context reservations require verified producer identity")
+	}
+
 	cfg := deps.Cfg
 	if cfg == nil {
 		cfg = &RouteConfig{}
@@ -302,72 +313,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	//
 	// Registered ONLY on /v1, keeping /health, /readyz, /version
 	// callable without a token (public endpoints).
-	if multiTenantEnabled && pgManager != nil {
-		tenantMW := tmmiddleware.NewTenantMiddleware(
-			tmmiddleware.WithPG(pgManager),
-		)
-
-		// The reservation surface is the service-to-service seam: the ledger
-		// authenticates over mTLS (not a user JWT) and forwards a TRUSTED
-		// X-Tenant-Id header. Those routes resolve their tenant via their own
-		// reservationTenantMiddleware, so the JWT-claim path must NOT gate them
-		// (it would 401 the seam for lacking a Bearer token). Skip the shared
-		// middleware on /v1/reservations* and leave it intact for every other
-		// /v1 user route.
-		api.Use(func(c fiber.Ctx) error {
-			if isReservationPath(c.Path()) {
-				return c.Next()
-			}
-
-			return tenantMW.WithTenantDB(c)
-		})
-
-		// Second middleware: lazy-spawn per-tenant workers on the first request
-		// that surfaces a tenant. Covers pod restarts where the Pub/Sub
-		// tenant-created event was missed, and new-tenant sign-ups that arrive
-		// before the listener has delivered the add event.
-		//
-		// M3: log EnsureWorkers failures at Warn so silent degradation is
-		// visible to operators. The request proceeds — background sync may be
-		// unavailable for this tenant but the validation path can still serve
-		// from the DB directly.
-		//
-		// M18: when the supervisor declines because MaxTenants is reached,
-		// surface 503 + Retry-After to the client. Cap events must be visible,
-		// not swallowed.
-		if supervisor != nil {
-			api.Use(func(c fiber.Ctx) error {
-				tid := tmcore.GetTenantIDContext(c.Context())
-				if tid == "" {
-					return c.Next()
-				}
-
-				if err := supervisor.EnsureWorkers(c.Context(), tid); err != nil {
-					if errors.Is(err, workers.ErrTenantCapReached) {
-						lg.With(
-							libLog.String("operation", "routes.lazy_spawn_workers"),
-							libLog.String("tenant_id", tid),
-							libLog.String("error.message", err.Error()),
-						).Log(c.Context(), libLog.LevelWarn,
-							"Tenant worker cap reached; responding 503 so client backs off")
-
-						c.Set("Retry-After", tenantCapRetryAfterHeader())
-
-						return writeTenantCapReached(c)
-					}
-
-					lg.With(
-						libLog.String("operation", "routes.lazy_spawn_workers"),
-						libLog.String("tenant_id", tid),
-						libLog.String("error.message", err.Error()),
-					).Log(c.Context(), libLog.LevelWarn,
-						"Failed to ensure workers for tenant; request will proceed but background sync may be unavailable")
-				}
-
-				return c.Next()
-			})
-		}
-	}
+	mountTenantMiddleware(api, multiTenantEnabled, pgManager, supervisor, lg)
 
 	// Huma bootstrap (Phase 2a). problem.Install() overrides the process-global
 	// huma.NewError to the org-wide RFC 9457 model; it MUST run before any
@@ -438,21 +384,33 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		resTenantMW = reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
 	}
 
+	var contextPolicyHandler *ContextPolicyHandler
+	if deps.ContextPolicyService != nil {
+		contextPolicyHandler, err = NewContextPolicyHandler(deps.ContextPolicyService, deps.ContextPolicyMaxRules, deps.ContextPolicyMaxBodyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("create context policy handler: %w", err)
+		}
+	}
+
 	// Single seam that mounts every Huma route (and its pre-Huma Fiber auth chain)
 	// on the shared /v1 group + Huma API. Production (here) and the http/in tests
 	// call the SAME function, so the registered surface is byte-for-byte identical
 	// without a running server or DB. See registerTracerHumaRoutes.
 	registerTracerHumaRoutes(api, humaAPI, tracerHumaHandlers{
-		Guard:                 guard,
-		APIKeyOnlyValidation:  cfg.APIKeyOnlyValidation,
-		Rule:                  NewHandler(ruleService),
-		Limit:                 NewLimitHandler(limitService),
-		TransactionValidation: NewTransactionValidationHandler(transactionValidationService),
-		Validation:            validationHandler,
-		Reservation:           reservationHandler,
-		ResTenantMW:           resTenantMW,
-		AuditEvent:            NewAuditEventHandler(auditEventService),
-		Dashboard:             newDashboardHandlerOrNil(dashboardService, clk),
+		Guard:                      guard,
+		ContextPolicy:              contextPolicyHandler,
+		ContextReservation:         deps.ContextReservation,
+		ContextReservationIdentity: deps.ContextReservationIdentity,
+		LimitAssetAdmin:            deps.LimitAssetAdmin,
+		APIKeyOnlyValidation:       cfg.APIKeyOnlyValidation,
+		Rule:                       NewHandler(ruleService),
+		Limit:                      NewLimitHandler(limitService),
+		TransactionValidation:      NewTransactionValidationHandler(transactionValidationService),
+		Validation:                 validationHandler,
+		Reservation:                reservationHandler,
+		ResTenantMW:                resTenantMW,
+		AuditEvent:                 NewAuditEventHandler(auditEventService),
+		Dashboard:                  newDashboardHandlerOrNil(dashboardService, clk),
 	})
 
 	// Streaming manifest route (catalog-only lib-streaming manifest). Mounted
@@ -478,6 +436,57 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	return f, nil
 }
 
+func mountTenantMiddleware(api fiber.Router, enabled bool, pgManager *tmpostgres.Manager, supervisor WorkerEnsurer, logger libLog.Logger) {
+	if !enabled || pgManager == nil {
+		return
+	}
+
+	tenantMW := tmmiddleware.NewTenantMiddleware(tmmiddleware.WithPG(pgManager))
+
+	api.Use(func(c fiber.Ctx) error {
+		if isReservationPath(c.Path()) {
+			return c.Next()
+		}
+
+		return tenantMW.WithTenantDB(c)
+	})
+
+	if supervisor == nil {
+		return
+	}
+
+	api.Use(func(c fiber.Ctx) error {
+		tenantID := tmcore.GetTenantIDContext(c.Context())
+		if tenantID == "" {
+			return c.Next()
+		}
+
+		if err := supervisor.EnsureWorkers(c.Context(), tenantID); err != nil {
+			return handleWorkerEnsureError(c, logger, tenantID, err)
+		}
+
+		return c.Next()
+	})
+}
+
+func handleWorkerEnsureError(c fiber.Ctx, logger libLog.Logger, tenantID string, err error) error {
+	log := logger.With(
+		libLog.String("operation", "routes.lazy_spawn_workers"),
+		libLog.String("tenant_id", tenantID),
+		libLog.String("error.message", err.Error()),
+	)
+	if errors.Is(err, workers.ErrTenantCapReached) {
+		log.Log(c.Context(), libLog.LevelWarn, "Tenant worker cap reached; responding 503 so client backs off")
+		c.Set("Retry-After", tenantCapRetryAfterHeader())
+
+		return writeTenantCapReached(c)
+	}
+
+	log.Log(c.Context(), libLog.LevelWarn, "Failed to ensure workers for tenant; request will proceed but background sync may be unavailable")
+
+	return c.Next()
+}
+
 // tracerHumaHandlers bundles everything registerTracerHumaRoutes needs to mount
 // the tracer's Huma surface: the auth guard, the per-op config flag, and the
 // already-constructed resource handlers. It is the tracer analogue of the
@@ -492,15 +501,19 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 //     NewRoutes from pgManager+multiTenantEnabled. Tests may pass nil (the
 //     reservation routes are skipped when Reservation is nil anyway).
 type tracerHumaHandlers struct {
-	Guard                 *middleware.AuthGuard
-	APIKeyOnlyValidation  bool
-	Rule                  *Handler
-	Limit                 *LimitHandler
-	TransactionValidation *TransactionValidationHandler
-	Validation            *ValidationHandler
-	Reservation           *ReservationHandler
-	ResTenantMW           fiber.Handler
-	AuditEvent            *AuditEventHandler
+	ContextReservation         *ContextReservationHandler
+	ContextReservationIdentity *seamidentity.Resolver
+	LimitAssetAdmin            *LimitAssetHandler
+	ContextPolicy              *ContextPolicyHandler
+	Guard                      *middleware.AuthGuard
+	APIKeyOnlyValidation       bool
+	Rule                       *Handler
+	Limit                      *LimitHandler
+	TransactionValidation      *TransactionValidationHandler
+	Validation                 *ValidationHandler
+	Reservation                *ReservationHandler
+	ResTenantMW                fiber.Handler
+	AuditEvent                 *AuditEventHandler
 
 	// Dashboard is the operator dashboard read handler. If nil, the
 	// /v1/dashboard routes are not mounted — the surface is additive, so a
@@ -509,7 +522,7 @@ type tracerHumaHandlers struct {
 	Dashboard *DashboardHandler
 }
 
-// registerTracerHumaRoutes mounts all 32 tracer Huma operations on the given
+// registerTracerHumaRoutes mounts all tracer Huma operations on the given
 // Huma API, attaching each op's pre-Huma Fiber auth chain to the SAME /v1 group
 // first. It is the single registration seam shared by production (NewRoutes) and
 // the http/in tests, so the mounted surface is identical without a running
@@ -522,6 +535,18 @@ type tracerHumaHandlers struct {
 // behavior.
 func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
 	guard := h.Guard
+	if h.LimitAssetAdmin != nil {
+		api.Put("/limits/:id/asset-reference", NewLimitAssetIdentityMiddleware(h.LimitAssetAdmin.identity), guard.WithPolicyPermission("limit-asset-references", "put"))
+		RegisterLimitAssetRoutes(humaAPI, h.LimitAssetAdmin)
+	}
+
+	if h.ContextPolicy != nil {
+		api.Post("/policies", guard.WithPolicyPermission("policies", "post"))
+		api.Get("/policies/:id/revisions/:revision", guard.WithPolicyPermission("policies", "get"))
+		api.Put("/policy-bindings", guard.WithPolicyPermission("policy-bindings", "put"))
+		api.Get("/policy-bindings", guard.WithPolicyPermission("policy-bindings", "get"))
+		RegisterContextPolicyRoutes(humaAPI, h.ContextPolicy)
+	}
 
 	// Rule endpoints — ALL eight ops migrated to Huma (Phase 2b-1). Auth stays a
 	// Fiber middleware attached to the exact method+path BEFORE the Huma
@@ -573,35 +598,7 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 	api.Post("/validations", guard.With("validations", "post", h.APIKeyOnlyValidation))
 	RegisterValidationRoutes(humaAPI, h.Validation)
 
-	// Reservation endpoints (two-phase capacity hold) — Huma. Mounted only when the
-	// reservation handler is wired — the API is additive, so a build without it
-	// simply does not expose /v1/reservations. The "reservations" resource is the
-	// tracer's OWN authz resource string (API-key / Access-Manager guard), not a
-	// ledger plugin namespace.
-	if h.Reservation != nil {
-		// Reservation-scoped tenant resolution: on the mTLS/mesh-verified seam
-		// the ledger forwards a TRUSTED X-Tenant-Id header. resTenantMW (built in
-		// NewRoutes) resolves the per-tenant PG pool from it here, on the
-		// reservation routes ONLY — the shared JWT-claim tenant middleware on the
-		// other /v1 user routes is left intact, and no header-trust path is opened
-		// elsewhere. In single-tenant mode the resolver is a no-op.
-		//
-		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
-		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
-		// authenticates, then c.Next() advances into the Huma handler. The
-		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
-		// param routes so Fiber matches the static "transaction" segment first
-		// (otherwise it binds the literal "transaction" to :id). Ordering and both
-		// middlewares are preserved exactly from the pre-Huma inline routes.
-		resTenantMW := h.ResTenantMW
-
-		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
-		RegisterReservationRoutes(humaAPI, h.Reservation)
-	}
+	registerReservationTransportRoutes(api, humaAPI, h)
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements) — Huma.
 	api.Get("/audit-events", guard.With("audit-events", "get", false))
@@ -634,4 +631,37 @@ func newDashboardHandlerOrNil(service DashboardService, clk clock.Clock) *Dashbo
 	}
 
 	return NewDashboardHandler(service, clk)
+}
+
+// registerReservationTransportRoutes keeps legacy authorization intact while the
+// coordinated profile authorizes producers through the native certificate registry.
+// User/admin API credentials never substitute for a registered producer identity.
+func registerReservationTransportRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
+	if h.Reservation == nil {
+		return
+	}
+
+	legacyAuth := h.Guard.With("reservations", "post", false)
+	if h.ContextReservation == nil {
+		api.Post("/reservations", h.ResTenantMW, legacyAuth)
+		api.Post("/reservations/transaction/:transaction_id/confirm", h.ResTenantMW, legacyAuth)
+		api.Post("/reservations/transaction/:transaction_id/release", h.ResTenantMW, legacyAuth)
+		api.Post("/reservations/:id/confirm", h.ResTenantMW, legacyAuth)
+		api.Post("/reservations/:id/release", h.ResTenantMW, legacyAuth)
+		RegisterReservationRoutes(humaAPI, h.Reservation)
+
+		return
+	}
+
+	identity := NewReservationIdentityMiddleware(h.ContextReservationIdentity)
+	api.Post("/reservations", identity, h.ResTenantMW)
+	// An explicit revision body can only reach the strict coordinated command.
+	// Empty bodies retain legacy authorization and legacy-only repository access.
+	completionAuth := contextCompletionAuthorization(legacyAuth)
+	api.Post("/reservations/transaction/:transaction_id/confirm", identity, h.ResTenantMW, completionAuth)
+	api.Post("/reservations/transaction/:transaction_id/release", identity, h.ResTenantMW, completionAuth)
+	// Reservation IDs address their whole coordinated operation in the new profile.
+	api.Post("/reservations/:id/confirm", identity, h.ResTenantMW, completionAuth)
+	api.Post("/reservations/:id/release", identity, h.ResTenantMW, completionAuth)
+	RegisterContextReservationRoutes(humaAPI, h.ContextReservation, h.Reservation)
 }

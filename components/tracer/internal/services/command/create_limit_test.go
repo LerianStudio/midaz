@@ -56,6 +56,19 @@ func TestNewCreateLimitCommand_NilClock(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+func TestCreateLimitLegacyProfileRejectsNativeCodes(t *testing.T) {
+	for _, code := range []string{"usd", "wBTC", "BTC"} {
+		t.Run(code, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			cmd, err := NewCreateLimitCommand(NewMockLimitRepository(ctrl), testutil.NewDefaultMockClock(), NewMockAuditWriter(ctrl), pgdbMocks.NewMockTxBeginner(ctrl))
+			require.NoError(t, err)
+			result, err := cmd.Execute(t.Context(), &CreateLimitInput{Name: "Legacy", LimitType: model.LimitTypeDaily, MaxAmount: decimal.NewFromInt(100), Asset: code, Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}}})
+			require.ErrorIs(t, err, constant.ErrLimitInvalidCurrency)
+			require.Nil(t, result)
+		})
+	}
+}
+
 // TestCreateLimit_Success_Atomic exercises the happy path of the atomic
 // CreateLimit command: BeginTx → CreateWithTx → RecordLimitEventWithTx →
 // Commit (no Rollback). Drives the helper expectLimitCreateTxSuccess which
@@ -470,23 +483,23 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 			errorIs: constant.ErrLimitInvalidMaxAmount,
 		},
 		{
-			name: "invalid asset (contains number)",
+			name: "invalid asset (contains NUL)",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Asset:     "US1",
+				Asset:     "US\x001",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,
 		},
 		{
-			name: "asset too short",
+			name: "asset has surrounding whitespace",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Asset:     "US",
+				Asset:     " US",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,
@@ -555,7 +568,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 }
 
 // TestCreateLimitCommand_Execute_Normalization verifies that the limit
-// passed into CreateWithTx has its name and asset normalized.
+// passed into CreateWithTx has its name normalized and exact asset preserved.
 func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -572,18 +585,18 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 			expectedCurrency: "USD",
 		},
 		{
-			name:             "uppercases lowercase asset",
+			name:             "preserves lowercase asset",
 			inputName:        "Lowercase Asset Test",
 			inputCurrency:    "usd",
 			expectedName:     "Lowercase Asset Test",
-			expectedCurrency: "USD",
+			expectedCurrency: "usd",
 		},
 		{
-			name:             "trims and normalizes both",
+			name:             "normalizes name and preserves mixed case asset",
 			inputName:        "  Foo  ",
-			inputCurrency:    " usd ",
+			inputCurrency:    "wBTC",
 			expectedName:     "Foo",
-			expectedCurrency: "USD",
+			expectedCurrency: "wBTC",
 		},
 	}
 
@@ -625,6 +638,8 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 
 			cmd, err := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter, txBeginner)
 			require.NoError(t, err)
+
+			cmd.NativeAssetCodes = true
 
 			input := &CreateLimitInput{
 				Name:      tc.inputName,

@@ -1195,3 +1195,62 @@ func TestAuditEventRepository_scanEvent_JSONUnmarshalError(t *testing.T) {
 
 	require.NoError(t, sqlMock.ExpectationsWereMet())
 }
+
+func TestAuditEventRepositoryOperationCompletionRequiresInsertedRow(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("rows affected unavailable")
+	for _, tt := range []struct {
+		name   string
+		result sql.Result
+		want   error
+	}{
+		{"one event", sqlmock.NewResult(0, 1), nil},
+		{"suppressed event", sqlmock.NewResult(0, 0), constant.ErrInternalServer},
+		{"unexpected count", sqlmock.NewResult(0, 2), constant.ErrInternalServer},
+		{"unknown count", sqlmock.NewErrorResult(failure), failure},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tx := mocks.NewMockTx(gomock.NewController(t))
+			event := createTestAuditEvent(t)
+			event.EventType = model.AuditEventOperationConfirmed
+			event.ResourceType = model.ResourceTypeReserveOperation
+			tx.EXPECT().ExecContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(tt.result, nil)
+			err := NewAuditEventRepositoryWithConnection(nil).InsertWithTx(t.Context(), tx, event)
+			if tt.want == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestAuditEventRepositoryLimitUpdateRequiresInsertedRow(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("rows affected unavailable")
+	for _, tt := range []struct {
+		name   string
+		result sql.Result
+		want   error
+	}{
+		{"one event", sqlmock.NewResult(0, 1), nil},
+		{"suppressed event", sqlmock.NewResult(0, 0), constant.ErrInternalServer},
+		{"unexpected count", sqlmock.NewResult(0, 2), constant.ErrInternalServer},
+		{"unknown count", sqlmock.NewErrorResult(failure), failure},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tx := mocks.NewMockTx(gomock.NewController(t))
+			event := createTestAuditEvent(t)
+			event.EventType = model.AuditEventLimitUpdated
+			event.ResourceType = model.ResourceTypeLimit
+			event.Action = model.AuditActionUpdate
+			tx.EXPECT().ExecContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(tt.result, nil)
+			err := NewAuditEventRepositoryWithConnection(nil).InsertWithTx(t.Context(), tx, event)
+			if tt.want == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.want)
+			}
+		})
+	}
+}

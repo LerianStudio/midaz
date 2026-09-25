@@ -310,6 +310,29 @@ func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
 	})
 }
 
+func TestReserveTransaction_DeterministicFailure_AlwaysRejects(t *testing.T) {
+	tracerCtx, sp, logger := anchorDeps()
+
+	for _, settings := range []mmodel.TracerSettings{
+		{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureOpen},
+		{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+	} {
+		t.Run(string(settings.Mode), func(t *testing.T) {
+			reserver := &stubReserver{reserveErr: constant.ErrInvalidRequestBody}
+			uc := &UseCase{TracerReserver: reserver}
+
+			out := uc.reserveTransaction(tracerCtx, sp, logger, settings,
+				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+
+			require.Equal(t, reservationReject, out.Kind)
+
+			var contractErr pkg.ServiceUnavailableError
+			require.ErrorAs(t, out.Err, &contractErr)
+			assert.Equal(t, constant.ErrTracerContractUnavailable.Error(), contractErr.Code)
+		})
+	}
+}
+
 func TestReserveTransaction_FailOpen_SkipsAndProceeds(t *testing.T) {
 	tracerCtx, sp, logger := anchorDeps()
 
@@ -386,6 +409,13 @@ func TestReserveTransaction_BuildsFaithfulTracerRequest(t *testing.T) {
 	assert.NotEmpty(t, req.RequestID, "the tracer reserve contract requires a non-nil requestId")
 	assert.Equal(t, fixedReserveTimestamp.Format(time.RFC3339Nano), req.TransactionTimestamp)
 
+	// Current baseline: the anchor does not enrich these optional scopes. The
+	// transport characterization separately exercises them when populated.
+	assert.Empty(t, req.SegmentID)
+	assert.Empty(t, req.PortfolioID)
+	assert.Empty(t, req.MerchantID)
+	assert.Empty(t, req.TransactionType)
+
 	// RequestID is deterministic: same transactionID derives the same requestId
 	// so retries dedup.
 	assert.Equal(t, reservationRequestID(txID).String(), req.RequestID)
@@ -429,12 +459,6 @@ func TestFirstSourceAccountID(t *testing.T) {
 		assert.Empty(t, firstSourceAccountID(nil, balances))
 		assert.Empty(t, firstSourceAccountID([]string{"@alice#default"}, nil))
 	})
-}
-
-func TestReservationTTLForStatus(t *testing.T) {
-	assert.Equal(t, reservationTTLLongLived, reservationTTLForStatus(constant.PENDING))
-	assert.Equal(t, reservationTTLDefault, reservationTTLForStatus(constant.APPROVED))
-	assert.Equal(t, reservationTTLDefault, reservationTTLForStatus(constant.CREATED))
 }
 
 func TestConfirmReservations(t *testing.T) {

@@ -164,6 +164,24 @@ func (r *AuditEventRepository) insertInternal(
 		return fmt.Errorf("failed to insert audit event: %w", err)
 	}
 
+	// Reserve admission/completion and limit updates require a durable event.
+	// Their commands own
+	// conflicts/idempotency; neither uses transaction-validation deduplication.
+	// Never interpret a silently suppressed insert as an audited outcome.
+	if event.ResourceType == model.ResourceTypeReserveOperation ||
+		(event.ResourceType == model.ResourceTypeLimit && event.Action == model.AuditActionUpdate) {
+		affected, err := result.RowsAffected()
+		if err != nil {
+			libOtel.HandleSpanError(span, "Failed to verify mandatory audit insertion", err)
+			return fmt.Errorf("verify mandatory audit insertion: %w", err)
+		}
+
+		if affected != 1 {
+			libOtel.HandleSpanError(span, "Mandatory audit was not inserted", constant.ErrInternalServer)
+			return constant.ErrInternalServer
+		}
+	}
+
 	// Log dedup visibility for transaction validation events
 	if event.ResourceType == model.ResourceTypeTransaction {
 		rowsAffected, rowsErr := result.RowsAffected()

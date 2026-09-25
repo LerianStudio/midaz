@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -61,4 +62,17 @@ func tenantIDFromMetadata(ctx context.Context) string {
 	}
 
 	return values[0]
+}
+
+// ContextReservationUnaryInterceptor authenticates the producer before resolving
+// its requested tenant. Bootstrap and transport tests share this exact chain.
+func ContextReservationUnaryInterceptor(identity *seamidentity.Resolver, tenant *seamtenant.Resolver) grpc.UnaryServerInterceptor {
+	authenticate := IdentityUnaryInterceptor(identity)
+	resolve := TenantUnaryInterceptor(tenant)
+
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		return authenticate(ctx, req, info, func(verified context.Context, input any) (any, error) {
+			return resolve(verified, input, info, handler)
+		})
+	}
 }

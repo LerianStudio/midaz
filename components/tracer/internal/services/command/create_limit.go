@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	tracerpkg "github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -76,10 +77,13 @@ type CreateLimitInput struct {
 // either both land or neither does. Audit failure rolls the limit insert back,
 // so a successful Create implies a successful audit record.
 type CreateLimitCommand struct {
-	repo        LimitRepository
-	clock       clock.Clock
-	auditWriter AuditWriter
-	txBeginner  pgdb.TxBeginner
+	ContextLimits *ContextLimitDefinitionPolicy
+	// NativeAssetCodes is enabled only with the shared Reserve deployment profile.
+	NativeAssetCodes bool
+	repo             LimitRepository
+	clock            clock.Clock
+	auditWriter      AuditWriter
+	txBeginner       pgdb.TxBeginner
 
 	// Streaming is the lib-streaming Emitter used to publish past-tense domain
 	// events; nil disables emission and never fails the request. Set
@@ -143,12 +147,11 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	// Create normalized copy to avoid mutating caller's input
 	normalizedInput := *input
 	normalizedInput.Name = strings.TrimSpace(normalizedInput.Name)
-	normalizedInput.Asset = strings.ToUpper(strings.TrimSpace(normalizedInput.Asset))
 
 	span.SetAttributes(
 		attribute.String("app.request.limit_name", normalizedInput.Name),
 		attribute.String("app.request.limit_type", string(normalizedInput.LimitType)),
-		attribute.String("app.request.asset", normalizedInput.Asset),
+		attribute.Int("app.request.asset_bytes", len(normalizedInput.Asset)),
 	)
 
 	// Create domain entity via appropriate NewLimit* function
@@ -250,6 +253,16 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			libLog.String("error.message", err.Error()),
 		).Log(ctx, libLog.LevelWarn, "Failed to create limit entity")
 
+		return nil, err
+	}
+
+	if !c.NativeAssetCodes && !tracerpkg.IsValidCurrency(input.Asset) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid legacy asset code", constant.ErrLimitInvalidCurrency)
+		return nil, constant.ErrLimitInvalidCurrency
+	}
+
+	if err := c.ContextLimits.validate(ctx, limit); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid shared limit definition", err)
 		return nil, err
 	}
 

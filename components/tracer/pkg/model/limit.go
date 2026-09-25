@@ -8,11 +8,11 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -223,9 +223,14 @@ func CalculateCustomResetAt(customEndDate time.Time) *time.Time {
 	return &resetAt
 }
 
-// validateAsset checks if asset is a valid ISO 4217 code (3 uppercase letters)
-func validateAsset(asset string) error {
-	if !pkg.IsValidCurrency(asset) {
+// MaxLimitAssetCodeBytes bounds the administrative code; runtime fact profiles
+// may enforce a smaller bound. Codes are descriptive, not economic identity.
+const MaxLimitAssetCodeBytes = 256
+
+// ValidateLimitAssetCode preserves native codes exactly, including case.
+func ValidateLimitAssetCode(asset string) error {
+	if len(asset) == 0 || len(asset) > MaxLimitAssetCodeBytes || !utf8.ValidString(asset) ||
+		strings.TrimSpace(asset) != asset || strings.ContainsRune(asset, '\x00') {
 		return constant.ErrLimitInvalidCurrency
 	}
 
@@ -234,7 +239,7 @@ func validateAsset(asset string) error {
 
 // newLimitBase performs common normalization and creates base Limit struct.
 // This function is private and shared by all NewLimit* constructors to reduce duplication.
-// It normalizes textual inputs (name, asset, description), creates defensive copy of scopes,
+// It normalizes names/descriptions and preserves asset codes, creates defensive copy of scopes,
 // and initializes common fields (ID, Status, CreatedAt, UpdatedAt).
 func newLimitBase(
 	name string,
@@ -249,7 +254,6 @@ func newLimitBase(
 
 	// Normalize textual inputs
 	normalizedName := strings.TrimSpace(name)
-	normalizedAsset := strings.ToUpper(strings.TrimSpace(asset))
 
 	var normalizedDescription *string
 
@@ -272,7 +276,7 @@ func newLimitBase(
 		Description: normalizedDescription,
 		LimitType:   limitType,
 		MaxAmount:   maxAmount,
-		Asset:       normalizedAsset,
+		Asset:       asset,
 		Scopes:      scopesCopy,
 		Status:      LimitStatusDraft,
 		CreatedAt:   now,
@@ -789,7 +793,7 @@ func (l *Limit) Validate() error {
 		return err
 	}
 
-	if err := validateAsset(l.Asset); err != nil {
+	if err := ValidateLimitAssetCode(l.Asset); err != nil {
 		return err
 	}
 

@@ -20,14 +20,28 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
 
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
+
+func TestClassifyLimitServiceErrorMapsContextAdminFailures(t *testing.T) {
+	conflict := classifyLimitServiceError(trace.SpanFromContext(t.Context()), constant.ErrLimitAssetReferenceConflict)
+	var conflictError pkg.EntityConflictError
+	require.ErrorAs(t, conflict, &conflictError)
+	require.Equal(t, constant.ErrLimitAssetReferenceConflict.Error(), conflictError.Code)
+
+	ineligible := classifyLimitServiceError(trace.SpanFromContext(t.Context()), constant.ErrContextLimitsUnavailable)
+	var unprocessable pkg.UnprocessableOperationError
+	require.ErrorAs(t, ineligible, &unprocessable)
+	require.Equal(t, constant.ErrContextLimitsUnavailable.Error(), unprocessable.Code)
+}
 
 func TestLimitHandler_CreateLimit(t *testing.T) {
 	tests := []struct {
@@ -129,12 +143,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 		},
 		{
-			name: "error - invalid asset (not 3 chars)",
+			name: "error - invalid asset (surrounding whitespace)",
 			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"asset":     "BR",
+				"asset":     " BR",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},

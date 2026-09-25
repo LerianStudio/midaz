@@ -32,6 +32,7 @@ const (
 	EntityRelatedParty          = "RelatedParty"
 	EntityReservation           = "Reservation"
 	EntityRule                  = "Rule"
+	EntityContextPolicy         = "ContextPolicy"
 	EntitySegment               = "Segment"
 	EntityTransaction           = "Transaction"
 	EntityTransactionRoute      = "TransactionRoute"

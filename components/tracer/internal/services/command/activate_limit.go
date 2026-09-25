@@ -31,10 +31,11 @@ import (
 
 // ActivateLimitCommand handles limit activation (INACTIVE → ACTIVE).
 type ActivateLimitCommand struct {
-	repo        LimitRepository
-	clock       clock.Clock
-	auditWriter AuditWriter
-	txBeginner  pgdb.TxBeginner
+	ContextLimits *ContextLimitDefinitionPolicy
+	repo          LimitRepository
+	clock         clock.Clock
+	auditWriter   AuditWriter
+	txBeginner    pgdb.TxBeginner
 
 	// Streaming is the lib-streaming Emitter used to publish past-tense domain
 	// events; nil disables emission and never fails the request. Set
@@ -143,6 +144,12 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 
 	// Idempotency: if already active, return the limit (no-op)
 	if limit.Status == model.LimitStatusActive {
+		if c.ContextLimits != nil {
+			if err := executeWithTx(ctx, c.txBeginner, func(tx pgdb.Tx) error { return c.ContextLimits.validateActivation(ctx, tx, id) }); err != nil {
+				return nil, err
+			}
+		}
+
 		logger.With(
 			libLog.String("operation", "service.limit.activate"),
 			libLog.String("limit.id", id.String()),
@@ -173,7 +180,12 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 	afterState := LimitToMap(limit)
 
 	// Persist status change + audit event atomically.
-	txErr := executeInTx(ctx, c.txBeginner, func(db pgdb.DB) error {
+	txErr := executeWithTx(ctx, c.txBeginner, func(db pgdb.Tx) error {
+		if err := c.ContextLimits.validateActivation(ctx, db, id); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
+			return err
+		}
+
 		if err := c.repo.UpdateStatusWithTx(ctx, db, id, model.LimitStatusActive, limit.UpdatedAt); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to update limit status", err)
 			logger.With(

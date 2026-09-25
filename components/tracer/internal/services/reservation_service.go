@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"time"
 
 	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
@@ -26,6 +25,7 @@ import (
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/reservationlock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -744,8 +744,5 @@ func pgSQLState(err error) string {
 // is folded in. A nil account (external-only source) maps to a fixed key, serializing
 // those rare reserves together, which is correct if slightly conservative.
 func reserveScopeLockKey(accountID uuid.UUID) int64 {
-	h := fnv.New64a()
-	_, _ = h.Write(accountID[:])
-
-	return int64(h.Sum64()) // #nosec G115 -- intentional truncation: any 64 bits work as a lock key
+	return reservationlock.AccountKey(accountID)
 }

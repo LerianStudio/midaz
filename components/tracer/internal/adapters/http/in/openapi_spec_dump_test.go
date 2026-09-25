@@ -86,11 +86,14 @@ func buildTracerHumaAPI() huma.API {
 
 	registerTracerHumaRoutes(api, humaAPI, tracerHumaHandlers{
 		Guard:                 guard,
+		ContextPolicy:         &ContextPolicyHandler{},
+		LimitAssetAdmin:       &LimitAssetHandler{},
 		Rule:                  &Handler{},
 		Limit:                 &LimitHandler{},
 		TransactionValidation: &TransactionValidationHandler{},
 		Validation:            &ValidationHandler{},
 		Reservation:           &ReservationHandler{},
+		ContextReservation:    &ContextReservationHandler{maxBodyBytes: 1 << 20},
 		ResTenantMW:           func(c fiber.Ctx) error { return c.Next() },
 		AuditEvent:            &AuditEventHandler{},
 		Dashboard:             &DashboardHandler{},

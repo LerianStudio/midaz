@@ -552,8 +552,6 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 	if amount.GreaterThan(maxAmount) {
 		logger.With(
 			libLog.String("operation", operationName),
-			libLog.String("amount", amount.String()),
-			libLog.String("max_amount", maxAmount.String()),
 			libLog.String("limit_id", limitID.String()),
 		).Log(ctx, libLog.LevelDebug, "Reserve amount exceeds maxAmount (pre-check)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Reserve amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
@@ -598,9 +596,6 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 			libLog.String("limit_id", limitID.String()),
 			libLog.String("scope_key", scopeKey),
 			libLog.String("period_key", periodKey),
-			libLog.String("reserved_usage", reservedUsage.String()),
-			libLog.String("amount", amount.String()),
-			libLog.String("max_amount", maxAmount.String()),
 		).Log(ctx, libLog.LevelDebug, "Limit exceeded (reserve WHERE guard)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
@@ -612,7 +607,6 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 		libLog.String("limit_id", limitID.String()),
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
-		libLog.String("new_reserved_usage", reservedUsage.String()),
 	).Log(ctx, libLog.LevelDebug, "Upsert and reserve completed")
 
 	return reservedUsage, nil
@@ -834,7 +828,7 @@ func (r *UsageCounterRepository) scanCounterFromRows(ctx context.Context, rows *
 }
 
 // DeleteExpiredCounters removes usage counters whose expires_at is before now.
-// Counters with NULL expires_at are preserved (never deleted).
+// Counters with NULL expires_at or outstanding held capacity are preserved.
 // Deletes are performed in batches to prevent long-running locks on large tables.
 // Returns the total number of deleted counters.
 func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error) {
@@ -873,12 +867,11 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 			return totalDeleted, fmt.Errorf("failed to get database connection: %w", err)
 		}
 
-		// Build batched delete query using subquery:
-		// DELETE FROM usage_counters WHERE id IN (SELECT id FROM usage_counters WHERE expires_at IS NOT NULL AND expires_at < $1 LIMIT $2)
-		// PostgreSQL doesn't support LIMIT directly on DELETE, so we use a subquery approach.
-		// Counters with NULL expires_at are preserved (never deleted automatically).
+		// Keep both guards on the DELETE target as well as the candidate scan.
+		// After waiting for a concurrent reserve, PostgreSQL must recheck the
+		// updated row instead of deleting a stale candidate with newly held funds.
 		deleteQuery := fmt.Sprintf(
-			"DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE expires_at IS NOT NULL AND expires_at < $1 LIMIT $2)",
+			"DELETE FROM %s WHERE reserved_usage = 0 AND expires_at < $1 AND id IN (SELECT id FROM %s WHERE reserved_usage = 0 AND expires_at < $1 LIMIT $2)",
 			usageCountersTable, usageCountersTable,
 		)
 

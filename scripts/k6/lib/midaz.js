@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 // Shared helpers for the midaz k6 suite: env config, thin HTTP wrappers, the
 // provisioning calls used in setup(), custom metrics, and a summary writer.
 //
@@ -9,7 +13,16 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
-import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
+
+// Load identities need uniqueness, not cryptographic secrecy. Keeping this
+// generator local makes the benchmark reproducible in isolated environments.
+export function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = token === 'x' ? random : ((random & 0x3) | 0x8);
+    return value.toString(16);
+  });
+}
 
 export const LEDGER = __ENV.LEDGER_URL || 'http://localhost:3002';
 export const TRACER = __ENV.TRACER_URL || 'http://localhost:4020';
@@ -91,8 +104,8 @@ export function createHolder(org) {
 
 // createFlatFeePackage registers an enabled flat-fee package on the ledger.
 export function createFlatFeePackage(org, ledger, creditAlias, flatValue) {
-  const res = post(`${LEDGER}/v1/organizations/${org}/packages`, {
-    feeGroupLabel: 'k6 Std', ledgerId: ledger,
+  const res = post(`${LEDGER}/v2/organizations/${org}/ledgers/${ledger}/packages`, {
+    feeGroupLabel: 'k6 Std',
     minimumAmount: '0', maximumAmount: '1000000000', enable: true,
     fees: {
       adminFee: {
@@ -103,6 +116,21 @@ export function createFlatFeePackage(org, ledger, creditAlias, flatValue) {
     },
   });
   abortOn(res, 'create fee package');
+}
+
+// transferBodyV2 builds the flat /v2 transaction body. Organization and ledger
+// are explicit on every leg because the /v2 create route carries no scope path.
+export function transferBodyV2(org, ledger, from, to, value, skip) {
+  const scope = { organizationId: org, ledgerId: ledger };
+  const body = {
+    description: `xfer ${uuidv4()}`,
+    asset: 'USD',
+    amount: value,
+    debits: [{ alias: from, amount: value, ...scope }],
+    credits: [{ alias: to, amount: value, ...scope }],
+  };
+  if (skip) body.skip = skip;
+  return body;
 }
 
 // fund credits alias with value USD from the external account via an inflow.

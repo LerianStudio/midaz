@@ -6,9 +6,14 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // atomicTransactionBatchReservationSettlement names only outcomes that are
@@ -33,22 +38,50 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 	logger libLog.Logger,
 	run *atomicTransactionBatchRun,
 ) error {
+	var deadline time.Time
+
+	if uc.ContextTracer != nil {
+		var (
+			participants int
+			budget       time.Duration
+		)
+
+		for index := range run.items {
+			item := &run.items[index]
+
+			settings := run.itemLedgerSettings(item).Tracer
+			if item.honoredTracerSkip || settings.Mode == "" || settings.Mode == mmodel.TracerModeOff {
+				continue
+			}
+
+			participants++
+			budget += time.Duration(settings.TimeoutMs) * time.Millisecond
+		}
+
+		if participants == 0 {
+			return nil
+		}
+
+		if participants > uc.ContextTracer.recovery.config.MaxBatch {
+			return constant.ErrInvalidRequestBody
+		}
+		// Earlier items must remain prepared while later items use their own
+		// Reserve budgets. All members share this immutable dispatch deadline.
+		deadline = uc.ContextTracer.recovery.now().UTC().Add(budget).Add(uc.ContextTracer.recovery.config.AttemptTimeout)
+	}
+
 	for index := range run.items {
 		item := &run.items[index]
 
-		reservation := uc.reserveTransaction(
-			ctx,
-			span,
-			logger,
-			run.itemLedgerSettings(item).Tracer,
-			item.transactionID,
-			item.input.Send.Value,
-			item.input.Send.Asset,
-			firstSourceAccountID(item.validate.Sources, item.prepared.pool.ExplicitBalances),
-			item.transactionDate,
-			reservationTTLForStatus(item.status),
-			item.honoredTracerSkip,
-		)
+		organizationID, ledgerID := run.itemScope(item)
+
+		reservation := uc.reservePreparedTransaction(ctx, span, logger, ContextTracerInput{
+			Key:         tracerreservation.Key{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: item.transactionID},
+			ExecutionID: run.executionID, Settings: run.itemLedgerSettings(item).Tracer,
+			Amount: item.input.Send.Value, AssetCode: item.input.Send.Asset,
+			Timestamp: item.transactionDate, HonoredSkip: item.honoredTracerSkip,
+			LongLived: item.status == constant.PENDING, DispatchDeadline: deadline,
+		}, item.input, item.validate, item.prepared.pool.ExplicitBalances)
 		if reservation.Kind == reservationReject {
 			uc.settleAtomicTransactionBatchReservations(
 				ctx,
@@ -69,6 +102,21 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 	}
 
 	return nil
+}
+
+func (uc *UseCase) beginAtomicContextReservations(ctx context.Context, run *atomicTransactionBatchRun) error {
+	if uc.ContextTracer == nil {
+		return nil
+	}
+
+	attempts := make([]ContextTracerAttempt, 0, len(run.items))
+	for _, item := range run.items {
+		if item.tracerReservation.ContextAttempt != nil {
+			attempts = append(attempts, *item.tracerReservation.ContextAttempt)
+		}
+	}
+
+	return uc.ContextTracer.BeginBatchExecution(ctx, attempts)
 }
 
 // settleAtomicTransactionBatchReservations applies only a proven terminal
@@ -92,7 +140,9 @@ func (uc *UseCase) settleAtomicTransactionBatchReservations(
 		case atomicTransactionBatchReservationConfirmedAbort:
 			uc.releaseReservations(ctx, span, logger, handle)
 		case atomicTransactionBatchReservationKnownSuccess:
-			uc.confirmReservations(ctx, span, logger, handle)
+			if run.items[index].status != constant.PENDING {
+				uc.confirmReservations(ctx, span, logger, handle)
+			}
 		}
 	}
 }

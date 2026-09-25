@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // reservationOutcomeKind enumerates the three branches the reserve anchor can
@@ -62,6 +64,7 @@ type reservationOutcome struct {
 // and how much spending went uncounted, and the reservation id alone says
 // neither.
 type reservationHandle struct {
+	ContextAttempt *ContextTracerAttempt
 	ReservationIDs []uuid.UUID
 	TransactionID  uuid.UUID
 	Amount         decimal.Decimal
@@ -130,11 +133,22 @@ func (uc *UseCase) reserveTransaction(
 	// the create path is unchanged and no reserve request is built or sent. An
 	// honored skip wins over advisory/enforce — the operator explicitly allowed
 	// the caller to opt out.
-	if uc.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
+	if settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
 	advisory := settings.Mode == mmodel.TracerModeAdvisory
+
+	// This legacy DTO cannot represent combined controls. Even settings loaded
+	// outside the activation API must not silently downgrade to limits-only.
+	if settings.ValidationMode == string(tracercontract.ValidationRulesAndLimits) {
+		return uc.handleReserveError(ctx, span, logger, settings, transactionID, advisory,
+			pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction))
+	}
+
+	if uc.TracerReserver == nil {
+		return reservationOutcome{Kind: reservationProceed}
+	}
 
 	req := tracer.ReserveRequest{
 		TransactionID:        transactionID,
@@ -179,12 +193,10 @@ func (uc *UseCase) reserveTransaction(
 	}
 }
 
-// handleReserveError maps a reserve transport failure to an outcome. An
-// availability failure (tracer.ErrTracerUnavailable) is gated by failPosture;
-// advisory never blocks regardless. A non-availability error (e.g. a bad
-// request the tracer rejects) is treated like an availability failure for
-// gating purposes so a tracer defect cannot silently let an enforce ledger
-// commit unchecked under fail-closed, while fail-open still proceeds.
+// handleReserveError maps a reserve failure to an outcome. Only availability
+// failures (tracer.ErrTracerUnavailable) follow failPosture. Deterministic
+// contract and validation failures reject in every mode: retrying or ignoring
+// them cannot make the same request valid and would bypass configured controls.
 func (uc *UseCase) handleReserveError(
 	ctx context.Context,
 	span trace.Span,
@@ -195,6 +207,16 @@ func (uc *UseCase) handleReserveError(
 	err error,
 ) reservationOutcome {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation call failed", err)
+
+	if !errors.Is(err, tracer.ErrTracerUnavailable) {
+		rejectErr := pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction)
+
+		logger.Log(ctx, libLog.LevelWarn, "Tracer rejected the reservation contract; rejecting transaction",
+			libLog.String("transaction_id", transactionID.String()),
+			libLog.Err(err))
+
+		return reservationOutcome{Kind: reservationReject, Err: rejectErr}
+	}
 
 	if advisory {
 		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation failed in advisory mode; proceeding",
@@ -290,6 +312,11 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 // request path until the tracer accepts it or the budget runs out. A nil
 // reserver or empty handle is a no-op.
 func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
+	if handle.ContextAttempt != nil {
+		uc.concludeContextReservation(ctx, span, handle, true)
+		return
+	}
+
 	if uc.TracerReserver == nil {
 		return
 	}
@@ -308,6 +335,11 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 // that never lands leaves capacity held against a transaction that moved no
 // money — which is why the report distinguishes them.
 func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
+	if handle.ContextAttempt != nil {
+		uc.concludeContextReservation(ctx, span, handle, false)
+		return
+	}
+
 	if uc.TracerReserver == nil {
 		return
 	}
@@ -400,15 +432,4 @@ func (uc *UseCase) recordReservationByTransactionFailure(ctx context.Context, sp
 		append(transition.logFields(), libLog.Err(err)))
 
 	uc.scheduleReservationRetry(ctx, logger, transition, err)
-}
-
-// reservationTTLForStatus selects the TTL policy from the transaction status:
-// PENDING transactions get the long-lived hint, everything else gets the
-// default reaper-swept TTL.
-func reservationTTLForStatus(transactionStatus string) reservationTTLPolicy {
-	if transactionStatus == constant.PENDING {
-		return reservationTTLLongLived
-	}
-
-	return reservationTTLDefault
 }

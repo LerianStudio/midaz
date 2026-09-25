@@ -15,8 +15,10 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -202,6 +204,32 @@ func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *
 	attempts, delivered := reserver.attempts()
 	assert.True(t, delivered)
 	assert.Equal(t, 2, attempts, "the first failed confirm must be redelivered by the bounded retrier")
+}
+
+func TestAtomicContextBatchPreservesHoldUntilTerminalOutcome(t *testing.T) {
+	for _, outcome := range []tracerreservation.State{tracerreservation.Confirmed, tracerreservation.Released} {
+		t.Run(string(outcome), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := NewMockTracerObligationStore(ctrl)
+			now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+			coordinator := &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{AttemptTimeout: time.Second}}}
+			uc := &UseCase{ContextTracer: coordinator}
+			run := atomicTransactionBatchTracerTestRun(2)
+			run.items[0].status = constant.APPROVED
+			run.items[1].status = constant.PENDING
+			for i := range run.items {
+				key := tracerreservation.Key{TransactionID: run.items[i].transactionID}
+				run.items[i].tracerReservation = reservationHandle{ContextAttempt: &ContextTracerAttempt{Key: key, IntentAttempted: true, Frozen: true}}
+			}
+			ctx, span, logger := anchorDeps()
+			// Creation settles only the posted item. No outcome is written for
+			// the hold, so a later commit OR cancel remains possible.
+			store.EXPECT().SetOutcome(gomock.Any(), run.items[0].tracerReservation.ContextAttempt.Key, tracerreservation.Confirmed, now).Return(nil)
+			uc.settleAtomicTransactionBatchReservations(ctx, span, logger, run, atomicTransactionBatchReservationKnownSuccess)
+			store.EXPECT().SetOutcome(gomock.Any(), run.items[1].tracerReservation.ContextAttempt.Key, outcome, now).Return(nil)
+			uc.concludeContextReservation(ctx, span, run.items[1].tracerReservation, outcome == tracerreservation.Confirmed)
+		})
+	}
 }
 
 func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchRun {

@@ -497,6 +497,42 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrTransactionReviewRequired: UnprocessableOperationError{
+			EntityType: entityType, Code: constant.ErrTransactionReviewRequired.Error(),
+			Title: "Transaction Review Required", Message: "Tracer requires review of this transaction. No accounting operation or pending hold was created.",
+		},
+		constant.ErrTracerContractUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrTracerContractUnavailable.Error(),
+			Title: "Tracer Contract Unavailable", Message: "The requested Tracer profile is not ready for activation.",
+		},
+		constant.ErrTracerFactsUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrTracerFactsUnavailable.Error(),
+			Title: "Official Tracer Facts Unavailable", Message: "Official account and asset records are incomplete or inconsistent; the validation context cannot be built safely.",
+		},
+		constant.ErrLimitAssetReferenceConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrLimitAssetReferenceConflict.Error(),
+			Title: "Limit Asset Reference Conflict", Message: "The limit already has an immutable asset reference.",
+		},
+		constant.ErrContextLimitsUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrContextLimitsUnavailable.Error(),
+			Title: "Account Limits Unavailable", Message: "The account and asset limit configuration is incomplete or cannot be evaluated safely.",
+		},
+		constant.ErrReserveOperationConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrReserveOperationConflict.Error(),
+			Title: "Reserve Operation Conflict", Message: "The operation has already completed or the requested completion contradicts its recorded outcome.",
+		},
+		constant.ErrReserveDecisionConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrReserveDecisionConflict.Error(),
+			Title: "Reserve Decision Conflict", Message: "The transaction or request identity was already used for a different reserve evaluation.",
+		},
+		constant.ErrContextPolicyUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrContextPolicyUnavailable.Error(),
+			Title: "Evaluation Policy Unavailable", Message: "No usable evaluation policy is configured for this integration context.",
+		},
+		constant.ErrContextPolicyConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrContextPolicyConflict.Error(),
+			Title: "Evaluation Policy Conflict", Message: "The policy revision already exists or its binding has changed. Reload before updating.",
+		},
 		constant.ErrDuplicateLedger: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateLedger.Error(),
@@ -603,7 +639,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrTransactionReservationDenied.Error(),
 			Title:      "Transaction Reservation Denied Error",
-			Message:    "The transaction could not be completed because it would exceed a configured usage limit. Please reduce the amount or wait for the limit window to reset and try again.",
+			Message:    "The transaction could not be completed because Tracer denied it under the configured rules or usage limits.",
 		},
 		constant.ErrTransactionReservationUnavailable: ServiceUnavailableError{
 			EntityType: entityType,
@@ -2427,7 +2463,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
 			Title:      "Limit Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset must be nonempty UTF-8 text of at most 256 bytes, without surrounding whitespace or NUL; case is preserved.",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,

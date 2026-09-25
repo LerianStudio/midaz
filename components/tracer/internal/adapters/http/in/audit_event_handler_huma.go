@@ -49,10 +49,10 @@ import (
 type ListAuditEventsInputHuma struct {
 	StartDate       string `query:"start_date" doc:"Start date (RFC3339 format)"`
 	EndDate         string `query:"end_date" doc:"End date (RFC3339 format)"`
-	EventType       string `query:"event_type" doc:"Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)"`
-	Action          string `query:"action" doc:"Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)"`
+	EventType       string `query:"event_type" doc:"Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED)"`
+	Action          string `query:"action" doc:"Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE)"`
 	Result          string `query:"result" doc:"Filter by result (SUCCESS, FAILED, ALLOW, DENY, REVIEW)"`
-	ResourceType    string `query:"resource_type" doc:"Filter by resource type (transaction, rule, limit)"`
+	ResourceType    string `query:"resource_type" doc:"Filter by resource type (transaction, rule, limit, policy, reserve_operation)"`
 	ResourceID      string `query:"resource_id" doc:"Filter by resource ID (UUID)"`
 	ActorType       string `query:"actor_type" doc:"Filter by actor type (user, system)"`
 	ActorID         string `query:"actor_id" doc:"Filter by actor ID"`

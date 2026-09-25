@@ -1,0 +1,14 @@
+{
+  "tracer": {
+    "org": "00000000-0000-4000-8000-000000000001",
+    "ledger": "00000000-0000-4000-8000-000000000002",
+    "src": "@shared_tracer_source",
+    "dst": "@shared_tracer_destination"
+  },
+  "feesTracer": {
+    "org": "00000000-0000-4000-8000-000000000001",
+    "ledger": "00000000-0000-4000-8000-000000000003",
+    "src": "@shared_fees_tracer_source",
+    "dst": "@shared_fees_tracer_destination"
+  }
+}

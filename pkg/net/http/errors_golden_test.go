@@ -298,6 +298,15 @@ func allSentinels() map[string]error {
 		"ErrAccountClosingPersistencePending":         constant.ErrAccountClosingPersistencePending,
 		"ErrAccountClosed":                            constant.ErrAccountClosed,
 		"ErrAccountClosingProtectionIndeterminate":    constant.ErrAccountClosingProtectionIndeterminate,
+		"ErrContextPolicyUnavailable":                 constant.ErrContextPolicyUnavailable,
+		"ErrContextPolicyConflict":                    constant.ErrContextPolicyConflict,
+		"ErrReserveDecisionConflict":                  constant.ErrReserveDecisionConflict,
+		"ErrReserveOperationConflict":                 constant.ErrReserveOperationConflict,
+		"ErrContextLimitsUnavailable":                 constant.ErrContextLimitsUnavailable,
+		"ErrTracerFactsUnavailable":                   constant.ErrTracerFactsUnavailable,
+		"ErrTracerContractUnavailable":                constant.ErrTracerContractUnavailable,
+		"ErrTransactionReviewRequired":                constant.ErrTransactionReviewRequired,
+		"ErrLimitAssetReferenceConflict":              constant.ErrLimitAssetReferenceConflict,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
@@ -850,6 +859,22 @@ func TestGolden_SchemaMigrationPendingIsRetryable(t *testing.T) {
 	assert.Equal(t, constant.ErrSchemaMigrationPending.Error(), code)
 }
 
+func TestGolden_ReserveDecisionReuseIsConflict(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrReserveDecisionConflict, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusConflict, status)
+	assert.Equal(t, constant.ErrReserveDecisionConflict.Error(), code)
+}
+
+func TestGolden_ReserveOperationCompletionIsConflict(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrReserveOperationConflict, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusConflict, status)
+	assert.Equal(t, constant.ErrReserveOperationConflict.Error(), code)
+}
+
 func TestGolden_HelperPathCodeStatus(t *testing.T) {
 	t.Parallel()
 
@@ -1080,4 +1105,42 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 			assert.Equal(t, tc.wantCode, codeVal, "MONEY-PATH: explicit-status body[code]")
 		})
 	}
+}
+
+func TestGolden_ContextLimitsUnavailable(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrContextLimitsUnavailable, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, constant.ErrContextLimitsUnavailable.Error(), code)
+}
+
+func TestGolden_LimitAssetReferenceConflict(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrLimitAssetReferenceConflict, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusConflict, status)
+	assert.Equal(t, constant.ErrLimitAssetReferenceConflict.Error(), code)
+}
+
+func TestGolden_TracerFactsUnavailable(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrTracerFactsUnavailable, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, "0532", code)
+}
+
+func TestGolden_TracerContractUnavailable(t *testing.T) {
+	t.Parallel()
+	status, code := driveWithError(t, pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, "GoldenEntity"))
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, "0533", code)
+}
+
+func TestGolden_TransactionReviewRequired(t *testing.T) {
+	t.Parallel()
+	status, code := driveWithError(t, pkg.ValidateBusinessError(constant.ErrTransactionReviewRequired, "GoldenEntity"))
+	assert.Equal(t, fiber.StatusUnprocessableEntity, status)
+	assert.Equal(t, "0534", code)
 }

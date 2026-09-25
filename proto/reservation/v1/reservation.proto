@@ -16,9 +16,8 @@ option go_package = "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1;r
 // propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
 // message field).
 service ReservationService {
-  // Reserve holds limit capacity for a transaction (phase one). A denied
-  // decision is a successful response with denied=true and empty
-  // reservation_ids, not a transport error.
+  // Reserve evaluates rules and holds capacity (phase one). DENY/REVIEW are
+  // completed decisions with no retained reservations, not transport errors.
   rpc Reserve(ReserveRequest) returns (ReserveResult);
 
   // ConfirmByTransaction commits EVERY reservation a transaction holds.
@@ -27,87 +26,143 @@ service ReservationService {
   // ReleaseByTransaction returns EVERY reservation a transaction holds.
   rpc ReleaseByTransaction(ReleaseByTransactionRequest) returns (ReleaseByTransactionResponse);
 
-  // ConfirmById commits a single held reservation.
+  // ConfirmById completes the operation addressed by a coordinated reservation.
+  // Without a contract revision it only addresses a single legacy reservation.
   rpc ConfirmById(ConfirmByIdRequest) returns (ConfirmByIdResponse);
 
-  // ReleaseById returns a single held reservation's capacity.
+  // ReleaseById releases the operation addressed by a coordinated reservation.
+  // Without a contract revision it only addresses a single legacy reservation.
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
 }
 
-// ReserveAccount is the account scope the tracer matches limits against. It
-// mirrors the ledger-side ReserveAccount: only the account id is carried; an
-// empty value parses to the nil UUID, which the relaxed reserve validation
-// accepts (external-only source).
-message ReserveAccount {
+// AssetRef identifies an asset in the authenticated producer namespace.
+message AssetRef {
+  string namespace = 1;
+  string id = 2;
+  string code = 3;
+}
+
+// ContextAccount carries producer facts without imposing a Ledger taxonomy.
+message ContextAccount {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  optional bool blocked = 4;
+  AssetRef asset = 5;
+}
+
+// ContextEntry is one prepared posting, including fee postings.
+message ContextEntry {
   string account_id = 1;
+  bool external = 2;
+  string direction = 3;
+  string amount = 4;
+  AssetRef asset = 5;
 }
 
-// ReserveRequest is the gRPC form of the reserve body. It mirrors the ledger's
-// ReserveRequest field-for-field. amount is a decimal-as-string (NEVER a
-// double); transaction_timestamp is an RFC3339 string.
+// EvaluationContext preserves entry ordering and multiplicity.
+message EvaluationContext {
+  repeated ContextAccount accounts = 1;
+  repeated ContextEntry entries = 2;
+}
+
+// ReserveRequest replaces the old contract on the same RPC. Removed field
+// numbers cannot be reused; an old binary must fail contract verification.
 message ReserveRequest {
-  string transaction_id = 1;
-  string request_id = 2;
-  // amount is a decimal serialized as a string to avoid float rounding.
-  string amount = 3;
-  string asset = 4;
-  ReserveAccount account = 5;
-  string segment_id = 6;
-  string portfolio_id = 7;
-  string merchant_id = 8;
-  // transaction_type is optional on reserve; the ledger leaves it empty.
-  string transaction_type = 9;
-  // transaction_timestamp is RFC3339; the tracer enforces a not-future /
-  // not-too-far-past window against its injected clock.
-  string transaction_timestamp = 10;
-  // long_lived hints the tracer to assign a long-lived reservation lifetime to
-  // a PENDING-transaction reservation.
-  bool long_lived = 11;
+  reserved 1 to 11;
+  reserved "account", "segment_id", "portfolio_id", "merchant_id", "transaction_type";
+  string contract_revision = 16;
+  string transaction_id = 17;
+  string request_id = 18;
+  string context_id = 19;
+  string validation_mode = 20;
+  string transaction_timestamp = 21;
+  optional bool long_lived = 22;
+  string amount = 23;
+  AssetRef asset = 24;
+  EvaluationContext context = 25;
 }
 
-// ReserveResult is the handle returned by a successful reserve. denied is the
-// limit-exceeded decision (no capacity held, reservation_ids empty). Otherwise
-// reservation_ids holds one id per counter-backed limit the ledger must later
-// confirm or release.
+// ReserveControls explicitly confirms which requested controls completed.
+message ReserveControls {
+  string rules = 1;
+  string limits = 2;
+}
+
+// ReserveResult is the immutable completed decision, not a transport error.
 message ReserveResult {
-  string transaction_id = 1;
-  bool denied = 2;
-  repeated string reservation_ids = 3;
+  reserved 1 to 3;
+  reserved "denied";
+  string contract_revision = 16;
+  string transaction_id = 17;
+  string evaluation_id = 18;
+  string decision = 19;
+  ReserveControls controls = 20;
+  repeated string reservation_ids = 21;
+  repeated string reasons = 22;
 }
 
 // ConfirmByTransactionRequest commits every reservation held by a transaction.
 message ConfirmByTransactionRequest {
   string transaction_id = 1;
+  string contract_revision = 16;
 }
 
 // ReleaseByTransactionRequest releases every reservation held by a transaction.
 message ReleaseByTransactionRequest {
   string transaction_id = 1;
+  string contract_revision = 16;
 }
 
-// ConfirmByIdRequest commits a single reservation by its id.
+// ConfirmByIdRequest addresses the owning operation under the new revision.
 message ConfirmByIdRequest {
   string reservation_id = 1;
+  string contract_revision = 16;
 }
 
-// ReleaseByIdRequest releases a single reservation by its id.
+// ReleaseByIdRequest addresses the owning operation under the new revision.
 message ReleaseByIdRequest {
   string reservation_id = 1;
+  string contract_revision = 16;
 }
 
-// The confirm/release transitions are idempotent and the REST seam returns a
-// 200 with no meaningful body. Each transition gets its own empty-but-extensible
-// response message (buf forbids sharing a response type across RPCs) so a future
-// flip count can be added per transition without a contract break.
+// Coordinated responses acknowledge the revision and known operation outcome.
+// Transaction completion may precede admission, so evaluation_id is optional.
+// flipped counts movements in this call and is zero on a committed replay.
+// Legacy calls without revision retain their empty response messages.
 
 // ConfirmByTransactionResponse is the response to ConfirmByTransaction.
-message ConfirmByTransactionResponse {}
+message ConfirmByTransactionResponse {
+  string contract_revision = 16;
+  string transaction_id = 17;
+  string status = 19;
+  int32 flipped = 20;
+  optional string evaluation_id = 21;
+}
 
 // ReleaseByTransactionResponse is the response to ReleaseByTransaction.
-message ReleaseByTransactionResponse {}
+message ReleaseByTransactionResponse {
+  string contract_revision = 16;
+  string transaction_id = 17;
+  string status = 19;
+  int32 flipped = 20;
+  optional string evaluation_id = 21;
+}
 
 // ConfirmByIdResponse is the response to ConfirmById.
-message ConfirmByIdResponse {}
+message ConfirmByIdResponse {
+  string contract_revision = 16;
+  string transaction_id = 17;
+  string reservation_id = 18;
+  string status = 19;
+  optional string evaluation_id = 21;
+}
 
 // ReleaseByIdResponse is the response to ReleaseById.
-message ReleaseByIdResponse {}
+message ReleaseByIdResponse {
+  string contract_revision = 16;
+  string transaction_id = 17;
+  string reservation_id = 18;
+  string status = 19;
+  optional string evaluation_id = 21;
+}

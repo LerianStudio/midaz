@@ -533,6 +533,12 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	case errors.Is(err, constant.ErrLimitInvalidScope):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid scope", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitInvalidScope, constant.EntityLimit)
+	case errors.Is(err, constant.ErrLimitAssetReferenceConflict):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit asset reference conflict", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitAssetReferenceConflict, constant.EntityLimit)
+	case errors.Is(err, constant.ErrContextLimitsUnavailable):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for context admission", err)
+		return pkg.UnprocessableOperationError{EntityType: constant.EntityLimit, Code: constant.ErrContextLimitsUnavailable.Error(), Title: "Limit Not Eligible", Message: "The limit must use an account scope and a valid official asset reference before activation.", Err: constant.ErrContextLimitsUnavailable}
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}

@@ -641,6 +641,24 @@ var (
 	// service did not decide: unreachable, timed out, breaker open, or an answer
 	// the client reclassifies as undecided. Never a denial, so a retry is valid.
 	ErrAuthorizationServiceUnavailable = errors.New("0525")
+	// ErrContextPolicyUnavailable reports missing or unusable trusted policy configuration.
+	ErrContextPolicyUnavailable = errors.New("0526")
+	// ErrContextPolicyConflict reports a reused immutable revision or stale binding update.
+	ErrContextPolicyConflict = errors.New("0527")
+	// ErrReserveDecisionConflict reports reused transaction/request identity with conflicting content.
+	ErrReserveDecisionConflict = errors.New("0528")
+	// ErrReserveOperationConflict reports a late evaluation or contradictory completion.
+	ErrReserveOperationConflict = errors.New("0529")
+	// ErrContextLimitsUnavailable reports incomplete or unusable account/asset limit configuration.
+	ErrContextLimitsUnavailable = errors.New("0530")
+	// ErrLimitAssetReferenceConflict reports an already bound immutable limit identity.
+	ErrLimitAssetReferenceConflict = errors.New("0531")
+	// ErrTracerFactsUnavailable reports missing or inconsistent official account/asset facts.
+	ErrTracerFactsUnavailable = errors.New("0532")
+	// ErrTracerContractUnavailable prevents activation without a ready context integration.
+	ErrTracerContractUnavailable = errors.New("0533")
+	// ErrTransactionReviewRequired rejects REVIEW without creating a pending hold.
+	ErrTransactionReviewRequired = errors.New("0534")
 )
 
 // List of CRM domain errors.

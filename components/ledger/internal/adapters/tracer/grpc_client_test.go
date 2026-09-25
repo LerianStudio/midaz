@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -20,8 +21,12 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/encoding/protowire"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	contractpb "github.com/LerianStudio/midaz/v4/pkg/tracercontract/protobuf"
 )
 
 // stubReservationServer is an in-memory ReservationService used to exercise the
@@ -132,127 +137,85 @@ func TestNewTracerGRPCClient_ImplementsTracerReserver(t *testing.T) {
 	} = client
 }
 
-func TestTracerGRPCClient_Reserve(t *testing.T) {
-	t.Parallel()
+func contextClientFixture(t *testing.T) (tracercontract.ReserveRequest, ContextClientConfig) {
+	t.Helper()
+	config := ContextClientConfig{Namespace: "origin-a", Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100}
+	raw, err := os.ReadFile("../../../../../pkg/tracercontract/testdata/reserve_request.json")
+	require.NoError(t, err)
+	request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, config.MaxBodyBytes, config.Bounds)
+	require.NoError(t, err)
+	return request, config
+}
 
-	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-	reservationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
-	accountID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+func contextResultFixture(request tracercontract.ReserveRequest) *tracercontract.ReserveResult {
+	return &tracercontract.ReserveResult{ContractRevision: request.ContractRevision, TransactionID: request.TransactionID, EvaluationID: uuid.MustParse("33333333-3333-4333-8333-333333333333"), Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}}
+}
 
-	t.Run("allow maps request and result field-for-field", func(t *testing.T) {
-		t.Parallel()
+func TestContextGRPCClientReserve(t *testing.T) {
+	for _, scenario := range []string{"allow", "deny", "review", "unavailable", "internal", "malformed reservation", "wrong transaction", "missing rules", "invalid request"} {
+		t.Run(scenario, func(t *testing.T) {
+			request, config := contextClientFixture(t)
+			response := contextResultFixture(request)
+			if scenario == "deny" {
+				response.Decision = tracercontract.DecisionDeny
+				response.Reasons = []tracercontract.ReserveReason{tracercontract.ReasonLimitExceeded}
+			}
+			if scenario == "review" {
+				response.Decision = tracercontract.DecisionReview
+				response.Reasons = []tracercontract.ReserveReason{tracercontract.ReasonRuleReview}
+			}
+			encoded, err := contractpb.EncodeResult(response, config.MaxReservations)
+			require.NoError(t, err)
+			calls := 0
+			stub := &stubReservationServer{reserveFn: func(input *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				calls++
+				actual, err := contractpb.DecodeReserve(t.Context(), input, config.Namespace, config.Bounds, config.MaxBodyBytes)
+				require.NoError(t, err)
+				require.Equal(t, request, actual)
+				switch scenario {
+				case "unavailable":
+					return nil, status.Error(codes.Unavailable, "unavailable")
+				case "internal":
+					return nil, status.Error(codes.Internal, "internal")
+				case "malformed reservation":
+					encoded.ReservationIds = []string{"invalid"}
+				case "wrong transaction":
+					encoded.TransactionId = "44444444-4444-4444-8444-444444444444"
+				case "missing rules":
+					encoded.Controls.Rules = string(tracercontract.RulesNotRequested)
+				}
+				return encoded, nil
+			}}
+			client := &ContextGRPCClient{transport: newTestGRPCClient(t, stub), config: config}
+			if scenario == "invalid request" {
+				request.LongLived = nil
+			}
+			result, err := client.Reserve(t.Context(), request)
+			switch scenario {
+			case "allow", "deny", "review":
+				require.NoError(t, err)
+				require.Equal(t, response, result)
+			default:
+				require.Error(t, err)
+				require.Nil(t, result)
+			}
+			if scenario == "unavailable" || scenario == "internal" {
+				require.ErrorIs(t, err, ErrTracerUnavailable)
+			}
+			if scenario == "invalid request" {
+				require.Zero(t, calls)
+			} else {
+				require.Equal(t, 1, calls)
+			}
+		})
+	}
+}
 
-		var captured *reservationv1.ReserveRequest
-
-		stub := &stubReservationServer{
-			reserveFn: func(req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				captured = req
-
-				return &reservationv1.ReserveResult{
-					TransactionId:  transactionID.String(),
-					Denied:         false,
-					ReservationIds: []string{reservationID.String()},
-				}, nil
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		req := ReserveRequest{
-			TransactionID:        transactionID,
-			RequestID:            "req-1",
-			Amount:               "100.50",
-			Asset:                "USD",
-			Account:              ReserveAccount{AccountID: accountID.String()},
-			TransactionTimestamp: "2026-06-11T00:00:00Z",
-		}
-
-		result, err := client.Reserve(context.Background(), req)
-		require.NoError(t, err)
-
-		require.NotNil(t, captured)
-		assert.Equal(t, transactionID.String(), captured.GetTransactionId())
-		assert.Equal(t, "req-1", captured.GetRequestId())
-		assert.Equal(t, "100.50", captured.GetAmount())
-		assert.Equal(t, "USD", captured.GetAsset())
-		assert.Equal(t, accountID.String(), captured.GetAccount().GetAccountId())
-		assert.Equal(t, "2026-06-11T00:00:00Z", captured.GetTransactionTimestamp())
-
-		assert.False(t, result.Denied)
-		assert.Equal(t, transactionID, result.TransactionID)
-		assert.Equal(t, []uuid.UUID{reservationID}, result.ReservationIDs)
-	})
-
-	t.Run("denied is a successful result, not an error", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				return &reservationv1.ReserveResult{
-					TransactionId:  transactionID.String(),
-					Denied:         true,
-					ReservationIds: nil,
-				}, nil
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
-		require.NoError(t, err)
-		assert.True(t, result.Denied)
-		assert.Empty(t, result.ReservationIDs)
-	})
-
-	t.Run("unavailable status maps to ErrTracerUnavailable", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				return nil, status.Error(codes.Unavailable, "tracer down")
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.ErrorIs(t, err, ErrTracerUnavailable)
-	})
-
-	t.Run("internal status surfaces verbatim, not as unavailable", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				return nil, status.Error(codes.Internal, "boom")
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.NotErrorIs(t, err, ErrTracerUnavailable)
-		assert.Equal(t, codes.Internal, status.Code(err))
-	})
-
-	t.Run("malformed reservation id from tracer is a contract error", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				return &reservationv1.ReserveResult{
-					TransactionId:  transactionID.String(),
-					ReservationIds: []string{"not-a-uuid"},
-				}, nil
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.NotErrorIs(t, err, ErrTracerUnavailable)
-	})
+func TestLegacyGRPCReserveCannotInventContext(t *testing.T) {
+	client := newTestGRPCClient(t, &stubReservationServer{})
+	result, err := client.Reserve(t.Context(), ReserveRequest{})
+	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+	require.Nil(t, result)
 }
 
 func TestTracerGRPCClient_Confirm(t *testing.T) {
@@ -400,7 +363,9 @@ func TestTracerGRPCClient_ReleaseByTransaction(t *testing.T) {
 func TestTracerGRPCClient_PropagatesTenantMetadata(t *testing.T) {
 	t.Parallel()
 
-	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	request, config := contextClientFixture(t)
+	wire, err := contractpb.EncodeResult(contextResultFixture(request), config.MaxReservations)
+	require.NoError(t, err)
 
 	// The gRPC metadata key MUST be the lower-cased REST TenantHeader so the two
 	// transports cannot drift.
@@ -414,14 +379,14 @@ func TestTracerGRPCClient_PropagatesTenantMetadata(t *testing.T) {
 		stub := &stubReservationServer{
 			captureMetadata: func(md metadata.MD) { captured = md },
 			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+				return wire, nil
 			},
 		}
-		client := newTestGRPCClient(t, stub)
+		client := &ContextGRPCClient{transport: newTestGRPCClient(t, stub), config: config}
 
 		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-007")
 
-		_, err := client.Reserve(ctx, ReserveRequest{TransactionID: transactionID})
+		_, err := client.Reserve(ctx, request)
 		require.NoError(t, err)
 
 		require.NotNil(t, captured)
@@ -436,12 +401,12 @@ func TestTracerGRPCClient_PropagatesTenantMetadata(t *testing.T) {
 		stub := &stubReservationServer{
 			captureMetadata: func(md metadata.MD) { captured = md },
 			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
-				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+				return wire, nil
 			},
 		}
-		client := newTestGRPCClient(t, stub)
+		client := &ContextGRPCClient{transport: newTestGRPCClient(t, stub), config: config}
 
-		_, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
+		_, err := client.Reserve(context.Background(), request)
 		require.NoError(t, err)
 
 		assert.Empty(t, captured.Get(tenantMetadataKey))
@@ -463,9 +428,12 @@ func TestMapGRPCError(t *testing.T) {
 		{"context deadline", context.DeadlineExceeded, true},
 		{"context canceled", context.Canceled, true},
 		{"not found", status.Error(codes.NotFound, "x"), false},
-		{"internal", status.Error(codes.Internal, "x"), false},
+		{"internal", status.Error(codes.Internal, "x"), true},
+		{"unknown", status.Error(codes.Unknown, "x"), true},
+		{"resource exhausted", status.Error(codes.ResourceExhausted, "x"), true},
+		{"deterministic resource exhausted", status.Error(codes.ResourceExhausted, constant.ErrInvalidRequestBody.Error()), false},
 		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false},
-		{"plain error", errors.New("x"), false},
+		{"plain error", errors.New("x"), true},
 	}
 
 	for _, tt := range tests {
@@ -479,6 +447,81 @@ func TestMapGRPCError(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.wantUnavailable, errors.Is(got, ErrTracerUnavailable))
+		})
+	}
+}
+
+func TestMapGRPCErrorPreservesCanonicalCause(t *testing.T) {
+	err := mapGRPCError(status.Error(codes.FailedPrecondition, constant.ErrTracerContractUnavailable.Error()))
+	require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
+	require.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
+func TestContextGRPCClientCompletion(t *testing.T) {
+	for _, scenario := range []string{"confirm", "release", "before admission", "wrong transaction", "wrong revision", "wrong status", "missing evaluation with movement", "malformed evaluation", "unknown field", "unavailable"} {
+		t.Run(scenario, func(t *testing.T) {
+			request, config := contextClientFixture(t)
+			revision := tracercontract.ReserveContractRevision
+			evaluation := "33333333-3333-4333-8333-333333333333"
+			makeResponse := func() (*reservationv1.ConfirmByTransactionResponse, error) {
+				response := &reservationv1.ConfirmByTransactionResponse{ContractRevision: revision, TransactionId: request.TransactionID.String(), Status: "CONFIRMED", EvaluationId: &evaluation}
+				switch scenario {
+				case "before admission":
+					response.EvaluationId = nil
+				case "wrong transaction":
+					response.TransactionId = evaluation
+				case "wrong revision":
+					response.ContractRevision = "legacy"
+				case "wrong status":
+					response.Status = "RELEASED"
+				case "missing evaluation with movement":
+					response.EvaluationId = nil
+					response.Flipped = 1
+				case "malformed evaluation":
+					value := "invalid"
+					response.EvaluationId = &value
+				case "unknown field":
+					response.ProtoReflect().SetUnknown(protowire.AppendVarint(protowire.AppendTag(nil, 99, protowire.VarintType), 1))
+				case "unavailable":
+					return nil, status.Error(codes.Unavailable, "unavailable")
+				}
+				return response, nil
+			}
+			stub := &stubReservationServer{
+				confirmByTransactionFn: func(input *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+					require.Equal(t, revision, input.ContractRevision)
+					require.Equal(t, request.TransactionID.String(), input.TransactionId)
+					return makeResponse()
+				},
+				releaseByTransactionFn: func(input *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+					require.Equal(t, revision, input.ContractRevision)
+					require.Equal(t, request.TransactionID.String(), input.TransactionId)
+					return &reservationv1.ReleaseByTransactionResponse{ContractRevision: revision, TransactionId: input.TransactionId, Status: "RELEASED", EvaluationId: &evaluation}, nil
+				},
+			}
+			client := &ContextGRPCClient{transport: newTestGRPCClient(t, stub), config: config}
+			var result *tracercontract.TransactionCompletionResult
+			var err error
+			if scenario == "release" {
+				result, err = client.ReleaseByTransaction(t.Context(), request.TransactionID)
+			} else {
+				result, err = client.ConfirmByTransaction(t.Context(), request.TransactionID)
+			}
+			switch scenario {
+			case "confirm", "release", "before admission":
+				require.NoError(t, err)
+				require.NoError(t, result.Validate())
+				require.Equal(t, request.TransactionID, result.TransactionID)
+				if scenario == "before admission" {
+					require.Nil(t, result.EvaluationID)
+				}
+			default:
+				require.Error(t, err)
+				require.Nil(t, result)
+			}
+			if scenario == "unavailable" {
+				require.ErrorIs(t, err, ErrTracerUnavailable)
+			}
 		})
 	}
 }

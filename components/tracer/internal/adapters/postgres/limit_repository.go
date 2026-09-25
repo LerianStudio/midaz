@@ -17,6 +17,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
@@ -395,6 +396,12 @@ func (r *LimitRepository) updateInternal(ctx context.Context, db pgdb.DB, lmt *m
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23514" && pgErr.ConstraintName == "bound_limit_scopes_immutable" {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Bound limit scopes are immutable", constant.ErrLimitAssetReferenceConflict)
+			return constant.ErrLimitAssetReferenceConflict
+		}
+
 		if IsUniqueViolationOf(err, "idx_limits_name_active") {
 			libOtel.HandleSpanBusinessErrorEvent(span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
 			return constant.ErrLimitNameAlreadyExists
@@ -674,8 +681,7 @@ func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *mode
 	}
 
 	if filters.Asset != nil {
-		normalizedAsset := strings.ToUpper(*filters.Asset)
-		query = query.Where(sq.Eq{"asset": normalizedAsset})
+		query = query.Where(sq.Eq{"asset": *filters.Asset})
 	}
 
 	// Apply scope filter using shared buildScopeFilter() JSONB logic
