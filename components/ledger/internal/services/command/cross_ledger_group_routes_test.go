@@ -334,9 +334,10 @@ func TestCrossLedgerDirectGroup_RefusesAGroupThatDoesNotCoverTheTemplate(t *test
 	requireGroupRouteCode(t, err, constant.ErrAccountingRouteCountMismatch)
 }
 
-// A part in a ledger that does not validate routes is not checked and adds
-// nothing to the group's coverage; the validating part still is.
-func TestCrossLedgerDirectGroup_MixedGroupChecksOnlyTheValidatingPart(t *testing.T) {
+// A part in a ledger that does not validate routes is not checked leg by leg,
+// but every client leg of it that names a route counts toward the group's
+// coverage of the template; a leg with no route adds nothing.
+func TestCrossLedgerDirectGroup_MixedGroupCountsTheNamedRoutesOfEveryPart(t *testing.T) {
 	bidirectionalRoutes := func(flow *groupRouteFlow) []mmodel.OperationRoute {
 		return []mmodel.OperationRoute{
 			{ID: flow.source, OperationType: constant.OperationRouteTypeBidirectional, AccountingEntries: &mmodel.AccountingEntries{
@@ -345,8 +346,11 @@ func TestCrossLedgerDirectGroup_MixedGroupChecksOnlyTheValidatingPart(t *testing
 			flow.bridgeRoute(),
 		}
 	}
+	sourceAndDestinationRoutes := func(flow *groupRouteFlow) []mmodel.OperationRoute {
+		return []mmodel.OperationRoute{flow.sourceRoute(), flow.directAndCommitDestination(), flow.bridgeRoute()}
+	}
 
-	t.Run("the unrouted part is skipped", func(t *testing.T) {
+	t.Run("an unrouted part adds nothing and is not validated", func(t *testing.T) {
 		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, bidirectionalRoutes)
 
 		parts := flow.decompose(t, flow.transfer(&flow.source, nil))
@@ -367,25 +371,46 @@ func TestCrossLedgerDirectGroup_MixedGroupChecksOnlyTheValidatingPart(t *testing
 		requireGroupRouteCode(t, err, constant.ErrAccountingRouteNotFound)
 	})
 
-	t.Run("the validating parts alone must cover the template", func(t *testing.T) {
-		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, func(flow *groupRouteFlow) []mmodel.OperationRoute {
-			return []mmodel.OperationRoute{flow.sourceRoute(), flow.directAndCommitDestination(), flow.bridgeRoute()}
-		})
+	t.Run("a named route in the non-validating part completes the template", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, sourceAndDestinationRoutes)
 
 		parts := flow.decompose(t, flow.transfer(&flow.source, &flow.destination))
+		run, err := flow.runBatch(t, buildCrossLedgerAtomicBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), parts))
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{constant.ActionDirect}, flow.reader.partActions, "only the validating part is validated leg by leg")
+		assert.Equal(t, []string{constant.ActionDirect}, flow.reader.phases)
+		assert.Equal(t, map[string]string{"@external/BRL#default": "", "@bob#default": ""}, projectedRouteCodes(run.items[1]),
+			"a part in a non-validating ledger posts without rubrics")
+	})
+
+	t.Run("the same transfer without a route on the non-validating leg", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, sourceAndDestinationRoutes)
+
+		parts := flow.decompose(t, flow.transfer(&flow.source, nil))
 		_, err := flow.runBatch(t, buildCrossLedgerAtomicBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), parts))
 
 		requireGroupRouteCode(t, err, constant.ErrAccountingRouteCountMismatch)
+	})
+
+	t.Run("a named route of the non-validating part outside the template", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, sourceAndDestinationRoutes)
+		foreign := uuid.MustParse("0199b600-0000-7000-8000-0000000000ef")
+
+		parts := flow.decompose(t, flow.transfer(&flow.source, &foreign))
+		_, err := flow.runBatch(t, buildCrossLedgerAtomicBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), parts))
+
+		requireGroupRouteCode(t, err, constant.ErrAccountingRouteNotFound)
 	})
 }
 
 // At hold only the origins execute; the destination parts persisted in the
 // intent complete the hold template, whose destination side is the commit's.
 func TestCrossLedgerHoldGroup_CoversTheHoldTemplateWithTheIntentDestinations(t *testing.T) {
-	holdBatch := func(t *testing.T, flow *groupRouteFlow) CreateAtomicTransactionBatchV2Input {
+	holdBatchTo := func(t *testing.T, flow *groupRouteFlow, destinationRoute *uuid.UUID) CreateAtomicTransactionBatchV2Input {
 		t.Helper()
 
-		parts := flow.decompose(t, flow.transfer(&flow.source, &flow.destination))
+		parts := flow.decompose(t, flow.transfer(&flow.source, destinationRoute))
 		intent, err := buildCrossLedgerGroupIntent("BRL", parts)
 		require.NoError(t, err)
 
@@ -393,6 +418,11 @@ func TestCrossLedgerHoldGroup_CoversTheHoldTemplateWithTheIntentDestinations(t *
 		require.NoError(t, err)
 
 		return batch
+	}
+	holdBatch := func(t *testing.T, flow *groupRouteFlow) CreateAtomicTransactionBatchV2Input {
+		t.Helper()
+
+		return holdBatchTo(t, flow, &flow.destination)
 	}
 
 	t.Run("destination route configured for commit", func(t *testing.T) {
@@ -419,15 +449,36 @@ func TestCrossLedgerHoldGroup_CoversTheHoldTemplateWithTheIntentDestinations(t *
 
 		requireGroupRouteCode(t, err, constant.ErrAccountingRouteNotFound)
 	})
+
+	t.Run("destination in a non-validating ledger naming its route", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, func(flow *groupRouteFlow) []mmodel.OperationRoute {
+			return []mmodel.OperationRoute{flow.sourceRoute(), flow.commitOnlyDestination(), flow.bridgeRoute()}
+		})
+
+		_, err := flow.runBatch(t, holdBatch(t, flow))
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{constant.ActionHold}, flow.reader.phases)
+	})
+
+	t.Run("destination in a non-validating ledger without a route", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, func(flow *groupRouteFlow) []mmodel.OperationRoute {
+			return []mmodel.OperationRoute{flow.sourceRoute(), flow.commitOnlyDestination(), flow.bridgeRoute()}
+		})
+
+		_, err := flow.runBatch(t, holdBatchTo(t, flow, nil))
+
+		requireGroupRouteCode(t, err, constant.ErrAccountingRouteCountMismatch)
+	})
 }
 
 // A commit approves the origins and creates the destinations in one execution;
 // both belong to the commit phase and are validated against its template.
 func TestCrossLedgerCommitGroup_ValidatesTheDestinationsAsCommit(t *testing.T) {
-	commit := func(t *testing.T, flow *groupRouteFlow) (*atomicTransactionBatchRun, error) {
+	commitTo := func(t *testing.T, flow *groupRouteFlow, destinationRoute *uuid.UUID) (*atomicTransactionBatchRun, error) {
 		t.Helper()
 
-		parts := flow.decompose(t, flow.transfer(&flow.source, &flow.destination))
+		parts := flow.decompose(t, flow.transfer(&flow.source, destinationRoute))
 		intent, err := buildCrossLedgerGroupIntent("BRL", parts)
 		require.NoError(t, err)
 
@@ -467,6 +518,11 @@ func TestCrossLedgerCommitGroup_ValidatesTheDestinationsAsCommit(t *testing.T) {
 
 		return destinations, flow.uc.validateCrossLedgerCommitRoutes(context.Background(), []crossLedgerPendingGroupPart{{routes: originRoutes}}, destinations)
 	}
+	commit := func(t *testing.T, flow *groupRouteFlow) (*atomicTransactionBatchRun, error) {
+		t.Helper()
+
+		return commitTo(t, flow, &flow.destination)
+	}
 
 	t.Run("destination route configured for commit only", func(t *testing.T) {
 		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": true}, func(flow *groupRouteFlow) []mmodel.OperationRoute {
@@ -491,6 +547,28 @@ func TestCrossLedgerCommitGroup_ValidatesTheDestinationsAsCommit(t *testing.T) {
 		_, err := commit(t, flow)
 
 		requireGroupRouteCode(t, err, constant.ErrAccountingRouteNotFound)
+	})
+
+	t.Run("destination in a non-validating ledger naming its route", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, func(flow *groupRouteFlow) []mmodel.OperationRoute {
+			return []mmodel.OperationRoute{flow.sourceRoute(), flow.commitOnlyDestination(), flow.bridgeRoute()}
+		})
+
+		_, err := commit(t, flow)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{constant.ActionCommit}, flow.reader.partActions, "only the validating origin is validated leg by leg")
+		assert.Equal(t, []string{constant.ActionCommit}, flow.reader.phases)
+	})
+
+	t.Run("destination in a non-validating ledger without a route", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": false}, func(flow *groupRouteFlow) []mmodel.OperationRoute {
+			return []mmodel.OperationRoute{flow.sourceRoute(), flow.commitOnlyDestination(), flow.bridgeRoute()}
+		})
+
+		_, err := commitTo(t, flow, nil)
+
+		requireGroupRouteCode(t, err, constant.ErrAccountingRouteCountMismatch)
 	})
 }
 

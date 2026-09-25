@@ -39,7 +39,10 @@ type GroupAccountingRouteValidator interface {
 }
 
 // crossLedgerGroupRoutePart is one part's contribution to the route check of its
-// group phase. A part whose ledger does not validate routes contributes nothing.
+// group phase. Routes belong to the organization, so a part whose ledger does
+// not validate routes still contributes the client legs that name one; only a
+// validated part carries the organization and transaction route the phase is
+// checked against.
 type crossLedgerGroupRoutePart struct {
 	validated        bool
 	organizationID   uuid.UUID
@@ -87,10 +90,9 @@ func (uc *UseCase) prepareCrossLedgerGroupPartWithPool(
 		return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
 	}
 
-	var (
-		routeCache *mmodel.TransactionRouteCache
-		routes     crossLedgerGroupRoutePart
-	)
+	var routeCache *mmodel.TransactionRouteCache
+
+	routes := crossLedgerGroupRoutePart{uses: namedAccountingRouteUses(executedAccountingRouteUses(operations, input.translation.Validate))}
 
 	if validatesRoutes {
 		validator, err := uc.groupAccountingRouteValidator()
@@ -125,6 +127,7 @@ func (uc *UseCase) prepareCrossLedgerGroupPartWithPool(
 // parts a cross-ledger hold defers to its commit. They are not executed at hold,
 // so their client legs count by the route IDs persisted in the intent only;
 // account rules, which need balances, are checked when the commit creates them.
+// A part in a ledger that does not validate routes contributes its named routes.
 func (uc *UseCase) heldDestinationRouteParts(ctx context.Context, parts []CrossLedgerGroupIntentPart) ([]crossLedgerGroupRoutePart, error) {
 	routes := make([]crossLedgerGroupRoutePart, 0, len(parts))
 	validatesByRef := make(map[atomicTransactionBatchLedgerRef]bool, len(parts))
@@ -145,6 +148,8 @@ func (uc *UseCase) heldDestinationRouteParts(ctx context.Context, parts []CrossL
 		}
 
 		if !validates {
+			routes = append(routes, crossLedgerGroupRoutePart{uses: namedAccountingRouteUses(intentAccountingRouteUses(part.Transaction))})
+
 			continue
 		}
 
@@ -160,9 +165,9 @@ func (uc *UseCase) heldDestinationRouteParts(ctx context.Context, parts []CrossL
 }
 
 // validateCrossLedgerGroupRoutes runs the group-wide route check of one phase
-// over the parts in ledgers that validate routes. A group with no such part has
-// nothing to check. The parts share the request's transaction route, which
-// belongs to one organization.
+// over the client legs every part contributes. A group with no part in a ledger
+// that validates routes has nothing to check. The parts share the request's
+// transaction route, which belongs to the group's one organization.
 func (uc *UseCase) validateCrossLedgerGroupRoutes(ctx context.Context, phase string, parts []crossLedgerGroupRoutePart) error {
 	var (
 		first *crossLedgerGroupRoutePart
@@ -170,11 +175,7 @@ func (uc *UseCase) validateCrossLedgerGroupRoutes(ctx context.Context, phase str
 	)
 
 	for index := range parts {
-		if !parts[index].validated {
-			continue
-		}
-
-		if first == nil {
+		if parts[index].validated && first == nil {
 			first = &parts[index]
 		}
 
@@ -244,6 +245,21 @@ func intentAccountingRouteUses(transaction mtransaction.Transaction) []mmodel.Ac
 	}
 
 	return uses
+}
+
+// namedAccountingRouteUses keeps the legs that name a route: in a ledger that
+// does not validate routes, a leg without one is not checked and counts for
+// nothing.
+func namedAccountingRouteUses(uses []mmodel.AccountingRouteUse) []mmodel.AccountingRouteUse {
+	named := make([]mmodel.AccountingRouteUse, 0, len(uses))
+
+	for _, use := range uses {
+		if use.RouteID != "" {
+			named = append(named, use)
+		}
+	}
+
+	return named
 }
 
 func legRouteID(leg mtransaction.FromTo) string {
