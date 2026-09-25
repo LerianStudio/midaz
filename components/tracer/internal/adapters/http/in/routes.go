@@ -550,7 +550,7 @@ type tracerHumaHandlers struct {
 func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
 	guard := h.Guard
 	if h.LimitAssetAdmin != nil {
-		api.Put("/limits/:id/asset-reference", NewReservationIdentityMiddleware(h.LimitAssetAdmin.identity), guard.WithPolicyPermission("limit-asset-references", "put"))
+		api.Put("/limits/:id/asset-reference", NewLimitAssetIdentityMiddleware(h.LimitAssetAdmin.identity), guard.WithPolicyPermission("limit-asset-references", "put"))
 		RegisterLimitAssetRoutes(humaAPI, h.LimitAssetAdmin)
 	}
 

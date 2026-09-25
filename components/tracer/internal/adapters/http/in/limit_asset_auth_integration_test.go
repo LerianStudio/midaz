@@ -41,7 +41,7 @@ import (
 )
 
 func TestLimitAssetRouteRequiresProducerAndAdministrator(t *testing.T) {
-	for _, scenario := range []string{"allowed", "denied", "api key only", "unknown producer", "forged namespace", "too large", "conflict", "unavailable"} {
+	for _, scenario := range []string{"allowed", "reserve only", "denied", "api key only", "unknown producer", "forged namespace", "too large", "conflict", "unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
 			permissions := make(chan map[string]any, 1)
 			accessManager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +60,11 @@ func TestLimitAssetRouteRequiresProducerAndAdministrator(t *testing.T) {
 			t.Cleanup(accessManager.Close)
 			guard := middleware.NewAuthGuard(middleware.AuthGuardConfig{AppName: "tracer", PluginAuthEnabled: true, APIKeyEnabled: true, APIKey: "validation-key"}, auth.NewAuthClient(accessManager.URL, true, libLog.NewNop()))
 			binder := NewMockLimitAssetBinder(gomock.NewController(t))
-			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/ledger", IntegrationID: "ledger", AssetNamespace: "ledger"}}, 256)
+			purpose := seamidentity.PurposeAssetAdmin
+			if scenario == "reserve only" {
+				purpose = seamidentity.PurposeReserve
+			}
+			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/ledger", IntegrationID: "ledger", AssetNamespace: "ledger", Purposes: []seamidentity.Purpose{purpose}}}, 256)
 			require.NoError(t, err)
 			h, err := NewLimitAssetHandler(binder, resolver, assetAdminBounds(), 4096)
 			require.NoError(t, err)
@@ -101,7 +105,7 @@ func TestLimitAssetRouteRequiresProducerAndAdministrator(t *testing.T) {
 				if scenario == "unavailable" {
 					expected = http.StatusServiceUnavailable
 				}
-			case "denied", "unknown producer":
+			case "denied", "unknown producer", "reserve only":
 				expected = http.StatusForbidden
 			case "api key only":
 				expected = http.StatusUnauthorized
@@ -130,7 +134,7 @@ func TestLimitAssetRouteRequiresProducerAndAdministrator(t *testing.T) {
 			require.NoError(t, err)
 			defer response.Body.Close()
 			require.Equal(t, expected, response.StatusCode)
-			if scenario != "api key only" && scenario != "unknown producer" {
+			if scenario != "api key only" && scenario != "unknown producer" && scenario != "reserve only" {
 				select {
 				case permission := <-permissions:
 					require.Equal(t, "limit-asset-references", permission["resource"])

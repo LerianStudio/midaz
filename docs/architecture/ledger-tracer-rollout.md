@@ -57,7 +57,12 @@ not certify the remote Tracer's version, policies or readiness.
    ALLOW defaults require deliberate configuration. Updates require the current
    binding version. Publication/binding compiles the policy and records audit.
 7. Provision producer certificate bindings and matching integration/namespace
-   settings. Enable Tracer's shared Reserve and Ledger's context runtime only with
+   settings. Each binding must explicitly grant `purposes`: `reserve` for
+   admission/completion or `asset-admin` for asset associations. Provision
+   separate certificates for the Ledger and administrative tooling; sharing a
+   namespace does not grant the other purpose. Administrative access additionally
+   requires Access Manager permission. Missing/unknown purposes fail bootstrap.
+   Enable Tracer's shared Reserve and Ledger's context runtime only with
    compatible artifacts and explicit resource budgets. Mesh mode is not supported
    for this profile. Prevent mixed incompatible callers at the routing boundary;
    the old Ledger gRPC Reserve method is not a fallback for the new contract.

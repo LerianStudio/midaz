@@ -25,7 +25,7 @@ func TestLimitAssetHandler(t *testing.T) {
 	for _, scenario := range []string{"success", "missing identity", "namespace forged", "missing facts", "unknown field", "oversize", "conflict", "unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
 			binder := NewMockLimitAssetBinder(gomock.NewController(t))
-			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/ledger", IntegrationID: "ledger", AssetNamespace: "ledger"}}, 256)
+			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/ledger", IntegrationID: "ledger", AssetNamespace: "ledger", Purposes: []seamidentity.Purpose{seamidentity.PurposeAssetAdmin}}}, 256)
 			require.NoError(t, err)
 			h, err := NewLimitAssetHandler(binder, resolver, assetAdminBounds(), 4096)
 			require.NoError(t, err)

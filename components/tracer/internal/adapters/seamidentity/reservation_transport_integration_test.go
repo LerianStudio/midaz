@@ -69,7 +69,7 @@ func TestContextReserveNativeGRPC(t *testing.T) {
 			case "unsupported revision":
 				wire.ContractRevision = "unsupported"
 			}
-			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", AssetNamespace: "origin-a"}}, 256)
+			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", AssetNamespace: "origin-a", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256)
 			require.NoError(t, err)
 			service, err := grpcin.NewContextReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewDefaultMockClock(), admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
 			require.NoError(t, err)

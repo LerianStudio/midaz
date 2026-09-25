@@ -31,7 +31,7 @@ func TestContextReservationRequiresNativeIdentityAndBounds(t *testing.T) {
 	cfg.ContextMaxExpressionBytes = 5000
 	cfg.ContextCELCostLimit = "100000"
 	cfg.ContextCELTotalCostLimit = "100000"
-	cfg.ContextProducerBindings = `[{"uri":"spiffe://test/ledger","integrationId":"producer","assetNamespace":"official"}]`
+	cfg.ContextProducerBindings = `[{"uri":"spiffe://test/ledger","integrationId":"producer","assetNamespace":"official","purposes":["reserve"]}]`
 	cfg.ContextLimitMaxScopes = 10
 	cfg.ContextLimitMaxScopeBytes = 4096
 	cfg.ContextReserveMaxBodyBytes = 65536

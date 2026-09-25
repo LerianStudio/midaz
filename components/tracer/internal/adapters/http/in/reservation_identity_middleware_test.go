@@ -19,7 +19,7 @@ import (
 
 func TestReservationIdentityRejectsPlaintextAndForgedHeaders(t *testing.T) {
 	t.Parallel()
-	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/producer", IntegrationID: "producer", AssetNamespace: "assets"}}, 256)
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/producer", IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256)
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name     string
