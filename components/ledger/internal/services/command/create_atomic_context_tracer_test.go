@@ -19,6 +19,7 @@ import (
 	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
@@ -116,5 +117,100 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReserveAtomicContextBatchUsesEachLedgerScope(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store, client := NewMockTracerObligationStore(ctrl), NewMockContextTracerReserver(ctrl)
+	loader := NewMockTracerFactsLoader(ctrl)
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000f1")
+	ledgerIDs := []uuid.UUID{
+		uuid.MustParse("01994f13-29b7-7000-8000-0000000000f2"),
+		uuid.MustParse("01994f13-29b7-7000-8000-0000000000f3"),
+	}
+	executionID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000f4")
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	run := atomicTransactionBatchTracerTestRun(2)
+	run.executionID = executionID
+
+	for index := range run.items {
+		item := &run.items[index]
+		item.organizationID = organizationID
+		item.ledgerID = ledgerIDs[index]
+		balance := item.prepared.pool.ExplicitBalances[0]
+		balance.AccountID = uuid.NewSHA1(organizationID, []byte{byte(index)}).String()
+		balance.AssetCode = item.input.Send.Asset
+		balance.AccountType = "deposit"
+		entryAlias := "0#" + balance.Alias + "#" + balance.Key
+		item.input.Send.Source.From = []mtransaction.FromTo{{AccountAlias: entryAlias}}
+		item.validate = &mtransaction.Responses{From: map[string]mtransaction.Amount{
+			entryAlias: {Value: item.input.Send.Value, Asset: item.input.Send.Asset},
+		}}
+		item.ledgerSettings.Tracer = mmodel.TracerSettings{
+			Mode:           mmodel.TracerModeEnforce,
+			FailPosture:    mmodel.TracerFailPostureClosed,
+			ValidationMode: string(tracercontract.ValidationRulesAndLimits),
+			TimeoutMs:      100 + index*100,
+		}
+	}
+
+	bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
+	recovery, err := NewTracerRecoveryProcessor(
+		store,
+		client,
+		NewMockTracerAccountingEvidence(ctrl),
+		TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second},
+		func() time.Time { return now },
+	)
+	require.NoError(t, err)
+	coordinator, err := NewContextTracerCoordinator(recovery, loader, ContextTracerConfig{
+		Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: time.Second,
+	})
+	require.NoError(t, err)
+	uc := &UseCase{ContextTracer: coordinator}
+
+	for index, ledgerID := range ledgerIDs {
+		item := &run.items[index]
+		loader.EXPECT().EvaluationContext(gomock.Any(), organizationID, ledgerID, gomock.Any()).DoAndReturn(
+			func(_ context.Context, _, _ uuid.UUID, entries []traceradapter.PreparedEntry) (tracercontract.Context, error) {
+				facts := tracercontract.Context{}
+				for _, entry := range entries {
+					blocked := false
+					asset := tracercontract.AssetRef{Namespace: "origin-a", ID: "asset-brl", Code: entry.AssetCode}
+					facts.Accounts = append(facts.Accounts, tracercontract.Account{ID: entry.AccountID, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: asset})
+					facts.Entries = append(facts.Entries, tracercontract.Entry{AccountID: entry.AccountID, Direction: entry.Direction, Amount: tracercontract.Amount(entry.Amount.String()), Asset: asset})
+				}
+
+				return facts, nil
+			},
+		)
+		store.EXPECT().Prepare(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, intent tracerreservation.Intent) (*tracerreservation.Record, error) {
+			require.Equal(t, tracerreservation.Key{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: item.transactionID}, intent.Key)
+			require.Equal(t, executionID, intent.ExecutionID)
+			require.Equal(t, now.Add(1300*time.Millisecond), intent.PrepareDeadline)
+
+			return &tracerreservation.Record{Intent: intent, State: tracerreservation.Prepared}, nil
+		})
+		client.EXPECT().Reserve(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, request tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+			return &tracercontract.ReserveResult{
+				ContractRevision: request.ContractRevision,
+				TransactionID:    request.TransactionID,
+				EvaluationID:     uuid.NewSHA1(request.TransactionID, []byte("cross-ledger")),
+				Decision:         tracercontract.DecisionAllow,
+				Controls:         tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated},
+				ReservationIDs:   []uuid.UUID{},
+				Reasons:          []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied},
+			}, nil
+		})
+	}
+
+	ctx, span, logger := anchorDeps()
+	defer span.End()
+	ctx = tmcore.ContextWithTenantID(ctx, "tenant-a")
+	require.NoError(t, uc.reserveAtomicTransactionBatch(ctx, span, logger, run))
+
+	for index := range run.items {
+		require.Equal(t, ledgerIDs[index], run.items[index].tracerReservation.ContextAttempt.Key.LedgerID)
 	}
 }
