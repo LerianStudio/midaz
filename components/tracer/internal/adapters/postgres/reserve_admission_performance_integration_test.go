@@ -155,6 +155,9 @@ func TestIntegrationReserveAdmissionLatencyUnderContention(t *testing.T) {
 				require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM usage_reservations").Scan(&reservations))
 				require.Equal(t, requests, decisions)
 				require.Equal(t, requests, reservations)
+				var completePolicies int
+				require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM reserve_decisions WHERE jsonb_array_length(policy_snapshot->'evaluatedRules')=$1 AND jsonb_array_length(policy_snapshot->'matchedRules')=$1 AND policy_snapshot->>'defaultUsed'='false'`, ruleCount).Scan(&completePolicies))
+				require.Equal(t, requests, completePolicies, "every measured decision must evaluate and match the complete policy")
 				current, held := readCounterDecimal(t, db, limit, "acct:"+request.Context.Accounts[0].ID.String(), testutil.FixedTime().Format("2006-01-02"))
 				require.True(t, current.IsZero())
 				require.Equal(t, "2025", held.String(), "200 exact debits of 10.125, with no lost updates")
