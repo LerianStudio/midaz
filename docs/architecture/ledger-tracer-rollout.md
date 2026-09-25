@@ -118,6 +118,39 @@ not certify the remote Tracer's version, policies or readiness.
    Database-only averages do not establish an end-to-end p95/p99. Per-ledger and
    client deadlines both apply; 250 ms is a default budget, not a proven SLO.
 
+   The local process-restart gate kills a test process after the accounting
+   projection is durable but while its obligation is still `EXECUTING`. A fresh
+   process must infer `CONFIRMED` from the primary, deliver it once and leave a
+   third process with no work. Run it with:
+
+   ```bash
+   go test -race -tags integration ./components/ledger/internal/services/command \
+     -run '^TestTracerRecoverySurvivesProcessCrashAfterAccounting$' -count=1
+   ```
+
+   The opt-in admission gate uses the existing Tracer architectural references
+   (p50 <35 ms, p99 <80 ms and no observation >=100 ms) under its documented
+   synthetic profiles. It includes primary PostgreSQL, locks, exact counters,
+   policy evaluation and synchronous audit, but excludes transport and Ledger:
+
+   ```bash
+   TRACER_MEASURE_ADMISSION=true go test -race -tags integration \
+     ./components/tracer/internal/adapters/postgres \
+     -run '^TestIntegrationReserveAdmissionLatencyUnderContention$' -count=1
+   ```
+
+   End-to-end load uses `scripts/k6/bench-transaction-fees-tracer.js`. Every arm
+   calls `/v2`; `WITH_TRACER=1` requires `TRACER_SEED` with pre-attested ledgers,
+   policies, limits and funded accounts. `LEDGER_P99_MS` must carry the approved
+   environment threshold; its 500 ms default is only the existing development
+   dashboard starting point. The test fails on any HTTP error or p99 violation.
+
+   Do not rehearse migration 000030 with mixed old/new Tracer writers: the
+   incompatibility is intentional and covered by the migration regression. A
+   rollout rehearsal must instead prove admission is paused, old replicas are
+   zero, migrations finish within the lock bound, only compatible replicas start,
+   and recovery drains before credentials or routing are removed.
+
 Ledger's activation verifier checks local composition, including recovery. It
 does not query every remote policy or certify a deployed artifact. The checks
 above must precede enabling advisory/enforce for a selected ledger. Advisory

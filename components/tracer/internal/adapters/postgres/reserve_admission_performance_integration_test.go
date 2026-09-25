@@ -89,6 +89,9 @@ func TestIntegrationReserveAdmissionLatencyUnderContention(t *testing.T) {
 	}
 	const requests = 200
 	const timeout = 10 * time.Second
+	const targetP50 = 35 * time.Millisecond
+	const targetP99 = 80 * time.Millisecond
+	const maximumObserved = 100 * time.Millisecond
 	for _, workers := range []int{1, 4} {
 		for _, ruleCount := range []int{1, 10} {
 			t.Run(fmt.Sprintf("workers_%d_rules_%d", workers, ruleCount), func(t *testing.T) {
@@ -144,7 +147,14 @@ func TestIntegrationReserveAdmissionLatencyUnderContention(t *testing.T) {
 				require.Len(t, durations, requests)
 				slices.Sort(durations)
 				// Nearest-rank quantiles over individual requests, not benchmark averages.
-				t.Logf("requests=%d workers=%d accounts=1 rules=%d pool=8 p50=%s p95=%s p99=%s max=%s", requests, workers, ruleCount, durations[(requests*50+99)/100-1], durations[(requests*95+99)/100-1], durations[(requests*99+99)/100-1], durations[len(durations)-1])
+				p50 := durations[(requests*50+99)/100-1]
+				p95 := durations[(requests*95+99)/100-1]
+				p99 := durations[(requests*99+99)/100-1]
+				maximum := durations[len(durations)-1]
+				t.Logf("requests=%d workers=%d accounts=1 rules=%d pool=8 p50=%s p95=%s p99=%s max=%s", requests, workers, ruleCount, p50, p95, p99, maximum)
+				require.Less(t, p50, targetP50, "local admission p50 exceeds the existing Tracer target")
+				require.Less(t, p99, targetP99, "local admission p99 exceeds the existing Tracer target")
+				require.Less(t, maximum, maximumObserved, "local admission observation exceeds the existing Tracer maximum")
 				var decisions, reservations int
 				require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM reserve_decisions").Scan(&decisions))
 				require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM usage_reservations").Scan(&reservations))
