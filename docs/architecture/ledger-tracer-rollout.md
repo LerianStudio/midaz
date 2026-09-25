@@ -53,6 +53,11 @@ not certify the remote Tracer's version, policies or readiness.
    profile supports account limits; unsupported aggregation must be resolved
    before activation. Admission also rejects invalid candidate configurations;
    this runtime check is not a substitute for a complete tenant inventory.
+   With `CONTEXT_RESERVE_ENABLED=false`, limit creation accepts only canonical
+   uppercase ISO currencies; list asset filters normalize to uppercase. Exact
+   native codes are enabled with the shared Reserve profile, including when
+   preparing new native limits before Ledger admissions are enabled. The legacy
+   validation API does not gain native AssetRef semantics from this flag.
 6. Rewrite affected expressions against `accounts`, `entries` and `debits`, using
    exact Decimal operations. Classifications are native producer facts. There is
    no generic metadata, merchant, portfolio or segment fallback in this profile.

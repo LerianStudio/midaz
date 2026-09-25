@@ -56,6 +56,19 @@ func TestNewCreateLimitCommand_NilClock(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+func TestCreateLimitLegacyProfileRejectsNativeCodes(t *testing.T) {
+	for _, code := range []string{"usd", "wBTC", "BTC"} {
+		t.Run(code, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			cmd, err := NewCreateLimitCommand(NewMockLimitRepository(ctrl), testutil.NewDefaultMockClock(), NewMockAuditWriter(ctrl), pgdbMocks.NewMockTxBeginner(ctrl))
+			require.NoError(t, err)
+			result, err := cmd.Execute(t.Context(), &CreateLimitInput{Name: "Legacy", LimitType: model.LimitTypeDaily, MaxAmount: decimal.NewFromInt(100), Asset: code, Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}}})
+			require.ErrorIs(t, err, constant.ErrLimitInvalidCurrency)
+			require.Nil(t, result)
+		})
+	}
+}
+
 // TestCreateLimit_Success_Atomic exercises the happy path of the atomic
 // CreateLimit command: BeginTx → CreateWithTx → RecordLimitEventWithTx →
 // Commit (no Rollback). Drives the helper expectLimitCreateTxSuccess which
@@ -625,6 +638,8 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 
 			cmd, err := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter, txBeginner)
 			require.NoError(t, err)
+
+			cmd.NativeAssetCodes = true
 
 			input := &CreateLimitInput{
 				Name:      tc.inputName,
