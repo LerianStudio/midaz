@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration000042_AddsScopedGroupIndexConcurrently(t *testing.T) {
+func TestMigration000041_AddsScopedGroupIndexConcurrently(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	up, err := os.ReadFile(filepath.Join(dir, "000042_add_group_id_scope_index_to_transaction.up.sql"))
+	up, err := os.ReadFile(filepath.Join(dir, "000041_add_group_id_scope_index_to_transaction.up.sql"))
 	require.NoError(t, err)
-	down, err := os.ReadFile(filepath.Join(dir, "000042_add_group_id_scope_index_to_transaction.down.sql"))
+	down, err := os.ReadFile(filepath.Join(dir, "000041_add_group_id_scope_index_to_transaction.down.sql"))
 	require.NoError(t, err)
 
 	upSQL := strings.Join(strings.Fields(strings.ToLower(string(up))), " ")
