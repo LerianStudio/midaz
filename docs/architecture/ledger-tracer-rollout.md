@@ -192,11 +192,15 @@ go run ./components/tracer/cmd/check-integration-profile \
   --tracer-env /path/to/rendered-tracer.env
 ```
 
-The command applies the same shared defaults to absent keys, rejects invalid
-values and exits nonzero on mismatched resource profiles. It does not print
-credentials, connect to remote services, establish identity/policy readiness or
-prove deployed manifests match those files. Run it on the actual rendered files
-in the deployment gate; comparing only examples is not environment evidence.
+The command applies the same shared defaults to absent resource keys and exits
+nonzero when resource profiles differ. It also requires both context activation
+flags to be explicitly true, verifies that a Tracer producer binding with the
+`reserve` purpose matches the Ledger integration and asset namespace, and checks
+that recovery can cover the configured transaction batch size. It does not print
+credentials, connect to remote services, establish certificate/policy/data
+readiness or prove deployed manifests match those files. Run it on the actual
+rendered files in the deployment gate; comparing only examples is not environment
+evidence.
 
 Before setting `TRACER_CONTEXT_ENABLED=false`, stop new admissions and drain
 all obligations while recovery remains enabled. Keep `TRACER_INTEGRATION_ID` or
