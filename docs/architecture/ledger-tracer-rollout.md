@@ -93,6 +93,16 @@ journal writes continue to block regardless of posture.
 
 ## Observe and recover
 
+Before setting `TRACER_CONTEXT_ENABLED=false`, stop new admissions and drain
+all obligations while recovery remains enabled. Ledger bootstrap now checks the
+transaction primary (every active tenant in multi-tenant mode) and refuses to
+start disabled if any obligation is undelivered or inspection fails. The check
+has a 30-second overall deadline and does not require the removed producer
+credentials. An absent journal is accepted for installations predating the
+migration. This guard cannot prevent writes from old running pods after the
+check, inspect tenants removed from the active catalog, or protect a rollback
+to a binary without the guard; coordinated drainage remains mandatory.
+
 Use `tracer_coordination_total`, `tracer_coordination_duration_ms` and
 `tracer_obligation_age_ms` with their bounded labels. Age observations cover
 claimed records; they do not prove a tenant's complete backlog is empty.
