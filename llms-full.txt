@@ -164,6 +164,7 @@ All models live in `pkg/mmodel/`. Key entities:
 ### 3.7 Operation Route / Transaction Route
 - Operation routes define per-operation rules (source/destination/bidirectional)
 - Transaction routes compose multiple operation routes for accounting validation
+- Routes belong to the organization: lookups, updates and deletes resolve by `(organization, id)`, and a transaction route may link operation routes created under different ledgers of the organization. `ledgerId` is provenance only — the ledger the route was created under, omitted for a route created at organization level (`/v2/organizations/{organization_id}/{operation,transaction}-routes`, served on `/v2` only). The ledger paths (`/v1` and `/v2`) record the path ledger on create and reach every route of the organization on list, get, patch and delete. Both paths authorize with the same `("midaz","operation-routes"|"transaction-routes",verb)` tuples
 - Account rules: alias-based or account-type-based validation
 
 ### 3.8 Account Type
@@ -335,6 +336,16 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | GET | .../transaction-routes/:trid | Get transaction route |
 | PATCH | .../transaction-routes/:trid | Update transaction route |
 | DELETE | .../transaction-routes/:trid | Delete transaction route |
+| POST | /v2/organizations/:org_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:org_id/operation-routes | List every operation route of the organization |
+| GET | /v2/organizations/:org_id/operation-routes/:orid | Get operation route |
+| PATCH | /v2/organizations/:org_id/operation-routes/:orid | Update operation route |
+| DELETE | /v2/organizations/:org_id/operation-routes/:orid | Delete operation route |
+| POST | /v2/organizations/:org_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:org_id/transaction-routes | List every transaction route of the organization |
+| GET | /v2/organizations/:org_id/transaction-routes/:trid | Get transaction route |
+| PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
+| DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
 
 #### Settings / Metadata
 

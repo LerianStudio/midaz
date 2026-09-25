@@ -19450,6 +19450,435 @@
         ]
       }
     },
+    "/v2/organizations/{organization_id}/operation-routes": {
+      "get": {
+        "description": "Lists every operation route of the organization, whichever ledger it was created under, including routes created at organization level.",
+        "operationId": "listOrganizationOperationRoutesV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor token for pagination",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor token for pagination",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the organization Operation Routes",
+        "tags": [
+          "Midaz_Ledger_API_Operation Routes (v2)"
+        ]
+      },
+      "post": {
+        "description": "Creates an operation route that belongs to the organization and validates in every ledger of it. The route has no ledgerId.",
+        "operationId": "createOrganizationOperationRouteV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOperationRouteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationRoute"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create an organization Operation Route",
+        "tags": [
+          "Midaz_Ledger_API_Operation Routes (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/operation-routes/{operation_route_id}": {
+      "delete": {
+        "operationId": "deleteOrganizationOperationRouteV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operation Route ID (UUID)",
+            "in": "path",
+            "name": "operation_route_id",
+            "required": true,
+            "schema": {
+              "description": "Operation Route ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete an organization Operation Route by ID",
+        "tags": [
+          "Midaz_Ledger_API_Operation Routes (v2)"
+        ]
+      },
+      "get": {
+        "operationId": "getOrganizationOperationRouteByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operation Route ID (UUID)",
+            "in": "path",
+            "name": "operation_route_id",
+            "required": true,
+            "schema": {
+              "description": "Operation Route ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationRoute"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get an organization Operation Route by ID",
+        "tags": [
+          "Midaz_Ledger_API_Operation Routes (v2)"
+        ]
+      },
+      "patch": {
+        "operationId": "updateOrganizationOperationRouteV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operation Route ID (UUID)",
+            "in": "path",
+            "name": "operation_route_id",
+            "required": true,
+            "schema": {
+              "description": "Operation Route ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOperationRouteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationRoute"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update an organization Operation Route",
+        "tags": [
+          "Midaz_Ledger_API_Operation Routes (v2)"
+        ]
+      }
+    },
     "/v2/organizations/{organization_id}/protection/audit": {
       "get": {
         "operationId": "getAuditEventsV2",
@@ -19604,6 +20033,435 @@
         "summary": "List Protection Audit Events",
         "tags": [
           "Midaz_Ledger_API_Protection (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/transaction-routes": {
+      "get": {
+        "description": "Lists every transaction route of the organization, whichever ledger it was created under, including routes created at organization level.",
+        "operationId": "listOrganizationTransactionRoutesV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter created on/after this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "description": "Filter created on/after this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter created on/before this date (YYYY-MM-DD)",
+            "explode": false,
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "description": "Filter created on/before this date (YYYY-MM-DD)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor token for pagination",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor token for pagination",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the organization Transaction Routes",
+        "tags": [
+          "Midaz_Ledger_API_Transaction Routes (v2)"
+        ]
+      },
+      "post": {
+        "description": "Creates a transaction route that belongs to the organization and validates in every ledger of it. The route has no ledgerId.",
+        "operationId": "createOrganizationTransactionRouteV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransactionRouteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionRoute"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create an organization Transaction Route",
+        "tags": [
+          "Midaz_Ledger_API_Transaction Routes (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/transaction-routes/{transaction_route_id}": {
+      "delete": {
+        "operationId": "deleteOrganizationTransactionRouteV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transaction Route ID (UUID)",
+            "in": "path",
+            "name": "transaction_route_id",
+            "required": true,
+            "schema": {
+              "description": "Transaction Route ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete an organization Transaction Route by ID",
+        "tags": [
+          "Midaz_Ledger_API_Transaction Routes (v2)"
+        ]
+      },
+      "get": {
+        "operationId": "getOrganizationTransactionRouteByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transaction Route ID (UUID)",
+            "in": "path",
+            "name": "transaction_route_id",
+            "required": true,
+            "schema": {
+              "description": "Transaction Route ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionRoute"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get an organization Transaction Route by ID",
+        "tags": [
+          "Midaz_Ledger_API_Transaction Routes (v2)"
+        ]
+      },
+      "patch": {
+        "operationId": "updateOrganizationTransactionRouteV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transaction Route ID (UUID)",
+            "in": "path",
+            "name": "transaction_route_id",
+            "required": true,
+            "schema": {
+              "description": "Transaction Route ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTransactionRouteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionRoute"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update an organization Transaction Route",
+        "tags": [
+          "Midaz_Ledger_API_Transaction Routes (v2)"
         ]
       }
     },

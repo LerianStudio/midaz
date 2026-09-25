@@ -260,7 +260,8 @@ func TestGetAllTransactionRoutes_Success(t *testing.T) {
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	// nil slice -> query use case skips the metadata FindList join (empty page).
-	trRepo.EXPECT().FindAll(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	trRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, nil).Times(1)
 
 	handler := &TransactionRouteHandler{Query: &query.UseCase{TransactionRouteRepo: trRepo}}
@@ -590,7 +591,8 @@ func TestGetAllTransactionRoutes_MetadataFilter(t *testing.T) {
 
 	metadataRepo.EXPECT().FindList(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return([]*mongodb.Metadata{{EntityID: id.String(), Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
-	trRepo.EXPECT().FindAll(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	trRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return([]*mmodel.TransactionRoute{{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Premium"}},
 			libHTTP.CursorPagination{}, nil).Times(1)
 	trRepo.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
@@ -621,7 +623,8 @@ func TestGetAllTransactionRoutes_ServiceError_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
-	trRepo.EXPECT().FindAll(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	trRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
 
 	handler := &TransactionRouteHandler{Query: &query.UseCase{TransactionRouteRepo: trRepo}}

@@ -73,7 +73,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionRoute, err := handler.createTransactionRoute(ctx, orgID, ledgerID, payload)
+	transactionRoute, err := handler.createTransactionRoute(ctx, orgID, &ledgerID, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -122,12 +122,12 @@ type ListTransactionRoutesResponse struct {
 // GetAllTransactionRoutes binds the query imperatively then delegates to
 // getAllTransactionRoutes.
 func (handler *TransactionRouteHandler) GetAllTransactionRoutes(ctx context.Context, in *ListTransactionRoutesRequest) (*ListTransactionRoutesResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	pagination, err := handler.getAllTransactionRoutes(ctx, orgID, ledgerID, in.queries())
+	pagination, err := handler.getAllTransactionRoutes(ctx, orgID, in.queries())
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

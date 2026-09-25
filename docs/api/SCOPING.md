@@ -294,6 +294,34 @@ the seam would resolve for an external account. And the account **update** path 
 ownership: `holderId` is immutable (it is not a field on the update input, and an unknown body field
 is a `400`), and neither holder column appears in the update statement.
 
+## Accounting routes: organization-owned, reachable from both scopes
+
+Operation routes and transaction routes belong to the **organization**. A route is resolved,
+updated and deleted by `(organization, id)`, a transaction route may link operation routes created
+under different ledgers of the organization, and a route validates in every ledger of the
+organization that sets `accounting.validateRoutes` (that setting stays per ledger).
+
+Two path scopes serve the same routes:
+
+| Scope | Paths | Contracts | `ledgerId` on create |
+| --- | --- | --- | --- |
+| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{id}]` | `/v2` only | absent — the route has no ledger |
+| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
+
+On the ledger paths the ledger is **provenance, not a filter**: list, get, patch and delete reach
+every route of the organization, whichever ledger it was created under and including routes created
+at organization level. `ledgerId` is omitted from the response (and from the six route events) for a
+route that has no ledger; a route created under a ledger still carries it, so existing `/v1`
+responses keep their shape.
+
+Both scopes authorize with the same tuples — `("midaz","operation-routes",verb)` and
+`("midaz","transaction-routes",verb)`, verbs `post`/`get`/`patch`/`delete` — and the same
+transaction-module tenant chain. The organization paths add no permission name and need no
+tenant-manager policy change.
+
+**Rollout:** pods older than this change cannot see a route with no ledger. Do not create routes at
+organization level until every pod runs a version that serves the organization paths.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,

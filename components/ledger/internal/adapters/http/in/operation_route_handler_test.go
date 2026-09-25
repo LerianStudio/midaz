@@ -295,7 +295,8 @@ func TestGetAllOperationRoutes_Success(t *testing.T) {
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	// nil slice -> query use case skips the metadata FindList join (empty page).
-	orRepo.EXPECT().FindAll(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	orRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, nil).Times(1)
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{OperationRouteRepo: orRepo}}
@@ -838,7 +839,8 @@ func TestGetAllOperationRoutes_MetadataFilter(t *testing.T) {
 			EntityName: constant.EntityOperationRoute,
 			Data:       map[string]any{"category": "income"},
 		}}, nil).Times(1)
-	orRepo.EXPECT().FindAll(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	orRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return([]*mmodel.OperationRoute{{
 			ID: id, OrganizationID: orgID, LedgerID: &ledgerID,
 			Title: "Cashin Route", OperationType: "source",
@@ -877,7 +879,8 @@ func TestGetAllOperationRoutes_RepositoryError_500(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
-	orRepo.EXPECT().FindAll(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	orRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, pkg.InternalServerError{Code: "0046", Title: "Internal Server Error", Message: "Database connection failed"}).Times(1)
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{OperationRouteRepo: orRepo}}

@@ -15,7 +15,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -44,7 +43,10 @@ type OperationRouteHandler struct {
 // rawBody is the unparsed request body, needed only for the accountingEntries
 // unknown-key probe: Go's json.Unmarshal silently drops unknown keys, so the typed
 // payload alone cannot tell an unknown key from an omitted one.
-func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+//
+// ledgerID is the ledger the route is created under, nil for a route created at
+// organization level.
+func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
 	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
@@ -82,18 +84,14 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 		}
 	}
 
-	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, &ledgerID, payload)
+	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
 
 		return nil, err
 	}
 
-	if err := metricFactory.RecordOperationRouteCreated(
-		ctx,
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-	); err != nil {
+	if err := metricFactory.RecordOperationRouteCreated(ctx, routeScopeAttributes(organizationID, ledgerID)...); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to record operation route created metric", err)
 	}
 
@@ -225,8 +223,9 @@ func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Conte
 
 // getAllOperationRoutes binds the query map imperatively via http.ValidateParameters
 // so a bad query yields the canonical 400, then returns the assembled pagination
-// envelope.
-func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+// envelope. Routes belong to the organization, so the listing covers every route of
+// the organization whichever path served it.
+func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
@@ -250,7 +249,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 	}
 
 	if headerParams.Metadata != nil {
-		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, &ledgerID, *headerParams)
+		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, nil, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
@@ -266,7 +265,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 
 	headerParams.Metadata = &bson.M{}
 
-	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, &ledgerID, *headerParams)
+	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, nil, *headerParams)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all operation routes on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))
