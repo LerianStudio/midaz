@@ -7,14 +7,18 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
@@ -29,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Ledger and Tracer resource profiles match; this does not certify remote readiness or SLOs.")
+	fmt.Println("Ledger and Tracer activation profiles match; this does not certify remote readiness or SLOs.")
 }
 
 func checkProfiles(ledgerPath, tracerPath string) error {
@@ -61,7 +65,117 @@ func checkProfiles(ledgerPath, tracerPath string) error {
 		return fmt.Errorf("ledger and tracer resource profiles differ; align accounts, entries, text, integer/fraction digits, body bytes and reservation counts before activation")
 	}
 
+	return checkActivationProfile(ledgerEnv, tracerEnv, tracer)
+}
+
+func checkActivationProfile(ledgerEnv, tracerEnv map[string]string, profile tracercontract.ResourceProfile) error {
+	if err := requireEnabled(ledgerEnv, "TRACER_CONTEXT_ENABLED"); err != nil {
+		return err
+	}
+
+	if err := requireEnabled(tracerEnv, "CONTEXT_RESERVE_ENABLED"); err != nil {
+		return err
+	}
+
+	integrationID := strings.TrimSpace(ledgerEnv["TRACER_INTEGRATION_ID"])
+
+	assetNamespace := strings.TrimSpace(ledgerEnv["TRACER_ASSET_NAMESPACE"])
+	if integrationID == "" || assetNamespace == "" {
+		return fmt.Errorf("TRACER_INTEGRATION_ID and TRACER_ASSET_NAMESPACE are required before activation")
+	}
+
+	bindings, err := producerBindings(tracerEnv["CONTEXT_PRODUCER_BINDINGS"], profile.Facts.MaxTextBytes)
+	if err != nil {
+		return err
+	}
+
+	matched := false
+
+	for _, binding := range bindings {
+		if binding.IntegrationID != integrationID || binding.AssetNamespace != assetNamespace {
+			continue
+		}
+
+		for _, purpose := range binding.Purposes {
+			if purpose == seamidentity.PurposeReserve {
+				matched = true
+				break
+			}
+		}
+	}
+
+	if !matched {
+		return fmt.Errorf("CONTEXT_PRODUCER_BINDINGS has no reserve identity matching the Ledger integration and asset namespace")
+	}
+
+	transactionBatch, err := positiveIntegerSetting(ledgerEnv, "TRANSACTION_BATCH_MAX_SIZE", 10)
+	if err != nil {
+		return err
+	}
+
+	recoveryBatch, err := positiveIntegerSetting(ledgerEnv, "TRACER_RECOVERY_BATCH_SIZE", 10)
+	if err != nil {
+		return err
+	}
+
+	if transactionBatch > recoveryBatch {
+		return fmt.Errorf("TRANSACTION_BATCH_MAX_SIZE cannot exceed TRACER_RECOVERY_BATCH_SIZE before activation")
+	}
+
 	return nil
+}
+
+func requireEnabled(values map[string]string, key string) error {
+	raw, present := values[key]
+	if !present || strings.TrimSpace(raw) == "" {
+		return fmt.Errorf("%s must be explicitly true before activation", key)
+	}
+
+	enabled, err := strconv.ParseBool(raw)
+	if err != nil || !enabled {
+		return fmt.Errorf("%s must be explicitly true before activation", key)
+	}
+
+	return nil
+}
+
+func positiveIntegerSetting(values map[string]string, key string, fallback int) (int, error) {
+	raw, present := values[key]
+	if !present {
+		return fallback, nil
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+
+	return value, nil
+}
+
+func producerBindings(raw string, maxNamespaceBytes int) ([]seamidentity.Binding, error) {
+	if len(raw) == 0 || len(raw) > 65536 {
+		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain 1 to 65536 bytes of JSON")
+	}
+
+	var bindings []seamidentity.Binding
+
+	decoder := json.NewDecoder(bytes.NewBufferString(raw))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&bindings); err != nil {
+		return nil, fmt.Errorf("invalid CONTEXT_PRODUCER_BINDINGS (contents suppressed)")
+	}
+
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain one JSON array")
+	}
+
+	if _, err := seamidentity.NewResolver(bindings, maxNamespaceBytes); err != nil {
+		return nil, fmt.Errorf("invalid CONTEXT_PRODUCER_BINDINGS")
+	}
+
+	return bindings, nil
 }
 
 func readEnvironment(path string) (map[string]string, error) {
