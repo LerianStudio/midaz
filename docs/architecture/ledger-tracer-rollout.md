@@ -25,9 +25,20 @@ not certify the remote Tracer's version, policies or readiness.
 2. Inventory existing reservations, counters and PENDING transactions. Keep their
    completion path available throughout migration. Do not convert a reservation
    into a completed decision based on its age or on a missing transaction row.
-3. Apply the forward Tracer and Ledger transaction migrations using the normal
-   migration runner. Preserve reservation, limit and counter IDs. Rehearse with
-   existing usage and pending holds; an empty database is insufficient evidence.
+3. Schedule a coordinated maintenance window. Pause transaction admission and
+   completion traffic at the routing boundary, let in-flight requests settle,
+   and stop all old Tracer instances before migration 000030. Its partial unique
+   index is incompatible with the old Reserve writer's ON CONFLICT clause;
+   migration followed by an ordinary mixed-version rolling update is unsafe.
+   Apply the forward Tracer and Ledger transaction migrations using the normal
+   runner, then start only compatible Tracer instances and verify their configured
+   transport/profile before resuming traffic. Preserve reservation, limit and
+   counter IDs. Migration 000030 bounds lock acquisition to five seconds; if it
+   times out, investigate remaining database users rather than retrying against
+   live traffic. Index construction still requires the maintenance window.
+   Rehearse with existing usage and pending holds; an empty database is
+   insufficient evidence. Zero-downtime rollout requires a separate
+   expand/contract migration design, not an exception to this procedure.
 4. Resolve each participating account's official asset within its Ledger scope.
    Associate eligible limits through `PUT /v1/limits/{id}/asset-reference`, using
    verified producer mTLS plus the required administrative permission. Its body
@@ -50,6 +61,10 @@ not certify the remote Tracer's version, policies or readiness.
    compatible artifacts and explicit resource budgets. Mesh mode is not supported
    for this profile. Prevent mixed incompatible callers at the routing boundary;
    the old Ledger gRPC Reserve method is not a fallback for the new contract.
+   `TRACER_CONTEXT_ENABLED` is deployment-wide: it switches every participating
+   advisory/enforce ledger across all served tenants. Prepare their complete
+   policy/limit inventory before enabling it; this flag is not a per-ledger
+   canary. Ledgers already off remain off.
 8. In isolation, verify the supported transaction shapes, precision, rule count,
    concurrent account contention, deadlines, restarts and lost acknowledgements.
    Database-only averages do not establish an end-to-end p95/p99. Per-ledger and

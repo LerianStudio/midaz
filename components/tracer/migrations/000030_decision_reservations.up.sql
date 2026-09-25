@@ -2,6 +2,9 @@
 -- binaries cannot infer ON CONFLICT from that index: coordinated rollout only.
 DO $migration$
 BEGIN
+    -- Fail rather than queue an exclusive lock behind live application traffic.
+    -- The coordinated maintenance window is still mandatory.
+    SET LOCAL lock_timeout = '5s';
     LOCK TABLE usage_reservations IN ACCESS EXCLUSIVE MODE;
     ALTER TABLE reserve_decisions ADD CONSTRAINT reserve_decision_capacity_owner
         UNIQUE (evaluation_id, transaction_id);
