@@ -53,6 +53,31 @@ func TestValidateOperationRouteTypes_AtMostOneBridgeRoute(t *testing.T) {
 	}))
 }
 
+// The bridge route is bidirectional, but it only ever classifies the synthetic
+// bridge legs, so it cannot be a transaction route's client source or
+// destination: a route that saved on the bridge alone would refuse every
+// transaction at run time.
+func TestValidateOperationRouteTypes_TheBridgeRouteIsNeitherSourceNorDestination(t *testing.T) {
+	t.Parallel()
+
+	source := &mmodel.OperationRoute{ID: uuid.New(), OperationType: constant.OperationRouteTypeSource}
+	destination := &mmodel.OperationRoute{ID: uuid.New(), OperationType: constant.OperationRouteTypeDestination}
+	bridge := bridgeOperationRoute(uuid.New())
+
+	requireBusinessCode := func(t *testing.T, err error, want error) {
+		t.Helper()
+
+		var businessErr pkg.ValidationError
+		require.ErrorAs(t, err, &businessErr)
+		assert.Equal(t, want.Error(), businessErr.Code)
+	}
+
+	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, bridge}), constant.ErrNoDestinationForAction)
+	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{bridge, destination}), constant.ErrNoSourceForAction)
+	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{bridge}), constant.ErrNoSourceForAction)
+	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination, bridge}))
+}
+
 func TestCreateTransactionRoute_RejectsASecondBridgeRoute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	organizationID := uuid.New()

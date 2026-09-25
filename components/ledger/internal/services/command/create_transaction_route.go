@@ -134,15 +134,20 @@ func (uc *UseCase) emitTransactionRouteCreatedEvent(ctx context.Context, span tr
 
 // validateOperationRouteTypes validates operation route types for a transaction route.
 // It ensures that the set of operation routes has at least one source and one destination
-// (bidirectional counts as both), and at most one cross-ledger bridge route.
+// (bidirectional counts as both, the cross-ledger bridge route as neither), and at most one
+// cross-ledger bridge route.
 func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
 	hasSource := false
 	hasDestination := false
 	bridgeRoutes := 0
 
 	for _, route := range opRoutes {
+		// The bridge route classifies only the synthetic bridge legs of a
+		// cross-ledger group, never a client leg, so it cannot stand in for the
+		// route's source or destination.
 		if isCrossLedgerBridgeRoute(route) {
 			bridgeRoutes++
+			continue
 		}
 
 		switch route.OperationType {
