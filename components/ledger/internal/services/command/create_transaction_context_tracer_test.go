@@ -76,7 +76,7 @@ func TestCreateContextTracerFencesAccounting(t *testing.T) {
 				require.Equal(t, frozen.Key.TransactionID, request.TransactionID)
 				require.Equal(t, scenario == "pending", *request.LongLived)
 				if scenario == "lost response open" || scenario == "lost response closed" {
-					return nil, errors.New("response lost")
+					return nil, traceradapter.ErrTracerUnavailable
 				}
 				decision, reason := tracercontract.DecisionAllow, tracercontract.ReasonLimitsSatisfied
 				if scenario == "review" || scenario == "advisory review" {

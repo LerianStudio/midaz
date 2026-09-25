@@ -174,8 +174,10 @@ func contextReservationError(err error) error {
 		{constant.ErrReserveDecisionConflict, codes.AlreadyExists},
 		{constant.ErrReserveOperationConflict, codes.FailedPrecondition},
 		{constant.ErrReservationNotFound, codes.NotFound},
-		{constant.ErrContextPolicyUnavailable, codes.Unavailable},
-		{constant.ErrContextLimitsUnavailable, codes.Unavailable},
+		{constant.ErrContextPolicyUnavailable, codes.FailedPrecondition},
+		{constant.ErrContextLimitsUnavailable, codes.FailedPrecondition},
+		{constant.ErrExpressionCostExceeded, codes.FailedPrecondition},
+		{constant.ErrExpressionEvaluation, codes.FailedPrecondition},
 	}
 	for _, mapping := range mappings {
 		if errors.Is(err, mapping.cause) {

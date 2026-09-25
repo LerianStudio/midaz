@@ -20,6 +20,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
@@ -89,4 +91,10 @@ func TestContextReservationSchemaPresence(t *testing.T) {
 	require.Equal(t, []any{tracercontract.ReserveContractRevision}, schema.Properties["contractRevision"].Enum)
 	require.Equal(t, []any{string(tracercontract.ValidationLimits), string(tracercontract.ValidationRulesAndLimits)}, schema.Properties["validationMode"].Enum)
 	require.Equal(t, huma.TypeString, schema.Properties["amount"].Type)
+}
+
+func TestContextReservationPreservesPolicyEvaluationError(t *testing.T) {
+	var failure pkg.InternalServerError
+	require.ErrorAs(t, canonicalContextReservationError(constant.ErrExpressionEvaluation), &failure)
+	require.Equal(t, constant.ErrExpressionEvaluation.Error(), failure.Code)
 }

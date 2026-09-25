@@ -61,6 +61,16 @@ above must precede enabling advisory/enforce for a selected ledger. Advisory
 continues accounting after DENY/REVIEW and may consume real capacity: load tests
 must not be replayed against production accounts.
 
+In the shared profile, fail-open/advisory permits admission failures only when
+they are identified as transport unavailability or cancellation/deadline errors.
+Invalid context, missing policy or limit configuration, CEL failures and unknown
+errors block accounting in every posture. HTTP clients inspect canonical error
+codes before classifying a 503 as unavailability; gRPC policy/configuration errors
+use FailedPrecondition. Existing error classes remain distinct: malformed context
+is 400, oversized messages 413, CEL budget exhaustion 422, and missing trusted
+configuration 503. A 503 response alone does not authorize fail-open. Uncertain
+journal writes continue to block regardless of posture.
+
 ## Observe and recover
 
 Use `tracer_coordination_total`, `tracer_coordination_duration_ms` and
