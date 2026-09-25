@@ -1046,6 +1046,11 @@ func resolveTransactionSkips(input mtransaction.Transaction, settings mmodel.Led
 
 //nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
 func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration, policy routeVersionPolicy, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+	// A header string is a view over the connection's read buffer, which the server
+	// overwrites when the next request arrives on that connection. The key outlives the
+	// response — the idempotency value is written from a goroutine — so hold a copy.
+	idempotencyKey = strings.Clone(idempotencyKey)
+
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
