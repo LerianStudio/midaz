@@ -135,10 +135,12 @@ not certify the remote Tracer's version, policies or readiness.
    policy evaluation and synchronous audit, but excludes transport and Ledger:
 
    ```bash
-   TRACER_MEASURE_ADMISSION=true go test -race -tags integration \
-     ./components/tracer/internal/adapters/postgres \
-     -run '^TestIntegrationReserveAdmissionLatencyUnderContention$' -count=1
+   make test-tracer-admission-latency
    ```
+
+   PR validation runs this isolated gate on the pinned four-CPU runner without
+   the race detector, so instrumentation overhead does not redefine the latency
+   thresholds. The functional race suites remain separate.
 
    End-to-end load uses `scripts/k6/bench-transaction-fees-tracer.js`. Every arm
    calls `/v2`; `WITH_TRACER=1` requires `TRACER_SEED` with pre-attested ledgers,
