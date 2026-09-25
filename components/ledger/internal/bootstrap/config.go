@@ -2206,6 +2206,10 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (command.TracerReser
 
 	switch transport {
 	case tracerTransportGRPC:
+		if !cfg.TracerContextEnabled {
+			return nil, fmt.Errorf("gRPC Reserve requires TRACER_CONTEXT_ENABLED=true; use TRACER_TRANSPORT=rest with a compatible legacy Tracer until coordinated activation: %w", constant.ErrTracerContractUnavailable)
+		}
+
 		return buildTracerGRPCReserver(cfg, baseURL, tlsConfig, logger)
 	case tracerTransportREST:
 		return buildTracerRESTReserver(cfg, baseURL, tlsConfig, logger)

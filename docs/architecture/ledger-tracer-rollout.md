@@ -7,6 +7,17 @@ settings and [Tracer invariants](../tracer/INVARIANTS.md) for persistence guaran
 
 ## Before admitting transactions
 
+The legacy gRPC Reserve contract is not supported by these artifacts, even when
+both shared-profile flags are false. gRPC remains the default transport. A Ledger
+with `TRACER_BASE_URL` configured therefore refuses to boot over gRPC unless
+`TRACER_CONTEXT_ENABLED=true`; per-ledger `mode=off` does not bypass this guard.
+Before upgrading an existing integration with the shared profile disabled,
+explicitly select `TRACER_TRANSPORT=rest` and verify the peer still serves the
+legacy REST contract. Preserve legacy completion access and drain pending work.
+Then perform the coordinated activation below. Do not disable validation or use
+fail-open as a substitute for transport compatibility. This local boot guard does
+not certify the remote Tracer's version, policies or readiness.
+
 1. Inventory every caller of Reserve and every policy expression that will move
    to the shared profile. Record deployed artifact revisions, transport, producer
    identity and tenant coverage. `/version` identifies an artifact; it does not
