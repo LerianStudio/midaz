@@ -76,7 +76,7 @@ func TestObligationDurabilityAndFencing(t *testing.T) {
 	require.Error(t, err)
 	_, err = infra.DB.ExecContext(ctx, `DELETE FROM tracer_reservation_obligation`)
 	require.Error(t, err)
-	down, err := os.ReadFile("../../../../migrations/transaction/000036_create_tracer_reservation_obligation.down.sql")
+	down, err := os.ReadFile("../../../../migrations/transaction/000043_create_tracer_reservation_obligation.down.sql")
 	require.NoError(t, err)
 	_, err = infra.DB.ExecContext(ctx, string(down))
 	require.Error(t, err, "rollback must preserve coordination history")
@@ -282,7 +282,7 @@ func TestObligationAccountingEvidenceUsesTenantPrimary(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, status)
 	// Empty coordination tables can roll back without touching accounting rows.
-	down, err := os.ReadFile("../../../../migrations/transaction/000036_create_tracer_reservation_obligation.down.sql")
+	down, err := os.ReadFile("../../../../migrations/transaction/000043_create_tracer_reservation_obligation.down.sql")
 	require.NoError(t, err)
 	_, err = primary.DB.ExecContext(ctx, string(down))
 	require.NoError(t, err)

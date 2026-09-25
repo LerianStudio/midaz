@@ -109,8 +109,8 @@ func TestContextHTTPResponseErrorClassifiesAvailability(t *testing.T) {
 		{name: "internal", status: http.StatusInternalServerError, unavailable: true},
 		{name: "bad gateway", status: http.StatusBadGateway, unavailable: true},
 		{name: "request timeout", status: http.StatusRequestTimeout, unavailable: true},
-		{name: "saturated canonical response", status: http.StatusTooManyRequests, body: `{"code":"0518"}`, unavailable: true},
-		{name: "missing policy", status: http.StatusServiceUnavailable, body: `{"code":"0518"}`, cause: constant.ErrContextPolicyUnavailable},
+		{name: "saturated canonical response", status: http.StatusTooManyRequests, body: `{"code":"0526"}`, unavailable: true},
+		{name: "missing policy", status: http.StatusServiceUnavailable, body: `{"code":"0526"}`, cause: constant.ErrContextPolicyUnavailable},
 		{name: "invalid request", status: http.StatusBadRequest, body: `{"code":"0094"}`, cause: constant.ErrInvalidRequestBody},
 	}
 

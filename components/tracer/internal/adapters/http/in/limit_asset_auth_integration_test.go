@@ -20,7 +20,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	auth "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	auth "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"

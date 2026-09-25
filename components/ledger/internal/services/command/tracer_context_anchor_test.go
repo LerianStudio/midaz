@@ -35,7 +35,7 @@ func TestContextTracerDecisionsPreserveLedgerPosture(t *testing.T) {
 						var rejected pkg.UnprocessableOperationError
 						require.ErrorAs(t, got.Err, &rejected)
 						if decision == tracercontract.DecisionReview {
-							require.Equal(t, "0526", rejected.Code)
+							require.Equal(t, "0534", rejected.Code)
 						} else {
 							require.Equal(t, "0177", rejected.Code)
 						}

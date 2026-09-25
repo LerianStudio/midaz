@@ -379,7 +379,7 @@ func TestAtomicBatchFenceRefusalCleansHandoffBeforeAccounting(t *testing.T) {
 				}
 			}
 			ctx, span, logger := anchorDeps()
-			_, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, PreparedEngineExecution{})
+			_, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, PreparedEngineExecution{}, nil)
 			if protected {
 				require.ErrorIs(t, err, repository.abortErr)
 			} else {

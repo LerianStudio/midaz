@@ -1128,19 +1128,19 @@ func TestGolden_TracerFactsUnavailable(t *testing.T) {
 	err := pkg.ValidateBusinessError(constant.ErrTracerFactsUnavailable, "GoldenEntity")
 	status, code := driveWithError(t, err)
 	assert.Equal(t, fiber.StatusServiceUnavailable, status)
-	assert.Equal(t, "0524", code)
+	assert.Equal(t, "0532", code)
 }
 
 func TestGolden_TracerContractUnavailable(t *testing.T) {
 	t.Parallel()
 	status, code := driveWithError(t, pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, "GoldenEntity"))
 	assert.Equal(t, fiber.StatusServiceUnavailable, status)
-	assert.Equal(t, "0525", code)
+	assert.Equal(t, "0533", code)
 }
 
 func TestGolden_TransactionReviewRequired(t *testing.T) {
 	t.Parallel()
 	status, code := driveWithError(t, pkg.ValidateBusinessError(constant.ErrTransactionReviewRequired, "GoldenEntity"))
 	assert.Equal(t, fiber.StatusUnprocessableEntity, status)
-	assert.Equal(t, "0526", code)
+	assert.Equal(t, "0534", code)
 }

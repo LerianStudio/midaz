@@ -23,7 +23,7 @@ func TestTracerDecisionErrorContract(t *testing.T) {
 		sentinel            error
 		code, title, detail string
 	}{
-		{constant.ErrTransactionReviewRequired, "0526", "Transaction Review Required", "Tracer requires review of this transaction. No accounting operation or pending hold was created."},
+		{constant.ErrTransactionReviewRequired, "0534", "Transaction Review Required", "Tracer requires review of this transaction. No accounting operation or pending hold was created."},
 		{constant.ErrTransactionReservationDenied, "0177", "Transaction Reservation Denied Error", "The transaction could not be completed because Tracer denied it under the configured rules or usage limits."},
 	} {
 		t.Run(test.code, func(t *testing.T) {

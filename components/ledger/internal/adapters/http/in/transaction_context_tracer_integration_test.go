@@ -181,7 +181,7 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 		require.Equal(t, http.StatusUnprocessableEntity, response.status, string(response.rawBody))
 		code := "0177"
 		if decision == tracercontract.DecisionReview {
-			code = "0526"
+			code = "0534"
 		}
 		require.Equal(t, code, response.body["code"])
 	}
