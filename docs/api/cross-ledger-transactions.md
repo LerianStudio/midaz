@@ -35,8 +35,15 @@ are authorized to read.
   still rejects a batch item whose hold itself spans ledgers.
 - Every part uses the same request asset. Mixed assets return `0250` (HTTP 422).
 - A participating ledger with cross-ledger disabled returns `0249` (HTTP 422).
-- Synthetic bridge legs have no accounting route. If any participant enables
-  `accounting.validateRoutes`, the request returns `0251` (HTTP 422).
+- In a participant that enables `accounting.validateRoutes`, the synthetic bridge
+  leg takes the bridge route of the request's transaction route (`routeId`): the
+  one bidirectional operation route carrying a `crossLedger` accounting entry.
+  Its rubric follows the posted direction: `crossLedger.credit` where value
+  leaves the ledger, `crossLedger.debit` where it arrives. A transaction route
+  without such an operation route returns `0255` (HTTP 422). Participants that do
+  not validate routes keep unrouted bridge legs.
+- If any participant enables `accounting.validateRoutes`, the request still
+  returns `0251` (HTTP 422).
 - Fees, Tracer, skip permissions, balance rules, and limits are evaluated with
   each part's own ledger settings.
 - One idempotency key protects the full request. An identical replay returns the

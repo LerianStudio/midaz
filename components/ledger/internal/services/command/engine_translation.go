@@ -221,7 +221,7 @@ func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromT
 		stableRouteID = &value
 	}
 
-	routeCode, routeDescription := translationRubric(input.RouteCache, routeID, input.Action, direction)
+	routeCode, routeDescription := translationRubric(input.RouteCache, routeID, crossLedgerRubricAction(input.RouteCache, routeID, input.Action), direction)
 
 	stableBalance := cloneTranslationBalance(balance)
 

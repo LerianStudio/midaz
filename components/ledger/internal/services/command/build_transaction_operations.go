@@ -316,6 +316,8 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 			}
 		}
 
+		resolvedAction = crossLedgerRubricAction(cache, *op.RouteID, resolvedAction)
+
 		// The Overdraft BalanceKey override takes precedence: companion
 		// operations on the overdraft balance always resolve their rubric
 		// through the Overdraft AccountingEntry, regardless of block/unblock.
@@ -351,6 +353,22 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 			}
 		}
 	}
+}
+
+// crossLedgerRubricAction selects the crossLedger entry for an operation posted
+// on the bridge route of a cross-ledger group, whatever the transaction action.
+// A bridge route carries no other entry, so its route ID alone marks the
+// bridge leg; every other route keeps the given action.
+func crossLedgerRubricAction(cache *mmodel.TransactionRouteCache, routeID, action string) string {
+	if cache == nil || routeID == "" {
+		return action
+	}
+
+	if _, ok := cache.Actions[constant.ActionCrossLedger].FindRoute(routeID); ok {
+		return constant.ActionCrossLedger
+	}
+
+	return action
 }
 
 // blockEntryConfigured reports whether the route identified by routeID — looked up
@@ -398,6 +416,8 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 		entry = entries.Block
 	case constant.ActionUnblock:
 		entry = entries.Unblock
+	case strings.ToLower(constant.ActionCrossLedger):
+		entry = entries.CrossLedger
 	}
 
 	if entry == nil {

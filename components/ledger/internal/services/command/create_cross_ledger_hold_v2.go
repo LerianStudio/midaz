@@ -69,6 +69,10 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 		return nil, err
 	}
 
+	if err := uc.routeCrossLedgerBridgeLegs(ctx, in.Transaction, parts); err != nil {
+		return nil, err
+	}
+
 	intent, err := buildCrossLedgerGroupIntent(in.Transaction.Send.Asset, parts)
 	if err != nil {
 		return nil, err
