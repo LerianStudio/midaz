@@ -72,6 +72,12 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		return err
 	}
 
+	// The route is already deleted, so a cache failure does not fail the request.
+	// The entries never expire, so it is logged for an operator to clear them.
+	if err := uc.DeleteTransactionRouteCache(ctx, transactionRoute); err != nil {
+		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", transactionRouteID.String()))
+	}
+
 	uc.emitTransactionRouteDeletedEvent(ctx, span, logger, transactionRouteID.String(), organizationID.String(), routeLedgerIDString(transactionRoute.LedgerID), time.Now())
 
 	return nil

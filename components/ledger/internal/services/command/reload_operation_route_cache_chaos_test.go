@@ -163,7 +163,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_ReloadOperationRouteCache(t *tes
 	pgtestutil.CreateTestOperationTransactionRouteLink(t, infra.pgContainer.DB, destRouteID, txRouteID)
 
 	ctx := context.Background()
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, txRouteID)
 
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): verifying ReloadOperationRouteCache succeeds through proxy")

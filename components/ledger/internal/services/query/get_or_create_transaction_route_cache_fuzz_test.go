@@ -100,7 +100,7 @@ func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
 			TransactionRouteRepo: mockTransactionRouteRepo,
 		}
 
-		expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+		expectedKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 
 		// Redis returns the fuzzed bytes with no error (simulates a cache hit with arbitrary data)
 		mockRedisRepo.EXPECT().
@@ -150,7 +150,6 @@ func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
 		result, fnErr := uc.GetOrCreateTransactionRouteCache(
 			context.Background(),
 			organizationID,
-			ledgerID,
 			transactionRouteID,
 		)
 

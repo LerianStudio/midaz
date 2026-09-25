@@ -28,7 +28,7 @@ type bridgeRouteReader struct {
 	cacheCalls []uuid.UUID
 }
 
-func (reader *bridgeRouteReader) GetOrCreateTransactionRouteCache(_ context.Context, _, _, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
+func (reader *bridgeRouteReader) GetOrCreateTransactionRouteCache(_ context.Context, _, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
 	reader.cacheCalls = append(reader.cacheCalls, transactionRouteID)
 
 	return reader.cache, nil

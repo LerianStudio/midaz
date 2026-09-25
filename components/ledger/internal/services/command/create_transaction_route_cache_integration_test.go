@@ -109,7 +109,7 @@ func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testin
 	require.NoError(t, err, "CreateAccountingRouteCache should not return error")
 
 	// Verify cache was stored by reading it back
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, routeID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, routeID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not return error for stored cache")
 	assert.NotEmpty(t, cachedBytes, "cached bytes should not be empty")
@@ -181,7 +181,7 @@ func TestIntegration_CreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	// Assert
 	require.NoError(t, err, "CreateAccountingRouteCache should not return error")
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, routeID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, routeID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not return error")
 
@@ -233,7 +233,7 @@ func TestIntegration_CreateAccountingRouteCache_BidirectionalRoute(t *testing.T)
 	// Assert
 	require.NoError(t, err, "CreateAccountingRouteCache should not return error")
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, routeID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, routeID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not return error")
 
@@ -272,7 +272,7 @@ func TestIntegration_CreateAccountingRouteCache_EmptyOperationRoutes(t *testing.
 	// Assert
 	require.NoError(t, err, "CreateAccountingRouteCache should not return error with empty routes")
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, routeID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, routeID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not return error")
 
@@ -343,7 +343,7 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 	// Assert
 	require.NoError(t, err, "second CreateAccountingRouteCache should not fail")
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, routeID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, routeID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not return error")
 
@@ -392,7 +392,7 @@ func TestIntegration_CreateAccountingRouteCache_AccountRulePreserved(t *testing.
 	// Assert
 	require.NoError(t, err, "CreateAccountingRouteCache should not return error")
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, routeID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, routeID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not return error")
 
@@ -450,7 +450,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 	require.NoError(t, err)
 
 	// Assert - org1 cache is independent from org2
-	key1 := utils.AccountingRoutesInternalKey(org1, ledgerID, routeID)
+	key1 := utils.AccountingRoutesInternalKey(org1, routeID)
 	bytes1, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, key1)
 	require.NoError(t, err)
 
@@ -460,7 +460,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 	assert.Contains(t, cache1.Actions, "direct", "org1 should have 'direct' action")
 	assert.NotContains(t, cache1.Actions, "hold", "org1 should not have 'hold' action")
 
-	key2 := utils.AccountingRoutesInternalKey(org2, ledgerID, routeID)
+	key2 := utils.AccountingRoutesInternalKey(org2, routeID)
 	bytes2, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, key2)
 	require.NoError(t, err)
 

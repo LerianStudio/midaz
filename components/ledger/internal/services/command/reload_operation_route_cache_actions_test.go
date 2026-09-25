@@ -39,6 +39,8 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -146,6 +148,8 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,

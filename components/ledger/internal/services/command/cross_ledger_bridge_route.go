@@ -25,7 +25,7 @@ import (
 type TransactionRouteCacheReader interface {
 	// GetOrCreateTransactionRouteCache returns the cached accounting view of a
 	// transaction route, loading and caching it on a miss.
-	GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error)
+	GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error)
 }
 
 // routeCrossLedgerBridgeLegs gives the bridge leg of every part whose ledger
@@ -56,7 +56,7 @@ func (uc *UseCase) routeCrossLedgerBridgeLegs(ctx context.Context, transaction m
 
 	primary := parts[routed[0]].ledgerRef
 
-	cache, err := reader.GetOrCreateTransactionRouteCache(ctx, primary.organizationID, primary.ledgerID, transactionRouteID)
+	cache, err := reader.GetOrCreateTransactionRouteCache(ctx, primary.organizationID, transactionRouteID)
 	if err != nil {
 		return err
 	}

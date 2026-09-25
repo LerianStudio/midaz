@@ -322,12 +322,12 @@ func TestDeleteTransactionRoute_204Empty(t *testing.T) {
 	trRepo := transactionroute.NewMockRepository(ctrl)
 	redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	// Command.DeleteTransactionRouteByID: FindByID then Delete; the wrapper then
-	// clears the cache (Del). Cache failure is logged, never returned.
+	// Command.DeleteTransactionRouteByID: FindByID, Delete, then it clears the
+	// organization and ledger-scoped cache keys. Cache failure is logged, never returned.
 	trRepo.EXPECT().FindByID(gomock.Any(), orgID, id).
 		Return(&mmodel.TransactionRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Settlement"}, nil).Times(1)
 	trRepo.EXPECT().Delete(gomock.Any(), orgID, id, gomock.Any()).Return(nil).Times(1)
-	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
 		TransactionRouteRepo: trRepo,
@@ -384,6 +384,7 @@ func TestCreateTransactionRoute_Success(t *testing.T) {
 	metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	// The accounting-route cache write is best-effort; the core logs and continues.
 	redisRepo.EXPECT().SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
@@ -495,6 +496,7 @@ func TestUpdateTransactionRoute_Success(t *testing.T) {
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	metadataRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	redisRepo.EXPECT().SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 
 	handler := &TransactionRouteHandler{Command: &command.UseCase{

@@ -141,9 +141,7 @@ func (handler *TransactionRouteHandler) DeleteOrganizationTransactionRouteByID(c
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	// No path ledger: the cache entry cleared is the one of a route created at
-	// organization level.
-	if err := handler.deleteTransactionRouteByID(ctx, orgID, uuid.Nil, id); err != nil {
+	if err := handler.deleteTransactionRouteByID(ctx, orgID, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

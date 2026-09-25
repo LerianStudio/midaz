@@ -27,6 +27,9 @@ import (
 // When validateRoutes is disabled in ledger settings, this method is a no-op.
 // When enabled, every transaction must specify a transaction route, and each
 // operation must reference a valid operation route within that transaction route.
+// The setting belongs to the ledger, but the route belongs to the organization:
+// any transaction route of the organization is accepted, whatever ledger it was
+// created under, and a route of another organization answers 0105.
 //
 // # Validation matrix by transaction type
 //
@@ -90,10 +93,16 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
+	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, transactionRouteID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to load transaction route cache", err)
+		if pkg.IsBusinessError(err) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found in the organization", err)
+			logger.Log(ctx, libLog.LevelWarn, "Transaction route not found in the organization", libLog.String("transaction_route_id", transactionRouteID.String()))
 
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to load transaction route cache", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to load transaction route cache", libLog.Err(err))
 
 		return nil, err

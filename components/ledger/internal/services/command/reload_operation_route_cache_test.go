@@ -34,6 +34,8 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -96,6 +98,8 @@ func TestReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -124,6 +128,8 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -156,6 +162,8 @@ func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -195,6 +203,8 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -248,6 +258,8 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,

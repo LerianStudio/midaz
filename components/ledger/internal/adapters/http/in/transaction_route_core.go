@@ -29,7 +29,7 @@ type TransactionRouteHandler struct {
 //
 // The create/get/update/delete/getAll methods below own the span, the service call,
 // the transaction-route side-effects (accounting-route cache write on create/update,
-// cache delete on delete, the created metric) and the failure logs. They take
+// the created metric) and the failure logs. They take
 // primitive args — parsed UUIDs, the decoded *Input, the query map — so nothing
 // transport-shaped reaches them; the handlers in transaction_route_handler.go pull
 // those out of the request envelope. Every canonical Midaz error a core returns is
@@ -111,8 +111,9 @@ func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Conte
 	return transactionRoute, nil
 }
 
-// deleteTransactionRouteByID owns the span + service call + cache delete.
-func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+// deleteTransactionRouteByID owns the span + service call; the use case clears
+// the route's cache entries.
+func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
@@ -123,11 +124,6 @@ func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.C
 		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 
 		return err
-	}
-
-	if err := handler.Command.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 	}
 
 	return nil

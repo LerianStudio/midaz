@@ -222,7 +222,7 @@ type DeleteTransactionRouteResponse struct{}
 // DeleteTransactionRouteByID delegates to deleteTransactionRouteByID; returns a
 // bodiless 204 on success.
 func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(ctx context.Context, in *GetTransactionRouteRequest) (*DeleteTransactionRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -232,7 +232,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(ctx context.C
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deleteTransactionRouteByID(ctx, orgID, ledgerID, id); err != nil {
+	if err := handler.deleteTransactionRouteByID(ctx, orgID, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

@@ -17,6 +17,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -47,8 +48,12 @@ func newDeleteTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
 	return &UseCase{
 		TransactionRouteRepo: mockTransactionRouteRepo,
+		TransactionRedisRepo: mockRedisRepo,
 		Streaming:            emitter,
 	}
 }

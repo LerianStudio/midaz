@@ -17,6 +17,7 @@ import (
 
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // TestCreateAccountingRouteCache_Success tests successful cache creation with operation routes
@@ -51,6 +52,8 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -94,6 +97,8 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -127,6 +132,8 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -185,6 +192,8 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -230,6 +239,8 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -272,6 +283,8 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 
 	redisError := errors.New("redis connection error")
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -284,7 +297,7 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	err := uc.CreateAccountingRouteCache(context.Background(), route)
 
 	assert.Error(t, err)
-	assert.Equal(t, redisError, err)
+	assert.ErrorIs(t, err, redisError)
 }
 
 // TestCreateAccountingRouteCache_ContextCancelled tests error handling when context is cancelled
@@ -319,6 +332,8 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -334,5 +349,64 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	err := uc.CreateAccountingRouteCache(ctx, route)
 
 	assert.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestCreateAccountingRouteCache_WritesOrganizationKeyAndDeletesLedgerKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID, LedgerID: &ledgerID}
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID), gomock.Any(), time.Duration(0)).
+		Return(nil).Times(1)
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerAccountingRoutesInternalKey(organizationID, ledgerID, route.ID)).
+		Return(nil).Times(1)
+
+	assert.NoError(t, uc.CreateAccountingRouteCache(context.Background(), route))
+}
+
+func TestCreateAccountingRouteCache_RouteWithoutLedgerWritesOnlyOrganizationKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID}
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID), gomock.Any(), time.Duration(0)).
+		Return(nil).Times(1)
+
+	assert.NoError(t, uc.CreateAccountingRouteCache(context.Background(), route))
+}
+
+// A failed write of the new key must not skip the ledger-key delete: pods that
+// resolve routes by ledger would otherwise keep the previous rule forever.
+func TestCreateAccountingRouteCache_WriteFailureStillDeletesLedgerKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID, LedgerID: &ledgerID}
+
+	redisError := errors.New("redis connection error")
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID), gomock.Any(), time.Duration(0)).
+		Return(redisError).Times(1)
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerAccountingRoutesInternalKey(organizationID, ledgerID, route.ID)).
+		Return(nil).Times(1)
+
+	assert.ErrorIs(t, uc.CreateAccountingRouteCache(context.Background(), route), redisError)
 }

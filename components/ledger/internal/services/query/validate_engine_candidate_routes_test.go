@@ -71,7 +71,7 @@ func TestValidateAccountingRulesReturnsEngineCandidateRoutesFromFullCache(t *tes
 				}},
 			}
 			expectedCache := transactionRoute.ToCache()
-			cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+			cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 
 			ledgerRepo.EXPECT().
 				GetSettings(gomock.Any(), organizationID, ledgerID).
