@@ -12,7 +12,8 @@ import (
 )
 
 // Only absent variables receive defaults. Explicit zero/empty values retain
-// their validation semantics, including zero fractional digits (integers only).
+// their validation semantics. Fractional digits below the shared technical
+// floor fail activation instead of truncating Ledger fee arithmetic.
 func applyTracerContextDefaults(cfg *Config) {
 	profile := tracercontract.DefaultResourceProfile()
 

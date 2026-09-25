@@ -271,8 +271,10 @@ func mapGRPCError(err error) error {
 	}
 
 	grpcStatus, ok := status.FromError(err)
-	if ok && grpcDeterministicCause(grpcStatus.Message()) != nil {
-		return err
+	if ok {
+		if cause := grpcDeterministicCause(grpcStatus.Message()); cause != nil {
+			return cause
+		}
 	}
 
 	switch status.Code(err) {
@@ -291,6 +293,7 @@ func grpcDeterministicCause(message string) error {
 		constant.ErrExpressionEvaluation,
 		constant.ErrInvalidRequestBody,
 		constant.ErrPayloadTooLarge,
+		constant.ErrTracerContractUnavailable,
 	} {
 		if message == cause.Error() {
 			return cause

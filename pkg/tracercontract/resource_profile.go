@@ -12,6 +12,11 @@ type ResourceProfile struct {
 	MaxReservations int
 }
 
+// MinimumResourceProfileFractionDigits covers the Ledger's intermediate fee
+// arithmetic. It is a technical floor for peer compatibility, not an asset's
+// display precision.
+const MinimumResourceProfileFractionDigits = 16
+
 // DefaultResourceProfile is an explicit bootstrap baseline, not a measured SLO
 // or an implicit limit in decimal arithmetic. No amount is rounded to fit it.
 func DefaultResourceProfile() ResourceProfile {
@@ -25,6 +30,10 @@ func (p ResourceProfile) Validate() error {
 
 	if p.MaxBodyBytes <= 0 || p.MaxReservations <= 0 {
 		return invalid("resource profile")
+	}
+
+	if p.Facts.MaxFractionDigits < MinimumResourceProfileFractionDigits {
+		return invalid("resource profile fraction digits")
 	}
 
 	return nil

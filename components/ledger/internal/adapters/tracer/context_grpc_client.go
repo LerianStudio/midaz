@@ -32,7 +32,7 @@ type ContextClientConfig struct {
 }
 
 func (c ContextClientConfig) Validate() error {
-	if c.Namespace == "" || c.MaxBodyBytes <= 0 || c.MaxBodyBytes > math.MaxInt32 || c.MaxReservations <= 0 {
+	if c.Namespace == "" || c.MaxBodyBytes <= 0 || c.MaxBodyBytes > math.MaxInt32 || c.MaxReservations <= 0 || c.Bounds.MaxFractionDigits < tracercontract.MinimumResourceProfileFractionDigits {
 		return constant.ErrInvalidRequestBody
 	}
 

@@ -77,8 +77,8 @@ func loadLimitAssetConfig(cfg *Config) (*limitAssetConfig, error) {
 
 func loadContextFactBounds(cfg *Config) (tracercontract.Limits, error) {
 	fraction, err := strconv.Atoi(cfg.ContextMaxFractionDigits)
-	if err != nil || fraction < 0 {
-		return tracercontract.Limits{}, fmt.Errorf("CONTEXT_MAX_FRACTION_DIGITS must be explicitly set to a nonnegative integer")
+	if err != nil || fraction < tracercontract.MinimumResourceProfileFractionDigits {
+		return tracercontract.Limits{}, fmt.Errorf("CONTEXT_MAX_FRACTION_DIGITS must be at least %d", tracercontract.MinimumResourceProfileFractionDigits)
 	}
 
 	bounds := tracercontract.Limits{MaxAccounts: cfg.ContextMaxAccounts, MaxEntries: cfg.ContextMaxEntries, MaxTextBytes: cfg.ContextMaxTextBytes, MaxIntegerDigits: cfg.ContextMaxIntegerDigits, MaxFractionDigits: fraction}
