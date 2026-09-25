@@ -47,12 +47,12 @@ not a financial Reserve probe under the settings database lock.
 
 The shared HTTP/gRPC clients independently reject replies without the expected
 contract revision, transaction identity and completed controls. The legacy anchor
-cannot satisfy `rules-and-limits`: it reports an unavailable profile and follows
-the configured failure posture, with no fallback Reserve call. Bootstrap installs
-the coordinator, activation verifier and recovery worker together when
+cannot satisfy `rules-and-limits`: it reports a deterministic contract failure
+and rejects before accounting in every posture, with no fallback Reserve call.
+Bootstrap installs the coordinator, activation verifier and recovery worker together when
 `TRACER_CONTEXT_ENABLED=true`; adding the settings field alone does not enable
 the profile. This requires native mTLS, authenticated integration/asset namespace
-configuration, explicit resource bounds and the transaction journal migration.
+configuration, aligned resource bounds and the transaction journal migration.
 
 The new coordinator is connected to engine-backed v2 creation (including the
 shared revert path, PENDING creation/termination and atomic batches). It projects
@@ -63,7 +63,7 @@ must succeed before the engine runs. An uncertain coordination write cannot be
 bypassed by fail-open or advisory; those settings govern validation availability,
 not ownership of accounting dispatch.
 
-In enforce, `DENY` retains code `0177`/422; its explanation now covers rules and
+In enforce, `DENY` retains code `0177`/422; its explanation covers rules and
 usage limits. `REVIEW` returns `0526`/422 and creates neither accounting entries
 nor a pending hold. Advisory observes both decisions. Successful direct execution
 records confirmation for asynchronous delivery; PENDING retains its obligation
@@ -271,7 +271,9 @@ or without a tracer wired.
 unreachable, behavior is governed by **per-ledger tracer settings** (`mode` + `failPosture`), not a
 global flag (`transaction_reservation_anchor.go:149-189`):
 
-- `mode = off` / `advisory` → never blocks; proceed.
+- `mode = off` skips the integration. `advisory` proceeds after a Tracer
+  `DENY`/`REVIEW` decision or identified availability failure, but rejects
+  deterministic contract, policy, limit and context failures.
 - `mode = enforce` + `failPosture = open` (**default**) → record span attribute
   `app.tracer.reservation_skipped=true` and proceed. A degraded tracer cannot block *all* transactions
   (the R20 rationale, `transaction_reservation_anchor.go:178-182`).
@@ -289,9 +291,9 @@ at the transport boundary so `failPosture` can branch on them: gRPC `Unavailable
 `DeadlineExceeded` / `Canceled` and context deadline/cancellation are folded into `ErrTracerUnavailable`
 (`grpc_client.go:343-358`), and the REST client wraps transport errors equivalently
 (`client.go:53-60, 351-354`). A business **DENIED** decision is a *successful result*, not an error.
-The legacy `handleReserveError` additionally treats **any** non-availability reserve error as fail-posture-gated,
-so a tracer defect cannot let an `enforce`+`closed` ledger commit unchecked
-(`transaction_reservation_anchor.go:143-148`).
+The legacy `handleReserveError` applies fail posture only to
+`ErrTracerUnavailable`; every other reserve error is a deterministic contract
+failure and rejects before accounting.
 The shared profile uses `contextTracerDisposition` instead: only identified
 availability failures follow posture. Invalid context, unusable policies/limits,
 CEL failures and unknown errors reject in both advisory and enforce modes.
@@ -401,14 +403,15 @@ mTLS; in `mesh`/unset both listen plaintext (`grpc_server.go:74-76`, `http_serve
 
 ### Rollout / fallback posture
 
-**gRPC is the default and the production transport** (`config.go:1571` defaults empty →
-`tracerTransportGRPC`); REST is **retained as a fallback**, selectable by setting
-`TRACER_TRANSPORT=rest`. The tracer's REST surface on `:4020` is an **operations/configuration
+**gRPC is the configured default for the shared profile** (`config.go:1571` defaults empty →
+`tracerTransportGRPC`), but the Ledger refuses to boot with that transport while
+`TRACER_CONTEXT_ENABLED=false`. REST is retained for the coordinated legacy phase,
+selectable by setting `TRACER_TRANSPORT=rest`. The tracer's REST surface on `:4020` is an **operations/configuration
 surface** (rules, limits, validations — operator-facing, internal), which is why a single `mtls` posture
 across the whole `:4020` listener is acceptable: there is no direct end-customer access to demote.
 
-> **MIGRATION — wiring the tracer now defaults to gRPC.** A deploy that sets `TRACER_BASE_URL` without
-> setting `TRACER_TRANSPORT` now speaks **gRPC**, not REST. Such a deploy must therefore (1) expose the
+> **MIGRATION — an unspecified transport selects gRPC.** A deploy that sets `TRACER_BASE_URL` without
+> setting `TRACER_TRANSPORT` selects **gRPC**. Such a deploy must therefore (1) expose the
 > tracer's gRPC seam by setting `TRACER_GRPC_PORT` on the tracer, and (2) under `TRACER_TLS_MODE=mtls`
 > provision cert material on both ends. To keep the previous behavior, set `TRACER_TRANSPORT=rest`
 > explicitly. **Soak pending:** gRPC+mTLS has not yet been exercised end-to-end in a live cluster — the
@@ -435,15 +438,17 @@ truth for their **existence and semantics**.
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `tracer/config.go:68-72`, `tls_seam.go:83-86` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example:283-292` |
 
-The Ledger and Tracer `.env.example` files now expose the transport and mTLS
+The Ledger and Tracer `.env.example` files expose the transport and mTLS
 variables. The Ledger template additionally lists the shared coordinator/recovery
 settings; the Tracer template lists producer bindings and shared Reserve budgets.
 The shared reservation profile requires native mTLS even though older seam
-configuration also supports mesh mode. Explicit workload budgets must be selected
-and measured before enabling the profile; commented empty entries are not defaults.
+configuration also supports mesh mode. Absent resource keys use the shared technical
+defaults, while empty rendered values fail validation. Operators must verify and
+measure the chosen values before enabling the profile; they are not workload SLOs.
 
-The shared admission phase starts before official fact loading. Its deadline is
-the earliest of the caller deadline, per-ledger `timeoutMs`, and the global
-`TRACER_TIMEOUT_MS` cap. Fact loading, journal persistence and Reserve receive the
-same deadline; entering the transport does not restart that budget. Completion
-and recovery retain their separate operational timeout.
+Official fact loading uses a local deadline bounded by the per-ledger `timeoutMs`
+and global `TRACER_TIMEOUT_MS` cap. A local fact timeout is a deterministic facts
+failure and never follows the remote fail posture. After facts load, journal
+persistence and Reserve receive a fresh admission deadline with the same bound;
+the caller deadline still caps the whole operation. Completion and recovery retain
+their separate operational timeout.
