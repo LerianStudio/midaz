@@ -67,6 +67,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 			recordCommandError(ctx, span, logger, "Tracer activation unavailable", err)
 			return nil, err
 		}
+
 		if !mmodel.LedgerSettingsIsDefault(&parsed) {
 			settingsToPersist = &parsed
 		}

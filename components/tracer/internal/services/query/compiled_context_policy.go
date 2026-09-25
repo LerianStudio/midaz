@@ -141,6 +141,7 @@ func (q *CompiledContextPolicyQuery) program(ctx context.Context, key compiledPo
 	if program := q.cached(key); program != nil {
 		return program, nil
 	}
+
 	// Length-prefix the tenant to prevent ambiguous keys without constraining IDs.
 	flightKey := fmt.Sprintf("%d:%s:%s:%d", len(key.tenant), key.tenant, key.policyID, key.revision)
 
@@ -148,6 +149,7 @@ func (q *CompiledContextPolicyQuery) program(ctx context.Context, key compiledPo
 		if program := q.cached(key); program != nil {
 			return program, nil
 		}
+
 		select {
 		case q.compiling <- struct{}{}:
 			defer func() { <-q.compiling }()
@@ -202,7 +204,11 @@ func (q *CompiledContextPolicyQuery) compile(ctx context.Context, resolved *Reso
 		}
 	}()
 
-	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, trackingTracer, headerID, requestID := libObservability.NewTrackingFromContext(ctx)
+	_ = trackingTracer
+	_ = headerID
+	_ = requestID
+
 	defer libRuntime.RecoverWithPolicyAndContext(ctx, logger, "tracer", "context-policy-compile", libRuntime.KeepRunning)
 
 	compiled, err := q.compiler.Compile(ctx, resolved.Policy.ContextPolicy)

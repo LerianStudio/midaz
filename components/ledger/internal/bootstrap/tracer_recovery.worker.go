@@ -163,6 +163,7 @@ func (w *TracerRecoveryWorker) activeTenants(ctx context.Context) ([]string, err
 	// because the inventory grew beyond the local window size.
 	ids := make([]string, 0, min(len(entries), w.config.MaxCatalogTenants))
 	skipped := 0
+
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return nil, err

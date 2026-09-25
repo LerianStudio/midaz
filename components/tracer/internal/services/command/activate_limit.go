@@ -149,6 +149,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 				return nil, err
 			}
 		}
+
 		logger.With(
 			libLog.String("operation", "service.limit.activate"),
 			libLog.String("limit.id", id.String()),
@@ -184,6 +185,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
 			return err
 		}
+
 		if err := c.repo.UpdateStatusWithTx(ctx, db, id, model.LimitStatusActive, limit.UpdatedAt); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to update limit status", err)
 			logger.With(

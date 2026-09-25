@@ -1077,6 +1077,7 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	if err != nil {
 		return nil, err
 	}
+
 	limitRepo := postgres.NewLimitRepositoryWithConnection(pgConn)
 
 	usageCounterRepo := postgres.NewUsageCounterRepositoryWithConnection(pgConn)
@@ -1391,6 +1392,7 @@ func initHTTPServer(
 	}
 
 	httpServer.contextReservations = contextReservations
+
 	return httpServer, reservationService, nil
 }
 

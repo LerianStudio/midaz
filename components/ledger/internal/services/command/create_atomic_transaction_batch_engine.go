@@ -166,6 +166,7 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 
 		return EngineExecutionOutcome{}, err
 	}
+
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
 	resolveEngineAdmissions(admissions, prepared.Execution.Execution, outcome, executeErr)
 

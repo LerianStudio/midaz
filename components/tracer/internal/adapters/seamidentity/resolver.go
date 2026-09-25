@@ -64,6 +64,7 @@ func NewResolver(bindings []Binding, maxNamespaceBytes int) (*Resolver, error) {
 		if len(permissions) == 0 {
 			return nil, constant.ErrContextPolicyUnavailable
 		}
+
 		identity := contextutil.IntegrationIdentity{ID: binding.IntegrationID, AssetNamespace: binding.AssetNamespace}
 		if !identity.Valid() || len(identity.AssetNamespace) > maxNamespaceBytes || !validURI(binding.URI) {
 			return nil, constant.ErrContextPolicyUnavailable

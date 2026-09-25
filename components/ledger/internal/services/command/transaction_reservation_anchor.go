@@ -307,6 +307,7 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 		uc.concludeContextReservation(ctx, span, handle, true)
 		return
 	}
+
 	if uc.TracerReserver == nil {
 		return
 	}
@@ -329,6 +330,7 @@ func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, log
 		uc.concludeContextReservation(ctx, span, handle, false)
 		return
 	}
+
 	if uc.TracerReserver == nil {
 		return
 	}
