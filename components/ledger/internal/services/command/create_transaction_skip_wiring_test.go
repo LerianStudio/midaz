@@ -50,10 +50,10 @@ func findFuncDecl(t *testing.T, src, name string) *ast.FuncDecl {
 type createSkipSeamMetrics struct {
 	settingsPos        int  // index of the GetParsedLedgerSettings call (-1 if absent)
 	resolveSkipPos     int  // index of the resolveTransactionSkips call (-1)
-	reservePos         int  // index of the reserveTransaction call (-1)
+	reservePos         int  // index of the reservePreparedTransaction call (-1)
 	rejectDeleteIdemp  bool // the ResolveSkipFor-error branch releases the idempotency claim
 	rejectReturns      bool // that branch returns (does not fall through to the reserve)
-	reserveCarriesFlag bool // reserveTransaction is called with the honoredTracerSkip ident
+	reserveCarriesFlag bool // reservePreparedTransaction carries the honoredTracerSkip field
 }
 
 // analyzeCreateSkipSeam walks CreateTransactionV2 and extracts the tracer-skip
@@ -89,9 +89,9 @@ func analyzeCreateSkipSeam(t *testing.T, src, engineSrc string) createSkipSeamMe
 
 	engine := findFuncDecl(t, engineSrc, "executeCreateEngine")
 	for i, stmt := range engine.Body.List {
-		if m.reservePos == -1 && stmtCallsMethod(stmt, "reserveTransaction") {
+		if m.reservePos == -1 && stmtCallsMethod(stmt, "reservePreparedTransaction") {
 			m.reservePos = i
-			if call := findCallToMethod(stmt, "reserveTransaction"); call != nil {
+			if call := findCallToMethod(stmt, "reservePreparedTransaction"); call != nil {
 				m.reserveCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
 			}
 		}
@@ -127,11 +127,18 @@ func findCallToMethod(stmt ast.Stmt, method string) *ast.CallExpr {
 // (run.<name>).
 func callHasArgIdent(call *ast.CallExpr, name string) bool {
 	for _, arg := range call.Args {
-		if id, ok := arg.(*ast.Ident); ok && id.Name == name {
-			return true
-		}
+		found := false
+		ast.Inspect(arg, func(node ast.Node) bool {
+			switch value := node.(type) {
+			case *ast.Ident:
+				found = found || value.Name == name
+			case *ast.SelectorExpr:
+				found = found || value.Sel.Name == name
+			}
 
-		if sel, ok := arg.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
+			return !found
+		})
+		if found {
 			return true
 		}
 	}
@@ -152,7 +159,7 @@ func TestCreateTransactionV2_TracerSkip(t *testing.T) {
 
 	require.NotEqual(t, -1, m.settingsPos, "GetParsedLedgerSettings call not found")
 	require.NotEqual(t, -1, m.resolveSkipPos, "resolveTransactionSkips call not found")
-	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found")
+	require.NotEqual(t, -1, m.reservePos, "reservePreparedTransaction call not found")
 
 	assert.Greater(t, m.resolveSkipPos, m.settingsPos,
 		"the tracer skip must be resolved AFTER the settings read (it reads ledgerSettings.Overrides)")
@@ -162,7 +169,7 @@ func TestCreateTransactionV2_TracerSkip(t *testing.T) {
 		"the 422 branch must return — it must NOT fall through to the reserve anchor")
 
 	assert.True(t, m.reserveCarriesFlag,
-		"reserveTransaction must receive the resolved honoredTracerSkip flag")
+		"reservePreparedTransaction must receive the resolved honoredTracerSkip flag")
 
 	// The pipeline delegates resolution to resolveTransactionSkips; prove that helper
 	// terminates at the real two-key gate (skip.ResolveSkipFor) rather than a stub, so
@@ -198,7 +205,7 @@ func (uc *UseCase) CreateTransactionV2() error {
 	return nil
 }
 func (uc *UseCase) executeCreateEngine() error {
-	reservation := uc.reserveTransaction() // BUG: flag not threaded
+	reservation := uc.reservePreparedTransaction() // BUG: flag not threaded
 	_ = reservation
 	return nil
 }`
@@ -206,7 +213,7 @@ func (uc *UseCase) executeCreateEngine() error {
 	m := analyzeCreateSkipSeam(t, leaky, leaky)
 
 	require.NotEqual(t, -1, m.resolveSkipPos, "fixture sanity: resolveTransactionSkips must be present")
-	require.NotEqual(t, -1, m.reservePos, "fixture sanity: reserveTransaction must be present")
+	require.NotEqual(t, -1, m.reservePos, "fixture sanity: reservePreparedTransaction must be present")
 
 	assert.False(t, m.rejectDeleteIdemp, "gate failed to bite: a 422 branch with no release was reported as releasing")
 	assert.False(t, m.rejectReturns, "gate failed to bite: a 422 branch with no return was reported as returning")
@@ -224,7 +231,7 @@ func (uc *UseCase) CreateTransactionV2() error {
 	return nil
 }
 func (uc *UseCase) executeCreateEngine() error {
-	reservation := uc.reserveTransaction(run.honoredTracerSkip)
+	reservation := uc.reservePreparedTransaction(ContextTracerInput{HonoredSkip: run.honoredTracerSkip})
 	_ = reservation
 	return nil
 }`
