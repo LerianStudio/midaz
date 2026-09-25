@@ -149,6 +149,27 @@ func TestCreateAtomicTransactionBatchV2_ConfirmedRefusalAbortsAndCorrelatesFirst
 	assert.Zero(t, atomicTransactionBatchProtectionStore(t, uc).ownedAccounts())
 }
 
+func TestCreateAtomicTransactionBatchV2_PrecommitTechnicalRefusalReleasesClaim(t *testing.T) {
+	repository := &atomicTransactionBatchClaimRepositoryFake{}
+	cause := errors.New("dependency evidence is absent")
+	engine := &scriptedEngine{responses: []engineResponse{{err: testEngineTechnicalError{
+		code: "dependency_evidence_missing", cause: cause,
+	}}}}
+	reserver := atomicTransactionBatchExecutionReserver()
+	uc, input, transactionIDs, executionID := atomicTransactionBatchExecutionFixture(t, repository, engine, reserver)
+
+	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), input)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	require.Len(t, engine.requests, 1)
+	assert.Equal(t, 1, repository.aborts, "a definite precommit refusal must release the idempotency claim")
+	assert.Equal(t, executionID, repository.abortExecutionID)
+	assert.Equal(t, transactionIDs, repository.abortTransactionIDs)
+	_, confirmed, released := reserver.snapshot()
+	assert.Empty(t, confirmed)
+	assert.Equal(t, atomicTransactionBatchExecutionReservationIDs(), released)
+}
+
 func TestCreateAtomicTransactionBatchV2_ProtectedRefusalRetainsIdentityAndReservations(t *testing.T) {
 	repository := &atomicTransactionBatchClaimRepositoryFake{
 		abortErr: txRedis.ErrAtomicTransactionBatchRefusalProtected,

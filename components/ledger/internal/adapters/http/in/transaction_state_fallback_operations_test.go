@@ -31,12 +31,13 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations pins the money-path
-// fix for the two-phase overdraft cancel. The write-behind cache is cleared once the
-// create persists, so a later /cancel misses it and falls through to the database.
-// That fallback MUST read the transaction WITH its operations
+// fix for the two-phase overdraft cancel. Once the engine index no longer names the
+// transaction, a /cancel reads it from the database.
+// That read MUST load the transaction WITH its operations
 // (GetTransactionWithOperationsByID / FindWithOperations): the pending transition's
 // annotateCanceledOverdraftAmounts step reads tran.Operations to size the overdraft
 // deficit, and a row-only read (GetTransactionByID / Find) leaves Operations empty so
@@ -98,11 +99,8 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 		},
 	}
 
-	// Write-behind cache miss forces the database fallback.
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
+	// No engine index is configured, so the lookup reads PostgreSQL. Only once the
+	// primary answers not-found is the legacy write-behind entry consulted.
 
 	// The fallback MUST use the with-operations read.
 	mockTransactionRepo.EXPECT().
@@ -176,22 +174,13 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	// Write-behind cache miss forces the database fallback.
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
+	// No engine index is configured, so the lookup reads PostgreSQL. The strict
+	// Redis mock fails the test on any read of the legacy write-behind entry.
 
 	// INNER JOIN matched nothing: empty transaction, no error.
 	mockTransactionRepo.EXPECT().
 		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(&transaction.Transaction{}, nil).
-		Times(1)
-
-	// Metadata lookup runs against the empty (non-nil) transaction.
-	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
 		Times(1)
 
 	// The guard falls back to the row-only read, which surfaces the not-found error.
@@ -203,6 +192,11 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 			Title:      "Entity Not Found",
 			Message:    "Transaction not found",
 		}).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), utils.WriteBehindTransactionKey(orgID, ledgerID, transactionID.String())).
+		Return(nil, errors.New("cache miss")).
 		Times(1)
 
 	queryUC := &query.UseCase{
@@ -262,11 +256,8 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 		Status:         transaction.Status{Code: cn.APPROVED},
 	}
 
-	// Write-behind cache miss forces the database fallback.
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
+	// No engine index is configured, so the lookup reads PostgreSQL. The strict
+	// Redis mock fails the test on any read of the legacy write-behind entry.
 
 	// INNER JOIN matched no operation rows: empty transaction, no error — triggers the guard.
 	mockTransactionRepo.EXPECT().
@@ -280,11 +271,11 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 		Return(tranRowOnly, nil).
 		Times(1)
 
-	// Metadata lookup runs on both reads (with-operations empty result + row-only result).
+	// Metadata is attached once, to the row the lookup settles on.
 	mockMetadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
 		Return(nil, nil).
-		Times(2)
+		Times(1)
 
 	// Lock acquired, then released on the not-pending guard error path.
 	mockRedisRepo.EXPECT().

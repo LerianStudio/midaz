@@ -41,7 +41,7 @@ import (
 
 // createBulkChunkSize and updateBulkChunkSize bound how many rows one bulk statement
 // carries, so the parameter count stays under PostgreSQL's 65,535 ceiling. CreateBulk
-// writes every column in transactionColumnList (18 of them, so 18,000 parameters per
+// writes every column in transactionColumnList (19 of them, so 19,000 parameters per
 // chunk); UpdateBulk writes six (id, organization_id, ledger_id, status,
 // status_description, updated_at), so its larger headroom is spent on shorter
 // row-locking windows instead. Declared here rather than inside the two methods so the
@@ -54,6 +54,7 @@ const (
 var transactionColumnList = []string{
 	"id",
 	"parent_transaction_id",
+	"group_id",
 	"description",
 	"status",
 	"status_description",
@@ -75,6 +76,7 @@ var transactionColumnList = []string{
 var transactionColumnListPrefixed = []string{
 	"t.id",
 	"t.parent_transaction_id",
+	"t.group_id",
 	"t.description",
 	"t.status",
 	"t.status_description",
@@ -122,6 +124,7 @@ type Repository interface {
 	BeginTx(ctx context.Context) (repository.DBTransaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
@@ -268,7 +271,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -276,6 +279,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		ctx, insertQuery,
 		record.ID,
 		record.ParentTransactionID,
+		record.GroupID,
 		record.Description,
 		record.Status,
 		record.StatusDescription,
@@ -476,6 +480,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 		builder = builder.Values(
 			record.ID,
 			record.ParentTransactionID,
+			record.GroupID,
 			record.Description,
 			record.Status,
 			record.StatusDescription,
@@ -771,6 +776,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		PlaceholderFormat(squirrel.Dollar)
 
 	findAll = applyCreatedAtRange(findAll, filter)
+	findAll = applyGroupIDFilter(findAll, filter)
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -802,6 +808,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
+			&transaction.GroupID,
 			&transaction.Description,
 			&transaction.Status,
 			&transaction.StatusDescription,
@@ -908,6 +915,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
+			&transaction.GroupID,
 			&transaction.Description,
 			&transaction.Status,
 			&transaction.StatusDescription,
@@ -940,6 +948,98 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		}
 
 		transactions = append(transactions, transaction.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
+
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
+// FindByGroupID retrieves every live transaction in a cross-ledger group for
+// the tenant-bound database connection. Organization and ledger are deliberately
+// not predicates: a group is the boundary that authorizes the cross-scope read.
+func (r *TransactionPostgreSQLRepository) FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transactions_by_group_id")
+	defer span.End()
+
+	db, release, err := r.acquireRead(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+	defer releaseRead(span, release)
+
+	findAll := squirrel.Select(transactionColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("group_id = ?", groupID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at ASC", "id ASC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	transactions := make([]*Transaction, 0)
+
+	for rows.Next() {
+		var record TransactionPostgreSQLModel
+
+		var body *string
+
+		if err := rows.Scan(
+			&record.ID,
+			&record.ParentTransactionID,
+			&record.GroupID,
+			&record.Description,
+			&record.Status,
+			&record.StatusDescription,
+			&record.Amount,
+			&record.AssetCode,
+			&record.ChartOfAccountsGroupName,
+			&record.LedgerID,
+			&record.OrganizationID,
+			&body,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+			&record.DeletedAt,
+			&record.Route,
+			&record.RouteID,
+			&record.FeesSkipped,
+			&record.TracerSkipped,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			return nil, err
+		}
+
+		if !libCommons.IsNilOrEmpty(body) {
+			if err := json.Unmarshal([]byte(*body), &record.Body); err != nil {
+				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
+
+				return nil, err
+			}
+		}
+
+		transactions = append(transactions, record.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
@@ -990,6 +1090,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
+		&transaction.GroupID,
 		&transaction.Description,
 		&transaction.Status,
 		&transaction.StatusDescription,
@@ -1071,6 +1172,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
+		&transaction.GroupID,
 		&transaction.Description,
 		&transaction.Status,
 		&transaction.StatusDescription,
@@ -1290,6 +1392,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		if err := rows.Scan(
 			&tran.ID,
 			&tran.ParentTransactionID,
+			&tran.GroupID,
 			&tran.Description,
 			&tran.Status,
 			&tran.StatusDescription,
@@ -1407,6 +1510,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		PlaceholderFormat(squirrel.Dollar)
 
 	subQuery = applyCreatedAtRange(subQuery, filter)
+	subQuery = applyGroupIDFilter(subQuery, filter)
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
@@ -1474,6 +1578,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		if err := rows.Scan(
 			&tran.ID,
 			&tran.ParentTransactionID,
+			&tran.GroupID,
 			&tran.Description,
 			&tran.Status,
 			&tran.StatusDescription,
@@ -1688,6 +1793,14 @@ func applyCreatedAtRange(builder squirrel.SelectBuilder, pagination http.Paginat
 	return builder.
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
+}
+
+func applyGroupIDFilter(builder squirrel.SelectBuilder, pagination http.Pagination) squirrel.SelectBuilder {
+	if pagination.GroupID == nil {
+		return builder
+	}
+
+	return builder.Where(squirrel.Expr("group_id = ?", *pagination.GroupID))
 }
 
 // derefString safely dereferences a *string, returning "" if nil.

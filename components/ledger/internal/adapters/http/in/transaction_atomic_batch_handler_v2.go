@@ -80,17 +80,22 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	organizationID, ledgerID, err := parseOrgLedger(decoded.scope.OrganizationID, decoded.scope.LedgerID)
-	if err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
 	if handler.Command == nil {
 		return nil, pkgHTTP.HumaProblem(errors.New("atomic transaction batch command is not configured"))
 	}
 
 	items := make([]command.CreateAtomicTransactionBatchV2ItemInput, len(decoded.items))
 	for index := range decoded.items {
+		scope, err := resolveTransactionV2Scope(decoded.items[index].request.Debits, decoded.items[index].request.Credits)
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
+		organizationID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
 		items[index] = command.CreateAtomicTransactionBatchV2ItemInput{
 			OrganizationID:          organizationID,
 			LedgerID:                ledgerID,

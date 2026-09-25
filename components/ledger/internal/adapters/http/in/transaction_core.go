@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -15,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -36,11 +38,13 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *CreateTrans
 	return *transactionInput
 }
 
-// getTransaction is the transport-neutral read core. It reads write-behind cache first
-// (returning cacheHit=true, operations already materialized in the cached shape), and on
-// a miss falls back to the DB then materializes operations via GetOperationsByTransaction.
-// The caller sets the X-Cache-Hit response header off the returned flag and is expected
-// to have already applied the Metadata reset to headerParams.
+// getTransaction is the transport-neutral read core. With the engine index configured
+// it resolves the index, then the primary, then the legacy write-behind entry, which is
+// consulted only when the first two answer not-found. Without the index it reads the
+// legacy entry first and on a miss falls back to the DB, then materializes operations
+// via GetOperationsByTransaction. Cached answers return cacheHit=true, with operations
+// already in the cached shape. The caller sets the X-Cache-Hit response header off the
+// returned flag and is expected to have already applied the Metadata reset to headerParams.
 func (handler *TransactionHandler) getTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, headerParams *http.QueryHeader) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -48,7 +52,17 @@ func (handler *TransactionHandler) getTransaction(ctx context.Context, organizat
 	defer span.End()
 
 	if handler.Query.CanResolveEngineWriteBehind() {
-		resolved, err := handler.Query.ResolveEngineWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
+		resolved, err := handler.Query.ResolveTransactionForRead(ctx, organizationID, ledgerID, transactionID)
+
+		var notFound pkg.EntityNotFoundError
+		if errors.As(err, &notFound) {
+			// The engine never indexes an annotation, so until its projection
+			// lands only the legacy write-behind entry can name it.
+			if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
+				return wbTran, true, nil
+			}
+		}
+
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to resolve engine transaction evidence", err)
 			return nil, false, err

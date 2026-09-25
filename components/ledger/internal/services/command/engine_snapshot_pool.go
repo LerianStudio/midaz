@@ -313,6 +313,8 @@ func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel
 	}
 
 	return accounting.BalanceSnapshot{
+		OrganizationID:        organizationID,
+		LedgerID:              ledgerID,
 		BalanceRef:            mtransaction.AliasKey(alias, key),
 		ID:                    balanceID,
 		AccountID:             accountID,

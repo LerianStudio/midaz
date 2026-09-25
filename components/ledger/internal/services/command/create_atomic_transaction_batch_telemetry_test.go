@@ -28,6 +28,12 @@ func TestAtomicTransactionBatchMetricLabelsAreClosed(t *testing.T) {
 	require.Equal(t, "total", atomicTransactionBatchMetricPhase("01994f13-29b7-7000-8000-000000000001"))
 	require.Equal(t, atomicTransactionBatchMetricCodeTechnical, atomicTransactionBatchMetricCodeLabel("idempotency-secret"))
 	require.Equal(t, atomicTransactionBatchMetricDimensionNone, atomicTransactionBatchMetricDimensionLabel("987654321.99"))
+	require.Equal(t, atomicTransactionBatchScopeSingle, atomicTransactionBatchMetricScope("01994f13-29b7-7000-8000-000000000001"))
+	require.Equal(t, atomicTransactionBatchScopeCrossLedger, atomicTransactionBatchMetricScope("cross_ledger"))
+	require.Equal(t, atomicTransactionBatchScopeCrossLedger, atomicTransactionBatchScope(true))
+	require.Equal(t, atomicTransactionBatchScopeSingle, atomicTransactionBatchScope(false))
+	require.Equal(t, "other", crossLedgerGroupMetricAction("@private-alias"))
+	require.Equal(t, constant.ActionCommit, crossLedgerGroupMetricAction(constant.ActionCommit))
 	require.Equal(t, constant.ErrTransactionBatchBudgetExceeded.Error(), atomicTransactionBatchMetricCode(
 		pkg.ValidateBusinessError(constant.ErrTransactionBatchBudgetExceeded, constant.EntityTransaction, "recoveryBytes", 0, 2, 1),
 	))
@@ -73,9 +79,10 @@ func TestAtomicTransactionBatchMetricsExposeOnlyCountsAndClosedLabels(t *testing
 	useCase := &UseCase{MetricsFactory: factory}
 	ctx := context.Background()
 	useCase.recordAtomicTransactionBatchReceived(ctx, input)
-	useCase.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", 17*time.Millisecond)
+	useCase.recordAtomicTransactionBatchPhaseDuration(ctx, atomicTransactionBatchScopeSingle, "preparation", 17*time.Millisecond)
 	useCase.recordAtomicTransactionBatchCompleted(
 		ctx,
+		atomicTransactionBatchScopeSingle,
 		nil,
 		run,
 		pkg.ValidateBusinessError(
@@ -88,9 +95,10 @@ func TestAtomicTransactionBatchMetricsExposeOnlyCountsAndClosedLabels(t *testing
 		),
 		23*time.Millisecond,
 	)
-	useCase.recordAtomicTransactionBatchRecovering(ctx)
+	useCase.recordAtomicTransactionBatchRecovering(ctx, atomicTransactionBatchScopeCrossLedger)
 	useCase.recordAtomicTransactionBatchCompleted(
 		ctx,
+		atomicTransactionBatchScopeSingle,
 		&CreateAtomicTransactionBatchV2Result{},
 		nil,
 		nil,
@@ -98,6 +106,7 @@ func TestAtomicTransactionBatchMetricsExposeOnlyCountsAndClosedLabels(t *testing
 	)
 	useCase.recordAtomicTransactionBatchCompleted(
 		ctx,
+		atomicTransactionBatchScopeSingle,
 		&CreateAtomicTransactionBatchV2Result{Replayed: true},
 		nil,
 		nil,
@@ -122,7 +131,11 @@ func TestAtomicTransactionBatchMetricsExposeOnlyCountsAndClosedLabels(t *testing
 	outcomes := observed["atomic_transaction_batches_total"].Data.(metricdata.Sum[int64])
 	require.Len(t, outcomes.DataPoints, 5)
 	for _, point := range outcomes.DataPoints {
-		require.Equal(t, 3, point.Attributes.Len())
+		require.Equal(t, 4, point.Attributes.Len())
+		requireAtomicBatchMetricLabel(t, point.Attributes, "scope", map[string]struct{}{
+			atomicTransactionBatchScopeSingle:      {},
+			atomicTransactionBatchScopeCrossLedger: {},
+		})
 		requireAtomicBatchMetricLabel(t, point.Attributes, "outcome", map[string]struct{}{
 			atomicTransactionBatchOutcomeReceived:   {},
 			atomicTransactionBatchOutcomeApplied:    {},
@@ -204,6 +217,58 @@ func TestCreateAtomicTransactionBatchV2EmitsReceivedAndRejectedMetrics(t *testin
 		delete(want, outcome.AsString())
 	}
 	require.Empty(t, want)
+}
+
+func TestAtomicTransactionBatchMetricsSeparateCrossLedgerGroupsFromSingleScopeBatches(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	factory, err := metrics.NewMetricsFactory(provider.Meter("atomic-batch-scope-test"), nil)
+	require.NoError(t, err)
+
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000201")
+	ledgerA := uuid.MustParse("01994f13-29b7-7000-8000-000000000202")
+	ledgerB := uuid.MustParse("01994f13-29b7-7000-8000-000000000203")
+	useCase := &UseCase{MetricsFactory: factory}
+	ctx := context.Background()
+
+	useCase.recordAtomicTransactionBatchReceived(ctx, CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+			atomicTransactionBatchItemInput(organizationID, ledgerA, "@source", "@external/BRL"),
+			atomicTransactionBatchItemInput(organizationID, ledgerB, "@external/BRL", "@destination"),
+		},
+		CrossLedgerGroup: true,
+	})
+	useCase.recordAtomicTransactionBatchReceived(ctx, CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+			atomicTransactionBatchItemInput(organizationID, ledgerA, "@source", "@destination"),
+		},
+	})
+	useCase.recordAtomicTransactionBatchPhaseDuration(ctx, atomicTransactionBatchScopeCrossLedger, "accounting", 3*time.Millisecond)
+
+	var data metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(ctx, &data))
+	observed := atomicBatchMetricData(t, data)
+
+	received := map[string]int64{}
+	for _, point := range observed["atomic_transaction_batches_total"].Data.(metricdata.Sum[int64]).DataPoints {
+		scope, ok := point.Attributes.Value(attribute.Key("scope"))
+		require.True(t, ok, "every batch outcome carries its scope")
+		received[scope.AsString()] += point.Value
+	}
+	require.Equal(t, map[string]int64{
+		atomicTransactionBatchScopeCrossLedger: 1,
+		atomicTransactionBatchScopeSingle:      1,
+	}, received)
+
+	durations := observed["atomic_transaction_batch_duration_ms"].Data.(metricdata.Histogram[int64])
+	require.Len(t, durations.DataPoints, 1)
+	scope, ok := durations.DataPoints[0].Attributes.Value(attribute.Key("scope"))
+	require.True(t, ok)
+	require.Equal(t, atomicTransactionBatchScopeCrossLedger, scope.AsString())
+	phase, ok := durations.DataPoints[0].Attributes.Value(attribute.Key("phase"))
+	require.True(t, ok)
+	require.Equal(t, "accounting", phase.AsString())
 }
 
 func atomicBatchMetricData(

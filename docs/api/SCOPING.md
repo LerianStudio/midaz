@@ -177,6 +177,22 @@ the transport side, `transaction_fee_seam_structure_test.go` and
 `transaction_route_version_structure_test.go` (every route binds the use case matching its
 version).
 
+### Cross-ledger enablement is a `/v2` contract
+
+`crossLedger.enabled` is an operator's per-ledger opt-in. The policy resolver accepts only
+ledgers that explicitly enable it and returns `0249` (HTTP 422) when one is disabled. This
+setting does not retroactively change `/v1`: `/v2/transactions/direct` and
+`/v2/transactions/hold` consume the policy when debit and credit legs name multiple ledgers.
+Direct decomposes and executes every part atomically under a shared `groupId`. Hold creates
+only PENDING origin parts; v2 commit creates destinations while approving all origins in one
+engine execution, and v2 cancel releases the origins without creating destinations. V2 revert
+continues to reverse every APPROVED member in one atomic execution and returns a new group plus
+`revertedGroupId`. Cross-ledger block and unblock remain unsupported. Authorization is checked
+against the organization and ledger in the lifecycle route path; other group members may belong
+to other enabled ledgers or organizations in the same authenticated tenant. `/v1` cannot express
+the grouped response and rejects grouped commit, cancel, or revert with `0252` (HTTP 422). See
+[Cross-ledger transactions](cross-ledger-transactions.md).
+
 ### Transaction skips are a `/v2` body field
 
 The two per-call transaction controls — `skip.fees` and `skip.tracer` — exist only on the

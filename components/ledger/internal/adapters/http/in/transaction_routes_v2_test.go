@@ -69,12 +69,13 @@ var v2Routes = []struct {
 	responseSchema string
 }{
 	{
-		action:      "direct",
-		fiberPath:   directV2RoutePath,
-		opPath:      "/transactions/direct",
-		operationID: "createTransactionDirectV2",
-		hasBody:     true,
-		bodySchema:  v2CreateBodySchemaName,
+		action:         "direct",
+		fiberPath:      directV2RoutePath,
+		opPath:         "/transactions/direct",
+		operationID:    "createTransactionDirectV2",
+		hasBody:        true,
+		bodySchema:     v2CreateBodySchemaName,
+		responseSchema: "CreateTransactionV2Response",
 	},
 	{
 		action:      "hold",
@@ -486,11 +487,104 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 
 				media, ok := resp.Content["application/json"]
 				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
+				if rt.operationID == "createTransactionDirectV2" || rt.operationID == "createTransactionHoldV2" ||
+					rt.operationID == "commitTransactionV2" ||
+					rt.operationID == "cancelTransactionV2" || rt.operationID == "revertTransactionV2" {
+					assert.Empty(t, media.Schema.Ref, "%s documents a oneOf response rather than one component ref", rt.action)
+
+					continue
+				}
 				assert.Equalf(t, "#/components/schemas/"+wantResponseSchema, media.Schema.Ref,
 					"%s should answer with the v2 response component", rt.action)
 			}
 		})
 	}
+}
+
+func TestRegisterTransactionV2Routes_PendingLifecycleResponsesDocumentSingularOrCrossLedgerGroup(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerIsolatedV2TransactionContractForTest()
+	paths := []string{
+		"/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit",
+		"/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel",
+	}
+
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			response := oapi.Paths[path].Post.Responses["201"]
+			require.NotNil(t, response)
+			media := response.Content["application/json"]
+			require.NotNil(t, media)
+			require.NotNil(t, media.Schema)
+			require.Len(t, media.Schema.OneOf, 2)
+
+			refs := []string{media.Schema.OneOf[0].Ref, media.Schema.OneOf[1].Ref}
+			assert.ElementsMatch(t, []string{
+				"#/components/schemas/TransactionV2",
+				"#/components/schemas/CrossLedgerTransactionGroupV2",
+			}, refs)
+		})
+	}
+}
+
+func TestRegisterTransactionV2Routes_RevertResponseDocumentsSingularOrCrossLedgerGroup(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerIsolatedV2TransactionContractForTest()
+	revert := oapi.Paths["/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert"].Post
+	require.NotNil(t, revert)
+
+	response := revert.Responses["201"]
+	require.NotNil(t, response)
+	media := response.Content["application/json"]
+	require.NotNil(t, media)
+	require.NotNil(t, media.Schema)
+	require.Len(t, media.Schema.OneOf, 2)
+
+	refs := []string{media.Schema.OneOf[0].Ref, media.Schema.OneOf[1].Ref}
+	assert.ElementsMatch(t, []string{
+		"#/components/schemas/TransactionV2",
+		"#/components/schemas/CrossLedgerTransactionGroupV2",
+	}, refs)
+
+	group, ok := oapi.Components.Schemas.Map()["CrossLedgerTransactionGroupV2"]
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"groupId", "transactions"}, group.Required)
+	assert.Contains(t, group.Properties, "revertedGroupId")
+}
+
+func TestRegisterTransactionV2Routes_CreateResponsesDocumentSingularOrCrossLedgerGroup(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerIsolatedV2TransactionContractForTest()
+
+	for _, path := range []string{"/transactions/direct", "/transactions/hold"} {
+		t.Run(path, func(t *testing.T) {
+			create := oapi.Paths[path].Post
+			require.NotNil(t, create)
+
+			response := create.Responses["201"]
+			require.NotNil(t, response)
+			media := response.Content["application/json"]
+			require.NotNil(t, media)
+			require.NotNil(t, media.Schema)
+			require.Len(t, media.Schema.OneOf, 2,
+				"%s must document both its historical singular body and its cross-ledger group envelope", path)
+
+			refs := []string{media.Schema.OneOf[0].Ref, media.Schema.OneOf[1].Ref}
+			assert.ElementsMatch(t, []string{
+				"#/components/schemas/TransactionV2",
+				"#/components/schemas/CrossLedgerTransactionGroupV2",
+			}, refs)
+		})
+	}
+
+	group, ok := oapi.Components.Schemas.Map()["CrossLedgerTransactionGroupV2"]
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"groupId", "transactions"}, group.Required)
+	assert.Contains(t, group.Properties, "groupId")
+	assert.Contains(t, group.Properties, "transactions")
 }
 
 // v2ContractAssemblies are the two documents the v2 create surface reaches a client through: the
@@ -640,10 +734,11 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides(t *testing.T) 
 var v2CreateBodyScopeFields = []string{"organizationId", "ledgerId"}
 
 // TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope asserts the published create-body
-// component states where the organization and ledger are named and that all accounts must agree
-// on one pair. The create endpoint names no scope, so a client that cannot read this off the
-// contract has nowhere else to look; and the agreement rule has no structural expression in a
-// flat schema, so prose is the only place it can be stated.
+// component states where the organization and ledger are named and distinguishes the
+// multi-ledger direct and hold contract from the single-scope block/unblock actions. The create endpoint
+// names no scope, so a client that cannot read this off the contract has nowhere else to look;
+// and the action-dependent rule has no structural expression in a flat shared schema, so prose
+// is the only place it can be stated.
 func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
 	t.Parallel()
 
@@ -658,8 +753,10 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
 			"%s description must name the %s field an account carries", v2CreateBodySchemaName, field)
 	}
 
-	assert.Containsf(t, schema.Description, "SAME pair",
-		"%s description must state that every account names the same organization and ledger", v2CreateBodySchemaName)
+	assert.Containsf(t, schema.Description, "direct and hold actions accept multiple enabled ledgers",
+		"%s description must document the multi-ledger scope of direct and hold", v2CreateBodySchemaName)
+	assert.Containsf(t, schema.Description, "block and unblock still require every leg to name the same pair",
+		"%s description must preserve the single-scope rule for unsupported actions", v2CreateBodySchemaName)
 
 	// The two fields live on the leg component, which every leg of either side shares.
 	legSchema, ok := oapi.Components.Schemas.Map()[v2LegSchemaName]

@@ -36,13 +36,14 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 	for index, transaction := range request.Transactions {
 		transactionIndices[transaction.ID] = index
 		partitions[index] = accounting.ExecutionResult{
-			Movements: make([]accounting.Movement, 0),
-			Final:     make([]accounting.BalanceSnapshot, 0),
+			Movements:          make([]accounting.Movement, 0),
+			Final:              make([]accounting.BalanceSnapshot, 0),
+			AppliedAtUnixMicro: result.AppliedAtUnixMicro,
 		}
 		transactionLast[index] = make(map[string]accounting.BalanceState)
 	}
 
-	balances, err := indexEngineResultBalances(request.Balances)
+	balances, err := indexEngineResultBalances(request)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,11 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 			return nil, invalidTransactionCompletionRecord("engine transaction movement ranges are interleaved or unordered")
 		}
 
-		if _, balanceExists := balances[movement.BalanceRef]; !balanceExists {
+		transaction := request.Transactions[transactionIndex]
+		organizationID, ledgerID := completionTransactionScope(request, transaction)
+
+		balanceKey := completionScopedBalanceRef(organizationID, ledgerID, movement.BalanceRef)
+		if _, balanceExists := balances[balanceKey]; !balanceExists {
 			return nil, invalidTransactionCompletionRecord("engine movement references an unknown balance")
 		}
 
@@ -78,24 +83,24 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 		previousTransactionIndex = transactionIndex
 		partitions[transactionIndex].Movements = append(partitions[transactionIndex].Movements, movement)
 
-		if previous, touched := globalLast[movement.BalanceRef]; touched {
+		if previous, touched := globalLast[balanceKey]; touched {
 			if !sameOperationState(previous, movement.Before) {
 				return nil, invalidTransactionCompletionRecord("engine movement state chain is discontinuous")
 			}
 		} else {
-			globalTouches = append(globalTouches, movement.BalanceRef)
+			globalTouches = append(globalTouches, balanceKey)
 		}
 
-		globalLast[movement.BalanceRef] = movement.After
+		globalLast[balanceKey] = movement.After
 
-		if _, touched := transactionLast[transactionIndex][movement.BalanceRef]; !touched {
-			transactionTouches[transactionIndex] = append(transactionTouches[transactionIndex], movement.BalanceRef)
+		if _, touched := transactionLast[transactionIndex][balanceKey]; !touched {
+			transactionTouches[transactionIndex] = append(transactionTouches[transactionIndex], balanceKey)
 		}
 
-		transactionLast[transactionIndex][movement.BalanceRef] = movement.After
+		transactionLast[transactionIndex][balanceKey] = movement.After
 	}
 
-	finals, err := validateGlobalEngineFinal(result.Final, globalTouches, globalLast, balances)
+	finals, err := validateGlobalEngineFinal(request, result.Final, globalTouches, globalLast, balances)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +124,8 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 	return partitions, nil
 }
 
-func indexEngineResultBalances(balances []accounting.BalanceSnapshot) (map[string]accounting.BalanceSnapshot, error) {
+func indexEngineResultBalances(request accounting.Execution) (map[string]accounting.BalanceSnapshot, error) {
+	balances := request.Balances
 	byRef := make(map[string]accounting.BalanceSnapshot, len(balances))
 	byID := make(map[uuid.UUID]struct{}, len(balances))
 
@@ -128,7 +134,10 @@ func indexEngineResultBalances(balances []accounting.BalanceSnapshot) (map[strin
 			return nil, invalidTransactionCompletionRecord("execution contains an invalid balance identity")
 		}
 
-		if _, duplicate := byRef[balance.BalanceRef]; duplicate {
+		organizationID, ledgerID := completionBalanceScope(request, balance)
+
+		key := completionScopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)
+		if _, duplicate := byRef[key]; duplicate {
 			return nil, invalidTransactionCompletionRecord("execution contains a duplicate balance reference")
 		}
 
@@ -136,7 +145,7 @@ func indexEngineResultBalances(balances []accounting.BalanceSnapshot) (map[strin
 			return nil, invalidTransactionCompletionRecord("execution contains a duplicate balance identity")
 		}
 
-		byRef[balance.BalanceRef] = balance
+		byRef[key] = balance
 		byID[balance.ID] = struct{}{}
 	}
 
@@ -144,6 +153,7 @@ func indexEngineResultBalances(balances []accounting.BalanceSnapshot) (map[strin
 }
 
 func validateGlobalEngineFinal(
+	request accounting.Execution,
 	final []accounting.BalanceSnapshot,
 	firstTouch []string,
 	last map[string]accounting.BalanceState,
@@ -155,12 +165,15 @@ func validateGlobalEngineFinal(
 
 	byRef := make(map[string]accounting.BalanceSnapshot, len(final))
 	for index, snapshot := range final {
-		balance, exists := balances[snapshot.BalanceRef]
-		if !exists || snapshot.BalanceRef != firstTouch[index] {
+		organizationID, ledgerID := completionBalanceScope(request, snapshot)
+		key := completionScopedBalanceRef(organizationID, ledgerID, snapshot.BalanceRef)
+
+		balance, exists := balances[key]
+		if !exists || key != firstTouch[index] {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot order does not match first touch")
 		}
 
-		if !sameEngineBalanceIdentity(balance, snapshot) {
+		if !sameEngineBalanceIdentity(request, balance, snapshot) {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot identity differs from execution balance")
 		}
 
@@ -170,17 +183,23 @@ func validateGlobalEngineFinal(
 			OverdraftUsed: snapshot.OverdraftUsed,
 			Version:       snapshot.Version,
 		}
-		if !sameOperationState(last[snapshot.BalanceRef], state) {
+		if !sameOperationState(last[key], state) {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot disagrees with the last movement")
 		}
 
-		byRef[snapshot.BalanceRef] = snapshot
+		byRef[key] = snapshot
 	}
 
 	return byRef, nil
 }
 
-func sameEngineBalanceIdentity(left, right accounting.BalanceSnapshot) bool {
+// sameEngineBalanceIdentity compares effective scopes: a balance without its
+// own scope belongs to the execution's scope.
+func sameEngineBalanceIdentity(request accounting.Execution, left, right accounting.BalanceSnapshot) bool {
+	leftOrganizationID, leftLedgerID := completionBalanceScope(request, left)
+	rightOrganizationID, rightLedgerID := completionBalanceScope(request, right)
+
 	return left.BalanceRef == right.BalanceRef && left.ID == right.ID && left.AccountID == right.AccountID &&
+		leftOrganizationID == rightOrganizationID && leftLedgerID == rightLedgerID &&
 		left.AccountType == right.AccountType && left.AssetCode == right.AssetCode && left.Alias == right.Alias && left.Key == right.Key
 }

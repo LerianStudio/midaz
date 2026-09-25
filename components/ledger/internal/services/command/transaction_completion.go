@@ -73,54 +73,79 @@ type OperationRecordSpec struct {
 	CompatibilityPath string                  `json:"compatibilityPath"`
 }
 
+// TransactionCompletionMember names one transaction of a grouped execution by
+// the scope its engine evidence is indexed under.
+type TransactionCompletionMember struct {
+	TransactionID  uuid.UUID `json:"transactionId"`
+	OrganizationID uuid.UUID `json:"organizationId"`
+	LedgerID       uuid.UUID `json:"ledgerId"`
+}
+
 // TransactionCompletionPlan freezes Go processing decisions before execution.
 // TransactionInput includes resolved fees. Validate is retained for compatibility,
 // but neither its split amounts nor Balance snapshots determine engine arithmetic.
 // TransactionDate fixes the action/operation creation date. The other timestamps
 // preserve the original transaction creation and separately captured updates.
+// ExecutionMembers exists only on grouped plans: it lists every transaction the
+// same execution applies, this plan's own included, so a member can be found
+// before its rows are persisted. It covers that execution, not the whole group
+// (a hold lists only its origins), and it stays out of the intent fingerprint.
 type TransactionCompletionPlan struct {
-	FormatVersion        int                      `json:"formatVersion"`
-	TenantID             string                   `json:"tenantId"`
-	HeaderID             string                   `json:"header_id"`
-	TransactionID        uuid.UUID                `json:"transaction_id"`
-	ParentTransactionID  *uuid.UUID               `json:"parentTransactionId"`
-	FeesSkipped          bool                     `json:"feesSkipped"`
-	TracerSkipped        bool                     `json:"tracerSkipped"`
-	OrganizationID       uuid.UUID                `json:"organization_id"`
-	LedgerID             uuid.UUID                `json:"ledger_id"`
-	ExecutionID          uuid.UUID                `json:"executionId"`
-	IntentFingerprint    string                   `json:"intentFingerprint"`
-	TransactionInput     mtransaction.Transaction `json:"parserDSL"`
-	TTL                  time.Time                `json:"ttl"`
-	Validate             *mtransaction.Responses  `json:"validate"`
-	TransactionStatus    string                   `json:"transaction_status"`
-	Action               string                   `json:"action"`
-	TransactionDate      time.Time                `json:"transaction_date"`
-	TransactionCreatedAt time.Time                `json:"transactionCreatedAt"`
-	TransactionUpdatedAt time.Time                `json:"transactionUpdatedAt"`
-	OperationUpdatedAt   time.Time                `json:"operationUpdatedAt"`
-	OperationSpecs       []OperationRecordSpec    `json:"projection"`
+	FormatVersion              int                           `json:"formatVersion"`
+	TenantID                   string                        `json:"tenantId"`
+	HeaderID                   string                        `json:"header_id"`
+	TransactionID              uuid.UUID                     `json:"transaction_id"`
+	ParentTransactionID        *uuid.UUID                    `json:"parentTransactionId"`
+	GroupID                    *uuid.UUID                    `json:"groupId,omitempty"`
+	ExecutionMembers           []TransactionCompletionMember `json:"executionMembers,omitempty"`
+	FeesSkipped                bool                          `json:"feesSkipped"`
+	TracerSkipped              bool                          `json:"tracerSkipped"`
+	OrganizationID             uuid.UUID                     `json:"organization_id"`
+	LedgerID                   uuid.UUID                     `json:"ledger_id"`
+	CoordinationOrganizationID *uuid.UUID                    `json:"coordinationOrganizationId,omitempty"`
+	CoordinationLedgerID       *uuid.UUID                    `json:"coordinationLedgerId,omitempty"`
+	ReceiptOrganizationID      *uuid.UUID                    `json:"receiptOrganizationId,omitempty"`
+	ReceiptLedgerID            *uuid.UUID                    `json:"receiptLedgerId,omitempty"`
+	ExecutionID                uuid.UUID                     `json:"executionId"`
+	IntentFingerprint          string                        `json:"intentFingerprint"`
+	TransactionInput           mtransaction.Transaction      `json:"parserDSL"`
+	TTL                        time.Time                     `json:"ttl"`
+	Validate                   *mtransaction.Responses       `json:"validate"`
+	TransactionStatus          string                        `json:"transaction_status"`
+	Action                     string                        `json:"action"`
+	TransactionDate            time.Time                     `json:"transaction_date"`
+	TransactionCreatedAt       time.Time                     `json:"transactionCreatedAt"`
+	TransactionUpdatedAt       time.Time                     `json:"transactionUpdatedAt"`
+	OperationUpdatedAt         time.Time                     `json:"operationUpdatedAt"`
+	OperationSpecs             []OperationRecordSpec         `json:"projection"`
 }
 
 // TransactionCompletionRecord stores one transaction's actual executed result.
 // Payload is opaque to storage/accounting adapters; command and recovery decode it.
 type TransactionCompletionRecord struct {
-	FormatVersion     int                        `json:"formatVersion"`
-	TenantID          string                     `json:"tenantId"`
-	OrganizationID    uuid.UUID                  `json:"organizationId"`
-	LedgerID          uuid.UUID                  `json:"ledgerId"`
-	ExecutionID       uuid.UUID                  `json:"executionId"`
-	IntentFingerprint string                     `json:"intentFingerprint"`
-	TransactionID     uuid.UUID                  `json:"transactionId"`
-	Payload           string                     `json:"payload"`
-	Result            accounting.ExecutionResult `json:"result"`
+	FormatVersion              int                        `json:"formatVersion"`
+	TenantID                   string                     `json:"tenantId"`
+	OrganizationID             uuid.UUID                  `json:"organizationId"`
+	LedgerID                   uuid.UUID                  `json:"ledgerId"`
+	CoordinationOrganizationID *uuid.UUID                 `json:"coordinationOrganizationId,omitempty"`
+	CoordinationLedgerID       *uuid.UUID                 `json:"coordinationLedgerId,omitempty"`
+	ReceiptOrganizationID      *uuid.UUID                 `json:"receiptOrganizationId,omitempty"`
+	ReceiptLedgerID            *uuid.UUID                 `json:"receiptLedgerId,omitempty"`
+	ExecutionID                uuid.UUID                  `json:"executionId"`
+	IntentFingerprint          string                     `json:"intentFingerprint"`
+	TransactionID              uuid.UUID                  `json:"transactionId"`
+	Payload                    string                     `json:"payload"`
+	Result                     accounting.ExecutionResult `json:"result"`
 }
 
 // EngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
 type EngineTransactionIntent struct {
+	OrganizationID          string                          `json:"organizationId,omitempty"`
+	LedgerID                string                          `json:"ledgerId,omitempty"`
 	TransactionID           uuid.UUID                       `json:"transactionId"`
 	ParentTransactionID     *uuid.UUID                      `json:"parentTransactionId"`
+	GroupID                 *uuid.UUID                      `json:"groupId,omitempty"`
 	FeesSkipped             bool                            `json:"feesSkipped"`
 	TracerSkipped           bool                            `json:"tracerSkipped"`
 	AccountBlockExceptionID *uuid.UUID                      `json:"accountBlockExceptionId,omitempty"`
@@ -334,6 +359,16 @@ func DecodeTransactionCompletionPlan(data []byte) (*TransactionCompletionPlan, e
 	return &payload, nil
 }
 
+// BuildTransactionCompletionIntent returns the frozen intent of one transaction
+// exactly as ValidateTransactionCompletion recomputes it. The transaction scope
+// enters the intent only when the engine transaction carries one, so a record
+// frozen before per-item scope stays verifiable. It exists for fixtures and
+// tooling that must hash the same intent as production; command paths freeze
+// intents through their execution builders.
+func BuildTransactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) EngineTransactionIntent {
+	return transactionCompletionIntent(transaction, payload)
+}
+
 // ValidateTransactionCompletion checks request, recovery, and guard correlation.
 // The adapter must separately compare the payload tenant with authenticated context.
 func ValidateTransactionCompletion(input EngineExecution) error {
@@ -375,7 +410,7 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 			return err
 		}
 
-		if err := validateCompletionExecutionScope(input, recovery.TransactionID, payload); err != nil {
+		if err := validateCompletionExecutionScope(input, transaction, payload); err != nil {
 			return err
 		}
 
@@ -390,11 +425,12 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 			return err
 		}
 
-		if err := validateCompletionSnapshotIdentities(request.Balances, payload.OperationSpecs); err != nil {
+		organizationID, ledgerID := completionTransactionScope(request, transaction)
+		if err := validateCompletionSnapshotIdentities(request, organizationID, ledgerID, payload.OperationSpecs); err != nil {
 			return err
 		}
 
-		if err := validateCompletionBalanceRequirements(request.Balances, transaction.BalanceRequirements); err != nil {
+		if err := validateCompletionBalanceRequirements(request, organizationID, ledgerID, transaction.BalanceRequirements); err != nil {
 			return err
 		}
 
@@ -408,14 +444,17 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 	return validateCompletionExecutionFingerprint(request, tenant, intents, input.IntentFingerprint)
 }
 
-func validateCompletionBalanceRequirements(snapshots []accounting.BalanceSnapshot, requirements []accounting.BalanceRequirement) error {
+func validateCompletionBalanceRequirements(request accounting.Execution, organizationID, ledgerID uuid.UUID, requirements []accounting.BalanceRequirement) error {
+	snapshots := request.Balances
+
 	known := make(map[string]struct{}, len(snapshots))
 	for _, snapshot := range snapshots {
-		known[snapshot.BalanceRef] = struct{}{}
+		snapshotOrganizationID, snapshotLedgerID := completionBalanceScope(request, snapshot)
+		known[completionScopedBalanceRef(snapshotOrganizationID, snapshotLedgerID, snapshot.BalanceRef)] = struct{}{}
 	}
 
 	for _, requirement := range requirements {
-		if _, exists := known[requirement.BalanceRef]; !exists || requirement.AssetCode == "" ||
+		if _, exists := known[completionScopedBalanceRef(organizationID, ledgerID, requirement.BalanceRef)]; !exists || requirement.AssetCode == "" ||
 			(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
 			return invalidTransactionCompletionRecord("invalid execution balance requirement")
 		}
@@ -458,14 +497,17 @@ func validateCompletionExecutionFingerprint(request accounting.Execution, tenant
 	return nil
 }
 
-func validateCompletionSnapshotIdentities(snapshots []accounting.BalanceSnapshot, projections []OperationRecordSpec) error {
+func validateCompletionSnapshotIdentities(request accounting.Execution, organizationID, ledgerID uuid.UUID, projections []OperationRecordSpec) error {
+	snapshots := request.Balances
+
 	byRef := make(map[string]accounting.BalanceSnapshot, len(snapshots))
 	for _, snapshot := range snapshots {
-		byRef[snapshot.BalanceRef] = snapshot
+		snapshotOrganizationID, snapshotLedgerID := completionBalanceScope(request, snapshot)
+		byRef[completionScopedBalanceRef(snapshotOrganizationID, snapshotLedgerID, snapshot.BalanceRef)] = snapshot
 	}
 
 	for _, spec := range projections {
-		snapshot, exists := byRef[spec.BalanceRef]
+		snapshot, exists := byRef[completionScopedBalanceRef(organizationID, ledgerID, spec.BalanceRef)]
 		if !exists {
 			continue
 		}
@@ -481,7 +523,7 @@ func validateCompletionSnapshotIdentities(snapshots []accounting.BalanceSnapshot
 
 func transactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) EngineTransactionIntent {
 	intent := EngineTransactionIntent{
-		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
+		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID, GroupID: payload.GroupID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
@@ -489,6 +531,11 @@ func transactionCompletionIntent(transaction accounting.Transaction, payload Tra
 		BalanceRequirements: append([]accounting.BalanceRequirement(nil), transaction.BalanceRequirements...),
 		OperationSpecs:      make([]OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
+	if transaction.OrganizationID != uuid.Nil || transaction.LedgerID != uuid.Nil {
+		intent.OrganizationID = payload.OrganizationID.String()
+		intent.LedgerID = payload.LedgerID.String()
+	}
+
 	if transaction.AccountBlockException != nil {
 		exceptionID := transaction.AccountBlockException.ExceptionID
 		intent.AccountBlockExceptionID = &exceptionID
@@ -518,13 +565,35 @@ func validateCompletionExecutionIdentity(input EngineExecution) error {
 	return nil
 }
 
-func validateCompletionExecutionScope(input EngineExecution, transactionID uuid.UUID, payload *TransactionCompletionPlan) error {
+func validateCompletionExecutionScope(input EngineExecution, transaction accounting.Transaction, payload *TransactionCompletionPlan) error {
 	request := input.Execution
-	if payload.TransactionID != transactionID || payload.ExecutionID != request.ExecutionID || payload.OrganizationID != request.OrganizationID || payload.LedgerID != request.LedgerID || payload.IntentFingerprint != input.IntentFingerprint {
+
+	organizationID, ledgerID := completionTransactionScope(request, transaction)
+	if payload.TransactionID != transaction.ID || payload.ExecutionID != request.ExecutionID || payload.OrganizationID != organizationID || payload.LedgerID != ledgerID || payload.IntentFingerprint != input.IntentFingerprint {
 		return invalidTransactionCompletionRecord("recovery scope does not match execution")
 	}
 
 	return nil
+}
+
+func completionTransactionScope(request accounting.Execution, transaction accounting.Transaction) (uuid.UUID, uuid.UUID) {
+	if transaction.OrganizationID == uuid.Nil && transaction.LedgerID == uuid.Nil {
+		return request.OrganizationID, request.LedgerID
+	}
+
+	return transaction.OrganizationID, transaction.LedgerID
+}
+
+func completionBalanceScope(request accounting.Execution, balance accounting.BalanceSnapshot) (uuid.UUID, uuid.UUID) {
+	if balance.OrganizationID == uuid.Nil && balance.LedgerID == uuid.Nil {
+		return request.OrganizationID, request.LedgerID
+	}
+
+	return balance.OrganizationID, balance.LedgerID
+}
+
+func completionScopedBalanceRef(organizationID, ledgerID uuid.UUID, ref string) string {
+	return organizationID.String() + ":" + ledgerID.String() + ":" + ref
 }
 
 func validateCompletionPostings(transaction accounting.Transaction, projections []OperationRecordSpec) error {
@@ -592,13 +661,24 @@ func DecodeTransactionCompletionRecord(data []byte) (*TransactionCompletionRecor
 	return &envelope, nil
 }
 
+//nolint:gocyclo // validation checks independent persisted identity and projection invariants.
 func validateTransactionCompletionPlan(payload TransactionCompletionPlan) error {
 	if payload.FormatVersion != TransactionCompletionFormatVersion || payload.TransactionID == uuid.Nil || payload.OrganizationID == uuid.Nil || payload.LedgerID == uuid.Nil || payload.ExecutionID == uuid.Nil || !validIntentFingerprint(payload.IntentFingerprint) {
 		return invalidTransactionCompletionRecord("invalid payload version or identity")
 	}
 
+	if !validOptionalCompletionScope(payload.CoordinationOrganizationID, payload.CoordinationLedgerID) ||
+		!validOptionalCompletionScope(payload.ReceiptOrganizationID, payload.ReceiptLedgerID) ||
+		(payload.CoordinationOrganizationID == nil) != (payload.ReceiptOrganizationID == nil) {
+		return invalidTransactionCompletionRecord("invalid batch coordination scope")
+	}
+
 	if !validCompletionParent(payload.TransactionID, payload.ParentTransactionID) {
 		return invalidTransactionCompletionRecord("invalid parent transaction identity")
+	}
+
+	if err := validateTransactionCompletionMembers(payload); err != nil {
+		return err
 	}
 
 	if payload.TTL.IsZero() || payload.Action == "" || payload.TransactionStatus == "" || payload.OperationSpecs == nil {
@@ -629,6 +709,58 @@ func validateTransactionCompletionPlan(payload TransactionCompletionPlan) error 
 	}
 
 	return validateOperationRecordAttribution(contexts)
+}
+
+// validateTransactionCompletionMembers accepts a grouped plan without a
+// manifest, but a present manifest must name its own plan in the plan's scope.
+func validateTransactionCompletionMembers(payload TransactionCompletionPlan) error {
+	if payload.ExecutionMembers == nil {
+		return nil
+	}
+
+	if payload.GroupID == nil || len(payload.ExecutionMembers) == 0 || len(payload.ExecutionMembers) > maxPreparedEngineTransactions {
+		return invalidTransactionCompletionRecord("invalid execution member manifest")
+	}
+
+	seen := make(map[uuid.UUID]bool, len(payload.ExecutionMembers))
+	ownListed := false
+
+	for _, member := range payload.ExecutionMembers {
+		if member.TransactionID == uuid.Nil || member.OrganizationID == uuid.Nil || member.LedgerID == uuid.Nil || seen[member.TransactionID] {
+			return invalidTransactionCompletionRecord("invalid or duplicate execution member")
+		}
+
+		seen[member.TransactionID] = true
+
+		if member.TransactionID == payload.TransactionID {
+			if member.OrganizationID != payload.OrganizationID || member.LedgerID != payload.LedgerID {
+				return invalidTransactionCompletionRecord("execution member scope does not match its plan")
+			}
+
+			ownListed = true
+		}
+	}
+
+	if !ownListed {
+		return invalidTransactionCompletionRecord("execution member manifest omits its own transaction")
+	}
+
+	return nil
+}
+
+// stampTransactionCompletionMembers gives every plan of one grouped execution
+// its own copy of the manifest of all transactions that execution applies.
+func stampTransactionCompletionMembers(plans []*TransactionCompletionPlan) {
+	members := make([]TransactionCompletionMember, 0, len(plans))
+	for _, plan := range plans {
+		members = append(members, TransactionCompletionMember{
+			TransactionID: plan.TransactionID, OrganizationID: plan.OrganizationID, LedgerID: plan.LedgerID,
+		})
+	}
+
+	for _, plan := range plans {
+		plan.ExecutionMembers = append([]TransactionCompletionMember(nil), members...)
+	}
 }
 
 func validFrozenTimestamps(action, created, updated, operationUpdated time.Time) bool {
@@ -706,9 +838,38 @@ func validateTransactionCompletionRecord(envelope TransactionCompletionRecord) e
 		return invalidTransactionCompletionRecord("envelope and payload scope mismatch")
 	}
 
+	if !sameOptionalCompletionScope(envelope.CoordinationOrganizationID, envelope.CoordinationLedgerID,
+		payload.CoordinationOrganizationID, payload.CoordinationLedgerID) ||
+		!sameOptionalCompletionScope(envelope.ReceiptOrganizationID, envelope.ReceiptLedgerID,
+			payload.ReceiptOrganizationID, payload.ReceiptLedgerID) {
+		return invalidTransactionCompletionRecord("envelope and payload coordination scope mismatch")
+	}
+
 	_, err = validateOperationMovementResult(*payload, envelope.Result)
 
 	return err
+}
+
+func sameOptionalCompletionScope(
+	firstOrganizationID, firstLedgerID, secondOrganizationID, secondLedgerID *uuid.UUID,
+) bool {
+	if (firstOrganizationID == nil) != (firstLedgerID == nil) ||
+		(secondOrganizationID == nil) != (secondLedgerID == nil) ||
+		(firstOrganizationID == nil) != (secondOrganizationID == nil) {
+		return false
+	}
+
+	if firstOrganizationID == nil {
+		return true
+	}
+
+	return *firstOrganizationID != uuid.Nil && *firstLedgerID != uuid.Nil &&
+		*firstOrganizationID == *secondOrganizationID && *firstLedgerID == *secondLedgerID
+}
+
+func validOptionalCompletionScope(organizationID, ledgerID *uuid.UUID) bool {
+	return (organizationID == nil && ledgerID == nil) ||
+		(organizationID != nil && ledgerID != nil && *organizationID != uuid.Nil && *ledgerID != uuid.Nil)
 }
 
 func validOperationRecordRole(role string) bool {

@@ -1,7 +1,8 @@
 // Midaz Ledger — Business & CRM dashboard.
 //
 // Domain metrics, bulk recorder integrity, data access and CRM field protection.
-// Every query was validated against live series in Mimir; see ../telemetry-dictionary.md.
+// Every query outside the Cross-ledger row was validated against live series in Mimir; that
+// row was authored with the code that emits it. See ../telemetry-dictionary.md.
 
 local d = import '../../lib/dashboard.libsonnet';
 
@@ -26,6 +27,7 @@ local ratedBy(label, metric) = 'sum by (%s) (rate(%s{%s}[$__rate_interval]))' % 
 // Mimir but appear nowhere in the Go source — they are legacy series inside retention,
 // and a panel built on them would read zero permanently.
 local rangeOp(op) = 'sum(increase(domain_operations_total{%s, operation="%s", result="success"}[$__range]))' % [app, op];
+local crossLedgerOperations = 'create_cross_ledger_transaction|create_cross_ledger_hold|commit_cross_ledger_group|cancel_cross_ledger_group|revert_cross_ledger_group';
 local windowedOp(op) = 'sum(increase(domain_operations_total{%s, operation="%s", result="success"}[$__rate_interval]))' % [app, op];
 
 d.dashboard(
@@ -337,6 +339,58 @@ d.dashboard(
       {
         unit: 'reqps',
         description: 'Reads still served from the legacy format by the unified ledger binary. Under migration to envelope mode this line should trend to zero.',
+      }
+    ),
+
+    d.row('Cross-ledger', 80),
+
+    d.timeSeries(
+      'Group operations by result',
+      [d.promTarget(
+        'sum by (operation, result) (increase(domain_operations_total{%s, operation=~"%s"}[$__rate_interval]))' % [app, crossLedgerOperations],
+        '{{operation}} · {{result}}'
+      )],
+      pos(0, 81, 12, 8),
+      {
+        stack: true,
+        legend: 'table',
+        description: 'Cross-ledger coordinator outcomes: direct create, hold, commit, cancel and whole-group revert. A business_error is a refused group (disabled ledger, incomplete or already-terminal group); nothing of it was applied. Added before the series existed in any surveyed environment; see the dictionary entries for live status.',
+      }
+    ),
+
+    d.timeSeries(
+      'Ledgers per group (p95)',
+      [d.promTarget(
+        'histogram_quantile(0.95, sum by (le, action) (rate(cross_ledger_group_ledgers_bucket{%s}[$__rate_interval])))' % app,
+        '{{action}}'
+      )],
+      pos(12, 81, 12, 8),
+      {
+        fill: 0,
+        description: 'Distinct ledgers taking part in each applied group operation, by action. The ledger count is a bucketed value rather than a label, so no group or ledger ever becomes a series.',
+      }
+    ),
+
+    d.timeSeries(
+      'Atomic batches by scope',
+      [d.promTarget(
+        'sum by (scope, outcome) (increase(atomic_transaction_batches_total{%s, outcome!="received"}[$__rate_interval]))' % app,
+        '{{scope}} · {{outcome}}'
+      )],
+      pos(0, 89, 12, 8),
+      {
+        stack: true,
+        description: 'Atomic batch outcomes split by scope. cross_ledger is a direct, hold or revert group executed as one batch; single is an ordinary same-ledger batch. recovering means the execution was handed off and its completion belongs to recovery.',
+      }
+    ),
+
+    d.timeSeries(
+      'Group reconciliation',
+      [d.promTarget(windowedBy('result', 'cross_ledger_group_reconcile_total'), '{{result}}')],
+      pos(12, 89, 12, 8),
+      {
+        stack: true,
+        description: 'PENDING group rows read by the recovery-cycle reconciler. repaired aligned a row with members that had already settled; deleted removed an intent that never produced a member; inconsistent is a group whose members disagree and needs an operator — it is never written.',
       }
     ),
   ]

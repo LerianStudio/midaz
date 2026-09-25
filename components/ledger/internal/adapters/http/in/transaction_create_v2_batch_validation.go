@@ -233,20 +233,6 @@ func firstTransactionV2InternalScopeDifference(request CreateTransactionV2Reques
 	return "", false
 }
 
-func firstTransactionV2ScopeDifference(request CreateTransactionV2Request, expected TransactionV2Scope) string {
-	refs := make([]v2ScopeRef, 0, len(request.Debits)+len(request.Credits))
-	refs = appendTransactionV2ScopeRefs(refs, request.Debits, "debits")
-	refs = appendTransactionV2ScopeRefs(refs, request.Credits, "credits")
-
-	for _, ref := range refs {
-		if ref.requireComplete() == nil && !expected.namesSameAs(ref.scope) {
-			return transactionV2ScopeDifferenceLocation(ref.ref, expected, ref.scope)
-		}
-	}
-
-	return ""
-}
-
 func transactionV2ScopeDifferenceLocation(ref string, expected, actual TransactionV2Scope) string {
 	if !strings.EqualFold(expected.OrganizationID, actual.OrganizationID) {
 		return ref + ".organizationId"

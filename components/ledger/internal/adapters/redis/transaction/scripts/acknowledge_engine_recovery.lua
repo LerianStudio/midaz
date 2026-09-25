@@ -10,8 +10,8 @@
 --       execution UUID, terminal flag (0|1), durable completion unix millis,
 --       legacy recovery source flag (0|1), and optionally the exact receipt
 --       token, batch owner, complete record, organization UUID, ledger UUID.
-local batchMode = #KEYS == 10 and #ARGV == 13
-if (#KEYS ~= 8 or #ARGV ~= 8) and not batchMode then
+local batchMode = #ARGV == 13
+if (#ARGV ~= 8 and not batchMode) or #KEYS < (batchMode and 10 or 8) then
     return redis.error_reply("ERR invalid protected recovery acknowledgement arguments")
 end
 
@@ -126,6 +126,37 @@ if receipt.protection == nil then
     return 1
 end
 
+local baseKeyCount = batchMode and 10 or 8
+local partKeys = {}
+local scopes = receipt.protection.scopes
+if scopes ~= nil then
+    if receipt.protection.formatVersion ~= 2 or type(scopes) ~= "table" or
+        #scopes ~= #receipt.protection.transactions or #KEYS ~= baseKeyCount + #scopes then
+        return redis.error_reply("ERR invalid protected recovery receipt scopes")
+    end
+    for index, part in ipairs(scopes) do
+        if type(part) ~= "table" or type(part.organizationId) ~= "string" or part.organizationId == "" or
+            type(part.ledgerId) ~= "string" or part.ledgerId == "" then
+            return redis.error_reply("ERR invalid protected recovery transaction scope")
+        end
+        local key = KEYS[baseKeyCount + index]
+        local kind = redisType(key)
+        if kind ~= "none" and kind ~= "hash" then
+            return redis.error_reply("WRONGTYPE protected recovery part coordinator must be a hash")
+        end
+        partKeys[part.organizationId .. ":" .. part.ledgerId] = key
+    end
+elseif #KEYS ~= baseKeyCount then
+    return redis.error_reply("ERR invalid protected recovery acknowledgement keys")
+end
+
+local function coordinatorKeyFor(linked, index)
+    if linked.protection.scopes == nil then return protectionKey end
+    local part = linked.protection.scopes[index]
+    if type(part) ~= "table" then return nil end
+    return partKeys[part.organizationId .. ":" .. part.ledgerId]
+end
+
 local member = false
 local memberIndex = false
 for index, id in ipairs(receipt.protection.transactions) do
@@ -146,7 +177,6 @@ if receipt.protection.formatVersion == 2 then
         envelope.applicationState ~= "confirmed" or envelope.replayState ~= "reconstructible" or
         envelope.durabilityState ~= "pending" or type(envelope.record) ~= "table" or
         envelope.record.formatVersion ~= 2 or envelope.record.tenantId ~= receipt.tenantId or
-        envelope.record.organizationId ~= receipt.organizationId or envelope.record.ledgerId ~= receipt.ledgerId or
         envelope.record.transactionId ~= transactionID or envelope.record.executionId ~= executionID then
         return redis.error_reply("ERR invalid write-behind recovery envelope")
     end
@@ -154,13 +184,17 @@ if receipt.protection.formatVersion == 2 then
     if not rawIndex then return redis.error_reply("ERR transaction evidence index is missing") end
     local indexDecoded, index = pcall(cjson.decode, rawIndex)
     if not indexDecoded or type(index) ~= "table" or index.formatVersion ~= 1 or
-        index.tenantId ~= receipt.tenantId or index.organizationId ~= receipt.organizationId or
-        index.ledgerId ~= receipt.ledgerId or index.transactionId ~= transactionID or
+        index.tenantId ~= receipt.tenantId or index.organizationId ~= envelope.record.organizationId or
+        index.ledgerId ~= envelope.record.ledgerId or index.transactionId ~= transactionID or
         index.applicationState ~= "confirmed" or
         (index.replayState ~= "reconstructible" and index.replayState ~= "materialized") or
         (index.durabilityState ~= "pending" and index.durabilityState ~= "complete") or
         type(index.dependencies) ~= "table" then
         return redis.error_reply("ERR transaction evidence index differs")
+    end
+    if receipt.organizationId ~= (index.receiptOrganizationId or index.organizationId) or
+        receipt.ledgerId ~= (index.receiptLedgerId or index.ledgerId) then
+        return redis.error_reply("ERR transaction receipt scope differs")
     end
     completedEvidence = markDurabilityComplete(expected)
     if not completedEvidence then
@@ -179,8 +213,8 @@ if receipt.protection.formatVersion == 2 then
         local protectsPredecessor = false
         for _, dependency in ipairs(index.dependencies) do
             if type(dependency) == "table" and dependency.kind == "predecessor" and
-                dependency.tenantId == receipt.tenantId and dependency.organizationId == receipt.organizationId and
-                dependency.ledgerId == receipt.ledgerId and dependency.transactionId == transactionID and
+                dependency.tenantId == receipt.tenantId and dependency.organizationId == index.organizationId and
+                dependency.ledgerId == index.ledgerId and dependency.transactionId == transactionID and
                 dependency.executionId == executionID then
                 protectsPredecessor = true
             end
@@ -340,6 +374,15 @@ if batchMode then
     end
 end
 
+for linkedExecution, _ in pairs(deadlines) do
+    local linked = receipts[linkedExecution]
+    for index, _ in ipairs(linked.protection.transactions) do
+        if not coordinatorKeyFor(linked, index) then
+            return redis.error_reply("ERR linked protection scope is unavailable")
+        end
+    end
+end
+
 -- Every validation and read happens before the acknowledgement deletion. Only
 -- deterministic hash writes remain afterward.
 if batchPayload then
@@ -361,8 +404,9 @@ end
 -- has independently reached terminal durability and full acknowledgement.
 for linkedExecution, deadline in pairs(deadlines) do
     local linked = receipts[linkedExecution]
-    for _, id in ipairs(linked.protection.transactions) do
-        local raw = redis.call("HGET", protectionKey, id)
+    for index, id in ipairs(linked.protection.transactions) do
+        local key = coordinatorKeyFor(linked, index)
+        local raw = redis.call("HGET", key, id)
         if raw then
             local ok, state = pcall(cjson.decode, raw)
             if ok and type(state) == "table" and state.formatVersion == 1 and type(state.executions) == "table" and state.executions[linkedExecution] ~= nil then
@@ -378,7 +422,7 @@ for linkedExecution, deadline in pairs(deadlines) do
                 -- Valkey 8.1 lacks per-hash-field expiry. Keep the fully proven
                 -- deadline in the coordinator for the bounded cleanup owner.
                 if allReady then state.cleanupAfterMs = guardDeadline end
-                redis.call("HSET", protectionKey, id, cjson.encode(state))
+                redis.call("HSET", key, id, cjson.encode(state))
             end
         end
     end

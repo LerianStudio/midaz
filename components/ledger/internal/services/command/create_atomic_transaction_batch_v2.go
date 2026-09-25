@@ -42,6 +42,8 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 	OrganizationID          uuid.UUID
 	LedgerID                uuid.UUID
 	Transaction             mtransaction.Transaction
+	ParentTransactionID     *uuid.UUID
+	Dependencies            []TransactionEvidenceReference
 	AccountBlockExceptionID *uuid.UUID
 	Action                  string
 	Order                   int
@@ -53,6 +55,8 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 // claim introduced by the later pre-publication phase.
 type CreateAtomicTransactionBatchV2Input struct {
 	Transactions       []CreateAtomicTransactionBatchV2ItemInput
+	GroupID            *uuid.UUID
+	CrossLedgerGroup   bool
 	CanonicalRequest   []byte
 	RequestFingerprint string
 	IdempotencyKey     string
@@ -71,21 +75,32 @@ type CreateAtomicTransactionBatchV2Result struct {
 // exists only in items; maps may be used by later phases for lookup, but never
 // to rebuild this slice or determine execution order.
 type atomicTransactionBatchRun struct {
-	batchID                 uuid.UUID
-	executionID             uuid.UUID
-	organizationID          uuid.UUID
-	ledgerID                uuid.UUID
-	ledgerSettings          mmodel.LedgerSettings
-	idempotencyTTL          time.Duration
-	idempotencyEffectiveKey string
-	idempotencyFingerprint  string
-	idempotencyOwnerToken   string
-	idempotencyClaimed      bool
-	idempotencyHandedOff    bool
-	engineIntentFingerprint string
-	rejectionDimension      string
-	budgetMeasurements      *atomicTransactionBatchBudgetMeasurements
-	items                   []atomicTransactionBatchItemRun
+	batchID        uuid.UUID
+	groupID        *uuid.UUID
+	executionID    uuid.UUID
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	// The coordination scope names idempotency keys; organizationID/ledgerID
+	// remain the first item's engine receipt scope.
+	coordinationOrganizationID uuid.UUID
+	coordinationLedgerID       uuid.UUID
+	multiScope                 bool
+	ledgerSettings             mmodel.LedgerSettings
+	idempotencyTTL             time.Duration
+	idempotencyEffectiveKey    string
+	idempotencyFingerprint     string
+	idempotencyOwnerToken      string
+	idempotencyClaimed         bool
+	idempotencyHandedOff       bool
+	engineIntentFingerprint    string
+	rejectionDimension         string
+	budgetMeasurements         *atomicTransactionBatchBudgetMeasurements
+	items                      []atomicTransactionBatchItemRun
+}
+
+type atomicTransactionBatchLedgerRef struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
 }
 
 // atomicTransactionBatchItemRun owns the stable per-item identity and temporal
@@ -96,6 +111,9 @@ type atomicTransactionBatchItemRun struct {
 	order                   int
 	originalIndex           int
 	revised                 bool
+	organizationID          uuid.UUID
+	ledgerID                uuid.UUID
+	ledgerSettings          mmodel.LedgerSettings
 	transactionID           uuid.UUID
 	transactionDate         time.Time
 	transactionCreatedAt    time.Time
@@ -103,6 +121,8 @@ type atomicTransactionBatchItemRun struct {
 	operationUpdatedAt      time.Time
 	input                   mtransaction.Transaction
 	status                  string
+	parentTransactionID     *uuid.UUID
+	dependencies            []TransactionEvidenceReference
 	accountBlockExceptionID *uuid.UUID
 	validate                *mtransaction.Responses
 	fromTo                  []mtransaction.FromTo
@@ -130,29 +150,30 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 	defer span.End()
 
 	startedAt := time.Now()
+	scope := atomicTransactionBatchScope(in.CrossLedgerGroup)
 
 	uc.recordAtomicTransactionBatchReceived(ctx, in)
 
 	var run *atomicTransactionBatchRun
 	defer func() {
-		uc.recordAtomicTransactionBatchCompleted(ctx, result, run, err, time.Since(startedAt))
+		uc.recordAtomicTransactionBatchCompleted(ctx, scope, result, run, err, time.Since(startedAt))
 	}()
 
 	phaseStartedAt := time.Now()
 	run, err = uc.initializeAtomicTransactionBatchIdentity(ctx, in)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "identity", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "identity", time.Since(phaseStartedAt))
 
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
-		return nil, err
+		return nil, markAtomicTransactionBatchPrePublication(err)
 	}
 
 	phaseStartedAt = time.Now()
 	replay, err := uc.claimAtomicTransactionBatch(ctx, in, run)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "idempotency", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "idempotency", time.Since(phaseStartedAt))
 
 	if err != nil {
-		return nil, err
+		return nil, markAtomicTransactionBatchPrePublication(err)
 	}
 
 	if replay != nil {
@@ -166,18 +187,18 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
-		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
 	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
-		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
 	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
 
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
@@ -205,11 +226,11 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	if err := uc.reserveAtomicTransactionBatch(ctx, span, logger, run); err != nil {
-		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "reservation", time.Since(phaseStartedAt))
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "reservation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "reservation", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "reservation", time.Since(phaseStartedAt))
 
 	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
 		return nil, err
@@ -217,7 +238,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared, admissions)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "accounting", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "accounting", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, err
@@ -225,7 +246,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	transactions, err := uc.completeAtomicTransactionBatch(ctx, logger, run, outcome)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "completion", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "completion", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, err
@@ -248,11 +269,11 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 		return nil, err
 	}
 
-	organizationID, ledgerID, err := validateAtomicTransactionBatchScope(in.Transactions)
+	organizationID, ledgerID, err := validateAtomicTransactionBatchScope(in.Transactions, in.CrossLedgerGroup)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateAtomicTransactionBatchItemCorrelation(in.Transactions); err != nil {
+	if err := validateAtomicTransactionBatchItemCorrelationForGroup(in.Transactions, in.CrossLedgerGroup); err != nil {
 		return nil, err
 	}
 
@@ -260,21 +281,44 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 		return nil, errors.New("atomic transaction batch UUIDv7 generator is not configured")
 	}
 
-	batchID, err := uc.UUIDv7Generator()
-	if err != nil {
-		return nil, fmt.Errorf("generate atomic transaction batch id: %w", err)
+	var batchID uuid.UUID
+	if in.GroupID != nil {
+		batchID = *in.GroupID
+	} else {
+		batchID, err = uc.UUIDv7Generator()
+		if err != nil {
+			return nil, fmt.Errorf("generate atomic transaction batch id: %w", err)
+		}
 	}
 
 	if batchID == uuid.Nil {
 		return nil, errors.New("atomic transaction batch UUIDv7 generator returned a nil batch id")
 	}
+	refs := atomicTransactionBatchLedgerRefs(in.Transactions)
+	coordinationOrganizationID, coordinationLedgerID := atomicTransactionBatchCoordinationScope(refs)
 
 	return &atomicTransactionBatchRun{
-		batchID:        batchID,
-		organizationID: organizationID,
-		ledgerID:       ledgerID,
-		idempotencyTTL: in.IdempotencyTTL,
+		batchID:                    batchID,
+		groupID:                    in.GroupID,
+		organizationID:             organizationID,
+		ledgerID:                   ledgerID,
+		coordinationOrganizationID: coordinationOrganizationID,
+		coordinationLedgerID:       coordinationLedgerID,
+		multiScope:                 len(refs) > 1,
+		idempotencyTTL:             in.IdempotencyTTL,
 	}, nil
+}
+
+func atomicTransactionBatchCoordinationScope(refs []atomicTransactionBatchLedgerRef) (uuid.UUID, uuid.UUID) {
+	selected := refs[0]
+	for _, ref := range refs[1:] {
+		if ref.organizationID.String() < selected.organizationID.String() ||
+			(ref.organizationID == selected.organizationID && ref.ledgerID.String() < selected.ledgerID.String()) {
+			selected = ref
+		}
+	}
+
+	return selected.organizationID, selected.ledgerID
 }
 
 func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
@@ -302,11 +346,25 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 		run.items[index] = item
 	}
 
-	var err error
-
-	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
-	if err != nil {
-		return fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
+	refs := atomicTransactionBatchLedgerRefs(in.Transactions)
+	settingsByRef := make(map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings, len(refs))
+	for _, ref := range refs {
+		settings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, ref.organizationID, ref.ledgerID)
+		if err != nil {
+			return fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
+		}
+		if len(refs) > 1 && !settings.CrossLedger.Enabled {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, ref.ledgerID.String())
+		}
+		if in.CrossLedgerGroup && settings.Accounting.ValidateRoutes {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
+		}
+		settingsByRef[ref] = settings
+	}
+	run.ledgerSettings = settingsByRef[refs[0]]
+	for index := range run.items {
+		item := &run.items[index]
+		item.ledgerSettings = settingsByRef[atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}]
 	}
 
 	// State-dependent validation starts only after the complete ordered run is
@@ -315,6 +373,7 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 	for index := range run.items {
 		item := &run.items[index]
 
+		var err error
 		item.transactionDate, err = resolveTransactionDateAt(item.input, item.status, item.transactionCreatedAt)
 		if err != nil {
 			return withAtomicTransactionBatchRunItemError(err, item, "transaction date validation failed")
@@ -335,7 +394,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItems(
 			return err
 		}
 
-		if err := uc.prepareAtomicTransactionBatchItem(ctx, span, logger, run, &run.items[index]); err != nil {
+		if err := uc.prepareAtomicTransactionBatchItem(ctx, span, logger, &run.items[index]); err != nil {
 			return withAtomicTransactionBatchRunItemError(err, &run.items[index], "transaction preparation failed")
 		}
 	}
@@ -355,7 +414,6 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
-	run *atomicTransactionBatchRun,
 	item *atomicTransactionBatchItemRun,
 ) error {
 	if err := validatePositiveTransactionValue(ctx, span, logger, item.input.Send.Value); err != nil {
@@ -369,7 +427,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 		return pkg.HandleKnownBusinessValidationErrors(err)
 	}
 
-	feeSkip, tracerSkip, _, err := resolveTransactionSkips(item.input, run.ledgerSettings)
+	feeSkip, tracerSkip, _, err := resolveTransactionSkips(item.input, item.ledgerSettings)
 	if err != nil {
 		return err
 	}
@@ -377,15 +435,17 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	item.honoredFeeSkip = feeSkip
 	item.honoredTracerSkip = tracerSkip
 
-	if err := uc.applyFees(
-		ctx,
-		&item.input,
-		run.organizationID,
-		run.ledgerID,
-		item.input.Pending,
-		item.honoredFeeSkip,
-	); err != nil {
-		return err
+	if item.action != constant.ActionRevert {
+		if err := uc.applyFees(
+			ctx,
+			&item.input,
+			item.organizationID,
+			item.ledgerID,
+			item.input.Pending,
+			item.honoredFeeSkip,
+		); err != nil {
+			return err
+		}
 	}
 
 	normalizeTransactionSendLegs(&item.input)
@@ -398,18 +458,20 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	item.fromTo = append(item.fromTo, mtransaction.MutateConcatAliases(item.input.Send.Source.From)...)
 
 	item.fromTo = append(item.fromTo, mtransaction.MutateConcatAliases(item.input.Send.Distribute.To)...)
-	if run.ledgerSettings.Accounting.ValidateRoutes {
+	if item.ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, item.validate, item.status)
 	}
 
-	item.action = mtransaction.StatusToAction(item.status)
+	if item.action == "" {
+		item.action = mtransaction.StatusToAction(item.status)
+	}
 
 	item.accountBlockGrant, err = uc.resolveAccountBlockExceptionGrant(
 		ctx,
 		span,
 		logger,
-		run.organizationID,
-		run.ledgerID,
+		item.organizationID,
+		item.ledgerID,
 		item.accountBlockExceptionID,
 	)
 	if err != nil {
@@ -423,25 +485,23 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 	ctx context.Context,
 	run *atomicTransactionBatchRun,
 ) error {
-	aliases := firstSeenAtomicTransactionBatchAliases(run)
 	readCtx := readrouting.WithPrimaryRead(ctx)
-
-	sharedPool, err := loadPreparedEngineSnapshots(
-		readCtx,
-		uc.TransactionReader,
-		run.organizationID,
-		run.ledgerID,
-		aliases,
-	)
-	if err != nil {
-		return err
+	refs, aliasesByRef := firstSeenAtomicTransactionBatchAliasesByLedger(run)
+	pools := make(map[atomicTransactionBatchLedgerRef]EngineSnapshotPool, len(refs))
+	for _, ref := range refs {
+		pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, ref.organizationID, ref.ledgerID, aliasesByRef[ref])
+		if err != nil {
+			return err
+		}
+		pools[ref] = pool
 	}
 
 	for index := range run.items {
 		item := &run.items[index]
 		preparation := createEnginePreparationInput(run.createTransactionRun(item))
-
-		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, sharedPool)
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
+		var err error
+		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, pools[ref])
 		if err != nil {
 			return withAtomicTransactionBatchRunItemError(err, item, "transaction preparation failed")
 		}
@@ -450,37 +510,49 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 	return nil
 }
 
-func firstSeenAtomicTransactionBatchAliases(run *atomicTransactionBatchRun) []string {
-	seen := make(map[string]struct{})
-	aliases := make([]string, 0)
+func firstSeenAtomicTransactionBatchAliasesByLedger(run *atomicTransactionBatchRun) ([]atomicTransactionBatchLedgerRef, map[atomicTransactionBatchLedgerRef][]string) {
+	seenRefs := make(map[atomicTransactionBatchLedgerRef]struct{})
+	seenAliases := make(map[atomicTransactionBatchLedgerRef]map[string]struct{})
+	refs := make([]atomicTransactionBatchLedgerRef, 0)
+	aliasesByRef := make(map[atomicTransactionBatchLedgerRef][]string)
 
 	for index := range run.items {
-		preparation := createEnginePreparationInput(run.createTransactionRun(&run.items[index]))
+		item := &run.items[index]
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
+		if _, exists := seenRefs[ref]; !exists {
+			seenRefs[ref] = struct{}{}
+			seenAliases[ref] = make(map[string]struct{})
+			refs = append(refs, ref)
+		}
+		preparation := createEnginePreparationInput(run.createTransactionRun(item))
 		for _, alias := range enginePreparationAliases(preparation) {
-			if _, exists := seen[alias]; exists {
+			if _, exists := seenAliases[ref][alias]; exists {
 				continue
 			}
 
-			seen[alias] = struct{}{}
-			aliases = append(aliases, alias)
+			seenAliases[ref][alias] = struct{}{}
+			aliasesByRef[ref] = append(aliasesByRef[ref], alias)
 		}
 	}
 
-	return aliases
+	return refs, aliasesByRef
 }
 
 func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransactionBatchItemRun) *createTransactionRun {
+	organizationID, ledgerID := run.itemScope(item)
 	return &createTransactionRun{
-		organizationID:             run.organizationID,
-		ledgerID:                   run.ledgerID,
+		organizationID:             organizationID,
+		ledgerID:                   ledgerID,
 		transactionID:              item.transactionID,
 		transactionDate:            item.transactionDate,
 		input:                      item.input,
 		status:                     item.status,
 		action:                     item.action,
+		parentTransactionID:        uuidPointerValue(item.parentTransactionID),
+		dependencies:               append([]TransactionEvidenceReference(nil), item.dependencies...),
 		validate:                   item.validate,
 		fromTo:                     item.fromTo,
-		ledgerSettings:             run.ledgerSettings,
+		ledgerSettings:             run.itemLedgerSettings(item),
 		idempotencyTTL:             run.idempotencyTTL,
 		honoredFeeSkip:             item.honoredFeeSkip,
 		honoredTracerSkip:          item.honoredTracerSkip,
@@ -489,7 +561,23 @@ func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransacti
 	}
 }
 
-func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput) (uuid.UUID, uuid.UUID, error) {
+func (run *atomicTransactionBatchRun) itemScope(item *atomicTransactionBatchItemRun) (uuid.UUID, uuid.UUID) {
+	if item.organizationID == uuid.Nil && item.ledgerID == uuid.Nil {
+		return run.organizationID, run.ledgerID
+	}
+
+	return item.organizationID, item.ledgerID
+}
+
+func (run *atomicTransactionBatchRun) itemLedgerSettings(item *atomicTransactionBatchItemRun) mmodel.LedgerSettings {
+	if item.organizationID == uuid.Nil && item.ledgerID == uuid.Nil {
+		return run.ledgerSettings
+	}
+
+	return item.ledgerSettings
+}
+
+func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput, crossLedgerGroup bool) (uuid.UUID, uuid.UUID, error) {
 	if len(items) == 0 || len(items) > atomicTransactionBatchAbsoluteMaxSize {
 		return uuid.Nil, uuid.Nil, pkg.ValidateBusinessError(
 			constant.ErrTransactionBatchCardinality,
@@ -500,25 +588,55 @@ func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2I
 	}
 
 	organizationID := items[0].OrganizationID
-
 	ledgerID := items[0].LedgerID
+	refs := atomicTransactionBatchLedgerRefs(items)
 	for index := range items {
-		if items[index].OrganizationID == uuid.Nil || items[index].LedgerID == uuid.Nil ||
-			items[index].OrganizationID != organizationID || items[index].LedgerID != ledgerID {
+		if items[index].OrganizationID == uuid.Nil || items[index].LedgerID == uuid.Nil {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
 
 			return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(
 				err,
 				index,
-				"transaction scope must match the first batch item",
+				"transaction scope must be complete",
 			)
+		}
+	}
+	if len(refs) > 1 {
+		for index, item := range items {
+			action := item.Action
+			if action == "" {
+				action = constant.ActionDirect
+			}
+			if action != constant.ActionDirect && (!crossLedgerGroup || (action != constant.ActionRevert && action != constant.ActionHold)) {
+				err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
+				message := "cross-ledger action is not supported"
+				if action == constant.ActionHold {
+					message = "cross-ledger hold is not supported"
+				}
+
+				return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(err, index, message)
+			}
 		}
 	}
 
 	return organizationID, ledgerID, nil
 }
 
-func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransactionBatchV2ItemInput) error {
+func atomicTransactionBatchLedgerRefs(items []CreateAtomicTransactionBatchV2ItemInput) []atomicTransactionBatchLedgerRef {
+	seen := make(map[atomicTransactionBatchLedgerRef]struct{}, len(items))
+	refs := make([]atomicTransactionBatchLedgerRef, 0, len(items))
+	for _, item := range items {
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.OrganizationID, ledgerID: item.LedgerID}
+		if _, exists := seen[ref]; exists {
+			continue
+		}
+		seen[ref] = struct{}{}
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+func validateAtomicTransactionBatchItemCorrelationForGroup(items []CreateAtomicTransactionBatchV2ItemInput, crossLedgerGroup bool) error {
 	revised := false
 	for _, item := range items {
 		if item.Action != "" || item.Order != 0 || item.OriginalIndex != 0 {
@@ -542,7 +660,7 @@ func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransacti
 			return fmt.Errorf("atomic transaction batch item %d repeats original index %d", index, item.OriginalIndex)
 		}
 		seenOriginalIndexes[item.OriginalIndex] = struct{}{}
-		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold {
+		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold && (!crossLedgerGroup || item.Action != constant.ActionRevert) {
 			return fmt.Errorf("atomic transaction batch item %d has unsupported action %q", index, item.Action)
 		}
 	}
@@ -596,12 +714,17 @@ func initializeAtomicTransactionBatchItem(
 		order:                   atomicTransactionBatchItemOrder(in, index),
 		originalIndex:           atomicTransactionBatchItemOriginalIndex(in, index),
 		revised:                 atomicTransactionBatchItemIsRevised(in),
+		organizationID:          in.OrganizationID,
+		ledgerID:                in.LedgerID,
 		transactionID:           transactionID,
 		transactionCreatedAt:    createdAt,
 		transactionUpdatedAt:    updatedAt,
 		operationUpdatedAt:      operationUpdatedAt,
 		input:                   input,
 		status:                  atomicTransactionBatchActionInitialStatus(action),
+		action:                  action,
+		parentTransactionID:     cloneUUIDPointer(in.ParentTransactionID),
+		dependencies:            append([]TransactionEvidenceReference(nil), in.Dependencies...),
 		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
 	}, nil
 }
@@ -654,12 +777,19 @@ func (cursor *atomicTransactionBatchTimestampCursor) next() (time.Time, error) {
 	return next, nil
 }
 
-func atomicTransactionBatchFoundationResult(run *atomicTransactionBatchRun, item *atomicTransactionBatchItemRun) *transaction.Transaction {
+func atomicTransactionBatchFoundationResult(item *atomicTransactionBatchItemRun) *transaction.Transaction {
 	amount := item.input.Send.Value
 	status := item.status
+	var groupID *string
+	if item.completionPlan.GroupID != nil {
+		value := item.completionPlan.GroupID.String()
+		groupID = &value
+	}
 
 	return &transaction.Transaction{
 		ID:                       item.transactionID.String(),
+		ParentTransactionID:      uuidStringPointer(item.completionPlan.ParentTransactionID),
+		GroupID:                  groupID,
 		Description:              item.input.Description,
 		Status:                   transaction.Status{Code: status, Description: &status},
 		Amount:                   &amount,
@@ -667,8 +797,8 @@ func atomicTransactionBatchFoundationResult(run *atomicTransactionBatchRun, item
 		ChartOfAccountsGroupName: item.input.ChartOfAccountsGroupName,
 		Source:                   atomicTransactionBatchAliases(item.input.Send.Source.From),
 		Destination:              atomicTransactionBatchAliases(item.input.Send.Distribute.To),
-		LedgerID:                 run.ledgerID.String(),
-		OrganizationID:           run.organizationID.String(),
+		LedgerID:                 item.ledgerID.String(),
+		OrganizationID:           item.organizationID.String(),
 		Body:                     item.input,
 		Route:                    item.input.Route, //nolint:staticcheck // compatibility field mirrors singular transaction output
 		RouteID:                  item.input.RouteID,
@@ -719,4 +849,22 @@ func cloneUUIDPointer(value *uuid.UUID) *uuid.UUID {
 	cloned := *value
 
 	return &cloned
+}
+
+func uuidPointerValue(value *uuid.UUID) uuid.UUID {
+	if value == nil {
+		return uuid.Nil
+	}
+
+	return *value
+}
+
+func uuidStringPointer(value *uuid.UUID) *string {
+	if value == nil {
+		return nil
+	}
+
+	text := value.String()
+
+	return &text
 }

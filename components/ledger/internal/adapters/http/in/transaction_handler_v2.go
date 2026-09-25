@@ -7,11 +7,13 @@ package in
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -98,10 +100,57 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionInput, scope, exceptionID, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
+	payload, err := decodeCreateTransactionV2Body(rawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
+	normalized, err := normalizeCreateCrossLedgerTransactionV2Body(payload, pending)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	transactionInput := normalized.transaction
+	if operationTypeOverride != "" {
+		transactionInput.OperationTypeOverride = operationTypeOverride
+	}
+
+	exceptionID, err := payload.AccountBlockException()
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	if len(normalized.scopes) > 1 {
+		if operationTypeOverride != "" {
+			return nil, pkgHTTP.HumaProblem(pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction))
+		}
+
+		scopes, err := parseCrossLedgerTransactionScopes(normalized)
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
+		crossLedgerInput := command.CreateCrossLedgerTransactionV2Input{
+			Transaction: transactionInput, Scopes: scopes, AccountBlockExceptionID: exceptionID,
+			CanonicalRequest: []byte(v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)), IdempotencyKey: idempotencyKey,
+			IdempotencyTTL: pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+		}
+
+		var result *command.CreateAtomicTransactionBatchV2Result
+		if pending {
+			result, err = handler.Command.CreateCrossLedgerHoldV2(ctx, crossLedgerInput)
+		} else {
+			result, err = handler.Command.CreateCrossLedgerTransactionV2(ctx, crossLedgerInput)
+		}
+
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
+		return newCrossLedgerCreateOutputV2(result)
+	}
+
+	scope := normalized.scopes[0]
 
 	orgID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
 	if err != nil {
@@ -126,21 +175,70 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 	return &CreateTransactionOutputV2{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                newTransactionV2(tran),
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(tran)},
 	}, nil
 }
 
-// decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
-// http.DecodeAndValidate the v1 create ops run), translates it to the canonical
-// Transaction with the caller's pending intent, and stamps the optional Operation.Type
-// override. It returns the transaction alongside the scope Translate resolved from the
-// legs, which together are exactly what createTransactionV2 hands to the funnel — so this
-// is the unit seam for asserting both the translate+stamp result and the resolved scope.
-// It also returns the single-use account-block exception the body presented, or nil when
-// it presented none. The identifier deliberately does NOT ride on the canonical
-// Transaction: it is a per-request authorization, not part of the transaction, and the
-// canonical struct is persisted in the body JSONB and doubles as the read model — a
-// consumed grant has no business surviving in either.
+// newCrossLedgerCreateOutputV2 projects a cross-ledger direct or hold result onto the group
+// envelope. A nil result without an error is a command defect, answered as an internal error.
+func newCrossLedgerCreateOutputV2(result *command.CreateAtomicTransactionBatchV2Result) (*CreateTransactionOutputV2, error) {
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("cross-ledger transaction command returned no result"))
+	}
+
+	groupID := result.BatchID.String()
+
+	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
+	for index := range result.Transactions {
+		transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
+	}
+
+	return &CreateTransactionOutputV2{
+		Status: http.StatusCreated, IdempotencyReplayed: replayedHeader(result.Replayed),
+		Body: &CreateTransactionV2Response{GroupID: &groupID, Transactions: transactions},
+	}, nil
+}
+
+func parseCrossLedgerTransactionScopes(normalized normalizedCrossLedgerTransactionV2Body) (command.CrossLedgerTransactionScopes, error) {
+	result := command.CrossLedgerTransactionScopes{
+		Debits:  make([]command.CrossLedgerLegScope, len(normalized.debitScopes)),
+		Credits: make([]command.CrossLedgerLegScope, len(normalized.creditScopes)),
+	}
+	parse := func(scope TransactionV2Scope) (command.CrossLedgerLegScope, error) {
+		organizationID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
+		if err != nil {
+			return command.CrossLedgerLegScope{}, err
+		}
+
+		return command.CrossLedgerLegScope{OrganizationID: organizationID, LedgerID: ledgerID}, nil
+	}
+
+	for index, scope := range normalized.debitScopes {
+		parsed, err := parse(scope)
+		if err != nil {
+			return command.CrossLedgerTransactionScopes{}, err
+		}
+
+		result.Debits[index] = parsed
+	}
+
+	for index, scope := range normalized.creditScopes {
+		parsed, err := parse(scope)
+		if err != nil {
+			return command.CrossLedgerTransactionScopes{}, err
+		}
+
+		result.Credits[index] = parsed
+	}
+
+	return result, nil
+}
+
+// decodeAndBuildV2Transaction is retained as the narrow unit seam for the
+// singular create decoder. Production now uses the multi-scope normalizer
+// directly so direct requests can branch into cross-ledger orchestration.
+//
+//nolint:unused // exercised directly by contract tests
 func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, TransactionV2Scope, *uuid.UUID, error) {
 	payload, err := decodeCreateTransactionV2Body(rawBody)
 	if err != nil {
@@ -253,7 +351,7 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.Command.CommitTransactionV2(ctx, command.PendingTransitionInput{
+	result, err := handler.Command.CommitTransactionV2(ctx, command.PendingTransitionInput{
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
@@ -264,7 +362,7 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newPendingTransitionV2Response(result)}, nil
 }
 
 // CancelTransactionV2 is the /v2 shell over command.CancelTransactionV2, which runs the
@@ -280,7 +378,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.Command.CancelTransactionV2(ctx, command.PendingTransitionInput{
+	result, err := handler.Command.CancelTransactionV2(ctx, command.PendingTransitionInput{
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
@@ -289,7 +387,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newPendingTransitionV2Response(result)}, nil
 }
 
 // RevertTransactionV2 is the /v2 shell over command.RevertTransactionV2 (parent/revert
@@ -312,7 +410,7 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.Command.RevertTransactionV2(ctx, command.RevertTransactionInput{
+	result, replayed, err := handler.Command.RevertTransactionV2(ctx, command.RevertTransactionInput{
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
@@ -323,9 +421,46 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned no result"))
+	}
+
+	if result.Group != nil {
+		groupID := result.Group.BatchID.String()
+
+		var revertedGroupID *string
+
+		if result.RevertedGroupID != nil {
+			value := result.RevertedGroupID.String()
+			revertedGroupID = &value
+		}
+
+		transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Group.Transactions))
+		for index := range result.Group.Transactions {
+			transactions[index] = &AtomicTransactionBatchV2Transaction{
+				TransactionV2: newTransactionV2(result.Group.Transactions[index]),
+				Order:         index + 1,
+			}
+		}
+
+		return &CreateTransactionOutputV2{
+			Status:              http.StatusCreated,
+			IdempotencyReplayed: replayedHeader(replayed),
+			Body: &CreateTransactionV2Response{
+				GroupID:         &groupID,
+				RevertedGroupID: revertedGroupID,
+				Transactions:    transactions,
+			},
+		}, nil
+	}
+
+	if result.Transaction == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned an empty singular result"))
+	}
+
 	return &CreateTransactionOutputV2{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                newTransactionV2(tran),
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(result.Transaction)},
 	}, nil
 }

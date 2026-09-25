@@ -66,6 +66,11 @@ type resolvedExecutionKeys struct {
 	Balances               map[string]resolvedBalanceKeys
 	AccountBlockExceptions map[uuid.UUID]string
 	Accounts               map[uuid.UUID]resolvedAccountKeys
+	Coordination           map[string]resolvedCoordinationKeys
+}
+
+type resolvedCoordinationKeys struct {
+	Receipts, Guards, Protection, TransactionIndex, Evidence string
 }
 
 type resolvedBalanceKeys struct {
@@ -111,6 +116,17 @@ type wireRequest struct {
 	Transactions             []wireTransaction `json:"transactions"`
 	Balances                 []wireBalance     `json:"balances"`
 	Accounts                 []wireAccount     `json:"accounts"`
+	ScopeKeys                []wireScopeKeys   `json:"scopeKeys,omitempty"`
+}
+
+type wireScopeKeys struct {
+	OrganizationID           string `json:"organizationId"`
+	LedgerID                 string `json:"ledgerId"`
+	ReceiptKeyIndex          int    `json:"receiptKeyIndex"`
+	GuardKeyIndex            int    `json:"guardKeyIndex"`
+	ProtectionKeyIndex       int    `json:"protectionKeyIndex"`
+	TransactionIndexKeyIndex int    `json:"transactionIndexKeyIndex"`
+	EvidenceKeyIndex         int    `json:"evidenceKeyIndex"`
 }
 
 // wireAccount declares the account-scoped closing controls of one account of the
@@ -124,6 +140,8 @@ type wireAccount struct {
 }
 
 type wireTransaction struct {
+	OrganizationID        string                                 `json:"organizationId"`
+	LedgerID              string                                 `json:"ledgerId"`
 	ID                    string                                 `json:"id"`
 	RejectBlockedBalances bool                                   `json:"rejectBlockedBalances"`
 	AccountBlockException *wireAccountBlockException             `json:"accountBlockException,omitempty"`
@@ -164,6 +182,8 @@ type wirePosting struct {
 }
 
 type wireBalance struct {
+	OrganizationID       string              `json:"organizationId"`
+	LedgerID             string              `json:"ledgerId"`
 	BalanceRef           string              `json:"balanceRef"`
 	KeyIndex             int                 `json:"keyIndex"`
 	DeleteKeyIndex       int                 `json:"deleteKeyIndex"`
@@ -172,6 +192,8 @@ type wireBalance struct {
 }
 
 type wireBalanceSnapshot struct {
+	OrganizationID        string `json:"organizationId"`
+	LedgerID              string `json:"ledgerId"`
 	ID                    string `json:"id"`
 	AccountID             string `json:"accountId"`
 	AccountType           string `json:"accountType"`
@@ -208,7 +230,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 
 	accounts := protectedAccounts(input.Execution)
 
-	keys, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes, accounts)
+	keys, scopeKeys, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes, accounts)
 	if err != nil {
 		return nil, err
 	}
@@ -233,11 +255,12 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 	}
 
 	wire := wireRequest{
-		ProtocolVersion: 2, TenantID: resolved.TenantID,
+		ProtocolVersion: 3, TenantID: resolved.TenantID,
 		OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(), ExecutionID: request.ExecutionID.String(),
 		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5, TransactionIndexKeyIndex: 6, EvidenceKeyIndex: 7,
 		ReceiptField: request.ExecutionID.String(), RetentionSeconds: retentionSeconds, Transactions: transactions, Balances: wireBalances,
-		Accounts: wireAccounts,
+		Accounts:  wireAccounts,
+		ScopeKeys: scopeKeys,
 	}
 
 	encoded, err := json.Marshal(wire)
@@ -386,11 +409,15 @@ func prepareBalances(ctx context.Context, request accounting.Execution, limits L
 			return nil, nil, fmt.Errorf("prepare accounting snapshots: %w", err)
 		}
 
-		if !validSnapshotIdentity(balance) {
+		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
+		if !ok || !validSnapshotIdentity(balance) {
 			return nil, nil, fmt.Errorf("invalid accounting balance identity")
 		}
 
-		if _, duplicate := balances[balance.BalanceRef]; duplicate || identities[balance.ID] {
+		scopeRef := scopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)
+		scopeAlias := scopedBalanceRef(organizationID, ledgerID, balance.Alias)
+
+		if _, duplicate := balances[scopeRef]; duplicate || identities[balance.ID] {
 			return nil, nil, fmt.Errorf("duplicate accounting balance identity")
 		}
 
@@ -398,17 +425,18 @@ func prepareBalances(ctx context.Context, request accounting.Execution, limits L
 			return nil, nil, fmt.Errorf("inconsistent accounting account identity")
 		}
 
-		if id, exists := aliases[balance.Alias]; exists && id != balance.AccountID {
+		if id, exists := aliases[scopeAlias]; exists && id != balance.AccountID {
 			return nil, nil, fmt.Errorf("accounting alias identifies multiple accounts")
 		}
 
-		snapshot, err := prepareSnapshot(balance, limits.MaxRequestBytes)
+		snapshot, err := prepareSnapshotWithScope(balance, organizationID, ledgerID, limits.MaxRequestBytes)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		balances[balance.BalanceRef], identities[balance.ID], accounts[balance.AccountID], aliases[balance.Alias] = balance, true, balance, balance.AccountID
+		balances[scopeRef], identities[balance.ID], accounts[balance.AccountID], aliases[scopeAlias] = balance, true, balance, balance.AccountID
 		prepared = append(prepared, wireBalance{
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			BalanceRef: balance.BalanceRef, KeyIndex: 8 + 3*i,
 			DeleteKeyIndex: 9 + 3*i, LegacyDeleteKeyIndex: 10 + 3*i, Snapshot: snapshot,
 		})
@@ -432,10 +460,11 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 			return nil, fmt.Errorf("prepare accounting transactions: %w", err)
 		}
 
+		organizationID, ledgerID, hasScope := effectiveTransactionScope(request, transaction)
 		guard, hasGuard := guards[transaction.ID]
 
 		completionPlan, hasCompletionPlan := completionPlans[transaction.ID]
-		if transaction.ID == uuid.Nil || transactionIDs[transaction.ID] || !hasGuard || !hasCompletionPlan {
+		if !validTransactionPreparationCorrelation(transaction.ID, hasScope, transactionIDs, hasGuard, hasCompletionPlan) {
 			return nil, fmt.Errorf("invalid accounting transaction correlation")
 		}
 
@@ -447,6 +476,7 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		postingCount += len(transaction.Postings)
 
 		prepared := wireTransaction{
+			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			ID: transaction.ID.String(), GuardField: transaction.ID.String(), ExpectedGuard: guard.ExpectedToken, NextGuard: guard.NextToken,
 			RejectBlockedBalances: transaction.RejectBlockedBalances,
 			RecoveryField:         transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan.Payload), Action: completionPlan.Action,
@@ -460,15 +490,14 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		}
 
 		for _, requirement := range transaction.BalanceRequirements {
-			if _, exists := balances[requirement.BalanceRef]; !exists || strings.TrimSpace(requirement.AssetCode) == "" ||
-				(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
+			if !validPreparedBalanceRequirement(requirement, balances, organizationID, ledgerID) {
 				return nil, fmt.Errorf("invalid accounting balance requirement")
 			}
 
 			prepared.BalanceRequirements = append(prepared.BalanceRequirements, wireBalanceRequirement(requirement))
 		}
 
-		postings, err := preparePostings(transaction.Postings, balances, limits.MaxRequestBytes)
+		postings, err := preparePostings(transaction.Postings, balances, organizationID, ledgerID, limits.MaxRequestBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -479,6 +508,8 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 				transaction.AccountBlockException,
 				transaction.Postings,
 				balances,
+				organizationID,
+				ledgerID,
 				8+3*len(request.Balances)+grantOrdinal,
 				limits.MaxRequestBytes,
 			)
@@ -496,7 +527,29 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 	return preparedTransactions, nil
 }
 
-func prepareAccountBlockException(exception *accounting.AccountBlockException, postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, keyIndex, maxBytes int) (*wireAccountBlockException, error) {
+func validTransactionPreparationCorrelation(
+	transactionID uuid.UUID,
+	hasScope bool,
+	transactionIDs map[uuid.UUID]bool,
+	hasGuard bool,
+	hasCompletionPlan bool,
+) bool {
+	return hasScope && transactionID != uuid.Nil && !transactionIDs[transactionID] && hasGuard && hasCompletionPlan
+}
+
+func validPreparedBalanceRequirement(
+	requirement accounting.BalanceRequirement,
+	balances map[string]accounting.BalanceSnapshot,
+	organizationID, ledgerID uuid.UUID,
+) bool {
+	_, exists := balances[scopedBalanceRef(organizationID, ledgerID, requirement.BalanceRef)]
+	validPermission := requirement.Permission == accounting.BalancePermissionSend ||
+		requirement.Permission == accounting.BalancePermissionReceive
+
+	return exists && strings.TrimSpace(requirement.AssetCode) != "" && validPermission
+}
+
+func prepareAccountBlockException(exception *accounting.AccountBlockException, postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, organizationID, ledgerID uuid.UUID, keyIndex, maxBytes int) (*wireAccountBlockException, error) {
 	if exception == nil {
 		return nil, nil
 	}
@@ -523,7 +576,7 @@ func prepareAccountBlockException(exception *accounting.AccountBlockException, p
 		return nil, fmt.Errorf("invalid accounting account-block exception posting")
 	}
 
-	snapshot, exists := balances[primary.BalanceRef]
+	snapshot, exists := balances[scopedBalanceRef(organizationID, ledgerID, primary.BalanceRef)]
 	if !exists || snapshot.Key == "overdraft" || snapshot.Alias != exception.Alias {
 		return nil, fmt.Errorf("invalid accounting account-block exception balance")
 	}
@@ -534,7 +587,7 @@ func prepareAccountBlockException(exception *accounting.AccountBlockException, p
 	}, nil
 }
 
-func preparePostings(postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, maxBytes int) ([]wirePosting, error) {
+func preparePostings(postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, organizationID, ledgerID uuid.UUID, maxBytes int) ([]wirePosting, error) {
 	prepared := make([]wirePosting, 0, len(postings))
 
 	refs := make(map[string]bool, len(postings))
@@ -543,7 +596,7 @@ func preparePostings(postings []accounting.Posting, balances map[string]accounti
 			return nil, fmt.Errorf("empty or duplicate accounting posting reference")
 		}
 
-		if _, exists := balances[posting.BalanceRef]; !exists {
+		if _, exists := balances[scopedBalanceRef(organizationID, ledgerID, posting.BalanceRef)]; !exists {
 			return nil, fmt.Errorf("accounting posting references an unknown balance")
 		}
 
@@ -625,23 +678,27 @@ func prepareAccounts(request accounting.Execution, resolved resolvedExecutionKey
 	return prepared
 }
 
-func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int, accounts []uuid.UUID) ([]string, error) {
+//nolint:gocyclo // validates the full ordered Lua key inventory and the optional multi-scope tail
+func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int, accounts []uuid.UUID) ([]string, []wireScopeKeys, error) {
 	if len(resolved.Balances) != len(request.Balances) {
-		return nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
+		return nil, nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
 
 	if resolved.Protection == "" || resolved.TransactionIndex == "" || resolved.Evidence == "" {
-		return nil, fmt.Errorf("missing resolved accounting protection, transaction index, or evidence key")
+		return nil, nil, fmt.Errorf("missing resolved accounting protection, transaction index, or evidence key")
 	}
 
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex, resolved.Evidence}
-	for _, balance := range request.Balances {
-		pair, exists := resolved.Balances[balance.BalanceRef]
 
-		expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
-		if !exists || !validBalanceKey || pair.Deleted != expectedMarker ||
-			pair.LegacyDeleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {
-			return nil, fmt.Errorf("invalid resolved accounting balance keys")
+	for _, balance := range request.Balances {
+		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
+		if !ok {
+			return nil, nil, fmt.Errorf("invalid accounting balance scope")
+		}
+
+		pair, exists := findResolvedBalanceKeys(request, resolved, balance, organizationID, ledgerID)
+		if !exists || !validResolvedBalanceKeys(pair) {
+			return nil, nil, fmt.Errorf("invalid resolved accounting balance keys")
 		}
 
 		keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
@@ -649,12 +706,45 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 
 	keys, err := appendAccountBlockExceptionKeys(request, resolved, keys)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	keys, err = appendAccountProtectionKeys(resolved, keys, accounts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	var scopeKeys []wireScopeKeys
+	if len(resolved.Coordination) > 0 {
+		scopeKeys = append(scopeKeys, wireScopeKeys{
+			OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(),
+			ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5,
+			TransactionIndexKeyIndex: 6, EvidenceKeyIndex: 7,
+		})
+
+		scopes := make([]string, 0, len(resolved.Coordination))
+		for scope := range resolved.Coordination {
+			scopes = append(scopes, scope)
+		}
+
+		sort.Strings(scopes)
+
+		for _, scope := range scopes {
+			coordination := resolved.Coordination[scope]
+
+			parts := strings.Split(scope, ":")
+			if len(parts) != 2 || coordination.Receipts == "" || coordination.Guards == "" || coordination.Protection == "" || coordination.TransactionIndex == "" || coordination.Evidence == "" {
+				return nil, nil, fmt.Errorf("invalid resolved accounting coordination keys")
+			}
+
+			base := len(keys)
+			keys = append(keys, coordination.Receipts, coordination.Guards, coordination.Protection, coordination.TransactionIndex, coordination.Evidence)
+			scopeKeys = append(scopeKeys, wireScopeKeys{
+				OrganizationID: parts[0], LedgerID: parts[1], ReceiptKeyIndex: base + 1,
+				GuardKeyIndex: base + 2, ProtectionKeyIndex: base + 3,
+				TransactionIndexKeyIndex: base + 4, EvidenceKeyIndex: base + 5,
+			})
+		}
 	}
 
 	seen := make(map[string]bool, len(keys))
@@ -662,13 +752,36 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 	total := 0
 	for _, key := range keys {
 		if !strings.Contains(key, cachepolicy.HashTag) || strings.Count(key, "{") != 1 || strings.Count(key, "}") != 1 || seen[key] || len(key) > maxBytes-total {
-			return nil, fmt.Errorf("invalid or oversized resolved accounting key")
+			return nil, nil, fmt.Errorf("invalid or oversized resolved accounting key")
 		}
 
 		seen[key], total = true, total+len(key)
 	}
 
-	return keys, nil
+	return keys, scopeKeys, nil
+}
+
+func findResolvedBalanceKeys(
+	request accounting.Execution,
+	resolved resolvedExecutionKeys,
+	balance accounting.BalanceSnapshot,
+	organizationID, ledgerID uuid.UUID,
+) (resolvedBalanceKeys, bool) {
+	pair, exists := resolved.Balances[scopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)]
+	if exists || organizationID != request.OrganizationID || ledgerID != request.LedgerID {
+		return pair, exists
+	}
+
+	pair, exists = resolved.Balances[balance.BalanceRef]
+
+	return pair, exists
+}
+
+func validResolvedBalanceKeys(pair resolvedBalanceKeys) bool {
+	expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
+
+	return validBalanceKey && pair.Deleted == expectedMarker &&
+		pair.LegacyDeleted == pair.Balance+cachepolicy.DeletionMarkerSuffix
 }
 
 func appendAccountBlockExceptionKeys(request accounting.Execution, resolved resolvedExecutionKeys, keys []string) ([]string, error) {
@@ -719,7 +832,12 @@ func appendAccountProtectionKeys(resolved resolvedExecutionKeys, keys []string, 
 	return keys, nil
 }
 
+//nolint:unused // retained as the single-scope unit-test seam
 func prepareSnapshot(balance accounting.BalanceSnapshot, maxBytes int) (wireBalanceSnapshot, error) {
+	return prepareSnapshotWithScope(balance, balance.OrganizationID, balance.LedgerID, maxBytes)
+}
+
+func prepareSnapshotWithScope(balance accounting.BalanceSnapshot, organizationID, ledgerID uuid.UUID, maxBytes int) (wireBalanceSnapshot, error) {
 	if (balance.Direction != "" && balance.Direction != "credit" && balance.Direction != "debit") || (balance.BalanceScope != "transactional" && balance.BalanceScope != "internal") || balance.Version < 0 || balance.OnHold.Sign() < 0 || balance.OverdraftUsed.Sign() < 0 || balance.OverdraftLimit.Sign() < 0 || (balance.Available.Sign() < 0 && balance.AccountType != "external") {
 		return wireBalanceSnapshot{}, fmt.Errorf("invalid accounting balance state")
 	}
@@ -735,13 +853,47 @@ func prepareSnapshot(balance accounting.BalanceSnapshot, maxBytes int) (wireBala
 		values[i] = encoded
 	}
 
+	organizationScope, ledgerScope := "", ""
+	if organizationID != uuid.Nil {
+		organizationScope = organizationID.String()
+	}
+
+	if ledgerID != uuid.Nil {
+		ledgerScope = ledgerID.String()
+	}
+
 	return wireBalanceSnapshot{
+		OrganizationID: organizationScope, LedgerID: ledgerScope,
 		ID: balance.ID.String(), AccountID: balance.AccountID.String(), AccountType: balance.AccountType, AssetCode: balance.AssetCode,
 		Alias: balance.Alias, Key: balance.Key, Direction: balance.Direction, BalanceScope: balance.BalanceScope,
 		Available: values[0], OnHold: values[1], OverdraftUsed: values[2], OverdraftLimit: values[3], Version: strconv.FormatInt(balance.Version, 10),
 		AllowSending: balance.AllowSending, AllowReceiving: balance.AllowReceiving, Blocked: balance.Blocked,
 		AllowOverdraft: balance.AllowOverdraft, OverdraftLimitEnabled: balance.OverdraftLimitEnabled,
 	}, nil
+}
+
+func scopedBalanceRef(organizationID, ledgerID uuid.UUID, ref string) string {
+	return organizationID.String() + ":" + ledgerID.String() + ":" + ref
+}
+
+func effectiveBalanceScope(request accounting.Execution, balance accounting.BalanceSnapshot) (uuid.UUID, uuid.UUID, bool) {
+	return effectiveItemScope(request.OrganizationID, request.LedgerID, balance.OrganizationID, balance.LedgerID)
+}
+
+func effectiveTransactionScope(request accounting.Execution, transaction accounting.Transaction) (uuid.UUID, uuid.UUID, bool) {
+	return effectiveItemScope(request.OrganizationID, request.LedgerID, transaction.OrganizationID, transaction.LedgerID)
+}
+
+func effectiveItemScope(primaryOrganizationID, primaryLedgerID, organizationID, ledgerID uuid.UUID) (uuid.UUID, uuid.UUID, bool) {
+	if organizationID == uuid.Nil && ledgerID == uuid.Nil {
+		return primaryOrganizationID, primaryLedgerID, primaryOrganizationID != uuid.Nil && primaryLedgerID != uuid.Nil
+	}
+
+	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
+		return uuid.Nil, uuid.Nil, false
+	}
+
+	return organizationID, ledgerID, true
 }
 
 func boundedDecimal(value decimal.Decimal, maxBytes int) (string, error) {

@@ -24,6 +24,11 @@ const (
 	atomicTransactionBatchOutcomeRecovering = "recovering"
 	atomicTransactionBatchOutcomeRejected   = "rejected"
 
+	atomicTransactionBatchScopeSingle      = "single"
+	atomicTransactionBatchScopeCrossLedger = "cross_ledger"
+
+	crossLedgerGroupMetricActionOther = "other"
+
 	atomicTransactionBatchMetricCodeNone          = "none"
 	atomicTransactionBatchMetricCodeTechnical     = "technical"
 	atomicTransactionBatchMetricCodeOtherBusiness = "other_business"
@@ -67,6 +72,12 @@ var (
 		Description: "Atomic batch command duration by closed execution phase.",
 		Buckets:     []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000},
 	}
+	crossLedgerGroupLedgersMetric = metrics.Metric{
+		Name:        "cross_ledger_group_ledgers",
+		Unit:        "1",
+		Description: "Distinct ledgers taking part in one applied cross-ledger group operation.",
+		Buckets:     []float64{2, 3, 4, 5, 8, 10, 25, 50},
+	}
 )
 
 func (uc *UseCase) recordAtomicTransactionBatchReceived(
@@ -81,6 +92,7 @@ func (uc *UseCase) recordAtomicTransactionBatchReceived(
 	uc.emitAtomicTransactionBatchOutcome(
 		ctx,
 		logger,
+		atomicTransactionBatchScope(in.CrossLedgerGroup),
 		atomicTransactionBatchOutcomeReceived,
 		atomicTransactionBatchMetricCodeNone,
 		atomicTransactionBatchMetricDimensionNone,
@@ -99,6 +111,7 @@ func (uc *UseCase) recordAtomicTransactionBatchReceived(
 
 func (uc *UseCase) recordAtomicTransactionBatchCompleted(
 	ctx context.Context,
+	scope string,
 	result *CreateAtomicTransactionBatchV2Result,
 	run *atomicTransactionBatchRun,
 	err error,
@@ -126,12 +139,12 @@ func (uc *UseCase) recordAtomicTransactionBatchCompleted(
 		outcome = atomicTransactionBatchOutcomeRecovering
 	}
 
-	uc.emitAtomicTransactionBatchOutcome(ctx, logger, outcome, code, dimension)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "total", duration)
+	uc.emitAtomicTransactionBatchOutcome(ctx, logger, scope, outcome, code, dimension)
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "total", duration)
 	uc.recordAtomicTransactionBatchWork(ctx, logger, run)
 }
 
-func (uc *UseCase) recordAtomicTransactionBatchRecovering(ctx context.Context) {
+func (uc *UseCase) recordAtomicTransactionBatchRecovering(ctx context.Context, scope string) {
 	if uc.MetricsFactory == nil {
 		return
 	}
@@ -140,6 +153,7 @@ func (uc *UseCase) recordAtomicTransactionBatchRecovering(ctx context.Context) {
 	uc.emitAtomicTransactionBatchOutcome(
 		ctx,
 		logger,
+		scope,
 		atomicTransactionBatchOutcomeRecovering,
 		atomicTransactionBatchMetricCodeNone,
 		atomicTransactionBatchMetricDimensionNone,
@@ -148,7 +162,7 @@ func (uc *UseCase) recordAtomicTransactionBatchRecovering(ctx context.Context) {
 
 func (uc *UseCase) recordAtomicTransactionBatchPhaseDuration(
 	ctx context.Context,
-	phase string,
+	scope, phase string,
 	duration time.Duration,
 ) {
 	if uc.MetricsFactory == nil {
@@ -161,7 +175,7 @@ func (uc *UseCase) recordAtomicTransactionBatchPhaseDuration(
 		ctx,
 		logger,
 		atomicTransactionBatchDurationMetric,
-		map[string]string{"phase": phase},
+		map[string]string{"scope": atomicTransactionBatchMetricScope(scope), "phase": phase},
 		int(duration.Milliseconds()),
 	)
 }
@@ -169,9 +183,10 @@ func (uc *UseCase) recordAtomicTransactionBatchPhaseDuration(
 func (uc *UseCase) emitAtomicTransactionBatchOutcome(
 	ctx context.Context,
 	logger libLog.Logger,
-	outcome, code, dimension string,
+	scope, outcome, code, dimension string,
 ) {
 	labels := map[string]string{
+		"scope":     atomicTransactionBatchMetricScope(scope),
 		"outcome":   atomicTransactionBatchMetricOutcome(outcome),
 		"code":      atomicTransactionBatchMetricCodeLabel(code),
 		"dimension": atomicTransactionBatchMetricDimensionLabel(dimension),
@@ -179,7 +194,7 @@ func (uc *UseCase) emitAtomicTransactionBatchOutcome(
 	if err := uc.MetricsFactory.AddCounter(
 		ctx,
 		"atomic_transaction_batches_total",
-		"Atomic transaction batch command events by bounded outcome and rejection classification.",
+		"Atomic transaction batch command events by scope, bounded outcome, and rejection classification.",
 		"1",
 		labels,
 		1,
@@ -264,6 +279,49 @@ func (uc *UseCase) recordAtomicTransactionBatchHistogram(
 
 	if err != nil && logger != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Failed to emit atomic transaction batch histogram", libLog.Err(err))
+	}
+}
+
+// recordCrossLedgerGroupLedgers observes how many distinct ledgers one applied
+// cross-ledger group operation touched. The ledger count is a bucketed value, not
+// a label, so a group never contributes a series of its own.
+func (uc *UseCase) recordCrossLedgerGroupLedgers(ctx context.Context, action string, ledgers int) {
+	if uc.MetricsFactory == nil || ledgers <= 0 {
+		return
+	}
+
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	uc.recordAtomicTransactionBatchHistogram(
+		ctx,
+		logger,
+		crossLedgerGroupLedgersMetric,
+		map[string]string{"action": crossLedgerGroupMetricAction(action)},
+		ledgers,
+	)
+}
+
+func atomicTransactionBatchScope(crossLedgerGroup bool) string {
+	if crossLedgerGroup {
+		return atomicTransactionBatchScopeCrossLedger
+	}
+
+	return atomicTransactionBatchScopeSingle
+}
+
+func atomicTransactionBatchMetricScope(value string) string {
+	if value == atomicTransactionBatchScopeCrossLedger {
+		return atomicTransactionBatchScopeCrossLedger
+	}
+
+	return atomicTransactionBatchScopeSingle
+}
+
+func crossLedgerGroupMetricAction(value string) string {
+	switch value {
+	case constant.ActionDirect, constant.ActionHold, constant.ActionCommit, constant.ActionCancel, constant.ActionRevert:
+		return value
+	default:
+		return crossLedgerGroupMetricActionOther
 	}
 }
 

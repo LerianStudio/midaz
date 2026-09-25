@@ -32,6 +32,7 @@ type CountFilter struct {
 type TransactionPostgreSQLModel struct {
 	ID                       string                    // Unique identifier (UUID format)
 	ParentTransactionID      *string                   // Parent transaction ID (for reversals or child transactions)
+	GroupID                  *string                   // Atomic cross-ledger group identifier
 	Description              string                    // Human-readable description
 	Status                   string                    // Status code (e.g., "ACTIVE", "PENDING")
 	StatusDescription        *string                   // Status description
@@ -111,6 +112,11 @@ type Transaction struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	ParentTransactionID *string `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Atomic cross-ledger group identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	GroupID *string `json:"groupId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Human-readable description of the transaction
 	// example: Transaction description
@@ -214,6 +220,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	transaction := &Transaction{
 		ID:                       t.ID,
 		ParentTransactionID:      t.ParentTransactionID,
+		GroupID:                  t.GroupID,
 		Description:              t.Description,
 		Status:                   status,
 		Amount:                   t.Amount,
@@ -257,6 +264,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	*t = TransactionPostgreSQLModel{
 		ID:                       ID,
 		ParentTransactionID:      transaction.ParentTransactionID,
+		GroupID:                  transaction.GroupID,
 		Description:              transaction.Description,
 		Status:                   transaction.Status.Code,
 		StatusDescription:        transaction.Status.Description,

@@ -40,7 +40,7 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 			ctx,
 			span,
 			logger,
-			run.ledgerSettings.Tracer,
+			run.itemLedgerSettings(item).Tracer,
 			item.transactionID,
 			item.input.Send.Value,
 			item.input.Send.Asset,

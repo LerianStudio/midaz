@@ -44,8 +44,8 @@ func (uc *UseCase) captureAtomicTransactionBatchInitialResponse(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.CaptureAtomicTransactionBatchInitialResponse(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.executionID,
 		run.idempotencyOwnerToken,
 		transactionID,

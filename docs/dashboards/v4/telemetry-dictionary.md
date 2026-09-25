@@ -488,6 +488,42 @@ live_observed: unknown
 unit: "1"
 ```
 
+### atomic_transaction_batches_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/create_atomic_transaction_batch_telemetry.go:183-204
+description: Atomic transaction batch command events by scope, bounded outcome, and rejection classification.
+labels: [scope, outcome, code, dimension]
+label_values:
+  scope: [single, cross_ledger]
+  outcome: [received, applied, replayed, recovering, rejected]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+`code` is a closed allowlist of batch rejection codes plus `none`, `technical` and
+`other_business`; `dimension` names the budget a rejected batch exceeded. `scope="cross_ledger"`
+is a direct, hold or revert group executed as one batch — the only way to tell a group from
+an ordinary same-ledger batch. `received` counts every call, so exclude it when reading
+outcomes.
+
+### cross_ledger_group_reconcile_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/transaction_group_reconciliation.go:360-375
+description: Cross-ledger transaction groups read by the reconciler, by bounded result.
+labels: [result]
+label_values: [repaired, deleted, inconsistent, skipped, failed]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Emitted once per PENDING group per recovery cycle. `skipped` dominates by design: every hold
+still waiting for its commit is read and left alone each cycle. `inconsistent` is the signal
+to act on — members that agree on no single state are reported and never written.
+
 ---
 
 ## Histograms
@@ -586,6 +622,36 @@ unit: "ms"
 Milliseconds rather than seconds throughout: the factory exposes `Int64Histogram`, so
 sub-second latencies would truncate to zero in seconds. Reasoning recorded at
 `pkg/utils/metrics.go:312-314`.
+
+### atomic_transaction_batch_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/services/command/create_atomic_transaction_batch_telemetry.go:69-74
+description: Atomic batch command duration by scope and closed execution phase.
+labels: [scope, phase]
+label_values:
+  scope: [single, cross_ledger]
+  phase: [identity, idempotency, preparation, reservation, accounting, completion, total]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "ms"
+```
+
+### cross_ledger_group_ledgers
+
+```yaml
+declared_at: components/ledger/internal/services/command/create_atomic_transaction_batch_telemetry.go:75-80
+description: Distinct ledgers taking part in one applied cross-ledger group operation.
+labels: [action]
+label_values: [direct, hold, commit, cancel, revert, other]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Recorded once per applied, non-replayed group operation. The ledger count is the observed
+value, never a label, so no group or ledger identity reaches the series. A hold and its later
+commit or cancel each record the same group once, under their own action.
 
 ---
 

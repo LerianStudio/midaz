@@ -495,7 +495,7 @@ func TestLedgerSettingsInput_JSONTagsOmitEmpty(t *testing.T) {
 		{
 			name:     "LedgerSettingsInput",
 			typ:      reflect.TypeOf(LedgerSettingsInput{}),
-			wantKeys: []string{"accounting", "tracer", "overrides"},
+			wantKeys: []string{"accounting", "tracer", "overrides", "crossLedger"},
 		},
 		{
 			name:     "AccountingValidationInput",
@@ -511,6 +511,11 @@ func TestLedgerSettingsInput_JSONTagsOmitEmpty(t *testing.T) {
 			name:     "OverridePolicyInput",
 			typ:      reflect.TypeOf(OverridePolicyInput{}),
 			wantKeys: []string{"allowFeeSkip", "allowTracerSkip", "allowHolderSkip"},
+		},
+		{
+			name:     "CrossLedgerSettingsInput",
+			typ:      reflect.TypeOf(CrossLedgerSettingsInput{}),
+			wantKeys: []string{"enabled"},
 		},
 	}
 

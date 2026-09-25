@@ -26,23 +26,35 @@ v2 request model together with the action and explicit logical order:
 }
 ```
 
-Every item must resolve to the same organization and ledger. The endpoint has no
-path or query parameters; scope is taken from the validated transaction legs. It
-accepts an optional `balanceKey` on every debit or credit leg; an omitted key uses
-the account's `default` balance. A supplied key selects that named balance and is
+Every item must resolve internally to one organization and ledger, but distinct
+`direct` items may name distinct ledgers when each participant enables
+`settings.crossLedger.enabled`. A batch containing `hold` items remains
+single-ledger; mixed scopes return `0499`. The endpoint has no path or query
+parameters; scope is taken from the validated transaction legs. It accepts an
+optional `balanceKey` on every debit or credit leg; an omitted key uses the
+account's `default` balance. A supplied key selects that named balance and is
 returned in the resulting operation. The key cannot contain whitespace and is
-limited to 100 characters. The endpoint
-uses the same `midaz/transactions/post` authorization chain and per-item v2 fee,
-Tracer, route, overdraft, skip, and account-block-exception rules. `action` is
-either `direct` or `hold`; a hold is returned initially as `PENDING` and is later
-committed or cancelled through the existing individual transaction routes.
+limited to 100 characters. The endpoint uses the same `midaz/transactions/post`
+authorization chain and per-item v2 fee, Tracer, route, overdraft, skip, and
+account-block-exception rules. `action` is either `direct` or `hold`; a hold is
+returned initially as `PENDING` and is later committed or cancelled through the
+existing individual transaction routes.
+
+Grouped cross-ledger revert reuses this coordinator internally with `revert`
+items, one parent and optional origin-evidence dependency per part. That action
+is not accepted by the public batch endpoint: callers continue to request a
+revert through the existing transaction-specific v2 route. Internal revert
+items skip fee calculation, reserve Tracer capacity per ledger, and emit the
+normal `transaction.reverted` lifecycle event for each resulting transaction.
 
 Success is HTTP 201 with a wrapper containing the created `TransactionV2` objects
 plus their non-persisted `order`. The response `transactions` array is in
-increasing logical order, rather than physical request array order. The internal
-idempotency and recovery batch identifier is not exposed in the response, is not
-stored on transaction rows or events, and has no batch resource or query endpoint;
-query created transactions through their individual transaction IDs.
+increasing logical order, rather than physical request array order. For this
+endpoint, the internal idempotency and recovery batch identifier is not exposed,
+is not stored as `group_id` on transaction rows or events, and has no batch
+resource or query endpoint; query created transactions through their individual
+transaction IDs. That differs from a decomposed cross-ledger direct request,
+whose public `groupId` is deliberately persisted and returned.
 
 ## Ordering and atomicity
 
@@ -78,6 +90,10 @@ and object-property order as described above. An identical terminal retry
 returns the original byte-stable ordered response and sets
 `X-Idempotency-Replayed`; reusing an explicit key for a different canonical request,
 or retrying while an applied execution is still recovering, returns `0084`.
+For a multi-ledger batch, the claim uses the smallest participating
+organization/ledger pair, independent of item order or debit/credit role. The
+same key therefore protects the entire request when the same ledgers exchange
+roles. Single-ledger batch keys keep their existing scope.
 
 The replay retention is frozen when the request executes (`X-TTL`, default 300
 seconds). An applied batch writes one version-two engine recovery record per

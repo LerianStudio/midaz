@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -18,6 +19,25 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
+
+type atomicTransactionBatchPrePublicationError struct{ cause error }
+
+func (err atomicTransactionBatchPrePublicationError) Error() string { return err.cause.Error() }
+func (err atomicTransactionBatchPrePublicationError) Unwrap() error { return err.cause }
+
+func markAtomicTransactionBatchPrePublication(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return atomicTransactionBatchPrePublicationError{cause: err}
+}
+
+func isAtomicTransactionBatchPrePublication(err error) bool {
+	var target atomicTransactionBatchPrePublicationError
+
+	return errors.As(err, &target)
+}
 
 // AtomicTransactionBatchIdempotencyRepository is the command-owned subset of
 // the Redis batch state machine used before durable projection completion.
@@ -95,8 +115,8 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.ClaimAtomicTransactionBatch(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		effectiveKey,
 		claim,
 	)
@@ -177,25 +197,25 @@ func (uc *UseCase) abortAtomicTransactionBatchPrePublication(
 	primary error,
 ) error {
 	if run == nil || !run.idempotencyClaimed || run.idempotencyHandedOff || uc.AtomicTransactionBatchIdempotencyRepo == nil {
-		return primary
+		return markAtomicTransactionBatchPrePublication(primary)
 	}
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.DeleteAtomicTransactionBatchPrePublication(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 	)
 	if err != nil {
-		return fmt.Errorf("clean up atomic transaction batch after pre-publication failure: %w", err)
+		return markAtomicTransactionBatchPrePublication(fmt.Errorf("clean up atomic transaction batch after pre-publication failure: %w", err))
 	}
 
 	if result == nil || (result.Outcome != txRedis.AtomicTransactionBatchDeleted && result.Outcome != txRedis.AtomicTransactionBatchDeleteMissing) {
-		return fmt.Errorf("clean up atomic transaction batch after pre-publication failure: unexpected delete outcome")
+		return markAtomicTransactionBatchPrePublication(fmt.Errorf("clean up atomic transaction batch after pre-publication failure: unexpected delete outcome"))
 	}
 
 	run.idempotencyClaimed = false
 
-	return primary
+	return markAtomicTransactionBatchPrePublication(primary)
 }

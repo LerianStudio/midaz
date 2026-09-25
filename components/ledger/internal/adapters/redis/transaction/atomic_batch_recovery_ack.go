@@ -58,10 +58,15 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 		return 0, fmt.Errorf("parse atomic transaction batch recovery execution ID: %w", err)
 	}
 
+	coordinationOrganizationID, coordinationLedgerID, receiptOrganizationID, receiptLedgerID, err := atomicTransactionBatchRecoveryScopes(expectedPayload, organizationID, ledgerID, transactionRaw, executionID)
+	if err != nil {
+		return 0, err
+	}
+
 	recordKey, record, err := rr.getAtomicTransactionBatchByExecutionID(
 		ctx,
-		organizationID,
-		ledgerID,
+		coordinationOrganizationID,
+		coordinationLedgerID,
 		executionID,
 	)
 	if err != nil {
@@ -110,7 +115,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 
 	indexKey, err := tenantKeyFromContextOrError(
 		ctx,
-		utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID),
+		utils.AtomicTransactionBatchExecutionIndexInternalKey(coordinationOrganizationID, coordinationLedgerID, executionID),
 	)
 	if err != nil {
 		return 0, err
@@ -119,7 +124,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	keys, err := tenantKeysFromContext(ctx, []string{
 		queueKey,
 		attemptsKey,
-		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
+		atomicTransactionBatchEngineReceiptInternalKey(receiptOrganizationID, receiptLedgerID),
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
 		EngineRecoveryCleanupSchedule,
@@ -144,6 +149,11 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 		return 0, fmt.Errorf("get atomic batch recovery acknowledgment client: %w", err)
 	}
 
+	keys, err = appendRecoveryReceiptProtectionKeys(ctx, client, keys, 2, executionRaw)
+	if err != nil {
+		return 0, err
+	}
+
 	terminalFlag := "0"
 	if terminal {
 		terminalFlag = "1"
@@ -164,8 +174,8 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 		receiptToken,
 		record.OwnerToken,
 		nextPayload,
-		organizationID.String(),
-		ledgerID.String(),
+		receiptOrganizationID.String(),
+		receiptLedgerID.String(),
 	).Int64()
 	if err != nil {
 		return 0, fmt.Errorf("acknowledge atomic transaction batch recovery: %w", err)
@@ -181,4 +191,59 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	default:
 		return 0, errors.New("invalid atomic transaction batch recovery acknowledgment result")
 	}
+}
+
+func atomicTransactionBatchRecoveryScopes(
+	expectedPayload string,
+	organizationID, ledgerID uuid.UUID,
+	transactionRaw string,
+	executionID uuid.UUID,
+) (uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, error) {
+	var envelope struct {
+		RawRecord json.RawMessage `json:"record"`
+	}
+	if err := json.Unmarshal([]byte(expectedPayload), &envelope); err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("decode atomic batch recovery scopes: %w", err)
+	}
+
+	if len(envelope.RawRecord) == 0 {
+		return organizationID, ledgerID, organizationID, ledgerID, nil
+	}
+
+	var record struct {
+		OrganizationID             uuid.UUID  `json:"organizationId"`
+		LedgerID                   uuid.UUID  `json:"ledgerId"`
+		TransactionID              uuid.UUID  `json:"transactionId"`
+		ExecutionID                uuid.UUID  `json:"executionId"`
+		CoordinationOrganizationID *uuid.UUID `json:"coordinationOrganizationId"`
+		CoordinationLedgerID       *uuid.UUID `json:"coordinationLedgerId"`
+		ReceiptOrganizationID      *uuid.UUID `json:"receiptOrganizationId"`
+		ReceiptLedgerID            *uuid.UUID `json:"receiptLedgerId"`
+	}
+	if err := json.Unmarshal(envelope.RawRecord, &record); err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, uuid.Nil, fmt.Errorf("decode atomic batch recovery record scope: %w", err)
+	}
+
+	if record.OrganizationID != organizationID || record.LedgerID != ledgerID ||
+		record.TransactionID.String() != transactionRaw || record.ExecutionID != executionID ||
+		(record.CoordinationOrganizationID == nil) != (record.CoordinationLedgerID == nil) ||
+		(record.ReceiptOrganizationID == nil) != (record.ReceiptLedgerID == nil) {
+		return uuid.Nil, uuid.Nil, uuid.Nil, uuid.Nil, errors.New("atomic batch recovery scope differs")
+	}
+
+	coordinationOrganizationID, coordinationLedgerID := organizationID, ledgerID
+	if record.CoordinationOrganizationID != nil {
+		coordinationOrganizationID, coordinationLedgerID = *record.CoordinationOrganizationID, *record.CoordinationLedgerID
+	}
+
+	receiptOrganizationID, receiptLedgerID := organizationID, ledgerID
+	if record.ReceiptOrganizationID != nil {
+		receiptOrganizationID, receiptLedgerID = *record.ReceiptOrganizationID, *record.ReceiptLedgerID
+	}
+
+	if coordinationOrganizationID == uuid.Nil || coordinationLedgerID == uuid.Nil || receiptOrganizationID == uuid.Nil || receiptLedgerID == uuid.Nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, uuid.Nil, errors.New("atomic batch recovery scope is incomplete")
+	}
+
+	return coordinationOrganizationID, coordinationLedgerID, receiptOrganizationID, receiptLedgerID, nil
 }

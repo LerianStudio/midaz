@@ -149,6 +149,14 @@ func scopedAdapterExecution(t *testing.T, tenantID, organizationID, ledgerID str
 	input, limits := richAdapterExecution(t)
 	input.Execution.OrganizationID = uuid.MustParse(organizationID)
 	input.Execution.LedgerID = uuid.MustParse(ledgerID)
+	for index := range input.Execution.Balances {
+		input.Execution.Balances[index].OrganizationID = input.Execution.OrganizationID
+		input.Execution.Balances[index].LedgerID = input.Execution.LedgerID
+	}
+	for index := range input.Execution.Transactions {
+		input.Execution.Transactions[index].OrganizationID = input.Execution.OrganizationID
+		input.Execution.Transactions[index].LedgerID = input.Execution.LedgerID
+	}
 	input.Execution.ExecutionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":execution"))
 	input.Execution.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":transaction"))
 	input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(amount)

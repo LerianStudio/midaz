@@ -240,6 +240,11 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 | `update_transaction` | `(command.UseCase).UpdateTransaction` |
 | `update_transaction_status` | `(command.UseCase).UpdateTransactionStatus` |
 | `update_transaction_status_from_pending` | `(command.UseCase).UpdateTransactionStatusFromPending` |
+| `create_cross_ledger_transaction` | `(command.UseCase).CreateCrossLedgerTransactionV2` |
+| `create_cross_ledger_hold` | `(command.UseCase).CreateCrossLedgerHoldV2` |
+| `commit_cross_ledger_group` | `(command.UseCase).transitionCrossLedgerGroupV2` with status `APPROVED` (reached from `CommitTransactionV2` on a grouped PENDING transaction) |
+| `cancel_cross_ledger_group` | `(command.UseCase).transitionCrossLedgerGroupV2` with status `CANCELED` (reached from `CancelTransactionV2`) |
+| `revert_cross_ledger_group` | `(command.UseCase).revertCrossLedgerGroupV2` (reached from `RevertTransactionV2` once the target is known to be a group member; a rejection raised before that point is not counted here) |
 | `get_account` | `(query.UseCase).GetAccountByID` |
 | `list_accounts` | `(query.UseCase).GetAllAccount` |
 | `get_ledger` | `(query.UseCase).GetLedgerByID` |

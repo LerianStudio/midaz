@@ -165,6 +165,8 @@ type atomicTransactionBatchSettingsReader struct {
 	organizationID  uuid.UUID
 	ledgerID        uuid.UUID
 	protectionStore *accountClosingMarkerStore
+	settingsByRef   map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings
+	callsByRef      map[atomicTransactionBatchLedgerRef]int
 }
 
 func (reader *atomicTransactionBatchSettingsReader) GetParsedLedgerSettings(
@@ -174,6 +176,14 @@ func (reader *atomicTransactionBatchSettingsReader) GetParsedLedgerSettings(
 	reader.calls++
 	reader.organizationID = organizationID
 	reader.ledgerID = ledgerID
+	ref := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: ledgerID}
+	if reader.callsByRef == nil {
+		reader.callsByRef = make(map[atomicTransactionBatchLedgerRef]int)
+	}
+	reader.callsByRef[ref]++
+	if settings, ok := reader.settingsByRef[ref]; ok {
+		return settings, reader.err
+	}
 
 	return reader.settings, reader.err
 }
@@ -191,7 +201,7 @@ func (reader *atomicTransactionBatchSettingsReader) GetEngineBalances(
 			selected := make([]*mmodel.Balance, 0, len(requested))
 			for _, alias := range requested {
 				for _, balance := range reader.balances {
-					if mtransaction.AliasKey(balance.Alias, balance.Key) == alias {
+					if balance.OrganizationID == organizationID.String() && balance.LedgerID == ledgerID.String() && mtransaction.AliasKey(balance.Alias, balance.Key) == alias {
 						selected = append(selected, balance)
 					}
 				}
@@ -393,7 +403,7 @@ func TestValidateAtomicTransactionBatchItemCorrelation_RejectsIncompleteOrReorde
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Error(t, validateAtomicTransactionBatchItemCorrelation(tt.items))
+			assert.Error(t, validateAtomicTransactionBatchItemCorrelationForGroup(tt.items, false))
 		})
 	}
 }
@@ -624,18 +634,56 @@ func TestPrepareAtomicTransactionBatchItems_PreparesMixedDirectAndHoldActions(t 
 	assert.Equal(t, 1, reader.engineReads)
 }
 
-func TestCreateAtomicTransactionBatchV2_RejectsFirstCommonScopeMismatchBeforeExternalWork(t *testing.T) {
+func TestInitializeAtomicTransactionBatchV2_FreezesPerItemScopeAndSettings(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000011")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000012")
+	otherLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000013")
+	primaryRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: ledgerID}
+	foreignRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: otherLedgerID}
+	reader := &atomicTransactionBatchSettingsReader{settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+		primaryRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+		foreignRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+	}}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000014"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000015"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000016"),
+		),
+		Clock: func() time.Time { return time.Date(2026, time.September, 21, 12, 0, 0, 0, time.UTC) },
+	}
+
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+			atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
+			atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1"),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, run.items, 2)
+	assert.Equal(t, organizationID, run.organizationID)
+	assert.Equal(t, ledgerID, run.ledgerID)
+	assert.Equal(t, []uuid.UUID{ledgerID, otherLedgerID}, []uuid.UUID{run.items[0].ledgerID, run.items[1].ledgerID})
+	assert.True(t, run.items[0].ledgerSettings.CrossLedger.Enabled)
+	assert.True(t, run.items[1].ledgerSettings.CrossLedger.Enabled)
+	assert.Equal(t, map[atomicTransactionBatchLedgerRef]int{primaryRef: 1, foreignRef: 1}, reader.callsByRef)
+}
+
+func TestCreateAtomicTransactionBatchV2_RejectsMixedScopeHoldBeforeExternalWork(t *testing.T) {
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000011")
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000012")
 	otherLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000013")
 	reader := &atomicTransactionBatchSettingsReader{}
 	uc := &UseCase{TransactionReader: reader}
+	hold := atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1")
+	hold.Action = constant.ActionHold
 
 	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
 		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
 			atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
-			atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1"),
-			atomicTransactionBatchItemInput(uuid.New(), ledgerID, "@source-2", "@destination-2"),
+			hold,
 		},
 	})
 	require.Error(t, err)
@@ -649,8 +697,65 @@ func TestCreateAtomicTransactionBatchV2_RejectsFirstCommonScopeMismatchBeforeExt
 	require.True(t, errors.As(err, &carrier))
 	assert.Equal(t, []pkg.FieldError{{
 		Location: "body.transactions[1]",
-		Message:  "transaction scope must match the first batch item",
+		Message:  "cross-ledger hold is not supported",
 	}}, carrier.FieldErrors())
+}
+
+func TestPrepareAtomicTransactionBatchItems_MultiScopeUsesOnePoolPerLedger(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000111")
+	primaryLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000112")
+	foreignLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000113")
+	primaryRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: primaryLedgerID}
+	foreignRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: foreignLedgerID}
+	reader := &atomicTransactionBatchSettingsReader{
+		settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+			primaryRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+			foreignRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+		},
+		balances: []*mmodel.Balance{
+			atomicTransactionBatchTestBalance(organizationID, primaryLedgerID, "01994f13-29b7-7000-8000-000000000114", "@source", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, primaryLedgerID, "01994f13-29b7-7000-8000-000000000115", "@destination", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, foreignLedgerID, "01994f13-29b7-7000-8000-000000000116", "@source", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, foreignLedgerID, "01994f13-29b7-7000-8000-000000000117", "@destination", "BRL"),
+		},
+	}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000118"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000119"),
+			uuid.MustParse("01994f13-29b7-7000-8000-00000000011a"),
+			uuid.MustParse("01994f13-29b7-7000-8000-00000000011b"),
+		),
+		Clock: func() time.Time { return time.Date(2026, time.September, 21, 13, 0, 0, 0, time.UTC) },
+	}
+	in := CreateAtomicTransactionBatchV2Input{Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+		atomicTransactionBatchItemInput(organizationID, primaryLedgerID, "@source", "@destination"),
+		atomicTransactionBatchItemInput(organizationID, foreignLedgerID, "@source", "@destination"),
+	}}
+
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), in)
+	require.NoError(t, err)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(context.Background())
+	ctx, span := tracer.Start(context.Background(), "test.prepare_multi_scope_atomic_transaction_batch")
+	t.Cleanup(func() { span.End() })
+	require.NoError(t, uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run))
+	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, reader.engineReads)
+	assert.Equal(t, []uuid.UUID{primaryLedgerID, foreignLedgerID}, []uuid.UUID{
+		prepared.Execution.Execution.Transactions[0].LedgerID,
+		prepared.Execution.Execution.Transactions[1].LedgerID,
+	})
+	require.Len(t, prepared.Execution.Execution.Balances, 4)
+	assert.Equal(t, []uuid.UUID{primaryLedgerID, primaryLedgerID, foreignLedgerID, foreignLedgerID}, []uuid.UUID{
+		prepared.Execution.Execution.Balances[0].LedgerID,
+		prepared.Execution.Execution.Balances[1].LedgerID,
+		prepared.Execution.Execution.Balances[2].LedgerID,
+		prepared.Execution.Execution.Balances[3].LedgerID,
+	})
 }
 
 func TestCreateAtomicTransactionBatchV2_ReturnsOnlyFirstStateDependentFailure(t *testing.T) {
@@ -1029,4 +1134,64 @@ func assertAtomicTransactionBatchValidationCode(t *testing.T, err error, code st
 	var validation pkg.ValidationError
 	require.True(t, errors.As(err, &validation))
 	assert.Equal(t, code, validation.Code)
+}
+
+type atomicTransactionBatchFailingClaimRepository struct {
+	*atomicTransactionBatchClaimRepositoryFake
+	claimErr error
+}
+
+func (repository atomicTransactionBatchFailingClaimRepository) ClaimAtomicTransactionBatch(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	string,
+	txRedis.AtomicTransactionBatchIdempotencyRecord,
+) (*txRedis.AtomicTransactionBatchClaimResult, error) {
+	return nil, repository.claimErr
+}
+
+func TestCreateAtomicTransactionBatchV2_MarksIdentityAndClaimFailuresPrePublication(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000021")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000022")
+	otherLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000023")
+
+	t.Run("identity", func(t *testing.T) {
+		hold := atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1")
+		hold.Action = constant.ActionHold
+		uc := &UseCase{TransactionReader: &atomicTransactionBatchSettingsReader{}}
+
+		_, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+			Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+				atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
+				hold,
+			},
+		})
+		require.Error(t, err)
+		assert.True(t, isAtomicTransactionBatchPrePublication(err))
+
+		var scopeError pkg.UnprocessableOperationError
+		require.True(t, errors.As(err, &scopeError), "the marker must keep the business error reachable")
+		assert.Equal(t, constant.ErrTransactionScopeMismatch.Error(), scopeError.Code)
+	})
+
+	t.Run("claim", func(t *testing.T) {
+		claimErr := errors.New("claim unavailable")
+		uc := &UseCase{
+			UUIDv7Generator: func() (uuid.UUID, error) { return uuid.New(), nil },
+			AtomicTransactionBatchIdempotencyRepo: atomicTransactionBatchFailingClaimRepository{
+				atomicTransactionBatchClaimRepositoryFake: &atomicTransactionBatchClaimRepositoryFake{},
+				claimErr: claimErr,
+			},
+		}
+
+		_, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+			Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+				atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
+			},
+			IdempotencyKey: "claim-key",
+		})
+		require.ErrorIs(t, err, claimErr)
+		assert.True(t, isAtomicTransactionBatchPrePublication(err))
+	})
 }

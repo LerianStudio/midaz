@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -37,6 +38,8 @@ type revertReader struct {
 	byIDErr       error
 	operationRout *mmodel.OperationRoute
 	routeErr      error
+	groupMembers  []*transaction.Transaction
+	groupErr      error
 }
 
 func (r *revertReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
@@ -58,6 +61,14 @@ func (r *revertReader) GetTransactionByID(context.Context, uuid.UUID, uuid.UUID,
 
 func (r *revertReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
 	return r.operationRout, r.routeErr
+}
+
+func (r *revertReader) FindTransactionsByGroupID(context.Context, uuid.UUID) ([]*transaction.Transaction, error) {
+	return r.groupMembers, r.groupErr
+}
+
+func (r *revertReader) ResolveTransactionGroupMembers(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) ([]*transaction.Transaction, error) {
+	return r.groupMembers, r.groupErr
 }
 
 // revertibleOrigin builds an APPROVED transaction with one unrouted operation pair, the
@@ -152,6 +163,28 @@ func TestRevertTransactionV1_NeverDialsTheTracer(t *testing.T) {
 
 	require.ErrorIs(t, err, errBalancesUnavailable, "the /v1 revert must reach the balance read")
 	assert.Equal(t, 1, reader.getBalancesCalls)
+}
+
+func TestRevertTransactionV1_GroupRequiresV2(t *testing.T) {
+	groupID := uuid.NewString()
+	origin := revertibleOrigin()
+	origin.GroupID = &groupID
+	reader := &revertReader{origin: origin, byID: origin}
+	uc := newRevertUseCase(t, reader)
+
+	got, replayed, err := uc.RevertTransactionV1(context.Background(), RevertTransactionInput{
+		OrganizationID: uuid.MustParse(origin.OrganizationID),
+		LedgerID:       uuid.MustParse(origin.LedgerID),
+		TransactionID:  uuid.MustParse(origin.ID),
+	})
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.False(t, replayed)
+
+	var business pkg.UnprocessableOperationError
+	require.True(t, errors.As(err, &business))
+	assert.Equal(t, constant.ErrCrossLedgerLifecycleRequiresV2.Error(), business.Code)
+	assert.Zero(t, reader.getBalancesCalls)
 }
 
 // TestRevertTransactionV2_NeverTouchesOriginReservation proves a /v2 revert that aborts

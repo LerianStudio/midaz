@@ -38,11 +38,26 @@ type EngineTransactionResolution struct {
 	Pending     bool
 }
 
+// EngineExecutionMember is one transaction of a grouped engine execution,
+// named by the scope its evidence is indexed under. It aliases an unnamed
+// struct so command's codec can return it without importing query.
+type EngineExecutionMember = struct {
+	TransactionID  uuid.UUID
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
+}
+
 // EngineWriteBehindEvidenceCodec keeps query independent from command while
 // reusing command's canonical versioned codecs and transaction composer.
 type EngineWriteBehindEvidenceCodec interface {
 	DecodeEngineTransactionIndex(context.Context, []byte, uuid.UUID, uuid.UUID, uuid.UUID) (uuid.UUID, bool, error)
 	BuildEngineTransactionLookup(context.Context, []byte, []byte, []byte, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error)
+	// DecodeEngineTransactionExecutionMembers takes the same index, envelope,
+	// and receipt as BuildEngineTransactionLookup and returns every transaction
+	// of the execution that produced them, the addressed one included, in
+	// execution order. found is false when that execution recorded no manifest:
+	// it was ungrouped, or its plan predates the manifest.
+	DecodeEngineTransactionExecutionMembers(ctx context.Context, rawIndex, rawEnvelope, rawReceipt []byte, organizationID, ledgerID, transactionID uuid.UUID) (members []EngineExecutionMember, found bool, err error)
 }
 
 func (uc *UseCase) CanResolveEngineWriteBehind() bool {
@@ -70,8 +85,24 @@ func (uc *UseCase) CanResolveEngineWriteBehind() bool {
 // there is no newer accounting state to miss. A scope carrying a nil ID skips
 // the index: the engine never indexes one, so only the primary can answer it.
 //
-//nolint:gocognit,gocyclo // the materialized/evidence/primary chain deliberately classifies each corruption and miss independently
+// Lifecycle writes rely on this: a durable execution is still returned from the
+// index, because commit, cancel and revert must name it as their predecessor.
 func (uc *UseCase) ResolveEngineWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*EngineTransactionResolution, error) {
+	return uc.resolveEngineWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID, false)
+}
+
+// ResolveTransactionForRead is the by-id lookup the API serves. It returns the
+// indexed engine state only while that state is still pending persistence. Once
+// the write-behind completion is acknowledged the index entry lingers for the
+// idempotency retention, but PostgreSQL and Mongo already hold the transaction
+// and every later edit (a PATCH writes only there), so the read goes to the
+// primary instead of returning the frozen engine view.
+func (uc *UseCase) ResolveTransactionForRead(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*EngineTransactionResolution, error) {
+	return uc.resolveEngineWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID, true)
+}
+
+//nolint:gocognit,gocyclo // the materialized/evidence/primary chain deliberately classifies each corruption and miss independently
+func (uc *UseCase) resolveEngineWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, primaryOnceDurable bool) (*EngineTransactionResolution, error) {
 	repository := uc.EngineWriteBehindRepo
 	if repository == nil && uc.TransactionRedisRepo != nil {
 		repository, _ = uc.TransactionRedisRepo.(redis.EngineWriteBehindRepository)
@@ -98,6 +129,10 @@ func (uc *UseCase) ResolveEngineWriteBehindTransaction(ctx context.Context, orga
 		executionID, pending, err := uc.EngineWriteBehindCodec.DecodeEngineTransactionIndex(ctx, rawIndex, organizationID, ledgerID, transactionID)
 		if err != nil {
 			return nil, fmt.Errorf("decode engine transaction index: %w", err)
+		}
+
+		if primaryOnceDurable && !pending {
+			return uc.resolveEngineTransactionFromPrimary(ctx, organizationID, ledgerID, transactionID)
 		}
 
 		materialized, materializedErr := repository.GetEngineMaterializedTransaction(ctx, organizationID, ledgerID, transactionID)

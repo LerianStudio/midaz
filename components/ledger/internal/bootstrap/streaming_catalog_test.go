@@ -111,6 +111,11 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		"transaction.committed":     {},
 		"transaction.canceled":      {},
 		"transaction.reverted":      {},
+		// Cross-ledger groups (4).
+		"transaction_group.posted":    {},
+		"transaction_group.committed": {},
+		"transaction_group.canceled":  {},
+		"transaction_group.reverted":  {},
 		// Fees (7).
 		"fee_packages.created":         {},
 		"fee_packages.updated":         {},
