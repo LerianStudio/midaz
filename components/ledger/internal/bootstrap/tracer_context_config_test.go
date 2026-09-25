@@ -60,9 +60,9 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 	}
 }
 
-func TestContextTracerDisabledNeedsNoDependencies(t *testing.T) {
+func TestContextTracerDisabledRequiresDrainDependencies(t *testing.T) {
 	runtime, err := buildContextTracer(&Config{}, contextTracerDependencies{})
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.Nil(t, runtime)
 }
 
