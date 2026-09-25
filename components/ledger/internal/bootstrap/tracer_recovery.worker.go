@@ -21,6 +21,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -93,6 +94,9 @@ func (w *TracerRecoveryWorker) run(ctx context.Context) error {
 }
 
 func (w *TracerRecoveryWorker) runCycle(ctx context.Context) (summary command.TracerRecoverySummary, retErr error) {
+	// A recovered panic must leave the cycle failed, not terminate the worker
+	// or report successful delivery. Normal returns overwrite this sentinel.
+	retErr = constant.ErrTracerContractUnavailable
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 	// Nest discovery and per-tenant recovery under one bounded cycle span.
 	ctx, span := tracer.Start(ctx, "worker.recover_tracer_reservations")
@@ -104,6 +108,7 @@ func (w *TracerRecoveryWorker) runCycle(ctx context.Context) (summary command.Tr
 			libOtel.HandleSpanError(span, "Tracer recovery cycle incomplete", retErr)
 		}
 	}()
+	defer libRuntime.RecoverWithPolicyAndContext(ctx, w.logger, "ledger", "tracer-recovery-cycle", libRuntime.KeepRunning)
 
 	ctx, cancel := context.WithTimeout(ctx, w.config.CycleTimeout)
 	defer cancel()
