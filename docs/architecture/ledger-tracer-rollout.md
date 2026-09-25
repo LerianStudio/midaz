@@ -68,28 +68,18 @@ not certify the remote Tracer's version, policies or readiness.
    limits and significant amount digits before persistence. Activation locks the
    current definition and requires a valid AssetRef and the same admission
    invariants; a draft must be associated before activation. These guards do not
-   repair already-active legacy data. Before enabling the profile, review every
-   active unmapped or unsupported limit, for example on each tenant primary:
-
-   ```sql
-   SELECT l.id, l.name, l.status, (a.limit_id IS NULL) AS unmapped
-   FROM limits l
-   LEFT JOIN limit_asset_references a ON a.limit_id = l.id
-   WHERE l.status = 'ACTIVE' AND l.deleted_at IS NULL
-     AND (a.limit_id IS NULL OR
-       CASE WHEN jsonb_typeof(l.scopes) = 'array' THEN
-         jsonb_array_length(l.scopes) = 0 OR EXISTS (
-           SELECT 1 FROM jsonb_array_elements(l.scopes) s
-           WHERE s->>'accountId' IS NULL OR s - 'accountId' <> '{}'::jsonb
-              OR NOT pg_input_is_valid(s->>'accountId', 'uuid')
-         )
-       ELSE true END);
-   ```
-
-   This query flags migration candidates; it is not a complete validator for
-   duplicate/nil account IDs, resource bounds, namespaces or official ownership.
-   Resolve all candidates and revalidate the complete inventory before traffic.
-   Never silently exclude a broad or unmapped active limit to make Reserve pass.
+   repair already-active legacy data. Before enabling the profile, run the
+   read-only `scripts/tracer/context-limit-eligibility.sql` report on every tenant
+   primary. It reports unmapped assets, nil/invalid/duplicate accounts and
+   unsupported scopes. A passing tenant returns zero rows. Compare its
+   `scope_count` and `scope_bytes` columns with that tenant's rendered resource
+   bounds, and verify every reported namespace/asset ID against the Ledger's
+   official ownership inventory. The Tracer database alone cannot prove that
+   external ownership. Resolve every candidate and archive the zero-row result
+   per tenant before traffic. Never silently exclude a broad or unmapped active
+   limit to make Reserve pass. Alert on any increase of
+   `tracer_context_limit_eligibility_failures_total`; a nonzero increase means
+   the inventory gate missed an active limit or incompatible data was restored.
 6. Rewrite affected expressions against `accounts`, `entries` and `debits`, using
    exact Decimal operations. Classifications are native producer facts. There is
    no generic metadata, merchant, portfolio or segment fallback in this profile.

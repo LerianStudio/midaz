@@ -89,11 +89,12 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 		return nil, err
 	}
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.reserve_admission")
 	defer span.End()
 	defer func() { recordReserveAdmissionError(span, retErr) }()
+	defer func() { recordContextLimitEligibilityFailure(ctx, factory, logger, retErr) }()
 
 	identity, ok := contextutil.GetIntegrationIdentity(ctx)
 	if !ok {
