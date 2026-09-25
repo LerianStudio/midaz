@@ -79,7 +79,7 @@ which feeds both the Catalog and the manifest:
 - **Kafka topic** = `lerian.streaming.ledger`, derived from `ce-source` via
   `libStreaming.AppTopic` and shared by the whole catalog. One catch-all route
   carries every fact; nothing fans out per event.
-- **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Five exceptions
+- **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Six exceptions
   exist — see [ce-subject](#ce-subject).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
@@ -149,7 +149,7 @@ balance's ID in the `overdraft_enabled` branch, not the parent's.
 
 ## ce-subject
 
-Most events carry their own record ID as `ce-subject`. Five exceptions:
+Most events carry their own record ID as `ce-subject`. Six exceptions:
 
 - **`balance.changed`** and the three **`balance.overdraft_*`** events carry the
   composite idempotency key `transactionId:operationId` — NOT the balance ID.
