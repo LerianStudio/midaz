@@ -5,6 +5,7 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -28,6 +29,82 @@ func TestTracerRecoveryBackoffIsBounded(t *testing.T) {
 			require.LessOrEqual(t, delay, time.Minute)
 		}
 	}
+}
+
+func TestTracerRecoveryQuarantinesOnlyMalformedRecords(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := NewMockTracerObligationStore(ctrl)
+	client := NewMockContextTracerReserver(ctrl)
+	evidence := NewMockTracerAccountingEvidence(ctrl)
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	record := tracerreservation.Pending{
+		RecoveryAttempts: 1,
+		Key: tracerreservation.Key{
+			OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"),
+			LedgerID:       uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"),
+			TransactionID:  uuid.MustParse("1e1dd8ae-cd4b-4cb6-a88e-2926c47906aa"),
+		},
+		Scope:            tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"},
+		ContractRevision: tracercontract.ReserveContractRevision,
+		State:            tracerreservation.Executing,
+	}
+	cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
+
+	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 10).Return([]tracerreservation.Pending{record}, nil)
+	store.EXPECT().ScheduleRetry(gomock.Any(), record, now.Add(time.Second), true).Return(nil)
+
+	processor, err := NewTracerRecoveryProcessor(store, client, evidence, cfg, func() time.Time { return now })
+	require.NoError(t, err)
+	summary, err := processor.RunOnce(tmcore.ContextWithTenantID(t.Context(), "tenant-a"))
+	require.Error(t, err)
+	require.Equal(t, 1, summary.Failed)
+	require.Equal(t, 1, summary.Quarantined)
+}
+
+func TestTracerRecoveryDrainsFullBatchesWithinCycle(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := NewMockTracerObligationStore(ctrl)
+	client := NewMockContextTracerReserver(ctrl)
+	evidence := NewMockTracerAccountingEvidence(ctrl)
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	key := tracerreservation.Key{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+	record := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.New(), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Confirmed}
+	cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 1, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
+
+	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 1).Return([]tracerreservation.Pending{record}, nil)
+	client.EXPECT().ConfirmByTransaction(gomock.Any(), key.TransactionID).Return(&tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: key.TransactionID, Status: string(tracerreservation.Confirmed)}, nil)
+	store.EXPECT().MarkDelivered(gomock.Any(), key, tracerreservation.Confirmed, now).Return(nil)
+	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 1).Return(nil, nil)
+
+	processor, err := NewTracerRecoveryProcessor(store, client, evidence, cfg, func() time.Time { return now })
+	require.NoError(t, err)
+	summary, err := processor.RunOnce(tmcore.ContextWithTenantID(t.Context(), "tenant-a"))
+	require.NoError(t, err)
+	require.Equal(t, 1, summary.Claimed)
+	require.Equal(t, 1, summary.Delivered)
+}
+
+func TestTracerRecoveryContainsRecordPanicAndSchedulesRetry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := NewMockTracerObligationStore(ctrl)
+	client := NewMockContextTracerReserver(ctrl)
+	evidence := NewMockTracerAccountingEvidence(ctrl)
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	key := tracerreservation.Key{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+	record := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.New(), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Confirmed}
+	cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
+
+	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 10).Return([]tracerreservation.Pending{record}, nil)
+	client.EXPECT().ConfirmByTransaction(gomock.Any(), key.TransactionID).DoAndReturn(func(context.Context, uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
+		panic("remote adapter panic")
+	})
+	store.EXPECT().ScheduleRetry(gomock.Any(), record, now.Add(time.Second), false).Return(nil)
+
+	processor, err := NewTracerRecoveryProcessor(store, client, evidence, cfg, func() time.Time { return now })
+	require.NoError(t, err)
+	summary, err := processor.RunOnce(tmcore.ContextWithTenantID(t.Context(), "tenant-a"))
+	require.Error(t, err)
+	require.Equal(t, 1, summary.Failed)
 }
 
 func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
@@ -106,8 +183,7 @@ func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
 				}
 			}
 			if !known || failed {
-				quarantine := scenario == "unknown producer" || scenario == "unknown revision"
-				store.EXPECT().ScheduleRetry(gomock.Any(), entry, instant.Add(time.Second), quarantine).Return(nil)
+				store.EXPECT().ScheduleRetry(gomock.Any(), entry, instant.Add(time.Second), false).Return(nil)
 			}
 			processor, err := NewTracerRecoveryProcessor(store, client, evidence, cfg, func() time.Time { return instant })
 			require.NoError(t, err)

@@ -100,7 +100,7 @@ func (w *TracerRecoveryWorker) runCycle(ctx context.Context) (summary command.Tr
 	ctx, span := tracer.Start(ctx, "worker.recover_tracer_reservations")
 	defer span.End()
 	defer func() {
-		span.SetAttributes(attribute.Int("app.response.tracer.recovery.claimed", summary.Claimed), attribute.Int("app.response.tracer.recovery.delivered", summary.Delivered), attribute.Int("app.response.tracer.recovery.unresolved", summary.Unresolved), attribute.Int("app.response.tracer.recovery.failed", summary.Failed))
+		span.SetAttributes(attribute.Int("app.response.tracer.recovery.claimed", summary.Claimed), attribute.Int("app.response.tracer.recovery.delivered", summary.Delivered), attribute.Int("app.response.tracer.recovery.unresolved", summary.Unresolved), attribute.Int("app.response.tracer.recovery.failed", summary.Failed), attribute.Int("app.response.tracer.recovery.quarantined", summary.Quarantined))
 
 		if retErr != nil {
 			libOtel.HandleSpanError(span, "Tracer recovery cycle incomplete", retErr)
@@ -143,6 +143,7 @@ func (w *TracerRecoveryWorker) runCycle(ctx context.Context) (summary command.Tr
 		summary.Delivered += result.Delivered
 		summary.Unresolved += result.Unresolved
 		summary.Failed += result.Failed
+		summary.Quarantined += result.Quarantined
 
 		if err != nil {
 			failures = append(failures, err)
