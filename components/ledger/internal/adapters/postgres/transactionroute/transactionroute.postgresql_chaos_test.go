@@ -174,7 +174,7 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 	t.Logf("Phase 1: junction query returned %d entries for trID1, %d for trID2", len(result[trID1]), len(result[trID2]))
 
 	// Also verify FindByID works
-	found, err := infra.repo.FindByID(ctx, infra.orgID, infra.ledgerID, trID1)
+	found, err := infra.repo.FindByID(ctx, infra.orgID, trID1)
 	require.NoError(t, err, "Phase 1: FindByID should succeed before fault injection")
 	assert.Equal(t, trID1, found.ID, "Phase 1: data should match")
 
@@ -215,7 +215,7 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 		findCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
-		_, findErr = infra.repo.FindByID(findCtx, infra.orgID, infra.ledgerID, trID1)
+		_, findErr = infra.repo.FindByID(findCtx, infra.orgID, trID1)
 	}, "Phase 3: FindByID must not panic on connection loss")
 
 	if findErr != nil {
@@ -234,14 +234,14 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 		createTR := &mmodel.TransactionRoute{
 			ID:              uuid.Must(libCommons.GenerateUUIDv7()),
 			OrganizationID:  infra.orgID,
-			LedgerID:        infra.ledgerID,
+			LedgerID:        &infra.ledgerID,
 			Title:           "Should Fail TR",
 			OperationRoutes: []mmodel.OperationRoute{},
 			CreatedAt:       time.Now(),
 			UpdatedAt:       time.Now(),
 		}
 
-		_, createErr = infra.repo.Create(createCtx, infra.orgID, infra.ledgerID, createTR)
+		_, createErr = infra.repo.Create(createCtx, infra.orgID, &infra.ledgerID, createTR)
 	}, "Phase 3: Create must not panic on connection loss")
 
 	if createErr != nil {
@@ -512,7 +512,7 @@ func TestIntegration_Chaos_TransactionRoute_NetworkPartition(t *testing.T) {
 		findCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
-		_, findPartitionErr = infra.repo.FindByID(findCtx, infra.orgID, infra.ledgerID, trID)
+		_, findPartitionErr = infra.repo.FindByID(findCtx, infra.orgID, trID)
 	}, "Phase 3: FindByID must not panic during partition")
 
 	if findPartitionErr != nil {

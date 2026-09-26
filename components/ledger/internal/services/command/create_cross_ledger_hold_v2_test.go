@@ -92,10 +92,11 @@ func TestCreateCrossLedgerHoldV2_PersistsIntentAndExecutesOnlyOrigins(t *testing
 	assert.Equal(t, 1, reader.callsByRef[atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: ledgerB}])
 }
 
-func TestCreateCrossLedgerHoldV2_RejectsRouteValidationBeforePersistence(t *testing.T) {
+func TestCreateCrossLedgerHoldV2_RejectsRouteValidationAcrossOrganizationsBeforePersistence(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := transactiongroup.NewMockRepository(ctrl)
 	organizationID := uuid.New()
+	otherOrganizationID := uuid.New()
 	ledgerA := uuid.New()
 	ledgerB := uuid.New()
 	settings := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
@@ -104,8 +105,8 @@ func TestCreateCrossLedgerHoldV2_RejectsRouteValidationBeforePersistence(t *test
 	uc := &UseCase{
 		TransactionGroupRepo: repo,
 		TransactionReader: &atomicTransactionBatchSettingsReader{settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
-			{organizationID: organizationID, ledgerID: ledgerA}: settings,
-			{organizationID: organizationID, ledgerID: ledgerB}: routeSettings,
+			{organizationID: organizationID, ledgerID: ledgerA}:      settings,
+			{organizationID: otherOrganizationID, ledgerID: ledgerB}: routeSettings,
 		}},
 		UUIDv7Generator: func() (uuid.UUID, error) { return uuid.New(), nil },
 		Clock:           func() time.Time { return time.Date(2026, time.September, 22, 16, 0, 0, 0, time.UTC) },
@@ -117,7 +118,7 @@ func TestCreateCrossLedgerHoldV2_RejectsRouteValidationBeforePersistence(t *test
 			[]mtransaction.FromTo{crossLedgerAmountLeg("@credit", "10", false)}),
 		Scopes: CrossLedgerTransactionScopes{
 			Debits:  []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerA}},
-			Credits: []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerB}},
+			Credits: []CrossLedgerLegScope{{OrganizationID: otherOrganizationID, LedgerID: ledgerB}},
 		},
 	})
 	require.Error(t, err)

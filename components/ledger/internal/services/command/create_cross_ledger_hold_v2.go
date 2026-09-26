@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -66,6 +67,10 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 
 	parts, err := decomposeCrossLedgerTransaction(in.Transaction, internalCrossLedgerScopes(in.Scopes))
 	if err != nil {
+		return nil, err
+	}
+
+	if err := uc.routeCrossLedgerBridgeLegs(ctx, in.Transaction, parts); err != nil {
 		return nil, err
 	}
 
@@ -168,16 +173,14 @@ func (uc *UseCase) persistCrossLedgerHoldIntent(ctx context.Context, groupID uui
 }
 
 func (uc *UseCase) validateCrossLedgerHoldSettings(ctx context.Context, intent CrossLedgerGroupIntent) error {
-	seen := make(map[atomicTransactionBatchLedgerRef]struct{}, len(intent.Parts))
+	settingsByRef := make(map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings, len(intent.Parts))
 	for index := range intent.Parts {
 		part := intent.Parts[index]
 
 		ref := atomicTransactionBatchLedgerRef{organizationID: part.OrganizationID, ledgerID: part.LedgerID}
-		if _, ok := seen[ref]; ok {
+		if _, ok := settingsByRef[ref]; ok {
 			continue
 		}
-
-		seen[ref] = struct{}{}
 
 		settings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, part.OrganizationID, part.LedgerID)
 		if err != nil {
@@ -188,12 +191,10 @@ func (uc *UseCase) validateCrossLedgerHoldSettings(ctx context.Context, intent C
 			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, part.LedgerID.String())
 		}
 
-		if settings.Accounting.ValidateRoutes {
-			return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
-		}
+		settingsByRef[ref] = settings
 	}
 
-	return nil
+	return refuseCrossOrganizationRouteValidation(settingsByRef)
 }
 
 func buildCrossLedgerHoldBatchInput(
@@ -202,9 +203,12 @@ func buildCrossLedgerHoldBatchInput(
 	intent CrossLedgerGroupIntent,
 ) (CreateAtomicTransactionBatchV2Input, error) {
 	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0, len(intent.Parts))
+	heldDestinations := make([]CrossLedgerGroupIntentPart, 0, len(intent.Parts))
+
 	for index := range intent.Parts {
 		part := intent.Parts[index]
 		if part.Role != CrossLedgerGroupRoleOrigin {
+			heldDestinations = append(heldDestinations, part)
 			continue
 		}
 
@@ -230,6 +234,7 @@ func buildCrossLedgerHoldBatchInput(
 		Transactions:       items,
 		GroupID:            &groupID,
 		CrossLedgerGroup:   true,
+		HeldDestinations:   heldDestinations,
 		CanonicalRequest:   append([]byte(nil), in.CanonicalRequest...),
 		RequestFingerprint: in.RequestFingerprint,
 		IdempotencyKey:     in.IdempotencyKey,

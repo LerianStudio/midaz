@@ -57,10 +57,10 @@ func TestValidateAccountingRulesReturnsEngineCandidateRoutesFromFullCache(t *tes
 			routeRepo := transactionroute.NewMockRepository(ctrl)
 			redisRepo := transactionredis.NewMockRedisRepository(ctrl)
 			transactionRoute := &mmodel.TransactionRoute{
-				ID: transactionRouteID, OrganizationID: organizationID, LedgerID: ledgerID,
+				ID: transactionRouteID, OrganizationID: organizationID, LedgerID: &ledgerID,
 				Title: "Primary source", CreatedAt: fixedDate, UpdatedAt: fixedDate,
 				OperationRoutes: []mmodel.OperationRoute{{
-					ID: operationRouteID, OrganizationID: organizationID, LedgerID: ledgerID,
+					ID: operationRouteID, OrganizationID: organizationID, LedgerID: &ledgerID,
 					Title: "Customer debit", OperationType: "source", CreatedAt: fixedDate, UpdatedAt: fixedDate,
 					AccountingEntries: &mmodel.AccountingEntries{
 						Direct: &mmodel.AccountingEntry{
@@ -71,7 +71,7 @@ func TestValidateAccountingRulesReturnsEngineCandidateRoutesFromFullCache(t *tes
 				}},
 			}
 			expectedCache := transactionRoute.ToCache()
-			cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+			cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 
 			ledgerRepo.EXPECT().
 				GetSettings(gomock.Any(), organizationID, ledgerID).
@@ -80,7 +80,7 @@ func TestValidateAccountingRulesReturnsEngineCandidateRoutesFromFullCache(t *tes
 				GetBytes(gomock.Any(), cacheKey).
 				Return(nil, redis.Nil)
 			routeRepo.EXPECT().
-				FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+				FindByID(gomock.Any(), organizationID, transactionRouteID).
 				Return(transactionRoute, nil)
 			redisRepo.EXPECT().
 				SetBytes(gomock.Any(), cacheKey, gomock.Any(), time.Duration(0)).

@@ -28,7 +28,13 @@ func TestBuildCrossLedgerAtomicBatchInput_UsesOneGroupAndOrderedParts(t *testing
 		[]mtransaction.FromTo{crossLedgerAmountLeg("@debit", "100", true)},
 		[]mtransaction.FromTo{crossLedgerAmountLeg("@credit", "100", false)})
 
-	got, err := buildCrossLedgerAtomicBatchInput(CreateCrossLedgerTransactionV2Input{
+	parts, err := decomposeCrossLedgerTransaction(tx, crossLedgerTransactionScopes{
+		from: []atomicTransactionBatchLedgerRef{ledgerA},
+		to:   []atomicTransactionBatchLedgerRef{ledgerB},
+	})
+	require.NoError(t, err)
+
+	got := buildCrossLedgerAtomicBatchInput(CreateCrossLedgerTransactionV2Input{
 		Transaction: tx,
 		Scopes: CrossLedgerTransactionScopes{
 			Debits:  []CrossLedgerLegScope{{OrganizationID: ledgerA.organizationID, LedgerID: ledgerA.ledgerID}},
@@ -38,9 +44,8 @@ func TestBuildCrossLedgerAtomicBatchInput_UsesOneGroupAndOrderedParts(t *testing
 		IdempotencyTTL:     ttl,
 		CanonicalRequest:   []byte(`{"amount":"100"}`),
 		RequestFingerprint: "fingerprint",
-	}, groupID)
+	}, groupID, parts)
 
-	require.NoError(t, err)
 	require.NotNil(t, got.GroupID)
 	assert.Equal(t, groupID, *got.GroupID)
 	assert.True(t, got.CrossLedgerGroup)

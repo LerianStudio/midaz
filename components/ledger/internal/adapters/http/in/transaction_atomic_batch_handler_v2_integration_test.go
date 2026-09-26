@@ -832,7 +832,7 @@ func TestIntegration_DirectV2CrossLedger_OneAtomicGroup(t *testing.T) {
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, disabledLedger))
 	})
 
-	t.Run("route-validating participant is rejected", func(t *testing.T) {
+	t.Run("route-validating participant without a transaction route is rejected", func(t *testing.T) {
 		sourceLedger := fixture.newLedger(t)
 		destinationLedger := fixture.newLedger(t)
 		fixture.setCrossLedgerRoutePolicy(t, sourceLedger, true, false)
@@ -847,7 +847,7 @@ func TestIntegration_DirectV2CrossLedger_OneAtomicGroup(t *testing.T) {
 		response := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-route-direct")
 		body := drainBody(t, response)
 		require.Equal(t, http.StatusUnprocessableEntity, response.StatusCode, "body: %s", string(body))
-		requireProblemCode(t, body, constant.ErrCrossLedgerRouteValidationUnsupported.Error())
+		requireProblemCode(t, body, constant.ErrTransactionRouteNotInformed.Error())
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, sourceLedger))
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, destinationLedger))
 	})

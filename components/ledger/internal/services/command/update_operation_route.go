@@ -25,8 +25,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// UpdateOperationRoute updates an operation route by ID.
-func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
+// UpdateOperationRoute updates an operation route of the organization by ID.
+func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_operation_route")
@@ -38,6 +38,14 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_operation_route", start, err)
 	}()
 
+	if input.AccountingEntries != nil && input.AccountingEntries.CrossLedger != nil {
+		if err := uc.rejectSecondCrossLedgerBridgeRoute(ctx, organizationID, id); err != nil {
+			recordCommandError(ctx, span, logger, "Failed to check the cross-ledger bridge routes of linked transaction routes", err, libLog.String("operation_route_id", id.String()))
+
+			return nil, err
+		}
+	}
+
 	operationRoute := &mmodel.OperationRoute{
 		Title:                input.Title,
 		Description:          input.Description,
@@ -47,7 +55,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 		AccountingEntriesRaw: input.AccountingEntriesRaw,
 	}
 
-	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, ledgerID, id, operationRoute)
+	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, id, operationRoute)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
@@ -66,6 +74,14 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 	uc.emitOperationRouteUpdatedEvent(ctx, span, logger, operationRouteUpdated)
 
+	if changesCachedOperationRoute(input) {
+		// ReloadOperationRouteCache logs its own failures. A stale cache is left
+		// to the next route write rather than failing an update that persisted.
+		if err := uc.ReloadOperationRouteCache(ctx, organizationID, id); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to reload operation route cache", err)
+		}
+	}
+
 	metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, constant.EntityOperationRoute, id.String(), input.Metadata)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to update metadata on repo by id", err, libLog.String("operation_route_id", id.String()))
@@ -76,6 +92,60 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	operationRouteUpdated.Metadata = metadataUpdated
 
 	return operationRouteUpdated, nil
+}
+
+// changesCachedOperationRoute reports whether the update touches a field the
+// transaction route cache carries for route validation and rubric stamping.
+func changesCachedOperationRoute(input *mmodel.UpdateOperationRouteInput) bool {
+	return input.Account != nil ||
+		input.Code != "" || //nolint:staticcheck // the legacy Code field is still cached
+		input.AccountingEntries != nil ||
+		len(input.AccountingEntriesRaw) > 0
+}
+
+// rejectSecondCrossLedgerBridgeRoute keeps a transaction route at one bridge
+// route when an operation route it already links gains a crossLedger entry.
+func (uc *UseCase) rejectSecondCrossLedgerBridgeRoute(ctx context.Context, organizationID, operationRouteID uuid.UUID) error {
+	transactionRouteIDs, err := uc.OperationRouteRepo.FindTransactionRouteIDs(ctx, operationRouteID)
+	if err != nil || len(transactionRouteIDs) == 0 {
+		return err
+	}
+
+	linked, err := uc.TransactionRouteRepo.FindOperationRouteIDsByTransactionRouteIDs(ctx, transactionRouteIDs)
+	if err != nil {
+		return err
+	}
+
+	seen := map[uuid.UUID]struct{}{operationRouteID: {}}
+	siblings := make([]uuid.UUID, 0)
+
+	for _, transactionRouteID := range transactionRouteIDs {
+		for _, siblingID := range linked[transactionRouteID] {
+			if _, ok := seen[siblingID]; ok {
+				continue
+			}
+
+			seen[siblingID] = struct{}{}
+			siblings = append(siblings, siblingID)
+		}
+	}
+
+	if len(siblings) == 0 {
+		return nil
+	}
+
+	routes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, siblings)
+	if err != nil {
+		return err
+	}
+
+	for _, route := range routes {
+		if isCrossLedgerBridgeRoute(route) {
+			return errMultipleCrossLedgerBridgeRoutes()
+		}
+	}
+
+	return nil
 }
 
 // emitOperationRouteUpdatedEvent publishes the operation-route.updated

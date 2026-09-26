@@ -45,7 +45,7 @@ func TestToEntity_Overdraft_JSONB(t *testing.T) {
 	model := &OperationRoutePostgreSQLModel{
 		ID:                uuid.New(),
 		OrganizationID:    uuid.New(),
-		LedgerID:          uuid.New(),
+		LedgerID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "Overdraft Route",
 		OperationType:     "bidirectional",
 		AccountingEntries: raw,
@@ -84,7 +84,7 @@ func TestToEntity_LegacyJSONB_NoOverdraft(t *testing.T) {
 	model := &OperationRoutePostgreSQLModel{
 		ID:                uuid.New(),
 		OrganizationID:    uuid.New(),
-		LedgerID:          uuid.New(),
+		LedgerID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "Legacy Route",
 		OperationType:     "source",
 		AccountingEntries: legacyBytes,
@@ -124,7 +124,7 @@ func TestToEntity_LegacyJSONB_WithRefundKey(t *testing.T) {
 	model := &OperationRoutePostgreSQLModel{
 		ID:                uuid.New(),
 		OrganizationID:    uuid.New(),
-		LedgerID:          uuid.New(),
+		LedgerID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "Legacy Route with Refund",
 		OperationType:     "bidirectional",
 		AccountingEntries: legacyBytes,
@@ -146,7 +146,7 @@ func TestFromEntity_Overdraft_JSONB(t *testing.T) {
 	entity := &mmodel.OperationRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Overdraft Route",
 		OperationType:  "bidirectional",
 		AccountingEntries: &mmodel.AccountingEntries{
@@ -185,7 +185,7 @@ func TestOverdraft_RoundTrip_Entity_Model_Entity(t *testing.T) {
 	original := &mmodel.OperationRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Round Trip Route",
 		Description:    "Overdraft round-trip",
 		OperationType:  "bidirectional",

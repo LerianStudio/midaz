@@ -15,89 +15,75 @@ import (
 	"go.uber.org/mock/gomock"
 
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// TestDeleteTransactionRouteCache_Success tests successful cache deletion
-func TestDeleteTransactionRouteCache_Success(t *testing.T) {
+func TestDeleteTransactionRouteCache_DeletesOrganizationAndLedgerKeys(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID, LedgerID: &ledgerID}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := &UseCase{
-		TransactionRedisRepo: mockRedisRepo,
-	}
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
 
-	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID)).Return(nil).Times(1)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.LedgerAccountingRoutesInternalKey(organizationID, ledgerID, route.ID)).Return(nil).Times(1)
 
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), expectedKey).
-		Return(nil).
-		Times(1)
-
-	err := uc.DeleteTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
-
-	assert.NoError(t, err)
+	assert.NoError(t, uc.DeleteTransactionRouteCache(context.Background(), route))
 }
 
-// TestDeleteTransactionRouteCache_RedisError tests error handling when Redis Del fails
-func TestDeleteTransactionRouteCache_RedisError(t *testing.T) {
+func TestDeleteTransactionRouteCache_RouteWithoutLedgerDeletesOnlyOrganizationKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID}
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID)).Return(nil).Times(1)
+
+	assert.NoError(t, uc.DeleteTransactionRouteCache(context.Background(), route))
+}
+
+// A failed organization-key delete must not skip the ledger-key delete: that key
+// is the one pods resolving routes by ledger keep serving forever.
+func TestDeleteTransactionRouteCache_OrganizationKeyFailureStillDeletesLedgerKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID, LedgerID: &ledgerID}
 
 	redisError := errors.New("redis connection error")
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := &UseCase{
-		TransactionRedisRepo: mockRedisRepo,
-	}
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
 
-	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID)).Return(redisError).Times(1)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.LedgerAccountingRoutesInternalKey(organizationID, ledgerID, route.ID)).Return(nil).Times(1)
 
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), expectedKey).
-		Return(redisError).
-		Times(1)
+	err := uc.DeleteTransactionRouteCache(context.Background(), route)
 
-	err := uc.DeleteTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
-
-	assert.Error(t, err)
-	assert.Equal(t, redisError, err)
+	assert.ErrorIs(t, err, redisError)
 }
 
-// TestDeleteTransactionRouteCache_ContextCancelled tests error handling when context is cancelled
-func TestDeleteTransactionRouteCache_ContextCancelled(t *testing.T) {
+func TestDeleteTransactionRouteCache_LedgerKeyFailureIsReturned(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	route := &mmodel.TransactionRoute{ID: uuid.Must(libCommons.GenerateUUIDv7()), OrganizationID: organizationID, LedgerID: &ledgerID}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := &UseCase{
-		TransactionRedisRepo: mockRedisRepo,
-	}
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, route.ID)).Return(nil).Times(1)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.LedgerAccountingRoutesInternalKey(organizationID, ledgerID, route.ID)).Return(context.Canceled).Times(1)
 
-	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteCache(context.Background(), route)
 
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), expectedKey).
-		Return(context.Canceled).
-		Times(1)
-
-	err := uc.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
-
-	assert.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }

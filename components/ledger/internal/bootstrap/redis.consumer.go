@@ -588,7 +588,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			}
 
 			if parseErr == nil && trID != uuid.Nil {
-				cache, cacheErr := r.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
+				cache, cacheErr := r.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, trID)
 				if cacheErr != nil {
 					logger.Log(ctx, libLog.LevelDebug, "Failed to get route cache", libLog.String("route_id", trID.String()), libLog.Err(cacheErr))
 				} else {

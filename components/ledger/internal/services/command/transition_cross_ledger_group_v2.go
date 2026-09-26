@@ -33,6 +33,7 @@ type crossLedgerPendingGroupPart struct {
 	run        *pendingTransitionRun
 	transition pendingEngineTransition
 	prepared   PreparedEngineExecution
+	routes     crossLedgerGroupRoutePart
 }
 
 //nolint:gocognit,gocyclo // lifecycle ordering keeps locks, reservations, idempotency, accounting, and recovery in one auditable boundary
@@ -115,6 +116,11 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	}
 
 	ledgers := setCrossLedgerGroupShape(span, crossLedgerIntentLedgerRefs(*intent))
+
+	if err := uc.refuseCrossOrganizationGroupRouteValidation(ctx, crossLedgerIntentLedgerRefs(*intent)); err != nil {
+		return nil, err
+	}
+
 	roles := crossLedgerIntentRoles(*intent)
 	roleOf := func(member *transaction.Transaction) string { return roles[crossLedgerMemberLedgerRef(member)] }
 
@@ -184,7 +190,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 			return nil, err
 		}
 
-		engineState, prepareErr := uc.prepareEngineTransaction(ctx, enginePreparationInput{
+		engineState, routes, prepareErr := uc.prepareCrossLedgerGroupPart(ctx, enginePreparationInput{
 			organizationID: part.run.organizationID,
 			ledgerID:       part.run.ledgerID,
 			translation: EngineTranslationInput{
@@ -196,10 +202,12 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 				Validate:                   part.transition.validate,
 				AccountBlockExceptionGrant: part.run.accountBlockExceptionGrant,
 			},
-		})
+		}, part.transition.ledgerSettings.Accounting.ValidateRoutes)
 		if prepareErr != nil {
 			return nil, prepareErr
 		}
+
+		part.routes = routes
 
 		part.prepared, err = buildPendingEngineExecution(
 			part.transition.persisted,
@@ -222,6 +230,10 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	if status == constant.APPROVED {
 		destinationRun, destinationPrepared, err = uc.prepareCrossLedgerGroupDestinations(ctx, span, logger, groupID, *intent)
 		if err != nil {
+			return nil, err
+		}
+
+		if err := uc.validateCrossLedgerCommitRoutes(ctx, origins, destinationRun); err != nil {
 			return nil, err
 		}
 	}
@@ -631,24 +643,7 @@ func (uc *UseCase) prepareCrossLedgerGroupDestinations(
 	groupID uuid.UUID,
 	intent CrossLedgerGroupIntent,
 ) (*atomicTransactionBatchRun, PreparedEngineExecution, error) {
-	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0)
-
-	for _, part := range intent.Parts {
-		if part.Role != CrossLedgerGroupRoleDestination {
-			continue
-		}
-
-		index := len(items)
-		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
-			OrganizationID: part.OrganizationID,
-			LedgerID:       part.LedgerID,
-			Transaction:    part.Transaction,
-			Action:         constant.ActionDirect,
-			Order:          index + 1,
-			OriginalIndex:  index,
-		})
-	}
-
+	items := crossLedgerGroupDestinationItems(intent)
 	if len(items) == 0 {
 		return nil, PreparedEngineExecution{}, pkg.ValidateBusinessError(
 			constant.ErrCrossLedgerGroupIncomplete,
@@ -681,6 +676,52 @@ func (uc *UseCase) prepareCrossLedgerGroupDestinations(
 	}
 
 	return run, prepared, nil
+}
+
+// validateCrossLedgerCommitRoutes checks the route coverage of a group commit:
+// the origin transitions and the destinations created now together use the
+// commit template. A cancel is source-only and has no group-wide rule.
+func (uc *UseCase) validateCrossLedgerCommitRoutes(
+	ctx context.Context,
+	origins []crossLedgerPendingGroupPart,
+	destinations *atomicTransactionBatchRun,
+) error {
+	parts := make([]crossLedgerGroupRoutePart, 0, len(origins)+len(destinations.items))
+	for index := range origins {
+		parts = append(parts, origins[index].routes)
+	}
+
+	for index := range destinations.items {
+		parts = append(parts, destinations.items[index].groupRoutes)
+	}
+
+	return uc.validateCrossLedgerGroupRoutes(ctx, constant.ActionCommit, parts)
+}
+
+// crossLedgerGroupDestinationItems returns the destination parts a group commit
+// creates. They post as direct transactions and validate their routes against
+// the commit template, the phase they belong to.
+func crossLedgerGroupDestinationItems(intent CrossLedgerGroupIntent) []CreateAtomicTransactionBatchV2ItemInput {
+	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0)
+
+	for _, part := range intent.Parts {
+		if part.Role != CrossLedgerGroupRoleDestination {
+			continue
+		}
+
+		index := len(items)
+		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
+			OrganizationID: part.OrganizationID,
+			LedgerID:       part.LedgerID,
+			Transaction:    part.Transaction,
+			Action:         constant.ActionDirect,
+			RouteAction:    constant.ActionCommit,
+			Order:          index + 1,
+			OriginalIndex:  index,
+		})
+	}
+
+	return items
 }
 
 func crossLedgerGroupExecutionID(uc *UseCase, destinations *atomicTransactionBatchRun) (uuid.UUID, error) {

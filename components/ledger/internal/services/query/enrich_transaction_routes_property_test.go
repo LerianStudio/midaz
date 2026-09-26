@@ -48,7 +48,7 @@ func buildEnrichmentScenario(numRoutes, maxOpsPerRoute uint8) enrichmentScenario
 		routes[i] = &mmodel.TransactionRoute{
 			ID:             uuid.New(),
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "prop-route",
 		}
 	}
@@ -71,7 +71,7 @@ func buildEnrichmentScenario(numRoutes, maxOpsPerRoute uint8) enrichmentScenario
 		opRoutes = append(opRoutes, &mmodel.OperationRoute{
 			ID:             orID,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "prop-op",
 			OperationType:  "source",
 		})
@@ -103,7 +103,7 @@ func setupMocksForScenario(
 
 		if len(s.opRoutes) > 0 {
 			mockORRepo.EXPECT().
-				FindByIDs(gomock.Any(), s.orgID, s.ledgerID, gomock.Any()).
+				FindByIDs(gomock.Any(), s.orgID, gomock.Any()).
 				Return(s.opRoutes, nil)
 		}
 	}

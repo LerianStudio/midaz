@@ -249,7 +249,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_GetOrCreateTransactionRouteCache
 	// First call: cache miss -> fetches from DB -> stores in Redis through proxy.
 	t.Log("Phase 1 (Normal): verifying GetOrCreateTransactionRouteCache succeeds through proxy")
 
-	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
+	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, txRouteID)
 	require.NoError(t, err, "Phase 1: GetOrCreateTransactionRouteCache should succeed through proxy")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
@@ -272,7 +272,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_GetOrCreateTransactionRouteCache
 	var chaosErr error
 
 	require.NotPanics(t, func() {
-		_, chaosErr = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
+		_, chaosErr = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, txRouteID)
 	}, "Phase 3: GetOrCreateTransactionRouteCache must not panic on Redis connection loss")
 
 	// The function may return an error (cache write failure) or succeed
@@ -292,7 +292,7 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_GetOrCreateTransactionRouteCache
 	t.Log("Phase 5 (Recovery): verifying GetOrCreateTransactionRouteCache succeeds after proxy restoration")
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
+		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, txRouteID)
 		if recoverErr != nil {
 			return recoverErr
 		}
@@ -351,7 +351,7 @@ func TestIntegration_Chaos_Redis_HighLatency_GetOrCreateTransactionRouteCache(t 
 	normalCtx, normalCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer normalCancel()
 
-	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(normalCtx, orgID, ledgerID, txRouteID)
+	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(normalCtx, orgID, txRouteID)
 	require.NoError(t, err, "Phase 1: should succeed with normal latency")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
@@ -381,7 +381,7 @@ func TestIntegration_Chaos_Redis_HighLatency_GetOrCreateTransactionRouteCache(t 
 
 	go func() {
 		defer close(done)
-		_, latencyErr = infra.uc.GetOrCreateTransactionRouteCache(highLatencyCtx, orgID, ledgerID, txRouteID)
+		_, latencyErr = infra.uc.GetOrCreateTransactionRouteCache(highLatencyCtx, orgID, txRouteID)
 	}()
 
 	select {
@@ -408,7 +408,7 @@ func TestIntegration_Chaos_Redis_HighLatency_GetOrCreateTransactionRouteCache(t 
 		recoveryCtx, recoveryCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer recoveryCancel()
 
-		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(recoveryCtx, orgID, ledgerID, txRouteID)
+		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(recoveryCtx, orgID, txRouteID)
 		if recoverErr != nil {
 			return recoverErr
 		}
@@ -476,7 +476,7 @@ func TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache(t
 	normalCtx, normalCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer normalCancel()
 
-	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(normalCtx, orgID, ledgerID, txRouteID)
+	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(normalCtx, orgID, txRouteID)
 	require.NoError(t, err, "Phase 1: should succeed on first call (cache miss -> DB fetch -> store)")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
@@ -519,7 +519,7 @@ func TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache(t
 
 	go func() {
 		defer close(done)
-		_, writeErr = infra.uc.GetOrCreateTransactionRouteCache(writeTimeoutCtx, orgID2, ledgerID2, txRouteID2)
+		_, writeErr = infra.uc.GetOrCreateTransactionRouteCache(writeTimeoutCtx, orgID2, txRouteID2)
 	}()
 
 	select {
@@ -547,7 +547,7 @@ func TestIntegration_Chaos_Redis_WriteTimeout_GetOrCreateTransactionRouteCache(t
 		recoveryCtx, recoveryCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer recoveryCancel()
 
-		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(recoveryCtx, orgID2, ledgerID2, txRouteID2)
+		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(recoveryCtx, orgID2, txRouteID2)
 		if recoverErr != nil {
 			return recoverErr
 		}
@@ -605,7 +605,7 @@ func TestIntegration_Chaos_Postgres_ConnectionLoss_GetOrCreateTransactionRouteCa
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): verifying function succeeds through both proxies")
 
-	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
+	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, txRouteID)
 	require.NoError(t, err, "Phase 1: should succeed with both proxies healthy")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
@@ -635,7 +635,7 @@ func TestIntegration_Chaos_Postgres_ConnectionLoss_GetOrCreateTransactionRouteCa
 	var pgDownErr error
 
 	require.NotPanics(t, func() {
-		_, pgDownErr = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, ledgerID2, txRouteID2)
+		_, pgDownErr = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, txRouteID2)
 	}, "Phase 3: GetOrCreateTransactionRouteCache must not panic on PostgreSQL connection loss")
 
 	assert.Error(t, pgDownErr,
@@ -653,7 +653,7 @@ func TestIntegration_Chaos_Postgres_ConnectionLoss_GetOrCreateTransactionRouteCa
 	t.Log("Phase 5 (Recovery): verifying function succeeds after PostgreSQL proxy restoration")
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, ledgerID2, txRouteID2)
+		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, txRouteID2)
 		if recoverErr != nil {
 			return recoverErr
 		}
@@ -714,7 +714,7 @@ func TestIntegration_Chaos_Postgres_HighLatency_GetOrCreateTransactionRouteCache
 	normalCtx, normalCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer normalCancel()
 
-	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(normalCtx, orgID, ledgerID, txRouteID)
+	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(normalCtx, orgID, txRouteID)
 	require.NoError(t, err, "Phase 1: should succeed with normal latency")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
@@ -748,7 +748,7 @@ func TestIntegration_Chaos_Postgres_HighLatency_GetOrCreateTransactionRouteCache
 
 	go func() {
 		defer close(done)
-		_, pgLatencyErr = infra.uc.GetOrCreateTransactionRouteCache(slowPGCtx, orgID2, ledgerID2, txRouteID2)
+		_, pgLatencyErr = infra.uc.GetOrCreateTransactionRouteCache(slowPGCtx, orgID2, txRouteID2)
 	}()
 
 	select {
@@ -773,7 +773,7 @@ func TestIntegration_Chaos_Postgres_HighLatency_GetOrCreateTransactionRouteCache
 		recoveryCtx, recoveryCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer recoveryCancel()
 
-		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(recoveryCtx, orgID2, ledgerID2, txRouteID2)
+		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(recoveryCtx, orgID2, txRouteID2)
 		if recoverErr != nil {
 			return recoverErr
 		}
@@ -831,7 +831,7 @@ func TestIntegration_Chaos_BothDown_GetOrCreateTransactionRouteCache(t *testing.
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): verifying function succeeds through both proxies")
 
-	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
+	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, txRouteID)
 	require.NoError(t, err, "Phase 1: should succeed with both services healthy")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
@@ -864,7 +864,7 @@ func TestIntegration_Chaos_BothDown_GetOrCreateTransactionRouteCache(t *testing.
 	var bothDownErr error
 
 	require.NotPanics(t, func() {
-		_, bothDownErr = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, ledgerID2, txRouteID2)
+		_, bothDownErr = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, txRouteID2)
 	}, "Phase 3: GetOrCreateTransactionRouteCache must not panic when both Redis and PostgreSQL are down")
 
 	assert.Error(t, bothDownErr,
@@ -886,7 +886,7 @@ func TestIntegration_Chaos_BothDown_GetOrCreateTransactionRouteCache(t *testing.
 	t.Log("Phase 5 (Recovery): verifying function succeeds after both proxies restored")
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, ledgerID2, txRouteID2)
+		result, recoverErr := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID2, txRouteID2)
 		if recoverErr != nil {
 			return recoverErr
 		}

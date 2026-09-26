@@ -312,9 +312,33 @@ func AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, e
 	return builder.String()
 }
 
-// AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
-// "accounting_routes:{organizationID:ledgerID:key}"
-func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {
+// AccountingRoutesInternalKey returns the cache key of a transaction route, which
+// belongs to its organization and validates in every ledger of it:
+// "accounting_routes:{organizationID:transactionRouteID}"
+func AccountingRoutesInternalKey(organizationID, transactionRouteID uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.Grow(93) // "accounting_routes:{" + 2×UUID + ":" + "}"
+
+	builder.WriteString("accounting_routes")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(transactionRouteID.String())
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
+// LedgerAccountingRoutesInternalKey returns the ledger-scoped cache key that
+// versions resolving routes by ledger still read:
+// "accounting_routes:{organizationID:ledgerID:transactionRouteID}"
+//
+// It is only ever deleted, on every route write, because those entries never
+// expire: a pod of such a version would otherwise keep serving a rule that was
+// updated or deleted after it cached it.
+func LedgerAccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID uuid.UUID) string {
 	var builder strings.Builder
 
 	builder.Grow(130) // "accounting_routes:{" + 3×UUID + 2×":" + "}"
@@ -326,7 +350,7 @@ func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string
 	builder.WriteString(keySeparator)
 	builder.WriteString(ledgerID.String())
 	builder.WriteString(keySeparator)
-	builder.WriteString(key.String())
+	builder.WriteString(transactionRouteID.String())
 	builder.WriteString(endKey)
 
 	return builder.String()

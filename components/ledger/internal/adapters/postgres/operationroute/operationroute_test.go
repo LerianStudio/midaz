@@ -25,7 +25,7 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &OperationRoutePostgreSQLModel{
 			ID:                 id,
 			OrganizationID:     orgID,
-			LedgerID:           ledgerID,
+			LedgerID:           uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:              "Cashin Route",
 			Description:        "Route for cash-in operations",
 			Code:               sql.NullString{String: "CASHIN-001", Valid: true},
@@ -42,7 +42,7 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		require.NotNil(t, entity)
 		assert.Equal(t, model.ID, entity.ID)
 		assert.Equal(t, model.OrganizationID, entity.OrganizationID)
-		assert.Equal(t, model.LedgerID, entity.LedgerID)
+		assert.Equal(t, &model.LedgerID.UUID, entity.LedgerID)
 		assert.Equal(t, model.Title, entity.Title)
 		assert.Equal(t, model.Description, entity.Description)
 		assert.Equal(t, "CASHIN-001", entity.Code)
@@ -65,7 +65,7 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &OperationRoutePostgreSQLModel{
 			ID:                 id,
 			OrganizationID:     orgID,
-			LedgerID:           ledgerID,
+			LedgerID:           uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:              "Account Type Route",
 			Description:        "Route with account type rule",
 			OperationType:      "destination",
@@ -96,7 +96,7 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &OperationRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "No Code Route",
 			Description:    "Route without code",
 			Code:           sql.NullString{Valid: false},
@@ -119,7 +119,7 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &OperationRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "Simple Route",
 			Description:    "Route without account rules",
 			OperationType:  "source",
@@ -149,7 +149,7 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &OperationRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "Edge Case Route",
 			OperationType:  "source",
 			CreatedAt:      time.Now(),
@@ -174,7 +174,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.OperationRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Cashin Route",
 			Description:    "Route for cash-in operations",
 			Code:           "CASHIN-001",
@@ -193,7 +193,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 
 		assert.Equal(t, entity.ID, model.ID)
 		assert.Equal(t, entity.OrganizationID, model.OrganizationID)
-		assert.Equal(t, entity.LedgerID, model.LedgerID)
+		assert.Equal(t, uuid.NullUUID{UUID: *entity.LedgerID, Valid: true}, model.LedgerID)
 		assert.Equal(t, entity.Title, model.Title)
 		assert.Equal(t, entity.Description, model.Description)
 		assert.True(t, model.Code.Valid, "Code should be valid")
@@ -216,7 +216,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.OperationRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Account Type Route",
 			OperationType:  "destination",
 			Account: &mmodel.AccountRule{
@@ -243,7 +243,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.OperationRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Account Type Route",
 			OperationType:  "destination",
 			Account: &mmodel.AccountRule{
@@ -269,7 +269,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.OperationRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "No Code Route",
 			Code:           "   ",
 			OperationType:  "source",
@@ -291,7 +291,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.OperationRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Simple Route",
 			OperationType:  "source",
 			CreatedAt:      time.Now(),
@@ -333,7 +333,7 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 			entity := &mmodel.OperationRoute{
 				ID:             uuid.New(),
 				OrganizationID: uuid.New(),
-				LedgerID:       uuid.New(),
+				LedgerID:       new(uuid.New()),
 				Title:          "Type Test",
 				OperationType:  tc.input,
 				CreatedAt:      time.Now(),

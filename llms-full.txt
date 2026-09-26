@@ -164,6 +164,9 @@ All models live in `pkg/mmodel/`. Key entities:
 ### 3.7 Operation Route / Transaction Route
 - Operation routes define per-operation rules (source/destination/bidirectional)
 - Transaction routes compose multiple operation routes for accounting validation
+- Routes belong to the organization: lookups, updates and deletes resolve by `(organization, id)`, and a transaction route may link operation routes created under different ledgers of the organization. `ledgerId` is provenance only — the ledger the route was created under, omitted for a route created at organization level (`/v2/organizations/{organization_id}/{operation,transaction}-routes`, served on `/v2` only). The ledger paths (`/v1` and `/v2`) record the path ledger on create and reach every route of the organization on list, get, patch and delete. Both paths authorize with the same `("midaz","operation-routes"|"transaction-routes",verb)` tuples
+- `accountingEntries` keys: `direct`, `hold`, `commit`, `cancel`, `revert` (transaction-route actions) plus the entry-only `overdraft`, `block`, `unblock` and `crossLedger`
+- `crossLedger` marks the cross-ledger bridge route: debit rubric = arriving from another ledger, credit rubric = leaving to another ledger, both required; the operation route must be `bidirectional` (`0162` otherwise) and carry no other entry (`0256`); it needs no `direct` entry and never counts in an action's template. A transaction route links at most one (`0256` on transaction-route create/update, and on operation-route update when a linked transaction route already has one)
 - Account rules: alias-based or account-type-based validation
 
 ### 3.8 Account Type
@@ -221,6 +224,14 @@ and creates every destination in one engine execution, while v2 cancel releases 
 creates no destination. Both lifecycle responses are singular for ordinary transactions and a
 `groupId` plus ordered `transactions` for cross-ledger groups. `/v1` rejects grouped lifecycle
 operations with `0252`; a second terminal action returns `0254`.
+
+Cross-ledger groups work on ledgers that enable `accounting.validateRoutes` when every part
+belongs to one organization: the request's organization-wide `routeId` covers every part, the
+bridge legs of validating parts take the transaction route's `crossLedger` operation route, each
+validating part is checked leg by leg, and the client legs of all parts of a phase together must
+use exactly that phase's template (`0116`/`0117`/`0151`; legs naming a route count even in
+non-validating parts). A group spanning organizations with a validating participant returns
+`0251`. See the "Accounting routes" section of the cross-ledger contract.
 
 `POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert`
 reverses the complete cross-ledger group when the selected transaction has a `groupId`. It
@@ -335,6 +346,16 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | GET | .../transaction-routes/:trid | Get transaction route |
 | PATCH | .../transaction-routes/:trid | Update transaction route |
 | DELETE | .../transaction-routes/:trid | Delete transaction route |
+| POST | /v2/organizations/:org_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:org_id/operation-routes | List every operation route of the organization |
+| GET | /v2/organizations/:org_id/operation-routes/:orid | Get operation route |
+| PATCH | /v2/organizations/:org_id/operation-routes/:orid | Update operation route |
+| DELETE | /v2/organizations/:org_id/operation-routes/:orid | Delete operation route |
+| POST | /v2/organizations/:org_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:org_id/transaction-routes | List every transaction route of the organization |
+| GET | /v2/organizations/:org_id/transaction-routes/:trid | Get transaction route |
+| PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
+| DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
 
 #### Settings / Metadata
 
@@ -564,16 +585,18 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0249–0254)
+#### Settings / Reservation Error Codes (0176–0178, 0249–0256)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
 - `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
-- `0251` ErrCrossLedgerRouteValidationUnsupported — at least one participant requires route validation, which synthetic bridge legs cannot satisfy (HTTP 422)
+- `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)
 - `0252` ErrCrossLedgerLifecycleRequiresV2 — `/v1` attempted to commit, cancel, or revert a member of a cross-ledger group (HTTP 422)
 - `0253` ErrCrossLedgerGroupIncomplete — the requested cross-ledger group is missing or has inconsistent intent or members (HTTP 422)
 - `0254` ErrCrossLedgerGroupNotPending — grouped commit/cancel targeted a group whose current status is not PENDING (HTTP 422)
+- `0255` ErrCrossLedgerRouteNotConfigured — a participant validates routes but the request's transaction route links no operation route with a `crossLedger` entry for the bridge leg (HTTP 422)
+- `0256` ErrInvalidCrossLedgerRoute — the bridge route does not resolve to exactly one operation route: a `crossLedger` entry combined with other entries, or more than one `crossLedger` operation route in a transaction route (HTTP 422)
 
 #### CRM Error Codes (all 29)
 - `CRM-0006` ErrHolderNotFound — holder not found

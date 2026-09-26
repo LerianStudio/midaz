@@ -43,6 +43,8 @@ DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/packages/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
+DELETE	/v2/organizations/:organization_id/operation-routes/:operation_route_id	4
+DELETE	/v2/organizations/:organization_id/transaction-routes/:transaction_route_id	4
 DELETE	/v2/settings/metadata-indexes/entities/:entity_name/key/:index_key	3
 GET	/health	1
 GET	/readyz	1
@@ -208,7 +210,15 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	1
+GET	/v2/organizations/:organization_id/operation-routes	3
+GET	/v2/organizations/:organization_id/operation-routes	1
+GET	/v2/organizations/:organization_id/operation-routes/:operation_route_id	3
+GET	/v2/organizations/:organization_id/operation-routes/:operation_route_id	1
 GET	/v2/organizations/:organization_id/protection/audit	4
+GET	/v2/organizations/:organization_id/transaction-routes	3
+GET	/v2/organizations/:organization_id/transaction-routes	1
+GET	/v2/organizations/:organization_id/transaction-routes/:transaction_route_id	3
+GET	/v2/organizations/:organization_id/transaction-routes/:transaction_route_id	1
 GET	/v2/settings/metadata-indexes	3
 GET	/version	1
 HEAD	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count	4
@@ -259,6 +269,8 @@ PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/settings	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	4
+PATCH	/v2/organizations/:organization_id/operation-routes/:operation_route_id	4
+PATCH	/v2/organizations/:organization_id/transaction-routes/:transaction_route_id	4
 POST	/v1/organizations	3
 POST	/v1/organizations/:organization_id/ledgers	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	4
@@ -316,6 +328,8 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transac
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	1
+POST	/v2/organizations/:organization_id/operation-routes	4
+POST	/v2/organizations/:organization_id/transaction-routes	4
 POST	/v2/settings/metadata-indexes/entities/:entity_name	3
 POST	/v2/transactions/batch	3
 POST	/v2/transactions/batch	1

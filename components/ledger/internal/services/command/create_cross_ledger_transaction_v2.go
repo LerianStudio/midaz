@@ -83,10 +83,16 @@ func (uc *UseCase) CreateCrossLedgerTransactionV2(
 
 	span.SetAttributes(attribute.String("app.response.group_id", groupID.String()))
 
-	batch, err := buildCrossLedgerAtomicBatchInput(in, groupID)
+	parts, err := decomposeCrossLedgerTransaction(in.Transaction, internalCrossLedgerScopes(in.Scopes))
 	if err != nil {
 		return nil, err
 	}
+
+	if err := uc.routeCrossLedgerBridgeLegs(ctx, in.Transaction, parts); err != nil {
+		return nil, err
+	}
+
+	batch := buildCrossLedgerAtomicBatchInput(in, groupID, parts)
 
 	ledgers := setCrossLedgerGroupShape(span, crossLedgerBatchLedgerRefs(batch.Transactions))
 
@@ -106,12 +112,8 @@ func (uc *UseCase) CreateCrossLedgerTransactionV2(
 func buildCrossLedgerAtomicBatchInput(
 	in CreateCrossLedgerTransactionV2Input,
 	groupID uuid.UUID,
-) (CreateAtomicTransactionBatchV2Input, error) {
-	parts, err := decomposeCrossLedgerTransaction(in.Transaction, internalCrossLedgerScopes(in.Scopes))
-	if err != nil {
-		return CreateAtomicTransactionBatchV2Input{}, err
-	}
-
+	parts []decomposedCrossLedgerPart,
+) CreateAtomicTransactionBatchV2Input {
 	items := make([]CreateAtomicTransactionBatchV2ItemInput, len(parts))
 	for index, part := range parts {
 		items[index] = CreateAtomicTransactionBatchV2ItemInput{
@@ -136,5 +138,5 @@ func buildCrossLedgerAtomicBatchInput(
 		RequestFingerprint: in.RequestFingerprint,
 		IdempotencyKey:     in.IdempotencyKey,
 		IdempotencyTTL:     in.IdempotencyTTL,
-	}, nil
+	}
 }

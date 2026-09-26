@@ -6,49 +6,52 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// CreateAccountingRouteCache creates a cache for the accounting route.
-	// It converts the transaction route into a cache structure and stores it in Redis.
-	// The cache structure is a map of operation route ids to their type and account rule.
-	// The operation route ids are the uuids of the operation routes in the transaction route.
-	// The type is the type of the operation route (debit or credit).
-	// The account rule is the account rule of the operation route.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// CreateAccountingRouteCache stores the msgpack-encoded action-aware cache of a
+// transaction route under its organization key, with no expiry. When the route
+// was created under a ledger, it also deletes the ledger-scoped key so a pod
+// still reading that key reloads the route instead of serving the previous rule.
+// Both writes are attempted; their failures are joined.
 func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route_cache")
 	defer span.End()
 
-	internalKey := utils.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
-
-	cacheData := route.ToCache()
-
-	cacheBytes, err := cacheData.ToMsgpack()
+	cacheBytes, err := route.ToCache().ToMsgpack()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert route to cache data", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to convert route to cache data", libLog.Err(err))
-
 		return err
 	}
 
-	err = uc.TransactionRedisRepo.SetBytes(ctx, internalKey, cacheBytes, 0)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to create transaction route cache", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err))
-
-		return err
+	setErr := uc.TransactionRedisRepo.SetBytes(ctx, utils.AccountingRoutesInternalKey(route.OrganizationID, route.ID), cacheBytes, 0)
+	if setErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to create transaction route cache", setErr)
 	}
 
-	return nil
+	legacyErr := uc.deleteLedgerAccountingRouteCache(ctx, route)
+	if legacyErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to delete ledger-scoped transaction route cache", legacyErr)
+	}
+
+	return errors.Join(setErr, legacyErr)
+}
+
+// deleteLedgerAccountingRouteCache removes the ledger-scoped key of a route
+// created under a ledger. A route created at organization level has no such key.
+func (uc *UseCase) deleteLedgerAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
+	if route.LedgerID == nil {
+		return nil
+	}
+
+	return uc.TransactionRedisRepo.Del(ctx, utils.LedgerAccountingRoutesInternalKey(route.OrganizationID, *route.LedgerID, route.ID))
 }

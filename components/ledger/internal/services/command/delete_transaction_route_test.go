@@ -10,9 +10,11 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -25,34 +27,44 @@ func TestDeleteTransactionRouteByIDSuccess(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	operationRouteID1 := uuid.New()
 	operationRouteID2 := uuid.New()
 
+	ledgerID := uuid.New()
+
 	mockRepo := transactionroute.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{
 		TransactionRouteRepo: mockRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	transactionRoute := &mmodel.TransactionRoute{
-		ID: transactionRouteID,
+		ID:             transactionRouteID,
+		OrganizationID: organizationID,
+		LedgerID:       &ledgerID,
 		OperationRoutes: []mmodel.OperationRoute{
 			{ID: operationRouteID1},
 			{ID: operationRouteID2},
 		},
 	}
 
+	// Both cache keys go: the organization key and the key under the ledger the
+	// route was created in, which pods resolving routes by ledger still read.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)).Return(nil).Times(1)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), utils.LedgerAccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)).Return(nil).Times(1)
+
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, transactionRouteID, gomock.Any()).
+		Delete(gomock.Any(), organizationID, transactionRouteID, gomock.Any()).
 		Return(nil).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.NoError(t, err)
 }
@@ -64,7 +76,6 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -72,11 +83,11 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 
@@ -92,7 +103,6 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	databaseError := errors.New("database connection error")
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
@@ -101,11 +111,11 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, databaseError).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, databaseError, err)
@@ -118,7 +128,6 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	operationRouteID := uuid.New()
 	databaseError := errors.New("database deletion error")
 
@@ -135,17 +144,46 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, transactionRouteID, gomock.Any()).
+		Delete(gomock.Any(), organizationID, transactionRouteID, gomock.Any()).
 		Return(databaseError).
 		Times(1)
 
-	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, databaseError, err)
+}
+
+// The route is already gone when the cache delete fails, so the request still
+// succeeds; failing it would invite a retry that answers 404.
+func TestDeleteTransactionRouteByID_CacheFailureDoesNotFailTheDelete(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	transactionRouteID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	mockRepo := transactionroute.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{
+		TransactionRouteRepo: mockRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	mockRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
+		Return(&mmodel.TransactionRoute{ID: transactionRouteID, OrganizationID: organizationID, LedgerID: &ledgerID}, nil).
+		Times(1)
+	mockRepo.EXPECT().
+		Delete(gomock.Any(), organizationID, transactionRouteID, gomock.Any()).
+		Return(nil).
+		Times(1)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(errors.New("redis connection error")).Times(2)
+
+	assert.NoError(t, uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID))
 }

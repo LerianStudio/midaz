@@ -19,7 +19,7 @@ import (
 type OperationRoutePostgreSQLModel struct {
 	ID                 uuid.UUID      `db:"id"`
 	OrganizationID     uuid.UUID      `db:"organization_id"`
-	LedgerID           uuid.UUID      `db:"ledger_id"`
+	LedgerID           uuid.NullUUID  `db:"ledger_id"`
 	Title              string         `db:"title"`
 	Description        string         `db:"description"`
 	Code               sql.NullString `db:"code"`
@@ -46,7 +46,7 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 	e := &mmodel.OperationRoute{
 		ID:             m.ID,
 		OrganizationID: m.OrganizationID,
-		LedgerID:       m.LedgerID,
+		LedgerID:       nullUUIDToPointer(m.LedgerID),
 		Title:          m.Title,
 		Description:    m.Description,
 		Code:           codeValue, //nolint:staticcheck // legacy Code field kept for backward compatibility; rubric codes are canonical
@@ -98,7 +98,7 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 
 	m.ID = e.ID
 	m.OrganizationID = e.OrganizationID
-	m.LedgerID = e.LedgerID
+	m.LedgerID = pointerToNullUUID(e.LedgerID)
 	m.Title = e.Title
 	m.Description = e.Description
 
@@ -154,4 +154,22 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	} else {
 		m.DeletedAt = sql.NullTime{}
 	}
+}
+
+func nullUUIDToPointer(v uuid.NullUUID) *uuid.UUID {
+	if !v.Valid {
+		return nil
+	}
+
+	id := v.UUID
+
+	return &id
+}
+
+func pointerToNullUUID(v *uuid.UUID) uuid.NullUUID {
+	if v == nil {
+		return uuid.NullUUID{}
+	}
+
+	return uuid.NullUUID{UUID: *v, Valid: true}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -76,16 +77,30 @@ func scanTransactionRoute(row interface{ Scan(...any) error }, m *TransactionRou
 	)
 }
 
-// Repository provides an interface for operations related to transaction route entities.
-// It defines methods for creating transaction routes.
+// Repository provides the persistence contract for transaction routes and their
+// operation-route links. Transaction routes belong to an organization: every
+// lookup and write is scoped by organization and ID, and the ledger a route was
+// created under is provenance only.
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=transactionroute.postgresql_mock.go --package=transactionroute . Repository
 type Repository interface {
-	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
-	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
-	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
+	// Create persists a transaction route and its operation-route links atomically in the
+	// organization. ledgerID records the ledger the route was created under; nil stores none.
+	Create(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
+	// FindByID returns one active transaction route of the organization with its active
+	// operation routes, whatever ledger it was created under.
+	FindByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.TransactionRoute, error)
+	// Update applies title/description changes and the operation-route link diff atomically.
+	// It returns services.ErrDatabaseItemNotFound when no active route matches.
+	Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
+	// Delete soft-deletes an active transaction route and the given operation-route links atomically.
+	// It returns services.ErrDatabaseItemNotFound when no active route matches.
+	Delete(ctx context.Context, organizationID, id uuid.UUID, toRemove []uuid.UUID) error
+	// FindAll returns active transaction routes of the organization using cursor pagination and
+	// date filtering. A non-nil ledgerID keeps only the routes created under that ledger.
+	FindAll(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
+	// FindOperationRouteIDsByTransactionRouteIDs maps each transaction route ID to its active linked
+	// operation route IDs. It returns an empty map when nothing is linked or the input is empty.
 	FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
@@ -134,10 +149,7 @@ func (r *TransactionRoutePostgreSQLRepository) getDB(ctx context.Context) (dbres
 	return r.connection.Resolver(ctx)
 }
 
-// Create creates a new transaction route and its operation route relations.
-// It returns the created transaction route and an error if the operation fails.
-// Uses database transactions to ensure atomicity - if any operation route relation fails, the entire operation is rolled back.
-func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction_route")
@@ -152,6 +164,8 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 	record := &TransactionRoutePostgreSQLModel{}
 	record.FromEntity(transactionRoute)
+	record.OrganizationID = organizationID
+	record.LedgerID = pointerToNullUUID(ledgerID)
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -251,9 +265,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 	return entity, nil
 }
 
-// FindByID retrieves a transaction route by its ID including its operation routes.
-// It returns the transaction route if found, otherwise it returns an error.
-func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_by_id")
@@ -271,7 +283,6 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	).
 		From("transaction_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"id": id}).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
@@ -375,7 +386,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			opRoute := operationroute.OperationRoutePostgreSQLModel{
 				ID:                 operationRouteID.UUID,
 				OrganizationID:     operationRouteOrganizationID.UUID,
-				LedgerID:           operationRouteLedgerID.UUID,
+				LedgerID:           operationRouteLedgerID,
 				Title:              operationRouteTitle.String,
 				Description:        operationRouteDescription.String,
 				Code:               operationRouteCode,
@@ -412,10 +423,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	return transactionRoute, nil
 }
 
-// Update updates a transaction route by its ID and manages its operation route relationships.
-// It returns the updated transaction route and an error if the operation fails.
-// If the transaction route has operation routes, it will update the relationships atomically.
-func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
@@ -454,7 +462,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	// contract.
 	qb := squirrel.Update(r.tableName).
 		Set("updated_at", record.UpdatedAt).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Where(squirrel.Eq{"organization_id": organizationID, "id": id, "deleted_at": nil}).
 		Suffix("RETURNING " + strings.Join(transactionRouteColumnList, ", ")).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -511,10 +519,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	return updated.ToEntity(), nil
 }
 
-// Delete deletes a transaction route by its ID and manages its operation route relationships.
-// It returns an error if the operation fails.
-// If the transaction route has operation routes, it will delete the relationships atomically.
-func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error {
+func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, id uuid.UUID, toRemove []uuid.UUID) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction_route")
@@ -542,9 +547,37 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, `UPDATE transaction_route SET deleted_at = NOW() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`, organizationID, ledgerID, id)
+	deleteSQL, deleteArgs, err := squirrel.Update(r.tableName).
+		Set("deleted_at", squirrel.Expr("now()")).
+		Where(squirrel.Eq{"organization_id": organizationID, "id": id, "deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build delete transaction route query", err)
+
+		return err
+	}
+
+	result, err := tx.ExecContext(ctx, deleteSQL, deleteArgs...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute delete query", err)
+
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
+
+	if rowsAffected == 0 {
+		err = services.ErrDatabaseItemNotFound
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route. Rows affected is 0", err)
 
 		return err
 	}
@@ -565,10 +598,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 	return nil
 }
 
-// FindAll retrieves all transaction routes with pagination.
-// It returns a list of transaction routes, a cursor pagination object, and an error if the operation fails.
-// The function supports filtering by date range and pagination.
-func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
+func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transaction_routes")
@@ -600,9 +630,12 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if ledgerID != nil {
+		findAll = findAll.Where(squirrel.Eq{"ledger_id": *ledgerID})
+	}
 
 	if !filter.StartDate.IsZero() {
 		findAll = findAll.
@@ -677,9 +710,6 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	return transactionRoutes, cur, nil
 }
 
-// FindOperationRouteIDsByTransactionRouteIDs queries the junction table in batch to return
-// a mapping of transaction route IDs to their linked operation route IDs.
-// Returns an empty map (not nil) when no links are found or input is empty.
 func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

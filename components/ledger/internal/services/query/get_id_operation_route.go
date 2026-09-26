@@ -17,18 +17,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 
-	// GetOperationRouteByID retrieves an operation route by its ID.
-	// It returns the operation route if found, otherwise it returns an error.
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+// GetOperationRouteByID returns an active operation route of the organization with its metadata,
+// whatever ledger it was created under.
+func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_route_by_id")
 	defer span.End()
 
-	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
+	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, id)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting operation route on repo by id", libLog.Err(err))
 

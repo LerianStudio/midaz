@@ -20,7 +20,7 @@ import (
 var OperationRouteDeletedDefinition = Definition{
 	ResourceType:  "operation_route",
 	EventType:     "deleted",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // OperationRouteDeletedPayload is the wire payload for operation_route.deleted.
@@ -33,14 +33,17 @@ var OperationRouteDeletedDefinition = Definition{
 type OperationRouteDeletedPayload struct {
 	ID             string `json:"id"`
 	OrganizationID string `json:"organizationId"`
-	LedgerID       string `json:"ledgerId"`
-	DeletedAt      string `json:"deletedAt"`
+	// LedgerID is the ledger the route was created under, absent for a route
+	// created at organization level.
+	LedgerID  string `json:"ledgerId,omitempty"`
+	DeletedAt string `json:"deletedAt"`
 }
 
 // NewOperationRouteDeleted maps the operation route identity and
 // post-commit deletedAt timestamp into the wire payload. The use case
 // does not return the persisted struct on delete, so the caller
-// captures deletedAt at the emit site.
+// captures deletedAt at the emit site. An empty ledgerID marks a route
+// created at organization level.
 func NewOperationRouteDeleted(id, organizationID, ledgerID string, deletedAt time.Time) OperationRouteDeletedPayload {
 	return OperationRouteDeletedPayload{
 		ID:             id,

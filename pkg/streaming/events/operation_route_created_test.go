@@ -25,7 +25,7 @@ func minimalOperationRoute() *mmodel.OperationRoute {
 	return &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: operationRouteOrg,
-		LedgerID:       operationRouteLed,
+		LedgerID:       &operationRouteLed,
 		Title:          "Cashin from service charge",
 		OperationType:  "source",
 		CreatedAt:      fixedTime,
@@ -58,7 +58,7 @@ func TestOperationRouteCreatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "operation_route.created", events.OperationRouteCreatedDefinition.Key())
 	assert.Equal(t, "operation_route", events.OperationRouteCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.OperationRouteCreatedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.OperationRouteCreatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.OperationRouteCreatedDefinition.SchemaVersion)
 }
 
 func TestNewOperationRouteCreated_MapsMinimalOperationRoute(t *testing.T) {

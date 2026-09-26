@@ -230,7 +230,11 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // against the "midaz" appName (protectedMidaz), exactly as on v1 (see registerMoneyReadRoutes /
 // RegisterOperationRouteRoutesToApp). transaction-routes likewise carry TransactionOptions
 // and authorize against the "midaz" appName (protectedMidaz), exactly as on v1 (see
-// registerMoneyReadRoutes / RegisterTransactionRouteRoutesToApp).
+// registerMoneyReadRoutes / RegisterTransactionRouteRoutesToApp). Accounting routes belong to
+// the organization, so both resources are also served at organization level
+// (/organizations/{organization_id}/operation-routes and .../transaction-routes) ONLY on this
+// /v2 contract, with the same TransactionOptions and the same ("midaz","operation-routes"|
+// "transaction-routes",verb) tuples as their ledger-level twins — no new policy surface.
 //
 // dashboard is a straight mirror of its v1 twin: same paths, same handler, same
 // ("midaz","dashboard","get") tuple and the same TransactionOptions. It is served on BOTH
@@ -263,7 +267,9 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterBillingCalculateV2RoutesToApp(group, api, d.Auth, d.BillingCalculate, d.FeesOptions)
 	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
+	RegisterOrganizationOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 	RegisterTransactionRouteV2RoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
+	RegisterOrganizationTransactionRouteV2RoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
 	RegisterDashboardV2RoutesToApp(group, api, d.Auth, d.Dashboard, d.TransactionOptions)
 }
 

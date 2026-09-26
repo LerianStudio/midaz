@@ -11,6 +11,7 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -20,12 +21,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetOrCreateTransactionRouteCache retrieves a transaction route cache from Redis or database with fallback.
-	// If the transaction route cache exists in Redis, it returns the cached data as TransactionRouteCache.
-	// If not found in cache, it fetches the transaction route from database and creates the cache for future use.
-	// The cache is persistent (no TTL) and stores the msgpack-encoded binary representation of the transaction route cache structure.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // cacheNotFoundSentinel is the sentinel value stored in Redis when a transaction route is not found in the database.
@@ -44,17 +39,25 @@ const sentinelTTL = time.Duration(60)
 // arms return the identical value rather than two equal ones.
 var errTransactionRouteNotFound = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 
-func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
+// GetOrCreateTransactionRouteCache returns the cache of a transaction route of the
+// organization, whatever ledger it was created under. It reads the organization
+// key and, on a miss, loads the route from the database and stores it there with
+// no expiry. A route the organization does not have answers 0105 and is
+// remembered for sentinelTTL, so a retry inside that window answers the same
+// without reaching the database.
+func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()
 
-	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 
 	cachedValue, err := uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	if err != nil && !errors.Is(err, redis.Nil) {
-		logger.Log(ctx, libLog.LevelWarn, "Error retrieving binary transaction route from cache", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to read transaction route cache, falling back to database", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to read transaction route cache, falling back to database", libLog.Err(err))
 	}
 
 	if err == nil && len(cachedValue) > 0 {
@@ -76,7 +79,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 		}
 	}
 
-	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
+	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, transactionRouteID)
 	if err != nil {
 		var entityNotFound pkg.EntityNotFoundError
 
@@ -87,8 +90,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err)
 
 			logger.Log(ctx, libLog.LevelWarn, msg,
-				libLog.String("transaction_route_id", transactionRouteID.String()),
-				libLog.String("ledger_id", ledgerID.String()))
+				libLog.String("transaction_route_id", transactionRouteID.String()))
 
 			if setErr := uc.TransactionRedisRepo.SetBytes(ctx, internalKey, cacheNotFoundSentinel, sentinelTTL); setErr != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Failed to store not-found sentinel in cache", libLog.Err(setErr))

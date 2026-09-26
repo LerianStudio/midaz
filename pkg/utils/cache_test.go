@@ -230,41 +230,32 @@ func TestAtomicTransactionBatchExecutionIndexInternalKey(t *testing.T) {
 	assert.Contains(t, result, organizationID.String()+":"+ledgerID.String())
 }
 
-func TestAccountingRoutesInternalKey(t *testing.T) {
+func TestAccountingRoutesInternalKey_IsScopedByOrganizationOnly(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		organizationID uuid.UUID
-		ledgerID       uuid.UUID
-		key            uuid.UUID
-		expected       string
-	}{
-		{
-			name:           "standard accounting routes key",
-			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
-			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-			key:            uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8"),
-			expected:       "accounting_routes:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:6ba7b811-9dad-11d1-80b4-00c04fd430c8}",
-		},
-		{
-			name:           "nil UUID (zero value)",
-			organizationID: uuid.Nil,
-			ledgerID:       uuid.Nil,
-			key:            uuid.Nil,
-			expected:       "accounting_routes:{00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000}",
-		},
-	}
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	transactionRouteID := uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	assert.Equal(t,
+		"accounting_routes:{550e8400-e29b-41d4-a716-446655440000:6ba7b811-9dad-11d1-80b4-00c04fd430c8}",
+		AccountingRoutesInternalKey(organizationID, transactionRouteID))
+}
 
-			result := AccountingRoutesInternalKey(tt.organizationID, tt.ledgerID, tt.key)
+func TestLedgerAccountingRoutesInternalKey_KeepsTheLedgerScopedFormat(t *testing.T) {
+	t.Parallel()
 
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	transactionRouteID := uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+	legacy := LedgerAccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	// Pods of versions that scoped routes to a ledger read exactly this string;
+	// any drift would make the new code delete a key nobody reads.
+	assert.Equal(t,
+		"accounting_routes:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:6ba7b811-9dad-11d1-80b4-00c04fd430c8}",
+		legacy)
+	assert.NotEqual(t, AccountingRoutesInternalKey(organizationID, transactionRouteID), legacy)
 }
 
 func TestPendingTransactionLockKey(t *testing.T) {
