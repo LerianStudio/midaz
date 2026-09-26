@@ -151,6 +151,10 @@ func TestIntegrationEngineCompanionCacheRefreshesACachedCompanion(t *testing.T) 
 	require.NoError(t, container.Client.Expire(ctx, f.companionKey(), 30*time.Second).Err())
 	value, err := container.Client.Get(ctx, f.companionKey()).Result()
 	require.NoError(t, err)
+	// A request seed that differs from the cached companion makes any rewrite of
+	// the companion visible in its value.
+	f.input.Execution.Balances[1].Available = decimal.NewFromInt(5)
+	f.input.Execution.Balances[1].Version = 9
 
 	raw, err := f.run(t)
 	require.NoError(t, err)
@@ -416,6 +420,13 @@ func TestIntegrationEngineCompanionCacheChargesThePreparedBudget(t *testing.T) {
 
 	t.Run("a budget that fits the execution but not the companion refuses before any write", func(t *testing.T) {
 		f, before, err := withBudget(t, withoutCompanion, true)
+		require.ErrorContains(t, err, `"code":"prepared_bytes_exceeded"`)
+		require.NotContains(t, err.Error(), "indeterminate")
+		require.Equal(t, before, f.capture(t), "an exceeded budget writes nothing")
+	})
+
+	t.Run("a budget one byte short of the companion value refuses before any write", func(t *testing.T) {
+		f, before, err := withBudget(t, withoutCompanion+companionBytes-1, true)
 		require.ErrorContains(t, err, `"code":"prepared_bytes_exceeded"`)
 		require.NotContains(t, err.Error(), "indeterminate")
 		require.Equal(t, before, f.capture(t), "an exceeded budget writes nothing")
