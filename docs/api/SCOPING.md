@@ -322,6 +322,12 @@ tenant-manager policy change.
 **Rollout:** pods older than this change cannot see a route with no ledger. Do not create routes at
 organization level until every pod runs a version that serves the organization paths.
 
+Route cache entries never expire. Newer pods read `accounting_routes:{organization:route}` and clear the
+older per-ledger key on every route write, so older pods reload fresh rules. An update or delete served
+by an older pod clears only the per-ledger key and leaves the newer pods' entry stale. Hold route updates
+and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
+afterwards.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,
