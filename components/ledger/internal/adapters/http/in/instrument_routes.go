@@ -47,8 +47,11 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Method:      http.MethodPost,
 		Path:        holderScoped,
 		Summary:     "Create an Instrument Account",
-		Tags:        []string{tag},
-		Security:    secInstrumentBearer,
+		Description: "Creates an instrument linking a ledger account to its holder and banking details. " +
+			"A ledger account already linked to another instrument (CRM-0013) is refused with 409, and so is a bank account already registered to another live instrument of the organization (CRM-0043): " +
+			"the same bankId, branch and account, whatever the type.",
+		Tags:     []string{tag},
+		Security: secInstrumentBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
@@ -69,6 +72,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an Instrument",
+		Description:      "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043).",
 		Tags:             []string{tag},
 		Security:         secInstrumentBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
