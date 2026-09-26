@@ -15,6 +15,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
@@ -106,6 +107,104 @@ func TestCreateAdditionalBalance_RefusesWhileAClosingOwnsTheAccount(t *testing.T
 	var conflict midazpkg.EntityConflictError
 	require.True(t, errors.As(err, &conflict))
 	assert.Equal(t, constant.ErrAccountClosingInProgress.Error(), conflict.Code)
+}
+
+// administrativeOperations are the exclusive callers of the account protection,
+// each run the way its entrypoint is called, with the span it records under.
+var administrativeOperations = []struct {
+	name string
+	span string
+	run  func(ctx context.Context, uc *UseCase) error
+}{
+	{
+		name: "default balance creation",
+		span: "command.create_default_balance",
+		run: func(ctx context.Context, uc *UseCase) error {
+			_, err := uc.CreateDefaultBalance(ctx, mmodel.CreateBalanceInput{
+				OrganizationID: protectionOrgID,
+				LedgerID:       protectionLedgerID,
+				AccountID:      protectionAccountID,
+				Alias:          "wallet",
+				AssetCode:      "BRL",
+				AccountType:    "deposit",
+			})
+
+			return err
+		},
+	},
+	{
+		name: "additional balance creation",
+		span: "command.create_additional_balance",
+		run: func(ctx context.Context, uc *UseCase) error {
+			_, err := uc.CreateAdditionalBalance(ctx, protectionOrgID, protectionLedgerID, protectionAccountID,
+				&mmodel.CreateAdditionalBalance{Key: "savings"})
+
+			return err
+		},
+	},
+	{
+		name: "balance deletion",
+		span: "exec.delete_all_balances_by_account_id",
+		run: func(ctx context.Context, uc *UseCase) error {
+			return uc.DeleteAllBalancesByAccountID(ctx, protectionOrgID, protectionLedgerID, protectionAccountID, uuid.NewString())
+		},
+	},
+}
+
+// TestAdministrativeOperations_RefusedAsBusyWhileALoadHoldsTheAccount runs on
+// every exclusive caller: while a cache-miss load holds a seed admission, the
+// exclusive acquisition fails with no closing marker anywhere, so the operation is
+// refused with the retryable busy code, not as a closing, writes nothing and keeps
+// its span green. The strict mocks fail the test on any balance read or write past
+// the refusal.
+func TestAdministrativeOperations_RefusedAsBusyWhileALoadHoldsTheAccount(t *testing.T) {
+	for _, op := range administrativeOperations {
+		t.Run(op.name, func(t *testing.T) {
+			m := newProtectionMocks(t)
+			ctx, recorder := recordingContext()
+
+			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
+				Return("", false, nil).Times(2)
+			m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID, gomock.Any()).
+				Return(false, nil)
+
+			err := op.run(ctx, m.uc)
+
+			require.Error(t, err)
+
+			var conflict midazpkg.EntityConflictError
+			require.True(t, errors.As(err, &conflict))
+			assert.Equal(t, constant.ErrAccountAdministrativeOperationInProgress.Error(), conflict.Code)
+			assert.Equal(t, codes.Unset, findSpan(t, recorder, op.span).Status().Code)
+		})
+	}
+}
+
+// TestAdministrativeOperations_RecordAnUnreadableProtectionAsTechnical is the
+// other class of the same refusal: a cache that cannot answer the acquisition is a
+// dependency failing, so the operation's span turns red instead of reading the
+// failure as another holder.
+func TestAdministrativeOperations_RecordAnUnreadableProtectionAsTechnical(t *testing.T) {
+	for _, op := range administrativeOperations {
+		t.Run(op.name, func(t *testing.T) {
+			m := newProtectionMocks(t)
+			ctx, recorder := recordingContext()
+
+			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
+				Return("", false, nil)
+			m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID, gomock.Any()).
+				Return(false, errors.New("cache unavailable"))
+
+			err := op.run(ctx, m.uc)
+
+			require.Error(t, err)
+
+			var unavailable midazpkg.ServiceUnavailableError
+			require.True(t, errors.As(err, &unavailable))
+			assert.Equal(t, constant.ErrAccountClosingProtectionIndeterminate.Error(), unavailable.Code)
+			assert.Equal(t, codes.Error, findSpan(t, recorder, op.span).Status().Code)
+		})
+	}
 }
 
 // TestCreateAdditionalBalance_RejectedBeforeProtection proves the reserved-key
@@ -374,7 +473,7 @@ func TestCreateDefaultBalance_ExternalIsExempt(t *testing.T) {
 func TestAccountProtection_WithoutRepositoriesIsInert(t *testing.T) {
 	uc := &UseCase{}
 
-	admission, err := uc.acquireAccountAdmission(context.Background(), protectionOrgID, protectionLedgerID, protectionAccountID)
+	admission, err := uc.acquireAccountOwnership(context.Background(), protectionOrgID, protectionLedgerID, protectionAccountID)
 	require.NoError(t, err)
 
 	admission.Release(context.Background())

@@ -210,11 +210,11 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 		Return("", false, nil).
 		AnyTimes()
 	mockRedis.EXPECT().
-		AcquireAccountAdminOwnership(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(true, nil).
+		AcquireAccountSeedAdmission(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, redis.AccountAdminHolderNone, nil).
 		AnyTimes()
 	mockRedis.EXPECT().
-		ReleaseAccountAdminOwnership(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		ReleaseAccountSeedAdmission(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(true, nil).
 		AnyTimes()
 	mockRedis.EXPECT().

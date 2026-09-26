@@ -48,12 +48,11 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	// same per-account ownership the closing does. The delete markers below keep
 	// their own keys and semantics; this only serializes the two administrative
 	// operations against each other.
-	admission, admissionErr := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	admission, admissionErr := uc.acquireAccountOwnership(ctx, organizationID, ledgerID, accountID)
 	if admissionErr != nil {
 		err = admissionErr
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for balance deletion", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to protect the account for balance deletion", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to protect the account for balance deletion", err)
 
 		return err
 	}

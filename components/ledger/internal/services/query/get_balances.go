@@ -272,8 +272,8 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 	if len(uncachedAliases) > 0 {
 		// The first read only turns aliases into account identifiers: an alias names
-		// no account until a row says so, so nothing can be owned before it. Its rows
-		// are discarded — they were read outside the ownership and may already
+		// no account until a row says so, so nothing can be admitted before it. Its
+		// rows are discarded — they were read outside the admission and may already
 		// describe a closed account.
 		resolved, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
 		if err != nil {
@@ -288,13 +288,14 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			return nil, err
 		}
 
-		// The ownership covers the whole admission: the seed read, the blocked
-		// hydration and the rebuild. Releasing it earlier would let a closing evict
-		// between the seed and the rebuild and hand the engine a balance of an account
-		// it already finished closing.
+		// The seed admission covers the seed read, the blocked hydration and the
+		// rebuild. Releasing it earlier would let a closing evict between the seed and
+		// the rebuild and hand the engine a balance of an account it already finished
+		// closing. It is shared, so concurrent loads of the same account never refuse
+		// each other.
 		//
 		// The seed itself is admitted later, inside the engine, so a caller that goes
-		// on to execute accounting installs a sink and takes the ownership over: it
+		// on to execute accounting installs a sink and takes the admission over: it
 		// then ends with the execution's answer instead of with this load.
 		if !accountprotection.AdoptAdmission(ctx, admission) {
 			defer admission.Release(ctx)

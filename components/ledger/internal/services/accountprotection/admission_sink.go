@@ -11,17 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// Sink keeps the administrative ownerships a request took while loading balances
-// alive until the accounting execution that consumes those seeds has answered.
+// Sink keeps the seed admissions a request took while loading balances alive until
+// the accounting execution that consumes those seeds has answered.
 //
-// A cache-miss load acquires the ownership, proves the account open and rebuilds
-// the seed. The seed is only admitted later, inside the engine, so the ownership
-// has to outlive the load: releasing it at the end of the read would let a closing
+// A cache-miss load takes the admission, proves the account open and rebuilds the
+// seed. The seed is only admitted later, inside the engine, so the admission has
+// to outlive the load: releasing it at the end of the read would let a closing
 // evict and finish between the read and the execution, and the engine would then
 // fill the miss with a snapshot of an account that is already closed.
 //
 // The sink is installed by the path that owns the whole flow — load, prepare,
-// execute — and it is that path which decides when the ownership ends. It is safe
+// execute — and it is that path which decides when the admission ends. It is safe
 // for concurrent use because one request may load balances from more than one
 // goroutine.
 type Sink struct {
@@ -42,7 +42,7 @@ func ContextWithSink(ctx context.Context) (context.Context, *Sink) {
 }
 
 // SinkFromContext returns the sink installed on ctx, or nil when the caller did
-// not install one. Nil means the ownership ends with the load that took it, which
+// not install one. Nil means the admission ends with the load that took it, which
 // is the behavior of every path that does not execute accounting afterwards.
 func SinkFromContext(ctx context.Context) *Sink {
 	sink, _ := ctx.Value(sinkContextKey{}).(*Sink)
@@ -51,7 +51,7 @@ func SinkFromContext(ctx context.Context) *Sink {
 }
 
 // AdoptAdmission hands one admission to the sink installed on ctx and reports
-// whether it was taken over. A false result means the caller keeps the ownership
+// whether it was taken over. A false result means the caller keeps the admission
 // and must release it itself.
 func AdoptAdmission(ctx context.Context, admission *Admission) bool {
 	sink := SinkFromContext(ctx)
@@ -98,7 +98,7 @@ func (s *Sink) TokenFor(organizationID, ledgerID, accountID uuid.UUID) string {
 	return ""
 }
 
-// MarkIndeterminate records that the execution the ownerships were held for could
+// MarkIndeterminate records that the execution the admissions were held for could
 // not be resolved, so Release keeps every one of them in place for reconciliation.
 func (s *Sink) MarkIndeterminate() {
 	if s == nil {
@@ -115,11 +115,11 @@ func (s *Sink) MarkIndeterminate() {
 	}
 }
 
-// Release hands every ownership the sink collected back to its own admission, in
-// the reverse order in which they were taken. Each one then decides for itself:
-// an admission marked indeterminate keeps its ownership for reconciliation rather
-// than releasing it (see Admission.Release), because work that may still land must
-// not lose its protection on the way out.
+// Release releases every admission the sink collected, in the reverse order in
+// which they were taken. Each one then decides for itself: an admission marked
+// indeterminate keeps its hold for reconciliation rather than releasing it (see
+// Admission.Release), because work that may still land must not lose its
+// protection on the way out.
 func (s *Sink) Release(ctx context.Context) {
 	if s == nil {
 		return

@@ -54,6 +54,12 @@ func TestAccountClosingOutcome_MapsEverySentinelToItsReason(t *testing.T) {
 			reason:  accountClosingReasonClosingInProgress,
 		},
 		{
+			name:    "0526 another administrative operation in progress",
+			err:     midazpkg.ValidateBusinessError(constant.ErrAccountAdministrativeOperationInProgress, constant.EntityAccount),
+			outcome: accountClosingOutcomeRefused,
+			reason:  accountClosingReasonOperationInProgress,
+		},
+		{
 			name:    "0516 balance not zero",
 			err:     midazpkg.ValidateBusinessError(constant.ErrAccountBalanceNotZero, constant.EntityAccount),
 			outcome: accountClosingOutcomeRefused,
@@ -132,6 +138,7 @@ func TestAccountClosingReason_StaysWithinItsVocabulary(t *testing.T) {
 	vocabulary := map[string]struct{}{
 		accountClosingReasonAlreadyClosed:           {},
 		accountClosingReasonClosingInProgress:       {},
+		accountClosingReasonOperationInProgress:     {},
 		accountClosingReasonBalanceNotZero:          {},
 		accountClosingReasonPendingTransactions:     {},
 		accountClosingReasonPersistencePending:      {},
@@ -143,11 +150,12 @@ func TestAccountClosingReason_StaysWithinItsVocabulary(t *testing.T) {
 		accountClosingReasonTechnical:               {},
 	}
 
-	require.Len(t, vocabulary, 11)
+	require.Len(t, vocabulary, 12)
 
 	for _, sentinel := range []error{
 		constant.ErrAccountAlreadyClosed,
 		constant.ErrAccountClosingInProgress,
+		constant.ErrAccountAdministrativeOperationInProgress,
 		constant.ErrAccountBalanceNotZero,
 		constant.ErrAccountHasPendingTransactions,
 		constant.ErrAccountClosingPersistencePending,

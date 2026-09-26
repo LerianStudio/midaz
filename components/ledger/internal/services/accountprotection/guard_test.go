@@ -7,6 +7,7 @@ package accountprotection
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -62,32 +63,43 @@ type markerKey struct {
 	accountID      uuid.UUID
 }
 
-// fakeMarkers is an in-memory MarkerStore with the conditional semantics of the
-// cache: ownership is exclusive and released only by its own token.
+// fakeMarkers is an in-memory SeedAdmissionStore with the conditional semantics
+// of the cache: one ownership key per account holds either one exclusive owner or
+// any number of seed admissions, never both, and each is released only by its own
+// token.
 type fakeMarkers struct {
 	mu sync.Mutex
 
-	closing   map[markerKey]string
-	closed    map[markerKey]time.Time
-	ownership map[markerKey]string
+	closing    map[markerKey]string
+	closed     map[markerKey]time.Time
+	ownership  map[markerKey]string
+	admissions map[markerKey]map[string]struct{}
 
 	closingErr error
 	closedErr  error
 	setErr     error
+	acquireErr error
+
+	// closingErrAfter fails the closing marker read once it was answered this many
+	// times, so a test can break the read that follows a refused acquisition.
+	closingErrAfter int
+	closingReads    int
 
 	acquireCalls int
+	releaseCalls int
 	setCalls     int
 
-	// beforeAcquire runs outside the lock before each ownership acquisition, so a
-	// test can order two callers without sleeping.
+	// beforeAcquire runs outside the lock before each acquisition of either mode,
+	// so a test can order two callers, or change the markers, without sleeping.
 	beforeAcquire func(accountID uuid.UUID)
 }
 
 func newFakeMarkers() *fakeMarkers {
 	return &fakeMarkers{
-		closing:   map[markerKey]string{},
-		closed:    map[markerKey]time.Time{},
-		ownership: map[markerKey]string{},
+		closing:    map[markerKey]string{},
+		closed:     map[markerKey]time.Time{},
+		ownership:  map[markerKey]string{},
+		admissions: map[markerKey]map[string]struct{}{},
 	}
 }
 
@@ -98,6 +110,11 @@ func (f *fakeMarkers) GetAccountClosingMarker(_ context.Context, organizationID,
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.closingReads++
+	if f.closingErrAfter > 0 && f.closingReads > f.closingErrAfter {
+		return "", false, errCacheUnavailable
+	}
 
 	token, found := f.closing[markerKey{organizationID, ledgerID, accountID}]
 
@@ -142,8 +159,12 @@ func (f *fakeMarkers) AcquireAccountAdminOwnership(_ context.Context, organizati
 
 	f.acquireCalls++
 
+	if f.acquireErr != nil {
+		return false, f.acquireErr
+	}
+
 	key := markerKey{organizationID, ledgerID, accountID}
-	if _, owned := f.ownership[key]; owned {
+	if _, owned := f.ownership[key]; owned || len(f.admissions[key]) > 0 {
 		return false, nil
 	}
 
@@ -156,6 +177,8 @@ func (f *fakeMarkers) ReleaseAccountAdminOwnership(_ context.Context, organizati
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.releaseCalls++
+
 	key := markerKey{organizationID, ledgerID, accountID}
 	if f.ownership[key] != token {
 		return false, nil
@@ -166,11 +189,74 @@ func (f *fakeMarkers) ReleaseAccountAdminOwnership(_ context.Context, organizati
 	return true, nil
 }
 
+func (f *fakeMarkers) AdmitAccountSeed(_ context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	if f.beforeAcquire != nil {
+		f.beforeAcquire(accountID)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.acquireCalls++
+
+	if f.acquireErr != nil {
+		return false, f.acquireErr
+	}
+
+	key := markerKey{organizationID, ledgerID, accountID}
+	if _, owned := f.ownership[key]; owned {
+		return false, nil
+	}
+
+	if f.admissions[key] == nil {
+		f.admissions[key] = map[string]struct{}{}
+	}
+
+	f.admissions[key][token] = struct{}{}
+
+	return true, nil
+}
+
+func (f *fakeMarkers) ReleaseAccountSeed(_ context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.releaseCalls++
+
+	key := markerKey{organizationID, ledgerID, accountID}
+	if _, admitted := f.admissions[key][token]; !admitted {
+		return false, nil
+	}
+
+	delete(f.admissions[key], token)
+
+	if len(f.admissions[key]) == 0 {
+		delete(f.admissions, key)
+	}
+
+	return true, nil
+}
+
+// ownedCount is the number of accounts whose ownership key is held, by an
+// exclusive owner or by at least one seed admission.
 func (f *fakeMarkers) ownedCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return len(f.ownership)
+	return len(f.ownership) + len(f.admissions)
+}
+
+// admittedTokens returns the live seed admissions of one account.
+func (f *fakeMarkers) admittedTokens(key markerKey) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	tokens := make([]string, 0, len(f.admissions[key]))
+	for token := range f.admissions[key] {
+		tokens = append(tokens, token)
+	}
+
+	return tokens
 }
 
 // fakeAccounts is an in-memory ClosingStateReader over the authoritative rows.
@@ -222,7 +308,7 @@ func newGuardFixture() *guardFixture {
 	accounts := newFakeAccounts()
 
 	return &guardFixture{
-		guard:          NewGuard(accounts, markers),
+		guard:          NewSeedAdmissionGuard(accounts, markers),
 		markers:        markers,
 		accounts:       accounts,
 		organizationID: uuid.New(),
@@ -366,115 +452,303 @@ func TestEnsureOpen_ScopeIsolation(t *testing.T) {
 	require.NoError(t, f.guard.EnsureOpen(context.Background(), f.organizationID, f.ledgerID, []uuid.UUID{accountID}))
 }
 
-// TestAcquireAdmission_ContentionRefusesTheSecondCaller covers AS-05: the winner
-// keeps the ownership and the loser is refused instead of running beside it.
-func TestAcquireAdmission_ContentionRefusesTheSecondCaller(t *testing.T) {
+// acquisitionMode names one of the two ways an operation takes an account, so a
+// guarantee both modes share is asserted once per mode.
+type acquisitionMode struct {
+	name    string
+	acquire func(g *Guard, ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (*Admission, error)
+	span    string
+}
+
+var acquisitionModes = []acquisitionMode{
+	{name: "seed admission", acquire: (*Guard).AcquireSeedAdmission, span: "exec.acquire_account_seed_admission"},
+	{name: "exclusive ownership", acquire: (*Guard).AcquireExclusive, span: "exec.acquire_account_admission"},
+}
+
+// TestAcquireSeedAdmission_ConcurrentLoadsShareTheAccount proves two cache-miss
+// loads of the same account are compatible, so both are admitted, each under its
+// own token, and each release gives back only its own admission.
+func TestAcquireSeedAdmission_ConcurrentLoadsShareTheAccount(t *testing.T) {
 	t.Parallel()
 
 	f := newGuardFixture()
 	accountID := uuid.New()
 	ctx := context.Background()
 
-	first, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	first, err := f.guard.AcquireSeedAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err)
-	require.NotEmpty(t, first.Token())
 
-	_, err = f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	second, err := f.guard.AcquireSeedAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	require.NoError(t, err, "a second load of the same account must not be refused by the first")
+
+	require.NotEmpty(t, first.Token())
+	require.NotEmpty(t, second.Token())
+	assert.NotEqual(t, first.Token(), second.Token(), "each admission carries its own token")
+	assert.ElementsMatch(t, []string{first.Token(), second.Token()}, f.markers.admittedTokens(f.key(accountID)))
+
+	first.Release(ctx)
+	assert.Equal(t, []string{second.Token()}, f.markers.admittedTokens(f.key(accountID)),
+		"a release gives back only its own admission")
+
+	second.Release(ctx)
+	assert.Zero(t, f.markers.ownedCount())
+}
+
+// TestAcquireExclusive_ContentionRefusesTheSecondCaller keeps the administrative
+// operations serialized among themselves: the winner keeps the account and the
+// loser is refused as busy, because no closing marker names a closing.
+func TestAcquireExclusive_ContentionRefusesTheSecondCaller(t *testing.T) {
+	t.Parallel()
+
+	f := newGuardFixture()
+	accountID := uuid.New()
+	ctx := context.Background()
+
+	first, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	require.NoError(t, err)
+
+	_, err = f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
 	require.Error(t, err)
-	assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
+	assertErrorCode(t, err, constant.ErrAccountAdministrativeOperationInProgress.Error())
 
 	first.Release(ctx)
 	assert.Zero(t, f.markers.ownedCount())
 
-	second, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	second, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err, "the account is free once the winner released it")
 	second.Release(ctx)
 }
 
-// TestAcquireAdmission_ClosingAttemptRefusesAdmission proves a closing in flight
-// blocks the operations it coordinates with, before any ownership is taken.
-func TestAcquireAdmission_ClosingAttemptRefusesAdmission(t *testing.T) {
+// TestAcquireExclusive_LiveSeedAdmissionRefusesAsBusy proves a closing, a
+// balance creation or a deletion never runs beside a load that is about to seed
+// the account. The refusal is the busy code, not a closing, and it leaves the
+// load's admission in place.
+func TestAcquireExclusive_LiveSeedAdmissionRefusesAsBusy(t *testing.T) {
 	t.Parallel()
 
 	f := newGuardFixture()
 	accountID := uuid.New()
-	f.markers.closing[f.key(accountID)] = uuid.NewString()
 
-	_, err := f.guard.AcquireAdmission(context.Background(), f.organizationID, f.ledgerID, []uuid.UUID{accountID})
-
-	require.Error(t, err)
-	assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
-	assert.Zero(t, f.markers.ownedCount(), "a refusal must take no ownership")
-}
-
-// TestAcquireAdmission_UnreadableClosingMarkerIsTechnical proves an unreadable
-// closing marker refuses as an indeterminate protection instead of being read as
-// absence, and that the refusal is recorded as the technical failure it is: the
-// cache could not answer, which is not the same as a closing being in progress.
-func TestAcquireAdmission_UnreadableClosingMarkerIsTechnical(t *testing.T) {
-	t.Parallel()
-
-	f := newGuardFixture()
-	f.markers.closingErr = errCacheUnavailable
+	seed, err := f.guard.AcquireSeedAdmission(context.Background(), f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	require.NoError(t, err)
 
 	ctx, recorder := recordingContext()
 
-	_, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{uuid.New()})
+	_, err = f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+
+	require.Error(t, err)
+	assertErrorCode(t, err, constant.ErrAccountAdministrativeOperationInProgress.Error())
+	assert.Equal(t, []string{seed.Token()}, f.markers.admittedTokens(f.key(accountID)), "the load keeps its admission")
+
+	span := findSpan(t, recorder, "exec.acquire_account_admission")
+	assert.NotEqual(t, codes.Error, span.Status().Code, "a busy account is a business refusal")
+}
+
+// TestAcquisition_RefusedByAnotherHolderNamesWhoHoldsIt proves, in either mode, a
+// refused acquisition reads the closing marker again, so a closing that owns the
+// account answers as a closing and any other holder answers as busy.
+func TestAcquisition_RefusedByAnotherHolderNamesWhoHoldsIt(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range acquisitionModes {
+		for _, closing := range []bool{false, true} {
+			want := constant.ErrAccountAdministrativeOperationInProgress
+			if closing {
+				want = constant.ErrAccountClosingInProgress
+			}
+
+			t.Run(fmt.Sprintf("%s, closing marker installed=%t", mode.name, closing), func(t *testing.T) {
+				t.Parallel()
+
+				f := newGuardFixture()
+				accountID := uuid.New()
+				f.markers.ownership[f.key(accountID)] = uuid.NewString()
+
+				// A closing takes the ownership before it installs its marker, so the
+				// marker can appear between the check that precedes the acquisition
+				// and the refusal.
+				f.markers.beforeAcquire = func(uuid.UUID) {
+					if closing {
+						f.markers.mu.Lock()
+						f.markers.closing[f.key(accountID)] = uuid.NewString()
+						f.markers.mu.Unlock()
+					}
+				}
+
+				ctx, recorder := recordingContext()
+
+				_, err := mode.acquire(f.guard, ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+
+				require.Error(t, err)
+				assertErrorCode(t, err, want.Error())
+				assert.Empty(t, f.markers.admittedTokens(f.key(accountID)), "a refusal takes nothing")
+
+				span := findSpan(t, recorder, mode.span)
+				assert.NotEqual(t, codes.Error, span.Status().Code, "another holder is a business refusal")
+			})
+		}
+	}
+}
+
+// TestAcquisition_ClosingMarkerRefusesBeforeAnyAcquisition proves a closing in
+// flight refuses every operation it coordinates with, before anything is taken,
+// and the refusal is the business outcome the coordination exists to produce.
+func TestAcquisition_ClosingMarkerRefusesBeforeAnyAcquisition(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range acquisitionModes {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newGuardFixture()
+			accountID := uuid.New()
+			f.markers.closing[f.key(accountID)] = uuid.NewString()
+
+			ctx, recorder := recordingContext()
+
+			_, err := mode.acquire(f.guard, ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+
+			require.Error(t, err)
+			assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
+			assert.Zero(t, f.markers.acquireCalls, "nothing is attempted over a closing")
+			assert.Zero(t, f.markers.ownedCount(), "a refusal must take no ownership")
+
+			span := findSpan(t, recorder, mode.span)
+			assert.NotEqual(t, codes.Error, span.Status().Code, "a business refusal keeps the span green")
+		})
+	}
+}
+
+// TestAcquisition_UnreadableProtectionIsTechnical proves every state the guard
+// cannot read refuses as an indeterminate protection instead of being read as
+// absence, and that the refusal is recorded as the technical failure it is: the
+// cache could not answer, which is not the same as another operation holding the
+// account.
+func TestAcquisition_UnreadableProtectionIsTechnical(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		break_ func(f *guardFixture, accountID uuid.UUID)
+	}{
+		{
+			name:   "the closing marker cannot be read",
+			break_: func(f *guardFixture, _ uuid.UUID) { f.markers.closingErr = errCacheUnavailable },
+		},
+		{
+			name:   "the acquisition fails",
+			break_: func(f *guardFixture, _ uuid.UUID) { f.markers.acquireErr = errCacheUnavailable },
+		},
+		{
+			name: "the closing marker cannot be read after a refusal",
+			break_: func(f *guardFixture, accountID uuid.UUID) {
+				f.markers.ownership[f.key(accountID)] = uuid.NewString()
+				f.markers.closingErrAfter = 1
+			},
+		},
+	}
+
+	for _, mode := range acquisitionModes {
+		for _, tt := range tests {
+			t.Run(mode.name+", "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				f := newGuardFixture()
+				accountID := uuid.New()
+				tt.break_(f, accountID)
+
+				ownedBefore := f.markers.ownedCount()
+
+				ctx, recorder := recordingContext()
+
+				_, err := mode.acquire(f.guard, ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+
+				require.Error(t, err)
+				assertErrorCode(t, err, constant.ErrAccountClosingProtectionIndeterminate.Error())
+				assert.Equal(t, ownedBefore, f.markers.ownedCount(), "a refusal must take no ownership")
+
+				span := findSpan(t, recorder, mode.span)
+				assert.Equal(t, codes.Error, span.Status().Code, "an unreadable protection surface is a technical failure")
+			})
+		}
+	}
+}
+
+// TestAcquireSeedAdmission_WithoutASharedSurfaceRefuses proves a guard built over
+// a cache that cannot hold shared admissions never falls back to an exclusive one,
+// which would make concurrent loads refuse each other again, and never admits a
+// seed unprotected.
+func TestAcquireSeedAdmission_WithoutASharedSurfaceRefuses(t *testing.T) {
+	t.Parallel()
+
+	markers := newFakeMarkers()
+	guard := NewGuard(newFakeAccounts(), exclusiveOnly{markers})
+
+	ctx, recorder := recordingContext()
+
+	_, err := guard.AcquireSeedAdmission(ctx, uuid.New(), uuid.New(), []uuid.UUID{uuid.New()})
 
 	require.Error(t, err)
 	assertErrorCode(t, err, constant.ErrAccountClosingProtectionIndeterminate.Error())
-	assert.Zero(t, f.markers.ownedCount(), "a refusal must take no ownership")
-	assert.Zero(t, f.markers.acquireCalls, "the ownership is never attempted over an unreadable marker")
+	assert.Zero(t, markers.acquireCalls)
+	assert.Zero(t, markers.ownedCount())
 
-	span := findSpan(t, recorder, "exec.acquire_account_admission")
-	assert.Equal(t, codes.Error, span.Status().Code, "an unreadable protection surface is a technical failure")
+	span := findSpan(t, recorder, "exec.acquire_account_seed_admission")
+	assert.Equal(t, codes.Error, span.Status().Code)
 }
 
-// TestAcquireAdmission_ClosingMarkerRefusalKeepsTheSpanGreen pins the other class:
-// a closing attempt that owns the account is the business outcome the coordination
-// exists to produce, so it must not flip the acquisition span red.
-func TestAcquireAdmission_ClosingMarkerRefusalKeepsTheSpanGreen(t *testing.T) {
+// exclusiveOnly hides the shared admission of a fake, leaving the surface an
+// exclusive-only deployment of the guard sees.
+type exclusiveOnly struct{ MarkerStore }
+
+// TestAcquisition_PartialAcquisitionIsReleased proves a refusal on the second
+// account gives back the first, in either mode, and touches nothing it does not
+// own.
+func TestAcquisition_PartialAcquisitionIsReleased(t *testing.T) {
 	t.Parallel()
 
-	f := newGuardFixture()
-	accountID := uuid.New()
-	f.markers.closing[f.key(accountID)] = uuid.NewString()
+	t.Run("seed admission refused by an exclusive owner", func(t *testing.T) {
+		t.Parallel()
 
-	ctx, recorder := recordingContext()
+		f := newGuardFixture()
+		first, second := orderedPair()
 
-	_, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+		rivalToken := uuid.NewString()
+		f.markers.ownership[f.key(second)] = rivalToken
 
-	require.Error(t, err)
-	assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
+		_, err := f.guard.AcquireSeedAdmission(context.Background(), f.organizationID, f.ledgerID, []uuid.UUID{first, second})
+		require.Error(t, err)
+		assertErrorCode(t, err, constant.ErrAccountAdministrativeOperationInProgress.Error())
 
-	span := findSpan(t, recorder, "exec.acquire_account_admission")
-	assert.NotEqual(t, codes.Error, span.Status().Code, "a business refusal keeps the span green")
+		assert.Empty(t, f.markers.admittedTokens(f.key(first)), "the admission already taken is given back")
+		assert.Equal(t, 1, f.markers.ownedCount(), "only the rival's ownership survives")
+		assert.Equal(t, rivalToken, f.markers.ownership[f.key(second)], "a key owned by another operation is never released")
+	})
+
+	t.Run("exclusive ownership refused by a live seed admission", func(t *testing.T) {
+		t.Parallel()
+
+		f := newGuardFixture()
+		ctx := context.Background()
+		first, second := orderedPair()
+
+		seed, err := f.guard.AcquireSeedAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{second})
+		require.NoError(t, err)
+
+		_, err = f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{first, second})
+		require.Error(t, err)
+		assertErrorCode(t, err, constant.ErrAccountAdministrativeOperationInProgress.Error())
+
+		assert.NotContains(t, f.markers.ownership, f.key(first), "the ownership already taken is given back")
+		assert.Equal(t, 1, f.markers.ownedCount(), "only the load's admission survives")
+		assert.Equal(t, []string{seed.Token()}, f.markers.admittedTokens(f.key(second)))
+	})
 }
 
-// TestAcquireAdmission_PartialAcquisitionIsReleased proves a refusal on the second
-// account gives back the first, and touches nothing it does not own.
-func TestAcquireAdmission_PartialAcquisitionIsReleased(t *testing.T) {
-	t.Parallel()
-
-	f := newGuardFixture()
-	ctx := context.Background()
-
-	first, second := orderedPair()
-
-	rivalToken := uuid.NewString()
-	f.markers.ownership[f.key(second)] = rivalToken
-
-	_, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{first, second})
-	require.Error(t, err)
-
-	assert.Equal(t, 1, f.markers.ownedCount(), "only the rival's ownership survives")
-	assert.Equal(t, rivalToken, f.markers.ownership[f.key(second)], "a key owned by another operation is never released")
-}
-
-// TestAcquireAdmission_StableOrderAvoidsDeadlock runs two callers over the same
+// TestAcquireExclusive_StableOrderAvoidsDeadlock runs two callers over the same
 // two accounts in opposite request orders. A stable acquisition order means both
 // contend on the same account first, so one of them always completes.
-func TestAcquireAdmission_StableOrderAvoidsDeadlock(t *testing.T) {
+func TestAcquireExclusive_StableOrderAvoidsDeadlock(t *testing.T) {
 	t.Parallel()
 
 	f := newGuardFixture()
@@ -501,7 +775,7 @@ func TestAcquireAdmission_StableOrderAvoidsDeadlock(t *testing.T) {
 	results := make(chan error, 2)
 
 	go func() {
-		admission, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{first, second})
+		admission, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{first, second})
 		if err == nil {
 			admission.Release(ctx)
 		}
@@ -510,7 +784,7 @@ func TestAcquireAdmission_StableOrderAvoidsDeadlock(t *testing.T) {
 	}()
 
 	go func() {
-		admission, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{second, first})
+		admission, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{second, first})
 		if err == nil {
 			admission.Release(ctx)
 		}
@@ -535,45 +809,80 @@ func TestAcquireAdmission_StableOrderAvoidsDeadlock(t *testing.T) {
 	assert.Zero(t, f.markers.ownedCount(), "every acquisition was released")
 }
 
-// TestAcquireAdmission_DuplicateAccountsCollapse proves the external companion
-// costs no second acquisition: it belongs to the same account, so it is already
-// covered and never recurses.
-func TestAcquireAdmission_DuplicateAccountsCollapse(t *testing.T) {
+// TestAcquisition_DuplicateAccountsCollapse proves the external companion costs no
+// second acquisition in either mode: it belongs to the same account, so it is
+// already covered and never recurses.
+func TestAcquisition_DuplicateAccountsCollapse(t *testing.T) {
 	t.Parallel()
 
-	f := newGuardFixture()
-	accountID := uuid.New()
-	ctx := context.Background()
+	for _, mode := range acquisitionModes {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
 
-	admission, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID, accountID, uuid.Nil})
-	require.NoError(t, err)
+			f := newGuardFixture()
+			accountID := uuid.New()
+			ctx := context.Background()
 
-	assert.Equal(t, []uuid.UUID{accountID}, admission.Accounts())
-	assert.Equal(t, 1, f.markers.acquireCalls)
+			admission, err := mode.acquire(f.guard, ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID, accountID, uuid.Nil})
+			require.NoError(t, err)
 
-	admission.Release(ctx)
+			assert.Equal(t, []uuid.UUID{accountID}, admission.Accounts())
+			assert.Equal(t, 1, f.markers.acquireCalls)
+
+			admission.Release(ctx)
+			assert.Zero(t, f.markers.ownedCount())
+		})
+	}
 }
 
-// TestAdmission_IndeterminateOutcomeKeepsOwnership covers D5: work whose result is
-// unknown keeps its protection until reconciliation resolves it. Nothing releases
-// it on the way out, and nothing releases it by age.
-func TestAdmission_IndeterminateOutcomeKeepsOwnership(t *testing.T) {
+// TestAdmission_IndeterminateOutcomeKeepsItsHold proves work whose result is
+// unknown keeps its protection until reconciliation resolves it, in either mode.
+// Nothing releases it on the way out and nothing releases it by age. A kept seed
+// admission still refuses a closing, and it does not refuse other loads.
+func TestAdmission_IndeterminateOutcomeKeepsItsHold(t *testing.T) {
 	t.Parallel()
 
-	f := newGuardFixture()
-	accountID := uuid.New()
-	ctx := context.Background()
+	for _, mode := range acquisitionModes {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
 
-	admission, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
-	require.NoError(t, err)
+			f := newGuardFixture()
+			accountID := uuid.New()
+			ctx := context.Background()
 
-	admission.MarkIndeterminate()
-	admission.Release(ctx)
+			admission, err := mode.acquire(f.guard, ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+			require.NoError(t, err)
 
-	assert.Equal(t, 1, f.markers.ownedCount(), "an unknown result is never released")
+			admission.MarkIndeterminate()
+			admission.Release(ctx)
 
-	_, err = f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
-	assert.Error(t, err, "the account stays protected for reconciliation")
+			assert.Zero(t, f.markers.releaseCalls, "an unknown result is never released")
+			assert.Equal(t, 1, f.markers.ownedCount())
+
+			_, err = f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+			assert.Error(t, err, "the account stays protected for reconciliation")
+		})
+	}
+
+	t.Run("a kept seed admission does not refuse other loads", func(t *testing.T) {
+		t.Parallel()
+
+		f := newGuardFixture()
+		accountID := uuid.New()
+		ctx := context.Background()
+
+		kept, err := f.guard.AcquireSeedAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+		require.NoError(t, err)
+
+		kept.MarkIndeterminate()
+		kept.Release(ctx)
+
+		other, err := f.guard.AcquireSeedAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+		require.NoError(t, err)
+
+		other.Release(ctx)
+		assert.Equal(t, []string{kept.Token()}, f.markers.admittedTokens(f.key(accountID)))
+	})
 }
 
 // TestAdmission_ReleaseIsIdempotent proves a second release neither fails nor
@@ -585,12 +894,12 @@ func TestAdmission_ReleaseIsIdempotent(t *testing.T) {
 	accountID := uuid.New()
 	ctx := context.Background()
 
-	admission, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	admission, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err)
 
 	admission.Release(ctx)
 
-	successor, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	successor, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err)
 
 	admission.Release(ctx)
@@ -600,7 +909,7 @@ func TestAdmission_ReleaseIsIdempotent(t *testing.T) {
 }
 
 // TestGuard_WithoutCacheIsInert proves a guard with no protection surface changes
-// nothing: it owns nothing and refuses nothing.
+// nothing: it owns nothing and refuses nothing, in either mode.
 func TestGuard_WithoutCacheIsInert(t *testing.T) {
 	t.Parallel()
 
@@ -608,13 +917,19 @@ func TestGuard_WithoutCacheIsInert(t *testing.T) {
 
 	ctx := context.Background()
 
-	admission, err := guard.AcquireAdmission(ctx, uuid.New(), uuid.New(), []uuid.UUID{uuid.New()})
-	require.NoError(t, err)
-	assert.Empty(t, admission.Accounts())
+	for _, mode := range acquisitionModes {
+		admission, err := mode.acquire(guard, ctx, uuid.New(), uuid.New(), []uuid.UUID{uuid.New()})
+		require.NoError(t, err, mode.name)
+		assert.Empty(t, admission.Accounts(), mode.name)
+
+		admission.Release(ctx)
+	}
 
 	require.NoError(t, guard.EnsureOpen(ctx, uuid.New(), uuid.New(), []uuid.UUID{uuid.New()}))
 
-	admission.Release(ctx)
+	admission, err := NewSeedAdmissionGuard(nil, nil).AcquireSeedAdmission(ctx, uuid.New(), uuid.New(), []uuid.UUID{uuid.New()})
+	require.NoError(t, err)
+	assert.Empty(t, admission.Accounts())
 }
 
 // assertErrorCode checks the business code a refusal carries, which is the part of

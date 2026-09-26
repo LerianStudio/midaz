@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// sinkMarkerStore records the ownerships one sink test took and released.
+// sinkMarkerStore records the seed admissions one sink test took and released.
+// Seed admissions are what a sink carries: the cache-miss load hands them over to
+// the execution that admits its seeds.
 type sinkMarkerStore struct {
 	mu       sync.Mutex
 	owned    map[uuid.UUID]string
@@ -65,6 +67,14 @@ func (s *sinkMarkerStore) ReleaseAccountAdminOwnership(_ context.Context, _, _, 
 	return true, nil
 }
 
+func (s *sinkMarkerStore) AdmitAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	return s.AcquireAccountAdminOwnership(ctx, organizationID, ledgerID, accountID, token)
+}
+
+func (s *sinkMarkerStore) ReleaseAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	return s.ReleaseAccountAdminOwnership(ctx, organizationID, ledgerID, accountID, token)
+}
+
 func (s *sinkMarkerStore) ownedAccounts() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -86,7 +96,7 @@ func TestSinkAnswersTheTokenOfTheAccountItOwns(t *testing.T) {
 
 	ctx, sink := ContextWithSink(context.Background())
 
-	admission, err := NewGuard(nil, store).AcquireAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
+	admission, err := NewSeedAdmissionGuard(nil, store).AcquireSeedAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err)
 	require.True(t, AdoptAdmission(ctx, admission))
 
@@ -117,7 +127,7 @@ func TestSinkReleasesEveryAdmissionItCollected(t *testing.T) {
 
 	ctx, sink := ContextWithSink(context.Background())
 
-	admission, err := NewGuard(nil, store).AcquireAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
+	admission, err := NewSeedAdmissionGuard(nil, store).AcquireSeedAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err)
 	require.True(t, AdoptAdmission(ctx, admission))
 	require.Equal(t, 1, store.ownedAccounts())
@@ -136,7 +146,7 @@ func TestSinkKeepsAnIndeterminateAdmissionForReconciliation(t *testing.T) {
 
 	ctx, sink := ContextWithSink(context.Background())
 
-	admission, err := NewGuard(nil, store).AcquireAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
+	admission, err := NewSeedAdmissionGuard(nil, store).AcquireSeedAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
 	require.NoError(t, err)
 	require.True(t, AdoptAdmission(ctx, admission))
 

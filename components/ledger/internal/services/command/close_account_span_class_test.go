@@ -84,21 +84,24 @@ func TestCloseAccount_RecordsAnUnreadableProtectionAsTechnical(t *testing.T) {
 }
 
 // TestCloseAccount_RecordsAContendedAccountAsBusiness is the other class of the
-// same refusal: another operation holding the account is the coordination doing
-// its job, so the span stays green.
+// same refusal: another operation holding the account — here the live seed
+// admissions of a cache-miss load, which make the exclusive acquisition fail with
+// no closing marker anywhere — is the coordination doing its job. The closing is
+// refused as busy, installs no marker and writes nothing, and the span stays
+// green. The strict mocks fail the test on any marker write or account update.
 func TestCloseAccount_RecordsAContendedAccountAsBusiness(t *testing.T) {
 	m := newCloseAccountMocks(t)
 	ctx, recorder := recordingContext()
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, nil)
+		Return("", false, nil).Times(2)
 	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
 		Return(false, nil)
 
 	closedAt, err := m.uc.CloseAccount(ctx, closeOrgID, closeLedgerID, closeAccountID)
 
-	requireClosingCode(t, err, constant.ErrAccountClosingInProgress)
+	requireClosingCode(t, err, constant.ErrAccountAdministrativeOperationInProgress)
 	assert.True(t, closedAt.IsZero())
 
 	span := findSpan(t, recorder, "command.close_account")

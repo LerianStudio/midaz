@@ -233,7 +233,7 @@ func (uc *UseCase) protectAccountClosing(
 	logger libLog.Logger,
 	organizationID, ledgerID, accountID uuid.UUID,
 ) (*accountClosingAttempt, error) {
-	admission, err := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	admission, err := uc.acquireAccountOwnership(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		// The acquisition refuses in two classes: another operation holding the
 		// account, which is the coordination doing its job, and a protection surface
