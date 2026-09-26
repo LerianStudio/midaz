@@ -2183,3 +2183,118 @@ func TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset(t *testing.T) {
 	assert.Empty(t, resp.Asset, "the empty asset is copied through to the response unchanged")
 	assert.True(t, resp.Total.Equal(decimal.NewFromInt(100)), "the balance check passed on its own terms")
 }
+
+// TestValidateSendSourceAndDistribute_NonPositiveRemainderRejected covers remaining entries
+// whose remainder is zero or negative. The totals still close for these sends (120 plus a
+// remainder of -20 is 100), so without its own rule such an entry would reach posting with
+// a value no posting can carry.
+func TestValidateSendSourceAndDistribute_NonPositiveRemainderRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	tests := []struct {
+		name      string
+		send      Transaction
+		normalize bool
+		wantCode  string
+	}{
+		{
+			name: "source remainder of zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "source remainder below zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 120), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "destination remainder of zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@src", "", "USD", 100)},
+				[]FromTo{leg("@dstA", "", "USD", 100), remainingLeg("@dstB")}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "normalized remainder of zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			normalize: true,
+			wantCode:  pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "within one normalized call ambiguity answers before the remainder rule",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@a", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@a", "", "USD", 100)}),
+			normalize: true,
+			wantCode:  pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			// The raw call cannot key the ambiguity check, so the pipelines' first pass
+			// answers the remainder rule for this send, as it does the totals check.
+			name: "raw call answers the remainder rule for an ambiguous send",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@a", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@a", "", "USD", 100)}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "positive remainder is accepted",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 60), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			normalize: true,
+		},
+		{
+			// A repeated alias keys each raw entry by its index, so the rule must read the
+			// remaining entry under that key rather than under the bare alias.
+			name: "raw call with a repeated alias accepts a positive remainder",
+			send: repeatedAliasRemainderSend(60),
+		},
+		{
+			name:     "raw call with a repeated alias refuses a zero remainder",
+			send:     repeatedAliasRemainderSend(100),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			send := tc.send
+			if tc.normalize {
+				normalizeSendLegsLikeCreate(&send)
+			}
+
+			_, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.CREATED)
+
+			if tc.wantCode == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, tc.wantCode, codeFromError(err))
+		})
+	}
+}
+
+// repeatedAliasRemainderSend spells a 100 USD send whose two sources are the same account on
+// different balance keys: an explicit amount on k1 and the remainder on k2.
+func repeatedAliasRemainderSend(explicitValue int64) Transaction {
+	remainder := remainingLeg("@acc")
+	remainder.BalanceKey = "k2"
+
+	return sendOf("USD", 100,
+		[]FromTo{leg("@acc", "k1", "USD", explicitValue), remainder},
+		[]FromTo{leg("@dst", "", "USD", 100)})
+}

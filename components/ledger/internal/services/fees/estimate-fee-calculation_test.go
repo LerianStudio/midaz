@@ -1072,3 +1072,80 @@ func TestEstimateFeeCalculation_ValueAtMaximum(t *testing.T) {
 	assert.NotNil(t, result.Transaction.Metadata)
 	assert.Equal(t, packID.String(), result.Transaction.Metadata["packageAppliedID"])
 }
+
+// TestEstimateFeeCalculation_RemainingLeg covers an estimate whose send carries a
+// remaining leg. Outside the package range the estimate echoes the send unchanged by fees,
+// and that echo carries the remainder the validation resolved on the leg; a remainder of
+// zero is refused by the same validation the create funnel runs.
+func TestEstimateFeeCalculation_RemainingLeg(t *testing.T) {
+	t.Parallel()
+
+	remainingSend := func(explicitValue int64) transaction.Transaction {
+		return transaction.Transaction{
+			Send: transaction.Send{
+				Asset: "BRL",
+				Value: decimal.NewFromInt(100),
+				Source: transaction.Source{
+					From: []transaction.FromTo{
+						{AccountAlias: "@srcA", Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(explicitValue)}},
+						{AccountAlias: "@srcB", Remaining: "remaining"},
+					},
+				},
+				Distribute: transaction.Distribute{
+					To: []transaction.FromTo{
+						{AccountAlias: "@dst", Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(100)}},
+					},
+				},
+			},
+		}
+	}
+
+	newUseCase := func(t *testing.T, orgID, packID uuid.UUID) *UseCase {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		mockPackRepo := pack.NewMockRepository(ctrl)
+		mockPackRepo.EXPECT().
+			FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
+			Return(&pack.Package{
+				ID:            packID,
+				MinimumAmount: decimal.NewFromInt(1000),
+				MaximumAmount: decimal.NewFromInt(2000),
+				Fees:          map[string]model.Fee{},
+			}, nil)
+
+		return &UseCase{packageRepo: mockPackRepo}
+	}
+
+	t.Run("echo carries the resolved remainder", func(t *testing.T) {
+		t.Parallel()
+
+		orgID, packID, ledgerID := uuid.New(), uuid.New(), uuid.New()
+
+		result, err := newUseCase(t, orgID, packID).EstimateFeeCalculation(context.Background(),
+			&model.FeeEstimate{PackageID: packID, Transaction: remainingSend(60)}, orgID, ledgerID)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		legs := result.Transaction.Send.Source.From
+		require.Len(t, legs, 2)
+		assert.Equal(t, "remaining", legs[1].Remaining)
+		require.NotNil(t, legs[1].Amount, "the remaining leg must echo the remainder it resolved to")
+		assert.True(t, legs[1].Amount.Value.Equal(decimal.NewFromInt(40)), "echoed remainder %s, want 40", legs[1].Amount.Value)
+	})
+
+	t.Run("zero remainder is refused", func(t *testing.T) {
+		t.Parallel()
+
+		orgID, packID, ledgerID := uuid.New(), uuid.New(), uuid.New()
+
+		result, err := newUseCase(t, orgID, packID).EstimateFeeCalculation(context.Background(),
+			&model.FeeEstimate{PackageID: packID, Transaction: remainingSend(100)}, orgID, ledgerID)
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		var unprocessable pkg.UnprocessableOperationError
+		require.ErrorAs(t, err, &unprocessable)
+		assert.Equal(t, constant.ErrTransactionValueMismatch.Error(), unprocessable.Code)
+	})
+}
