@@ -49,6 +49,13 @@ The entrypoint tells one ordered story:
    exception exempts it, and a companion that only sits in the pool is untouched.
    An unused marker pair is the normal state of an open account; a marker that
    exists but carries no value refuses technically.
+   `loadSeedAdmission` reads the administrative ownership key by its type: absent
+   holds nothing; a string is an exclusive owner (closing, balance creation or
+   deletion) and never confirms a seed, even when it carries the request's token;
+   a sorted set holds the shared seed admissions, and a seed is confirmed only
+   when the request's token is a live member (`ZSCORE`). A blank string owner or
+   any other type refuses with `account_protection_unreadable`. The engine only
+   reads that key; the balance loads that took the admissions release them.
 5. `validateAccountBlockExceptions` re-reads every presented single-use grant,
    compares its alias and amount with the transaction's bound primary outflow,
    and prepares a transaction-local exemption for that primary balance and its

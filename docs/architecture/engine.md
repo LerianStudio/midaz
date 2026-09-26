@@ -646,8 +646,17 @@ Before the first write, the engine must:
    never read as an absence. The absence of both controls is the normal state of an
    open account and refuses nothing; there is no `open` key. When a used balance is
    NOT in the cache, the seed may only be admitted if the account's ownership key
-   carries the admission token the request declares; otherwise the execution is
-   refused with `admission_not_confirmed` before any write, with no automatic retry.
+   holds the admission token the request declares as a live shared seed admission;
+   otherwise the execution is refused with `admission_not_confirmed` before any
+   write, with no automatic retry. The ownership key is read by its type: absent
+   holds nothing; a string is an exclusive owner — a closing, a balance creation or
+   a balance deletion — and never confirms a seed, even one carrying the request's
+   token, so an exclusive admission taken by an older release cannot stand in for a
+   shared one; a sorted set holds the shared admissions of concurrent cache-miss
+   loads, one member per token, and confirms exactly the seeds whose token is a
+   member. A blank string owner or any other type refuses with
+   `account_protection_unreadable`. The engine only reads the key; the loads that
+   took the admissions release them.
    Companions repeat the check at their mutation site, and an unused pool balance
    never causes a refusal. A proven receipt replay is answered before any of this,
    so a recorded outcome survives the closing of its account. See

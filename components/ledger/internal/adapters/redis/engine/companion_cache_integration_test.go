@@ -212,7 +212,9 @@ func TestIntegrationEngineCompanionCacheRequiresTheSeedProof(t *testing.T) {
 			require.NoError(t, f.client.Del(context.Background(), sourceAccountProtection(t, f).Ownership).Err())
 		}},
 		{name: "admission held by another operation", prepare: func(t *testing.T, f *integrationFixture) {
-			require.NoError(t, f.client.Set(context.Background(), sourceAccountProtection(t, f).Ownership, "another-admission-token", 0).Err())
+			ownership := sourceAccountProtection(t, f).Ownership
+			require.NoError(t, f.client.Del(context.Background(), ownership).Err())
+			admitSharedSeeds(t, f.client, ownership, "another-admission-token")
 		}},
 		{name: "companion deletion marker", prepare: func(t *testing.T, f *integrationFixture) {
 			require.NoError(t, f.client.Set(context.Background(), f.resolved.Balances[companionRef].Deleted, "1", time.Hour).Err())

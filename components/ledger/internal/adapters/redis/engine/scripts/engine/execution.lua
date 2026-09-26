@@ -156,6 +156,31 @@ local function loadBalancePool(request)
     return pool, companions
 end
 
+-- loadSeedAdmission answers whether the account's administrative ownership key
+-- holds the caller's live seed admission. The key has two legitimate shapes, told
+-- apart by its Redis type: a string is one exclusive owner (a closing, a balance
+-- creation or deletion), and a sorted set holds the shared admissions of cache-miss
+-- balance loads, one member per admission token. Only membership of that set
+-- proves a seed. An exclusive owner excludes every seed, even one carrying the
+-- caller's token, so an exclusive admission an older release took can never stand
+-- in for a shared one.
+--
+-- The key is only read here; the loads that took the admissions release them.
+local function loadSeedAdmission(ownershipKey, token)
+    local kind = redisType(ownershipKey)
+    if kind == "none" then return false end
+    if kind == "string" then
+        if redis.call("GET", ownershipKey) == "" then
+            technical("account_protection_unreadable", "account administrative owner carries no value")
+        end
+        return false
+    end
+    if kind == "zset" then
+        return token ~= "" and redis.call("ZSCORE", ownershipKey, token) ~= false
+    end
+    technical("account_protection_unreadable", "account administrative ownership has an unexpected type")
+end
+
 -- loadAccountProtection reads the exceptional closing controls of every account
 -- of the declared pool inside this same atomic execution. PostgreSQL owns the
 -- closing state; these keys are the live controls a movement must honor.
@@ -172,18 +197,15 @@ local function loadAccountProtection(request)
     local protection = {}
     for _, account in ipairs(request.accounts) do
         local closingKey, closedKey = KEYS[account.closingKeyIndex], KEYS[account.closedKeyIndex]
-        local ownershipKey = KEYS[account.ownershipKeyIndex]
         expectRedisType(closingKey, "string")
         expectRedisType(closedKey, "string")
-        expectRedisType(ownershipKey, "string")
         local closing, closed = redis.call("GET", closingKey), redis.call("GET", closedKey)
-        local owner = redis.call("GET", ownershipKey)
-        if closing == "" or closed == "" or owner == "" then
+        if closing == "" or closed == "" then
             technical("account_protection_unreadable", "account protection marker carries no value")
         end
         protection[account.accountId] = {
             closing = closing and true or false, closed = closed and true or false,
-            owner = owner, token = account.admissionToken
+            admitted = loadSeedAdmission(KEYS[account.ownershipKeyIndex], account.admissionToken)
         }
     end
 
@@ -220,13 +242,13 @@ local function validateAccountClosingMarkers(request, protection)
 end
 
 -- admissionConfirmed answers whether the account protection state read by
--- loadAccountProtection proves this caller's seed admission: the administrative
--- ownership of the account still carries the caller's admission token. Only that
--- proof shows the account was open when a cache-miss seed of it was read, so every
--- publication of a seeded balance depends on it. It reads nothing else and refuses
--- nothing; callers decide what an unconfirmed admission means.
+-- loadAccountProtection proves this caller's seed admission: the account's shared
+-- admissions still hold the caller's admission token. Only that proof shows the
+-- account was open when a cache-miss seed of it was read, so every publication of
+-- a seeded balance depends on it. It reads nothing else and refuses nothing;
+-- callers decide what an unconfirmed admission means.
 local function admissionConfirmed(state)
-    return state.token ~= "" and state.owner == state.token
+    return state.admitted
 end
 
 -- validateAccountAvailability refuses one balance whose account may not take part

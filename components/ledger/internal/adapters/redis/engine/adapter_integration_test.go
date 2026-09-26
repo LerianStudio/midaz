@@ -239,11 +239,13 @@ func TestIntegration_AdapterExecute_UsesSharedCommandHooks(t *testing.T) {
 		Addr: address, Password: password, DB: 2, Protocol: 2, MaxRetries: 3,
 	})
 	t.Cleanup(func() { require.NoError(t, shared.Close()) })
-	hook := &integrationCommandHook{}
-	shared.AddHook(hook)
 
 	input, limits := richAdapterExecution(t)
+	// The seed admission runs its own scripts; it is taken before the hook so the
+	// counters observe the engine's commands alone.
 	ctx = admitEngineSeeds(t, ctx, shared, input.Execution)
+	hook := &integrationCommandHook{}
+	shared.AddHook(hook)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(ctx, input)
