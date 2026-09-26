@@ -1529,6 +1529,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Already Associated",
 			Message:    "An accountId from ledger can only be associated with a single related account on CRM.",
 		},
+		constant.ErrBankAccountAlreadyRegistered: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrBankAccountAlreadyRegistered.Error(),
+			Title:      "Bank Account Already Registered",
+			Message:    "This bank account (bankId, branch and account) is already registered to another instrument in this organization. Use that instrument, or delete it before registering the account again.",
+		},
 		constant.ErrHolderHasInstruments: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrHolderHasInstruments.Error(),

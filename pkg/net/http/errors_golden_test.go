@@ -603,6 +603,7 @@ func allSentinels() map[string]error {
 		"ErrRelatedPartyEndDateInvalid":               constant.ErrRelatedPartyEndDateInvalid,
 		"ErrHolderHasAccounts":                        constant.ErrHolderHasAccounts,
 		"ErrInvalidInstrumentAccountType":             constant.ErrInvalidInstrumentAccountType,
+		"ErrBankAccountAlreadyRegistered":             constant.ErrBankAccountAlreadyRegistered,
 		"ErrKeysetNotFound":                           constant.ErrKeysetNotFound,
 		"ErrKeysetAlreadyExists":                      constant.ErrKeysetAlreadyExists,
 		"ErrKeysetRevisionConflict":                   constant.ErrKeysetRevisionConflict,

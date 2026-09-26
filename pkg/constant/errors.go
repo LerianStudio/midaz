@@ -686,6 +686,7 @@ var (
 	ErrRelatedPartyEndDateInvalid          = errors.New("CRM-0029")
 	ErrHolderHasAccounts                   = errors.New("CRM-0030")
 	ErrInvalidInstrumentAccountType        = errors.New("CRM-0042")
+	ErrBankAccountAlreadyRegistered        = errors.New("CRM-0043")
 )
 
 // Encryption and keyset management errors (CRM domain, string-namespaced family).
