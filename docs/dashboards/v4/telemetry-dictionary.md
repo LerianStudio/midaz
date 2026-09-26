@@ -443,7 +443,7 @@ unit: "1"
 ### account_closing_total
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:90-94
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:91-95
 description: Account closing attempts by bounded outcome. `indeterminate` is the protection that could not be read at all (0520), and is deliberately separate from a refusal the coordination answered on purpose.
 labels: [outcome]
 label_values: [closed, refused, indeterminate, technical_error]
@@ -455,10 +455,10 @@ unit: "1"
 ### account_closing_refusals_total
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:98-102
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:99-103
 description: Account closing attempts that did not close the account, by the bounded reason that stopped them. Derived from the registry sentinel, never from the error text.
 labels: [reason]
-label_values: [already_closed, closing_in_progress, balance_not_zero, pending_transactions, persistence_pending, account_closed, protection_indeterminate, external_account, account_not_found, business_other, technical]
+label_values: [already_closed, closing_in_progress, operation_in_progress, balance_not_zero, pending_transactions, persistence_pending, account_closed, protection_indeterminate, external_account, account_not_found, business_other, technical]
 label_cardinality_estimate: low
 live_observed: unknown
 unit: "1"
@@ -467,7 +467,7 @@ unit: "1"
 ### account_closing_reconciliation_markers_total
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:106-110
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:107-111
 description: Closing markers seen by one reconciliation pass, by bounded outcome. `scanned` is the denominator of the pass and is NOT disjoint from the other values.
 labels: [outcome]
 label_values: [scanned, completed, released, retained, unreadable]
@@ -479,7 +479,7 @@ unit: "1"
 ### account_closing_reconciliation_failures_total
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:114-118
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:115-119
 description: Reconciliation steps that could not complete, by bounded stage. A scan stage firing means the pass never walked the namespace, which is also what withholds the last-success instant below.
 labels: [stage]
 label_values: [scan_markers, scan_ownerships, read_marker, read_account, list_balances, evict_balance, install_closed_marker, release_closed_marker, release_aborted_marker, release_ownership]
@@ -611,7 +611,7 @@ unit: "1"
 ### account_closing_reconciliation_duration_ms_milliseconds
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:145-150
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:146-151
 description: Duration of one account closing reconciliation pass, both namespace walks included. The duration of a single CLOSING is not declared separately: it rides domain_operation_duration_ms{component="ledger",operation="close_account"}.
 labels: []
 label_cardinality_estimate: none
@@ -660,7 +660,7 @@ commit or cancel each record the same group once, under their own action.
 ### account_closing_reconciliation_backlog_ratio
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:124-128
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:125-129
 declared_name: account_closing_reconciliation_backlog
 description: Account protection still installed after a reconciliation pass. An absolute count despite the _ratio suffix. A backlog that stops draining means closing, balance creation and cache-miss admission stay blocked on those accounts while no request is failing.
 instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
@@ -674,7 +674,7 @@ unit: "1"
 ### account_closing_reconciliation_last_success_timestamp_seconds
 
 ```yaml
-declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:138-142
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:139-143
 declared_name: account_closing_reconciliation_last_success_timestamp
 description: Unix instant of the last pass that walked both protection namespaces without a scan failure. The AGE of the reconciliation is `time() - metric`; a pass that aborted on a scan deliberately does not advance it.
 instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)

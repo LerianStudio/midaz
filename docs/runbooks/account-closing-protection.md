@@ -18,7 +18,7 @@ the `{transactions}` hash tag.
 | --- | --- | --- | --- | --- |
 | Closing | `<tenant>account-closing:{transactions}:<org>:<ledger>:<account>` | the attempt's token, plus whether its conditional write was already issued | none | one closing attempt owns this account; movements and balance admissions are refused |
 | Closed | `<tenant>account-closed:{transactions}:<org>:<ledger>:<account>` | the confirmed `closed_at` instant | 300 s | negative cache: the account is closed, answered without a query |
-| Ownership | `<tenant>account-admin-ownership:{transactions}:<org>:<ledger>:<account>` | the owning operation's admission token | none | administrative ownership shared by closing, balance creation, balance deletion and cache-miss admission |
+| Ownership | `<tenant>account-admin-ownership:{transactions}:<org>:<ledger>:<account>` | a string holding the exclusive owner's token, or a sorted set of the tokens of live cache-miss admissions | none | administrative ownership: exclusive for closing, balance creation and balance deletion, shared among cache-miss admissions; the two modes exclude each other |
 
 There is **no `open` key**. An account that was never closed owns nothing at all, which
 is what keeps a warm cache hit free of both a cache lookup for state and a database
@@ -48,8 +48,8 @@ administrative ownership over the account first:
 
 | Writer | Path | What it does |
 | --- | --- | --- |
-| Cache-miss load and seed admission | `services/query/get_balances.go` | takes the ownership, reads `closed_at` from the PRIMARY, rebuilds the seed and only then releases; a closed account refuses with `0519` and recomposes the negative cache |
-| Seed admission inside the execution | `adapters/redis/engine/scripts/engine/execution.lua` | re-reads the controls and the ownership token inside the atomic execution; an unconfirmed admission refuses with `admission_not_confirmed` before any write |
+| Cache-miss load and seed admission | `services/query/get_balances.go` | joins the shared admission (concurrent loads of the same account coexist), reads `closed_at` from the PRIMARY and rebuilds the seed; the admission ends with the engine's answer, or with the load when no execution follows; a closed account refuses with `0519` and recomposes the negative cache |
+| Seed admission inside the execution | `adapters/redis/engine/scripts/engine/execution.lua` | re-reads the controls inside the atomic execution and admits a seed only when the caller's token is a live member of the shared admission; an exclusive owner, a missing member or an unconfirmed admission refuses with `admission_not_confirmed` before any write |
 | Atomic batch v2 | `services/command/create_atomic_transaction_batch_v2.go` | installs one admission sink around every item load and the single engine execution; each account is owned once for the whole batch, including prepared idempotency, Tracer reservation and execution handoff |
 | Additional balance creation | `services/command/create_balance_additional.go` | ownership before the account is inspected; the overdraft companion is the same account and takes no ownership of its own |
 | Default balance creation | `services/command/create_balance.go` | same ownership and the same `closed_at` check; the external account of an asset is exempt by type, since `0074` makes it ineligible for closing |
@@ -115,7 +115,9 @@ in memory — and for each marker the authoritative row decides:
 
 Ownerships that remain after the closings of a pass are resolved belong to a balance
 creation, a deletion or a cache-miss admission whose outcome this pass cannot establish.
-They are counted as backlog and left where they are.
+They are counted as backlog and left where they are. A cache-miss admission left behind
+stays a member of the shared set: it keeps refusing closing, balance creation and
+deletion with `0526`, and it never refuses other transactions' admissions.
 
 What reconciliation never does: reopen an account, rewrite an instant, reapply a
 movement, or release a protection because time passed.
@@ -156,6 +158,13 @@ honors the controls. The order is:
    a safe migration of stale blobs — a blob whose expiry has not elapsed is still
    servable.
 5. Only then expose `POST /v2/.../accounts/{account_id}/close`.
+
+During a rolling upgrade from a version whose cache-miss admission was exclusive, an
+older pod's engine refuses technically an execution over an account that a newer pod
+has admitted in shared mode, because the key is no longer a string. The refusal costs
+availability for the duration of the rollout and never admits anything: an older
+closing, creation or deletion still cannot take the key while newer admissions are
+live.
 
 ## Rollback
 
