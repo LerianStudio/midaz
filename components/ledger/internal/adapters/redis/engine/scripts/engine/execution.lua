@@ -483,17 +483,36 @@ end
 --
 -- A companion that moved is already written. A cached one that did not move only
 -- has its expiry refreshed, because its cached value stays authoritative. A seeded
--- one that did not move is published exactly as read: no version increment, no
--- movement, and no entry in the result or the recovery evidence. Publishing it
--- needs the same proof a used seed needs — an open account and a confirmed
--- admission — and no deletion marker. A companion without that proof stays out of
--- the cache, and the execution, which never used it, is not refused because of it.
+-- one that did not move is published with the amounts and version it was seeded
+-- with: no version increment, no movement, and no entry in the result or the
+-- recovery evidence. Publishing it needs the same proof a used seed needs — an
+-- open account and a confirmed admission — and no deletion marker. A companion
+-- without that proof stays out of the cache, and the execution, which never used
+-- it, is not refused because of it.
+--
+-- `blocked` is an account-level flag. A seed carries it as the account row held it
+-- when the load read it, but an account PATCH rewrites it only on the balances
+-- already cached, so a block or unblock that lands between the load and this
+-- execution reaches the cached primary and misses the companion seed. A published
+-- companion therefore takes the flag from a balance of its account that this
+-- execution writes and read from Redis. The PATCH rewrites all of an account's
+-- cached balances in one atomic step, so the first one is as current as any. When
+-- every written balance of the account was itself seeded, they all come from the
+-- same load as the companion, and the companion keeps its seed's flag.
+--
+-- A refreshed companion keeps its cached value, flag included: it was read from
+-- Redis, so the PATCH has kept its flag current, and only its expiry is written.
 local function selectCompanionCacheWrites(touched, companions, protection)
-    local written, selected = {}, {}
+    local written, selected, liveBlocked = {}, {}, {}
     local published, refreshed = {}, {}
-    for _, item in ipairs(touched) do written[item] = true end
     for _, item in ipairs(touched) do
-        local companion = companions[scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)]
+        written[item] = true
+        local accountRef = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)
+        if not item.seeded and liveBlocked[accountRef] == nil then liveBlocked[accountRef] = item.current.blocked end
+    end
+    for _, item in ipairs(touched) do
+        local accountRef = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)
+        local companion = companions[accountRef]
         if companion and not written[companion] and not selected[companion] then
             selected[companion] = true
             local state = protection[companion.current.accountId]
@@ -501,6 +520,7 @@ local function selectCompanionCacheWrites(touched, companions, protection)
                 if not companion.seeded then
                     refreshed[#refreshed + 1] = companion
                 elseif admissionConfirmed(state) then
+                    if liveBlocked[accountRef] ~= nil then companion.current.blocked = liveBlocked[accountRef] end
                     published[#published + 1] = companion
                 end
             end

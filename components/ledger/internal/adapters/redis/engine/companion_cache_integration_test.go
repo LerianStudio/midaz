@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
@@ -160,6 +161,93 @@ func TestIntegrationEngineCompanionCacheRefreshesACachedCompanion(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, value, refreshed, "a refreshed companion keeps its cached value")
 	require.False(t, f.scheduled(t, f.companionKey()), "an unchanged cached companion has nothing to synchronize")
+}
+
+// A balance load stamps its seeds with the account's blocked flag as the account
+// row held it at load time, while an account PATCH rewrites the flag only on the
+// balances already cached. The published companion must therefore carry the flag
+// of the live balance its account wrote, not the flag its seed was read with.
+func TestIntegrationEngineCompanionCachePublishesTheAccountsLiveBlockedFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	ctx := context.Background()
+
+	publishedCompanionBlocked := func(t *testing.T, f *integrationFixture) bool {
+		t.Helper()
+
+		cached, err := container.Client.Get(ctx, f.companionKey()).Bytes()
+		require.NoError(t, err, "a committed execution publishes the companion it seeded")
+		companion, err := balancecache.Decode(cached)
+		require.NoError(t, err)
+
+		return companion.Blocked
+	}
+
+	t.Run("an unblock that reached only the cached primary is kept", func(t *testing.T) {
+		f := newCompanionCacheFixture(t, container.Client)
+		f.input.Execution.Transactions[0].RejectBlockedBalances = true
+		// The load read the account while it was blocked; the unblock then rewrote
+		// the cached primary and skipped the companion, which was not cached.
+		f.input.Execution.Balances[0].Blocked = true
+		f.input.Execution.Balances[1].Blocked = true
+
+		raw, err := f.run(t)
+		require.NoError(t, err, "a movement within funds does not touch the companion")
+		requireOnlyPrimaryResult(t, raw)
+		require.False(t, publishedCompanionBlocked(t, f), "the companion takes the flag of the live primary, not of its seed")
+
+		f.rotateExecution()
+		f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(150)
+
+		raw, err = f.run(t)
+		require.NoError(t, err, "a draw on the unblocked account commits")
+
+		result := decodeIntegrationResult(t, raw)
+		require.Len(t, result.Movements, 2)
+		require.Equal(t, "overdraft_companion", result.Movements[1].Role)
+		require.Equal(t, integrationState{Available: "80", OnHold: "0", OverdraftUsed: "0", Version: "5"}, result.Movements[1].After)
+	})
+
+	t.Run("a block that reached only the cached primary is kept", func(t *testing.T) {
+		f := newCompanionCacheFixture(t, container.Client)
+		// An action that the block control does not refuse, such as a cancellation,
+		// still writes the blocked primary.
+		primary := f.input.Execution.Balances[0]
+		primary.Blocked = true
+		f.seed(t, 0, primary)
+
+		raw, err := f.run(t)
+		require.NoError(t, err)
+		requireOnlyPrimaryResult(t, raw)
+		require.True(t, publishedCompanionBlocked(t, f), "the companion takes the flag of the live primary, not of its seed")
+	})
+
+	t.Run("a balance of the account read from Redis decides over a seeded one", func(t *testing.T) {
+		f := newCompanionCacheFixture(t, container.Client)
+		f.input.Execution.Balances[1].Blocked = true
+
+		// A second balance of the same account, seeded with the stale flag, is
+		// written before the cached primary.
+		sibling := f.input.Execution.Balances[0]
+		sibling.ID = uuid.MustParse("3c9d7e21-4b6a-4f0e-8a2d-5e1f0b7c9d34")
+		sibling.Key, sibling.BalanceRef, sibling.Blocked = "savings", "@source#savings", true
+		f.input.Execution.Balances = append(f.input.Execution.Balances, sibling)
+		f.resolved.Balances[sibling.BalanceRef] = testResolvedBalanceKeys(
+			strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", sibling.BalanceRef, 1),
+		)
+		first := f.input.Execution.Transactions[0].Postings[0]
+		first.Ref, first.BalanceRef, first.Amount = "debit-savings", sibling.BalanceRef, decimal.NewFromInt(10)
+		postings := f.input.Execution.Transactions[0].Postings
+		f.input.Execution.Transactions[0].Postings = append([]accounting.Posting{first}, postings...)
+
+		raw, err := f.run(t)
+		require.NoError(t, err)
+		require.Len(t, decodeIntegrationResult(t, raw).Movements, 2)
+		require.False(t, publishedCompanionBlocked(t, f), "only a balance read from Redis carries the flag the account PATCH keeps current")
+	})
 }
 
 func TestIntegrationEngineCompanionCacheIsNotWrittenByARefusal(t *testing.T) {

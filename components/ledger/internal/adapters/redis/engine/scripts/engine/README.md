@@ -73,10 +73,16 @@ The entrypoint tells one ordered story:
 8. `selectCompanionCacheWrites` picks, for every account whose balances this
    execution writes, the overdraft companion that must stay cached beside them:
    an unmoved cached companion gets its expiry refreshed, and an unmoved seeded
-   companion is published unchanged when `admissionConfirmed` proves its
-   account's admission, the account is neither closing nor closed, and neither
-   deletion marker is set. Without that proof the companion stays uncached and
-   the execution is not refused.
+   companion is published when `admissionConfirmed` proves its account's
+   admission, the account is neither closing nor closed, and neither deletion
+   marker is set. Without that proof the companion stays uncached and the
+   execution is not refused. A published companion keeps its seed's amounts and
+   version but takes the account-level `blocked` flag from a balance of its
+   account that the execution writes and read from Redis: an account PATCH
+   rewrites that flag only on cached balances, so the seed may carry a block
+   state the account no longer has. When every written balance of the account
+   was seeded too, the companion keeps its seed's flag. A refreshed companion
+   keeps its cached value, flag included.
 9. `prepareExecutionWrites` serializes the response, including the execution's
    single `appliedAtUnixMicro` value, changed balance blobs, published companion
    blobs, versioned write-behind evidence, transaction-state index entries,
@@ -90,8 +96,9 @@ The entrypoint tells one ordered story:
     index entries, deletes consumed grant keys, and finally writes the receipt.
 
 A published companion carries no movement and no version increment and appears
-in neither the response nor the recovery evidence; its synchronization is a
-version-guarded no-op in PostgreSQL.
+in neither the response nor the recovery evidence. Its synchronization is
+version-guarded: it leaves PostgreSQL unchanged for a seed read from the current
+row, and updates the row only when the seed was rebuilt ahead of it.
 
 The receipt is written last deliberately: its presence means the complete
 prepared command sequence returned through the final write. Recovery records are

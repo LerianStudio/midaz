@@ -261,10 +261,17 @@ invalid. A missing companion fails only when a real draw or repayment requires i
 A committed execution keeps the overdraft companion of every account it writes
 in the cache, so the account's next execution finds the complete pair in Redis
 and needs no seed or admission. A cached companion that did not move only has its
-24-hour TTL refreshed. A companion seeded from the request that did not move is
-published exactly as seeded and scheduled for synchronization, which is a
-version-guarded no-op in PostgreSQL. It gets no movement, no version increment,
-and no entry in `Final` or in the recovery evidence. Publication needs the same
+24-hour TTL refreshed; its cached value stays authoritative. A companion seeded
+from the request that did not move is published with its seed's amounts and
+version and scheduled for synchronization. That synchronization is
+version-guarded: it leaves PostgreSQL unchanged for a seed read from the current
+row, and updates the row only when the seed was rebuilt ahead of it. The
+published companion takes the account-level `blocked` flag from a balance of its
+account that the execution writes and read from Redis, because an account PATCH
+rewrites that flag only on cached balances and the seed may carry a block state
+the account no longer has; when every written balance of the account was seeded
+too, it keeps its seed's flag. It gets no movement, no version increment, and no
+entry in `Final` or in the recovery evidence. Publication needs the same
 proof a used seed needs: the account is neither closing nor closed, its admission
 is confirmed, and the companion carries no deletion marker. A companion without
 that proof stays out of the cache and refuses nothing. Refusals and executions
