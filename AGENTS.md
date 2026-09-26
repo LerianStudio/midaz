@@ -95,7 +95,7 @@ components/tracer/     → Separate Go service deploy unit
 
 pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)
-  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 29 CRM-00xx (CRM-0006..CRM-0042))
+  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 30 CRM-00xx (CRM-0006..CRM-0043))
   errors.go           → Typed error structs
   mtransaction/       → Transaction processing utilities (formerly pkg/transaction)
   net/http/           → Middleware, pagination, route helpers

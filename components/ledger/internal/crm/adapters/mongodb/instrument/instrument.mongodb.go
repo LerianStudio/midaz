@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -108,7 +109,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	err = ensureIndexes(ctx, coll)
+	err = ensureIndexes(ctx, coll, organizationID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
@@ -140,6 +141,13 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
 		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok {
+			if indexName == bankAccountIndexName {
+				businessErr := pkg.ValidateBusinessError(cn.ErrBankAccountAlreadyRegistered, cn.EntityInstrument)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(spanInsert, "Bank account already registered to another instrument", businessErr)
+
+				return nil, businessErr
+			}
+
 			if strings.HasPrefix(indexName, "account_id") || strings.HasPrefix(indexName, "ledger_id_1_account_id") {
 				businessErr := pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityInstrument)
 				libOpentelemetry.HandleSpanBusinessErrorEvent(spanInsert, "Account already associated with an instrument", businessErr)
@@ -292,6 +300,12 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	// The account token follows the account: once the account is removed or emptied, the token must
+	// not keep matching list searches and the bank-account index.
+	if accountCleared(instrument.BankingDetails, fieldsToRemove) {
+		fieldsToRemove = append(slices.Clone(fieldsToRemove), "search.banking_details_account")
+	}
+
 	update := mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove)
 
 	filter := bson.D{
@@ -302,6 +316,13 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	updateResult, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
+		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok && indexName == bankAccountIndexName {
+			businessErr := pkg.ValidateBusinessError(cn.ErrBankAccountAlreadyRegistered, cn.EntityInstrument)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "Bank account already registered to another instrument", businessErr)
+
+			return nil, businessErr
+		}
+
 		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update instrument", err)
 
 		return nil, err
@@ -414,6 +435,11 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	}
 
 	return nil
+}
+
+func accountCleared(patch *mmodel.BankingDetails, fieldsToRemove []string) bool {
+	return (patch != nil && patch.Account != nil && *patch.Account == "") ||
+		slices.Contains(fieldsToRemove, "bankingDetails") || slices.Contains(fieldsToRemove, "bankingDetails.account")
 }
 
 // repositoryInputAttributes returns non-sensitive presence/count span attributes

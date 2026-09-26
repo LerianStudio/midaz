@@ -6385,6 +6385,13 @@ paths:
         - Midaz_Ledger_API_Holders (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
+      description: >-
+        Creates an instrument linking a ledger account to its holder and banking
+        details. A ledger account already linked to another instrument
+        (CRM-0013) is refused with 409, and so is a bank account already
+        registered to another live instrument of the organization (CRM-0043):
+        the same bankId and account, on the same branch (leading zeros ignored)
+        or where one of them has no branch, whatever the type.
       operationId: createInstrumentV2
       parameters:
         - description: Organization ID (UUID)
@@ -6583,6 +6590,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Instruments (v2)
     patch:
+      description: >-
+        Updates an instrument as an RFC 7396 merge patch. A change to bankId,
+        branch or account that leaves the instrument holding a bank account
+        already registered to another live instrument of the organization is
+        refused with 409 (CRM-0043).
       operationId: updateInstrumentV2
       parameters:
         - description: Organization ID (UUID)

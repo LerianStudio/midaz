@@ -10,6 +10,7 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -89,6 +90,9 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	return nil
 }
 
+// bankAccountIndexName names the unique index over one bank account (bank, branch, account token).
+const bankAccountIndexName = "banking_details_bank_account_unique"
+
 // indexModels returns the index definitions for the instrument collection.
 func indexModels() []mongo.IndexModel {
 	return []mongo.IndexModel{
@@ -161,15 +165,62 @@ func indexModels() []mongo.IndexModel {
 	}
 }
 
+// bankAccountIndexModel keys a live bank account by bank, branch and account token. The service
+// pre-check is the rule; this index only closes the race between two writes of the same raw bank
+// and branch, a missing branch included.
+func bankAccountIndexModel() mongo.IndexModel {
+	exists := bson.D{{Key: "$exists", Value: true}}
+
+	return mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "banking_details.bank_id", Value: 1},
+			{Key: "banking_details.branch", Value: 1},
+			{Key: "search.banking_details_account", Value: 1},
+		},
+		Options: options.Index().
+			SetName(bankAccountIndexName).
+			SetUnique(true).
+			SetPartialFilterExpression(bson.D{
+				{Key: "deleted_at", Value: nil},
+				{Key: "banking_details.bank_id", Value: bson.D{{Key: "$gt", Value: ""}}},
+				{Key: "banking_details.account", Value: exists},
+				{Key: "search.banking_details_account", Value: exists},
+			}),
+	}
+}
+
 // ensureIndexes ensures indexes exist for the alias collection.
 // Uses per-collection tracking to handle multi-tenant/per-org collections correctly.
 // Retries on failure — indexes are only marked as done after successful creation.
-func ensureIndexes(ctx context.Context, collection *mongo.Collection) error {
+func ensureIndexes(ctx context.Context, collection *mongo.Collection, organizationID string) error {
 	key := collection.Database().Name() + ":" + collection.Name()
 
 	return globalIndexTracker.ensureOnce(key, func() error {
-		return createIndexes(ctx, collection)
+		if err := createIndexes(ctx, collection); err != nil {
+			return err
+		}
+
+		ensureBankAccountIndex(ctx, collection, organizationID)
+
+		return nil
 	})
+}
+
+// ensureBankAccountIndex never fails the caller: the service pre-check is the rule and this index
+// only closes the race between concurrent writers. A collection already holding twins refuses the
+// build; that organization keeps working and is reported, once per process, as a WARN.
+func ensureBankAccountIndex(ctx context.Context, collection *mongo.Collection, organizationID string) {
+	buildCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if _, err := collection.Indexes().CreateOne(buildCtx, bankAccountIndexModel()); err != nil {
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logger.Log(ctx, libLog.LevelWarn, "Bank account uniqueness index not built; only the pre-check refuses duplicate bank accounts",
+			libLog.String("organization_id", organizationID),
+			libLog.String("database", collection.Database().Name()),
+			libLog.String("index", bankAccountIndexName),
+			libLog.Err(err))
+	}
 }
 
 // createIndexes creates indexes for specific fields, if it not exists.
