@@ -17599,7 +17599,7 @@ components:
             - 'null'
       type: object
     Error:
-      additionalProperties: false
+      additionalProperties: true
       properties:
         code:
           description: >-
