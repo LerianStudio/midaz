@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -98,6 +99,7 @@ type atomicTransactionBatchRun struct {
 	heldDestinations           []CrossLedgerGroupIntentPart
 	ledgerSettings             mmodel.LedgerSettings
 	idempotencyTTL             time.Duration
+	idempotencyLifecycle       txRedis.AtomicTransactionBatchLifecycleAction
 	idempotencyEffectiveKey    string
 	idempotencyFingerprint     string
 	idempotencyOwnerToken      string

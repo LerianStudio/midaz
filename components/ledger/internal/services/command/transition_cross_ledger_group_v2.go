@@ -20,6 +20,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -420,13 +421,13 @@ func (uc *UseCase) claimCrossLedgerGroupTransition(
 		return nil, nil, errors.New("cross-ledger group lifecycle idempotency identity is incomplete")
 	}
 
-	var action string
+	var lifecycle txRedis.AtomicTransactionBatchLifecycleAction
 
 	switch status {
 	case constant.APPROVED:
-		action = "commit"
+		lifecycle = txRedis.AtomicTransactionBatchLifecycleCommit
 	case constant.CANCELED:
-		action = "cancel"
+		lifecycle = txRedis.AtomicTransactionBatchLifecycleCancel
 	default:
 		return nil, nil, fmt.Errorf("unsupported cross-ledger group lifecycle idempotency status %q", status)
 	}
@@ -447,6 +448,8 @@ func (uc *UseCase) claimCrossLedgerGroupTransition(
 		organizationID: group.OrganizationID,
 		ledgerID:       group.LedgerID,
 		items:          make([]atomicTransactionBatchItemRun, len(plans)),
+
+		idempotencyLifecycle: lifecycle,
 	}
 
 	refs := make([]atomicTransactionBatchLedgerRef, 0, len(plans))
@@ -469,7 +472,7 @@ func (uc *UseCase) claimCrossLedgerGroupTransition(
 
 	replay, err := uc.claimAtomicTransactionBatch(ctx, CreateAtomicTransactionBatchV2Input{
 		CanonicalRequest: canonical,
-		IdempotencyKey:   "group-" + action + ":" + group.ID.String(),
+		IdempotencyKey:   "group-" + string(lifecycle) + ":" + group.ID.String(),
 	}, run)
 	if err != nil {
 		return nil, nil, err
