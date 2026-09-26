@@ -20,9 +20,9 @@ import (
 )
 
 // validateBankAccountUnique is the rule: it refuses banking details whose bank account another
-// live instrument of the organization holds, matched as the TED engine matches a recipient (see
-// sameBankAccount). type is not part of the key; the account is found by its search token under
-// every enabled key, so rows written before a rotation count.
+// live instrument of the organization holds (see sameBankAccount). type is not part of the key;
+// the account is found by its search token under every enabled key, so rows written before a
+// rotation count.
 func (uc *UseCase) validateBankAccountUnique(ctx context.Context, organizationID string, self uuid.UUID, bd *mmodel.BankingDetails) error {
 	if bd == nil || bd.Account == nil || *bd.Account == "" {
 		return nil
