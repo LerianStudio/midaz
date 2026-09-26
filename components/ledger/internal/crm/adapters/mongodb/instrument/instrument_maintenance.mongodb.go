@@ -182,7 +182,7 @@ func bankAccountIndexModel() mongo.IndexModel {
 			SetUnique(true).
 			SetPartialFilterExpression(bson.D{
 				{Key: "deleted_at", Value: nil},
-				{Key: "banking_details.bank_id", Value: exists},
+				{Key: "banking_details.bank_id", Value: bson.D{{Key: "$gt", Value: ""}}},
 				{Key: "banking_details.account", Value: exists},
 				{Key: "search.banking_details_account", Value: exists},
 			}),

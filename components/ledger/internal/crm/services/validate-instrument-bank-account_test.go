@@ -120,6 +120,11 @@ func TestCreateInstrument_BankAccountUniqueness(t *testing.T) {
 			stored: []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), nil))},
 		},
 		{
+			name:   "bankId compares exactly",
+			input:  bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), nil),
+			stored: []*mmodel.Instrument{storedInstrument(bankAccount(strPtr(" 001"), strPtr("0001"), strPtr("123456"), nil))},
+		},
+		{
 			name:   "same account at another bank is accepted",
 			input:  bankAccount(strPtr("237"), strPtr("0001"), strPtr("123456"), nil),
 			stored: []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), nil))},
