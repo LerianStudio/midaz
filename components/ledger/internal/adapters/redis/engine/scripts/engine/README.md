@@ -44,7 +44,7 @@ The entrypoint tells one ordered story:
 4. `loadAccountProtection` reads the closing controls of every account of the
    pool, and `validateAccountClosingAvailability` refuses every requirement and
    posting whose account is closing or closed, and every used balance this
-   execution would seed without holding its account's admission ownership. The
+   execution would seed without a confirmed admission (`admissionConfirmed`). The
    check is unconditional: no skip, permission, cancellation, or account-block
    exception exempts it, and a companion that only sits in the pool is untouched.
    An unused marker pair is the normal state of an open account; a marker that
@@ -63,16 +63,28 @@ The entrypoint tells one ordered story:
 7. `applyTransactionsInMemory` validates live asset/permission requirements,
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
    and builds truthful movements and version chains without writing Redis.
-8. `prepareExecutionWrites` serializes the response, including the execution's
-   single `appliedAtUnixMicro` value, changed balance blobs,
-   versioned write-behind evidence, transaction-state index entries, recovery
-   records, receipt, guards, and protection data while enforcing the total
-   prepared-byte ceiling.
-9. `commitPreparedExecution` is the only publication phase. It receives the
-   score derived from the same Redis `TIME` read and writes changed
-   balances, synchronization schedule members, recovery records, guards,
-   protection coordinators, and index entries, deletes consumed grant keys, and
-   finally writes the receipt.
+8. `selectCompanionCacheWrites` picks, for every account whose balances this
+   execution writes, the overdraft companion that must stay cached beside them:
+   an unmoved cached companion gets its expiry refreshed, and an unmoved seeded
+   companion is published unchanged when `admissionConfirmed` proves its
+   account's admission, the account is neither closing nor closed, and neither
+   deletion marker is set. Without that proof the companion stays uncached and
+   the execution is not refused.
+9. `prepareExecutionWrites` serializes the response, including the execution's
+   single `appliedAtUnixMicro` value, changed balance blobs, published companion
+   blobs, versioned write-behind evidence, transaction-state index entries,
+   recovery records, receipt, guards, and protection data while enforcing the
+   total prepared-byte ceiling. An execution without movements prepares none of
+   them, so refusals and no-ops publish no companion.
+10. `commitPreparedExecution` is the only publication phase. It receives the
+    score derived from the same Redis `TIME` read and writes changed and
+    published companion balances, synchronization schedule members, refreshed
+    companion expiries, recovery records, guards, protection coordinators, and
+    index entries, deletes consumed grant keys, and finally writes the receipt.
+
+A published companion carries no movement and no version increment and appears
+in neither the response nor the recovery evidence; its synchronization is a
+version-guarded no-op in PostgreSQL.
 
 The receipt is written last deliberately: its presence means the complete
 prepared command sequence returned through the final write. Recovery records are

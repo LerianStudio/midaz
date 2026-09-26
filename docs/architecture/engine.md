@@ -252,11 +252,24 @@ Three balance sets must remain distinct:
 - The snapshot pool contains available scoped seeds, including internal overdraft
   companions that might become necessary after the engine reads live settings.
 - The touched set contains effective postings and companions actually used.
-  Only touched balances receive monetary writes and synchronization work.
+  Only touched balances receive monetary writes, movements, and versions.
 
 An unused internal companion in the pool is not an explicit user target and must
 not cause rejection. A user explicitly targeting an internal balance remains
 invalid. A missing companion fails only when a real draw or repayment requires it.
+
+A committed execution keeps the overdraft companion of every account it writes
+in the cache, so the account's next execution finds the complete pair in Redis
+and needs no seed or admission. A cached companion that did not move only has its
+24-hour TTL refreshed. A companion seeded from the request that did not move is
+published exactly as seeded and scheduled for synchronization, which is a
+version-guarded no-op in PostgreSQL. It gets no movement, no version increment,
+and no entry in `Final` or in the recovery evidence. Publication needs the same
+proof a used seed needs: the account is neither closing nor closed, its admission
+is confirmed, and the companion carries no deletion marker. A companion without
+that proof stays out of the cache and refuses nothing. Refusals and executions
+without movements publish no companion, and the published value counts against
+the prepared-byte budget.
 
 Each `Movement` carries a deterministic unique `Ref`, `TransactionID`, parent
 `PostingRef`, role (`primary` or `overdraft_companion`), balance reference, type,
@@ -267,9 +280,10 @@ must not determine ordering.
 
 A movement exists when Available, OnHold, or OverdraftUsed changes. Each applied
 primary or companion movement increments its balance version once. `Amount=0`
-does not suppress a debt-only movement. Unchanged state produces no movement,
-version increment, or schedule update. `ExecutionResult.Final` contains one final snapshot
-per touched physical balance in deterministic order, excluding unused seeds.
+does not suppress a debt-only movement. Unchanged state produces no movement or
+version increment, and schedules nothing except a published companion seed.
+`ExecutionResult.Final` contains one final snapshot per touched physical balance
+in deterministic order, excluding unused seeds.
 
 Execution identity is distinct from transaction identity: pending creation,
 commitment, and cancellation share a transaction ID but require different
