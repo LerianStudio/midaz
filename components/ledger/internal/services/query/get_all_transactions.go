@@ -164,33 +164,12 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	}
 
 	for i := range trans {
-		source := make([]string, 0)
-		destination := make([]string, 0)
-
 		operationIDs := make([]string, 0, len(trans[i].Operations))
 		for _, op := range trans[i].Operations {
 			operationIDs = append(operationIDs, op.ID)
-
-			switch op.Type {
-			case constant.DEBIT:
-				source = append(source, op.AccountAlias)
-			case constant.CREDIT:
-				destination = append(destination, op.AccountAlias)
-			case constant.BLOCK, constant.UNBLOCK:
-				// BLOCK/UNBLOCK operations carry a normal accounting Direction
-				// (debit-side -> Source, credit-side -> Destination), so they
-				// are classified by Direction exactly as DEBIT/CREDIT are.
-				switch op.Direction {
-				case constant.DirectionDebit:
-					source = append(source, op.AccountAlias)
-				case constant.DirectionCredit:
-					destination = append(destination, op.AccountAlias)
-				}
-			}
 		}
 
-		trans[i].Source = source
-		trans[i].Destination = resolveDestination(destination, trans[i].Body)
+		trans[i].Source, trans[i].Destination = transactionLegAliases(trans[i].Operations, trans[i].Body)
 
 		if data, ok := metadataMap[trans[i].ID]; ok {
 			trans[i].Metadata = data
