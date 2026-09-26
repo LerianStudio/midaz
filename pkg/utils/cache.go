@@ -187,11 +187,13 @@ func AccountClosedMarkerKey(organizationID, ledgerID, accountID uuid.UUID) strin
 // AccountAdminOwnershipKey returns a key with the following format to be used on redis cluster:
 // "account-admin-ownership:{transactions}:organizationID:ledgerID:accountID"
 //
-// The key holds the token of the administrative operation that currently owns the
-// account: a closing, a balance creation or deletion, or a cache-miss admission.
-// It is the coordination point those operations share so a closing validates a
-// stable balance list, and it exists only while an operation is active or awaiting
-// reconciliation.
+// The key is the coordination point that lets a closing validate a stable balance
+// list, and it has two modes told apart by its Redis type. A string holds the token
+// of one exclusive owner: a closing, a balance creation or a deletion. A sorted set
+// holds the shared seed admissions of cache-miss balance loads, member = token and
+// score = acquisition instant in milliseconds; they coexist with each other and
+// never with an exclusive owner. The key exists only while an operation is active
+// or awaiting reconciliation.
 func AccountAdminOwnershipKey(organizationID, ledgerID, accountID uuid.UUID) string {
 	return accountProtectionKey("account-admin-ownership", organizationID, ledgerID, accountID)
 }
