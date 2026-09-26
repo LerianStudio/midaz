@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -25,22 +26,31 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+// seedAdmissionCalls are the steps of one programmed seed admission a test orders
+// reads against: the acquisition, and the authoritative read that proves the
+// account open under it.
+type seedAdmissionCalls struct {
+	acquired   *gomock.Call
+	provenOpen *gomock.Call
+}
+
 // expectOpenSeedAdmissionOf programs one successful seed admission over an account
-// that was never closed, and returns the acquisition call so a caller can order a
-// read after it.
-func expectOpenSeedAdmissionOf(m *admissionMocks, accountID uuid.UUID) *gomock.Call {
+// that was never closed. The account is proven open only after the admission is
+// held, so a closing cannot slip between the proof and the acquisition.
+func expectOpenSeedAdmissionOf(m *admissionMocks, accountID uuid.UUID) seedAdmissionCalls {
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, accountID).
 		Return("", false, nil)
 
-	acquire := m.redis.EXPECT().AcquireAccountSeedAdmission(gomock.Any(), admissionOrgID, admissionLedgerID, accountID, gomock.Any()).
+	acquired := m.redis.EXPECT().AcquireAccountSeedAdmission(gomock.Any(), admissionOrgID, admissionLedgerID, accountID, gomock.Any()).
 		Return(true, redis.AccountAdminHolderNone, nil)
 
 	m.redis.EXPECT().GetAccountClosedMarker(gomock.Any(), admissionOrgID, admissionLedgerID, accountID).
 		Return(time.Time{}, false, nil)
-	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{accountID}).
-		Return(map[uuid.UUID]*time.Time{accountID: nil}, nil)
+	provenOpen := m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{accountID}).
+		Return(map[uuid.UUID]*time.Time{accountID: nil}, nil).
+		After(acquired)
 
-	return acquire
+	return seedAdmissionCalls{acquired: acquired, provenOpen: provenOpen}
 }
 
 // expectSeedHydrationAndRebuild programs the reads that follow a seed load that
@@ -87,16 +97,16 @@ func TestGetBalances_ReReadNamingANewAccountExtendsTheAdmission(t *testing.T) {
 	resolve := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100))
 
 	first := expectOpenSeedAdmissionOf(m, admissionAccountID)
-	first.After(resolve)
+	first.acquired.After(resolve)
 
 	unprotected := admissionSeedRow(appeared, 7)
-	reread := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), unprotected).After(first)
+	reread := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), unprotected).After(first.provenOpen)
 
 	extension := expectOpenSeedAdmissionOf(m, appeared)
-	extension.After(reread)
+	extension.acquired.After(reread)
 
 	servedPrimary, servedAppeared := admissionSeedRow(admissionAccountID, 100), admissionSeedRow(appeared, 7)
-	expectSeedRead(m, servedPrimary, servedAppeared).After(extension)
+	expectSeedRead(m, servedPrimary, servedAppeared).After(extension.provenOpen)
 
 	expectSeedHydrationAndRebuild(m)
 	expectSeedAdmissionRelease(m, admissionAccountID)
@@ -125,10 +135,10 @@ func TestGetBalances_ReReadAfterAnEmptyResolutionAdmitsTheAccount(t *testing.T) 
 	reread := expectSeedRead(m, unprotected).After(resolve)
 
 	extension := expectOpenSeedAdmissionOf(m, appeared)
-	extension.After(reread)
+	extension.acquired.After(reread)
 
 	served := admissionSeedRow(appeared, 7)
-	expectSeedRead(m, served).After(extension)
+	expectSeedRead(m, served).After(extension.provenOpen)
 
 	expectSeedHydrationAndRebuild(m)
 	expectSeedAdmissionRelease(m, appeared)
@@ -150,7 +160,7 @@ func TestGetBalances_ReReadNamingAClosedAccountIsRefused(t *testing.T) {
 	m.redis.EXPECT().Get(gomock.Any(), utils.BalanceInternalKey(admissionOrgID, admissionLedgerID, admissionAlias)).
 		Return("", nil)
 	resolve := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100))
-	expectOpenSeedAdmissionOf(m, admissionAccountID).After(resolve)
+	expectOpenSeedAdmissionOf(m, admissionAccountID).acquired.After(resolve)
 	expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), admissionSeedRow(closed, 0))
 
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, closed).
@@ -184,7 +194,7 @@ func TestGetBalances_ReReadNamingAHeldAccountIsRefused(t *testing.T) {
 	m.redis.EXPECT().Get(gomock.Any(), utils.BalanceInternalKey(admissionOrgID, admissionLedgerID, admissionAlias)).
 		Return("", nil)
 	resolve := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100))
-	expectOpenSeedAdmissionOf(m, admissionAccountID).After(resolve)
+	expectOpenSeedAdmissionOf(m, admissionAccountID).acquired.After(resolve)
 	expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), admissionSeedRow(held, 0))
 
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, held).
@@ -204,7 +214,8 @@ func TestGetBalances_ReReadNamingAHeldAccountIsRefused(t *testing.T) {
 // TestGetBalances_ReReadThatKeepsNamingNewAccountsIsRefused bounds the extension:
 // a load whose every read names another account never settles on a set it
 // proved, so after the bound it refuses with 0520 instead of chasing the drift,
-// and every admission it took is given back.
+// and every admission it took is given back. The refusal is an indeterminate
+// protection, a technical failure, so it turns the load's span red.
 func TestGetBalances_ReReadThatKeepsNamingNewAccountsIsRefused(t *testing.T) {
 	m := newAdmissionMocks(t)
 
@@ -242,11 +253,12 @@ func TestGetBalances_ReReadThatKeepsNamingNewAccountsIsRefused(t *testing.T) {
 	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(map[uuid.UUID]*time.Time{}, nil).AnyTimes()
 
-	_, err := m.uc.GetBalances(context.Background(), admissionOrgID, admissionLedgerID, []string{admissionAlias})
+	err, status := getBalancesSpanStatus(t, m)
 
 	var unavailable pkg.ServiceUnavailableError
 	require.True(t, errors.As(err, &unavailable), "got %v", err)
 	assert.Equal(t, constant.ErrAccountClosingProtectionIndeterminate.Error(), unavailable.Code)
+	assert.Equal(t, codes.Error, status, "an indeterminate protection is a technical failure")
 
 	assert.Equal(t, int32(2+maxSeedAdmissionExtensions), reads.Load(),
 		"the resolution read, the read under the first admission, and one read per extension")
@@ -265,11 +277,11 @@ func TestGetBalances_ExtendedAdmissionIsHandedToTheExecution(t *testing.T) {
 		Return("", nil)
 	resolve := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100))
 	first := expectOpenSeedAdmissionOf(m, admissionAccountID)
-	first.After(resolve)
-	reread := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), admissionSeedRow(appeared, 7)).After(first)
+	first.acquired.After(resolve)
+	reread := expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), admissionSeedRow(appeared, 7)).After(first.provenOpen)
 	extension := expectOpenSeedAdmissionOf(m, appeared)
-	extension.After(reread)
-	expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), admissionSeedRow(appeared, 7)).After(extension)
+	extension.acquired.After(reread)
+	expectSeedRead(m, admissionSeedRow(admissionAccountID, 100), admissionSeedRow(appeared, 7)).After(extension.provenOpen)
 	expectSeedHydrationAndRebuild(m)
 
 	ctx, sink := accountprotection.ContextWithSink(context.Background())

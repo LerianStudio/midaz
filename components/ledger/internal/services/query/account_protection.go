@@ -188,8 +188,7 @@ func (uc *UseCase) readSeedsUnderAdmission(
 		if extensions == maxSeedAdmissionExtensions {
 			indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused a balance seed outside the protected account set", indeterminate)
-			logger.Log(ctx, libLog.LevelWarn, "Refused a balance seed outside the protected account set")
+			recordSeedAdmissionRefusal(ctx, span, logger, "Refused a balance seed outside the protected account set", indeterminate)
 
 			return nil, indeterminate
 		}
