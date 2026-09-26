@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -17,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
@@ -387,8 +389,11 @@ func (uc *UseCase) mergePersistedRevertOrigin(ctx context.Context, in RevertTran
 
 // mergeOperationsByID appends to origin the operations of source it does not already
 // carry. Engine operation IDs are deterministic, so one row read from two sources has one
-// ID. The origin's own order comes first, which keeps the reversal payload, and with it
-// the revert idempotency key, unchanged for an origin that was already complete.
+// ID. The origin's own rows keep their order, which leaves the reversal of an origin that
+// was already complete unchanged. The appended rows must not depend on where they were
+// read from, because the revert idempotency key is a hash of the reversal: the primary
+// loads no operation metadata and imposes no order, so an appended row drops its metadata
+// and the rows are appended in ID order.
 func mergeOperationsByID(origin, source *transaction.Transaction) {
 	if source == nil {
 		return
@@ -401,6 +406,8 @@ func mergeOperationsByID(origin, source *transaction.Transaction) {
 		}
 	}
 
+	missing := make([]*operation.Operation, 0, len(source.Operations))
+
 	for _, op := range source.Operations {
 		if op == nil {
 			continue
@@ -411,8 +418,15 @@ func mergeOperationsByID(origin, source *transaction.Transaction) {
 		}
 
 		known[op.ID] = struct{}{}
-		origin.Operations = append(origin.Operations, op)
+
+		appended := *op
+		appended.Metadata = nil
+		missing = append(missing, &appended)
 	}
+
+	sort.Slice(missing, func(i, j int) bool { return missing[i].ID < missing[j].ID })
+
+	origin.Operations = append(origin.Operations, missing...)
 }
 
 func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *createTransactionRun, originID uuid.UUID) error {

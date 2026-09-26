@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -34,9 +35,10 @@ type revertIndexedOriginReader struct {
 	executionID uuid.UUID
 	pending     bool
 
-	primary      *transaction.Transaction
-	primaryErr   error
-	primaryReads int
+	primary       *transaction.Transaction
+	primaryErr    error
+	primaryReads  int
+	primaryRouted []bool
 
 	routes map[string]*mmodel.OperationRoute
 }
@@ -45,8 +47,9 @@ func (r *revertIndexedOriginReader) ResolveTransactionProjection(context.Context
 	return cloneRevertOrigin(r.indexed), r.executionID, r.pending, nil
 }
 
-func (r *revertIndexedOriginReader) GetTransactionWithOperationsByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+func (r *revertIndexedOriginReader) GetTransactionWithOperationsByID(ctx context.Context, _, _, _ uuid.UUID) (*transaction.Transaction, error) {
 	r.primaryReads++
+	r.primaryRouted = append(r.primaryRouted, readrouting.IsPrimaryRead(ctx))
 
 	return cloneRevertOrigin(r.primary), r.primaryErr
 }
@@ -135,7 +138,7 @@ func TestPrepareRevertTransaction_DurableCommittedHoldReversesBothPhases(t *test
 	assert.Equal(t, map[string]string{"@payee": "500"}, reversalLegs(reversal.Send.Source.From))
 	assert.Equal(t, map[string]string{"@payer": "500"}, reversalLegs(reversal.Send.Distribute.To),
 		"the hold's DEBIT is the destination of the reversal; the commit's execution alone does not carry it")
-	assert.Equal(t, 1, reader.primaryReads)
+	assert.Equal(t, []bool{true}, reader.primaryRouted, "the hold's rows are read from the primary, never a lagging replica")
 
 	_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), reversal, constant.CREATED)
 	require.NoError(t, err, "the reversal must balance")
@@ -409,11 +412,13 @@ func TestPrepareRevertTransaction_InFlightCommitFailsClosedOnUnreadablePredecess
 	hold := holdEvidence(t, in)
 	commit := commitEvidence(t, hold, true)
 
-	foreign := hold
-	foreign.Record.ExecutionID = uuid.New()
+	// A well-formed envelope of another execution of the same transaction, stored where
+	// the predecessor's should be: only the revert's own scope check can refuse it.
+	foreign := transactionWriteBehindExecutionFixture(t, hold, uuid.New())
 
 	for _, tc := range []struct {
 		name    string
+		tenant  string
 		records map[string]*TransactionWriteBehindEnvelope
 	}{
 		{name: "predecessor evidence is missing", records: map[string]*TransactionWriteBehindEnvelope{
@@ -422,9 +427,17 @@ func TestPrepareRevertTransaction_InFlightCommitFailsClosedOnUnreadablePredecess
 		{name: "predecessor evidence names another execution", records: map[string]*TransactionWriteBehindEnvelope{
 			evidenceIdentity(commit): &commit, evidenceIdentity(hold): &foreign,
 		}},
+		{name: "evidence belongs to another tenant", tenant: "another-tenant", records: map[string]*TransactionWriteBehindEnvelope{
+			evidenceIdentity(commit): &commit, evidenceIdentity(hold): &hold,
+		}},
 		{name: "commit evidence is missing", records: map[string]*TransactionWriteBehindEnvelope{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			tenant := revertEvidenceTenant
+			if tc.tenant != "" {
+				tenant = tc.tenant
+			}
+
 			reader := &revertIndexedOriginReader{
 				revertReader: &revertReader{},
 				indexed:      inFlightCommittedHold(in),
@@ -433,7 +446,7 @@ func TestPrepareRevertTransaction_InFlightCommitFailsClosedOnUnreadablePredecess
 				primary:      approvedOrigin(in, decimal.NewFromInt(30), holdLookupOperations(t, hold)),
 			}
 			uc := &UseCase{TransactionReader: reader, TransactionEvidenceResolver: &transactionEvidenceResolverStub{records: tc.records}}
-			ctx := tmcore.ContextWithTenantID(context.Background(), revertEvidenceTenant)
+			ctx := tmcore.ContextWithTenantID(context.Background(), tenant)
 
 			reversal, _, err := uc.prepareRevertTransaction(ctx, trace.SpanFromContext(ctx), in)
 
@@ -463,4 +476,141 @@ func TestPrepareRevertTransaction_InFlightCommitWithoutEvidenceResolverReadsTheP
 
 	assert.Equal(t, map[string]string{"@source": "30"}, reversalLegs(reversal.Send.Distribute.To))
 	assert.Equal(t, 1, reader.primaryReads)
+}
+
+// failingEvidenceResolver answers from records and fails the reads named in errs, the way
+// the Redis resolver fails on a missing or unreachable evidence hash.
+type failingEvidenceResolver struct {
+	records map[string]*TransactionWriteBehindEnvelope
+	errs    map[string]error
+}
+
+func (resolver *failingEvidenceResolver) ResolveTransactionEvidence(_ context.Context, reference TransactionEvidenceReference) (*TransactionWriteBehindEnvelope, error) {
+	identity := transactionCompletionEvidenceIdentity(reference.TransactionID, reference.ExecutionID)
+	if err := resolver.errs[identity]; err != nil {
+		return nil, err
+	}
+
+	return resolver.records[identity], nil
+}
+
+func TestPrepareRevertTransaction_InFlightCommitPropagatesAPredecessorReadFailure(t *testing.T) {
+	in := revertInput()
+	hold := holdEvidence(t, in)
+	commit := commitEvidence(t, hold, true)
+	unreachable := errors.New("evidence store unreachable")
+
+	reader := &revertIndexedOriginReader{
+		revertReader: &revertReader{},
+		indexed:      inFlightCommittedHold(in),
+		executionID:  commit.Record.ExecutionID,
+		pending:      true,
+		primary:      approvedOrigin(in, decimal.NewFromInt(30), holdLookupOperations(t, hold)),
+	}
+	uc := &UseCase{TransactionReader: reader, TransactionEvidenceResolver: &failingEvidenceResolver{
+		records: map[string]*TransactionWriteBehindEnvelope{evidenceIdentity(commit): &commit},
+		errs:    map[string]error{evidenceIdentity(hold): unreachable},
+	}}
+	ctx := tmcore.ContextWithTenantID(context.Background(), revertEvidenceTenant)
+
+	reversal, _, err := uc.prepareRevertTransaction(ctx, trace.SpanFromContext(ctx), in)
+
+	require.ErrorIs(t, err, unreachable)
+	assert.True(t, reversal.IsEmpty(), "no reversal is built from a partial set")
+	assert.Zero(t, reader.primaryReads, "a named predecessor that cannot be read must not fall back to the primary")
+}
+
+// twoSourceHoldEvidence is holdEvidence with the hold split over @source and @source-b,
+// 15 each, every leg carrying its own metadata.
+func twoSourceHoldEvidence(t *testing.T, in RevertTransactionInput) TransactionWriteBehindEnvelope {
+	t.Helper()
+
+	envelope := holdEvidence(t, in)
+	plan, err := DecodeTransactionCompletionPlan([]byte(envelope.Record.Payload))
+	require.NoError(t, err)
+
+	result := envelope.Record.Result
+	half := decimal.NewFromInt(15)
+
+	second := plan.OperationSpecs[0]
+	second.PostingRef, second.BalanceRef = "source:1", "@source-b#default"
+	second.Balance.ID, second.Balance.AccountID, second.Balance.Alias = uuid.NewString(), uuid.NewString(), "@source-b"
+	second.Metadata = map[string]any{"purpose": "second leg"}
+	plan.OperationSpecs[0].RequestedAmount, second.RequestedAmount = half, half
+	plan.OperationSpecs = append(plan.OperationSpecs, second)
+
+	secondMovement := result.Movements[0]
+	secondMovement.Ref, secondMovement.PostingRef, secondMovement.BalanceRef = "movement:1", "source:1", "@source-b#default"
+	result.Movements[0].Amount, secondMovement.Amount = half, half
+	result.Movements[0].After.Available, secondMovement.After.Available = decimal.NewFromInt(85), decimal.NewFromInt(85)
+	result.Movements = append(result.Movements, secondMovement)
+	result.Final = recoveryContractFinal(*plan, result.Movements)
+
+	plan.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(*plan))
+	require.NoError(t, err)
+	envelope.Record = recoveryContractEnvelope(t, *plan, result)
+
+	return envelope
+}
+
+// asPersisted returns rows the way the primary answers them: FindWithOperations loads no
+// operation metadata and imposes no order.
+func asPersisted(rows []*operation.Operation) []*operation.Operation {
+	persisted := make([]*operation.Operation, 0, len(rows))
+	for index := len(rows) - 1; index >= 0; index-- {
+		row := *rows[index]
+		row.Metadata = nil
+		persisted = append(persisted, &row)
+	}
+
+	return persisted
+}
+
+// TestPrepareRevertTransaction_CommittedHoldReversalIsTheSameFromEverySource locks the
+// revert idempotency key of a committed hold: it is a hash of the reversal payload, and a
+// retry must find the slot the first attempt claimed whether the hold's rows came from its
+// evidence or from the primary.
+func TestPrepareRevertTransaction_CommittedHoldReversalIsTheSameFromEverySource(t *testing.T) {
+	in := revertInput()
+	hold := twoSourceHoldEvidence(t, in)
+	commitNamed, commitUnnamed := commitEvidence(t, hold, true), commitEvidence(t, hold, false)
+
+	indexed := inFlightCommittedHold(in)
+	indexed.Operations[1].Metadata = map[string]any{"purpose": "settlement"}
+	holdRows := holdLookupOperations(t, hold)
+
+	reversalFrom := func(t *testing.T, reader *revertIndexedOriginReader, records map[string]*TransactionWriteBehindEnvelope) mtransaction.Transaction {
+		t.Helper()
+
+		reader.revertReader, reader.indexed = &revertReader{}, indexed
+		uc := &UseCase{TransactionReader: reader, TransactionEvidenceResolver: &transactionEvidenceResolverStub{records: records}}
+		ctx := tmcore.ContextWithTenantID(context.Background(), revertEvidenceTenant)
+
+		reversal, _, err := uc.prepareRevertTransaction(ctx, trace.SpanFromContext(ctx), in)
+		require.NoError(t, err)
+		require.Len(t, reversal.Send.Distribute.To, 2, "each hold source is a destination of the reversal")
+
+		return reversal
+	}
+
+	fromEvidence := reversalFrom(t, &revertIndexedOriginReader{executionID: commitNamed.Record.ExecutionID, pending: true},
+		map[string]*TransactionWriteBehindEnvelope{evidenceIdentity(commitNamed): &commitNamed, evidenceIdentity(hold): &hold})
+	fromPrimaryInFlight := reversalFrom(t, &revertIndexedOriginReader{
+		executionID: commitUnnamed.Record.ExecutionID, pending: true,
+		primary: approvedOrigin(in, *indexed.Amount, asPersisted(holdRows)),
+	}, map[string]*TransactionWriteBehindEnvelope{evidenceIdentity(commitUnnamed): &commitUnnamed})
+	fromPrimaryDurable := reversalFrom(t, &revertIndexedOriginReader{
+		executionID: commitNamed.Record.ExecutionID,
+		primary:     approvedOrigin(in, *indexed.Amount, asPersisted(append(append([]*operation.Operation{}, indexed.Operations...), holdRows...))),
+	}, nil)
+
+	key := func(reversal mtransaction.Transaction) string {
+		source, err := resolveIdempotencyHashSource(reversal)
+		require.NoError(t, err)
+
+		return source
+	}
+
+	assert.Equal(t, key(fromEvidence), key(fromPrimaryInFlight), "in flight, predecessor evidence and primary must build the same reversal")
+	assert.Equal(t, key(fromEvidence), key(fromPrimaryDurable), "in flight and durable must build the same reversal")
 }
