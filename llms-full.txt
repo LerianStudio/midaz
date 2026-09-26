@@ -617,7 +617,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `CRM-0029` ErrRelatedPartyEndDateInvalid — end date before start date
 - `CRM-0030` ErrHolderHasAccounts — holder has accounts (cannot delete)
 - `CRM-0042` ErrInvalidInstrumentAccountType — invalid instrument regulatory account type
-- `CRM-0043` ErrBankAccountAlreadyRegistered — bank account (bankId, branch, account) already registered to another live instrument of the organization (409)
+- `CRM-0043` ErrBankAccountAlreadyRegistered — bank account (bankId and account, same branch ignoring leading zeros, or one of them without a branch) already registered to another live instrument of the organization (409)
 
 Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/crm-field-encryption.md`):
 - `CRM-0031` ErrKeysetNotFound — org encryption keyset not found

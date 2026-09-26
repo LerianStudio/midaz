@@ -86,6 +86,35 @@ func TestCreateInstrument_BankAccountUniqueness(t *testing.T) {
 			refused: true,
 		},
 		{
+			name:    "numeric branches compare without leading zeros",
+			input:   bankAccount(strPtr("001"), strPtr("1"), strPtr("123456"), nil),
+			stored:  []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), nil))},
+			refused: true,
+		},
+		{
+			name:    "a branchless registration matches the account held at a branch",
+			input:   bankAccount(strPtr("001"), strPtr(""), strPtr("123456"), strPtr("PG")),
+			stored:  []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), strPtr("CACC")))},
+			refused: true,
+		},
+		{
+			name:    "an account held branchless matches a registration at a branch",
+			input:   bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), strPtr("CACC")),
+			stored:  []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr(""), strPtr("123456"), strPtr("PG")))},
+			refused: true,
+		},
+		{
+			name:    "non-numeric branches compare trimmed",
+			input:   bankAccount(strPtr("001"), strPtr("01A"), strPtr("123456"), nil),
+			stored:  []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr(" 01A "), strPtr("123456"), nil))},
+			refused: true,
+		},
+		{
+			name:   "non-numeric branches keep their leading zeros",
+			input:  bankAccount(strPtr("001"), strPtr("1A"), strPtr("123456"), nil),
+			stored: []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("01A"), strPtr("123456"), nil))},
+		},
+		{
 			name:   "same account at another branch is accepted",
 			input:  bankAccount(strPtr("001"), strPtr("0002"), strPtr("123456"), nil),
 			stored: []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), nil))},
@@ -173,7 +202,6 @@ func TestUpdateInstrumentByID_BankAccountUniqueness(t *testing.T) {
 	selfID := uuid.New()
 	self := &mmodel.Instrument{ID: &selfID, BankingDetails: bankAccount(strPtr("001"), strPtr("0002"), strPtr("123456"), strPtr("CACC"))}
 	twinAt0001 := storedInstrument(bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), strPtr("CACC")))
-	branchlessTwin := storedInstrument(bankAccount(strPtr("001"), nil, strPtr("123456"), strPtr("PG")))
 
 	tests := []struct {
 		name           string
@@ -189,9 +217,9 @@ func TestUpdateInstrumentByID_BankAccountUniqueness(t *testing.T) {
 			refused: true,
 		},
 		{
-			name:           "removing the branch onto a branchless twin is refused",
+			name:           "removing the branch while another branch holds the account is refused",
 			fieldsToRemove: []string{"bankingDetails.branch"},
-			holders:        []*mmodel.Instrument{self, branchlessTwin},
+			holders:        []*mmodel.Instrument{self, twinAt0001},
 			refused:        true,
 		},
 		{

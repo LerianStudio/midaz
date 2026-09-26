@@ -49,7 +49,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Summary:     "Create an Instrument Account",
 		Description: "Creates an instrument linking a ledger account to its holder and banking details. " +
 			"A ledger account already linked to another instrument (CRM-0013) is refused with 409, and so is a bank account already registered to another live instrument of the organization (CRM-0043): " +
-			"the same bankId, branch and account, whatever the type.",
+			"the same bankId and account, on the same branch (leading zeros ignored) or where one of them has no branch, whatever the type.",
 		Tags:     []string{tag},
 		Security: secInstrumentBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.

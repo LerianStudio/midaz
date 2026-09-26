@@ -167,6 +167,8 @@ func indexModels() []mongo.IndexModel {
 
 // bankAccountIndexModel keys one bank account by bank, branch and the account's search token,
 // over live rows that carry all three and still hold the account the token was minted for.
+// The service pre-check is the rule; this index only closes the race between two writes of the
+// identical branch string. "1" against "0001", or a branchless row, is the pre-check's alone.
 func bankAccountIndexModel() mongo.IndexModel {
 	exists := bson.D{{Key: "$exists", Value: true}}
 

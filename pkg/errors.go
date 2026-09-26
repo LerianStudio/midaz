@@ -1533,7 +1533,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrBankAccountAlreadyRegistered.Error(),
 			Title:      "Bank Account Already Registered",
-			Message:    "This bank account (bankId, branch and account) is already registered to another instrument in this organization. Use that instrument, or delete it before registering the account again.",
+			Message:    "This bank account is already registered to another instrument in this organization: the same bankId and account, on the same branch or where one of them has no branch. Use that instrument, or delete it before registering the account again.",
 		},
 		constant.ErrHolderHasInstruments: UnprocessableOperationError{
 			EntityType: entityType,

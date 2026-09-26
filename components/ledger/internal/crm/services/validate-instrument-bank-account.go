@@ -19,9 +19,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// validateBankAccountUnique refuses banking details whose (bankId, branch, account) is held
-// by another live instrument of the organization. type is not part of the key; the account
-// is matched by its search token under every enabled key, so rows written before a rotation count.
+// validateBankAccountUnique is the rule: it refuses banking details whose bank account another
+// live instrument of the organization holds, matched as the TED engine matches a recipient (see
+// sameBankAccount). type is not part of the key; the account is found by its search token under
+// every enabled key, so rows written before a rotation count.
 func (uc *UseCase) validateBankAccountUnique(ctx context.Context, organizationID string, self uuid.UUID, bd *mmodel.BankingDetails) error {
 	if bd == nil || bd.Account == nil || *bd.Account == "" {
 		return nil
@@ -94,12 +95,27 @@ func (uc *UseCase) validateBankAccountPatch(ctx context.Context, organizationID 
 	return uc.validateBankAccountUnique(ctx, organizationID, id, &merged)
 }
 
-// sameBankAccount compares bankId and branch trimmed and the account exactly, as its token does.
+// sameBankAccount compares bankId trimmed and the account exactly. Branches match when either is
+// empty or both are equal once trimmed, numeric ones without leading zeros ("1" is "0001").
 // A holder whose account was since removed or emptied still carries the old token and never matches.
 func sameBankAccount(stored, candidate *mmodel.BankingDetails) bool {
-	return stored != nil && stored.Account != nil && *stored.Account == *candidate.Account &&
-		trimmedOrEmpty(stored.BankID) == trimmedOrEmpty(candidate.BankID) &&
-		trimmedOrEmpty(stored.Branch) == trimmedOrEmpty(candidate.Branch)
+	if stored == nil || stored.Account == nil || *stored.Account != *candidate.Account ||
+		trimmedOrEmpty(stored.BankID) != trimmedOrEmpty(candidate.BankID) {
+		return false
+	}
+
+	a, b := canonicalBranch(stored.Branch), canonicalBranch(candidate.Branch)
+
+	return a == "" || b == "" || a == b
+}
+
+func canonicalBranch(s *string) string {
+	branch := trimmedOrEmpty(s)
+	if branch == "" || strings.Trim(branch, "0123456789") != "" {
+		return branch
+	}
+
+	return cmp.Or(strings.TrimLeft(branch, "0"), "0")
 }
 
 func trimmedOrEmpty(s *string) string {
