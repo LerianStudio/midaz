@@ -187,6 +187,16 @@ func TestAtomicTransactionBatchIdempotencyRecordValidation(t *testing.T) {
 		require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(record), record.State)
 	}
 
+	for _, lifecycle := range []AtomicTransactionBatchLifecycleAction{AtomicTransactionBatchLifecycleCommit, AtomicTransactionBatchLifecycleCancel} {
+		marked := applied
+		marked.LifecycleAction = lifecycle
+		require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(marked), lifecycle)
+	}
+
+	unknownLifecycle := applied
+	unknownLifecycle.LifecycleAction = "revert"
+	assert.ErrorContains(t, validateAtomicTransactionBatchIdempotencyRecord(unknownLifecycle), "unsupported lifecycle action")
+
 	legacyApplied := applied
 	legacyApplied.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
 	require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(legacyApplied), "legacy applied fixture remains readable")
@@ -223,6 +233,28 @@ func TestAtomicTransactionBatchIdempotencyRecordValidation(t *testing.T) {
 		oversized.TransactionIDs[0].String(): base64.StdEncoding.EncodeToString([]byte(`{"payload":"` + strings.Repeat("x", atomicTransactionBatchInitialResponsesMaxBytes) + `"}`)),
 	}
 	assert.ErrorContains(t, validateAtomicTransactionBatchIdempotencyRecord(oversized), "exceed byte budget")
+}
+
+func TestAtomicTransactionBatchIdempotencyRecordLifecycleActionIsOptionalOnTheWire(t *testing.T) {
+	t.Parallel()
+
+	unmarked := atomicBatchIdempotencyClaim("a")
+	payload, err := json.Marshal(unmarked)
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), "lifecycleAction",
+		"records of batch creates must keep the bytes written before the field existed")
+
+	var decoded AtomicTransactionBatchIdempotencyRecord
+	require.NoError(t, json.Unmarshal(payload, &decoded))
+	assert.Empty(t, decoded.LifecycleAction)
+
+	marked := unmarked
+	marked.LifecycleAction = AtomicTransactionBatchLifecycleCommit
+	payload, err = json.Marshal(marked)
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"lifecycleAction":"commit"`)
+	require.NoError(t, json.Unmarshal(payload, &decoded))
+	assert.Equal(t, AtomicTransactionBatchLifecycleCommit, decoded.LifecycleAction)
 }
 
 func TestClaimAtomicTransactionBatch_PropagatesRedisAndReplyErrors(t *testing.T) {

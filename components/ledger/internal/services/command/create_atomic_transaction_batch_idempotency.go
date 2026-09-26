@@ -111,6 +111,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 		RequestFingerprint: fingerprint,
 		OwnerToken:         ownerToken,
 		BatchID:            run.batchID,
+		LifecycleAction:    run.idempotencyLifecycle,
 	}
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.ClaimAtomicTransactionBatch(

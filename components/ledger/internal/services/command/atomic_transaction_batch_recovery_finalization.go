@@ -107,7 +107,7 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	}
 
 	if candidate.Record.State != txRedis.AtomicTransactionBatchStateComplete {
-		initialResponse, err := atomicTransactionBatchRecoveredInitialResponse(record, completion)
+		initialResponse, err := atomicTransactionBatchRecoveredInitialResponse(record, completion, candidate.Record.LifecycleAction)
 		if err != nil {
 			return nil, err
 		}
@@ -221,19 +221,33 @@ func validateAtomicTransactionBatchRecoveredMember(
 	return nil
 }
 
+// atomicTransactionBatchRecoveredInitialResponse freezes the member as the
+// interrupted request would have answered it. A batch create answers an
+// APPROVED member as CREATED; a grouped commit answers it as APPROVED.
 func atomicTransactionBatchRecoveredInitialResponse(
 	record *TransactionCompletionRecord,
 	completion TransactionCompletionResult,
+	lifecycle txRedis.AtomicTransactionBatchLifecycleAction,
 ) (json.RawMessage, error) {
 	if record == nil || completion.Record.Transaction == nil || completion.Record.Transaction.ID != record.TransactionID.String() {
 		return nil, errors.New("atomic transaction batch recovered initial response identity differs")
 	}
 
+	status := completion.Outcome.TransactionStatus
+	if (lifecycle == txRedis.AtomicTransactionBatchLifecycleCommit && status != constant.APPROVED) ||
+		(lifecycle == txRedis.AtomicTransactionBatchLifecycleCancel && status != constant.CANCELED) {
+		return nil, fmt.Errorf("atomic transaction batch recovery status %q differs from its lifecycle %q", status, lifecycle)
+	}
+
 	public := *completion.Record.Transaction
-	switch completion.Outcome.TransactionStatus {
+	switch status {
 	case constant.APPROVED:
-		created := constant.CREATED
-		public.Status = transaction.Status{Code: created, Description: &created}
+		if lifecycle != txRedis.AtomicTransactionBatchLifecycleCommit {
+			created := constant.CREATED
+			public.Status = transaction.Status{Code: created, Description: &created}
+		} else if public.Status.Code != constant.APPROVED {
+			return nil, fmt.Errorf("atomic transaction batch recovery committed status differs: got %q", public.Status.Code)
+		}
 	case constant.PENDING:
 		if public.Status.Code != constant.PENDING {
 			return nil, fmt.Errorf("atomic transaction batch recovery hold status differs: got %q", public.Status.Code)
@@ -243,7 +257,7 @@ func atomicTransactionBatchRecoveredInitialResponse(
 			return nil, fmt.Errorf("atomic transaction batch recovery canceled status differs: got %q", public.Status.Code)
 		}
 	default:
-		return nil, fmt.Errorf("atomic transaction batch recovery has unsupported initial status %q", completion.Outcome.TransactionStatus)
+		return nil, fmt.Errorf("atomic transaction batch recovery has unsupported initial status %q", status)
 	}
 
 	payload, err := json.Marshal(&public)
