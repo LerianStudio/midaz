@@ -40,12 +40,17 @@ var (
 )
 
 type closeAccountMocks struct {
+	t           *testing.T
 	uc          *UseCase
 	account     *account.MockRepository
 	balance     *balance.MockRepository
 	operation   *operation.MockRepository
 	transaction *transaction.MockRepository
 	redis       *txRedis.MockRedisRepository
+
+	// token is the attempt token the closing installed its marker with, captured
+	// when the marker is programmed so every later step can be matched against it.
+	token string
 }
 
 func newCloseAccountMocks(t *testing.T) *closeAccountMocks {
@@ -54,6 +59,7 @@ func newCloseAccountMocks(t *testing.T) *closeAccountMocks {
 	ctrl := gomock.NewController(t)
 
 	mocks := &closeAccountMocks{
+		t:           t,
 		account:     account.NewMockRepository(ctrl),
 		balance:     balance.NewMockRepository(ctrl),
 		operation:   operation.NewMockRepository(ctrl),
@@ -89,38 +95,70 @@ func (m *closeAccountMocks) expectAccountRead(acc *mmodel.Account, err error) {
 		Return(acc, err)
 }
 
-// expectProtectionTaken programs a successful ownership acquisition followed by
-// the installation of the closing marker.
-func (m *closeAccountMocks) expectProtectionTaken() {
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
-	m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
+// expectMarkerInstalled programs the installation of the closing marker, the
+// first protection write of an attempt, and captures the token it carries.
+func (m *closeAccountMocks) expectMarkerInstalled() *gomock.Call {
+	return m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, token string) (bool, error) {
+			m.token = token
+
+			return true, nil
+		})
 }
 
-// expectProtectionReleased programs the cleanup of a resolved attempt: the closing
-// marker leaves before the ownership, and both are conditional on the token.
+// expectOwnMarkerRead programs the read through which the attempt recognizes the
+// marker it just installed.
+func (m *closeAccountMocks) expectOwnMarkerRead() *gomock.Call {
+	return m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+		DoAndReturn(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (string, bool, error) {
+			return m.token, true, nil
+		})
+}
+
+// attemptToken matches the token the attempt installed its marker with.
+func (m *closeAccountMocks) attemptToken() gomock.Matcher {
+	return gomock.Cond(func(token string) bool { return token != "" && token == m.token })
+}
+
+// expectProtectionTaken programs the protection of an attempt in its order: the
+// closing marker first, then the attempt's own marker recognized, then the
+// ownership under the same token.
+func (m *closeAccountMocks) expectProtectionTaken() {
+	gomock.InOrder(
+		m.expectMarkerInstalled(),
+		m.expectOwnMarkerRead(),
+		m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+	)
+}
+
+// expectProtectionReleased programs the cleanup of a resolved attempt: the
+// ownership leaves before the closing marker, so the attempt never holds an
+// ownership without its marker, and both are conditional on the attempt's token.
 func (m *closeAccountMocks) expectProtectionReleased() {
-	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
+	gomock.InOrder(
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+		m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+	)
 }
 
 // expectClosingFinalized programs the finalization of a confirmed closing: the
-// write intent, the eviction of every verified balance blob, the negative cache
-// and the removal of the closing marker.
+// write intent, the eviction of every verified balance blob, the negative cache,
+// then the ownership and last the closing marker.
 func (m *closeAccountMocks) expectClosingFinalized(closedAt time.Time, evictions int) {
-	m.redis.EXPECT().MarkAccountClosingWriteIssued(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+	m.redis.EXPECT().MarkAccountClosingWriteIssued(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
 		Return(true, nil)
 	m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(evictions)
-	m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closedAt).Return(nil)
-	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
+
+	gomock.InOrder(
+		m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closedAt).Return(nil),
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+		m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+	)
 }
 
 // expectBalancesRead programs the balance list of the account and the live state
@@ -243,13 +281,19 @@ func TestCloseAccount_RefusesAnAccountAlreadyClosed(t *testing.T) {
 
 // TestCloseAccount_RefusesWhenAnotherAttemptOwnsTheAccount covers AC-11 on the
 // other side of the race: the loser is refused as a decision in flight, which is
-// not the same answer as a transition that already landed.
+// not the same answer as a transition that already landed. Its marker write is
+// the one that loses, so it holds nothing: the strict mocks fail the test on an
+// ownership acquisition or a release.
 func TestCloseAccount_RefusesWhenAnotherAttemptOwnsTheAccount(t *testing.T) {
 	m := newCloseAccountMocks(t)
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("another-attempt", true, nil)
+	gomock.InOrder(
+		m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+			Return(false, nil),
+		m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+			Return("another-attempt", true, nil),
+	)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
@@ -322,13 +366,17 @@ func TestCloseAccount_RefusesWhileCompletionIsPending(t *testing.T) {
 
 // TestCloseAccount_RefusesWhenTheProtectionCannotBeRead covers AS-07: a control
 // that cannot be read is refused technically, because reading a protection failure
-// as absence would turn it into an authorization.
+// as absence would turn it into an authorization. The marker write lost to a key
+// that is there, and what that key holds cannot be read, so the refusal is not
+// the closing-in-progress one.
 func TestCloseAccount_RefusesWhenTheProtectionCannotBeRead(t *testing.T) {
 	m := newCloseAccountMocks(t)
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+	m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(false, nil)
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, errors.New("cache unavailable"))
+		Return("", false, txRedis.ErrAccountProtectionMarkerUnreadable)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
@@ -338,15 +386,12 @@ func TestCloseAccount_RefusesWhenTheProtectionCannotBeRead(t *testing.T) {
 
 // TestCloseAccount_KeepsTheProtectionWhenTheMarkerWriteIsUnresolved covers AS-12
 // at the very first write: the marker may have landed with its answer lost, so the
-// account stays protected and no cleanup removes it.
+// account stays protected and no cleanup removes it. The ownership is never
+// attempted: the strict mocks fail the test on it or on any release.
 func TestCloseAccount_KeepsTheProtectionWhenTheMarkerWriteIsUnresolved(t *testing.T) {
 	m := newCloseAccountMocks(t)
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
 	m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
 		Return(false, errors.New("cache unavailable"))
 
@@ -354,6 +399,67 @@ func TestCloseAccount_KeepsTheProtectionWhenTheMarkerWriteIsUnresolved(t *testin
 
 	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 	assert.True(t, closedAt.IsZero())
+}
+
+// TestCloseAccount_KeepsTheMarkerWhenTheOwnershipWriteIsUnresolved covers AS-12 at
+// the second write: the ownership may have landed with its answer lost, so the
+// marker stays as the anchor through which reconciliation gives both back. The
+// strict mocks fail the test on any release.
+func TestCloseAccount_KeepsTheMarkerWhenTheOwnershipWriteIsUnresolved(t *testing.T) {
+	m := newCloseAccountMocks(t)
+
+	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+	gomock.InOrder(
+		m.expectMarkerInstalled(),
+		m.expectOwnMarkerRead(),
+		m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(false, errors.New("cache unavailable")),
+	)
+
+	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
+	assert.True(t, closedAt.IsZero())
+}
+
+// TestCloseAccount_RefusesWhenItsMarkerIsNoLongerItsOwn covers an attempt whose
+// marker was reclaimed, as an attempt that never wrote, between its installation
+// and the ownership. The attempt takes no ownership. When another closing already
+// installed its own marker in the meantime, that closing is what holds the
+// account; when nothing is there, the attempt's protection is simply gone.
+func TestCloseAccount_RefusesWhenItsMarkerIsNoLongerItsOwn(t *testing.T) {
+	t.Run("another closing holds the account", func(t *testing.T) {
+		m := newCloseAccountMocks(t)
+
+		m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+		gomock.InOrder(
+			m.expectMarkerInstalled(),
+			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+				Return("another-attempt", true, nil),
+			// The conditional release leaves the other closing's marker in place.
+			m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+				Return(false, nil),
+		)
+
+		_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+		requireClosingCode(t, err, constant.ErrAccountClosingInProgress)
+	})
+
+	t.Run("nothing holds the account", func(t *testing.T) {
+		m := newCloseAccountMocks(t)
+
+		m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+		gomock.InOrder(
+			m.expectMarkerInstalled(),
+			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+				Return("", false, nil),
+		)
+
+		_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+		requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
+	})
 }
 
 // TestCloseAccount_RefusesAnAccountAbsentFromTheScope covers AC-03: the closing

@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -36,15 +37,33 @@ type ClosingStateReader interface {
 	ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error)
 }
 
-// MarkerStore is the cache surface the protection uses: the exceptional closing
-// and closed markers, and the administrative ownership shared by closing, balance
-// creation, balance deletion and cache-miss admission.
+// MarkerStore is the cache surface every protected operation uses: the
+// exceptional closing and closed markers, and the exclusive administrative
+// ownership taken by closing, balance creation and balance deletion.
 type MarkerStore interface {
 	GetAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (string, bool, error)
 	GetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (time.Time, bool, error)
 	SetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, closedAt time.Time) error
 	AcquireAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
 	ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
+}
+
+// SeedAdmissionStore adds the shared seed admission a cache-miss balance load
+// takes. Admissions live on the same per-account key as the exclusive ownership:
+// any number of them coexist, an exclusive acquisition fails while one is live,
+// and an admission fails while an exclusive owner holds the key.
+type SeedAdmissionStore interface {
+	MarkerStore
+
+	// AdmitAccountSeed adds token to the live seed admissions of the account. It
+	// returns false with a nil error only when an exclusive owner holds the account,
+	// and then writes nothing. A state that cannot be read is an error, never a
+	// refusal.
+	AdmitAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
+
+	// ReleaseAccountSeed removes token from the live seed admissions of the account.
+	// Every other admission and any exclusive owner are left untouched.
+	ReleaseAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
 }
 
 // ClosedAccountError reports that one account of the requested set is closed. The
@@ -59,23 +78,44 @@ func (e ClosedAccountError) Error() string {
 	return fmt.Sprintf("account %s is closed", e.AccountID)
 }
 
-// Guard answers two questions for a set of accounts: who owns them
+// Guard answers two questions for a set of accounts: who holds them
 // administratively right now, and whether any of them is closed.
 type Guard struct {
 	accounts ClosingStateReader
 	markers  MarkerStore
+	seeds    SeedAdmissionStore
 }
 
-// NewGuard builds a guard over the authoritative account reader and the cache.
+// NewGuard builds a guard over the authoritative account reader and the cache,
+// for the operations that take accounts exclusively. It cannot admit a seed.
 func NewGuard(accounts ClosingStateReader, markers MarkerStore) *Guard {
 	return &Guard{accounts: accounts, markers: markers}
 }
 
-// Admission is the administrative ownership one operation holds over a set of
-// accounts. It is released by its owner or, when the operation's outcome is
-// unknown, left in place for reconciliation — never by age.
+// NewSeedAdmissionGuard builds a guard that can also take shared seed admissions,
+// for the cache-miss balance load.
+func NewSeedAdmissionGuard(accounts ClosingStateReader, store SeedAdmissionStore) *Guard {
+	return &Guard{accounts: accounts, markers: store, seeds: store}
+}
+
+// admissionMode is how an admission holds its accounts, which decides the release
+// it answers to.
+type admissionMode int
+
+const (
+	// exclusiveAdmission owns each account alone.
+	exclusiveAdmission admissionMode = iota
+	// seedAdmission is one member of the account's shared seed admissions.
+	seedAdmission
+)
+
+// Admission is what one operation holds over a set of accounts: an exclusive
+// ownership or a shared seed admission. It is released by its holder or, when
+// the operation's outcome is unknown, left in place for reconciliation — never by
+// age.
 type Admission struct {
 	guard          *Guard
+	mode           admissionMode
 	organizationID uuid.UUID
 	ledgerID       uuid.UUID
 	accountIDs     []uuid.UUID
@@ -83,12 +123,29 @@ type Admission struct {
 	indeterminate  bool
 }
 
-// AcquireAdmission takes the administrative ownership of every requested account.
+// AcquireSeedAdmission takes a shared seed admission over every requested
+// account, for a cache-miss load that is about to seed their balances.
+//
+// Seed admissions are compatible with one another, so concurrent loads of the
+// same account are all admitted. They exclude the exclusive operations: an
+// account held by a closing, a balance creation or a balance deletion is refused,
+// and while any admission is live those operations are refused in turn. The
+// ordering, release and inert-guard guarantees are those of AcquireExclusive.
+//
+// A guard built without a shared admission surface refuses as an indeterminate
+// protection rather than taking an exclusive ownership in its place: that would
+// make concurrent loads refuse each other again.
+func (g *Guard) AcquireSeedAdmission(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (*Admission, error) {
+	return g.acquire(ctx, seedAdmission, "exec.acquire_account_seed_admission", organizationID, ledgerID, accountIDs)
+}
+
+// AcquireExclusive takes the exclusive administrative ownership of every
+// requested account.
 //
 // Acquisition walks the accounts in a stable order, so two operations competing
 // over overlapping sets always contend on the same account first and neither can
-// hold half of what the other needs. A refusal releases every ownership this call
-// took and nothing else: a key another operation owns is never touched.
+// hold half of what the other needs. A refusal releases everything this call took
+// and nothing else: a key another operation holds is never touched.
 //
 // Duplicated identifiers collapse into one acquisition. That is what makes the
 // external companion free: the companion balance belongs to the same account, so
@@ -97,60 +154,77 @@ type Admission struct {
 // A nil guard, or a guard without a cache, means the deployment carries no
 // protection surface; acquisition then yields a handle that owns nothing, so the
 // existing behavior is preserved byte for byte.
-func (g *Guard) AcquireAdmission(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (*Admission, error) {
+func (g *Guard) AcquireExclusive(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (*Admission, error) {
+	return g.acquire(ctx, exclusiveAdmission, "exec.acquire_account_admission", organizationID, ledgerID, accountIDs)
+}
+
+// AcquireClosingOwnership takes the exclusive administrative ownership of one
+// account for the closing attempt whose closing marker carries token.
+//
+// A closing installs its marker BEFORE its ownership, so the marker check every
+// other acquisition runs would refuse the closing on its own marker. This one
+// accepts exactly the marker carrying the attempt's token and refuses any other
+// state: another attempt's marker is a closing holding the account, and no marker
+// at all means this attempt's protection was reclaimed, so it no longer stands
+// and nothing may be taken under it.
+//
+// An ownership refused while the attempt's own marker stands never belongs to
+// another closing — a closing holds its ownership only while its marker does — so
+// the refusal is the busy one: live seed admissions, a balance creation or a
+// deletion. The ownership is taken under token, which is what lets reconciliation
+// release it through the marker.
+func (g *Guard) AcquireClosingOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (*Admission, error) {
 	if g == nil || g.markers == nil {
 		return &Admission{}, nil
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "exec.acquire_account_admission")
+	ctx, span := tracer.Start(ctx, "exec.acquire_account_closing_ownership")
 	defer span.End()
-
-	ordered := sortedUniqueAccountIDs(accountIDs)
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.Int("app.request.account_ids_count", len(ordered)),
+		attribute.String("app.request.account_id", accountID.String()),
 	)
+
+	if strings.TrimSpace(token) == "" {
+		libOpentelemetry.HandleSpanError(span, "The closing attempt carries no token", errNoClosingToken)
+		logger.Log(ctx, libLog.LevelError, "The closing attempt carries no token", libLog.Err(errNoClosingToken))
+
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if err := g.refuseUnlessOwnClosing(ctx, span, logger, organizationID, ledgerID, accountID, token); err != nil {
+		return nil, err
+	}
 
 	admission := &Admission{
 		guard:          g,
+		mode:           exclusiveAdmission,
 		organizationID: organizationID,
 		ledgerID:       ledgerID,
-		accountIDs:     make([]uuid.UUID, 0, len(ordered)),
-		token:          uuid.NewString(),
+		accountIDs:     make([]uuid.UUID, 0, 1),
+		token:          token,
 	}
 
-	for _, accountID := range ordered {
-		if err := g.refuseWhenClosing(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
-			admission.Release(ctx)
+	acquired, err := admission.take(ctx, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire the account administrative ownership", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to acquire the account administrative ownership", libLog.Err(err))
 
-			return nil, err
-		}
-
-		acquired, err := g.markers.AcquireAccountAdminOwnership(ctx, organizationID, ledgerID, accountID, admission.token)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to acquire the account administrative ownership", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to acquire the account administrative ownership", libLog.Err(err))
-
-			admission.Release(ctx)
-
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
-		}
-
-		if !acquired {
-			conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "The account is owned by another administrative operation", conflict)
-
-			admission.Release(ctx)
-
-			return nil, conflict
-		}
-
-		admission.accountIDs = append(admission.accountIDs, accountID)
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
 	}
+
+	if !acquired {
+		busy := pkg.ValidateBusinessError(constant.ErrAccountAdministrativeOperationInProgress, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another administrative operation holds the account", busy)
+
+		return nil, busy
+	}
+
+	admission.accountIDs = append(admission.accountIDs, accountID)
 
 	return admission, nil
 }
@@ -281,6 +355,93 @@ func (g *Guard) EnsureAvailable(ctx context.Context, organizationID, ledgerID uu
 	return nil
 }
 
+// acquire walks the accounts in a stable order and takes each one in the given
+// mode. The closing marker is read before every acquisition, so a closing already
+// in flight refuses before anything is written.
+func (g *Guard) acquire(ctx context.Context, mode admissionMode, spanName string, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (*Admission, error) {
+	if g == nil || g.markers == nil {
+		return &Admission{}, nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, spanName)
+	defer span.End()
+
+	ordered := sortedUniqueAccountIDs(accountIDs)
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Int("app.request.account_ids_count", len(ordered)),
+	)
+
+	if mode == seedAdmission && g.seeds == nil {
+		libOpentelemetry.HandleSpanError(span, "The account protection carries no shared seed admission", errNoSeedAdmissionSurface)
+		logger.Log(ctx, libLog.LevelError, "The account protection carries no shared seed admission", libLog.Err(errNoSeedAdmissionSurface))
+
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	admission := &Admission{
+		guard:          g,
+		mode:           mode,
+		organizationID: organizationID,
+		ledgerID:       ledgerID,
+		accountIDs:     make([]uuid.UUID, 0, len(ordered)),
+		token:          uuid.NewString(),
+	}
+
+	for _, accountID := range ordered {
+		if err := g.refuseWhenClosing(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
+			admission.Release(ctx)
+
+			return nil, err
+		}
+
+		acquired, err := admission.take(ctx, accountID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to acquire the account administrative ownership", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to acquire the account administrative ownership", libLog.Err(err))
+
+			admission.Release(ctx)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+		}
+
+		if !acquired {
+			refusal := g.refuseHeldAccount(ctx, span, logger, organizationID, ledgerID, accountID)
+
+			admission.Release(ctx)
+
+			return nil, refusal
+		}
+
+		admission.accountIDs = append(admission.accountIDs, accountID)
+	}
+
+	return admission, nil
+}
+
+// refuseHeldAccount names the holder of an account whose acquisition was refused.
+//
+// The ownership key does not say which operation holds it. A closing holds its
+// ownership only while its marker stands, but the marker may have been installed
+// after the check that preceded this acquisition, so it is read again: when it is
+// there, a closing is what holds the account. Anything else — another exclusive
+// operation, or live seed admissions refusing an exclusive one — is an operation
+// that ends on its own, so the caller is told the account is busy.
+func (g *Guard) refuseHeldAccount(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID) error {
+	if err := g.refuseWhenClosing(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
+		return err
+	}
+
+	busy := pkg.ValidateBusinessError(constant.ErrAccountAdministrativeOperationInProgress, constant.EntityAccount)
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another administrative operation holds the account", busy)
+
+	return busy
+}
+
 // refuseWhenClosing rejects an operation over an account a closing attempt owns.
 // An unreadable marker is a refusal of its own: reading it as absence would turn a
 // protection failure into an authorization.
@@ -310,6 +471,36 @@ func (g *Guard) refuseWhenClosing(ctx context.Context, span trace.Span, logger l
 	return nil
 }
 
+// refuseUnlessOwnClosing lets a closing attempt through only while the closing
+// marker carries its own token. A marker that cannot be read, or that is gone, is
+// a protection that cannot be established; another attempt's marker is the
+// closing that holds the account.
+func (g *Guard) refuseUnlessOwnClosing(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, token string) error {
+	owner, found, err := g.markers.GetAccountClosingMarker(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read the account closing marker", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to read the account closing marker", libLog.Err(err))
+
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if !found {
+		libOpentelemetry.HandleSpanError(span, "The closing marker of this attempt is gone", errClosingMarkerReclaimed)
+		logger.Log(ctx, libLog.LevelError, "The closing marker of this attempt is gone", libLog.Err(errClosingMarkerReclaimed))
+
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if owner != token {
+		conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another closing attempt owns the account", conflict)
+
+		return conflict
+	}
+
+	return nil
+}
+
 // Token is the administrative token of this admission. It stays inside the
 // services and the cache adapter: it is not a transaction generation and never
 // reaches a receipt, a recovery record or a public contract.
@@ -331,7 +522,8 @@ func (a *Admission) Accounts() []uuid.UUID {
 }
 
 // MarkIndeterminate records that the operation's outcome could not be
-// established, so Release keeps the ownership in place. Work that may still land
+// established, so Release keeps what the admission holds in place, an exclusive
+// ownership and a seed admission alike. Work that may still land
 // must not have its protection removed on the way out; reconciliation resolves it
 // once the result is known.
 func (a *Admission) MarkIndeterminate() {
@@ -342,17 +534,44 @@ func (a *Admission) MarkIndeterminate() {
 	a.indeterminate = true
 }
 
-// Release drops every ownership this admission holds, in the reverse order of
-// acquisition and only where the key still carries its token. It is best-effort:
-// a failed release leaves a key for reconciliation rather than failing an
-// operation whose result is already known.
+// Release drops everything this admission holds, in the reverse order of
+// acquisition and only where the key still carries its token: an exclusive
+// ownership is deleted, a seed admission removes only its own member. It is
+// best-effort: a failed release leaves a key for reconciliation rather than
+// failing an operation whose result is already known.
 func (a *Admission) Release(ctx context.Context) {
-	if a == nil || a.guard == nil || a.guard.markers == nil || len(a.accountIDs) == 0 {
-		return
+	if _, err := a.giveBack(ctx); err != nil {
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to release the account administrative ownership", libLog.Err(err))
 	}
 
-	if a.indeterminate {
-		return
+	if a != nil && !a.indeterminate {
+		a.accountIDs = nil
+	}
+}
+
+// ReleaseConfirmed gives back what the admission holds, like Release, and reports
+// the first release that failed. The accounts whose release failed stay held by
+// the admission, so a caller that anchors this ownership on another key — a
+// closing and its marker — knows to keep that anchor in place: an ownership
+// carries no expiry, and giving up its anchor would orphan it. An indeterminate
+// admission releases nothing and reports no failure.
+func (a *Admission) ReleaseConfirmed(ctx context.Context) error {
+	failed, err := a.giveBack(ctx)
+
+	if a != nil && !a.indeterminate {
+		a.accountIDs = failed
+	}
+
+	return err
+}
+
+// giveBack releases every account this admission holds, in the reverse order of
+// acquisition, on a context detached from the caller. It returns the accounts
+// whose release failed and the first failure; the span records every one of them.
+func (a *Admission) giveBack(ctx context.Context) ([]uuid.UUID, error) {
+	if a == nil || a.guard == nil || a.guard.markers == nil || len(a.accountIDs) == 0 || a.indeterminate {
+		return nil, nil
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -363,11 +582,21 @@ func (a *Admission) Release(ctx context.Context) {
 	releaseCtx, span := tracer.Start(releaseCtx, "exec.release_account_admission")
 	defer span.End()
 
+	var (
+		failed   []uuid.UUID
+		firstErr error
+	)
+
 	for i := len(a.accountIDs) - 1; i >= 0; i-- {
-		released, err := a.guard.markers.ReleaseAccountAdminOwnership(releaseCtx, a.organizationID, a.ledgerID, a.accountIDs[i], a.token)
+		released, err := a.release(releaseCtx, a.accountIDs[i])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to release the account administrative ownership", err)
-			logger.Log(releaseCtx, libLog.LevelWarn, "Failed to release the account administrative ownership", libLog.Err(err))
+
+			failed = append(failed, a.accountIDs[i])
+
+			if firstErr == nil {
+				firstErr = err
+			}
 
 			continue
 		}
@@ -377,8 +606,40 @@ func (a *Admission) Release(ctx context.Context) {
 		}
 	}
 
-	a.accountIDs = nil
+	return failed, firstErr
 }
+
+// take acquires one account in the admission's mode.
+func (a *Admission) take(ctx context.Context, accountID uuid.UUID) (bool, error) {
+	if a.mode == seedAdmission {
+		return a.guard.seeds.AdmitAccountSeed(ctx, a.organizationID, a.ledgerID, accountID, a.token)
+	}
+
+	return a.guard.markers.AcquireAccountAdminOwnership(ctx, a.organizationID, a.ledgerID, accountID, a.token)
+}
+
+// release gives back one account in the admission's mode.
+func (a *Admission) release(ctx context.Context, accountID uuid.UUID) (bool, error) {
+	if a.mode == seedAdmission {
+		return a.guard.seeds.ReleaseAccountSeed(ctx, a.organizationID, a.ledgerID, accountID, a.token)
+	}
+
+	return a.guard.markers.ReleaseAccountAdminOwnership(ctx, a.organizationID, a.ledgerID, accountID, a.token)
+}
+
+// errNoClosingToken reports a closing ownership asked for without the attempt's
+// token, which would name no attempt and could never be released through its
+// marker.
+var errNoClosingToken = errors.New("closing ownership requested without an attempt token")
+
+// errClosingMarkerReclaimed reports a closing attempt whose marker is gone before
+// it took its ownership: reconciliation gave it back as an attempt that never
+// wrote.
+var errClosingMarkerReclaimed = errors.New("the closing marker of this attempt is gone")
+
+// errNoSeedAdmissionSurface reports a guard asked for a seed admission while built
+// over a cache that cannot hold shared admissions.
+var errNoSeedAdmissionSurface = errors.New("account protection has no shared seed admission surface")
 
 // releaseTimeout bounds the cleanup that runs after the operation decided its own
 // outcome. The context is detached from the request so a cancellation cannot leave

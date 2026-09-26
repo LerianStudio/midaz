@@ -35,6 +35,7 @@ var accountClosingTuples = []struct {
 	{name: "persistence pending", sentinel: constant.ErrAccountClosingPersistencePending, code: "0518", status: fiber.StatusConflict},
 	{name: "movement on a closed account", sentinel: constant.ErrAccountClosed, code: "0519", status: fiber.StatusUnprocessableEntity},
 	{name: "protection indeterminate", sentinel: constant.ErrAccountClosingProtectionIndeterminate, code: "0520", status: fiber.StatusServiceUnavailable},
+	{name: "administrative operation in progress", sentinel: constant.ErrAccountAdministrativeOperationInProgress, code: "0526", status: fiber.StatusConflict},
 }
 
 func TestAccountClosing_SentinelCodeStatusTuples(t *testing.T) {
@@ -79,5 +80,48 @@ func TestAccountClosing_ProtectionIndeterminateMessageIsSanitized(t *testing.T) 
 
 	for _, leak := range []string{"redis", "postgres", "lua", "token", "marker", "key", "%", "error:"} {
 		assert.NotContains(t, unavailable.Message, leak, "the sanitized message must not name internals")
+	}
+}
+
+// The two contention refusals share a status, so the message is what tells a
+// caller which one it met: 0522 names a closing, 0526 names another operation
+// and invites a retry. Both are static — no caller or internal value reaches
+// them — so the arguments a producer passes change nothing.
+func TestAccountClosing_ContentionMessagesTellClosingFromOtherOperations(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		sentinel error
+		title    string
+		message  string
+	}{
+		{
+			name:     "closing in progress",
+			sentinel: constant.ErrAccountClosingInProgress,
+			title:    "Account Closing In Progress Error",
+			message:  "A closing of this account is in progress. Please wait for it to conclude and try again.",
+		},
+		{
+			name:     "administrative operation in progress",
+			sentinel: constant.ErrAccountAdministrativeOperationInProgress,
+			title:    "Account Administrative Operation In Progress Error",
+			message:  "Another operation on this account is in progress. Please try again shortly.",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var conflict pkg.EntityConflictError
+			require.ErrorAs(t, pkg.ValidateBusinessError(tc.sentinel, constant.EntityAccount, "caller-value"), &conflict)
+
+			assert.Equal(t, tc.sentinel.Error(), conflict.Code)
+			assert.Equal(t, constant.EntityAccount, conflict.EntityType)
+			assert.Equal(t, tc.title, conflict.Title)
+			assert.Equal(t, tc.message, conflict.Message)
+		})
 	}
 }

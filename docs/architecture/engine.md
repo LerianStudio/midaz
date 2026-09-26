@@ -252,11 +252,31 @@ Three balance sets must remain distinct:
 - The snapshot pool contains available scoped seeds, including internal overdraft
   companions that might become necessary after the engine reads live settings.
 - The touched set contains effective postings and companions actually used.
-  Only touched balances receive monetary writes and synchronization work.
+  Only touched balances receive monetary writes, movements, and versions.
 
 An unused internal companion in the pool is not an explicit user target and must
 not cause rejection. A user explicitly targeting an internal balance remains
 invalid. A missing companion fails only when a real draw or repayment requires it.
+
+A committed execution keeps the overdraft companion of every account it writes
+in the cache, so the account's next execution finds the complete pair in Redis
+and needs no seed or admission. A cached companion that did not move only has its
+24-hour TTL refreshed; its cached value stays authoritative. A companion seeded
+from the request that did not move is published with its seed's amounts and
+version and scheduled for synchronization. That synchronization is
+version-guarded: it leaves PostgreSQL unchanged for a seed read from the current
+row, and updates the row only when the seed was rebuilt ahead of it. The
+published companion takes the account-level `blocked` flag from a balance of its
+account that the execution writes and read from Redis, because an account PATCH
+rewrites that flag only on cached balances and the seed may carry a block state
+the account no longer has; when every written balance of the account was seeded
+too, it keeps its seed's flag. It gets no movement, no version increment, and no
+entry in `Final` or in the recovery evidence. Publication needs the same
+proof a used seed needs: the account is neither closing nor closed, its admission
+is confirmed, and the companion carries no deletion marker. A companion without
+that proof stays out of the cache and refuses nothing. Refusals and executions
+without movements publish no companion, and the published value counts against
+the prepared-byte budget.
 
 Each `Movement` carries a deterministic unique `Ref`, `TransactionID`, parent
 `PostingRef`, role (`primary` or `overdraft_companion`), balance reference, type,
@@ -267,9 +287,10 @@ must not determine ordering.
 
 A movement exists when Available, OnHold, or OverdraftUsed changes. Each applied
 primary or companion movement increments its balance version once. `Amount=0`
-does not suppress a debt-only movement. Unchanged state produces no movement,
-version increment, or schedule update. `ExecutionResult.Final` contains one final snapshot
-per touched physical balance in deterministic order, excluding unused seeds.
+does not suppress a debt-only movement. Unchanged state produces no movement or
+version increment, and schedules nothing except a published companion seed.
+`ExecutionResult.Final` contains one final snapshot per touched physical balance
+in deterministic order, excluding unused seeds.
 
 Execution identity is distinct from transaction identity: pending creation,
 commitment, and cancellation share a transaction ID but require different
@@ -632,8 +653,17 @@ Before the first write, the engine must:
    never read as an absence. The absence of both controls is the normal state of an
    open account and refuses nothing; there is no `open` key. When a used balance is
    NOT in the cache, the seed may only be admitted if the account's ownership key
-   carries the admission token the request declares; otherwise the execution is
-   refused with `admission_not_confirmed` before any write, with no automatic retry.
+   holds the admission token the request declares as a live shared seed admission;
+   otherwise the execution is refused with `admission_not_confirmed` before any
+   write, with no automatic retry. The ownership key is read by its type: absent
+   holds nothing; a string is an exclusive owner — a closing, a balance creation or
+   a balance deletion — and never confirms a seed, even one carrying the request's
+   token, so an exclusive admission taken by an older release cannot stand in for a
+   shared one; a sorted set holds the shared admissions of concurrent cache-miss
+   loads, one member per token, and confirms exactly the seeds whose token is a
+   member. A blank string owner or any other type refuses with
+   `account_protection_unreadable`. The engine only reads the key; the loads that
+   took the admissions release them.
    Companions repeat the check at their mutation site, and an unused pool balance
    never causes a refusal. A proven receipt replay is answered before any of this,
    so a recorded outcome survives the closing of its account. See

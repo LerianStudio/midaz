@@ -38,7 +38,8 @@ func (f *integrationFixture) addCounterparty(t *testing.T, alias string, balance
 
 	f.input.Execution.Balances = append(f.input.Execution.Balances, balance)
 	f.resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(
-		strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", balance.BalanceRef, 1))
+		strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", balance.BalanceRef, 1),
+	)
 
 	f.input.Execution.Transactions[0].Postings = append(f.input.Execution.Transactions[0].Postings, accounting.Posting{
 		Ref: "credit-0", BalanceRef: balance.BalanceRef, Type: accounting.PostingCredit,
@@ -62,6 +63,72 @@ func (f *integrationFixture) balanceOf(t *testing.T, ref string) (string, bool) 
 	require.NoError(t, err)
 
 	return value, true
+}
+
+// withAdmissionToken declares the token one prepared request presents for the
+// @source account, as the sink of the load that admitted it would.
+func (f *integrationFixture) withAdmissionToken(t *testing.T, token string) {
+	t.Helper()
+
+	protection := sourceAccountProtection(t, f)
+	protection.AdmissionToken = token
+	f.resolved.Accounts[f.input.Execution.Balances[0].AccountID] = protection
+}
+
+// TestIntegrationAccountClosingAdmitsConcurrentSeedsOfOneColdAccount covers two
+// loads that both missed the cache of the same account: each holds its own shared
+// seed admission and prepared its own seed from the same snapshot. Both executions
+// commit, and the second moves from the balance the first published, never from
+// its own seed.
+func TestIntegrationAccountClosingAdmitsConcurrentSeedsOfOneColdAccount(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+
+	t.Run("both admitted seeds commit in order", func(t *testing.T) {
+		f := newIntegrationFixture(t, container.Client)
+		protection := sourceAccountProtection(t, f)
+		require.NoError(t, container.Client.Del(context.Background(), protection.Ownership).Err())
+		admitSharedSeeds(t, container.Client, protection.Ownership, "first-load-token", "second-load-token")
+
+		// Barrier: both requests are prepared from the cold cache before either runs.
+		f.withAdmissionToken(t, "first-load-token")
+		firstPayload := string(f.prepared(t).Payload)
+		f.rotateExecution()
+		f.withAdmissionToken(t, "second-load-token")
+		secondPayload := string(f.prepared(t).Payload)
+
+		raw, err := f.runRaw(t, firstPayload)
+		require.NoError(t, err)
+		first := decodeIntegrationResult(t, raw)
+		require.Equal(t, integrationState{Available: "70", OnHold: "0", OverdraftUsed: "0", Version: "1"}, finalState(first.Final[0]))
+
+		raw, err = f.runRaw(t, secondPayload)
+		require.NoError(t, err)
+		second := decodeIntegrationResult(t, raw)
+		require.Equal(t, "70", second.Movements[0].Before.Available,
+			"the second execution moves from the published balance, not from its own seed")
+		require.Equal(t, integrationState{Available: "40", OnHold: "0", OverdraftUsed: "0", Version: "2"}, finalState(second.Final[0]))
+
+		members, err := container.Client.ZRange(context.Background(), protection.Ownership, 0, -1).Result()
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"first-load-token", "second-load-token"}, members,
+			"the execution only reads the admissions; their loads release them")
+	})
+
+	t.Run("any live member admits its own seed", func(t *testing.T) {
+		f := newIntegrationFixture(t, container.Client)
+		protection := sourceAccountProtection(t, f)
+		require.NoError(t, container.Client.Del(context.Background(), protection.Ownership).Err())
+		admitSharedSeeds(t, container.Client, protection.Ownership, "first-load-token", "second-load-token")
+		f.withAdmissionToken(t, "second-load-token")
+
+		raw, err := f.run(t)
+		require.NoError(t, err)
+		require.Equal(t, "70", decodeIntegrationResult(t, raw).Final[0].Available)
+	})
 }
 
 // TestIntegrationAccountClosingRefusesAnExecutionPreparedBeforeTheProtection is

@@ -74,6 +74,22 @@ func (mr *MockRedisRepositoryMockRecorder) AcquireAccountClosingMarker(ctx, orga
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireAccountClosingMarker", reflect.TypeOf((*MockRedisRepository)(nil).AcquireAccountClosingMarker), ctx, organizationID, ledgerID, accountID, token)
 }
 
+// AcquireAccountSeedAdmission mocks base method.
+func (m *MockRedisRepository) AcquireAccountSeedAdmission(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, AccountAdminHolder, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireAccountSeedAdmission", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(AccountAdminHolder)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AcquireAccountSeedAdmission indicates an expected call of AcquireAccountSeedAdmission.
+func (mr *MockRedisRepositoryMockRecorder) AcquireAccountSeedAdmission(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireAccountSeedAdmission", reflect.TypeOf((*MockRedisRepository)(nil).AcquireAccountSeedAdmission), ctx, organizationID, ledgerID, accountID, token)
+}
+
 // AddMessageToQueue mocks base method.
 func (m *MockRedisRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
 	m.ctrl.T.Helper()
@@ -476,6 +492,21 @@ func (m *MockRedisRepository) ReleaseAccountClosingMarker(ctx context.Context, o
 func (mr *MockRedisRepositoryMockRecorder) ReleaseAccountClosingMarker(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseAccountClosingMarker", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseAccountClosingMarker), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// ReleaseAccountSeedAdmission mocks base method.
+func (m *MockRedisRepository) ReleaseAccountSeedAdmission(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseAccountSeedAdmission", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseAccountSeedAdmission indicates an expected call of ReleaseAccountSeedAdmission.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseAccountSeedAdmission(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseAccountSeedAdmission", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseAccountSeedAdmission), ctx, organizationID, ledgerID, accountID, token)
 }
 
 // RemoveBalanceSyncKeysBatch mocks base method.

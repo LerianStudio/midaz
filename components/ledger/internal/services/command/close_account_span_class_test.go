@@ -69,10 +69,11 @@ func TestCloseAccount_RecordsAnUnreadableProtectionAsTechnical(t *testing.T) {
 	ctx, recorder := recordingContext()
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(false, errors.New("cache unavailable"))
+	gomock.InOrder(
+		m.expectMarkerInstalled(),
+		m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+			Return("", false, errors.New("cache unavailable")),
+	)
 
 	closedAt, err := m.uc.CloseAccount(ctx, closeOrgID, closeLedgerID, closeAccountID)
 
@@ -84,21 +85,29 @@ func TestCloseAccount_RecordsAnUnreadableProtectionAsTechnical(t *testing.T) {
 }
 
 // TestCloseAccount_RecordsAContendedAccountAsBusiness is the other class of the
-// same refusal: another operation holding the account is the coordination doing
-// its job, so the span stays green.
+// same refusal: an operation other than a closing holding the account — live seed
+// admissions of cache-miss loads, a balance creation or a deletion — refuses the
+// ownership while the attempt's own marker stands. That is the coordination doing
+// its job: the closing is refused as busy, gives its marker back (it never issued
+// its write), writes nothing and keeps the span green. The strict mocks fail the
+// test on any account update, ownership release or second marker read.
 func TestCloseAccount_RecordsAContendedAccountAsBusiness(t *testing.T) {
 	m := newCloseAccountMocks(t)
 	ctx, recorder := recordingContext()
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(false, nil)
+	gomock.InOrder(
+		m.expectMarkerInstalled(),
+		m.expectOwnMarkerRead(),
+		m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(false, nil),
+		m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+	)
 
 	closedAt, err := m.uc.CloseAccount(ctx, closeOrgID, closeLedgerID, closeAccountID)
 
-	requireClosingCode(t, err, constant.ErrAccountClosingInProgress)
+	requireClosingCode(t, err, constant.ErrAccountAdministrativeOperationInProgress)
 	assert.True(t, closedAt.IsZero())
 
 	span := findSpan(t, recorder, "command.close_account")

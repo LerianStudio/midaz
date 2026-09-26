@@ -110,8 +110,8 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 }
 
 // syncAccountProtection keeps the account protection block in step with the pool a
-// test assembled and takes the administrative ownership of every account it adds,
-// as a cache-miss balance load does. An entry a test already shaped is preserved.
+// test assembled and takes a shared seed admission over every account it adds, as
+// a cache-miss balance load does. An entry a test already shaped is preserved.
 func (f *integrationFixture) syncAccountProtection(t *testing.T) {
 	t.Helper()
 
@@ -127,11 +127,27 @@ func (f *integrationFixture) syncAccountProtection(t *testing.T) {
 
 		accounts[accountID] = protection
 		f.protectionKeys = append(f.protectionKeys, protection.Closing, protection.Closed, protection.Ownership)
-		require.NoError(t, f.client.Set(context.Background(), protection.Ownership, testAdmissionToken, 0).Err())
+		admitSharedSeeds(t, f.client, protection.Ownership, testAdmissionToken)
 	}
 
 	f.resolved.Accounts = accounts
 }
+
+// admitSharedSeeds records live shared seed admissions on an account's ownership
+// key, in the shape a cache-miss balance load leaves there: one sorted-set member
+// per admission token, scored by its acquisition instant in milliseconds.
+func admitSharedSeeds(t *testing.T, client redis.UniversalClient, ownershipKey string, tokens ...string) {
+	t.Helper()
+
+	for i, token := range tokens {
+		require.NoError(t, client.ZAdd(context.Background(), ownershipKey,
+			redis.Z{Score: float64(seedAdmissionAcquiredAtMillis + int64(i)), Member: token}).Err())
+	}
+}
+
+// seedAdmissionAcquiredAtMillis is the fixed acquisition instant fixtures score
+// their seed admissions with; the engine reads membership, never the score.
+const seedAdmissionAcquiredAtMillis int64 = 1790424000000
 
 func (f *integrationFixture) addCompanion(available string) {
 	balance := f.input.Execution.Balances[0]

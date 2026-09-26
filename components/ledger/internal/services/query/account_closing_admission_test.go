@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -38,8 +39,8 @@ func expectAccountClosingSeedReread(m *admissionMocks) {
 func expectAccountClosingOpenAdmission(m *admissionMocks) {
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
 		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
-		Return(true, nil)
+	m.redis.EXPECT().AcquireAccountSeedAdmission(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
+		Return(true, redis.AccountAdminHolderNone, nil)
 	m.redis.EXPECT().GetAccountClosedMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
 		Return(time.Time{}, false, nil)
 	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{admissionAccountID}).
@@ -81,7 +82,7 @@ func TestAccountClosingCacheMissReleasesWithoutAnExecution(t *testing.T) {
 	expectAccountClosingOpenAdmission(m)
 
 	released := make(chan struct{}, 1)
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
+	m.redis.EXPECT().ReleaseAccountSeedAdmission(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
 		DoAndReturn(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) (bool, error) {
 			released <- struct{}{}
 

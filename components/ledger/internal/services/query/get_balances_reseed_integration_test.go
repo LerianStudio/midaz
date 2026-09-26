@@ -39,6 +39,7 @@ type reseedTestInfra struct {
 	uc            *UseCase
 	transactionDB *pgtestutil.ContainerResult
 	onboardingDB  *pgtestutil.ContainerResult
+	redis         *redistestutil.ContainerResult
 	orgID         uuid.UUID
 	ledgerID      uuid.UUID
 	transactionID uuid.UUID
@@ -73,6 +74,7 @@ func setupReseedTestInfra(t *testing.T) *reseedTestInfra {
 		},
 		transactionDB: transactionContainer,
 		onboardingDB:  onboardingContainer,
+		redis:         redisContainer,
 		orgID:         orgID,
 		ledgerID:      ledgerID,
 		transactionID: pgtestutil.CreateTestTransactionWithStatus(t, transactionContainer.DB, orgID, ledgerID, "APPROVED", decimal.NewFromInt(50), "USD"),
