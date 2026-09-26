@@ -74,9 +74,9 @@ func TestCreateInstrument_BankAccountUniqueness(t *testing.T) {
 			refused: true,
 		},
 		{
-			name:    "bankId and branch compare trimmed",
+			name:    "branch compares trimmed",
 			input:   bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), nil),
-			stored:  []*mmodel.Instrument{storedInstrument(bankAccount(strPtr(" 001"), strPtr("0001 "), strPtr("123456"), nil))},
+			stored:  []*mmodel.Instrument{storedInstrument(bankAccount(strPtr("001"), strPtr("0001 "), strPtr("123456"), nil))},
 			refused: true,
 		},
 		{
@@ -173,6 +173,8 @@ func TestCreateInstrument_WithoutBankAccountSkipsUniqueness(t *testing.T) {
 		"no banking details": nil,
 		"no account":         bankAccount(strPtr("001"), strPtr("0001"), nil, nil),
 		"empty account":      bankAccount(strPtr("001"), strPtr("0001"), strPtr(""), nil),
+		"no bankId":          bankAccount(nil, strPtr("0001"), strPtr("123456"), nil),
+		"empty bankId":       bankAccount(strPtr(""), strPtr("0001"), strPtr("123456"), nil),
 	} {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
@@ -223,11 +225,6 @@ func TestUpdateInstrumentByID_BankAccountUniqueness(t *testing.T) {
 			refused:        true,
 		},
 		{
-			name:    "re-saving its own key is accepted",
-			patch:   &mmodel.BankingDetails{Branch: strPtr("0002"), Type: strPtr("PG")},
-			holders: []*mmodel.Instrument{self},
-		},
-		{
 			name:    "moving to a free branch is accepted",
 			patch:   &mmodel.BankingDetails{Branch: strPtr("0003")},
 			holders: []*mmodel.Instrument{self, twinAt0001},
@@ -262,6 +259,31 @@ func TestUpdateInstrumentByID_BankAccountUniqueness(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestUpdateInstrumentByID_UnchangedKeyBesideAnExistingDuplicateIsAccepted(t *testing.T) {
+	const orgID = "0193d0f0-0000-7000-8000-000000000001"
+
+	key := func() *mmodel.BankingDetails {
+		return bankAccount(strPtr("001"), strPtr("0001"), strPtr("123456"), strPtr("CACC"))
+	}
+
+	ctrl := gomock.NewController(t)
+	instrumentRepo := instrument.NewMockRepository(ctrl)
+	holderID, selfID := uuid.New(), uuid.New()
+	self := &mmodel.Instrument{ID: &selfID, BankingDetails: key()}
+
+	// The pair predates the rule. An edit that re-sends the unchanged key must still land.
+	instrumentRepo.EXPECT().Find(gomock.Any(), orgID, holderID, selfID, false).Return(self, nil)
+	instrumentRepo.EXPECT().FindAll(gomock.Any(), orgID, uuid.Nil, gomock.Any(), false).
+		Return([]*mmodel.Instrument{self, storedInstrument(key())}, nil).AnyTimes()
+	instrumentRepo.EXPECT().Update(gomock.Any(), orgID, holderID, selfID, gomock.Any(), gomock.Nil()).Return(self, nil)
+
+	uc := &UseCase{InstrumentRepo: instrumentRepo}
+
+	_, err := uc.UpdateInstrumentByID(context.Background(), orgID, holderID, selfID,
+		&mmodel.UpdateInstrumentInput{Metadata: map[string]any{"closingDate": "2026-09-30"}, BankingDetails: key()}, nil)
+	require.NoError(t, err)
 }
 
 func TestUpdateInstrumentByID_PatchOutsideBankAccountKeyReadsNothing(t *testing.T) {

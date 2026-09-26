@@ -64,6 +64,19 @@ func TestIntegration_InstrumentRepo_Create_BankAccountTwinRefusedByIndex(t *test
 
 	_, err = repo.Create(ctx, organizationID, bankAccountInstrument(t, "237", "0001", "123456", "TRAN"))
 	require.NoError(t, err, "the same account at another bank is another account")
+
+	for n := range 2 {
+		branchless := bankAccountInstrument(t, "001", "", "999999", "PG")
+		branchless.BankingDetails.Branch = nil
+
+		_, err = repo.Create(ctx, organizationID, branchless)
+		if n == 0 {
+			require.NoError(t, err)
+			continue
+		}
+
+		requireBankAccountConflict(t, err)
+	}
 }
 
 func TestIntegration_InstrumentRepo_Update_BankAccountTwinRefusedByIndex(t *testing.T) {

@@ -165,10 +165,9 @@ func indexModels() []mongo.IndexModel {
 	}
 }
 
-// bankAccountIndexModel keys one bank account by bank, branch and the account's search token,
-// over live rows that carry all three and still hold the account the token was minted for.
-// The service pre-check is the rule; this index only closes the race between two writes of the
-// identical branch string. "1" against "0001", or a branchless row, is the pre-check's alone.
+// bankAccountIndexModel keys a live bank account by bank, branch and account token. The service
+// pre-check is the rule; this index only closes the race between two writes of the same raw bank
+// and branch, a missing branch included.
 func bankAccountIndexModel() mongo.IndexModel {
 	exists := bson.D{{Key: "$exists", Value: true}}
 
@@ -184,7 +183,6 @@ func bankAccountIndexModel() mongo.IndexModel {
 			SetPartialFilterExpression(bson.D{
 				{Key: "deleted_at", Value: nil},
 				{Key: "banking_details.bank_id", Value: exists},
-				{Key: "banking_details.branch", Value: exists},
 				{Key: "banking_details.account", Value: exists},
 				{Key: "search.banking_details_account", Value: exists},
 			}),

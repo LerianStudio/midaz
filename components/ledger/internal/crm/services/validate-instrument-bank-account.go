@@ -24,7 +24,7 @@ import (
 // the account is found by its search token under every enabled key, so rows written before a
 // rotation count.
 func (uc *UseCase) validateBankAccountUnique(ctx context.Context, organizationID string, self uuid.UUID, bd *mmodel.BankingDetails) error {
-	if bd == nil || bd.Account == nil || *bd.Account == "" {
+	if bd == nil || valueOf(bd.Account) == "" || valueOf(bd.BankID) == "" {
 		return nil
 	}
 
@@ -55,8 +55,8 @@ func (uc *UseCase) validateBankAccountUnique(ctx context.Context, organizationID
 }
 
 // validateBankAccountPatch applies a merge-patch's bankId, branch and account to the stored
-// instrument and checks the result. A patch that sets none of them and removes neither bankId
-// nor branch cannot create a duplicate, so it reads nothing.
+// instrument and checks the result only when the key changed, so an instrument that predates
+// the rule can still be edited.
 func (uc *UseCase) validateBankAccountPatch(ctx context.Context, organizationID string, holderID, id uuid.UUID, patch *mmodel.BankingDetails, fieldsToRemove []string) error {
 	patched := patch != nil && (patch.BankID != nil || patch.Branch != nil || patch.Account != nil)
 	if !patched && !slices.Contains(fieldsToRemove, "bankingDetails.bankId") && !slices.Contains(fieldsToRemove, "bankingDetails.branch") {
@@ -68,15 +68,15 @@ func (uc *UseCase) validateBankAccountPatch(ctx context.Context, organizationID 
 		return err
 	}
 
-	merged := mmodel.BankingDetails{}
+	before := mmodel.BankingDetails{}
 	if stored.BankingDetails != nil {
-		merged = *stored.BankingDetails
+		before = *stored.BankingDetails
 	}
+
+	merged := before
 
 	for _, field := range fieldsToRemove {
 		switch field {
-		case "bankingDetails":
-			merged = mmodel.BankingDetails{}
 		case "bankingDetails.bankId":
 			merged.BankID = nil
 		case "bankingDetails.branch":
@@ -92,15 +92,20 @@ func (uc *UseCase) validateBankAccountPatch(ctx context.Context, organizationID 
 		merged.Account = cmp.Or(patch.Account, merged.Account)
 	}
 
+	if valueOf(merged.BankID) == valueOf(before.BankID) && valueOf(merged.Branch) == valueOf(before.Branch) &&
+		valueOf(merged.Account) == valueOf(before.Account) {
+		return nil
+	}
+
 	return uc.validateBankAccountUnique(ctx, organizationID, id, &merged)
 }
 
-// sameBankAccount compares bankId trimmed and the account exactly. Branches match when either is
+// sameBankAccount compares bankId and the account exactly. Branches match when either is
 // empty or both are equal once trimmed, numeric ones without leading zeros ("1" is "0001").
 // A holder whose account was since removed or emptied still carries the old token and never matches.
 func sameBankAccount(stored, candidate *mmodel.BankingDetails) bool {
 	if stored == nil || stored.Account == nil || *stored.Account != *candidate.Account ||
-		trimmedOrEmpty(stored.BankID) != trimmedOrEmpty(candidate.BankID) {
+		valueOf(stored.BankID) != valueOf(candidate.BankID) {
 		return false
 	}
 
@@ -110,7 +115,7 @@ func sameBankAccount(stored, candidate *mmodel.BankingDetails) bool {
 }
 
 func canonicalBranch(s *string) string {
-	branch := trimmedOrEmpty(s)
+	branch := strings.TrimSpace(valueOf(s))
 	if branch == "" || strings.Trim(branch, "0123456789") != "" {
 		return branch
 	}
@@ -118,10 +123,10 @@ func canonicalBranch(s *string) string {
 	return cmp.Or(strings.TrimLeft(branch, "0"), "0")
 }
 
-func trimmedOrEmpty(s *string) string {
+func valueOf(s *string) string {
 	if s == nil {
 		return ""
 	}
 
-	return strings.TrimSpace(*s)
+	return *s
 }
