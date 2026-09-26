@@ -121,11 +121,23 @@ func resolveTransactionProjection(
 // only once both other sources answer not-found, so it never shadows a newer
 // engine or persisted state; any other error propagates unchanged.
 func (uc *UseCase) loadLifecycleTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	tran, err := uc.loadIndexedOrPersistedTransaction(ctx, organizationID, ledgerID, transactionID)
+	resolution, err := uc.loadLifecycleResolution(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolution.Transaction, nil
+}
+
+// loadLifecycleResolution is loadLifecycleTransaction plus the engine index state
+// the transaction was read from. ExecutionID is nil when the primary or the legacy
+// entry answered.
+func (uc *UseCase) loadLifecycleResolution(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*TransactionProjectionResolution, error) {
+	resolution, err := uc.loadIndexedOrPersistedResolution(ctx, organizationID, ledgerID, transactionID)
 
 	var notFound pkg.EntityNotFoundError
 	if !errors.As(err, &notFound) {
-		return tran, err
+		return resolution, err
 	}
 
 	legacy, legacyErr := uc.TransactionReader.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
@@ -133,22 +145,27 @@ func (uc *UseCase) loadLifecycleTransaction(ctx context.Context, organizationID,
 		return nil, err
 	}
 
-	return legacy, nil
+	return &TransactionProjectionResolution{Transaction: legacy}, nil
 }
 
-func (uc *UseCase) loadIndexedOrPersistedTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+func (uc *UseCase) loadIndexedOrPersistedResolution(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*TransactionProjectionResolution, error) {
 	resolution, err := resolveTransactionProjection(ctx, uc.TransactionReader, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, err
 	}
 
 	if resolution.Transaction != nil && resolution.Transaction.ID != "" {
-		return resolution.Transaction, nil
+		return resolution, nil
 	}
 
 	// A reader without the engine index answers from FindWithOperations, which
 	// joins on operations, so a transaction with no rows comes back as an empty
 	// value with no error. The row-only read tells a missing transaction from an
 	// operationless one.
-	return uc.TransactionReader.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := uc.TransactionReader.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TransactionProjectionResolution{Transaction: tran}, nil
 }
