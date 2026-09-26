@@ -29,11 +29,17 @@ func (uc *UseCase) accountProtectionGuard() *accountprotection.Guard {
 	return accountprotection.NewGuard(uc.AccountRepo, uc.TransactionRedisRepo)
 }
 
-// acquireAccountAdmission takes the administrative ownership of the accounts an
-// operation is about to touch. The caller MUST release it once the operation's
-// result is known, and MUST mark it indeterminate instead when it is not.
-func (uc *UseCase) acquireAccountAdmission(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs ...uuid.UUID) (*accountprotection.Admission, error) {
-	return uc.accountProtectionGuard().AcquireAdmission(ctx, organizationID, ledgerID, accountIDs)
+// acquireAccountOwnership takes the exclusive administrative ownership of the
+// accounts an operation is about to touch. The caller MUST release it once the
+// operation's result is known, and MUST mark it indeterminate instead when it is
+// not.
+//
+// Exclusive, because closing, balance creation and balance deletion each change
+// or validate the balance list the others and every cache-miss load rely on. A
+// refusal answers 0522 while a closing holds the account and 0526 for any other
+// holder, live seed admissions included.
+func (uc *UseCase) acquireAccountOwnership(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs ...uuid.UUID) (*accountprotection.Admission, error) {
+	return uc.accountProtectionGuard().AcquireExclusive(ctx, organizationID, ledgerID, accountIDs)
 }
 
 // ensureAccountsNotClosed refuses the operation when any of the accounts carries a

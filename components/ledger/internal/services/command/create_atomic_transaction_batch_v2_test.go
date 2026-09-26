@@ -223,8 +223,8 @@ func (reader *atomicTransactionBatchSettingsReader) GetEngineBalances(
 			accountIDs = append(accountIDs, accountID)
 		}
 
-		admission, admissionErr := accountprotection.NewGuard(nil, reader.protectionStore).
-			AcquireAdmission(ctx, organizationID, ledgerID, accountIDs)
+		admission, admissionErr := accountprotection.NewSeedAdmissionGuard(nil, reader.protectionStore).
+			AcquireSeedAdmission(ctx, organizationID, ledgerID, accountIDs)
 		if admissionErr != nil {
 			return nil, nil, admissionErr
 		}

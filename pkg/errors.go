@@ -675,7 +675,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrAccountClosingInProgress.Error(),
 			Title:      "Account Closing In Progress Error",
-			Message:    "Another closing attempt is currently deciding the state of this account. Please wait for it to conclude and try again.",
+			Message:    "A closing of this account is in progress. Please wait for it to conclude and try again.",
+		},
+		constant.ErrAccountAdministrativeOperationInProgress: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAdministrativeOperationInProgress.Error(),
+			Title:      "Account Administrative Operation In Progress Error",
+			Message:    "Another operation on this account is in progress. Please try again shortly.",
 		},
 		constant.ErrAccountBalanceNotZero: UnprocessableOperationError{
 			EntityType: entityType,

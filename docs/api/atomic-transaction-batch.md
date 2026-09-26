@@ -127,7 +127,9 @@ logical order.
 Account-closing protection applies to the batch as one execution. If any item
 touches a closed account, the whole batch is refused with `0519` / HTTP 422; an
 account whose closing is in progress refuses the whole batch with `0522` / HTTP
-409. Neither refusal applies any item or exposes a committed prefix.
+409; an account held by another administrative operation, such as a balance creation
+or deletion, refuses it with `0526` / HTTP 409, which may be retried once that
+operation concludes. No refusal applies any item or exposes a committed prefix.
 
 | Boundary | Effective limit | Failure |
 | --- | ---: | --- |

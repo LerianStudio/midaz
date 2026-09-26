@@ -156,6 +156,31 @@ local function loadBalancePool(request)
     return pool, companions
 end
 
+-- loadSeedAdmission answers whether the account's administrative ownership key
+-- holds the caller's live seed admission. The key has two legitimate shapes, told
+-- apart by its Redis type: a string is one exclusive owner (a closing, a balance
+-- creation or deletion), and a sorted set holds the shared admissions of cache-miss
+-- balance loads, one member per admission token. Only membership of that set
+-- proves a seed. An exclusive owner excludes every seed, even one carrying the
+-- caller's token, so an exclusive admission an older release took can never stand
+-- in for a shared one.
+--
+-- The key is only read here; the loads that took the admissions release them.
+local function loadSeedAdmission(ownershipKey, token)
+    local kind = redisType(ownershipKey)
+    if kind == "none" then return false end
+    if kind == "string" then
+        if redis.call("GET", ownershipKey) == "" then
+            technical("account_protection_unreadable", "account administrative owner carries no value")
+        end
+        return false
+    end
+    if kind == "zset" then
+        return token ~= "" and redis.call("ZSCORE", ownershipKey, token) ~= false
+    end
+    technical("account_protection_unreadable", "account administrative ownership has an unexpected type")
+end
+
 -- loadAccountProtection reads the exceptional closing controls of every account
 -- of the declared pool inside this same atomic execution. PostgreSQL owns the
 -- closing state; these keys are the live controls a movement must honor.
@@ -172,18 +197,15 @@ local function loadAccountProtection(request)
     local protection = {}
     for _, account in ipairs(request.accounts) do
         local closingKey, closedKey = KEYS[account.closingKeyIndex], KEYS[account.closedKeyIndex]
-        local ownershipKey = KEYS[account.ownershipKeyIndex]
         expectRedisType(closingKey, "string")
         expectRedisType(closedKey, "string")
-        expectRedisType(ownershipKey, "string")
         local closing, closed = redis.call("GET", closingKey), redis.call("GET", closedKey)
-        local owner = redis.call("GET", ownershipKey)
-        if closing == "" or closed == "" or owner == "" then
+        if closing == "" or closed == "" then
             technical("account_protection_unreadable", "account protection marker carries no value")
         end
         protection[account.accountId] = {
             closing = closing and true or false, closed = closed and true or false,
-            owner = owner, token = account.admissionToken
+            admitted = loadSeedAdmission(KEYS[account.ownershipKeyIndex], account.admissionToken)
         }
     end
 
@@ -219,21 +241,30 @@ local function validateAccountClosingMarkers(request, protection)
     end
 end
 
+-- admissionConfirmed answers whether the account protection state read by
+-- loadAccountProtection proves this caller's seed admission: the account's shared
+-- admissions still hold the caller's admission token. Only that proof shows the
+-- account was open when a cache-miss seed of it was read, so every publication of
+-- a seeded balance depends on it. It reads nothing else and refuses nothing;
+-- callers decide what an unconfirmed admission means.
+local function admissionConfirmed(state)
+    return state.admitted
+end
+
 -- validateAccountAvailability refuses one balance whose account may not take part
 -- in a new execution. It is unconditional by design: a closing is not a live block
 -- control, so cancellation, permissions, honored skips and a presented
 -- account-block exception never exempt it.
 --
 -- A balance the pool read from Redis is already admitted. One this execution would
--- seed from the request fills a cache miss, and may do so only while the
--- administrative ownership of its account still carries this caller's admission
--- token: without it nothing proved the account was open when the seed was read.
+-- seed from the request fills a cache miss, and may do so only while its account's
+-- admission is confirmed.
 local function validateAccountAvailability(protection, item)
     local state = protection[item.current.accountId]
     if not state then technical("invalid_protocol", "balance account is missing from the account protection block") end
     if state.closed then technical("account_closed", "account is closed") end
     if state.closing then technical("account_closing_in_progress", "account closing is in progress") end
-    if item.seeded and (state.token == "" or state.owner ~= state.token) then
+    if item.seeded and not admissionConfirmed(state) then
         technical("admission_not_confirmed", "balance seed admission is not confirmed")
     end
 end
@@ -445,10 +476,64 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
     return movements, touched, transactionResults
 end
 
+-- selectCompanionCacheWrites keeps an account's overdraft companion cached beside
+-- the balances this execution writes. Go always loads the companion with its
+-- account, so a companion left out of Redis would make every later execution on
+-- that account seed it again and need a fresh admission.
+--
+-- A companion that moved is already written. A cached one that did not move only
+-- has its expiry refreshed, because its cached value stays authoritative. A seeded
+-- one that did not move is published with the amounts and version it was seeded
+-- with: no version increment, no movement, and no entry in the result or the
+-- recovery evidence. Publishing it needs the same proof a used seed needs — an
+-- open account and a confirmed admission — and no deletion marker. A companion
+-- without that proof stays out of the cache, and the execution, which never used
+-- it, is not refused because of it.
+--
+-- `blocked` is an account-level flag. A seed carries it as the account row held it
+-- when the load read it, but an account PATCH rewrites it only on the balances
+-- already cached, so a block or unblock that lands between the load and this
+-- execution reaches the cached primary and misses the companion seed. A published
+-- companion therefore takes the flag from a balance of its account that this
+-- execution writes and read from Redis. The PATCH rewrites all of an account's
+-- cached balances in one atomic step, so the first one is as current as any. When
+-- every written balance of the account was itself seeded, they all come from the
+-- same load as the companion, and the companion keeps its seed's flag.
+--
+-- A refreshed companion keeps its cached value, flag included: it was read from
+-- Redis, so the PATCH has kept its flag current, and only its expiry is written.
+local function selectCompanionCacheWrites(touched, companions, protection)
+    local written, selected, liveBlocked = {}, {}, {}
+    local published, refreshed = {}, {}
+    for _, item in ipairs(touched) do
+        written[item] = true
+        local accountRef = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)
+        if not item.seeded and liveBlocked[accountRef] == nil then liveBlocked[accountRef] = item.current.blocked end
+    end
+    for _, item in ipairs(touched) do
+        local accountRef = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)
+        local companion = companions[accountRef]
+        if companion and not written[companion] and not selected[companion] then
+            selected[companion] = true
+            local state = protection[companion.current.accountId]
+            if state and not state.closed and not state.closing and not companion.deleted then
+                if not companion.seeded then
+                    refreshed[#refreshed + 1] = companion
+                elseif admissionConfirmed(state) then
+                    if liveBlocked[accountRef] ~= nil then companion.current.blocked = liveBlocked[accountRef] end
+                    published[#published + 1] = companion
+                end
+            end
+        end
+    end
+
+    return published, refreshed
+end
+
 -- prepareExecutionWrites serializes every value and accounts for its byte cost
 -- before the first Redis write. This keeps all predictable allocation, encoding,
 -- and size failures on the safe precommit side of the execution boundary.
-local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults, appliedAtUnixMicro)
+local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults, companionCache, appliedAtUnixMicro)
     local final = array()
     for _, item in ipairs(touched) do final[#final + 1] = snapshotCopy(item.current, false) end
     local response = encodeJSON({ protocolVersion = 1, movements = movements, final = final, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) })
@@ -474,6 +559,14 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
     for _, item in ipairs(touched) do
         preparedBalances[#preparedBalances + 1] = { key = KEYS[item.keyIndex], value = charge(encodeBalance(item)) }
     end
+    -- An unmoved companion seed is published and scheduled like a written balance.
+    -- It keeps the version it was seeded with, so the version-guarded
+    -- synchronization changes PostgreSQL only for a seed rebuilt ahead of its row.
+    for _, item in ipairs(companionCache.published) do
+        preparedBalances[#preparedBalances + 1] = { key = KEYS[item.keyIndex], value = charge(encodeBalance(item)) }
+    end
+    local preparedExpirations = {}
+    for _, item in ipairs(companionCache.refreshed) do preparedExpirations[#preparedExpirations + 1] = KEYS[item.keyIndex] end
     -- Build one immutable recovery envelope per transaction, using numeric JSON
     -- version tokens only in the persisted evidence format.
     for i, transaction in ipairs(request.transactions) do
@@ -561,21 +654,23 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         charge(transaction.id)
     end
 
-    return response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt
+    return response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations
 end
 
 -- commitPreparedExecution is the only money-changing publication phase. Every
 -- argument has already been validated and serialized. Once commitStarted is set,
 -- any unexpected failure is indeterminate because Redis does not roll writes back.
-local function commitPreparedExecution(request, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
+local function commitPreparedExecution(request, preparedBalances, preparedExpirations, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
-    -- Publish live balances first, then the synchronization and recovery evidence,
-    -- lifecycle guards, and cleanup coordinators. The receipt is written last so
+    -- Publish live balances first, then the synchronization schedule, the expiry of
+    -- cached companions kept beside them, the recovery evidence, lifecycle guards,
+    -- and cleanup coordinators. The receipt is written last so
     -- its presence proves that the complete prepared command sequence ran.
     for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
+    for _, key in ipairs(preparedExpirations) do redis.call("EXPIRE", key, balance_cache_ttl_seconds) end
     for _, recoverRecord in ipairs(preparedRecoverRecords) do redis.call("HSET", KEYS[2], recoverRecord.field, recoverRecord.value) end
     for _, transaction in ipairs(request.transactions) do
         local scopeKeys = request.scopeKeyMap[transaction.organizationId .. ":" .. transaction.ledgerId]
@@ -610,8 +705,10 @@ local function execute(request, maximumPrepared)
     validateLiveBalanceAvailability(request, pool, exemptions)
 
     local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions, protection)
-    local response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt = prepareExecutionWrites(
-        request, maximumPrepared, preparedProtection, movements, touched, transactionResults, appliedAtUnixMicro
+    local published, refreshed = selectCompanionCacheWrites(touched, companions, protection)
+    local response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations = prepareExecutionWrites(
+        request, maximumPrepared, preparedProtection, movements, touched, transactionResults,
+        { published = published, refreshed = refreshed }, appliedAtUnixMicro
     )
     if not preparedBalances then
         if #grantKeys > 0 then technical("invalid_protocol", "account-block exception execution has no movements") end
@@ -619,7 +716,7 @@ local function execute(request, maximumPrepared)
     end
 
     commitPreparedExecution(
-        request, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
+        request, preparedBalances, preparedExpirations, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
     )
     return response
 end

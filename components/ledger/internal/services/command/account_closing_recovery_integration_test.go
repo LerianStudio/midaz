@@ -254,6 +254,65 @@ func TestIntegrationAccountClosingReconcilesOnlyWhatItCanResolve(t *testing.T) {
 	require.False(t, h.closedAt(t, aborted).Valid)
 }
 
+// TestIntegrationAccountClosingReconcilesAMarkerWithoutItsOwnership covers an
+// attempt that lost its process between installing its closing marker and taking
+// its ownership. It never issued its write, so reconciliation gives the marker
+// back; there is no ownership to release, and releasing it anyway changes nothing.
+func TestIntegrationAccountClosingReconcilesAMarkerWithoutItsOwnership(t *testing.T) {
+	h := newAccountClosingHarness(t)
+	ctx := context.Background()
+
+	accountID := h.seedAccount(t, "@closing-marker-only", "deposit")
+	h.seedBalance(t, accountID, accountClosingBalanceSeed{alias: "@closing-marker-only", key: "default"})
+
+	installed, err := h.uc.TransactionRedisRepo.AcquireAccountClosingMarker(ctx, h.organizationID, h.ledgerID, accountID, "marker-only-attempt-token")
+	require.NoError(t, err)
+	require.True(t, installed)
+
+	stats := h.uc.ReconcileAccountClosings(ctx)
+	require.Equal(t, 1, stats.Scanned)
+	require.Equal(t, 1, stats.Released)
+	require.Zero(t, stats.Retained)
+	require.Zero(t, stats.Ownerships)
+
+	protection := h.protection(accountID)
+	require.Equal(t, int64(0), h.exists(t, protection.closing, protection.closed, protection.ownership))
+	require.False(t, h.closedAt(t, accountID).Valid)
+
+	_, err = h.close(ctx, accountID)
+	require.NoError(t, err, "the released account closes through the normal route")
+}
+
+// TestIntegrationAccountClosingAbortsWhenReconciliationReclaimsItsMarker covers a
+// live attempt whose marker a reconciliation pass reclaims before the attempt took
+// its ownership: the pass cannot tell it from an abandoned one, since neither
+// issued a write. The attempt then refuses without taking the ownership, records
+// no instant and leaves nothing behind.
+func TestIntegrationAccountClosingAbortsWhenReconciliationReclaimsItsMarker(t *testing.T) {
+	h := newAccountClosingHarness(t)
+	ctx := context.Background()
+
+	accountID := h.seedAccount(t, "@closing-reclaimed", "deposit")
+	h.seedBalance(t, accountID, accountClosingBalanceSeed{alias: "@closing-reclaimed", key: "default"})
+
+	gate, attempt := h.gatedAttempt(ctx, accountID, holdBetweenProtectionWrites)
+	gate.awaitReached(t)
+
+	stats := h.uc.ReconcileAccountClosings(ctx)
+	require.Equal(t, 1, stats.Released, "the attempt's marker is reclaimed as an attempt that never wrote")
+
+	close(gate.resume)
+	requireClosingCode(t, awaitClosing(t, attempt), constant.ErrAccountClosingProtectionIndeterminate)
+
+	protection := h.protection(accountID)
+	require.Equal(t, int64(0), h.exists(t, protection.closing, protection.closed, protection.ownership),
+		"the aborted attempt leaves no protection behind")
+	require.False(t, h.closedAt(t, accountID).Valid)
+
+	_, err := h.close(ctx, accountID)
+	require.NoError(t, err)
+}
+
 // TestIntegrationAccountClosingRefusesWhenTheProtectionCannotBeRead is AS-07: a
 // control that cannot be read is not an absence. The closing refuses technically,
 // a writer over the same account refuses as well, and a recorded instant elsewhere
@@ -299,13 +358,13 @@ func (h *accountClosingHarness) installAbandonedAttempt(t *testing.T, accountID 
 
 	ctx := context.Background()
 
-	owned, err := h.uc.TransactionRedisRepo.AcquireAccountAdminOwnership(ctx, h.organizationID, h.ledgerID, accountID, token)
-	require.NoError(t, err)
-	require.True(t, owned)
-
 	installed, err := h.uc.TransactionRedisRepo.AcquireAccountClosingMarker(ctx, h.organizationID, h.ledgerID, accountID, token)
 	require.NoError(t, err)
 	require.True(t, installed)
+
+	owned, err := h.uc.TransactionRedisRepo.AcquireAccountAdminOwnership(ctx, h.organizationID, h.ledgerID, accountID, token)
+	require.NoError(t, err)
+	require.True(t, owned)
 
 	if !writeIssued {
 		return

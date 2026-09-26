@@ -115,6 +115,31 @@ func TestReconcileAccountClosings_ReleasesAnAbortedAttempt(t *testing.T) {
 	assert.Zero(t, stats.Retained)
 }
 
+// TestReconcileAccountClosings_ReleasesAMarkerWhoseAttemptNeverTookItsOwnership
+// covers an attempt that stopped between its two protection writes: its marker is
+// there, its ownership never was. The ownership release answers that it had
+// nothing to remove, which is not a failure, and the marker is still given back.
+func TestReconcileAccountClosings_ReleasesAMarkerWhoseAttemptNeverTookItsOwnership(t *testing.T) {
+	m := newCloseAccountMocks(t)
+
+	m.expectMarkerDiscovered()
+	m.expectAttemptRead(false)
+	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), closeOrgID, closeLedgerID, []uuid.UUID{closeAccountID}).
+		Return(map[uuid.UUID]*time.Time{closeAccountID: nil}, nil)
+
+	gomock.InOrder(
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, reconcileToken).
+			Return(false, nil),
+		m.redis.EXPECT().ReleaseAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, reconcileToken).
+			Return(true, nil),
+	)
+
+	stats := m.uc.ReconcileAccountClosings(context.Background())
+
+	assert.Equal(t, 1, stats.Released)
+	assert.Zero(t, stats.Retained)
+}
+
 // TestReconcileAccountClosings_KeepsAnAttemptThatMovedOn covers the same branch
 // from the owner's side: the conditional removal did not apply because the owner
 // advanced between the read and the release, so nothing was taken from it.

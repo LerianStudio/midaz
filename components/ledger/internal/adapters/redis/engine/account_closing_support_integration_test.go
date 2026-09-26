@@ -8,7 +8,7 @@ package engine
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,103 +18,69 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	txredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// engineMarkerStore is the account protection surface of a live Redis, resolved
-// through the same tenant prefix and key helpers the adapter uses. It lets an
-// integration test take the administrative ownership of an account exactly as a
-// cache-miss balance load does.
+// engineMarkerStore is the account protection surface of a live Redis: the real
+// transaction cache adapter, which resolves the same tenant prefix and key helpers
+// the engine adapter uses. It lets an integration test take a seed admission of an
+// account exactly as a cache-miss balance load does.
 type engineMarkerStore struct {
+	*txredis.RedisConsumerRepository
+}
+
+// engineMarkerClient hands the test's client to the cache adapter.
+type engineMarkerClient struct {
 	client redis.UniversalClient
 }
 
-func (s *engineMarkerStore) key(ctx context.Context, key string) (string, error) {
-	return tmvalkey.GetKeyContext(ctx, key)
+func (p engineMarkerClient) GetClient(context.Context) (redis.UniversalClient, error) {
+	return p.client, nil
 }
 
-func (s *engineMarkerStore) GetAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (string, bool, error) {
-	key, err := s.key(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID))
+func newEngineMarkerStore(client redis.UniversalClient) (*engineMarkerStore, error) {
+	repository, err := txredis.NewConsumerRedis(engineMarkerClient{client: client})
 	if err != nil {
-		return "", false, err
+		return nil, err
 	}
 
-	value, err := s.client.Get(ctx, key).Result()
-	if errors.Is(err, redis.Nil) {
-		return "", false, nil
-	}
-
-	if err != nil {
-		return "", false, err
-	}
-
-	return value, true, nil
+	return &engineMarkerStore{RedisConsumerRepository: repository}, nil
 }
 
-func (s *engineMarkerStore) GetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (time.Time, bool, error) {
-	key, err := s.key(ctx, utils.AccountClosedMarkerKey(organizationID, ledgerID, accountID))
-	if err != nil {
-		return time.Time{}, false, err
-	}
+func requireEngineMarkerStore(t testing.TB, client redis.UniversalClient) *engineMarkerStore {
+	t.Helper()
 
-	value, err := s.client.Get(ctx, key).Result()
-	if errors.Is(err, redis.Nil) {
-		return time.Time{}, false, nil
-	}
+	store, err := newEngineMarkerStore(client)
+	require.NoError(t, err)
 
-	if err != nil {
-		return time.Time{}, false, err
-	}
-
-	closedAt, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return time.Time{}, false, err
-	}
-
-	return closedAt, true, nil
+	return store
 }
 
-func (s *engineMarkerStore) SetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, closedAt time.Time) error {
-	key, err := s.key(ctx, utils.AccountClosedMarkerKey(organizationID, ledgerID, accountID))
-	if err != nil {
-		return err
+// AdmitAccountSeed refuses without an error only for an exclusive owner, the one
+// holder that may refuse a seed admission.
+func (s *engineMarkerStore) AdmitAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	admitted, holder, err := s.AcquireAccountSeedAdmission(ctx, organizationID, ledgerID, accountID, token)
+	if err != nil || admitted {
+		return admitted, err
 	}
 
-	return s.client.Set(ctx, key, closedAt.UTC().Format(time.RFC3339Nano), 300*time.Second).Err()
+	if holder != txredis.AccountAdminHolderExclusive {
+		return false, fmt.Errorf("%w: seed admission refused by holder %q", txredis.ErrAccountProtectionMarkerUnreadable, holder)
+	}
+
+	return false, nil
 }
 
-func (s *engineMarkerStore) AcquireAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	key, err := s.key(ctx, utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID))
-	if err != nil {
-		return false, err
-	}
-
-	return s.client.SetNX(ctx, key, token, 0).Result()
+func (s *engineMarkerStore) ReleaseAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	return s.ReleaseAccountSeedAdmission(ctx, organizationID, ledgerID, accountID, token)
 }
 
-func (s *engineMarkerStore) ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	key, err := s.key(ctx, utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID))
-	if err != nil {
-		return false, err
-	}
-
-	value, err := s.client.Get(ctx, key).Result()
-	if errors.Is(err, redis.Nil) {
-		return false, nil
-	}
-
-	if err != nil || value != token {
-		return false, err
-	}
-
-	return s.client.Del(ctx, key).Val() == 1, nil
-}
-
-// admitEngineSeeds gives the caller the administrative ownership of every account
-// of the pool and returns the context that carries it into the adapter, which is
+// admitEngineSeeds takes a shared seed admission over every account of the pool
+// and returns the context that carries it into the adapter, which is
 // what a cache-miss balance load leaves behind for the execution that admits its
 // seed. A context without it may only use balances the cache already holds. A
 // multi-scope pool takes one admission per ledger, as one load per ledger does.
@@ -152,13 +118,13 @@ func admitEngineSeeds(t testing.TB, ctx context.Context, client redis.UniversalC
 	return ctx
 }
 
-// admitEngineAccounts takes the ownership of the named accounts on ctx's sink.
+// admitEngineAccounts takes a shared seed admission over the named accounts.
 func admitEngineAccounts(t testing.TB, ctx context.Context, client redis.UniversalClient, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) *accountprotection.Admission {
 	t.Helper()
 
-	guard := accountprotection.NewGuard(nil, &engineMarkerStore{client: client})
+	guard := accountprotection.NewSeedAdmissionGuard(nil, requireEngineMarkerStore(t, client))
 
-	admission, err := guard.AcquireAdmission(ctx, organizationID, ledgerID, accountIDs)
+	admission, err := guard.AcquireSeedAdmission(ctx, organizationID, ledgerID, accountIDs)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { admission.Release(context.WithoutCancel(ctx)) })
@@ -166,7 +132,7 @@ func admitEngineAccounts(t testing.TB, ctx context.Context, client redis.Univers
 	return admission
 }
 
-// adoptSeedAdmission takes the administrative ownership of the accounts a stub
+// adoptSeedAdmission takes a shared seed admission over the accounts a stub
 // balance reader is about to hand over and leaves it on the caller's admission
 // sink, which is what the real cache-miss load does before an execution may seed
 // those balances. Without a sink or a client it is a no-op.
@@ -186,9 +152,12 @@ func adoptSeedAdmission(ctx context.Context, client redis.UniversalClient, organ
 		accountIDs = append(accountIDs, accountID)
 	}
 
-	guard := accountprotection.NewGuard(nil, &engineMarkerStore{client: client})
+	store, err := newEngineMarkerStore(client)
+	if err != nil {
+		return err
+	}
 
-	admission, err := guard.AcquireAdmission(ctx, organizationID, ledgerID, accountIDs)
+	admission, err := accountprotection.NewSeedAdmissionGuard(nil, store).AcquireSeedAdmission(ctx, organizationID, ledgerID, accountIDs)
 	if err != nil {
 		return err
 	}

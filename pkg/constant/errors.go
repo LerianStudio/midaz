@@ -615,11 +615,11 @@ var (
 	// "closed just now" out of a response that describes a closing someone else
 	// performed. The recorded instant is preserved.
 	ErrAccountAlreadyClosed = errors.New("0521")
-	// ErrAccountClosingInProgress is returned when another administrative attempt
-	// already holds the account: a closing is being decided or finalized. Distinct
-	// from ErrAccountAlreadyClosed (0521), which reports a transition that already
-	// landed; this one reports a decision still in flight, so the account may end
-	// up either open or closed.
+	// ErrAccountClosingInProgress is returned when a closing of the account is
+	// being decided or finalized. Distinct from ErrAccountAlreadyClosed (0521),
+	// which reports a transition that already landed; this one reports a decision
+	// still in flight, so the account may end up either open or closed. Contention
+	// that involves no closing is ErrAccountAdministrativeOperationInProgress (0526).
 	ErrAccountClosingInProgress = errors.New("0522")
 	// ErrAccountBalanceNotZero is returned when a close finds any balance of the
 	// account whose Available, OnHold or OverdraftUsed is not exactly zero. The
@@ -653,6 +653,13 @@ var (
 	// service did not decide: unreachable, timed out, breaker open, or an answer
 	// the client reclassifies as undecided. Never a denial, so a retry is valid.
 	ErrAuthorizationServiceUnavailable = errors.New("0525")
+	// ErrAccountAdministrativeOperationInProgress is returned when the account is
+	// held by an operation other than a closing: transactions loading its balances
+	// refuse a closing, a balance creation or a balance deletion, and each of
+	// those exclusive operations refuses the others and the loads. Nothing was
+	// decided about the account, so a retry is valid once the holder concludes. A
+	// closing in progress is ErrAccountClosingInProgress (0522).
+	ErrAccountAdministrativeOperationInProgress = errors.New("0526")
 )
 
 // List of CRM domain errors.

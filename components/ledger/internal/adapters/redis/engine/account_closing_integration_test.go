@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -103,25 +104,39 @@ func TestIntegrationAccountClosingRefusesAnUnprotectedSeed(t *testing.T) {
 
 	for _, test := range []struct {
 		name  string
-		owner string
+		shape func(t *testing.T, client redis.UniversalClient, ownership string)
 	}{
-		{name: "no ownership at all"},
-		{name: "ownership of another operation", owner: "another-admission-token"},
+		{name: "no ownership at all", shape: func(*testing.T, redis.UniversalClient, string) {}},
+		{name: "only admissions of other loads", shape: func(t *testing.T, client redis.UniversalClient, ownership string) {
+			admitSharedSeeds(t, client, ownership, "another-admission-token", "a-third-admission-token")
+		}},
+		{name: "the caller's admission was released while another stays live", shape: func(t *testing.T, client redis.UniversalClient, ownership string) {
+			admitSharedSeeds(t, client, ownership, testAdmissionToken, "another-admission-token")
+			require.NoError(t, client.ZRem(context.Background(), ownership, testAdmissionToken).Err())
+		}},
+		{name: "an exclusive owner of another operation", shape: func(t *testing.T, client redis.UniversalClient, ownership string) {
+			require.NoError(t, client.Set(context.Background(), ownership, "another-admission-token", 0).Err())
+		}},
+		// An exclusive owner excludes every seed, even one naming the caller's own
+		// token, so an exclusive admission an older release took can never stand in
+		// for a shared one.
+		{name: "an exclusive owner carrying the caller's token", shape: func(t *testing.T, client redis.UniversalClient, ownership string) {
+			require.NoError(t, client.Set(context.Background(), ownership, testAdmissionToken, 0).Err())
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			protection := sourceAccountProtection(t, f)
 
 			require.NoError(t, container.Client.Del(context.Background(), protection.Ownership).Err())
-
-			if test.owner != "" {
-				require.NoError(t, container.Client.Set(context.Background(), protection.Ownership, test.owner, 0).Err())
-			}
+			test.shape(t, container.Client, protection.Ownership)
 
 			before := f.capture(t)
 			_, err := f.run(t)
 			require.ErrorContains(t, err, `"code":"admission_not_confirmed"`)
 			require.Equal(t, before, f.capture(t), "an unconfirmed admission refuses before any accounting write")
+			require.Zero(t, container.Client.Exists(context.Background(), f.resolved.Balances["@source#default"].Balance).Val(),
+				"an unconfirmed admission seeds no balance")
 		})
 	}
 }
@@ -188,7 +203,8 @@ func TestIntegrationAccountClosingLeavesAnUnusedPoolBalanceAlone(t *testing.T) {
 	unused.Alias, unused.BalanceRef = "@unused", "@unused#default"
 	f.input.Execution.Balances = append(f.input.Execution.Balances, unused)
 	f.resolved.Balances[unused.BalanceRef] = testResolvedBalanceKeys(
-		strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", unused.BalanceRef, 1))
+		strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", unused.BalanceRef, 1),
+	)
 	f.seed(t, 1, unused)
 
 	f.syncAccountProtection(t)
@@ -235,17 +251,31 @@ func TestIntegrationAccountClosingRefusesAnUnreadableMarker(t *testing.T) {
 
 	container := redistestutil.SetupReusableContainer(t)
 
+	blank := func(key func(resolvedAccountKeys) string) func(*testing.T, redis.UniversalClient, resolvedAccountKeys) {
+		return func(t *testing.T, client redis.UniversalClient, protection resolvedAccountKeys) {
+			require.NoError(t, client.Del(context.Background(), key(protection)).Err())
+			require.NoError(t, client.Set(context.Background(), key(protection), "", time.Hour).Err())
+		}
+	}
+
 	for _, test := range []struct {
-		name string
-		key  func(resolvedAccountKeys) string
+		name  string
+		shape func(*testing.T, redis.UniversalClient, resolvedAccountKeys)
 	}{
-		{name: "closing", key: func(p resolvedAccountKeys) string { return p.Closing }},
-		{name: "closed", key: func(p resolvedAccountKeys) string { return p.Closed }},
+		{name: "closing", shape: blank(func(p resolvedAccountKeys) string { return p.Closing })},
+		{name: "closed", shape: blank(func(p resolvedAccountKeys) string { return p.Closed })},
+		{name: "blank exclusive owner", shape: blank(func(p resolvedAccountKeys) string { return p.Ownership })},
+		// The ownership key is either an exclusive owner or the shared admissions;
+		// any other shape is a failure of the protection surface, not an absence.
+		{name: "ownership of an unexpected type", shape: func(t *testing.T, client redis.UniversalClient, protection resolvedAccountKeys) {
+			require.NoError(t, client.Del(context.Background(), protection.Ownership).Err())
+			require.NoError(t, client.HSet(context.Background(), protection.Ownership, "member", testAdmissionToken).Err())
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			protection := sourceAccountProtection(t, f)
-			require.NoError(t, container.Client.Set(context.Background(), test.key(protection), "", time.Hour).Err())
+			test.shape(t, container.Client, protection)
 
 			before := f.capture(t)
 			_, err := f.run(t)

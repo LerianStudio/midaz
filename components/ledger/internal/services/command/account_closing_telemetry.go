@@ -33,6 +33,7 @@ const (
 const (
 	accountClosingReasonAlreadyClosed           = "already_closed"
 	accountClosingReasonClosingInProgress       = "closing_in_progress"
+	accountClosingReasonOperationInProgress     = "operation_in_progress"
 	accountClosingReasonBalanceNotZero          = "balance_not_zero"
 	accountClosingReasonPendingTransactions     = "pending_transactions"
 	accountClosingReasonPersistencePending      = "persistence_pending"
@@ -280,6 +281,8 @@ func accountClosingReason(err error) string {
 		return accountClosingReasonAlreadyClosed
 	case constant.ErrAccountClosingInProgress.Error():
 		return accountClosingReasonClosingInProgress
+	case constant.ErrAccountAdministrativeOperationInProgress.Error():
+		return accountClosingReasonOperationInProgress
 	case constant.ErrAccountBalanceNotZero.Error():
 		return accountClosingReasonBalanceNotZero
 	case constant.ErrAccountHasPendingTransactions.Error():

@@ -133,7 +133,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 
 			// The destination closes while the pending is alive: AC-08b says nothing
 			// here stops it, and the negative cache is what every later movement meets.
-			markers := &engineMarkerStore{client: client}
+			markers := requireEngineMarkerStore(t, client)
 			require.NoError(t, markers.SetAccountClosedMarker(ctx, organizationID, ledgerID, destinationAccountID, accountClosingLifecycleInstant))
 
 			reader.persisted = pending

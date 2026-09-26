@@ -23,18 +23,23 @@ import (
 )
 
 // accountClosingMarkerStore is the protection surface of these tests: it records
-// which accounts are owned so the resolution of an execution can be observed.
+// which accounts are held, exclusively or by seed admissions, so the resolution of
+// an execution can be observed.
 type accountClosingMarkerStore struct {
-	owned map[uuid.UUID]string
+	owned    map[uuid.UUID]string
+	admitted map[uuid.UUID]map[string]struct{}
 }
 
 func newAccountClosingMarkerStore() *accountClosingMarkerStore {
-	return &accountClosingMarkerStore{owned: map[uuid.UUID]string{}}
+	return &accountClosingMarkerStore{owned: map[uuid.UUID]string{}, admitted: map[uuid.UUID]map[string]struct{}{}}
 }
 
-func (s *accountClosingMarkerStore) reset() { s.owned = map[uuid.UUID]string{} }
+func (s *accountClosingMarkerStore) reset() {
+	s.owned = map[uuid.UUID]string{}
+	s.admitted = map[uuid.UUID]map[string]struct{}{}
+}
 
-func (s *accountClosingMarkerStore) ownedAccounts() int { return len(s.owned) }
+func (s *accountClosingMarkerStore) ownedAccounts() int { return len(s.owned) + len(s.admitted) }
 
 func (s *accountClosingMarkerStore) GetAccountClosingMarker(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (string, bool, error) {
 	return "", false, nil
@@ -49,7 +54,7 @@ func (s *accountClosingMarkerStore) SetAccountClosedMarker(context.Context, uuid
 }
 
 func (s *accountClosingMarkerStore) AcquireAccountAdminOwnership(_ context.Context, _, _, accountID uuid.UUID, token string) (bool, error) {
-	if _, owned := s.owned[accountID]; owned {
+	if _, owned := s.owned[accountID]; owned || len(s.admitted[accountID]) > 0 {
 		return false, nil
 	}
 
@@ -64,6 +69,34 @@ func (s *accountClosingMarkerStore) ReleaseAccountAdminOwnership(_ context.Conte
 	}
 
 	delete(s.owned, accountID)
+
+	return true, nil
+}
+
+func (s *accountClosingMarkerStore) AdmitAccountSeed(_ context.Context, _, _, accountID uuid.UUID, token string) (bool, error) {
+	if _, owned := s.owned[accountID]; owned {
+		return false, nil
+	}
+
+	if s.admitted[accountID] == nil {
+		s.admitted[accountID] = map[string]struct{}{}
+	}
+
+	s.admitted[accountID][token] = struct{}{}
+
+	return true, nil
+}
+
+func (s *accountClosingMarkerStore) ReleaseAccountSeed(_ context.Context, _, _, accountID uuid.UUID, token string) (bool, error) {
+	if _, admitted := s.admitted[accountID][token]; !admitted {
+		return false, nil
+	}
+
+	delete(s.admitted[accountID], token)
+
+	if len(s.admitted[accountID]) == 0 {
+		delete(s.admitted, accountID)
+	}
 
 	return true, nil
 }
@@ -169,7 +202,7 @@ func TestResolveEngineAdmissionsKeepsAnUnresolvedExecutionProtected(t *testing.T
 
 			ctx, sink := accountprotection.ContextWithSink(context.Background())
 
-			admission, err := accountprotection.NewGuard(nil, store).AcquireAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
+			admission, err := accountprotection.NewSeedAdmissionGuard(nil, store).AcquireSeedAdmission(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
 			require.NoError(t, err)
 			require.True(t, accountprotection.AdoptAdmission(ctx, admission))
 

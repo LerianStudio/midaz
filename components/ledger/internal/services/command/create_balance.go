@@ -64,9 +64,9 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 	writeIssued := false
 
 	if !strings.EqualFold(input.AccountType, constant.ExternalAccountType) {
-		admission, admissionErr := uc.acquireAccountAdmission(ctx, input.OrganizationID, input.LedgerID, input.AccountID)
+		admission, admissionErr := uc.acquireAccountOwnership(ctx, input.OrganizationID, input.LedgerID, input.AccountID)
 		if admissionErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for the default balance", admissionErr)
+			recordCommandError(ctx, span, logger, "Failed to protect the account for the default balance", admissionErr)
 
 			return nil, admissionErr
 		}

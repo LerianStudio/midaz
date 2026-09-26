@@ -5,6 +5,7 @@
 package in
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -119,11 +120,21 @@ func (m *closeRouteMocks) expectEligibleClosing() {
 			Type:           "deposit",
 		}, nil)
 
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID, gomock.Any()).
-		Return(true, nil)
+	// The closing installs its marker first, recognizes it as its own, and then
+	// takes the ownership under the same token.
+	var token string
+
 	m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, installed string) (bool, error) {
+			token = installed
+
+			return true, nil
+		})
+	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID).
+		DoAndReturn(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (string, bool, error) {
+			return token, true, nil
+		})
+	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID, gomock.Any()).
 		Return(true, nil)
 
 	m.balance.EXPECT().ListByAccountID(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID).

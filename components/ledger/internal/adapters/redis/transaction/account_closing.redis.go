@@ -104,14 +104,32 @@ type AccountProtectionRepository interface {
 	// returns (zero, false, nil); a marker whose value is not a timestamp returns
 	// ErrAccountProtectionMarkerUnreadable.
 	GetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (time.Time, bool, error)
-	// AcquireAccountAdminOwnership takes the administrative ownership of one account
-	// for the caller's token, returning false when another operation owns it. Like
-	// the closing marker it carries no releasing expiry: ownership of work whose
-	// result is unknown is resolved by reconciliation, never by age.
+	// AcquireAccountAdminOwnership takes the EXCLUSIVE administrative ownership of
+	// one account for the caller's token: the mode of a closing, a balance creation
+	// and a balance deletion. It returns false while any other holder is present,
+	// whether another exclusive owner or live seed admissions, so none of those
+	// operations runs while a cache-miss seed is in flight. Like the closing marker
+	// it carries no releasing expiry: ownership of work whose result is unknown is
+	// resolved by reconciliation, never by age. A key in a state no writer produces
+	// returns ErrAccountProtectionMarkerUnreadable.
 	AcquireAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
-	// ReleaseAccountAdminOwnership drops the ownership only when it still carries the
-	// caller's token.
+	// ReleaseAccountAdminOwnership drops the exclusive ownership only when it still
+	// carries the caller's token. It never touches seed admissions: a key holding
+	// them returns (false, nil).
 	ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
+	// AcquireAccountSeedAdmission adds the caller's token to the SHARED seed
+	// admissions of one account, the mode of a cache-miss balance load. Admissions
+	// coexist with one another; while an exclusive owner holds the account the call
+	// returns (false, AccountAdminHolderExclusive, nil) and writes nothing. Admitting
+	// a token twice keeps its first acquisition instant. It carries no releasing
+	// expiry, for the same reason as the exclusive mode. A key in a state no writer
+	// produces, or an empty token, returns ErrAccountProtectionMarkerUnreadable.
+	AcquireAccountSeedAdmission(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, AccountAdminHolder, error)
+	// ReleaseAccountSeedAdmission removes only the caller's own admission, and the
+	// account's key with it once no admission is left. It never touches an
+	// exclusive owner: that key returns (false, nil), as does a token that is not a
+	// live admission.
+	ReleaseAccountSeedAdmission(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
 	// ScanAccountClosingMarkers reads one bounded page of the closing-marker
 	// namespace. It is how reconciliation finds the attempts a restart interrupted,
 	// without an unbounded key read and without depending on anything held in
@@ -210,6 +228,17 @@ func decodeAccountClosingAttempt(value string) (AccountClosingAttempt, error) {
 // runAccountClosingScript runs one conditional marker script over the tenant's
 // key and reports whether it applied.
 func (rr *RedisConsumerRepository) runAccountClosingScript(ctx context.Context, script *redis.Script, spanName, key string, args ...any) (bool, error) {
+	applied, err := rr.runAccountProtectionScript(ctx, script, spanName, key, args...)
+
+	return applied == accountProtectionScriptApplied, err
+}
+
+// runAccountProtectionScript runs one conditional protection script over the
+// tenant's key and returns its verdict. A script reports a key in a state no
+// writer produces with accountProtectionScriptUnreadable, which becomes
+// ErrAccountProtectionMarkerUnreadable here so no caller can read it as a refusal
+// or as success. Any other reply outside the three verdicts is a technical error.
+func (rr *RedisConsumerRepository) runAccountProtectionScript(ctx context.Context, script *redis.Script, spanName, key string, args ...any) (int64, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName)
@@ -219,33 +248,48 @@ func (rr *RedisConsumerRepository) runAccountClosingScript(ctx context.Context, 
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 
-		return false, err
+		return accountProtectionScriptRefused, err
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
 
-		return false, err
+		return accountProtectionScriptRefused, err
 	}
 
 	result, err := script.Run(ctx, rds, []string{key}, args...).Result()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to run the account closing marker script", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to run the account protection script", err)
 
-		return false, err
+		return accountProtectionScriptRefused, err
 	}
 
-	applied, ok := result.(int64)
+	verdict, ok := result.(int64)
 	if !ok {
-		err = fmt.Errorf("unexpected result type from account closing marker script: %T", result)
+		err = fmt.Errorf("unexpected result type from account protection script: %T", result)
 
 		libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
 
-		return false, err
+		return accountProtectionScriptRefused, err
 	}
 
-	return applied == 1, nil
+	switch verdict {
+	case accountProtectionScriptApplied, accountProtectionScriptRefused:
+		return verdict, nil
+	case accountProtectionScriptUnreadable:
+		err = fmt.Errorf("%w: the key holds a state no protection writer produces", ErrAccountProtectionMarkerUnreadable)
+
+		libOpentelemetry.HandleSpanError(span, "Account protection key is unreadable", err)
+
+		return accountProtectionScriptRefused, err
+	default:
+		err = fmt.Errorf("unexpected verdict from account protection script: %d", verdict)
+
+		libOpentelemetry.HandleSpanError(span, "Unexpected result", err)
+
+		return accountProtectionScriptRefused, err
+	}
 }
 
 func (rr *RedisConsumerRepository) SetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, closedAt time.Time) error {
@@ -274,14 +318,6 @@ func (rr *RedisConsumerRepository) GetAccountClosedMarker(ctx context.Context, o
 	}
 
 	return closedAt.UTC(), true, nil
-}
-
-func (rr *RedisConsumerRepository) AcquireAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	return rr.acquireAccountProtection(ctx, utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID), token)
-}
-
-func (rr *RedisConsumerRepository) ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	return rr.releaseAccountProtection(ctx, utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID), token)
 }
 
 // acquireAccountProtection installs one protection key for the caller's token when

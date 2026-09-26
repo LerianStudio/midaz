@@ -99,9 +99,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	// waits for this creation or refuses it — never validates a balance list that
 	// is still growing. The companion provisioned below belongs to the same
 	// account, so it is already covered and asks for no ownership of its own.
-	admission, err := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	admission, err := uc.acquireAccountOwnership(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for balance creation", err)
+		recordCommandError(ctx, span, logger, "Failed to protect the account for balance creation", err)
 
 		return nil, err
 	}

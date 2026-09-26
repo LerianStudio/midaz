@@ -83,10 +83,12 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 	require.NoError(t, err)
 	ctx := libObservability.ContextWithMetricFactory(context.Background(), factory)
 	client, _, _ := newAdapterValkey(t)
+	input, limits := richAdapterExecution(t)
+	// The seed admission runs its own scripts; it is taken before the hook so the
+	// counters observe the engine's commands alone.
+	ctx = admitEngineSeeds(t, ctx, client, input.Execution)
 	hook := &integrationCommandHook{}
 	client.AddHook(hook)
-	input, limits := richAdapterExecution(t)
-	ctx = admitEngineSeeds(t, ctx, client, input.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 	require.NoError(t, err)
 	first, err := adapter.Execute(ctx, input)
