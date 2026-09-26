@@ -38,7 +38,6 @@ func TestIntegration_TransactionGetByID_LegAliasesMatchCreate(t *testing.T) {
 	require.True(t, ok, "Redis repository must expose the engine write-behind index")
 
 	t.Run("durable_then_absent_index_reads_from_primary", func(t *testing.T) {
-		ctx := context.Background()
 		organizationID := fixture.infra.orgID
 		ledgerID := fixture.newLedger(t)
 		seedTransfer(t, fixture.infra.pgContainer.DB, organizationID, ledgerID, "@src", "@dst", 100)
@@ -66,18 +65,53 @@ func TestIntegration_TransactionGetByID_LegAliasesMatchCreate(t *testing.T) {
 		assert.Equal(t, "edited after persistence", v2AfterPatch["description"], "the GET must answer the edit, not the frozen engine view")
 		assertLegAliases(t, v2AfterPatch, "debit", "credit", "v2 GET after PATCH")
 
-		indexKey := "engine:" + cachepolicy.HashTag + ":transaction-index:" + organizationID.String() + ":" + ledgerID.String()
-		removed, err := fixture.infra.redisContainer.Client.HDel(ctx, indexKey, transactionID.String()).Result()
-		require.NoError(t, err)
-		require.Equal(t, int64(1), removed, "the transaction's index entry must exist under %s before its removal", indexKey)
-		_, err = repository.GetEngineTransactionIndex(ctx, organizationID, ledgerID, transactionID)
-		require.ErrorIs(t, err, redistransaction.ErrEngineWriteBehindNotFound, "the index entry must be absent")
+		removeEngineIndexEntry(t, fixture, repository, ledgerID, transactionID)
 
 		v2Absent := readTransaction(t, v2App, v2URL, "false")
 		assertLegAliases(t, v2Absent, "debit", "credit", "v2 GET, absent index")
 
 		v1Absent := readTransaction(t, v1App, v1URL, "false")
 		assertLegAliases(t, v1Absent, "source", "destination", "v1 GET, absent index")
+	})
+
+	// A persisted hold carries a single ON_HOLD leg on the source, so the
+	// primary has no CREDIT leg to name the destination and takes it from the
+	// submitted body, whose entries are stored as "index#alias#balanceKey". No
+	// persisted leg names the source, so it answers empty rather than the alias
+	// the create answered.
+	t.Run("pending_hold_takes_destination_from_persisted_body", func(t *testing.T) {
+		organizationID := fixture.infra.orgID
+		ledgerID := fixture.newLedger(t)
+		seedTransfer(t, fixture.infra.pgContainer.DB, organizationID, ledgerID, "@src", "@dst", 100)
+
+		raw, err := json.Marshal(atomicBatchTransfer(organizationID, ledgerID, "hold aliases on read", "@src", "@dst", 100))
+		require.NoError(t, err)
+
+		created := decodeTxResponse(t, postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "hold-aliases"), nethttp.StatusCreated)
+		require.Equal(t, "PENDING", created["status"].(map[string]any)["code"], "the hold must be created PENDING")
+		transactionID := uuid.MustParse(created["id"].(string))
+
+		pending := engineIndexPending(t, fixture, repository, ledgerID, transactionID)
+		require.False(t, pending, "the acknowledged hold must leave the engine index durable")
+
+		v2URL := v2TxByIDURL(organizationID, ledgerID, transactionID)
+
+		assertHoldLegAliases(t, readTransaction(t, v2App, v2URL, "false"), "debit", "credit", "v2 GET, durable index")
+		assertHoldLegAliases(t, readTransaction(t, v1App, v1TxByIDURL(organizationID, ledgerID, transactionID), "false"),
+			"source", "destination", "v1 GET, durable index")
+
+		page := decodeTxResponse(t, getV2(t, v2App, v2TxListURL(organizationID, ledgerID)), nethttp.StatusOK)
+		items, ok := page["items"].([]any)
+		require.True(t, ok, "list envelope must carry an items array")
+		require.Len(t, items, 1, "the ledger holds only this transaction")
+		item, ok := items[0].(map[string]any)
+		require.True(t, ok, "list item must decode as an object")
+		require.Equal(t, transactionID.String(), item["id"])
+		assertHoldLegAliases(t, item, "debit", "credit", "v2 list item")
+
+		removeEngineIndexEntry(t, fixture, repository, ledgerID, transactionID)
+
+		assertHoldLegAliases(t, readTransaction(t, v2App, v2URL, "false"), "debit", "credit", "v2 GET, absent index")
 	})
 
 	t.Run("pending_index_reads_from_engine_view", func(t *testing.T) {
@@ -135,6 +169,29 @@ func engineIndexPending(
 	return pending
 }
 
+// removeEngineIndexEntry deletes the transaction's engine index entry and
+// asserts the repository then reports it absent, so the next read can only be
+// served by the primary.
+func removeEngineIndexEntry(
+	t *testing.T,
+	fixture *atomicBatchHTTPIntegrationFixture,
+	repository *redistransaction.RedisConsumerRepository,
+	ledgerID, transactionID uuid.UUID,
+) {
+	t.Helper()
+
+	ctx := context.Background()
+	organizationID := fixture.infra.orgID
+	indexKey := "engine:" + cachepolicy.HashTag + ":transaction-index:" + organizationID.String() + ":" + ledgerID.String()
+
+	removed, err := fixture.infra.redisContainer.Client.HDel(ctx, indexKey, transactionID.String()).Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), removed, "the transaction's index entry must exist under %s before its removal", indexKey)
+
+	_, err = repository.GetEngineTransactionIndex(ctx, organizationID, ledgerID, transactionID)
+	require.ErrorIs(t, err, redistransaction.ErrEngineWriteBehindNotFound, "the index entry must be absent")
+}
+
 // readTransaction GETs a transaction by id, asserting 200 and which source
 // answered it through X-Cache-Hit: "true" is the engine view, "false" the primary.
 func readTransaction(t *testing.T, app *fiber.App, url, wantCacheHit string) map[string]any {
@@ -153,6 +210,16 @@ func assertLegAliases(t *testing.T, tx map[string]any, debitKey, creditKey, labe
 	t.Helper()
 
 	assert.Equalf(t, []any{"@src"}, tx[debitKey], "%s: %s", label, debitKey)
+	assert.Equalf(t, []any{"@dst"}, tx[creditKey], "%s: %s", label, creditKey)
+}
+
+// assertHoldLegAliases asserts a persisted hold's leg alias lists by value:
+// the destination comes from the submitted body as the bare alias, and the
+// source is empty because no persisted leg names it.
+func assertHoldLegAliases(t *testing.T, tx map[string]any, debitKey, creditKey, label string) {
+	t.Helper()
+
+	assert.Equalf(t, []any{}, tx[debitKey], "%s: %s", label, debitKey)
 	assert.Equalf(t, []any{"@dst"}, tx[creditKey], "%s: %s", label, creditKey)
 }
 

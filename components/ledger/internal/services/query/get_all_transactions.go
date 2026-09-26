@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
@@ -77,7 +76,8 @@ func transactionLegAliases(operations []*operation.Operation, body mtransaction.
 // deriveDestinationFromBody returns the submitted destination aliases from a
 // persisted transaction body, in the same bare-alias form the write path caches
 // via getAliasWithoutKey(filterCompanionAliases(...)): the system-managed
-// overdraft companion is skipped and any "#balanceKey" suffix is stripped.
+// overdraft companion is skipped, and each entry answers its bare alias whether
+// it is stored as "alias", "alias#balanceKey", or "index#alias#balanceKey".
 //
 // It is the canonical fallback when operation-based reconstruction yields no
 // destination — typically a pre-commit overdraft, whose persisted legs are all
@@ -98,12 +98,7 @@ func deriveDestinationFromBody(body mtransaction.Transaction) []string {
 			continue
 		}
 
-		alias := entry.AccountAlias
-		if idx := strings.Index(alias, mtransaction.AliasSeparatorString); idx >= 0 {
-			alias = alias[:idx]
-		}
-
-		destination = append(destination, alias)
+		destination = append(destination, mtransaction.BareAlias(entry.AccountAlias))
 	}
 
 	return destination

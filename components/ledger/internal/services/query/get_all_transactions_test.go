@@ -276,6 +276,27 @@ func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 			expectedDestination: []string{"@merchant", "@suffixed"},
 		},
 		{
+			name:   "pending hold takes the bare aliases from indexed body entries",
+			status: constant.PENDING,
+			body: mtransaction.Transaction{
+				Pending: true,
+				Send: mtransaction.Send{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
+							{AccountAlias: "0#@dst#default", BalanceKey: constant.DefaultBalanceKey},
+							{AccountAlias: "1#@dst#overdraft", BalanceKey: constant.OverdraftBalanceKey},
+							{AccountAlias: "12#@b#savings", BalanceKey: "savings"},
+						},
+					},
+				},
+			},
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{leg(constant.ONHOLD, constant.DirectionCredit, "@src")}
+			},
+			expectedSource:      []string{},
+			expectedDestination: []string{"@dst", "@b"},
+		},
+		{
 			name:   "only system legs and no submitted destination answer empty lists",
 			status: constant.PENDING,
 			operations: func() []*operation.Operation {
