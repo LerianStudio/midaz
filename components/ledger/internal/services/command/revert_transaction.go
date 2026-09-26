@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -17,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
@@ -167,8 +169,8 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 
 // prepareRevertTransaction runs the revert eligibility gate — no parent, not already a
 // revert, APPROVED status, non-empty reversal, every routed operation bidirectional — and
-// returns the reversal payload TransactionRevert reconstructs from the persisted parent
-// operations.
+// returns the reversal payload TransactionRevert reconstructs from every operation of the
+// origin, across all of its executions.
 func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span, in RevertTransactionInput) (mtransaction.Transaction, *transaction.Transaction, error) {
 	// Route ONLY the transaction and parent reads of the eligibility gate to the primary
 	// via a dedicated ctx: a revert issued right after its create must read its own
@@ -189,12 +191,14 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return uc.rejectAlreadyRevertedTransaction(readCtx, span, in, parent)
 	}
 
-	tran, err := uc.loadLifecycleTransaction(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	loaded, err := uc.loadLifecycleResolution(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		return mtransaction.Transaction{}, nil, err
 	}
+
+	tran := loaded.Transaction
 
 	if tran.ParentTransactionID != nil {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
@@ -208,6 +212,12 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
+	if err := uc.completeRevertOriginOperations(readCtx, in, loaded); err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to complete the operations of the transaction to revert", err)
 
 		return mtransaction.Transaction{}, tran, err
 	}
@@ -274,6 +284,149 @@ func (uc *UseCase) rejectAlreadyRevertedTransaction(
 	}
 
 	return mtransaction.Transaction{}, nil, err
+}
+
+// completeRevertOriginOperations adds to the loaded origin the operations its engine
+// view leaves out. That view carries only the latest execution, so for a committed hold
+// it has the commit's rows and not the hold's. Under route validation the hold wrote the
+// source DEBIT, which is the leg the reversal credits back. Once the indexed execution
+// is durable the primary holds both phases, because completion persists a predecessor
+// before its successor. While it is still pending, the earlier phase is in the
+// predecessor's evidence, which cleanup keeps for as long as its successor is pending.
+func (uc *UseCase) completeRevertOriginOperations(ctx context.Context, in RevertTransactionInput, loaded *TransactionProjectionResolution) error {
+	switch {
+	case loaded.ExecutionID == uuid.Nil:
+		// The primary or the legacy entry answered, and both hold every row.
+		return nil
+	case loaded.Pending:
+		return uc.mergeRevertOriginPredecessor(ctx, in, loaded.ExecutionID, loaded.Transaction)
+	default:
+		return uc.mergePersistedRevertOrigin(ctx, in, loaded.Transaction)
+	}
+}
+
+// mergeRevertOriginPredecessor merges the operations of the execution the pending one
+// succeeded. An execution that names no predecessor followed one whose index entry was
+// already reaped, so the earlier phase is durable and the primary answers it. A named
+// predecessor whose evidence cannot be read fails the revert instead of reversing a
+// partial set.
+func (uc *UseCase) mergeRevertOriginPredecessor(ctx context.Context, in RevertTransactionInput, executionID uuid.UUID, origin *transaction.Transaction) error {
+	if uc.TransactionEvidenceResolver == nil {
+		return uc.mergePersistedRevertOrigin(ctx, in, origin)
+	}
+
+	current, err := uc.resolveRevertOriginEvidence(ctx, in, executionID)
+	if err != nil {
+		return err
+	}
+
+	var predecessor *TransactionEvidenceReference
+
+	for index := range current.Dependencies {
+		if current.Dependencies[index].Kind == TransactionDependencyPredecessor {
+			predecessor = &current.Dependencies[index]
+
+			break
+		}
+	}
+
+	if predecessor == nil {
+		return uc.mergePersistedRevertOrigin(ctx, in, origin)
+	}
+
+	earlier, err := uc.resolveRevertOriginEvidence(ctx, in, predecessor.ExecutionID)
+	if err != nil {
+		return err
+	}
+
+	views, err := BuildTransactionEvidenceViews(earlier.Record)
+	if err != nil {
+		return err
+	}
+
+	mergeOperationsByID(origin, views.Lookup)
+
+	return nil
+}
+
+// resolveRevertOriginEvidence reads the evidence of one execution of the origin and
+// checks it describes exactly that execution in the caller's scope.
+func (uc *UseCase) resolveRevertOriginEvidence(ctx context.Context, in RevertTransactionInput, executionID uuid.UUID) (*TransactionWriteBehindEnvelope, error) {
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
+	envelope, err := uc.TransactionEvidenceResolver.ResolveTransactionEvidence(ctx, TransactionEvidenceReference{
+		Kind: TransactionDependencyOrigin, TenantID: tenantID,
+		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID,
+		TransactionID: in.TransactionID, ExecutionID: executionID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("resolve revert origin evidence: %w", err)
+	}
+
+	if envelope == nil {
+		return nil, invalidTransactionCompletionRecord("revert origin evidence is missing")
+	}
+
+	record := envelope.Record
+	if record.TenantID != tenantID || record.OrganizationID != in.OrganizationID || record.LedgerID != in.LedgerID ||
+		record.TransactionID != in.TransactionID || record.ExecutionID != executionID {
+		return nil, invalidTransactionCompletionRecord("revert origin evidence scope mismatch")
+	}
+
+	return envelope, nil
+}
+
+func (uc *UseCase) mergePersistedRevertOrigin(ctx context.Context, in RevertTransactionInput, origin *transaction.Transaction) error {
+	persisted, err := uc.TransactionReader.GetTransactionWithOperationsByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	if err != nil {
+		return err
+	}
+
+	mergeOperationsByID(origin, persisted)
+
+	return nil
+}
+
+// mergeOperationsByID appends to origin the operations of source it does not already
+// carry. Engine operation IDs are deterministic, so one row read from two sources has one
+// ID. The origin's own rows keep their order, which leaves the reversal of an origin that
+// was already complete unchanged. The appended rows must not depend on where they were
+// read from, because the revert idempotency key is a hash of the reversal: the primary
+// loads no operation metadata and imposes no order, so an appended row drops its metadata
+// and the rows are appended in ID order.
+func mergeOperationsByID(origin, source *transaction.Transaction) {
+	if source == nil {
+		return
+	}
+
+	known := make(map[string]struct{}, len(origin.Operations)+len(source.Operations))
+	for _, op := range origin.Operations {
+		if op != nil {
+			known[op.ID] = struct{}{}
+		}
+	}
+
+	missing := make([]*operation.Operation, 0, len(source.Operations))
+
+	for _, op := range source.Operations {
+		if op == nil {
+			continue
+		}
+
+		if _, exists := known[op.ID]; exists {
+			continue
+		}
+
+		known[op.ID] = struct{}{}
+
+		appended := *op
+		appended.Metadata = nil
+		missing = append(missing, &appended)
+	}
+
+	sort.Slice(missing, func(i, j int) bool { return missing[i].ID < missing[j].ID })
+
+	origin.Operations = append(origin.Operations, missing...)
 }
 
 func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *createTransactionRun, originID uuid.UUID) error {

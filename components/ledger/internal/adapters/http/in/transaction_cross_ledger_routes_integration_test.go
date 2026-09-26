@@ -479,15 +479,12 @@ func TestIntegration_CrossLedgerV2_RouteValidatingLedgers(t *testing.T) {
 
 		member := groupMember(t, committed, participants.ledgerB)
 		response := postTransaction(t, fixture.app, v2RevertURL(organization, participants.ledgerB, member), "", "routed-held-revert")
-		body := drainBody(t, response)
-
-		if response.StatusCode == http.StatusUnprocessableEntity && problemCodeOf(body) == constant.ErrTransactionValueMismatch.Error() {
-			t.Skipf("reverting a committed pending transaction under route validation answers %s until #5703 is fixed; body: %s",
-				constant.ErrTransactionValueMismatch.Error(), string(body))
-		}
-
-		reverted := decodeCrossLedgerGroup(t, response.StatusCode, body, http.StatusCreated)
+		reverted := decodeCrossLedgerGroup(t, response.StatusCode, drainBody(t, response), http.StatusCreated)
 		require.Equal(t, *held.GroupID, *reverted.RevertedGroupID)
+		require.Len(t, reverted.Transactions, 2)
+
+		reversalA := loadRoutedOperations(t, fixture, groupMember(t, reverted, participants.ledgerA))
+		requireOperationRoute(t, reversalA, participants.sourceAlias, constant.CREDIT, &template.source, "S-revert-credit")
 		requireCachedAvailable(t, fixture, participants.ledgerA, participants.sourceAlias, 100)
 		requireCachedAvailable(t, fixture, participants.ledgerB, participants.destinationAlias, 0)
 	})
@@ -537,17 +534,4 @@ func TestIntegration_CrossLedgerV2_RouteValidatingLedgers(t *testing.T) {
 		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, participants.ledgerA))
 		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, participants.ledgerB))
 	})
-}
-
-// problemCodeOf reads the code of a problem body, or "" when there is none.
-func problemCodeOf(body []byte) string {
-	var problem struct {
-		Code string `json:"code"`
-	}
-
-	if err := json.Unmarshal(body, &problem); err != nil {
-		return ""
-	}
-
-	return problem.Code
 }
