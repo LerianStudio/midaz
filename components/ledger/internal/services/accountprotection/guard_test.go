@@ -79,6 +79,7 @@ type fakeMarkers struct {
 	closedErr  error
 	setErr     error
 	acquireErr error
+	releaseErr error
 
 	// closingErrAfter fails the closing marker read once it was answered this many
 	// times, so a test can break the read that follows a refused acquisition.
@@ -178,6 +179,10 @@ func (f *fakeMarkers) ReleaseAccountAdminOwnership(_ context.Context, organizati
 	defer f.mu.Unlock()
 
 	f.releaseCalls++
+
+	if f.releaseErr != nil {
+		return false, f.releaseErr
+	}
 
 	key := markerKey{organizationID, ledgerID, accountID}
 	if f.ownership[key] != token {
@@ -564,8 +569,8 @@ func TestAcquisition_RefusedByAnotherHolderNamesWhoHoldsIt(t *testing.T) {
 				accountID := uuid.New()
 				f.markers.ownership[f.key(accountID)] = uuid.NewString()
 
-				// A closing takes the ownership before it installs its marker, so the
-				// marker can appear between the check that precedes the acquisition
+				// A closing installs its marker and takes its ownership right after,
+				// so both can appear between the check that precedes this acquisition
 				// and the refusal.
 				f.markers.beforeAcquire = func(uuid.UUID) {
 					if closing {
@@ -963,4 +968,264 @@ func orderedPair() (uuid.UUID, uuid.UUID) {
 			return left, right
 		}
 	}
+}
+
+// TestAcquireClosingOwnership_TakesTheOwnershipUnderItsOwnMarker proves a closing
+// attempt is not refused by the marker it installed itself: the marker carrying
+// its token lets it through, and the ownership is taken under that same token,
+// which is what lets reconciliation find the ownership through the marker.
+func TestAcquireClosingOwnership_TakesTheOwnershipUnderItsOwnMarker(t *testing.T) {
+	t.Parallel()
+
+	f := newGuardFixture()
+	accountID := uuid.New()
+	token := uuid.NewString()
+	f.markers.closing[f.key(accountID)] = token
+
+	ctx, recorder := recordingContext()
+
+	admission, err := f.guard.AcquireClosingOwnership(ctx, f.organizationID, f.ledgerID, accountID, token)
+
+	require.NoError(t, err)
+	assert.Equal(t, token, admission.Token())
+	assert.Equal(t, []uuid.UUID{accountID}, admission.Accounts())
+	assert.Equal(t, token, f.markers.ownership[f.key(accountID)])
+
+	span := findSpan(t, recorder, "exec.acquire_account_closing_ownership")
+	assert.Equal(t, codes.Unset, span.Status().Code)
+
+	// The same marker still refuses every other exclusive acquisition as a closing.
+	_, err = f.guard.AcquireExclusive(context.Background(), f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+	assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
+
+	admission.Release(context.Background())
+	assert.Zero(t, f.markers.ownedCount())
+}
+
+// TestAcquireClosingOwnership_RefusesWhenTheMarkerIsNotItsOwn proves the attempt
+// takes nothing unless its own marker stands: another attempt's marker is a
+// closing holding the account, and a marker that is gone means this attempt's
+// protection was reclaimed, which leaves nothing to take an ownership under.
+func TestAcquireClosingOwnership_RefusesWhenTheMarkerIsNotItsOwn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		marker func(f *guardFixture, accountID uuid.UUID)
+		want   error
+		red    bool
+	}{
+		{
+			name:   "another attempt's marker",
+			marker: func(f *guardFixture, accountID uuid.UUID) { f.markers.closing[f.key(accountID)] = uuid.NewString() },
+			want:   constant.ErrAccountClosingInProgress,
+		},
+		{
+			name:   "no marker at all",
+			marker: func(*guardFixture, uuid.UUID) {},
+			want:   constant.ErrAccountClosingProtectionIndeterminate,
+			red:    true,
+		},
+		{
+			name:   "a marker that cannot be read",
+			marker: func(f *guardFixture, _ uuid.UUID) { f.markers.closingErr = errCacheUnavailable },
+			want:   constant.ErrAccountClosingProtectionIndeterminate,
+			red:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newGuardFixture()
+			accountID := uuid.New()
+			tt.marker(f, accountID)
+
+			ctx, recorder := recordingContext()
+
+			_, err := f.guard.AcquireClosingOwnership(ctx, f.organizationID, f.ledgerID, accountID, uuid.NewString())
+
+			require.Error(t, err)
+			assertErrorCode(t, err, tt.want.Error())
+			assert.Zero(t, f.markers.acquireCalls, "nothing is attempted without the attempt's own marker")
+			assert.Zero(t, f.markers.ownedCount())
+
+			span := findSpan(t, recorder, "exec.acquire_account_closing_ownership")
+			if tt.red {
+				assert.Equal(t, codes.Error, span.Status().Code)
+			} else {
+				assert.NotEqual(t, codes.Error, span.Status().Code)
+			}
+		})
+	}
+}
+
+// TestAcquireClosingOwnership_RefusedByAnotherHolderIsBusy proves an ownership
+// refused while the attempt's own marker stands is answered as busy, even though a
+// closing marker is there: that marker is the attempt's own, and a closing holds
+// an ownership only under its marker, so the holder is a seed admission, a balance
+// creation or a deletion. The holder is left exactly as it was.
+func TestAcquireClosingOwnership_RefusedByAnotherHolderIsBusy(t *testing.T) {
+	t.Parallel()
+
+	holders := []struct {
+		name string
+		hold func(t *testing.T, f *guardFixture, accountID uuid.UUID) func(t *testing.T)
+	}{
+		{
+			name: "a live seed admission",
+			hold: func(t *testing.T, f *guardFixture, accountID uuid.UUID) func(t *testing.T) {
+				seed, err := f.guard.AcquireSeedAdmission(context.Background(), f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+				require.NoError(t, err)
+
+				return func(t *testing.T) {
+					assert.Equal(t, []string{seed.Token()}, f.markers.admittedTokens(f.key(accountID)))
+				}
+			},
+		},
+		{
+			name: "an exclusive owner",
+			hold: func(_ *testing.T, f *guardFixture, accountID uuid.UUID) func(t *testing.T) {
+				owner := uuid.NewString()
+				f.markers.ownership[f.key(accountID)] = owner
+
+				return func(t *testing.T) {
+					assert.Equal(t, owner, f.markers.ownership[f.key(accountID)])
+				}
+			},
+		},
+	}
+
+	for _, holder := range holders {
+		t.Run(holder.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newGuardFixture()
+			accountID := uuid.New()
+			token := uuid.NewString()
+			untouched := holder.hold(t, f, accountID)
+			f.markers.closing[f.key(accountID)] = token
+
+			ctx, recorder := recordingContext()
+
+			_, err := f.guard.AcquireClosingOwnership(ctx, f.organizationID, f.ledgerID, accountID, token)
+
+			require.Error(t, err)
+			assertErrorCode(t, err, constant.ErrAccountAdministrativeOperationInProgress.Error())
+			untouched(t)
+
+			span := findSpan(t, recorder, "exec.acquire_account_closing_ownership")
+			assert.NotEqual(t, codes.Error, span.Status().Code, "another holder is a business refusal")
+		})
+	}
+}
+
+// TestAcquireClosingOwnership_UnreadableProtectionIsTechnical proves an
+// acquisition that failed, and an attempt that names no token, refuse as an
+// indeterminate protection recorded as the technical failure it is.
+func TestAcquireClosingOwnership_UnreadableProtectionIsTechnical(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the acquisition fails", func(t *testing.T) {
+		t.Parallel()
+
+		f := newGuardFixture()
+		accountID := uuid.New()
+		token := uuid.NewString()
+		f.markers.closing[f.key(accountID)] = token
+		f.markers.acquireErr = errCacheUnavailable
+
+		ctx, recorder := recordingContext()
+
+		_, err := f.guard.AcquireClosingOwnership(ctx, f.organizationID, f.ledgerID, accountID, token)
+
+		require.Error(t, err)
+		assertErrorCode(t, err, constant.ErrAccountClosingProtectionIndeterminate.Error())
+		assert.Equal(t, codes.Error, findSpan(t, recorder, "exec.acquire_account_closing_ownership").Status().Code)
+	})
+
+	t.Run("the attempt names no token", func(t *testing.T) {
+		t.Parallel()
+
+		f := newGuardFixture()
+		accountID := uuid.New()
+
+		ctx, recorder := recordingContext()
+
+		_, err := f.guard.AcquireClosingOwnership(ctx, f.organizationID, f.ledgerID, accountID, " ")
+
+		require.Error(t, err)
+		assertErrorCode(t, err, constant.ErrAccountClosingProtectionIndeterminate.Error())
+		assert.Zero(t, f.markers.closingReads)
+		assert.Zero(t, f.markers.acquireCalls)
+		assert.Equal(t, codes.Error, findSpan(t, recorder, "exec.acquire_account_closing_ownership").Status().Code)
+	})
+
+	t.Run("an inert guard takes nothing and refuses nothing", func(t *testing.T) {
+		t.Parallel()
+
+		var guard *Guard
+
+		admission, err := guard.AcquireClosingOwnership(context.Background(), uuid.New(), uuid.New(), uuid.New(), uuid.NewString())
+		require.NoError(t, err)
+		assert.Empty(t, admission.Accounts())
+	})
+}
+
+// TestAdmission_ReleaseConfirmedReportsWhatItCouldNotGiveBack proves the caller
+// that anchors an ownership on another key learns when the release failed, and
+// that the account then stays held by the admission, so it neither drops its
+// anchor nor loses track of what is left. A successful release is reported clean,
+// and an indeterminate admission releases nothing and reports nothing.
+func TestAdmission_ReleaseConfirmedReportsWhatItCouldNotGiveBack(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a failed release is reported and the account stays held", func(t *testing.T) {
+		t.Parallel()
+
+		f := newGuardFixture()
+		accountID := uuid.New()
+		ctx := context.Background()
+
+		admission, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+		require.NoError(t, err)
+
+		f.markers.releaseErr = errCacheUnavailable
+
+		require.ErrorIs(t, admission.ReleaseConfirmed(ctx), errCacheUnavailable)
+		assert.Equal(t, []uuid.UUID{accountID}, admission.Accounts())
+		assert.Equal(t, admission.Token(), f.markers.ownership[f.key(accountID)])
+
+		f.markers.releaseErr = nil
+
+		require.NoError(t, admission.ReleaseConfirmed(ctx))
+		assert.Empty(t, admission.Accounts())
+		assert.Zero(t, f.markers.ownedCount())
+	})
+
+	t.Run("an indeterminate admission keeps its hold", func(t *testing.T) {
+		t.Parallel()
+
+		f := newGuardFixture()
+		accountID := uuid.New()
+		ctx := context.Background()
+
+		admission, err := f.guard.AcquireExclusive(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+		require.NoError(t, err)
+
+		admission.MarkIndeterminate()
+
+		require.NoError(t, admission.ReleaseConfirmed(ctx))
+		assert.Zero(t, f.markers.releaseCalls)
+		assert.Equal(t, 1, f.markers.ownedCount())
+	})
+
+	t.Run("a nil admission holds nothing", func(t *testing.T) {
+		t.Parallel()
+
+		var admission *Admission
+
+		require.NoError(t, admission.ReleaseConfirmed(context.Background()))
+	})
 }

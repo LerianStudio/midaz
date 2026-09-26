@@ -15,9 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// sinkMarkerStore records the seed admissions one sink test took and released.
-// Seed admissions are what a sink carries: the cache-miss load hands them over to
-// the execution that admits its seeds.
+// sinkMarkerStore records the admissions one sink test took and released.
+//
+// A sink carries the seed admissions a cache-miss load hands over to the
+// execution, but it hands tokens over and releases them without knowing the mode
+// they were taken in. So this fake keeps ONE holder per account for both modes —
+// a second admission on the same account is refused here, unlike the real shared
+// set — which no sink test relies on: each takes one admission per account. The
+// shared semantics are the guard's and the cache adapter's to prove.
 type sinkMarkerStore struct {
 	mu       sync.Mutex
 	owned    map[uuid.UUID]string
@@ -67,6 +72,7 @@ func (s *sinkMarkerStore) ReleaseAccountAdminOwnership(_ context.Context, _, _, 
 	return true, nil
 }
 
+// AdmitAccountSeed takes the account's single holder, like the exclusive mode.
 func (s *sinkMarkerStore) AdmitAccountSeed(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
 	return s.AcquireAccountAdminOwnership(ctx, organizationID, ledgerID, accountID, token)
 }

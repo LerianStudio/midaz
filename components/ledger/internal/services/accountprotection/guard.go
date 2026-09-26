@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -155,6 +156,77 @@ func (g *Guard) AcquireSeedAdmission(ctx context.Context, organizationID, ledger
 // existing behavior is preserved byte for byte.
 func (g *Guard) AcquireExclusive(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (*Admission, error) {
 	return g.acquire(ctx, exclusiveAdmission, "exec.acquire_account_admission", organizationID, ledgerID, accountIDs)
+}
+
+// AcquireClosingOwnership takes the exclusive administrative ownership of one
+// account for the closing attempt whose closing marker carries token.
+//
+// A closing installs its marker BEFORE its ownership, so the marker check every
+// other acquisition runs would refuse the closing on its own marker. This one
+// accepts exactly the marker carrying the attempt's token and refuses any other
+// state: another attempt's marker is a closing holding the account, and no marker
+// at all means this attempt's protection was reclaimed, so it no longer stands
+// and nothing may be taken under it.
+//
+// An ownership refused while the attempt's own marker stands never belongs to
+// another closing — a closing holds its ownership only while its marker does — so
+// the refusal is the busy one: live seed admissions, a balance creation or a
+// deletion. The ownership is taken under token, which is what lets reconciliation
+// release it through the marker.
+func (g *Guard) AcquireClosingOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (*Admission, error) {
+	if g == nil || g.markers == nil {
+		return &Admission{}, nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.acquire_account_closing_ownership")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+	)
+
+	if strings.TrimSpace(token) == "" {
+		libOpentelemetry.HandleSpanError(span, "The closing attempt carries no token", errNoClosingToken)
+		logger.Log(ctx, libLog.LevelError, "The closing attempt carries no token", libLog.Err(errNoClosingToken))
+
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if err := g.refuseUnlessOwnClosing(ctx, span, logger, organizationID, ledgerID, accountID, token); err != nil {
+		return nil, err
+	}
+
+	admission := &Admission{
+		guard:          g,
+		mode:           exclusiveAdmission,
+		organizationID: organizationID,
+		ledgerID:       ledgerID,
+		accountIDs:     make([]uuid.UUID, 0, 1),
+		token:          token,
+	}
+
+	acquired, err := admission.take(ctx, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire the account administrative ownership", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to acquire the account administrative ownership", libLog.Err(err))
+
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if !acquired {
+		busy := pkg.ValidateBusinessError(constant.ErrAccountAdministrativeOperationInProgress, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another administrative operation holds the account", busy)
+
+		return nil, busy
+	}
+
+	admission.accountIDs = append(admission.accountIDs, accountID)
+
+	return admission, nil
 }
 
 // EnsureOpen refuses the operation when any of the accounts is closed.
@@ -353,11 +425,12 @@ func (g *Guard) acquire(ctx context.Context, mode admissionMode, spanName string
 
 // refuseHeldAccount names the holder of an account whose acquisition was refused.
 //
-// The ownership key does not say which operation holds it, and a closing takes
-// its ownership before it installs its marker, so the marker is read again: when
-// it is there, a closing is what holds the account. Anything else — another
-// exclusive operation, or live seed admissions refusing an exclusive one — is an
-// operation that ends on its own, so the caller is told the account is busy.
+// The ownership key does not say which operation holds it. A closing holds its
+// ownership only while its marker stands, but the marker may have been installed
+// after the check that preceded this acquisition, so it is read again: when it is
+// there, a closing is what holds the account. Anything else — another exclusive
+// operation, or live seed admissions refusing an exclusive one — is an operation
+// that ends on its own, so the caller is told the account is busy.
 func (g *Guard) refuseHeldAccount(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID) error {
 	if err := g.refuseWhenClosing(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
 		return err
@@ -391,6 +464,36 @@ func (g *Guard) refuseWhenClosing(ctx context.Context, span trace.Span, logger l
 	if found {
 		conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "A closing attempt owns the account", conflict)
+
+		return conflict
+	}
+
+	return nil
+}
+
+// refuseUnlessOwnClosing lets a closing attempt through only while the closing
+// marker carries its own token. A marker that cannot be read, or that is gone, is
+// a protection that cannot be established; another attempt's marker is the
+// closing that holds the account.
+func (g *Guard) refuseUnlessOwnClosing(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, token string) error {
+	owner, found, err := g.markers.GetAccountClosingMarker(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read the account closing marker", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to read the account closing marker", libLog.Err(err))
+
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if !found {
+		libOpentelemetry.HandleSpanError(span, "The closing marker of this attempt is gone", errClosingMarkerReclaimed)
+		logger.Log(ctx, libLog.LevelError, "The closing marker of this attempt is gone", libLog.Err(errClosingMarkerReclaimed))
+
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	}
+
+	if owner != token {
+		conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another closing attempt owns the account", conflict)
 
 		return conflict
 	}
@@ -437,12 +540,38 @@ func (a *Admission) MarkIndeterminate() {
 // best-effort: a failed release leaves a key for reconciliation rather than
 // failing an operation whose result is already known.
 func (a *Admission) Release(ctx context.Context) {
-	if a == nil || a.guard == nil || a.guard.markers == nil || len(a.accountIDs) == 0 {
-		return
+	if _, err := a.giveBack(ctx); err != nil {
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to release the account administrative ownership", libLog.Err(err))
 	}
 
-	if a.indeterminate {
-		return
+	if a != nil && !a.indeterminate {
+		a.accountIDs = nil
+	}
+}
+
+// ReleaseConfirmed gives back what the admission holds, like Release, and reports
+// the first release that failed. The accounts whose release failed stay held by
+// the admission, so a caller that anchors this ownership on another key — a
+// closing and its marker — knows to keep that anchor in place: an ownership
+// carries no expiry, and giving up its anchor would orphan it. An indeterminate
+// admission releases nothing and reports no failure.
+func (a *Admission) ReleaseConfirmed(ctx context.Context) error {
+	failed, err := a.giveBack(ctx)
+
+	if a != nil && !a.indeterminate {
+		a.accountIDs = failed
+	}
+
+	return err
+}
+
+// giveBack releases every account this admission holds, in the reverse order of
+// acquisition, on a context detached from the caller. It returns the accounts
+// whose release failed and the first failure; the span records every one of them.
+func (a *Admission) giveBack(ctx context.Context) ([]uuid.UUID, error) {
+	if a == nil || a.guard == nil || a.guard.markers == nil || len(a.accountIDs) == 0 || a.indeterminate {
+		return nil, nil
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -453,11 +582,21 @@ func (a *Admission) Release(ctx context.Context) {
 	releaseCtx, span := tracer.Start(releaseCtx, "exec.release_account_admission")
 	defer span.End()
 
+	var (
+		failed   []uuid.UUID
+		firstErr error
+	)
+
 	for i := len(a.accountIDs) - 1; i >= 0; i-- {
 		released, err := a.release(releaseCtx, a.accountIDs[i])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to release the account administrative ownership", err)
-			logger.Log(releaseCtx, libLog.LevelWarn, "Failed to release the account administrative ownership", libLog.Err(err))
+
+			failed = append(failed, a.accountIDs[i])
+
+			if firstErr == nil {
+				firstErr = err
+			}
 
 			continue
 		}
@@ -467,7 +606,7 @@ func (a *Admission) Release(ctx context.Context) {
 		}
 	}
 
-	a.accountIDs = nil
+	return failed, firstErr
 }
 
 // take acquires one account in the admission's mode.
@@ -487,6 +626,16 @@ func (a *Admission) release(ctx context.Context, accountID uuid.UUID) (bool, err
 
 	return a.guard.markers.ReleaseAccountAdminOwnership(ctx, a.organizationID, a.ledgerID, accountID, a.token)
 }
+
+// errNoClosingToken reports a closing ownership asked for without the attempt's
+// token, which would name no attempt and could never be released through its
+// marker.
+var errNoClosingToken = errors.New("closing ownership requested without an attempt token")
+
+// errClosingMarkerReclaimed reports a closing attempt whose marker is gone before
+// it took its ownership: reconciliation gave it back as an attempt that never
+// wrote.
+var errClosingMarkerReclaimed = errors.New("the closing marker of this attempt is gone")
 
 // errNoSeedAdmissionSurface reports a guard asked for a seed admission while built
 // over a cache that cannot hold shared admissions.

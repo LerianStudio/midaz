@@ -38,9 +38,10 @@ func (m *closeAccountMocks) expectWriteIntentRecorded() {
 }
 
 // TestCloseAccount_FinalizesInOrder covers AC-01 and AS-16: the cached balances go
-// before the negative cache, and the closing marker leaves only after both, so no
+// before the negative cache, and the protection leaves only after both, so no
 // window exists in which the protection is gone and the cache still serves the
-// account.
+// account. The ownership leaves before the closing marker, so a second closing
+// that arrives meanwhile still meets the marker.
 func TestCloseAccount_FinalizesInOrder(t *testing.T) {
 	m := newCloseAccountMocks(t)
 	m.expectClosingVerified()
@@ -56,11 +57,11 @@ func TestCloseAccount_FinalizesInOrder(t *testing.T) {
 	closed := m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closeInstant).
 		Return(nil).After(evict)
 
-	marker := m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+	ownership := m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
 		Return(true, nil).After(closed)
 
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil).After(marker)
+	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+		Return(true, nil).After(ownership)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
@@ -124,10 +125,10 @@ func TestCloseAccount_FinishesFinalizationAfterCallerCancels(t *testing.T) {
 	evict := m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil)
 	closed := m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closeInstant).
 		Return(nil).After(evict)
-	marker := m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+	ownership := m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
 		Return(true, nil).After(closed)
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil).After(marker)
+	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+		Return(true, nil).After(ownership)
 
 	closedAt, err := m.uc.CloseAccount(ctx, closeOrgID, closeLedgerID, closeAccountID)
 
@@ -171,10 +172,12 @@ func TestCloseAccount_KeepsTheProtectionWhenTheClosedMarkerFails(t *testing.T) {
 	assert.True(t, closedAt.IsZero())
 }
 
-// TestCloseAccount_KeepsTheOwnershipWhenTheMarkerRemovalIsLost covers AS-13 at the
-// last step: the answer to the marker removal was lost, so the ownership is not
-// released either — a half-finished finalization keeps its whole protection.
-func TestCloseAccount_KeepsTheOwnershipWhenTheMarkerRemovalIsLost(t *testing.T) {
+// TestCloseAccount_KeepsTheMarkerWhenTheOwnershipReleaseFails covers AS-13 one
+// step before the last: the ownership could not be given back, so the marker stays
+// as the anchor through which reconciliation finishes the release — the ownership
+// carries no expiry, and removing the marker now would orphan it. The strict mocks
+// fail the test on a marker removal.
+func TestCloseAccount_KeepsTheMarkerWhenTheOwnershipReleaseFails(t *testing.T) {
 	m := newCloseAccountMocks(t)
 	m.expectClosingVerified()
 	m.expectWriteIntentRecorded()
@@ -182,8 +185,33 @@ func TestCloseAccount_KeepsTheOwnershipWhenTheMarkerRemovalIsLost(t *testing.T) 
 	m.account.EXPECT().CloseAccount(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).Return(closeInstant, nil)
 	m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil)
 	m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closeInstant).Return(nil)
-	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
 		Return(false, errors.New("cache unavailable"))
+
+	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
+	assert.True(t, closedAt.IsZero())
+}
+
+// TestCloseAccount_KeepsTheMarkerWhenItsRemovalIsLost covers AS-13 at the last
+// step: the ownership is already given back, but the answer to the marker removal
+// was lost, so the finalization is reported unfinished and the marker is left to
+// reconciliation, which completes the same closing.
+func TestCloseAccount_KeepsTheMarkerWhenItsRemovalIsLost(t *testing.T) {
+	m := newCloseAccountMocks(t)
+	m.expectClosingVerified()
+	m.expectWriteIntentRecorded()
+
+	m.account.EXPECT().CloseAccount(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).Return(closeInstant, nil)
+	m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil)
+	gomock.InOrder(
+		m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closeInstant).Return(nil),
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(true, nil),
+		m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(false, errors.New("cache unavailable")),
+	)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 

@@ -38,18 +38,20 @@ func TestCloseAccount_CleansUpAfterACancelledRequest(t *testing.T) {
 			return nil, context.Canceled
 		})
 
-	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		DoAndReturn(func(cleanupCtx context.Context, _, _, _ uuid.UUID, _ string) (bool, error) {
-			require.NoError(t, cleanupCtx.Err(), "the cleanup context must not inherit the request cancellation")
+	gomock.InOrder(
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			DoAndReturn(func(cleanupCtx context.Context, _, _, _ uuid.UUID, _ string) (bool, error) {
+				require.NoError(t, cleanupCtx.Err(), "the ownership release must not inherit the request cancellation")
 
-			return true, nil
-		})
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		DoAndReturn(func(cleanupCtx context.Context, _, _, _ uuid.UUID, _ string) (bool, error) {
-			require.NoError(t, cleanupCtx.Err(), "the ownership release must not inherit the request cancellation")
+				return true, nil
+			}),
+		m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			DoAndReturn(func(cleanupCtx context.Context, _, _, _ uuid.UUID, _ string) (bool, error) {
+				require.NoError(t, cleanupCtx.Err(), "the cleanup context must not inherit the request cancellation")
 
-			return true, nil
-		})
+				return true, nil
+			}),
+	)
 
 	closedAt, err := m.uc.CloseAccount(ctx, closeOrgID, closeLedgerID, closeAccountID)
 
@@ -60,25 +62,52 @@ func TestCloseAccount_CleansUpAfterACancelledRequest(t *testing.T) {
 // TestCloseAccount_CleanupFailureDoesNotMaskTheRefusal covers AS-11: a cleanup
 // that could not run leaves its keys for reconciliation, and the caller still
 // receives the refusal that brought the attempt there.
+//
+// An ownership that could not be given back keeps the marker too: the marker is
+// the anchor through which reconciliation releases that ownership, which carries
+// no expiry of its own. The strict mocks fail the test on a marker removal then.
 func TestCloseAccount_CleanupFailureDoesNotMaskTheRefusal(t *testing.T) {
-	m := newCloseAccountMocks(t)
+	t.Run("the ownership cannot be given back", func(t *testing.T) {
+		m := newCloseAccountMocks(t)
 
-	residual := closeEligibleBalance()
-	residual.Available = decimal.RequireFromString("0.01")
+		residual := closeEligibleBalance()
+		residual.Available = decimal.RequireFromString("0.01")
 
-	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
-	m.expectProtectionTaken()
-	m.expectBalancesRead(residual)
+		m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+		m.expectProtectionTaken()
+		m.expectBalancesRead(residual)
 
-	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(false, errors.New("cache unavailable"))
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(false, errors.New("cache unavailable"))
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(false, errors.New("cache unavailable"))
 
-	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+		closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
-	requireClosingCode(t, err, constant.ErrAccountBalanceNotZero)
-	assert.True(t, closedAt.IsZero())
+		requireClosingCode(t, err, constant.ErrAccountBalanceNotZero)
+		assert.True(t, closedAt.IsZero())
+	})
+
+	t.Run("the marker cannot be removed", func(t *testing.T) {
+		m := newCloseAccountMocks(t)
+
+		residual := closeEligibleBalance()
+		residual.Available = decimal.RequireFromString("0.01")
+
+		m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+		m.expectProtectionTaken()
+		m.expectBalancesRead(residual)
+
+		gomock.InOrder(
+			m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+				Return(true, nil),
+			m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+				Return(false, errors.New("cache unavailable")),
+		)
+
+		closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+		requireClosingCode(t, err, constant.ErrAccountBalanceNotZero)
+		assert.True(t, closedAt.IsZero())
+	})
 }
 
 // TestCloseAccount_CleanupRemovesOnlyItsOwnProtection covers AS-14: the removal
@@ -87,38 +116,20 @@ func TestCloseAccount_CleanupFailureDoesNotMaskTheRefusal(t *testing.T) {
 func TestCloseAccount_CleanupRemovesOnlyItsOwnProtection(t *testing.T) {
 	m := newCloseAccountMocks(t)
 
-	var token string
-
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
-
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, acquired string) (bool, error) {
-			token = acquired
-
-			return true, nil
-		})
-	m.redis.EXPECT().AcquireAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		Return(true, nil)
+	m.expectProtectionTaken()
 
 	m.balance.EXPECT().ListByAccountID(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
 		Return(nil, errors.New("database unavailable"))
 
-	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, released string) (bool, error) {
-			assert.Equal(t, token, released)
-
-			// A foreign marker answers exactly like this, and the cleanup treats it as
-			// nothing to do rather than as a failure.
-			return false, nil
-		})
-	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
-		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, released string) (bool, error) {
-			assert.Equal(t, token, released)
-
-			return false, nil
-		})
+	// A foreign marker or ownership answers exactly like this, and the cleanup
+	// treats it as nothing to do rather than as a failure.
+	gomock.InOrder(
+		m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(false, nil),
+		m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, m.attemptToken()).
+			Return(false, nil),
+	)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 

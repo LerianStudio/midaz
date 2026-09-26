@@ -28,8 +28,12 @@ import (
 )
 
 // accountClosingAttempt is the protection one closing attempt holds over its
-// account: the administrative ownership and the closing marker, both carrying the
-// same token so reconciliation can recognize them as one attempt.
+// account: the closing marker and the administrative ownership, both carrying the
+// same token so reconciliation can recognize them as one attempt. The ownership
+// only ever exists while the marker does: it is taken after the marker and given
+// back before it, so the marker is always the anchor through which an interrupted
+// attempt's ownership is found and released. admission stays nil until the
+// ownership is taken.
 //
 // retained records that the attempt's outcome could not be established. The
 // protection of such an attempt is NOT given back on the way out: a write that may
@@ -51,8 +55,8 @@ type accountClosingAttempt struct {
 //
 // Authorization is resolved at the transport, so this use case answers only for
 // eligibility and ordering. The order is what makes the verification meaningful:
-// the account is read from the PRIMARY, the administrative ownership and the
-// closing marker are taken BEFORE the final checks, and only then are balances,
+// the account is read from the PRIMARY, the closing marker and the administrative
+// ownership are taken BEFORE the final checks, and only then are balances,
 // completion and pending transactions examined — an execution that started before
 // the protection participates in the verification, and one that starts after it is
 // refused.
@@ -218,22 +222,55 @@ func (uc *UseCase) verifyAccountClosingEligibleAccount(
 	return nil
 }
 
-// protectAccountClosing takes the administrative ownership of the account and
-// installs the closing marker under the same token.
+// protectAccountClosing installs the closing marker and then takes the
+// administrative ownership of the account under the same token.
 //
-// The ownership is what serializes this attempt against balance creation, balance
-// deletion and cache-miss admission; the marker is what the engine reads, so a new
-// execution is refused from here on. The order matters: the ownership is taken
-// first, so two attempts cannot both reach the marker, and the marker is installed
-// BEFORE the final verification, so what the verification observes can no longer
-// change underneath it.
+// The marker is what the engine and every other protected operation read, so a
+// new execution, seed admission, balance creation or deletion is refused as a
+// closing from here on. The ownership is what excludes the operations already in
+// flight: live seed admissions, a balance creation or a deletion make it fail.
+//
+// The marker goes first because it is also what decides between two closings:
+// only one attempt can install it, so a second closing always loses on the marker
+// and is told a closing holds the account — it never meets an ownership without a
+// marker, which would read as some other operation. Both are in place BEFORE the
+// final verification, so what the verification observes can no longer change
+// underneath it.
+//
+// An attempt refused after installing its marker never issued its write, so it
+// gives the marker back — unless the refusal left an outcome unknown, in which
+// case the marker stays as the anchor reconciliation resolves.
 func (uc *UseCase) protectAccountClosing(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
 	organizationID, ledgerID, accountID uuid.UUID,
 ) (*accountClosingAttempt, error) {
-	admission, err := uc.acquireAccountOwnership(ctx, organizationID, ledgerID, accountID)
+	attempt := &accountClosingAttempt{
+		organizationID: organizationID,
+		ledgerID:       ledgerID,
+		accountID:      accountID,
+		token:          uuid.NewString(),
+	}
+
+	installed, err := uc.TransactionRedisRepo.AcquireAccountClosingMarker(ctx, organizationID, ledgerID, accountID, attempt.token)
+	if err != nil {
+		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to install the account closing marker", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to install the account closing marker", libLog.Err(err))
+
+		// The marker write may have landed with its answer lost, so it stays for
+		// reconciliation, which gives back an attempt that never wrote. Nothing is
+		// cleaned up here on purpose.
+		return nil, indeterminate
+	}
+
+	if !installed {
+		return nil, uc.refuseAccountClosingMarker(ctx, span, logger, organizationID, ledgerID, accountID)
+	}
+
+	admission, err := uc.accountProtectionGuard().AcquireClosingOwnership(ctx, organizationID, ledgerID, accountID, attempt.token)
 	if err != nil {
 		// The acquisition refuses in two classes: another operation holding the
 		// account, which is the coordination doing its job, and a protection surface
@@ -246,49 +283,52 @@ func (uc *UseCase) protectAccountClosing(
 			libOpentelemetry.HandleSpanError(span, message, err)
 			logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
 
+			// The ownership write may have landed with its answer lost. The marker is
+			// the anchor through which reconciliation releases both, so nothing is
+			// cleaned up here on purpose.
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
 		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
 
+		uc.releaseAccountClosingAttempt(ctx, attempt)
+
 		return nil, err
 	}
 
-	attempt := &accountClosingAttempt{
-		organizationID: organizationID,
-		ledgerID:       ledgerID,
-		accountID:      accountID,
-		admission:      admission,
-		token:          admission.Token(),
-	}
-
-	installed, err := uc.TransactionRedisRepo.AcquireAccountClosingMarker(ctx, organizationID, ledgerID, accountID, attempt.token)
-	if err != nil {
-		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanError(span, "Failed to install the account closing marker", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to install the account closing marker", libLog.Err(err))
-
-		// The marker write may have landed with its answer lost, so the account keeps
-		// both its marker and its ownership and reconciliation resolves them. Nothing
-		// is cleaned up here on purpose.
-		attempt.retain()
-
-		return nil, indeterminate
-	}
-
-	if !installed {
-		conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another attempt already owns the account closing", conflict)
-
-		admission.Release(ctx)
-
-		return nil, conflict
-	}
+	attempt.admission = admission
 
 	return attempt, nil
+}
+
+// refuseAccountClosingMarker answers an attempt whose closing marker could not be
+// installed because the key is already there. That key is another attempt's
+// marker, and the answer is the closing in progress — unless what it holds cannot
+// be read, which is a protection failure rather than a closing and is refused as
+// indeterminate. The key is read once more only to tell those two apart; a marker
+// that went away in between still belonged to the closing that refused this one.
+func (uc *UseCase) refuseAccountClosingMarker(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	organizationID, ledgerID, accountID uuid.UUID,
+) error {
+	if _, _, err := uc.TransactionRedisRepo.GetAccountClosingMarker(ctx, organizationID, ledgerID, accountID); err != nil {
+		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read the account closing marker", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to read the account closing marker", libLog.Err(err))
+
+		return indeterminate
+	}
+
+	conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Another attempt already owns the account closing", conflict)
+	logger.Log(ctx, libLog.LevelWarn, "Another attempt already owns the account closing", libLog.Err(conflict))
+
+	return conflict
 }
 
 // verifyAccountClosingEligibility runs the checks that decide whether the account
@@ -384,8 +424,10 @@ func (a *accountClosingAttempt) retain() {
 const accountClosingCleanupTimeout = 5 * time.Second
 
 // releaseAccountClosingAttempt gives back the protection of this attempt: the
-// closing marker first, the ownership after, both only where the key still carries
-// this attempt's token.
+// ownership first, the closing marker after, both only where the key still carries
+// this attempt's token. The ownership goes first so a second closing arriving in
+// between still meets the marker, and so an ownership that could not be released
+// keeps its anchor: the marker then stays, and reconciliation releases both.
 //
 // The cleanup runs on a context DECOUPLED from the request, with a deadline of its
 // own. A cancelled request is one of the reasons a marker exists in the first
@@ -414,17 +456,24 @@ func (uc *UseCase) releaseAccountClosingAttempt(ctx context.Context, attempt *ac
 	cleanupCtx, span := tracer.Start(cleanupCtx, "exec.release_account_closing_attempt")
 	defer span.End()
 
-	if !attempt.markerReleased {
-		released, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(cleanupCtx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to remove the account closing marker", err)
-			logger.Log(cleanupCtx, libLog.LevelWarn, "Failed to remove the account closing marker", libLog.Err(err))
-		}
+	if err := attempt.admission.ReleaseConfirmed(cleanupCtx); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release the ownership of the account closing", err)
+		logger.Log(cleanupCtx, libLog.LevelWarn, "Failed to release the ownership of the account closing", libLog.Err(err))
 
-		if !released && err == nil {
-			logger.Log(cleanupCtx, libLog.LevelDebug, "The account closing marker was not owned at release")
-		}
+		return
 	}
 
-	attempt.admission.Release(cleanupCtx)
+	if attempt.markerReleased {
+		return
+	}
+
+	released, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(cleanupCtx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to remove the account closing marker", err)
+		logger.Log(cleanupCtx, libLog.LevelWarn, "Failed to remove the account closing marker", libLog.Err(err))
+	}
+
+	if !released && err == nil {
+		logger.Log(cleanupCtx, libLog.LevelDebug, "The account closing marker was not owned at release")
+	}
 }

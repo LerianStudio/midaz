@@ -151,13 +151,15 @@ var administrativeOperations = []struct {
 	},
 }
 
-// TestAdministrativeOperations_RefusedAsBusyWhileALoadHoldsTheAccount runs on
-// every exclusive caller: while a cache-miss load holds a seed admission, the
-// exclusive acquisition fails with no closing marker anywhere, so the operation is
-// refused with the retryable busy code, not as a closing, writes nothing and keeps
-// its span green. The strict mocks fail the test on any balance read or write past
-// the refusal.
-func TestAdministrativeOperations_RefusedAsBusyWhileALoadHoldsTheAccount(t *testing.T) {
+// TestAdministrativeOperations_RefusedAsBusyByAHolderOtherThanAClosing runs on
+// every exclusive caller: the exclusive acquisition fails with no closing marker
+// anywhere — a cache-miss load's seed admission, or another creation or deletion,
+// answer exactly like this — so the operation is refused with the retryable busy
+// code, not as a closing, writes nothing and keeps its span green. The strict
+// mocks fail the test on any balance read or write past the refusal. The real
+// seed-admission holder is exercised over the real cache by the closing's
+// integration tests.
+func TestAdministrativeOperations_RefusedAsBusyByAHolderOtherThanAClosing(t *testing.T) {
 	for _, op := range administrativeOperations {
 		t.Run(op.name, func(t *testing.T) {
 			m := newProtectionMocks(t)

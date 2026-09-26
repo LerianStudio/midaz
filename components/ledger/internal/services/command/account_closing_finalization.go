@@ -178,11 +178,13 @@ func (uc *UseCase) resolveUnappliedAccountClosing(
 //
 // The cached balances go first, so no load can serve them once the protection is
 // gone; the negative cache goes next, so the account reads as closed without a
-// query; and the closing marker leaves last, because it is what holds every other
-// path off while the two steps above run. Each step is CONFIRMED before the next:
-// a failure at any of them keeps the marker and the ownership in place, which is
-// what lets reconciliation resume the same finalization instead of a movement
-// slipping through a half-finished one.
+// query; the ownership follows; and the closing marker leaves last, because it is
+// what holds every other path off while the steps above run and the anchor
+// through which reconciliation finds an ownership left behind. Each step is
+// CONFIRMED before the next: a failure at any of them keeps the marker, and
+// whatever of the ownership is still held, in place, which is what lets
+// reconciliation resume the same finalization instead of a movement slipping
+// through a half-finished one.
 //
 // The account is closed from the write onwards, so a failure here is reported
 // technically without ever undoing the transition — a repeat answers that it is
@@ -201,6 +203,10 @@ func (uc *UseCase) completeAccountClosing(
 
 	if err := uc.TransactionRedisRepo.SetAccountClosedMarker(ctx, attempt.organizationID, attempt.ledgerID, attempt.accountID, closedAt); err != nil {
 		return uc.retainUnfinishedAccountClosing(ctx, span, logger, attempt, "Failed to install the closed account marker", err)
+	}
+
+	if err := attempt.admission.ReleaseConfirmed(ctx); err != nil {
+		return uc.retainUnfinishedAccountClosing(ctx, span, logger, attempt, "Failed to release the ownership of the finished closing", err)
 	}
 
 	released, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(ctx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)

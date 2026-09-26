@@ -56,7 +56,7 @@ administrative ownership over the account first:
 | Balance deletion | `services/command/delete_all_balances_by_account_id.go` | same ownership per account, serializing deletion against a closing; the delete markers keep their own keys and semantics |
 | Settings, allow-flags and blocked propagation | `services/command/update_balance.go`, `services/command/update_account.go` | rewrite in place only; an absent key stays absent and is never recreated from an old snapshot |
 | Limit repair | `adapters/redis/transaction/consumer.redis.go` | normalizes only a blob it observed; an absent key is ignored |
-| Closing | `services/command/close_account.go` | ownership, then the closing marker, then the verification, the conditional write and the finalization |
+| Closing | `services/command/close_account.go` | the closing marker, then the ownership under the same token, then the verification, the conditional write and the finalization |
 
 Cache **hits** take no ownership and read no database row: the hot path is unchanged.
 
@@ -67,6 +67,13 @@ are 409 and neither changes the account. A `0526` may be retried once the holder
 concludes; a retry after a `0522` may find the account closed (`0519`, or `0521` for a
 second closing).
 
+A closing holds its ownership only while its closing marker stands: it installs the
+marker first and gives the ownership back before it removes the marker. That is what
+lets the code name the holder. A second closing always loses on the marker, so it
+answers `0522` (or `0521` once the first one recorded its instant), never `0526`; and a
+closing whose ownership is refused under its own marker knows the holder is not another
+closing, so it answers `0526`.
+
 An operation whose write outcome is unknown — a cancelled context, an expired deadline,
 a lost connection — keeps its ownership instead of releasing it. A SQLSTATE the server
 answered with, and a refusal decided before any write, both release immediately.
@@ -75,10 +82,14 @@ answered with, and a refusal decided before any write, both release immediately.
 
 1. Read the account from the PRIMARY: it must exist in the scope, not be external
    (`0074`), and not already be closed (`0521`).
-2. Take the administrative ownership, then install the closing marker under the same
-   token. A second closing attempt is refused with `0522`. While another operation holds
-   the account — transactions loading its balances, a balance creation or a deletion —
-   the closing is refused with `0526` and may be retried once that operation concludes.
+2. Install the closing marker, then take the administrative ownership under the same
+   token. From the marker on, a new execution, seed admission, balance creation or
+   deletion is refused as a closing (`0522`), and a second closing attempt loses on the
+   marker with `0522`. While an operation that started earlier still holds the account
+   — transactions loading its balances, a balance creation or a deletion — the
+   ownership is refused: the closing answers `0526`, gives its marker back (it never
+   issued its write) and may be retried once that operation concludes. A marker or
+   ownership write whose answer was lost leaves the marker in place for reconciliation.
 3. Verify, under that protection: every balance zero on `Available`, `OnHold` and
    `OverdraftUsed` (`0523`); no recovery record of this account still pending
    (`0518`); the live state proven persisted (`0518`, or `0520` when the evidence is
@@ -89,10 +100,15 @@ answered with, and a refusal decided before any write, both release immediately.
 4. Record the write intent on the marker, then issue the conditional
    `UPDATE … WHERE closed_at IS NULL AND deleted_at IS NULL … RETURNING closed_at`.
 5. Finalize, in this order and each step confirmed before the next: evict every cached
-   balance of the account, install the closed marker with its 300 s expiry, then remove
-   the closing marker and the ownership by token.
+   balance of the account, install the closed marker with its 300 s expiry, release the
+   ownership, then remove the closing marker, both by token. The marker leaves last:
+   while it stands a second closing still answers `0522`, and an ownership that could
+   not be released keeps its anchor for reconciliation.
 6. Emit `account.closed` best-effort. A failure here is logged and does not change the
    204.
+
+A refused attempt gives its protection back in the same order — the ownership first,
+then the marker — and keeps the marker when the ownership could not be released.
 
 A pending transaction that names the account only as DESTINATION is not an impediment:
 a hold reserves funds on the source alone and projects no operation row for the
@@ -109,9 +125,15 @@ in memory — and for each marker the authoritative row decides:
 
 | Observed | Action |
 | --- | --- |
-| `closed_at` recorded | finish the same finalization: evict the balances, install the closed marker, remove the closing marker and the ownership by token. The instant is never rewritten |
-| `closed_at` NULL and the attempt never recorded its write intent | release the closing marker and the ownership, conditionally on that exact phase |
+| `closed_at` recorded | finish the same finalization: evict the balances, install the closed marker, release the ownership, then remove the closing marker, both by token. The instant is never rewritten |
+| `closed_at` NULL and the attempt never recorded its write intent | release the ownership, then the closing marker, conditionally on that exact phase. This includes an attempt that stopped between installing its marker and taking its ownership: there is no ownership to release, and the marker is still given back |
 | `closed_at` NULL and the write intent was recorded | leave everything in place. The write may still land, so a NULL column proves nothing |
+
+The same pass cannot tell an abandoned attempt from a live one that has not recorded its
+write intent yet, so it may reclaim the marker of an attempt still running. That attempt
+then fails its own checks — it no longer finds its marker when it takes the ownership,
+or it cannot record its write intent afterwards — and refuses with `0520` without
+writing, giving back whatever ownership it took.
 
 Ownerships that remain after the closings of a pass are resolved belong to a balance
 creation, a deletion or a cache-miss admission whose outcome this pass cannot establish.
@@ -158,6 +180,10 @@ honors the controls. The order is:
    a safe migration of stale blobs — a blob whose expiry has not elapsed is still
    servable.
 5. Only then expose `POST /v2/.../accounts/{account_id}/close`.
+
+During a rolling upgrade from a version whose closing took its ownership before its
+marker, two closings still exclude each other — each proceeds only with both keys — but
+a losing closing may answer `0526` instead of `0522` until every pod runs the new order.
 
 During a rolling upgrade from a version whose cache-miss admission was exclusive, an
 older pod's engine refuses technically an execution over an account that a newer pod
