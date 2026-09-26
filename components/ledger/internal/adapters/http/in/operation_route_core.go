@@ -918,6 +918,23 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	return nil
 }
 
+// accountingEntryFields lists every per-action entry of AccountingEntries with
+// its JSON key, so merges treat all of them alike and none is silently dropped.
+var accountingEntryFields = []struct {
+	key   string
+	entry func(*mmodel.AccountingEntries) **mmodel.AccountingEntry
+}{
+	{constant.ActionDirect, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Direct }},
+	{constant.ActionHold, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Hold }},
+	{constant.ActionCommit, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Commit }},
+	{constant.ActionCancel, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Cancel }},
+	{constant.ActionRevert, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Revert }},
+	{constant.ActionOverdraft, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Overdraft }},
+	{constant.ActionBlock, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Block }},
+	{constant.ActionUnblock, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Unblock }},
+	{constant.ActionCrossLedger, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.CrossLedger }},
+}
+
 // mergeAccountingEntries creates a merged view of existing and incoming accounting entries.
 // Used for PATCH operations where only partial updates are provided.
 //
@@ -974,39 +991,32 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		return existingEntry
 	}
 
-	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft,
-		incomingBlock, incomingUnblock, incomingCrossLedger *mmodel.AccountingEntry
-	if incoming != nil {
-		incomingDirect = incoming.Direct
-		incomingHold = incoming.Hold
-		incomingCommit = incoming.Commit
-		incomingCancel = incoming.Cancel
-		incomingRevert = incoming.Revert
-		incomingOverdraft = incoming.Overdraft
-		incomingBlock = incoming.Block
-		incomingUnblock = incoming.Unblock
-		incomingCrossLedger = incoming.CrossLedger
+	for _, field := range accountingEntryFields {
+		var incomingEntry *mmodel.AccountingEntry
+		if incoming != nil {
+			incomingEntry = *field.entry(incoming)
+		}
+
+		*field.entry(merged) = applyMerge(field.key, *field.entry(existing), incomingEntry)
 	}
 
-	merged.Direct = applyMerge(constant.ActionDirect, existing.Direct, incomingDirect)
-	merged.Hold = applyMerge(constant.ActionHold, existing.Hold, incomingHold)
-	merged.Commit = applyMerge(constant.ActionCommit, existing.Commit, incomingCommit)
-	merged.Cancel = applyMerge(constant.ActionCancel, existing.Cancel, incomingCancel)
-	merged.Revert = applyMerge(constant.ActionRevert, existing.Revert, incomingRevert)
-	merged.Overdraft = applyMerge(constant.ActionOverdraft, existing.Overdraft, incomingOverdraft)
-	merged.Block = applyMerge(constant.ActionBlock, existing.Block, incomingBlock)
-	merged.Unblock = applyMerge(constant.ActionUnblock, existing.Unblock, incomingUnblock)
-	merged.CrossLedger = applyMerge(constant.ActionCrossLedger, existing.CrossLedger, incomingCrossLedger)
-
 	// Check if all entries are nil - return nil instead of empty struct
-	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
-		merged.Cancel == nil && merged.Revert == nil &&
-		merged.Overdraft == nil && merged.Block == nil && merged.Unblock == nil &&
-		merged.CrossLedger == nil {
+	if accountingEntriesEmpty(merged) {
 		return nil
 	}
 
 	return merged
+}
+
+// accountingEntriesEmpty reports whether no action carries an entry.
+func accountingEntriesEmpty(entries *mmodel.AccountingEntries) bool {
+	for _, field := range accountingEntryFields {
+		if *field.entry(entries) != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 // mergeAccountingEntriesSimple performs a simple merge where incoming non-nil values win.
@@ -1018,58 +1028,12 @@ func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) 
 
 	merged := &mmodel.AccountingEntries{}
 
-	if incoming.Direct != nil {
-		merged.Direct = incoming.Direct
-	} else if existing != nil {
-		merged.Direct = existing.Direct
-	}
-
-	if incoming.Hold != nil {
-		merged.Hold = incoming.Hold
-	} else if existing != nil {
-		merged.Hold = existing.Hold
-	}
-
-	if incoming.Commit != nil {
-		merged.Commit = incoming.Commit
-	} else if existing != nil {
-		merged.Commit = existing.Commit
-	}
-
-	if incoming.Cancel != nil {
-		merged.Cancel = incoming.Cancel
-	} else if existing != nil {
-		merged.Cancel = existing.Cancel
-	}
-
-	if incoming.Revert != nil {
-		merged.Revert = incoming.Revert
-	} else if existing != nil {
-		merged.Revert = existing.Revert
-	}
-
-	if incoming.Overdraft != nil {
-		merged.Overdraft = incoming.Overdraft
-	} else if existing != nil {
-		merged.Overdraft = existing.Overdraft
-	}
-
-	if incoming.Block != nil {
-		merged.Block = incoming.Block
-	} else if existing != nil {
-		merged.Block = existing.Block
-	}
-
-	if incoming.Unblock != nil {
-		merged.Unblock = incoming.Unblock
-	} else if existing != nil {
-		merged.Unblock = existing.Unblock
-	}
-
-	if incoming.CrossLedger != nil {
-		merged.CrossLedger = incoming.CrossLedger
-	} else if existing != nil {
-		merged.CrossLedger = existing.CrossLedger
+	for _, field := range accountingEntryFields {
+		if entry := *field.entry(incoming); entry != nil {
+			*field.entry(merged) = entry
+		} else if existing != nil {
+			*field.entry(merged) = *field.entry(existing)
+		}
 	}
 
 	return merged
