@@ -86,7 +86,11 @@ which feeds both the Catalog and the manifest:
 
 ## Event summary
 
-All 40 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
+All 40 events carry `SchemaVersion = 1.0.0`, except the six accounting-route events
+(`operation_route.*`, `transaction_route.*`), which carry `1.1.0`: accounting routes belong
+to the organization, and `ledgerId` became optional on them (omitted for a route created at
+organization level). The bump is minor: every other field is unchanged, and a route
+created under a ledger still carries `ledgerId`. The `account_type.*` events are
 intentionally NOT registered — the type label flows through `account.*` events
 as a string field.
 
@@ -399,7 +403,7 @@ Source: `pkg/streaming/events/operation_route_created.go`,
 |-----|------|:---------:|:---------:|-------|
 | `id` | string | ✓ | ✓ | UUID stringified. |
 | `organizationId` | string | ✓ | ✓ | |
-| `ledgerId` | string | ✓ | ✓ | |
+| `ledgerId` | string | ✓ | ✓ | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `title` | string | ✓ | ✓ | |
 | `description` | string | ✓ | ✓ | `omitempty` — omitted when empty. |
 | `code` | string | ✓ | ✓ | `omitempty`. Legacy field (`//nolint:staticcheck`); emitted for backward compatibility. |
@@ -411,8 +415,9 @@ Source: `pkg/streaming/events/operation_route_created.go`,
 
 > `operation_route.created` field count is 7 when all optionals are empty/nil,
 > 11 when `description`, `code`, `account`, and `accountingEntries` are all set.
+> Each count is one lower for a route created at organization level (no `ledgerId`).
 
-#### `operation_route.deleted` — 4 fields
+#### `operation_route.deleted` — 4 (or 3) fields
 
 Source: `pkg/streaming/events/operation_route_deleted.go`.
 
@@ -420,7 +425,7 @@ Source: `pkg/streaming/events/operation_route_deleted.go`.
 |-----|------|-------|
 | `id` | string | Operation-route ID. |
 | `organizationId` | string | |
-| `ledgerId` | string | |
+| `ledgerId` | string | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `deletedAt` | string | RFC3339. |
 
 ### Transaction route
@@ -434,7 +439,7 @@ Source: `pkg/streaming/events/transaction_route_created.go`,
 |-----|------|:---------:|:---------:|-------|
 | `id` | string | ✓ | ✓ | UUID stringified. |
 | `organizationId` | string | ✓ | ✓ | |
-| `ledgerId` | string | ✓ | ✓ | |
+| `ledgerId` | string | ✓ | ✓ | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `title` | string | ✓ | ✓ | |
 | `description` | string | ✓ | ✓ | `omitempty` — omitted when empty. |
 | `operationRouteIds` | []string | ✓ | ✓ | `omitempty`. POST-UPDATE list (not a diff) on `updated` — consumers replace their cached join set. Derived from `OperationRoutes[].ID`. |
@@ -444,8 +449,9 @@ Source: `pkg/streaming/events/transaction_route_created.go`,
 > `transaction_route.created` field count is 7 when `description` is empty, 8
 > when set. `operationRouteIds` is always non-nil in practice (create requires
 > ≥1 op route) but `omitempty` guards against a future validation loosening.
+> Each count is one lower for a route created at organization level (no `ledgerId`).
 
-#### `transaction_route.deleted` — 4 fields
+#### `transaction_route.deleted` — 4 (or 3) fields
 
 Source: `pkg/streaming/events/transaction_route_deleted.go`.
 
@@ -453,7 +459,7 @@ Source: `pkg/streaming/events/transaction_route_deleted.go`.
 |-----|------|-------|
 | `id` | string | Transaction-route ID. |
 | `organizationId` | string | |
-| `ledgerId` | string | |
+| `ledgerId` | string | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `deletedAt` | string | RFC3339. |
 
 > The cascade soft-delete of `operation_transaction_route` relations does NOT

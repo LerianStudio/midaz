@@ -86,7 +86,7 @@ func FuzzEnrichTransactionRoutes_SliceSize(f *testing.F) {
 			routes[i] = &mmodel.TransactionRoute{
 				ID:             uuid.New(),
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "fuzz-route",
 			}
 		}
@@ -146,7 +146,7 @@ func FuzzEnrichTransactionRoutes_SliceSize(f *testing.F) {
 				opRoutes = append(opRoutes, &mmodel.OperationRoute{
 					ID:             orID,
 					OrganizationID: orgID,
-					LedgerID:       ledgerID,
+					LedgerID:       &ledgerID,
 					Title:          "fuzz-op",
 					OperationType:  "source",
 				})
@@ -154,7 +154,7 @@ func FuzzEnrichTransactionRoutes_SliceSize(f *testing.F) {
 
 			if findByIDsError {
 				mockORRepo.EXPECT().
-					FindByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					FindByIDs(gomock.Any(), orgID, gomock.Any()).
 					Return(nil, errors.New("fuzz findByIDs error"))
 
 				err := uc.enrichTransactionRoutesWithOperationRoutes(context.Background(), routes)
@@ -166,7 +166,7 @@ func FuzzEnrichTransactionRoutes_SliceSize(f *testing.F) {
 			}
 
 			mockORRepo.EXPECT().
-				FindByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+				FindByIDs(gomock.Any(), orgID, gomock.Any()).
 				Return(opRoutes, nil)
 		}
 
@@ -246,7 +246,7 @@ func FuzzEnrichTransactionRoutes_JunctionMapShape(f *testing.F) {
 			routes[i] = &mmodel.TransactionRoute{
 				ID:             uuid.New(),
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "fuzz-shape-route",
 			}
 		}
@@ -307,14 +307,14 @@ func FuzzEnrichTransactionRoutes_JunctionMapShape(f *testing.F) {
 				opRoutes = append(opRoutes, &mmodel.OperationRoute{
 					ID:             orID,
 					OrganizationID: orgID,
-					LedgerID:       ledgerID,
+					LedgerID:       &ledgerID,
 					Title:          "fuzz-shape-op",
 					OperationType:  "source",
 				})
 			}
 
 			mockORRepo.EXPECT().
-				FindByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+				FindByIDs(gomock.Any(), orgID, gomock.Any()).
 				Return(opRoutes, nil)
 		}
 

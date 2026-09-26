@@ -17,7 +17,7 @@ func TestTransactionRouteDeletedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "transaction_route.deleted", events.TransactionRouteDeletedDefinition.Key())
 	assert.Equal(t, "transaction_route", events.TransactionRouteDeletedDefinition.ResourceType)
 	assert.Equal(t, "deleted", events.TransactionRouteDeletedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.TransactionRouteDeletedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.TransactionRouteDeletedDefinition.SchemaVersion)
 }
 
 func TestNewTransactionRouteDeleted_MapsIdentity(t *testing.T) {

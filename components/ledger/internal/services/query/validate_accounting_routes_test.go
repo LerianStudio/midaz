@@ -455,7 +455,7 @@ func TestValidateAccountingRules_PendingDestinationWithCommitOnly(t *testing.T) 
 	cacheBytes, err := cache.ToMsgpack()
 	require.NoError(t, err)
 
-	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), cacheKey).
@@ -568,7 +568,7 @@ func TestValidateAccountingRules_OverdraftRouteNotConfigured(t *testing.T) {
 	cacheBytes, err := cache.ToMsgpack()
 	require.NoError(t, err)
 
-	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), cacheKey).
@@ -840,7 +840,7 @@ func TestValidateAccountingRules_OverdraftRoutePasses(t *testing.T) {
 			cacheBytes, err := cache.ToMsgpack()
 			require.NoError(t, err)
 
-			cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+			cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 			mockRedisRepo.EXPECT().GetBytes(gomock.Any(), cacheKey).Return(cacheBytes, nil)
 
 			uc := &UseCase{
@@ -917,7 +917,7 @@ func TestValidateAccountingRules_OverdraftRefundToSidePasses(t *testing.T) {
 	cacheBytes, err := cache.ToMsgpack()
 	require.NoError(t, err)
 
-	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 	mockRedisRepo.EXPECT().GetBytes(gomock.Any(), cacheKey).Return(cacheBytes, nil)
 
 	uc := &UseCase{
@@ -1018,7 +1018,7 @@ func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
 	cacheBytes, err := cache.ToMsgpack()
 	require.NoError(t, err)
 
-	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 	mockRedisRepo.EXPECT().GetBytes(gomock.Any(), cacheKey).Return(cacheBytes, nil)
 
 	uc := &UseCase{
@@ -1203,7 +1203,7 @@ func TestValidateAccountingRules_OverdraftRouteRejections(t *testing.T) {
 			cacheBytes, err := cache.ToMsgpack()
 			require.NoError(t, err)
 
-			cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+			cacheKey := utils.AccountingRoutesInternalKey(organizationID, transactionRouteID)
 			mockRedisRepo.EXPECT().GetBytes(gomock.Any(), cacheKey).Return(cacheBytes, nil)
 
 			uc := &UseCase{

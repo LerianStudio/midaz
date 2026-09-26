@@ -234,7 +234,7 @@ func runOverdraftRouteFlow(t *testing.T, opts overdraftRouteFlowOptions) overdra
 		Return(map[string]any{"accounting": map[string]any{"validateRoutes": true}}, nil).
 		AnyTimes()
 
-	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, txRouteID)
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, txRouteID)
 	mockRedis.EXPECT().GetBytes(gomock.Any(), cacheKey).
 		Return(overdraftFlowRoutePair(t, srcRouteID, dstRouteID, opts), nil).AnyTimes()
 

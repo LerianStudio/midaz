@@ -59,7 +59,7 @@ func (r *revertReader) GetTransactionByID(context.Context, uuid.UUID, uuid.UUID,
 	return r.byID, r.byIDErr
 }
 
-func (r *revertReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
+func (r *revertReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
 	return r.operationRout, r.routeErr
 }
 

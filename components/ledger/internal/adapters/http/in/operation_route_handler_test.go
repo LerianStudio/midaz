@@ -94,8 +94,8 @@ func TestCreateOperationRoute_Success(t *testing.T) {
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
 
-	orRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
-		DoAndReturn(func(_ any, oID, lID uuid.UUID, or *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+	orRepo.EXPECT().Create(gomock.Any(), orgID, &ledgerID, gomock.Any()).
+		DoAndReturn(func(_ any, oID uuid.UUID, lID *uuid.UUID, or *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			or.ID = uuid.Must(libCommons.GenerateUUIDv7())
 			or.OrganizationID = oID
 			or.LedgerID = lID
@@ -206,8 +206,8 @@ func TestGetOperationRouteByID_Success(t *testing.T) {
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
 
-	orRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
-		Return(&mmodel.OperationRoute{ID: id, OrganizationID: orgID, LedgerID: ledgerID, Title: "Route", OperationType: "source"}, nil).Times(1)
+	orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).
+		Return(&mmodel.OperationRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Route", OperationType: "source"}, nil).Times(1)
 	metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperationRoute, id.String()).Return(nil, nil).Times(1)
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{OperationRouteRepo: orRepo, TransactionMetadataRepo: metaRepo}}
@@ -267,8 +267,9 @@ func TestDeleteOperationRoute_204Empty(t *testing.T) {
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	// Command.DeleteOperationRouteByID checks for transaction-route links before deleting.
-	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, id).Return(false, nil).Times(1)
-	orRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, id).Return(nil).Times(1)
+	orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).Return(&mmodel.OperationRoute{ID: id, OrganizationID: orgID}, nil).Times(1)
+	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, id).Return(false, nil).Times(1)
+	orRepo.EXPECT().Delete(gomock.Any(), orgID, id).Return(nil).Times(1)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{OperationRouteRepo: orRepo}}
 
@@ -294,7 +295,8 @@ func TestGetAllOperationRoutes_Success(t *testing.T) {
 
 	orRepo := operationroute.NewMockRepository(ctrl)
 	// nil slice -> query use case skips the metadata FindList join (empty page).
-	orRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	orRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, nil).Times(1)
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{OperationRouteRepo: orRepo}}
@@ -364,7 +366,7 @@ func TestUpdateOperationRoute_MergePatch(t *testing.T) {
 	}
 	existing := func(orgID, ledgerID, id uuid.UUID) *mmodel.OperationRoute {
 		return &mmodel.OperationRoute{
-			ID: id, OrganizationID: orgID, LedgerID: ledgerID,
+			ID: id, OrganizationID: orgID, LedgerID: &ledgerID,
 			Title: "Existing", OperationType: "source",
 			AccountingEntries: &mmodel.AccountingEntries{
 				Direct:    directRubric(),
@@ -412,17 +414,21 @@ func TestUpdateOperationRoute_MergePatch(t *testing.T) {
 			// FindByEntity fires twice: once for the fetch (Query.GetOperationRouteByID's
 			// metadata join) and once for UpdateMetadata (DecodeAndValidate leaves Metadata a
 			// non-nil empty map, so the nil-skip branch is not taken).
-			orRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).Return(existing(orgID, ledgerID, id), nil).Times(1)
+			orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).Return(existing(orgID, ledgerID, id), nil).Times(1)
 			metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperationRoute, id.String()).Return(nil, nil).Times(2)
 
 			var capturedRaw string
-			orRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, id, gomock.Any()).
-				DoAndReturn(func(_ any, _, _, _ uuid.UUID, in *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+			orRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any()).
+				DoAndReturn(func(_ any, _, _ uuid.UUID, in *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 					capturedRaw = string(in.AccountingEntriesRaw)
-					return &mmodel.OperationRoute{ID: id, OrganizationID: orgID, LedgerID: ledgerID, Title: "Existing", OperationType: "source"}, nil
+					return &mmodel.OperationRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Existing", OperationType: "source"}, nil
 				}).Times(1)
 
 			metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperationRoute, id.String(), gomock.Any()).Return(nil).Times(1)
+
+			// Accounting entries are cached with the transaction routes that link
+			// the operation route, so the update refreshes them.
+			orRepo.EXPECT().FindTransactionRouteIDs(gomock.Any(), id).Return([]uuid.UUID{}, nil).Times(1)
 
 			handler := &OperationRouteHandler{
 				Command: &command.UseCase{OperationRouteRepo: orRepo, TransactionMetadataRepo: metaRepo},
@@ -564,7 +570,7 @@ func TestCreateOperationRoute_RepositoryError_500(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
-	orRepo.EXPECT().Create(gomock.Any(), orgID, ledgerID, gomock.Any()).
+	orRepo.EXPECT().Create(gomock.Any(), orgID, &ledgerID, gomock.Any()).
 		Return(nil, pkg.InternalServerError{Code: "0046", Title: "Internal Server Error", Message: "Database connection failed"}).Times(1)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{
@@ -600,7 +606,7 @@ func TestGetOperationRouteByID_NotFound_404(t *testing.T) {
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
-	orRepo.EXPECT().FindByID(gomock.Any(), orgID, ledgerID, id).
+	orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).
 		Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).Times(1)
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{
@@ -671,7 +677,7 @@ func TestUpdateOperationRoute_NotFound_404(t *testing.T) {
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
 
-	orRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, id, gomock.Any()).
+	orRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).Times(1)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{
@@ -712,9 +718,9 @@ func TestUpdateOperationRoute_AccountRuleReloadsCache(t *testing.T) {
 	orRepo := operationroute.NewMockRepository(ctrl)
 	metaRepo := mongodb.NewMockRepository(ctrl)
 
-	orRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, id, gomock.Any()).
+	orRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any()).
 		Return(&mmodel.OperationRoute{
-			ID: id, OrganizationID: orgID, LedgerID: ledgerID,
+			ID: id, OrganizationID: orgID, LedgerID: &ledgerID,
 			Title: "Route with Account", OperationType: "source",
 			Account: &mmodel.AccountRule{RuleType: "alias", ValidIf: "@new_account"},
 		}, nil).Times(1)
@@ -762,8 +768,9 @@ func TestDeleteOperationRoute_NotFound_404(t *testing.T) {
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
-	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, id).Return(false, nil).Times(1)
-	orRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, id).
+	orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).Return(&mmodel.OperationRoute{ID: id, OrganizationID: orgID}, nil).Times(1)
+	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, id).Return(false, nil).Times(1)
+	orRepo.EXPECT().Delete(gomock.Any(), orgID, id).
 		Return(pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).Times(1)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{OperationRouteRepo: orRepo}}
@@ -795,7 +802,8 @@ func TestDeleteOperationRoute_LinkedToTransactionRoutes_422(t *testing.T) {
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
-	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, ledgerID, id).Return(true, nil).Times(1)
+	orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).Return(&mmodel.OperationRoute{ID: id, OrganizationID: orgID}, nil).Times(1)
+	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, id).Return(true, nil).Times(1)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{OperationRouteRepo: orRepo}}
 
@@ -835,9 +843,10 @@ func TestGetAllOperationRoutes_MetadataFilter(t *testing.T) {
 			EntityName: constant.EntityOperationRoute,
 			Data:       map[string]any{"category": "income"},
 		}}, nil).Times(1)
-	orRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	orRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return([]*mmodel.OperationRoute{{
-			ID: id, OrganizationID: orgID, LedgerID: ledgerID,
+			ID: id, OrganizationID: orgID, LedgerID: &ledgerID,
 			Title: "Cashin Route", OperationType: "source",
 		}}, libHTTP.CursorPagination{}, nil).Times(1)
 
@@ -874,7 +883,8 @@ func TestGetAllOperationRoutes_RepositoryError_500(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	orRepo := operationroute.NewMockRepository(ctrl)
-	orRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
+	// The ledger path lists every route of the organization: no ledger filter.
+	orRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return(nil, libHTTP.CursorPagination{}, pkg.InternalServerError{Code: "0046", Title: "Internal Server Error", Message: "Database connection failed"}).Times(1)
 
 	handler := &OperationRouteHandler{Query: &query.UseCase{OperationRouteRepo: orRepo}}

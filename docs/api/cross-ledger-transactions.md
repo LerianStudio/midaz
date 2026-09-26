@@ -35,8 +35,11 @@ are authorized to read.
   still rejects a batch item whose hold itself spans ledgers.
 - Every part uses the same request asset. Mixed assets return `0250` (HTTP 422).
 - A participating ledger with cross-ledger disabled returns `0249` (HTTP 422).
-- Synthetic bridge legs have no accounting route. If any participant enables
-  `accounting.validateRoutes`, the request returns `0251` (HTTP 422).
+- Participants that enable `accounting.validateRoutes` are supported when the
+  group stays in one organization; see [Accounting routes](#accounting-routes).
+  A group that spans more than one organization while any participant validates
+  routes returns `0251` (HTTP 422), because accounting routes belong to one
+  organization. Cross-organization groups without route validation are accepted.
 - Fees, Tracer, skip permissions, balance rules, and limits are evaluated with
   each part's own ledger settings.
 - One idempotency key protects the full request. An identical replay returns the
@@ -44,6 +47,59 @@ are authorized to read.
   reusing the key conflicts with `0084`.
 - Cross-tenant requests are not possible: tenant scope still comes from the
   authenticated connection.
+
+## Accounting routes
+
+Accounting routes belong to the organization, so one transaction route (the
+request's `routeId`) covers every part of a group. Each client leg names its
+operation route (`operationRouteId`, per leg or inherited from the request). The
+client never names a route for the bridge legs:
+
+- In a participant that validates routes, the synthetic bridge leg takes the
+  bridge route of the transaction route: the one bidirectional operation route
+  carrying a `crossLedger` accounting entry, and no other entry. Its rubric
+  follows the posted direction: `crossLedger.credit` where value leaves the
+  ledger, `crossLedger.debit` where it arrives (swapped in a revert). A
+  transaction route without such an operation route returns `0255` (HTTP 422);
+  more than one, or a bridge route with other entries, returns `0256`.
+- Participants that do not validate routes keep unrouted bridge legs.
+
+Validation runs in two steps for every operation that changes balances:
+
+- **Per part**, in each ledger that validates routes, exactly as for a single
+  transaction except the route count: every client leg names a route of the
+  phase's template on a side it accepts (`0117`), directions and account rules
+  hold, and overdraft and bridge legs carry their rubrics. Bridge legs never
+  count in a template.
+- **Over the group**, once per phase: the client legs of every part together
+  must use exactly the phase's template (`0116`), and a bidirectional route used
+  on both sides needs a debit and a credit somewhere in the group (`0151`). The
+  union counts every client leg that names a route, including legs in parts
+  whose ledger does not validate routes; a leg without a route in such a part
+  counts for nothing. So a transfer from a validating ledger to one that does not
+  validate still names the destination route to complete a
+  `{source, destination}` template.
+
+Each phase uses its own template:
+
+| Phase | Parts in the union | Template |
+| --- | --- | --- |
+| direct | every part | `direct` |
+| hold | the origins created now, plus the destination parts persisted in the intent (by route ID only; their account rules are checked at commit) | `hold` for sources, `commit` for destinations |
+| commit | the origin transitions and the destinations created now | `commit` (destinations validate and take rubrics as `commit`, although they post as direct transactions) |
+| cancel | the origins | `cancel`, source side only, with no group-wide rule |
+| revert | every reversal | `revert`; every routed operation must be bidirectional |
+
+A transaction route for a full lifecycle therefore gives its source routes
+`hold`, `commit`, `cancel` and `direct` entries as needed, its destination routes
+`commit` (for holds) and `direct` entries, and bidirectional client routes with
+`revert` entries when groups are reverted, plus the `crossLedger` bridge route.
+
+Settings are read again at every step. A group held while a ledger did not
+validate routes, and committed after it started to, is validated at commit, as a
+single-ledger pending transaction is. The same holds for `0251`: a
+cross-organization group is refused at commit or cancel once any participant
+validates routes.
 
 ## Hold, commit, and cancel
 

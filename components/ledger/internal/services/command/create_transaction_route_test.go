@@ -41,14 +41,14 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 		{
 			ID:             operationRouteID1,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Debit Route",
 			OperationType:  "source",
 		},
 		{
 			ID:             operationRouteID2,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Credit Route",
 			OperationType:  "destination",
 		},
@@ -57,7 +57,7 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	expectedTransactionRoute := &mmodel.TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          payload.Title,
 		Description:    payload.Description,
 		OperationRoutes: []mmodel.OperationRoute{
@@ -77,12 +77,12 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
@@ -91,7 +91,7 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -143,16 +143,16 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -181,11 +181,11 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(nil, expectedError).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -220,11 +220,11 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -260,11 +260,11 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -307,17 +307,17 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
 	expectedError := errors.New("failed to create transaction route")
 	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, expectedError).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -368,12 +368,12 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
@@ -383,7 +383,7 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 		Return(expectedError).
 		Times(1)
 
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)

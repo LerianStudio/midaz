@@ -29,8 +29,9 @@ import (
 // inputs allowed in a single update request.
 const maxOperationRouteInputs = 100
 
-// UpdateTransactionRoute updates a transaction route by ID.
-func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (_ *mmodel.TransactionRoute, err error) {
+// UpdateTransactionRoute updates a transaction route of the organization by ID. Its operation-route
+// links may reach operation routes created under any ledger of the organization.
+func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (_ *mmodel.TransactionRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_route")
@@ -64,7 +65,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 			routes []*mmodel.OperationRoute
 		)
 
-		toAdd, toRemove, routes, err = uc.handleOperationRouteUpdates(ctx, organizationID, ledgerID, id, *input.OperationRoutes)
+		toAdd, toRemove, routes, err = uc.handleOperationRouteUpdates(ctx, organizationID, id, *input.OperationRoutes)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +78,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 		linksTouchedInThisUpdate = true
 	}
 
-	transactionRouteUpdated, err := uc.TransactionRouteRepo.Update(ctx, organizationID, ledgerID, id, transactionRoute, toAdd, toRemove)
+	transactionRouteUpdated, err := uc.TransactionRouteRepo.Update(ctx, organizationID, id, transactionRoute, toAdd, toRemove)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
@@ -108,7 +109,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 		}
 
 		if existingIDs := opIDMap[id]; len(existingIDs) > 0 {
-			ops, hydrateErr := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, existingIDs)
+			ops, hydrateErr := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, existingIDs)
 			if hydrateErr != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to hydrate post-update operation routes", hydrateErr)
 				logger.Log(ctx, libLog.LevelError, "Failed to hydrate post-update operation routes", libLog.Err(hydrateErr), libLog.String("transaction_route_id", id.String()))
@@ -166,7 +167,7 @@ func (uc *UseCase) emitTransactionRouteUpdatedEvent(ctx context.Context, span tr
 // of deduplicatedInputs) so the caller does not need a second
 // FindByIDs round-trip to populate the streaming payload + the
 // returned entity.
-func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []uuid.UUID) (toAdd, toRemove []uuid.UUID, postUpdateRoutes []*mmodel.OperationRoute, err error) {
+func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, transactionRouteID uuid.UUID, newOperationRouteInputs []uuid.UUID) (toAdd, toRemove []uuid.UUID, postUpdateRoutes []*mmodel.OperationRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
@@ -180,7 +181,7 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		return nil, nil, nil, pkg.ValidateBusinessError(constant.ErrTooManyOperationRoutes, constant.EntityTransactionRoute)
 	}
 
-	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
+	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, transactionRouteID)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to fetch current transaction route", libLog.Err(err))
 
@@ -200,7 +201,7 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		}
 	}
 
-	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, deduplicatedInputs)
+	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, deduplicatedInputs)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to fetch operation routes", libLog.Err(err))
 

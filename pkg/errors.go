@@ -626,8 +626,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrCrossLedgerRouteValidationUnsupported: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerRouteValidationUnsupported.Error(),
-			Title:      "Cross-Ledger Route Validation Unsupported Error",
-			Message:    "Cross-ledger transactions are not supported when accounting route validation is enabled on a participating ledger.",
+			Title:      "Cross-Organization Route Validation Unsupported Error",
+			Message:    "Cross-ledger transactions that span more than one organization are not supported when accounting route validation is enabled on a participating ledger, because accounting routes belong to a single organization.",
 		},
 		constant.ErrCrossLedgerLifecycleRequiresV2: UnprocessableOperationError{
 			EntityType: entityType,
@@ -646,6 +646,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrCrossLedgerGroupNotPending.Error(),
 			Title:      "Cross-Ledger Group Not Pending Error",
 			Message:    fmt.Sprintf("The cross-ledger transaction group is %v and can no longer be committed or canceled.", args...),
+		},
+		constant.ErrCrossLedgerRouteNotConfigured: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerRouteNotConfigured.Error(),
+			Title:      "Cross-Ledger Route Not Configured Error",
+			Message:    "The transaction could not be completed because route validation is enabled on a participating ledger but the transaction route has no operation route with a crossLedger accounting entry for the cross-ledger bridge. Link a bidirectional operation route with a crossLedger entry to the transaction route and try again.",
+		},
+		constant.ErrInvalidCrossLedgerRoute: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidCrossLedgerRoute.Error(),
+			Title:      "Invalid Cross-Ledger Route Error",
+			Message:    fmt.Sprintf("The cross-ledger bridge route must resolve to exactly one operation route. %v", args...),
 		},
 		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
 			EntityType: entityType,

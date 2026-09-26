@@ -72,7 +72,7 @@ func (r *versionReader) GetTransactionByID(context.Context, uuid.UUID, uuid.UUID
 	return nil, nil
 }
 
-func (r *versionReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
+func (r *versionReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
 	return nil, nil
 }
 

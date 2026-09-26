@@ -17,25 +17,33 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // newDeleteOperationRouteStreamingTestUseCase wires a happy-path
 // UseCase suitable for exercising the operation_route.deleted
-// emission. OperationRouteRepo.HasTransactionRouteLinks reports no
+// emission. OperationRouteRepo.FindByID returns a route created under
+// routeLedgerID, OperationRouteRepo.HasTransactionRouteLinks reports no
 // links (so the delete path is not short-circuited) and
 // OperationRouteRepo.Delete returns nil for the success path.
-func newDeleteOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter) *UseCase {
+func newDeleteOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, routeLedgerID uuid.UUID) *UseCase {
 	t.Helper()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 
 	mockOperationRouteRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orgID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+			return &mmodel.OperationRoute{ID: id, OrganizationID: orgID, LedgerID: &routeLedgerID}, nil
+		}).AnyTimes()
+
+	mockOperationRouteRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, nil).AnyTimes()
 
 	mockOperationRouteRepo.EXPECT().
-		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Delete(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
 	return &UseCase{
@@ -56,10 +64,10 @@ func TestDeleteOperationRouteByID_EmitsOperationRouteDeletedEvent(t *testing.T) 
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, mockEmitter)
+	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, mockEmitter, ledgerID)
 
 	before := time.Now()
-	err := uc.DeleteOperationRouteByID(context.Background(), orgID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(context.Background(), orgID, operationRouteID)
 	after := time.Now()
 	require.NoError(t, err)
 
@@ -94,9 +102,9 @@ func TestDeleteOperationRouteByID_NoopEmitterDoesNotPanic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter())
+	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter(), uuid.New())
 
-	err := uc.DeleteOperationRouteByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	err := uc.DeleteOperationRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err)
 }
 
@@ -109,9 +117,9 @@ func TestDeleteOperationRouteByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{})
+	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{}, uuid.New())
 
-	err := uc.DeleteOperationRouteByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	err := uc.DeleteOperationRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 }
 
@@ -122,8 +130,8 @@ func TestDeleteOperationRouteByID_NilStreamingDoesNotPanic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, nil)
+	uc := newDeleteOperationRouteStreamingTestUseCase(t, ctrl, nil, uuid.New())
 
-	err := uc.DeleteOperationRouteByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	err := uc.DeleteOperationRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err)
 }

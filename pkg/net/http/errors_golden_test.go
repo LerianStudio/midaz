@@ -361,6 +361,8 @@ func allSentinels() map[string]error {
 		"ErrCrossLedgerLifecycleRequiresV2":           constant.ErrCrossLedgerLifecycleRequiresV2,
 		"ErrCrossLedgerGroupIncomplete":               constant.ErrCrossLedgerGroupIncomplete,
 		"ErrCrossLedgerGroupNotPending":               constant.ErrCrossLedgerGroupNotPending,
+		"ErrCrossLedgerRouteNotConfigured":            constant.ErrCrossLedgerRouteNotConfigured,
+		"ErrInvalidCrossLedgerRoute":                  constant.ErrInvalidCrossLedgerRoute,
 		"ErrFeeCalculationFieldType":                  constant.ErrFeeCalculationFieldType,
 		"ErrPriorityInvalid":                          constant.ErrPriorityInvalid,
 		"ErrFindAccountOnMidaz":                       constant.ErrFindAccountOnMidaz,

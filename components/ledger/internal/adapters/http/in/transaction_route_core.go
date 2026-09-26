@@ -29,7 +29,7 @@ type TransactionRouteHandler struct {
 //
 // The create/get/update/delete/getAll methods below own the span, the service call,
 // the transaction-route side-effects (accounting-route cache write on create/update,
-// cache delete on delete, the created metric) and the failure logs. They take
+// the created metric) and the failure logs. They take
 // primitive args — parsed UUIDs, the decoded *Input, the query map — so nothing
 // transport-shaped reaches them; the handlers in transaction_route_handler.go pull
 // those out of the request envelope. Every canonical Midaz error a core returns is
@@ -38,8 +38,9 @@ type TransactionRouteHandler struct {
 // so the cores take the decoded *Input, no rawBody.
 
 // createTransactionRoute owns the span + service call + cache write + created metric
-// for an already-decoded payload.
-func (handler *TransactionRouteHandler) createTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
+// for an already-decoded payload. ledgerID is the ledger the route is created under,
+// nil for a route created at organization level.
+func (handler *TransactionRouteHandler) createTransactionRoute(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
@@ -59,11 +60,7 @@ func (handler *TransactionRouteHandler) createTransactionRoute(ctx context.Conte
 		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", transactionRoute.ID.String()))
 	}
 
-	if err := metricFactory.RecordTransactionRouteCreated(
-		ctx,
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-	); err != nil {
+	if err := metricFactory.RecordTransactionRouteCreated(ctx, routeScopeAttributes(organizationID, ledgerID)...); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to record transaction route created metric", err)
 	}
 
@@ -71,13 +68,13 @@ func (handler *TransactionRouteHandler) createTransactionRoute(ctx context.Conte
 }
 
 // getTransactionRouteByID retrieves a single transaction route.
-func (handler *TransactionRouteHandler) getTransactionRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (handler *TransactionRouteHandler) getTransactionRouteByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
 
-	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
+	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction route", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
@@ -90,7 +87,7 @@ func (handler *TransactionRouteHandler) getTransactionRouteByID(ctx context.Cont
 
 // updateTransactionRoute owns the span + service call + cache write for an
 // already-decoded payload.
-func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
+func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
@@ -98,7 +95,7 @@ func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Conte
 
 	recordSafePayloadAttributes(span, payload)
 
-	transactionRoute, err := handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
+	transactionRoute, err := handler.Command.UpdateTransactionRoute(ctx, organizationID, id, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction route", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to update transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
@@ -114,23 +111,19 @@ func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Conte
 	return transactionRoute, nil
 }
 
-// deleteTransactionRouteByID owns the span + service call + cache delete.
-func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+// deleteTransactionRouteByID owns the span + service call; the use case clears
+// the route's cache entries.
+func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
 
-	if err := handler.Command.DeleteTransactionRouteByID(ctx, organizationID, ledgerID, id); err != nil {
+	if err := handler.Command.DeleteTransactionRouteByID(ctx, organizationID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 
 		return err
-	}
-
-	if err := handler.Command.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
 	}
 
 	return nil
@@ -138,8 +131,9 @@ func (handler *TransactionRouteHandler) deleteTransactionRouteByID(ctx context.C
 
 // getAllTransactionRoutes binds the query map imperatively via http.ValidateParameters
 // so a bad query yields the canonical 400, then returns the assembled
-// cursor-pagination envelope.
-func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+// cursor-pagination envelope. Routes belong to the organization, so the listing
+// covers every route of the organization whichever path served it.
+func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
@@ -163,7 +157,7 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 	}
 
 	if headerParams.Metadata != nil {
-		transactionRoutes, cur, err := handler.Query.GetAllMetadataTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
+		transactionRoutes, cur, err := handler.Query.GetAllMetadataTransactionRoutes(ctx, organizationID, nil, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all transaction routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all transaction routes by metadata", libLog.Err(err))
@@ -181,7 +175,7 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
+	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, nil, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all transaction routes", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all transaction routes", libLog.Err(err))
@@ -193,4 +187,16 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return pagination, nil
+}
+
+// routeScopeAttributes labels an accounting-route metric with its organization and,
+// for a route created under a ledger, that ledger.
+func routeScopeAttributes(organizationID uuid.UUID, ledgerID *uuid.UUID) []attribute.KeyValue {
+	attributes := []attribute.KeyValue{attribute.String("organization_id", organizationID.String())}
+
+	if ledgerID != nil {
+		attributes = append(attributes, attribute.String("ledger_id", ledgerID.String()))
+	}
+
+	return attributes
 }

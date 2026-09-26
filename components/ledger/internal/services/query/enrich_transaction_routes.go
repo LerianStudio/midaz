@@ -67,11 +67,11 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 			orIDSlice = append(orIDSlice, orID)
 		}
 
-		// Use the first transaction route's org/ledger IDs (all share the same scope)
+		// Every listed transaction route belongs to the same organization, and its links may
+		// reach operation routes created under any ledger of that organization.
 		orgID := transactionRoutes[0].OrganizationID
-		ledgerID := transactionRoutes[0].LedgerID
 
-		opRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, orgID, ledgerID, orIDSlice)
+		opRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, orgID, orIDSlice)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to batch fetch operation routes", err)
 

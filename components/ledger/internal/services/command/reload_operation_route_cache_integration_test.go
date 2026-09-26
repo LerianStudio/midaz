@@ -95,8 +95,8 @@ func TestIntegration_ReloadOperationRouteCache_RebuildsSingleTransactionRoute(t 
 	ctx := context.Background()
 
 	// Act - reload cache for this operation route
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID)
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, txRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")
@@ -124,7 +124,7 @@ func TestIntegration_ReloadOperationRouteCache_NoTransactionRoutes(t *testing.T)
 	ctx := context.Background()
 
 	// Act
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, opRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, opRouteID)
 
 	// Assert - should succeed without error (no-op)
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error for unlinked operation route")
@@ -155,13 +155,13 @@ func TestIntegration_ReloadOperationRouteCache_MultipleTransactionRoutes(t *test
 	ctx := context.Background()
 
 	// Act - reload for the shared operation route should rebuild both transaction route caches
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sharedSourceID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sharedSourceID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")
 
 	// Verify both transaction route caches exist
-	key1 := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID1)
+	key1 := utils.AccountingRoutesInternalKey(orgID, txRouteID1)
 	bytes1, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, key1)
 	require.NoError(t, err, "cache for txRoute1 should exist")
 	assert.NotEmpty(t, bytes1, "cache for txRoute1 should not be empty")
@@ -171,7 +171,7 @@ func TestIntegration_ReloadOperationRouteCache_MultipleTransactionRoutes(t *test
 	require.NoError(t, err)
 	assert.NotNil(t, cache1.Actions, "txRoute1 cache should have Actions populated")
 
-	key2 := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID2)
+	key2 := utils.AccountingRoutesInternalKey(orgID, txRouteID2)
 	bytes2, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, key2)
 	require.NoError(t, err, "cache for txRoute2 should exist")
 	assert.NotEmpty(t, bytes2, "cache for txRoute2 should not be empty")
@@ -210,12 +210,12 @@ func TestIntegration_ReloadOperationRouteCache_ActionGroupingVerified(t *testing
 	ctx := context.Background()
 
 	// Act
-	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	err := infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, txRouteID)
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	require.NoError(t, err, "GetBytes should not fail")
 
@@ -250,12 +250,12 @@ func TestIntegration_ReloadOperationRouteCache_ReplacesExistingCache(t *testing.
 	outdatedBytes, err := outdatedCache.ToMsgpack()
 	require.NoError(t, err)
 
-	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, txRouteID)
+	internalKey := utils.AccountingRoutesInternalKey(orgID, txRouteID)
 	err = infra.uc.TransactionRedisRepo.SetBytes(ctx, internalKey, outdatedBytes, 0)
 	require.NoError(t, err)
 
 	// Act
-	err = infra.uc.ReloadOperationRouteCache(ctx, orgID, ledgerID, sourceRouteID)
+	err = infra.uc.ReloadOperationRouteCache(ctx, orgID, sourceRouteID)
 
 	// Assert
 	require.NoError(t, err, "ReloadOperationRouteCache should not return error")

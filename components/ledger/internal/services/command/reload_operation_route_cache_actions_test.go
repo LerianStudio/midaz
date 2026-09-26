@@ -39,6 +39,8 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -52,7 +54,7 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Action-Aware Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -82,7 +84,7 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(transactionRoute, nil).
 		Times(1)
 
@@ -96,7 +98,7 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 		}).
 		Times(1)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 	require.NoError(t, err)
 
 	// Decode the captured bytes and verify action grouping
@@ -146,6 +148,8 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		OperationRouteRepo:   mockOperationRouteRepo,
@@ -156,7 +160,7 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 	txRoute1 := &mmodel.TransactionRoute{
 		ID:             txRouteID1,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Route 1 - Direct",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -170,7 +174,7 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 	txRoute2 := &mmodel.TransactionRoute{
 		ID:             txRouteID2,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Route 2 - Hold",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -192,12 +196,12 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, txRouteID1).
+		FindByID(gomock.Any(), organizationID, txRouteID1).
 		Return(txRoute1, nil).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, txRouteID2).
+		FindByID(gomock.Any(), organizationID, txRouteID2).
 		Return(txRoute2, nil).
 		Times(1)
 
@@ -213,7 +217,7 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 		}).
 		Times(2)
 
-	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, operationRouteID)
 	require.NoError(t, err)
 
 	assert.Len(t, capturedBytesMap, 2, "should have stored 2 cache entries")

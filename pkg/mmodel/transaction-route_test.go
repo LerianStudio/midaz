@@ -36,7 +36,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:              transactionRouteID,
 				OrganizationID:  orgID,
-				LedgerID:        ledgerID,
+				LedgerID:        &ledgerID,
 				Title:           "Empty Route",
 				OperationRoutes: []OperationRoute{},
 				CreatedAt:       now,
@@ -50,7 +50,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:             transactionRouteID,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "Source Only Route",
 				OperationRoutes: []OperationRoute{
 					{
@@ -73,7 +73,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:             transactionRouteID,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "Destination Only Route",
 				OperationRoutes: []OperationRoute{
 					{
@@ -96,7 +96,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:             transactionRouteID,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "Mixed Routes",
 				OperationRoutes: []OperationRoute{
 					{
@@ -127,7 +127,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:             transactionRouteID,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "Multiple Routes",
 				OperationRoutes: []OperationRoute{
 					{
@@ -166,7 +166,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:             transactionRouteID,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "No Account Rule",
 				OperationRoutes: []OperationRoute{
 					{
@@ -186,7 +186,7 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 			transactionRoute: &TransactionRoute{
 				ID:             transactionRouteID,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &ledgerID,
 				Title:          "Unknown Type",
 				OperationRoutes: []OperationRoute{
 					{
@@ -231,7 +231,7 @@ func TestTransactionRoute_ToCache_AccountRuleMapping(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Account Rule Test",
 		OperationRoutes: []OperationRoute{
 			{
@@ -497,7 +497,7 @@ func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Multi-Action Route",
 		OperationRoutes: []OperationRoute{
 			{
@@ -570,7 +570,7 @@ func TestTransactionRoute_ToCache_SingleAction(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Single Action Route",
 		OperationRoutes: []OperationRoute{
 			{
@@ -607,7 +607,7 @@ func TestTransactionRoute_ToCache_NoAccountingEntries(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "No AccountingEntries Route",
 		OperationRoutes: []OperationRoute{
 			{
@@ -830,7 +830,7 @@ func TestTransactionRoute_ToCache_MultipleRoutesPerAction(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Multiple per action",
 		OperationRoutes: []OperationRoute{
 			{ID: src1, OperationType: "source", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
@@ -875,7 +875,7 @@ func TestTransactionRoute_ToCache_AllActionTypes(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:              uuid.New(),
 		OrganizationID:  uuid.New(),
-		LedgerID:        uuid.New(),
+		LedgerID:        new(uuid.New()),
 		Title:           "All Actions",
 		OperationRoutes: routes,
 		CreatedAt:       now,
@@ -899,7 +899,7 @@ func TestTransactionRoute_ToCache_NilOperationRoutes(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:              uuid.New(),
 		OrganizationID:  uuid.New(),
-		LedgerID:        uuid.New(),
+		LedgerID:        new(uuid.New()),
 		Title:           "Nil Routes",
 		OperationRoutes: nil,
 		CreatedAt:       time.Now().UTC(),
@@ -921,7 +921,7 @@ func TestTransactionRoute_ToCache_BidirectionalWithAction(t *testing.T) {
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Bidirectional Route",
 		OperationRoutes: []OperationRoute{
 			{
@@ -954,7 +954,7 @@ func TestTransactionRoute_ToCache_UnknownOperationType_NoPhantomAction(t *testin
 	transactionRoute := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Unknown Type No Phantom",
 		OperationRoutes: []OperationRoute{
 			{

@@ -25,8 +25,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// DeleteOperationRouteByID deletes an operation route by ID.
-func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (err error) {
+// DeleteOperationRouteByID deletes an operation route of the organization by ID. It refuses while the
+// route is linked to any transaction route, whatever ledger that transaction route was created under.
+func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) (err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_operation_route_by_id")
@@ -40,7 +41,6 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.operation_route_id", id.String()),
 	)
 
@@ -50,7 +50,14 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 		return err
 	}
 
-	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, organizationID, ledgerID, id)
+	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, id)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to find operation route", err, libLog.String("operation_route_id", id.String()))
+
+		return err
+	}
+
+	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, organizationID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to check transaction route links", err)
 
@@ -76,7 +83,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 		return err
 	}
 
-	if err := uc.OperationRouteRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
+	if err := uc.OperationRouteRepo.Delete(ctx, organizationID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 
@@ -101,7 +108,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 		return err
 	}
 
-	uc.emitOperationRouteDeletedEvent(ctx, span, logger, id.String(), organizationID.String(), ledgerID.String(), time.Now())
+	uc.emitOperationRouteDeletedEvent(ctx, span, logger, id.String(), organizationID.String(), routeLedgerIDString(operationRoute.LedgerID), time.Now())
 
 	return nil
 }
@@ -115,7 +122,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 // Anchor: invoked immediately after OperationRouteRepo.Delete succeeds
 // (post-link-check). OperationRouteRepo.Delete does not return the
 // post-delete record, so the payload sources identity from the
-// use-case parameters (which match the request path) and stamps
+// use-case parameters, the ledger from the route read before the delete
+// (empty for a route created at organization level), and stamps
 // deletedAt with the wall-clock instant captured by the caller. The PG
 // deleted_at column is set by the same wall clock at row-update time,
 // so the values are effectively identical up to clock skew.

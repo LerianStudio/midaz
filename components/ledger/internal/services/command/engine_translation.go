@@ -32,6 +32,10 @@ type EngineTranslationInput struct {
 	TransactionID     uuid.UUID
 	Action            string
 	TransactionStatus string
+	// RouteAction names the accounting-route template the rubrics come from
+	// when it differs from Action, which drives the postings. Empty means
+	// Action.
+	RouteAction string
 	// RouteValidationEnabled is the ledger-level path decision. It is separate
 	// from Amount.RouteValidationEnabled, which selects composed source postings.
 	RouteValidationEnabled     bool
@@ -221,7 +225,7 @@ func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromT
 		stableRouteID = &value
 	}
 
-	routeCode, routeDescription := translationRubric(input.RouteCache, routeID, input.Action, direction)
+	routeCode, routeDescription := translationRubric(input.RouteCache, routeID, crossLedgerRubricAction(input.RouteCache, routeID, input.routeAction()), direction)
 
 	stableBalance := cloneTranslationBalance(balance)
 
@@ -233,6 +237,14 @@ func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromT
 		ChartOfAccounts: leg.ChartOfAccounts, Metadata: maps.Clone(leg.Metadata), Balance: stableBalance,
 		RequestedAmount: requestedAmount, CompatibilityPath: compatibilityPath,
 	}
+}
+
+func (input EngineTranslationInput) routeAction() string {
+	if input.RouteAction != "" {
+		return input.RouteAction
+	}
+
+	return input.Action
 }
 
 func indexTranslationBalances(balances []*mmodel.Balance) (map[string]*mmodel.Balance, error) {

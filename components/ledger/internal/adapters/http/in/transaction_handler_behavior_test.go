@@ -909,7 +909,7 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 
 	// Mock: Operation route is bidirectional
 	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), orgID, operationRouteID).
 		Return(&mmodel.OperationRoute{
 			ID:            operationRouteID,
 			OperationType: "bidirectional",
@@ -1019,7 +1019,7 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 
 	// Mock: Operation route is NOT bidirectional (type "source")
 	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), orgID, operationRouteID).
 		Return(&mmodel.OperationRoute{
 			ID:            operationRouteID,
 			OperationType: "source",
@@ -1212,7 +1212,7 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 
 	// Mock: Operation route lookup fails
 	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), orgID, operationRouteID).
 		Return(nil, routeLookupErr).
 		Times(1)
 

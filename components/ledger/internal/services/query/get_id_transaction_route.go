@@ -17,18 +17,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 
-	// GetTransactionRouteByID retrieves a transaction route by its ID.
-	// It returns the transaction route if found, otherwise it returns an error.
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
+// GetTransactionRouteByID returns an active transaction route of the organization with its metadata,
+// whatever ledger it was created under.
+func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_transaction_route_by_id")
 	defer span.End()
 
-	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
+	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, id)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting transaction route on repo by id", libLog.Err(err))
 

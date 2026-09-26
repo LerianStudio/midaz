@@ -89,7 +89,7 @@ func FuzzToCache(f *testing.F) {
 		tr := &TransactionRoute{
 			ID:              uuid.New(),
 			OrganizationID:  uuid.New(),
-			LedgerID:        uuid.New(),
+			LedgerID:        new(uuid.New()),
 			Title:           "Fuzz Test Route",
 			OperationRoutes: routes,
 		}
@@ -261,7 +261,7 @@ func FuzzToCacheMsgpackRoundTrip(f *testing.F) {
 		tr := &TransactionRoute{
 			ID:              uuid.New(),
 			OrganizationID:  uuid.New(),
-			LedgerID:        uuid.New(),
+			LedgerID:        new(uuid.New()),
 			Title:           "Fuzz Roundtrip",
 			OperationRoutes: routes,
 		}

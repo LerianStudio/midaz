@@ -24,6 +24,15 @@ type crossLedgerTransactionScopes struct {
 type decomposedCrossLedgerPart struct {
 	ledgerRef   atomicTransactionBatchLedgerRef
 	transaction mtransaction.Transaction
+	// bridge locates the @external/<asset> leg the decomposition appended to
+	// close this part. It is nil for a net-zero part, which crosses nothing. A
+	// client leg on the same alias is never the bridge.
+	bridge *crossLedgerBridgePosition
+}
+
+type crossLedgerBridgePosition struct {
+	isFrom bool
+	index  int
 }
 
 type crossLedgerPartBuilder struct {
@@ -91,10 +100,14 @@ func decomposeCrossLedgerTransaction(
 		partTotal := decimal.Max(builder.fromTotal, builder.toTotal)
 		difference := builder.fromTotal.Sub(builder.toTotal)
 
+		var bridge *crossLedgerBridgePosition
+
 		switch {
 		case difference.IsPositive():
+			bridge = &crossLedgerBridgePosition{isFrom: false, index: len(builder.to)}
 			builder.to = append(builder.to, crossLedgerBridgeLeg(transaction.Send.Asset, difference, false))
 		case difference.IsNegative():
+			bridge = &crossLedgerBridgePosition{isFrom: true, index: len(builder.from)}
 			builder.from = append(builder.from, crossLedgerBridgeLeg(transaction.Send.Asset, difference.Abs(), true))
 		}
 
@@ -110,7 +123,7 @@ func decomposeCrossLedgerTransaction(
 			},
 		}
 
-		parts = append(parts, decomposedCrossLedgerPart{ledgerRef: builder.ledgerRef, transaction: part})
+		parts = append(parts, decomposedCrossLedgerPart{ledgerRef: builder.ledgerRef, transaction: part, bridge: bridge})
 	}
 
 	return parts, nil

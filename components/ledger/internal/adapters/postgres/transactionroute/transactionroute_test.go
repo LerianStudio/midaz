@@ -25,7 +25,7 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &TransactionRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "Charge Settlement",
 			Description:    "Settlement route for service charges",
 			CreatedAt:      time.Now().Add(-48 * time.Hour),
@@ -38,7 +38,7 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		require.NotNil(t, entity)
 		assert.Equal(t, model.ID, entity.ID)
 		assert.Equal(t, model.OrganizationID, entity.OrganizationID)
-		assert.Equal(t, model.LedgerID, entity.LedgerID)
+		assert.Equal(t, &model.LedgerID.UUID, entity.LedgerID)
 		assert.Equal(t, model.Title, entity.Title)
 		assert.Equal(t, model.Description, entity.Description)
 		assert.Equal(t, model.CreatedAt, entity.CreatedAt)
@@ -55,7 +55,7 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &TransactionRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "Simple Route",
 			Description:    "Route without deletion",
 			CreatedAt:      time.Now(),
@@ -77,7 +77,7 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &TransactionRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "Edge Case Route",
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
@@ -99,7 +99,7 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		model := &TransactionRoutePostgreSQLModel{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       uuid.NullUUID{UUID: ledgerID, Valid: true},
 			Title:          "Minimal Route",
 			Description:    "",
 			CreatedAt:      time.Now(),
@@ -123,7 +123,7 @@ func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.TransactionRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Charge Settlement",
 			Description:    "Settlement route for service charges",
 			CreatedAt:      time.Now().Add(-48 * time.Hour),
@@ -136,7 +136,7 @@ func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
 
 		assert.Equal(t, entity.ID, model.ID)
 		assert.Equal(t, entity.OrganizationID, model.OrganizationID)
-		assert.Equal(t, entity.LedgerID, model.LedgerID)
+		assert.Equal(t, uuid.NullUUID{UUID: *entity.LedgerID, Valid: true}, model.LedgerID)
 		assert.Equal(t, entity.Title, model.Title)
 		assert.Equal(t, entity.Description, model.Description)
 		assert.Equal(t, entity.CreatedAt, model.CreatedAt)
@@ -153,7 +153,7 @@ func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.TransactionRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Active Route",
 			Description:    "Route without deletion",
 			CreatedAt:      time.Now(),
@@ -176,7 +176,7 @@ func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
 		entity := &mmodel.TransactionRoute{
 			ID:             id,
 			OrganizationID: orgID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Minimal Route",
 			Description:    "",
 			CreatedAt:      time.Now(),
