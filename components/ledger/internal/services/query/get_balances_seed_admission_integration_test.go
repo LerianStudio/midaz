@@ -18,10 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // ownershipKey is the physical administrative ownership key of one account, so
@@ -179,4 +182,74 @@ func TestIntegration_SeedAdmission_RefusedByAClosingOrAnotherExclusiveHolder(t *
 		require.NoError(t, err)
 		assert.Equal(t, owner, value, "the exclusive owner is left untouched")
 	})
+}
+
+// balanceCreatedAfterResolution creates one balance row right after the first
+// alias read returns, which is the window a concurrent settings update opens when
+// it creates an overdraft companion between a load's two reads.
+type balanceCreatedAfterResolution struct {
+	balance.Repository
+	once   sync.Once
+	create func()
+}
+
+func (r *balanceCreatedAfterResolution) ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
+	balances, err := r.Repository.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliasesWithKeys)
+
+	r.once.Do(r.create)
+
+	return balances, err
+}
+
+// TestIntegration_SeedAdmission_ExtendsToABalanceCreatedBetweenTheReads runs over
+// the real cache and databases. The balance of an account the resolution read did
+// not see is created before the read under the admission: the load extends its
+// shared admission to that account, proves it open, reads again and succeeds, and
+// the execution it hands over to holds a live admission for both accounts.
+func TestIntegration_SeedAdmission_ExtendsToABalanceCreatedBetweenTheReads(t *testing.T) {
+	infra := setupReseedTestInfra(t)
+	ctx := context.Background()
+
+	resolvedID, _, resolvedAlias := infra.seedBalance(t, "seed-admission-resolved", decimal.NewFromInt(100), 0)
+
+	const lateName = "seed-admission-late"
+
+	lateAlias := "@" + lateName
+	lateID := pgtestutil.CreateTestAccount(t, infra.onboardingDB.DB, infra.orgID, infra.ledgerID, nil, lateName, lateAlias, "USD", nil)
+
+	uc := *infra.uc
+	uc.BalanceRepo = &balanceCreatedAfterResolution{
+		Repository: infra.uc.BalanceRepo,
+		create: func() {
+			params := pgtestutil.DefaultBalanceParams()
+			params.Alias = lateAlias
+			params.AssetCode = "USD"
+
+			pgtestutil.CreateTestBalance(t, infra.transactionDB.DB, infra.orgID, infra.ledgerID, lateID, params)
+		},
+	}
+
+	aliases := []string{resolvedAlias + "#" + constant.DefaultBalanceKey, lateAlias + "#" + constant.DefaultBalanceKey}
+
+	loadCtx, sink := accountprotection.ContextWithSink(ctx)
+
+	balances, err := uc.GetBalances(loadCtx, infra.orgID, infra.ledgerID, aliases)
+	require.NoError(t, err, "a balance created between the reads must not refuse the load")
+	require.Len(t, balances, 2)
+
+	for _, accountID := range []uuid.UUID{resolvedID, lateID} {
+		token := sink.TokenFor(infra.orgID, infra.ledgerID, accountID)
+		require.NotEmpty(t, token, "the execution holds an admission over every account it seeds")
+
+		_, err := infra.redis.Client.ZScore(ctx, infra.ownershipKey(t, ctx, accountID), token).Result()
+		require.NoError(t, err, "the admission is a live member of the account's ownership key")
+	}
+
+	sink.Release(ctx)
+
+	for _, accountID := range []uuid.UUID{resolvedID, lateID} {
+		exists, err := infra.redis.Client.Exists(ctx, infra.ownershipKey(t, ctx, accountID)).Result()
+		require.NoError(t, err)
+		assert.Zero(t, exists, "releasing the execution gives back every admission of the load")
+	}
 }

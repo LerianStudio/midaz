@@ -283,11 +283,6 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			return nil, err
 		}
 
-		admission, err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, resolved)
-		if err != nil {
-			return nil, err
-		}
-
 		// The seed admission covers the seed read, the blocked hydration and the
 		// rebuild. Releasing it earlier would let a closing evict between the seed and
 		// the rebuild and hand the engine a balance of an account it already finished
@@ -295,21 +290,31 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		// each other.
 		//
 		// The seed itself is admitted later, inside the engine, so a caller that goes
-		// on to execute accounting installs a sink and takes the admission over: it
+		// on to execute accounting installs a sink and takes every admission over: it
 		// then ends with the execution's answer instead of with this load.
-		if !accountprotection.AdoptAdmission(ctx, admission) {
-			defer admission.Release(ctx)
+		var owned []*accountprotection.Admission
+
+		defer func() {
+			for i := len(owned) - 1; i >= 0; i-- {
+				owned[i].Release(ctx)
+			}
+		}()
+
+		hold := func(admission *accountprotection.Admission) {
+			if !accountprotection.AdoptAdmission(ctx, admission) {
+				owned = append(owned, admission)
+			}
 		}
 
-		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
+		admission, err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, resolved)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
-
 			return nil, err
 		}
 
-		if err := uc.confirmSeedAdmissionCoverage(ctx, span, admission, balancesDB); err != nil {
+		hold(admission)
+
+		balancesDB, err := uc.readSeedsUnderAdmission(ctx, span, organizationID, ledgerID, uncachedAliases, admission, hold)
+		if err != nil {
 			return nil, err
 		}
 

@@ -79,7 +79,7 @@ func (s seedAdmissionStore) ReleaseAccountSeed(ctx context.Context, organization
 //
 // The returned admission is nil when the deployment carries no protection surface
 // or there is nothing to protect; Release handles that, and so does
-// confirmSeedAdmissionCoverage.
+// readSeedsUnderAdmission.
 //
 // The admission is held through the seed load and its rebuild. Where the caller
 // installed an admission sink, it is handed over and stays alive through the
@@ -127,45 +127,104 @@ func (uc *UseCase) protectBalanceSeedAdmission(ctx context.Context, span trace.S
 	return admission, nil
 }
 
-// confirmSeedAdmissionCoverage refuses a seed whose owning account the admission
-// does not cover. The re-read runs under the admission taken over the accounts the
-// first read named; an account that appears only in the second read was never
-// checked against a closing, and serving its row would be exactly the unprotected
-// seed the admission exists to prevent.
-func (uc *UseCase) confirmSeedAdmissionCoverage(ctx context.Context, span trace.Span, admission *accountprotection.Admission, balances []*mmodel.Balance) error {
-	if admission == nil || len(balances) == 0 {
-		return nil
-	}
+// maxSeedAdmissionExtensions bounds how many times one load extends its seed
+// admission to accounts that appeared between two of its reads.
+const maxSeedAdmissionExtensions = 2
 
+// readSeedsUnderAdmission reads the seeds again under the admission and returns
+// only rows whose owning accounts the load's admissions all cover.
+//
+// A row can appear between the resolution read and this one — an overdraft
+// companion a concurrent settings update just created, for instance — and its
+// account was never checked against a closing. Serving it would be exactly the
+// unprotected seed the admission exists to prevent, so the admission is extended
+// to that account, which proves it open, and the rows are read once more: rows
+// read before an admission covered their account are never served. The extension
+// is bounded; a load whose every read keeps naming a new account refuses as
+// indeterminate instead of chasing the drift.
+//
+// hold receives every extension so the caller can hand it to the execution or
+// release it when the load ends, exactly like the first admission.
+func (uc *UseCase) readSeedsUnderAdmission(
+	ctx context.Context,
+	span trace.Span,
+	organizationID, ledgerID uuid.UUID,
+	aliases []string,
+	admission *accountprotection.Admission,
+	hold func(*accountprotection.Admission),
+) ([]*mmodel.Balance, error) {
 	logger := libObservability.NewLoggerFromContext(ctx)
 
-	owned := make(map[uuid.UUID]struct{}, len(admission.Accounts()))
+	covered := make(map[uuid.UUID]struct{})
 	for _, accountID := range admission.Accounts() {
-		owned[accountID] = struct{}{}
+		covered[accountID] = struct{}{}
 	}
 
-	accountIDs, err := seedAccountIDs(balances)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
-		logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.Err(err))
+	for extensions := 0; ; extensions++ {
+		balances, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
 
-		return err
-	}
-
-	for _, accountID := range accountIDs {
-		if _, covered := owned[accountID]; covered {
-			continue
+			return nil, err
 		}
 
-		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+		if uc.accountProtectionGuard() == nil {
+			return balances, nil
+		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused a balance seed outside the protected account set", indeterminate)
-		logger.Log(ctx, libLog.LevelWarn, "Refused a balance seed outside the protected account set")
+		uncovered, err := uncoveredSeeds(balances, covered)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
+			logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.Err(err))
 
-		return indeterminate
+			return nil, err
+		}
+
+		if len(uncovered) == 0 {
+			return balances, nil
+		}
+
+		if extensions == maxSeedAdmissionExtensions {
+			indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused a balance seed outside the protected account set", indeterminate)
+			logger.Log(ctx, libLog.LevelWarn, "Refused a balance seed outside the protected account set")
+
+			return nil, indeterminate
+		}
+
+		extension, err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, uncovered)
+		if err != nil {
+			return nil, err
+		}
+
+		hold(extension)
+
+		for _, accountID := range extension.Accounts() {
+			covered[accountID] = struct{}{}
+		}
+	}
+}
+
+// uncoveredSeeds returns the rows whose owning account is not covered yet. An
+// unparsable account identifier fails the read: a seed whose owner cannot be
+// named cannot be checked against a closing either.
+func uncoveredSeeds(balances []*mmodel.Balance, covered map[uuid.UUID]struct{}) ([]*mmodel.Balance, error) {
+	var uncovered []*mmodel.Balance
+
+	for _, balance := range balances {
+		accountID, err := uuid.Parse(balance.AccountID)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := covered[accountID]; !ok {
+			uncovered = append(uncovered, balance)
+		}
 	}
 
-	return nil
+	return uncovered, nil
 }
 
 // recordSeedAdmissionRefusal records a refused seed admission with the class of

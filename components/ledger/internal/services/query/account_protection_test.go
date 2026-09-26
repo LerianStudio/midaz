@@ -345,43 +345,6 @@ func TestGetBalances_SeedIsReadUnderTheOwnership(t *testing.T) {
 	assert.True(t, decimal.NewFromInt(200).Equal(balances[0].Available))
 }
 
-// TestGetBalances_SeedOutsideTheOwnedSetIsRefused proves the re-read cannot smuggle
-// in an account the ownership never covered: such a seed was checked against no
-// closing at all, so it is refused instead of served.
-func TestGetBalances_SeedOutsideTheOwnedSetIsRefused(t *testing.T) {
-	m := newAdmissionMocks(t)
-
-	stranger := uuid.New()
-
-	m.redis.EXPECT().Get(gomock.Any(), utils.BalanceInternalKey(admissionOrgID, admissionLedgerID, admissionAlias)).
-		Return("", nil)
-	m.balance.EXPECT().ListByAliasesWithKeys(gomock.Any(), admissionOrgID, admissionLedgerID, []string{admissionAlias}).
-		Return([]*mmodel.Balance{admissionSeedRow(admissionAccountID, 100)}, nil)
-
-	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
-		Return("", false, nil)
-	m.redis.EXPECT().AcquireAccountSeedAdmission(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
-		Return(true, redis.AccountAdminHolderNone, nil)
-	m.redis.EXPECT().GetAccountClosedMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
-		Return(time.Time{}, false, nil)
-	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{admissionAccountID}).
-		Return(map[uuid.UUID]*time.Time{admissionAccountID: nil}, nil)
-
-	m.balance.EXPECT().ListByAliasesWithKeys(gomock.Any(), admissionOrgID, admissionLedgerID, []string{admissionAlias}).
-		Return([]*mmodel.Balance{admissionSeedRow(stranger, 100)}, nil)
-
-	m.redis.EXPECT().ReleaseAccountSeedAdmission(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
-		Return(true, nil)
-
-	_, err := m.uc.GetBalances(context.Background(), admissionOrgID, admissionLedgerID, []string{admissionAlias})
-
-	require.Error(t, err)
-
-	var unavailable pkg.ServiceUnavailableError
-	require.True(t, errors.As(err, &unavailable))
-	assert.Equal(t, constant.ErrAccountClosingProtectionIndeterminate.Error(), unavailable.Code)
-}
-
 // TestGetBalances_CacheHitTouchesNoProtection is the hard performance constraint of
 // the design: a cached balance acquires no ownership and reads no account row. The
 // strict mocks fail the test if any of those calls happen.
