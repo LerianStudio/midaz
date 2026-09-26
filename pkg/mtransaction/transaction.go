@@ -204,20 +204,23 @@ func SplitAliasWithKey(alias string) string {
 	return alias
 }
 
-// BareAlias returns the account alias from any form an entry's AccountAlias can hold: the bare
-// alias, "alias#balanceKey", or the "index#alias#balanceKey" entry key. A leading run of digits
-// followed by the separator is read as the entry index, which is unambiguous because a client
-// alias cannot carry the separator.
+// BareAlias returns the account alias from any form a persisted entry's AccountAlias can hold:
+// the bare alias, "alias#balanceKey", or the "index#alias#balanceKey" entry key. A client alias
+// never carries the separator, so the separator count identifies the form: none is the bare
+// alias, one is "alias#balanceKey", and two or more is the entry key whose alias is the second
+// segment. Counting, rather than reading a leading digit run as the index, is what keeps a
+// digits-only alias in "alias#balanceKey" form from being mistaken for an index.
 func BareAlias(alias string) string {
-	if isConcatedAlias(alias) {
-		alias = SplitAliasWithKey(alias)
+	head, rest, found := strings.Cut(alias, AliasSeparatorString)
+	if !found {
+		return alias
 	}
 
-	if idx := strings.Index(alias, AliasSeparatorString); idx != -1 {
-		return alias[:idx]
+	if second, _, isEntryKey := strings.Cut(rest, AliasSeparatorString); isEntryKey {
+		return second
 	}
 
-	return alias
+	return head
 }
 
 // ConcatAlias builds a composite key from the entry's index, alias, and balance key.

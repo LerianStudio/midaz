@@ -297,6 +297,26 @@ func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 			expectedDestination: []string{"@dst", "@b"},
 		},
 		{
+			name:   "digits-only aliases in body entries are read as the alias, not as an index",
+			status: constant.PENDING,
+			body: mtransaction.Transaction{
+				Pending: true,
+				Send: mtransaction.Send{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
+							{AccountAlias: "0#123#default", BalanceKey: constant.DefaultBalanceKey},
+							{AccountAlias: "123#default", BalanceKey: constant.DefaultBalanceKey},
+						},
+					},
+				},
+			},
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{leg(constant.ONHOLD, constant.DirectionCredit, "@src")}
+			},
+			expectedSource:      []string{},
+			expectedDestination: []string{"123", "123"},
+		},
+		{
 			name:   "only system legs and no submitted destination answer empty lists",
 			status: constant.PENDING,
 			operations: func() []*operation.Operation {
@@ -308,7 +328,6 @@ func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
