@@ -60,6 +60,13 @@ administrative ownership over the account first:
 
 Cache **hits** take no ownership and read no database row: the hot path is unchanged.
 
+A writer that finds the account held refuses instead of waiting, and the code names the
+holder. A closing in progress answers `0522`. Any other holder — transactions loading
+the account's balances, a balance creation or a balance deletion — answers `0526`. Both
+are 409 and neither changes the account. A `0526` may be retried once the holder
+concludes; a retry after a `0522` may find the account closed (`0519`, or `0521` for a
+second closing).
+
 An operation whose write outcome is unknown — a cancelled context, an expired deadline,
 a lost connection — keeps its ownership instead of releasing it. A SQLSTATE the server
 answered with, and a refusal decided before any write, both release immediately.
@@ -69,7 +76,9 @@ answered with, and a refusal decided before any write, both release immediately.
 1. Read the account from the PRIMARY: it must exist in the scope, not be external
    (`0074`), and not already be closed (`0521`).
 2. Take the administrative ownership, then install the closing marker under the same
-   token. A second attempt is refused with `0522`.
+   token. A second closing attempt is refused with `0522`. While another operation holds
+   the account — transactions loading its balances, a balance creation or a deletion —
+   the closing is refused with `0526` and may be retried once that operation concludes.
 3. Verify, under that protection: every balance zero on `Available`, `OnHold` and
    `OverdraftUsed` (`0523`); no recovery record of this account still pending
    (`0518`); the live state proven persisted (`0518`, or `0520` when the evidence is
