@@ -116,6 +116,11 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	}
 
 	ledgers := setCrossLedgerGroupShape(span, crossLedgerIntentLedgerRefs(*intent))
+
+	if err := uc.refuseCrossOrganizationGroupRouteValidation(ctx, crossLedgerIntentLedgerRefs(*intent)); err != nil {
+		return nil, err
+	}
+
 	roles := crossLedgerIntentRoles(*intent)
 	roleOf := func(member *transaction.Transaction) string { return roles[crossLedgerMemberLedgerRef(member)] }
 

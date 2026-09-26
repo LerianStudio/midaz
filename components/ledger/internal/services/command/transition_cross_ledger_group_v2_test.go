@@ -325,6 +325,11 @@ type crossLedgerLifecycleSetup struct {
 	stampParts func([]decomposedCrossLedgerPart)
 	settingsA  *mmodel.LedgerSettings
 	settingsB  *mmodel.LedgerSettings
+	// destinationOrganizationID places ledger B in another organization.
+	destinationOrganizationID *uuid.UUID
+	// refusedBeforeLocks marks a transition refused before it locks the
+	// pending origins.
+	refusedBeforeLocks bool
 }
 
 func newCrossLedgerLifecycleFixtureWith(
@@ -342,6 +347,10 @@ func newCrossLedgerLifecycleFixtureWith(
 	destinationID := uuid.MustParse("0199a500-0000-7000-8000-000000000016")
 	executionID := uuid.MustParse("0199a500-0000-7000-8000-000000000017")
 	now := time.Date(2026, time.September, 22, 18, 0, 0, 0, time.UTC)
+	destinationOrganizationID := organizationID
+	if setup.destinationOrganizationID != nil {
+		destinationOrganizationID = *setup.destinationOrganizationID
+	}
 
 	original := crossLedgerTestTransaction(
 		"100",
@@ -353,7 +362,7 @@ func newCrossLedgerLifecycleFixtureWith(
 	}
 	parts, err := decomposeCrossLedgerTransaction(original, crossLedgerTransactionScopes{
 		from: []atomicTransactionBatchLedgerRef{{organizationID: organizationID, ledgerID: ledgerA}},
-		to:   []atomicTransactionBatchLedgerRef{{organizationID: organizationID, ledgerID: ledgerB}},
+		to:   []atomicTransactionBatchLedgerRef{{organizationID: destinationOrganizationID, ledgerID: ledgerB}},
 	})
 	require.NoError(t, err)
 	if setup.stampParts != nil {
@@ -389,16 +398,16 @@ func newCrossLedgerLifecycleFixtureWith(
 	balances := []*mmodel.Balance{
 		atomicTransactionBatchTestBalance(organizationID, ledgerA, "0199a500-0000-7000-8000-000000000021", "@debit", "BRL"),
 		atomicTransactionBatchTestBalance(organizationID, ledgerA, "0199a500-0000-7000-8000-000000000022", "@external/BRL", "BRL"),
-		atomicTransactionBatchTestBalance(organizationID, ledgerB, "0199a500-0000-7000-8000-000000000023", "@external/BRL", "BRL"),
-		atomicTransactionBatchTestBalance(organizationID, ledgerB, "0199a500-0000-7000-8000-000000000024", "@credit", "BRL"),
+		atomicTransactionBatchTestBalance(destinationOrganizationID, ledgerB, "0199a500-0000-7000-8000-000000000023", "@external/BRL", "BRL"),
+		atomicTransactionBatchTestBalance(destinationOrganizationID, ledgerB, "0199a500-0000-7000-8000-000000000024", "@credit", "BRL"),
 	}
 	balances[0].Available = decimal.Zero
 	balances[0].OnHold = amount
 	reader := &crossLedgerLifecycleReader{
 		atomicTransactionBatchSettingsReader: &atomicTransactionBatchSettingsReader{
 			settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
-				{organizationID: organizationID, ledgerID: ledgerA}: settingsA,
-				{organizationID: organizationID, ledgerID: ledgerB}: settingsB,
+				{organizationID: organizationID, ledgerID: ledgerA}:            settingsA,
+				{organizationID: destinationOrganizationID, ledgerID: ledgerB}: settingsB,
 			},
 			balances: balances,
 		},
@@ -408,7 +417,9 @@ func newCrossLedgerLifecycleFixtureWith(
 	ctrl := gomock.NewController(t)
 	repo := transactiongroup.NewMockRepository(ctrl)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
-	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+	if !setup.refusedBeforeLocks {
+		redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+	}
 	engine := &applyingCrossLedgerLifecycleEngine{t: t}
 	ids := []uuid.UUID{executionID}
 	if status == constant.APPROVED {

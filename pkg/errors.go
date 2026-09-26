@@ -626,8 +626,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrCrossLedgerRouteValidationUnsupported: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerRouteValidationUnsupported.Error(),
-			Title:      "Cross-Ledger Route Validation Unsupported Error",
-			Message:    "Cross-ledger transactions are not supported when accounting route validation is enabled on a participating ledger.",
+			Title:      "Cross-Organization Route Validation Unsupported Error",
+			Message:    "Cross-ledger transactions that span more than one organization are not supported when accounting route validation is enabled on a participating ledger, because accounting routes belong to a single organization.",
 		},
 		constant.ErrCrossLedgerLifecycleRequiresV2: UnprocessableOperationError{
 			EntityType: entityType,

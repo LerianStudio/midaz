@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -369,11 +370,30 @@ func TestCreateCrossLedgerHoldV2_BridgeRoute(t *testing.T) {
 		assert.Equal(t, constant.ErrCrossLedgerRouteNotConfigured.Error(), businessErr.Code)
 	})
 
-	t.Run("a configured bridge route does not lift the route-validation refusal", func(t *testing.T) {
-		_, err := useCase(t, f.reader(bridgeRouteCache(f.bridgeRouteID), f.ledgerA)).CreateCrossLedgerHoldV2(context.Background(), input)
+	t.Run("a configured bridge route persists the intent with the bridge leg routed", func(t *testing.T) {
+		uc := useCase(t, f.reader(bridgeRouteCache(f.bridgeRouteID), f.ledgerA))
+		persistenceFailed := errors.New("intent persistence stopped by the test")
 
-		var businessErr pkg.UnprocessableOperationError
-		require.ErrorAs(t, err, &businessErr)
-		assert.Equal(t, constant.ErrCrossLedgerRouteValidationUnsupported.Error(), businessErr.Code)
+		var persisted *CrossLedgerGroupIntent
+
+		uc.TransactionGroupRepo.(*transactiongroup.MockRepository).EXPECT().Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, group *transactiongroup.TransactionGroup) error {
+				intent, err := decodeCrossLedgerGroupIntent(group.Intent)
+				require.NoError(t, err)
+
+				persisted = intent
+
+				return persistenceFailed
+			})
+
+		_, err := uc.CreateCrossLedgerHoldV2(context.Background(), input)
+
+		require.ErrorIs(t, err, persistenceFailed)
+		require.NotNil(t, persisted)
+		require.Equal(t, CrossLedgerGroupRoleOrigin, persisted.Parts[0].Role)
+
+		bridge := persisted.Parts[0].Transaction.Send.Distribute.To[0]
+		require.NotNil(t, bridge.RouteID, "the validating origin's bridge leg carries the bridge route")
+		assert.Equal(t, f.bridgeRouteID, *bridge.RouteID)
 	})
 }

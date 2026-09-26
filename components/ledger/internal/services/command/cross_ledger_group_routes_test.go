@@ -43,14 +43,11 @@ type groupRouteFlow struct {
 }
 
 // groupRouteFlowReader answers ledger settings with each ledger's route
-// validation. While hideRouteValidation is set it answers route validation off,
-// which is how the flows below get past the refusal that still guards
-// route-validating cross-ledger participants.
+// validation.
 type groupRouteFlowReader struct {
 	*atomicTransactionBatchSettingsReader
 	*groupRouteValidation
-	routeValidation     map[uuid.UUID]bool
-	hideRouteValidation bool
+	routeValidation map[uuid.UUID]bool
 }
 
 // groupRouteValidation answers route validation with the production query use
@@ -64,7 +61,7 @@ type groupRouteValidation struct {
 
 func (reader *groupRouteFlowReader) GetParsedLedgerSettings(_ context.Context, _, ledgerID uuid.UUID) (mmodel.LedgerSettings, error) {
 	settings := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
-	settings.Accounting.ValidateRoutes = reader.routeValidation[ledgerID] && !reader.hideRouteValidation
+	settings.Accounting.ValidateRoutes = reader.routeValidation[ledgerID]
 
 	return settings, nil
 }
@@ -247,20 +244,12 @@ func (flow *groupRouteFlow) decompose(t *testing.T, request mtransaction.Transac
 }
 
 // prepareBatch freezes and prepares a group batch as CreateAtomicTransactionBatchV2
-// does, with the route-validating participants past the refusal, and returns
-// the run with the error of the first failing step.
+// does, and returns the run with the error of the first failing step.
 func (flow *groupRouteFlow) prepareBatch(t *testing.T, in CreateAtomicTransactionBatchV2Input) (*atomicTransactionBatchRun, error) {
 	t.Helper()
 
-	flow.reader.hideRouteValidation = true
 	run, err := flow.uc.initializeAtomicTransactionBatchV2(context.Background(), in)
-	flow.reader.hideRouteValidation = false
-
 	require.NoError(t, err)
-
-	for index := range run.items {
-		run.items[index].ledgerSettings.Accounting.ValidateRoutes = flow.reader.routeValidation[run.items[index].ledgerID]
-	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(context.Background())
 	ctx, span := tracer.Start(context.Background(), "test.prepare_cross_ledger_group_routes")
@@ -675,8 +664,8 @@ func (reader *groupRouteTransitionReader) ValidateAccountingRules(ctx context.Co
 
 // A group commit validates each origin transition as a group part, bridge
 // included, and the commit phase over the group. Only the origin ledger
-// validates routes here, because the destination ledger of a commit still meets
-// the refusal of route-validating participants.
+// validates routes here; validating destinations are covered by
+// TestCrossLedgerCommitGroup_ValidatesTheDestinationsAsCommit.
 func TestTransitionCrossLedgerGroupV2_CommitValidatesTheOriginAsAGroupPart(t *testing.T) {
 	transactionRouteID := uuid.MustParse("0199b700-0000-7000-8000-000000000001")
 	clientRouteID := uuid.MustParse("0199b700-0000-7000-8000-000000000002")

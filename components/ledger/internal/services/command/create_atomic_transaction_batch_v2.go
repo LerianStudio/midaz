@@ -378,10 +378,12 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 		if len(refs) > 1 && !settings.CrossLedger.Enabled {
 			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, ref.ledgerID.String())
 		}
-		if in.CrossLedgerGroup && settings.Accounting.ValidateRoutes {
-			return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
-		}
 		settingsByRef[ref] = settings
+	}
+	if in.CrossLedgerGroup {
+		if err := refuseCrossOrganizationRouteValidation(settingsByRef); err != nil {
+			return err
+		}
 	}
 	run.ledgerSettings = settingsByRef[refs[0]]
 	for index := range run.items {

@@ -236,9 +236,10 @@ var (
 	// ErrCrossLedgerAssetMismatch is returned when a cross-ledger request
 	// attempts to move more than one asset in the same atomic group.
 	ErrCrossLedgerAssetMismatch = errors.New("0250")
-	// ErrCrossLedgerRouteValidationUnsupported is returned when accounting
-	// route validation is enabled on a participating ledger. The synthetic
-	// external bridge legs do not have an accounting route in this milestone.
+	// ErrCrossLedgerRouteValidationUnsupported is returned when a cross-ledger
+	// group spans more than one organization and a participating ledger
+	// validates accounting routes. Routes belong to one organization, so the
+	// request's transaction route cannot classify the parts of another.
 	ErrCrossLedgerRouteValidationUnsupported = errors.New("0251")
 	// ErrCrossLedgerLifecycleRequiresV2 prevents the legacy contract from
 	// transitioning only one member of an atomic cross-ledger group.

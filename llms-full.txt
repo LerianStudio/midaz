@@ -225,6 +225,14 @@ creates no destination. Both lifecycle responses are singular for ordinary trans
 `groupId` plus ordered `transactions` for cross-ledger groups. `/v1` rejects grouped lifecycle
 operations with `0252`; a second terminal action returns `0254`.
 
+Cross-ledger groups work on ledgers that enable `accounting.validateRoutes` when every part
+belongs to one organization: the request's organization-wide `routeId` covers every part, the
+bridge legs of validating parts take the transaction route's `crossLedger` operation route, each
+validating part is checked leg by leg, and the client legs of all parts of a phase together must
+use exactly that phase's template (`0116`/`0117`/`0151`; legs naming a route count even in
+non-validating parts). A group spanning organizations with a validating participant returns
+`0251`. See the "Accounting routes" section of the cross-ledger contract.
+
 `POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert`
 reverses the complete cross-ledger group when the selected transaction has a `groupId`. It
 validates every member, executes all reversals atomically in reverse part order, and returns
@@ -583,7 +591,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
 - `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
-- `0251` ErrCrossLedgerRouteValidationUnsupported — at least one participant requires route validation, which synthetic bridge legs cannot satisfy (HTTP 422)
+- `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)
 - `0252` ErrCrossLedgerLifecycleRequiresV2 — `/v1` attempted to commit, cancel, or revert a member of a cross-ledger group (HTTP 422)
 - `0253` ErrCrossLedgerGroupIncomplete — the requested cross-ledger group is missing or has inconsistent intent or members (HTTP 422)
 - `0254` ErrCrossLedgerGroupNotPending — grouped commit/cancel targeted a group whose current status is not PENDING (HTTP 422)

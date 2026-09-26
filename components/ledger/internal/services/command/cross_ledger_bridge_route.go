@@ -75,8 +75,10 @@ func (uc *UseCase) routeCrossLedgerBridgeLegs(ctx context.Context, transaction m
 
 // crossLedgerPartsRequiringBridgeRoute returns, in part order, the parts that
 // carry a bridge leg in a ledger that validates accounting routes. A
-// participant that has not opted into cross-ledger is refused here exactly as
-// the group execution would refuse it, so that refusal keeps its precedence.
+// participant that has not opted into cross-ledger, and a group that spans
+// organizations with route validation, are refused here exactly as the group
+// execution would refuse them, so those refusals keep their precedence over the
+// route lookup.
 func (uc *UseCase) crossLedgerPartsRequiringBridgeRoute(ctx context.Context, parts []decomposedCrossLedgerPart) ([]int, error) {
 	if uc.TransactionReader == nil {
 		return nil, errors.New("cross-ledger transaction reader is not configured")
@@ -100,6 +102,10 @@ func (uc *UseCase) crossLedgerPartsRequiringBridgeRoute(ctx context.Context, par
 		}
 
 		settingsByRef[ref] = settings
+	}
+
+	if err := refuseCrossOrganizationRouteValidation(settingsByRef); err != nil {
+		return nil, err
 	}
 
 	routed := make([]int, 0, len(parts))

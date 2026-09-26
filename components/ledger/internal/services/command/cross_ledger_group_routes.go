@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -192,6 +193,59 @@ func (uc *UseCase) validateCrossLedgerGroupRoutes(ctx context.Context, phase str
 	}
 
 	return validator.ValidateGroupAccountingRoutes(ctx, first.organizationID, first.transactionRoute, uses, phase)
+}
+
+// refuseCrossOrganizationRouteValidation refuses a cross-ledger group that
+// spans more than one organization while one of its ledgers validates
+// accounting routes: routes belong to one organization, so the request's
+// transaction route cannot classify the parts of another. Groups within one
+// organization, and groups whose ledgers do not validate routes, pass.
+func refuseCrossOrganizationRouteValidation(settingsByRef map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings) error {
+	organizations := make(map[uuid.UUID]struct{}, len(settingsByRef))
+	validates := false
+
+	for ref, settings := range settingsByRef {
+		organizations[ref.organizationID] = struct{}{}
+		validates = validates || settings.Accounting.ValidateRoutes
+	}
+
+	if len(organizations) > 1 && validates {
+		return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
+	}
+
+	return nil
+}
+
+// refuseCrossOrganizationGroupRouteValidation applies
+// refuseCrossOrganizationRouteValidation to a persisted group at commit or
+// cancel, where every participant's settings are read again. A group within one
+// organization reads nothing.
+func (uc *UseCase) refuseCrossOrganizationGroupRouteValidation(ctx context.Context, refs []atomicTransactionBatchLedgerRef) error {
+	organizations := make(map[uuid.UUID]struct{}, len(refs))
+	for _, ref := range refs {
+		organizations[ref.organizationID] = struct{}{}
+	}
+
+	if len(organizations) < 2 {
+		return nil
+	}
+
+	settingsByRef := make(map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings, len(refs))
+
+	for _, ref := range refs {
+		if _, ok := settingsByRef[ref]; ok {
+			continue
+		}
+
+		settings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, ref.organizationID, ref.ledgerID)
+		if err != nil {
+			return fmt.Errorf("get cross-ledger group participant settings: %w", err)
+		}
+
+		settingsByRef[ref] = settings
+	}
+
+	return refuseCrossOrganizationRouteValidation(settingsByRef)
 }
 
 func (uc *UseCase) groupAccountingRouteValidator() (GroupAccountingRouteValidator, error) {
