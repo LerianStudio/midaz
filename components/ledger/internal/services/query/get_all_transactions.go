@@ -45,6 +45,35 @@ func resolveDestination(reconstructed []string, body mtransaction.Transaction) [
 	return reconstructed
 }
 
+// transactionLegAliases classifies a transaction's persisted operations into the
+// source and destination alias lists every transaction read answers. DEBIT legs
+// are sources and CREDIT legs destinations; BLOCK and UNBLOCK carry a normal
+// accounting Direction and are classified by it; every other type is ignored.
+// The destination falls back to the submitted body when no leg names one (see
+// resolveDestination); the source has no body fallback. Both lists are non-nil.
+func transactionLegAliases(operations []*operation.Operation, body mtransaction.Transaction) (source, destination []string) {
+	source = make([]string, 0)
+	destination = make([]string, 0)
+
+	for _, op := range operations {
+		switch op.Type {
+		case constant.DEBIT:
+			source = append(source, op.AccountAlias)
+		case constant.CREDIT:
+			destination = append(destination, op.AccountAlias)
+		case constant.BLOCK, constant.UNBLOCK:
+			switch op.Direction {
+			case constant.DirectionDebit:
+				source = append(source, op.AccountAlias)
+			case constant.DirectionCredit:
+				destination = append(destination, op.AccountAlias)
+			}
+		}
+	}
+
+	return source, resolveDestination(destination, body)
+}
+
 // deriveDestinationFromBody returns the submitted destination aliases from a
 // persisted transaction body, in the same bare-alias form the write path caches
 // via getAliasWithoutKey(filterCompanionAliases(...)): the system-managed
@@ -228,30 +257,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	source := make([]string, 0)
-	destination := make([]string, 0)
-
-	for _, op := range operations {
-		switch op.Type {
-		case constant.DEBIT:
-			source = append(source, op.AccountAlias)
-		case constant.CREDIT:
-			destination = append(destination, op.AccountAlias)
-		case constant.BLOCK, constant.UNBLOCK:
-			// BLOCK/UNBLOCK operations carry a normal accounting Direction
-			// (debit-side -> Source, credit-side -> Destination), so they
-			// are classified by Direction exactly as DEBIT/CREDIT are.
-			switch op.Direction {
-			case constant.DirectionDebit:
-				source = append(source, op.AccountAlias)
-			case constant.DirectionCredit:
-				destination = append(destination, op.AccountAlias)
-			}
-		}
-	}
-
-	tran.Source = source
-	tran.Destination = resolveDestination(destination, tran.Body)
+	tran.Source, tran.Destination = transactionLegAliases(operations, tran.Body)
 	tran.Operations = operations
 
 	return tran, nil

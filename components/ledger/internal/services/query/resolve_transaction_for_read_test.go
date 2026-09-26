@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	postgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -61,6 +62,10 @@ func TestResolveTransactionForReadUsesPrimaryOnceEngineStateIsDurable(t *testing
 	edited := &postgres.Transaction{
 		ID: engineView.ID, OrganizationID: engineView.OrganizationID, LedgerID: engineView.LedgerID,
 		Description: "edited after persistence",
+		Operations: []*operation.Operation{
+			{ID: uuid.NewString(), Type: constant.DEBIT, Direction: constant.DirectionDebit, AccountAlias: "@src"},
+			{ID: uuid.NewString(), Type: constant.CREDIT, Direction: constant.DirectionCredit, AccountAlias: "@dst"},
+		},
 	}
 	transactionRepo.EXPECT().
 		FindWithOperations(gomock.Cond(func(ctx context.Context) bool { return readrouting.IsPrimaryRead(ctx) }), organizationID, ledgerID, transactionID).
@@ -81,7 +86,50 @@ func TestResolveTransactionForReadUsesPrimaryOnceEngineStateIsDurable(t *testing
 	require.Equal(t, EngineTransactionResolutionPrimary, resolved.Source)
 	require.Equal(t, "edited after persistence", resolved.Transaction.Description)
 	require.Equal(t, map[string]any{"channel": "api", "edited": true}, resolved.Transaction.Metadata)
+	require.Equal(t, []string{"@src"}, resolved.Transaction.Source, "source aliases come from the persisted debit leg")
+	require.Equal(t, []string{"@dst"}, resolved.Transaction.Destination, "destination aliases come from the persisted credit leg")
 	require.Zero(t, fake.materializedCalls, "a durable read must not rebuild the engine view in Redis")
+}
+
+func TestResolveTransactionForReadDerivesAliasesWhenIndexIsAbsent(t *testing.T) {
+	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	isPrimary := gomock.Cond(func(ctx context.Context) bool { return readrouting.IsPrimaryRead(ctx) })
+
+	resolvers := map[string]func(*UseCase) (*EngineTransactionResolution, error){
+		"api read": func(uc *UseCase) (*EngineTransactionResolution, error) {
+			return uc.ResolveTransactionForRead(context.Background(), organizationID, ledgerID, transactionID)
+		},
+		"lifecycle resolution": func(uc *UseCase) (*EngineTransactionResolution, error) {
+			return uc.ResolveEngineWriteBehindTransaction(context.Background(), organizationID, ledgerID, transactionID)
+		},
+	}
+
+	for name, resolve := range resolvers {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			transactionRepo := postgres.NewMockRepository(ctrl)
+
+			// The index entry is gone after its retention; the primary is the only source.
+			persisted := &postgres.Transaction{
+				ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+				Status: postgres.Status{Code: constant.APPROVED},
+				Operations: []*operation.Operation{
+					{ID: uuid.NewString(), Type: constant.DEBIT, Direction: constant.DirectionDebit, AccountAlias: "@src"},
+					{ID: uuid.NewString(), Type: constant.CREDIT, Direction: constant.DirectionCredit, AccountAlias: "@dst"},
+				},
+			}
+			transactionRepo.EXPECT().FindWithOperations(isPrimary, organizationID, ledgerID, transactionID).Return(persisted, nil)
+
+			fake := &engineWriteBehindRepositoryFake{indexErr: redis.ErrEngineWriteBehindNotFound}
+			uc := &UseCase{EngineWriteBehindRepo: fake, EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{}, TransactionRepo: transactionRepo}
+
+			resolved, err := resolve(uc)
+			require.NoError(t, err)
+			require.Equal(t, EngineTransactionResolutionPrimary, resolved.Source)
+			require.Equal(t, []string{"@src"}, resolved.Transaction.Source)
+			require.Equal(t, []string{"@dst"}, resolved.Transaction.Destination)
+		})
+	}
 }
 
 func TestResolveTransactionForReadServesEngineStateWhilePending(t *testing.T) {
