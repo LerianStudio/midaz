@@ -493,7 +493,11 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			remaining.Value = remaining.Value.Sub(shareValue)
 		}
 
-		if fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
+		// A remaining entry's Amount is only ever the remainder a previous call wrote back
+		// below; counting it here would subtract that remainder before resolving it again.
+		isRemaining := !commons.IsNilOrEmpty(&fromTos[i].Remaining)
+
+		if !isRemaining && fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
 			amount := Amount{
 				Asset:           fromTos[i].Amount.Asset,
 				Value:           fromTos[i].Amount.Value,
@@ -508,7 +512,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			remaining.Value = remaining.Value.Sub(amount.Value)
 		}
 
-		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
+		if isRemaining {
 			total = total.Add(remaining.Value)
 
 			remaining.Operation = operation
@@ -528,6 +532,24 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	sd <- scdt
 
 	or <- operationRoute
+}
+
+// hasNonPositiveRemainder reports whether any remaining entry in fromTos resolved, in
+// the amounts CalculateTotal returned for that side, to zero or less.
+func hasNonPositiveRemainder(fromTos []FromTo, resolved map[string]Amount) bool {
+	amountKeys := AmountMapKeys(fromTos)
+
+	for i := range fromTos {
+		if commons.IsNilOrEmpty(&fromTos[i].Remaining) {
+			continue
+		}
+
+		if !resolved[amountKeys[i]].Value.IsPositive() {
+			return true
+		}
+	}
+
+	return false
 }
 
 // AppendIfNotExist Append if not exist
@@ -556,8 +578,12 @@ func AppendIfNotExist(slice []string, s []string) []string {
 //     and destination within the same positional index. This prevents
 //     self-transfer loops that would be no-ops.
 //
-//  3. Balance check: sourcesTotal == destinationsTotal == transaction.Send.Value.
+//  3. Remainder check: a "remaining" entry must resolve to a positive amount.
+//
+//  4. Balance check: sourcesTotal == destinationsTotal == transaction.Send.Value.
 //     If any mismatch is found, the transaction is rejected.
+//
+// Checks 3 and 4 both answer ErrTransactionValueMismatch.
 //
 // The returned Responses struct carries the resolved per-account amounts, the
 // alias lists (for balance lookups), and route information (for accounting
@@ -635,6 +661,15 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
+	}
+
+	// A remaining entry that resolves to zero or less still lets the totals close (an
+	// over-allocated 120 plus a remainder of -20 is 100), so it is refused on its own.
+	if hasNonPositiveRemainder(transaction.Send.Source.From, response.From) ||
+		hasNonPositiveRemainder(transaction.Send.Distribute.To, response.To) {
+		logger.Log(ctx, libLog.LevelWarn, "Remaining entry resolves to a non-positive amount")
+
+		return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 
 	// Balance check: all three totals must agree.

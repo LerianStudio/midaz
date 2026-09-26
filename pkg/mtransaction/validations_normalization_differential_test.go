@@ -549,3 +549,151 @@ func FuzzValidateSendRawVsNormalized(f *testing.F) {
 		}
 	})
 }
+
+// TestValidateSendSourceAndDistribute_RemainingResolvesSameOnBothPasses runs the raw and
+// the normalized validation over ONE send, without the clone the corpus tests use,
+// because that is how the pipelines call it: the raw call writes each resolved
+// remainder into its leg's Amount, and the normalized call must still resolve the
+// leg to the remainder instead of counting that written Amount a second time.
+func TestValidateSendSourceAndDistribute_RemainingResolvesSameOnBothPasses(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	tests := []struct {
+		name          string
+		send          func() Transaction
+		fromSide      bool
+		rawKey        string
+		normalizedKey string
+		want          int64
+	}{
+		{
+			name: "source remainder after an explicit amount",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@srcA", "", "USD", 60), remainingLeg("@srcB")},
+					[]FromTo{leg("@dst", "", "USD", 100)})
+			},
+			fromSide:      true,
+			rawKey:        "@srcB",
+			normalizedKey: "1#@srcB#default",
+			want:          40,
+		},
+		{
+			name: "destination remainder after an explicit amount",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@src", "", "USD", 100)},
+					[]FromTo{leg("@dstA", "", "USD", 70), remainingLeg("@dstB")})
+			},
+			rawKey:        "@dstB",
+			normalizedKey: "1#@dstB#default",
+			want:          30,
+		},
+		{
+			name: "destination remainder after a share",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@src", "", "USD", 100)},
+					[]FromTo{shareLeg("@dstA", 40, 0), remainingLeg("@dstB")})
+			},
+			rawKey:        "@dstB",
+			normalizedKey: "1#@dstB#default",
+			want:          60,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			send := tc.send()
+			want := decimal.NewFromInt(tc.want)
+
+			resolved := func(r *Responses) map[string]Amount {
+				if tc.fromSide {
+					return r.From
+				}
+
+				return r.To
+			}
+
+			raw, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.CREATED)
+			if err != nil {
+				t.Fatalf("raw validation: unexpected error %v", err)
+			}
+
+			if got := resolved(raw)[tc.rawKey].Value; !got.Equal(want) {
+				t.Fatalf("raw validation resolved %s to %s, want %s", tc.rawKey, got, want)
+			}
+
+			normalizeSendLegsLikeCreate(&send)
+
+			normalized, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.CREATED)
+			if err != nil {
+				t.Fatalf("normalized validation: unexpected error %v", err)
+			}
+
+			if got := resolved(normalized)[tc.normalizedKey].Value; !got.Equal(want) {
+				t.Fatalf("normalized validation resolved %s to %s, want %s", tc.normalizedKey, got, want)
+			}
+
+			legs := send.Send.Distribute.To
+			if tc.fromSide {
+				legs = send.Send.Source.From
+			}
+
+			remaining := legs[len(legs)-1]
+			if remaining.Remaining == "" {
+				t.Fatal("the remaining expression must survive validation on the leg")
+			}
+
+			if remaining.Amount == nil || !remaining.Amount.Value.Equal(want) {
+				t.Fatalf("the leg must carry the resolved remainder %s as its Amount, got %+v", want, remaining.Amount)
+			}
+		})
+	}
+}
+
+// TestValidateSendSourceAndDistribute_RemainingIgnoresWrittenAmount validates, in a single
+// call, a send whose remaining leg already carries an Amount, which is the shape a
+// persisted transaction body has when a pending commit validates it again. The leg must
+// resolve to the remainder whatever that written Amount is: the remainder itself, a zero
+// left by a pass that drained it, or any other value, which is the only case that tells
+// "the remainder is recomputed" apart from "the written Amount is used".
+func TestValidateSendSourceAndDistribute_RemainingIgnoresWrittenAmount(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	for _, tc := range []struct {
+		name    string
+		written int64
+	}{
+		{"written amount equals the remainder", 40},
+		{"written amount drained to zero", 0},
+		{"written amount differs from the remainder", 25},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			remaining := remainingLeg("@srcB")
+			remaining.Amount = &Amount{Asset: "USD", Value: decimal.NewFromInt(tc.written)}
+
+			send := sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 60), remaining},
+				[]FromTo{leg("@dst", "", "USD", 100)})
+			normalizeSendLegsLikeCreate(&send)
+
+			validate, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.APPROVED)
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			if got := validate.From["1#@srcB#default"].Value; !got.Equal(decimal.NewFromInt(40)) {
+				t.Fatalf("remaining leg resolved to %s, want 40", got)
+			}
+		})
+	}
+}

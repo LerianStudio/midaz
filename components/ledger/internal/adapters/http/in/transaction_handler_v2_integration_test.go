@@ -15,6 +15,7 @@ import (
 	nethttp "net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1633,17 +1634,46 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 // taking an explicit 60, a second taking the remainder, and a single destination taking the
 // full 100. `remaining` is a v1-only field — the v2 surface publishes no such field,
 // so a v2 body cannot spell this shape.
-const remainingLegV1Body = `{
+var remainingLegV1Body = remainingLegV1BodyAfter("60", false)
+
+// remainingLegV1PendingBody is remainingLegV1Body opened as a PENDING transaction.
+var remainingLegV1PendingBody = remainingLegV1BodyAfter("60", true)
+
+// remainingDestinationLegV1Body spells the remainder on the destination side: 100 USD from
+// one source, 70 to one destination and the rest to another.
+const remainingDestinationLegV1Body = `{
+	"description":"remaining destination leg",
+	"send":{
+		"asset":"USD","value":"100",
+		"source":{"from":[{"accountAlias":"@srcA","amount":{"asset":"USD","value":"100"}}]},
+		"distribute":{"to":[
+			{"accountAlias":"@dstA","amount":{"asset":"USD","value":"70"}},
+			{"accountAlias":"@dstB","remaining":"remaining"}
+		]}
+	}
+}`
+
+// remainingLegV1BodyAfter spells a 100 USD send whose first source leg takes explicitValue
+// and whose second source leg takes the remainder, optionally opened as PENDING.
+func remainingLegV1BodyAfter(explicitValue string, pending bool) string {
+	return `{
 	"description":"remaining leg",
+	"pending":` + strconv.FormatBool(pending) + `,
 	"send":{
 		"asset":"USD","value":"100",
 		"source":{"from":[
-			{"accountAlias":"@srcA","amount":{"asset":"USD","value":"60"}},
+			{"accountAlias":"@srcA","amount":{"asset":"USD","value":"` + explicitValue + `"}},
 			{"accountAlias":"@srcB","remaining":"remaining"}
 		]},
 		"distribute":{"to":[{"accountAlias":"@dstA","amount":{"asset":"USD","value":"100"}}]}
 	}
 }`
+}
+
+// v1AnnotationURL builds the concrete v1 annotation (NOTED) create path.
+func v1AnnotationURL(orgID, ledgerID uuid.UUID) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/annotation"
+}
 
 // sumOperationAmountsByType totals the persisted operation amounts per operation type, so a
 // transaction can be checked for whether its debits and credits actually balance.
@@ -1658,21 +1688,20 @@ func sumOperationAmountsByType(ops []operationEconomicRow) map[string]decimal.De
 }
 
 // =============================================================================
-// 13. KNOWN DEFECT — `remaining` LEG DROPPED ON THE v1 SURFACE: a leg whose value is the
-//     `remaining` expression resolves correctly during validation (so the balance check
-//     passes) but contributes NO balance movement and NO operation row, and the transaction is
-//     nevertheless committed as APPROVED with debits and credits that do not sum to each other.
+// 13. `remaining` LEGS ON THE v1 SURFACE: a leg whose value is the `remaining` expression
+//     takes whatever the other legs on its side leave of the declared total. The create
+//     funnel validates the send twice — once raw, once after the legs are normalized — and
+//     the leg must resolve to the same remainder on both passes, post an operation for it,
+//     and move its balance, so the committed transaction balances. A pending transaction
+//     re-validates its persisted body at commit, where the leg must resolve the same way
+//     again. A remainder of zero or less is refused as 0073 with no ledger effect: the
+//     totals still close for such a send, so only the remainder rule catches it.
 //
-//     This test asserts the CURRENT WRONG behavior on purpose, and it is v1-ONLY. The defect
-//     sits in the shared create funnel, so fixing it changes released v1 behavior and needs its
-//     own release; the v2 surface answers it by publishing no `remaining` expression at all, so
-//     there is no v2 spelling of this shape to pin (see
-//     TestV2LegInput_NoRemainingExpression). The pin lives in this file because it records what
-//     the v2 advanced form deliberately does NOT inherit. When the funnel is fixed, this test
-//     goes red and is the place to record the corrected v1 contract.
+//     These tests are v1-ONLY: the v2 surface publishes no `remaining` expression (see
+//     TestV2LegInput_NoRemainingExpression), so a v2 body cannot spell these shapes.
 // =============================================================================
 
-func TestIntegration_TransactionV1Detailed_RemainingLegDropped_KnownDefect(t *testing.T) {
+func TestIntegration_TransactionV1Detailed_RemainingLegPostsRemainder(t *testing.T) {
 	// NOT parallel: process-global huma state (see file header).
 	t.Setenv("ALLOW_INSECURE_TLS", "true")
 
@@ -1688,29 +1717,187 @@ func TestIntegration_TransactionV1Detailed_RemainingLegDropped_KnownDefect(t *te
 	resp := decodeTxResponse(t, postTransaction(t, app, v1JSONURL(infra.orgID, infra.ledgerID), remainingLegV1Body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
 
-	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
-		"the transaction is committed despite the dropped leg")
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	ops := fetchOperationRows(t, infra.pgContainer.DB, txID)
 
-	// The remaining leg produces no operation row at all: two of the three legs persist.
-	require.Len(t, ops, 2, "the remaining leg contributes no operation row")
+	assertAdvancedLegOps(t, ops, map[string]advancedLegExpectation{
+		"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(60)},
+		"@srcB": {opType: cn.DEBIT, amount: decimal.NewFromInt(40)},
+		"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(100)},
+	})
 
-	byAlias := indexOpsByAlias(t, ops)
-	_, remainingLegPersisted := byAlias["@srcB"]
-	assert.False(t, remainingLegPersisted, "@srcB is the remaining leg and persists no operation")
-
-	// And no balance movement: @srcB keeps every unit it was seeded with.
-	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB),
-		"@srcB is untouched even though it was resolved to 40 during validation")
-
-	// The committed result is unbalanced: 60 debited against 100 credited.
 	totals := sumOperationAmountsByType(ops)
-	requireDecimalEqual(t, decimal.NewFromInt(60), totals[cn.DEBIT], "persisted debit total")
+	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.DEBIT], "persisted debit total")
 	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.CREDIT], "persisted credit total")
-	assert.False(t, totals[cn.DEBIT].Equal(totals[cn.CREDIT]),
-		"the committed transaction does not balance — this is the defect being pinned")
+
+	assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), map[string]int64{
+		"@srcA": 940,
+		"@srcB": 960,
+		"@dstA": 100,
+		"@dstB": 0,
+	}, "v1")
+}
+
+func TestIntegration_TransactionV1Detailed_RemainingLegPendingCommit(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	app := buildHumaTransactionApp(t, infra.handler, true)
+
+	resp := decodeTxResponse(t, postTransaction(t, app, v1JSONURL(infra.orgID, infra.ledgerID), remainingLegV1PendingBody, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(resp["id"].(string))
+
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// Each source reserves its own leg's value, the remaining leg included.
+	requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA), "@srcA available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(60), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.srcA), "@srcA on-hold after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(40), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.srcB), "@srcB on-hold after hold")
+
+	_ = decodeTxResponse(t, postTransaction(t, infra.app, v1CommitURL(infra.orgID, infra.ledgerID, txID), "", ""), nethttp.StatusCreated)
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// The commit resolves the persisted body's remaining leg to the same 40 it reserved.
+	assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), map[string]int64{
+		"@srcA": 940,
+		"@srcB": 960,
+		"@dstA": 100,
+		"@dstB": 0,
+	}, "v1")
+
+	totals := sumOperationAmountsByType(fetchOperationRows(t, infra.pgContainer.DB, txID))
+	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.DEBIT], "persisted debit total")
+	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.CREDIT], "persisted credit total")
+}
+
+func TestIntegration_TransactionV1Detailed_RemainingDestinationLeg(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	app := buildHumaTransactionApp(t, infra.handler, true)
+
+	resp := decodeTxResponse(t, postTransaction(t, app, v1JSONURL(infra.orgID, infra.ledgerID), remainingDestinationLegV1Body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(resp["id"].(string))
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	assertAdvancedLegOps(t, fetchOperationRows(t, infra.pgContainer.DB, txID), map[string]advancedLegExpectation{
+		"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(100)},
+		"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(70)},
+		"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(30)},
+	})
+
+	assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), map[string]int64{
+		"@srcA": 900,
+		"@srcB": 1000,
+		"@dstA": 70,
+		"@dstB": 30,
+	}, "v1")
+}
+
+func TestIntegration_TransactionV1Detailed_RemainingNonPositiveRejected(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	app := buildHumaTransactionApp(t, infra.handler, true)
+
+	for _, tc := range []struct {
+		name          string
+		explicitValue string
+	}{
+		{"remainder of zero", "100"},
+		{"remainder below zero", "120"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := postTransaction(t, app, v1JSONURL(infra.orgID, infra.ledgerID), remainingLegV1BodyAfter(tc.explicitValue, false), "")
+			body := drainBody(t, resp)
+
+			assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode, "body: %s", string(body))
+			requireProblemCode(t, body, "0073")
+
+			assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+				"a refused remainder must not persist a transaction")
+
+			assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), map[string]int64{
+				"@srcA": 1000,
+				"@srcB": 1000,
+				"@dstA": 0,
+				"@dstB": 0,
+			}, "v1")
+		})
+	}
+}
+
+// An annotation (NOTED) never posts, so it never meets the engine's guard against a
+// non-positive posting: the remainder rule is what keeps an annotation whose remaining leg
+// resolves to zero or less from being recorded at all.
+func TestIntegration_TransactionV1Detailed_RemainingLegAnnotation(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	app := buildHumaTransactionApp(t, infra.handler, true)
+
+	untouched := map[string]int64{"@srcA": 1000, "@srcB": 1000, "@dstA": 0, "@dstB": 0}
+
+	t.Run("zero remainder is refused", func(t *testing.T) {
+		resp := postTransaction(t, app, v1AnnotationURL(infra.orgID, infra.ledgerID), remainingLegV1BodyAfter("100", false), "")
+		body := drainBody(t, resp)
+
+		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode, "body: %s", string(body))
+		requireProblemCode(t, body, "0073")
+
+		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+			"a refused remainder must not persist an annotation")
+	})
+
+	t.Run("positive remainder is annotated", func(t *testing.T) {
+		resp := decodeTxResponse(t, postTransaction(t, app, v1AnnotationURL(infra.orgID, infra.ledgerID), remainingLegV1Body, ""), nethttp.StatusCreated)
+		txID := uuid.MustParse(resp["id"].(string))
+
+		assert.Equal(t, cn.NOTED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
+		drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+		byAlias := indexOpsByAlias(t, fetchOperationRows(t, infra.pgContainer.DB, txID))
+		assert.Len(t, byAlias, 3, "one annotation operation per leg")
+
+		_, ok := byAlias["@srcB"]
+		assert.True(t, ok, "the remaining leg must persist an annotation operation")
+	})
+
+	assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), untouched, "v1 annotation")
 }
 
 // =============================================================================
