@@ -39,7 +39,6 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 		defer ctrl.Finish()
 
 		organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 		transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -63,7 +62,7 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 
 			// DB will be called; return not-found to keep test simple
 			mockTransactionRouteRepo.EXPECT().
-				FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+				FindByID(gomock.Any(), organizationID, transactionRouteID).
 				Return(nil, services.ErrDatabaseItemNotFound).
 				Times(1)
 
@@ -106,7 +105,7 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 		// For valid msgpack, function returns the deserialized data (no DB call).
 		// We allow DB call by setting up an optional expectation.
 		mockTransactionRouteRepo.EXPECT().
-			FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+			FindByID(gomock.Any(), organizationID, transactionRouteID).
 			Return(nil, services.ErrDatabaseItemNotFound).
 			AnyTimes()
 
@@ -146,7 +145,6 @@ func TestProperty_ReturnContract_NeverBothDataAndError(t *testing.T) {
 		defer ctrl.Finish()
 
 		organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 		transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -167,7 +165,7 @@ func TestProperty_ReturnContract_NeverBothDataAndError(t *testing.T) {
 
 		// Allow DB fallback for non-sentinel, non-msgpack, or empty bytes
 		mockTransactionRouteRepo.EXPECT().
-			FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+			FindByID(gomock.Any(), organizationID, transactionRouteID).
 			Return(nil, services.ErrDatabaseItemNotFound).
 			AnyTimes()
 
@@ -210,7 +208,6 @@ func TestProperty_SentinelPath_NeverCallsDB(t *testing.T) {
 		defer ctrl.Finish()
 
 		organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 		transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
