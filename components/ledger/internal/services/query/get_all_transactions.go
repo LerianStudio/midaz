@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
@@ -45,10 +44,40 @@ func resolveDestination(reconstructed []string, body mtransaction.Transaction) [
 	return reconstructed
 }
 
+// transactionLegAliases classifies a transaction's persisted operations into the
+// source and destination alias lists every transaction read answers. DEBIT legs
+// are sources and CREDIT legs destinations; BLOCK and UNBLOCK carry a normal
+// accounting Direction and are classified by it; every other type is ignored.
+// The destination falls back to the submitted body when no leg names one (see
+// resolveDestination); the source has no body fallback. Both lists are non-nil.
+func transactionLegAliases(operations []*operation.Operation, body mtransaction.Transaction) (source, destination []string) {
+	source = make([]string, 0)
+	destination = make([]string, 0)
+
+	for _, op := range operations {
+		switch op.Type {
+		case constant.DEBIT:
+			source = append(source, op.AccountAlias)
+		case constant.CREDIT:
+			destination = append(destination, op.AccountAlias)
+		case constant.BLOCK, constant.UNBLOCK:
+			switch op.Direction {
+			case constant.DirectionDebit:
+				source = append(source, op.AccountAlias)
+			case constant.DirectionCredit:
+				destination = append(destination, op.AccountAlias)
+			}
+		}
+	}
+
+	return source, resolveDestination(destination, body)
+}
+
 // deriveDestinationFromBody returns the submitted destination aliases from a
 // persisted transaction body, in the same bare-alias form the write path caches
 // via getAliasWithoutKey(filterCompanionAliases(...)): the system-managed
-// overdraft companion is skipped and any "#balanceKey" suffix is stripped.
+// overdraft companion is skipped, and each entry answers its bare alias whether
+// it is stored as "alias", "alias#balanceKey", or "index#alias#balanceKey".
 //
 // It is the canonical fallback when operation-based reconstruction yields no
 // destination — typically a pre-commit overdraft, whose persisted legs are all
@@ -69,12 +98,7 @@ func deriveDestinationFromBody(body mtransaction.Transaction) []string {
 			continue
 		}
 
-		alias := entry.AccountAlias
-		if idx := strings.Index(alias, mtransaction.AliasSeparatorString); idx >= 0 {
-			alias = alias[:idx]
-		}
-
-		destination = append(destination, alias)
+		destination = append(destination, mtransaction.BareAlias(entry.AccountAlias))
 	}
 
 	return destination
@@ -140,33 +164,12 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	}
 
 	for i := range trans {
-		source := make([]string, 0)
-		destination := make([]string, 0)
-
 		operationIDs := make([]string, 0, len(trans[i].Operations))
 		for _, op := range trans[i].Operations {
 			operationIDs = append(operationIDs, op.ID)
-
-			switch op.Type {
-			case constant.DEBIT:
-				source = append(source, op.AccountAlias)
-			case constant.CREDIT:
-				destination = append(destination, op.AccountAlias)
-			case constant.BLOCK, constant.UNBLOCK:
-				// BLOCK/UNBLOCK operations carry a normal accounting Direction
-				// (debit-side -> Source, credit-side -> Destination), so they
-				// are classified by Direction exactly as DEBIT/CREDIT are.
-				switch op.Direction {
-				case constant.DirectionDebit:
-					source = append(source, op.AccountAlias)
-				case constant.DirectionCredit:
-					destination = append(destination, op.AccountAlias)
-				}
-			}
 		}
 
-		trans[i].Source = source
-		trans[i].Destination = resolveDestination(destination, trans[i].Body)
+		trans[i].Source, trans[i].Destination = transactionLegAliases(trans[i].Operations, trans[i].Body)
 
 		if data, ok := metadataMap[trans[i].ID]; ok {
 			trans[i].Metadata = data
@@ -228,30 +231,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	source := make([]string, 0)
-	destination := make([]string, 0)
-
-	for _, op := range operations {
-		switch op.Type {
-		case constant.DEBIT:
-			source = append(source, op.AccountAlias)
-		case constant.CREDIT:
-			destination = append(destination, op.AccountAlias)
-		case constant.BLOCK, constant.UNBLOCK:
-			// BLOCK/UNBLOCK operations carry a normal accounting Direction
-			// (debit-side -> Source, credit-side -> Destination), so they
-			// are classified by Direction exactly as DEBIT/CREDIT are.
-			switch op.Direction {
-			case constant.DirectionDebit:
-				source = append(source, op.AccountAlias)
-			case constant.DirectionCredit:
-				destination = append(destination, op.AccountAlias)
-			}
-		}
-	}
-
-	tran.Source = source
-	tran.Destination = resolveDestination(destination, tran.Body)
+	tran.Source, tran.Destination = transactionLegAliases(operations, tran.Body)
 	tran.Operations = operations
 
 	return tran, nil
