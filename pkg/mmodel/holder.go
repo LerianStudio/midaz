@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // CreateHolderInput is a struct designed to encapsulate request create payload data.
@@ -234,6 +235,9 @@ type NaturalPerson struct {
 	// example: Active
 	// maxLength: 100
 	Status *string `json:"status,omitempty" example:"Active" maxLength:"100"`
+
+	// The person's gross income per month.
+	MonthlyGrossIncome *MonetaryAmount `json:"monthlyGrossIncome,omitempty"`
 }
 
 // LegalPerson is a struct designed to store legal person data.
@@ -270,6 +274,29 @@ type LegalPerson struct {
 
 	// Details of the company's legal representative.
 	Representative *Representative `json:"representative,omitempty"`
+
+	// The company's gross revenue per year.
+	AnnualGrossRevenue *MonetaryAmount `json:"annualGrossRevenue,omitempty"`
+
+	// The company's total assets.
+	TotalAssets *MonetaryAmount `json:"totalAssets,omitempty"`
+}
+
+// MonetaryAmount is a declared financial figure: an amount in one currency as of a
+// reference date. The period it covers lives in the name of the field carrying it.
+type MonetaryAmount struct {
+	// The amount, a non-negative decimal sent as a string.
+	// example: 12500.50
+	Value *decimal.Decimal `json:"value" validate:"required" example:"12500.50" minimum:"0" nullable:"false"`
+
+	// ISO 4217 currency code of the amount.
+	// example: BRL
+	Currency string `json:"currency" validate:"required,currencycode" example:"BRL" pattern:"^[A-Z]{3}$"`
+
+	// The date the amount refers to (YYYY-MM-DD format).
+	// example: 2026-06-30
+	// format: date
+	ReferenceDate string `json:"referenceDate" validate:"required,isodate" example:"2026-06-30" format:"date"`
 }
 
 // Representative is a struct designed to store legal person representative data.

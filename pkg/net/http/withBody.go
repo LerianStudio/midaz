@@ -27,6 +27,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
@@ -483,6 +484,10 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("accounttypedirection", validateAccountTypeDirection)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
+	_ = v.RegisterValidation("currencycode", validateCurrencyCode)
+	_ = v.RegisterValidation("isodate", validateISODate)
+
+	v.RegisterStructValidation(validateMonetaryAmount, mmodel.MonetaryAmount{})
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -581,6 +586,30 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("nonnegative", trans, func(ut ut.Translator) error {
+		return ut.Add("nonnegative", "{0} must be 0 or greater", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("nonnegative", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("currencycode", trans, func(ut ut.Translator) error {
+		return ut.Add("currencycode", "{0} must be an ISO 4217 code of three uppercase letters", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("currencycode", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("isodate", trans, func(ut ut.Translator) error {
+		return ut.Add("isodate", "{0} must be a date in YYYY-MM-DD format", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("isodate", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
 	_ = v.RegisterTranslation("metadatakeyformat", trans, func(ut ut.Translator) error {
 		return ut.Add("metadatakeyformat", "{0} must start with a letter and contain only alphanumeric characters and underscores", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
@@ -590,6 +619,29 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	})
 
 	return v, trans, nil
+}
+
+// validateMonetaryAmount refuses a negative amount. It is struct-level because field
+// tags never run on a struct-kind field such as decimal.Decimal.
+func validateMonetaryAmount(sl validator.StructLevel) {
+	amount, ok := sl.Current().Interface().(mmodel.MonetaryAmount)
+	if ok && amount.Value != nil && amount.Value.IsNegative() {
+		sl.ReportError(amount.Value, "value", "Value", "nonnegative", "")
+	}
+}
+
+// validateCurrencyCode accepts exactly three uppercase ASCII letters, the shape of an ISO 4217 code.
+func validateCurrencyCode(fl validator.FieldLevel) bool {
+	code := fl.Field().String()
+
+	return len(code) == 3 && strings.Trim(code, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == ""
+}
+
+// validateISODate accepts a calendar date written as YYYY-MM-DD.
+func validateISODate(fl validator.FieldLevel) bool {
+	_, err := time.Parse(time.DateOnly, fl.Field().String())
+
+	return err == nil
 }
 
 // validateMetadataNestedValues checks if there are nested metadata structures

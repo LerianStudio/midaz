@@ -6,6 +6,7 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -449,4 +450,47 @@ func buildNestedMapWithKeys(depth, keysPerLevel int) map[string]any {
 	}
 
 	return result
+}
+
+func TestDecodeAndValidate_HolderFinancialFigures(t *testing.T) {
+	t.Parallel()
+
+	const figure = `{"value":"%s","currency":"%s","referenceDate":"%s"}`
+
+	cases := []struct {
+		name      string
+		person    string
+		wantCode  string
+		wantField string
+	}{
+		{name: "well formed income", person: `"naturalPerson":{"monthlyGrossIncome":` + fmt.Sprintf(figure, "12500.50", "BRL", "2026-06-30") + `}`},
+		{name: "zero revenue and total assets", person: `"legalPerson":{"annualGrossRevenue":` + fmt.Sprintf(figure, "0", "USD", "2025-12-31") + `,"totalAssets":` + fmt.Sprintf(figure, "240000000.00", "BRL", "2025-12-31") + `}`},
+		{name: "negative value", person: `"naturalPerson":{"monthlyGrossIncome":` + fmt.Sprintf(figure, "-0.01", "BRL", "2026-06-30") + `}`, wantCode: cn.ErrBadRequest.Error(), wantField: "value"},
+		{name: "lowercase currency", person: `"legalPerson":{"totalAssets":` + fmt.Sprintf(figure, "10", "brl", "2026-06-30") + `}`, wantCode: cn.ErrBadRequest.Error(), wantField: "currency"},
+		{name: "four letter currency", person: `"legalPerson":{"annualGrossRevenue":` + fmt.Sprintf(figure, "10", "BRLX", "2026-06-30") + `}`, wantCode: cn.ErrBadRequest.Error(), wantField: "currency"},
+		{name: "impossible reference date", person: `"naturalPerson":{"monthlyGrossIncome":` + fmt.Sprintf(figure, "10", "BRL", "2026-02-30") + `}`, wantCode: cn.ErrBadRequest.Error(), wantField: "referenceDate"},
+		{name: "reference date not ISO", person: `"naturalPerson":{"monthlyGrossIncome":` + fmt.Sprintf(figure, "10", "BRL", "30/06/2026") + `}`, wantCode: cn.ErrBadRequest.Error(), wantField: "referenceDate"},
+		{name: "missing value", person: `"naturalPerson":{"monthlyGrossIncome":{"currency":"BRL","referenceDate":"2026-06-30"}}`, wantCode: cn.ErrMissingFieldsInRequest.Error(), wantField: "value"},
+		{name: "missing currency", person: `"legalPerson":{"totalAssets":{"value":"10","referenceDate":"2026-06-30"}}`, wantCode: cn.ErrMissingFieldsInRequest.Error(), wantField: "currency"},
+		{name: "missing reference date", person: `"legalPerson":{"annualGrossRevenue":{"value":"10","currency":"BRL"}}`, wantCode: cn.ErrMissingFieldsInRequest.Error(), wantField: "referenceDate"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := []byte(`{"type":"NATURAL_PERSON","name":"Jane Doe","document":"12345678900",` + tc.person + `}`)
+
+			_, err := DecodeAndValidate(body, &mmodel.CreateHolderInput{})
+			if tc.wantCode == "" {
+				require.NoError(t, err)
+				return
+			}
+
+			var vErr *pkg.ValidationKnownFieldsError
+			require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError, got %T: %v", err, err)
+			require.Equal(t, tc.wantCode, vErr.Code)
+			require.Contains(t, vErr.Fields, tc.wantField)
+		})
+	}
 }
