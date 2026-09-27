@@ -241,6 +241,7 @@ func atomicTransactionBatchIdempotencyRecord(
 		OwnerToken:         run.idempotencyOwnerToken,
 		BatchID:            run.batchID,
 		TransactionIDs:     atomicTransactionBatchTransactionIDs(run),
+		LifecycleAction:    run.idempotencyLifecycle,
 	}
 	if run.coordinationOrganizationID != run.organizationID || run.coordinationLedgerID != run.ledgerID {
 		record.ReceiptOrganizationID = &run.organizationID

@@ -243,6 +243,11 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 				action = "cancel"
 			}
 			assert.Equal(t, "group-"+action+":"+group.ID.String(), idempotency.effectiveKey)
+			lifecycle := txRedis.AtomicTransactionBatchLifecycleAction(action)
+			assert.Equal(t, lifecycle, idempotency.claim.LifecycleAction)
+			assert.Equal(t, lifecycle, idempotency.transition.LifecycleAction)
+			assert.Equal(t, lifecycle, idempotency.handoff.LifecycleAction,
+				"recovery reads the lifecycle from the applied record the execution hands off")
 			assert.Equal(t, 1, idempotency.claims)
 			assert.Equal(t, 1, idempotency.transitions)
 			assert.Equal(t, 1, idempotency.handoffs)

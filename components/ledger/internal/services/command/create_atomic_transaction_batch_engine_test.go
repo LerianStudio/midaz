@@ -91,6 +91,7 @@ func TestCreateAtomicTransactionBatchV2_ExecutesOneOrderedEngineRequest(t *testi
 	require.NotNil(t, repository.handoff.ExecutionID)
 	assert.Equal(t, executionID, *repository.handoff.ExecutionID)
 	assert.Equal(t, transactionIDs, repository.handoff.TransactionIDs)
+	assert.Empty(t, repository.handoff.LifecycleAction, "a batch create recovers its members as CREATED")
 	assert.Zero(t, repository.aborts)
 	assert.Zero(t, repository.deletes)
 

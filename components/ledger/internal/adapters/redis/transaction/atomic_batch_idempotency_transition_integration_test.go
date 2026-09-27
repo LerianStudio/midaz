@@ -288,6 +288,97 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 	})
 }
 
+func TestIntegrationAtomicTransactionBatchLifecycleActionSurvivesEveryTransition(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	repository, err := NewConsumerRedis(&staticRedisProvider{client: container.Client})
+	require.NoError(t, err)
+	organizationID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	ledgerID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	tenantID := uuid.NewSHA1(uuid.MustParse("b6a41d73-ef6c-50c6-a97a-7828077996e7"), []byte(t.Name())).String()
+	ctx := tmcore.ContextWithTenantID(t.Context(), tenantID)
+	effectiveKey := "group-commit:lifecycle"
+	redisKey := transitionNamespacedBatchKey(t, ctx, organizationID, ledgerID, effectiveKey)
+	executionID := uuid.MustParse("00000000-0000-0000-0000-000000000020")
+	indexKey := transitionNamespacedBatchExecutionIndexKey(t, ctx, organizationID, ledgerID, executionID)
+	t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey, indexKey).Err()) })
+
+	stored := func(t *testing.T) AtomicTransactionBatchIdempotencyRecord {
+		t.Helper()
+
+		var record AtomicTransactionBatchIdempotencyRecord
+		require.NoError(t, json.Unmarshal([]byte(container.Client.Get(ctx, redisKey).Val()), &record))
+
+		return record
+	}
+
+	claim := atomicBatchIdempotencyClaim("a")
+	claim.LifecycleAction = AtomicTransactionBatchLifecycleCommit
+	claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+	require.NoError(t, err)
+	require.Equal(t, AtomicTransactionBatchClaimed, claimed.Outcome)
+
+	dropped := atomicBatchPreparedRecord(false)
+	_, err = repository.TransitionAtomicTransactionBatch(
+		ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
+		AtomicTransactionBatchStateClaimed, dropped, 0,
+	)
+	require.ErrorContains(t, err, "ATOMIC_BATCH_IDEMPOTENCY_IDENTITY_CHANGED",
+		"a prepared record must not drop the lifecycle that claimed it")
+	require.Equal(t, AtomicTransactionBatchStateClaimed, stored(t).State)
+
+	prepared := atomicBatchPreparedRecord(false)
+	prepared.LifecycleAction = AtomicTransactionBatchLifecycleCommit
+	transitioned, err := repository.TransitionAtomicTransactionBatch(
+		ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
+		AtomicTransactionBatchStateClaimed, prepared, 0,
+	)
+	require.NoError(t, err)
+	require.Equal(t, AtomicTransactionBatchTransitionUpdated, transitioned.Outcome)
+
+	changed := atomicBatchAppliedRecord()
+	changed.LifecycleAction = AtomicTransactionBatchLifecycleCancel
+	_, err = repository.HandoffAtomicTransactionBatchExecution(
+		ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, changed,
+	)
+	require.ErrorContains(t, err, "ATOMIC_BATCH_IDEMPOTENCY_IDENTITY_CHANGED",
+		"an applied record must not change the lifecycle that claimed it")
+	require.Equal(t, AtomicTransactionBatchStatePrepared, stored(t).State)
+
+	applied := atomicBatchAppliedRecord()
+	applied.LifecycleAction = AtomicTransactionBatchLifecycleCommit
+	transitioned, err = repository.HandoffAtomicTransactionBatchExecution(
+		ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, applied,
+	)
+	require.NoError(t, err)
+	require.Equal(t, AtomicTransactionBatchTransitionUpdated, transitioned.Outcome)
+
+	responses := map[uuid.UUID]json.RawMessage{
+		applied.TransactionIDs[0]: json.RawMessage(`{"id":"first","status":{"code":"APPROVED"}}`),
+		applied.TransactionIDs[1]: json.RawMessage(`{"id":"second","status":{"code":"APPROVED"}}`),
+	}
+	for _, transactionID := range applied.TransactionIDs {
+		captured, err := repository.CaptureAtomicTransactionBatchInitialResponse(
+			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, transactionID, responses[transactionID],
+		)
+		require.NoError(t, err)
+		require.Equal(t, AtomicTransactionBatchInitialResponseCaptured, captured.Outcome)
+		require.Equal(t, AtomicTransactionBatchLifecycleCommit, stored(t).LifecycleAction, "capture must keep the lifecycle")
+	}
+
+	finalized, err := repository.FinalizeAtomicTransactionBatch(
+		ctx, organizationID, ledgerID, executionID, claim.OwnerToken, responses, 60,
+	)
+	require.NoError(t, err)
+	require.Equal(t, AtomicTransactionBatchFinalized, finalized.Outcome)
+	complete := stored(t)
+	require.Equal(t, AtomicTransactionBatchStateComplete, complete.State)
+	require.Equal(t, AtomicTransactionBatchLifecycleCommit, complete.LifecycleAction, "finalize must keep the lifecycle")
+}
+
 func transitionNamespacedBatchExecutionIndexKey(
 	t *testing.T,
 	ctx context.Context,

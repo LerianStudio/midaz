@@ -1,3 +1,10 @@
+-- A batch create carries no lifecycleAction key; absent and null both mean one.
+local function lifecycleAction(record)
+    local value = record.lifecycleAction
+    if value == nil or value == cjson.null then return "" end
+    return value
+end
+
 local current = redis.call("GET", KEYS[1])
 if not current then
     return {"missing", ""}
@@ -33,7 +40,8 @@ end
 
 if currentRecord.ownerToken ~= nextRecord.ownerToken or
    currentRecord.requestFingerprint ~= nextRecord.requestFingerprint or
-   currentRecord.batchId ~= nextRecord.batchId then
+   currentRecord.batchId ~= nextRecord.batchId or
+   lifecycleAction(currentRecord) ~= lifecycleAction(nextRecord) then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_IDENTITY_CHANGED")
 end
 

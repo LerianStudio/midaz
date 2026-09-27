@@ -47,6 +47,15 @@ const (
 	AtomicTransactionBatchStateComplete AtomicTransactionBatchIdempotencyState = "complete"
 )
 
+// AtomicTransactionBatchLifecycleAction names the grouped lifecycle operation
+// that claimed a record. It is empty for batches that create transactions.
+type AtomicTransactionBatchLifecycleAction string
+
+const (
+	AtomicTransactionBatchLifecycleCommit AtomicTransactionBatchLifecycleAction = "commit"
+	AtomicTransactionBatchLifecycleCancel AtomicTransactionBatchLifecycleAction = "cancel"
+)
+
 // AtomicTransactionBatchIdempotencyRecord is the durable Redis state machine
 // for one atomic-batch request. TransactionIDs are always in request order and
 // Response contains the terminal public JSON representation only at complete.
@@ -60,6 +69,10 @@ type AtomicTransactionBatchIdempotencyRecord struct {
 	TransactionIDs        []uuid.UUID                            `json:"transactionIds,omitempty"`
 	ReceiptOrganizationID *uuid.UUID                             `json:"receiptOrganizationId,omitempty"`
 	ReceiptLedgerID       *uuid.UUID                             `json:"receiptLedgerId,omitempty"`
+	// LifecycleAction lets recovery freeze a member exactly as the grouped
+	// lifecycle request answers it: a committed member is APPROVED, not the
+	// CREATED representation of a batch create.
+	LifecycleAction AtomicTransactionBatchLifecycleAction `json:"lifecycleAction,omitempty"`
 	// InitialResponses freezes the creation representation per transaction ID.
 	// Values are base64-encoded JSON to retain the exact response bytes while
 	// keeping the ephemeral record independent from public response DTOs.
@@ -285,6 +298,12 @@ func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBat
 	if (record.ReceiptOrganizationID == nil) != (record.ReceiptLedgerID == nil) ||
 		(record.ReceiptOrganizationID != nil && (*record.ReceiptOrganizationID == uuid.Nil || *record.ReceiptLedgerID == uuid.Nil)) {
 		return errors.New("atomic batch receipt scope must be complete")
+	}
+
+	switch record.LifecycleAction {
+	case "", AtomicTransactionBatchLifecycleCommit, AtomicTransactionBatchLifecycleCancel:
+	default:
+		return fmt.Errorf("unsupported lifecycle action %q", record.LifecycleAction)
 	}
 
 	if err := validateAtomicTransactionBatchTransactionIDs(record.TransactionIDs); err != nil {

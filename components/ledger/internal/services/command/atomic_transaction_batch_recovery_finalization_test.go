@@ -11,11 +11,13 @@ import (
 	"errors"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	operationPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -45,6 +47,23 @@ func (repository *atomicTransactionBatchRecoveryRepositoryFake) CaptureAtomicTra
 	}
 
 	repository.captures = append(repository.captures, append(json.RawMessage(nil), response...))
+
+	// Mirrors the capture script: a member captured before must be re-sent
+	// with the exact same bytes.
+	if existing, found := repository.candidate.Record.InitialResponses[transactionID.String()]; found {
+		if existing != base64.StdEncoding.EncodeToString(response) {
+			return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+				Outcome: txRedis.AtomicTransactionBatchInitialResponseConflict,
+				Record:  repository.candidate.Record,
+			}, errors.New("atomic transaction batch initial response conflict")
+		}
+
+		return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+			Outcome: txRedis.AtomicTransactionBatchInitialResponseAlreadyCaptured,
+			Record:  repository.candidate.Record,
+		}, nil
+	}
+
 	if repository.candidate.Record.FormatVersion == txRedis.AtomicTransactionBatchIdempotencyFormatVersion {
 		if repository.candidate.Record.InitialResponses == nil {
 			repository.candidate.Record.InitialResponses = make(map[string]string)
@@ -125,6 +144,139 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCanceledStatus
 	assert.Nil(t, prepared)
 	require.ErrorContains(t, err, "canceled status differs")
 	assert.Empty(t, fixture.repository.captures)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesCommittedGroupMemberAsTheCommitAnswers(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		status string
+		action string
+	}{
+		{name: "destination created by the commit", status: constant.CREATED, action: constant.ActionDirect},
+		{name: "origin approved by the commit", status: constant.APPROVED, action: constant.ActionCommit},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			member := committedGroupMemberRecovery(t, test.status, test.action)
+
+			prepared, err := member.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(member.ctx, member.record, member.completion)
+			require.NoError(t, err)
+			require.NotNil(t, prepared)
+			require.Len(t, member.repository.captures, 1)
+			assert.Equal(t, string(member.lookup), string(member.repository.captures[0]),
+				"a recovered commit member must freeze the exact bytes the commit request captures")
+		})
+	}
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_CommittedMemberCapturedByTheRequestIsNotAConflict(t *testing.T) {
+	member := committedGroupMemberRecovery(t, constant.CREATED, constant.ActionDirect)
+	member.repository.candidate.Record.InitialResponses = map[string]string{
+		member.record.TransactionID.String(): base64.StdEncoding.EncodeToString(member.lookup),
+	}
+
+	prepared, err := member.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(member.ctx, member.record, member.completion)
+	require.NoError(t, err, "the request died after capturing this member; recovery must converge on the same bytes")
+	require.NotNil(t, prepared)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsStatusOutsideTheGroupLifecycle(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		lifecycle txRedis.AtomicTransactionBatchLifecycleAction
+		status    string
+	}{
+		{name: "commit left a member pending", lifecycle: txRedis.AtomicTransactionBatchLifecycleCommit, status: constant.PENDING},
+		{name: "commit canceled a member", lifecycle: txRedis.AtomicTransactionBatchLifecycleCommit, status: constant.CANCELED},
+		{name: "cancel approved a member", lifecycle: txRedis.AtomicTransactionBatchLifecycleCancel, status: constant.APPROVED},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := atomicTransactionBatchRecoveryFixture(false)
+			fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+			fixture.repository.candidate.Record.LifecycleAction = test.lifecycle
+			fixture.completion.Outcome.TransactionStatus = test.status
+			fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: test.status, Description: &test.status}
+
+			prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+			assert.Nil(t, prepared)
+			require.ErrorContains(t, err, "differs from its lifecycle")
+			assert.Empty(t, fixture.repository.captures)
+		})
+	}
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCommittedStatusDrift(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Record.LifecycleAction = txRedis.AtomicTransactionBatchLifecycleCommit
+	pending := constant.PENDING
+	fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: pending, Description: &pending}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	assert.Nil(t, prepared)
+	require.ErrorContains(t, err, "committed status differs")
+	assert.Empty(t, fixture.repository.captures)
+}
+
+type committedGroupMemberRecoveryFixture struct {
+	ctx        context.Context
+	useCase    *UseCase
+	repository *atomicTransactionBatchRecoveryRepositoryFake
+	record     *TransactionCompletionRecord
+	completion TransactionCompletionResult
+	lookup     json.RawMessage
+}
+
+// committedGroupMemberRecovery builds one member of an interrupted group commit
+// from a real completion plan, so the recovered bytes can be compared with the
+// lookup view the commit request captures.
+func committedGroupMemberRecovery(t *testing.T, status, action string) committedGroupMemberRecoveryFixture {
+	t.Helper()
+
+	plan, result := recoveryContractFixture(t)
+	plan.TransactionStatus, plan.Action = status, action
+	plan.IntentFingerprint = mustEvidenceViewFingerprint(t, plan)
+	envelope := recoveryContractEnvelope(t, plan, result)
+
+	views, err := BuildTransactionEvidenceViews(envelope)
+	require.NoError(t, err)
+	lookup, err := json.Marshal(views.Lookup)
+	require.NoError(t, err)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), plan.TenantID)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+		calls:   &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+	completion, err := NewTransactionCompletionService(store, metadata).Complete(ctx, &envelope)
+	require.NoError(t, err)
+
+	executionID := plan.ExecutionID
+	repository := &atomicTransactionBatchRecoveryRepositoryFake{
+		atomicTransactionBatchClaimRepositoryFake: &atomicTransactionBatchClaimRepositoryFake{},
+		candidate: &txRedis.AtomicTransactionBatchFinalizationCandidateResult{
+			Record: txRedis.AtomicTransactionBatchIdempotencyRecord{
+				FormatVersion:      txRedis.AtomicTransactionBatchIdempotencyFormatVersion,
+				State:              txRedis.AtomicTransactionBatchStateApplied,
+				RequestFingerprint: "request-fingerprint",
+				OwnerToken:         "owner-token",
+				BatchID:            uuid.MustParse("01994f13-29b7-7000-8000-000000000201"),
+				ExecutionID:        &executionID,
+				TransactionIDs:     []uuid.UUID{plan.TransactionID, uuid.MustParse("01994f13-29b7-7000-8000-000000000202")},
+				LifecycleAction:    txRedis.AtomicTransactionBatchLifecycleCommit,
+			},
+		},
+	}
+
+	return committedGroupMemberRecoveryFixture{
+		ctx:        ctx,
+		useCase:    &UseCase{AtomicTransactionBatchIdempotencyRepo: repository},
+		repository: repository,
+		record:     &envelope,
+		completion: completion,
+		lookup:     lookup,
+	}
 }
 
 func (repository *atomicTransactionBatchRecoveryRepositoryFake) GetAtomicTransactionBatchFinalizationCandidate(
