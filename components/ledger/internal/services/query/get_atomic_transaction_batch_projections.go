@@ -144,31 +144,13 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 			tran.Metadata = metadata
 		}
 
-		source := make([]string, 0)
-		destination := make([]string, 0)
-
 		for _, operation := range tran.Operations {
 			if metadata, found := operationMetadataByID[operation.ID]; found {
 				operation.Metadata = metadata
 			}
-
-			switch operation.Type {
-			case constant.DEBIT:
-				source = append(source, operation.AccountAlias)
-			case constant.CREDIT:
-				destination = append(destination, operation.AccountAlias)
-			case constant.BLOCK, constant.UNBLOCK:
-				switch operation.Direction {
-				case constant.DirectionDebit:
-					source = append(source, operation.AccountAlias)
-				case constant.DirectionCredit:
-					destination = append(destination, operation.AccountAlias)
-				}
-			}
 		}
 
-		tran.Source = source
-		tran.Destination = resolveDestination(destination, tran.Body)
+		tran.Source, tran.Destination = transactionLegAliases(tran.Operations, tran.Body)
 	}
 
 	return transactions, nil

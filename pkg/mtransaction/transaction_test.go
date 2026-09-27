@@ -332,6 +332,38 @@ func TestSplitAliasWithKey(t *testing.T) {
 	}
 }
 
+// TestBareAlias pins the account alias read back from every stored form of an entry's alias. The
+// entry-key rows are the ones a first-separator cut gets wrong: it answers the index.
+func TestBareAlias(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		alias string
+		want  string
+	}{
+		{name: "bare alias", alias: "@alice", want: "@alice"},
+		{name: "alias and balance key", alias: "@alice#savings", want: "@alice"},
+		{name: "entry key", alias: "0#@alice#default", want: "@alice"},
+		{name: "entry key with a multi-digit index", alias: "12#@alice#default", want: "@alice"},
+		{name: "digits-only alias and balance key", alias: "123#default", want: "123"},
+		{name: "entry key with a digits-only alias", alias: "0#123#default", want: "123"},
+		{name: "entry key with a multi-digit index and a digits-only alias", alias: "12#34#default", want: "34"},
+		{name: "entry key with an empty balance key", alias: "0#@alice#", want: "@alice"},
+		{name: "a prefix that is not all digits is not an index", alias: "0a#@alice", want: "0a"},
+		{name: "digits-only alias without a separator", alias: "12", want: "12"},
+		{name: "empty", alias: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, BareAlias(tt.alias))
+		})
+	}
+}
+
 // TestMutateConcatSplitAliases_RoundTrip drives the in-place alias rewrites both ways. It pins
 // that concatenation is idempotent — an entry whose alias already looks composite keeps the
 // spelling it arrived with, which is the property the v2 alias guard exists to make unreachable

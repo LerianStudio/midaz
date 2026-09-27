@@ -229,6 +229,8 @@ func (uc *UseCase) resolveEngineTransactionFromPrimary(ctx context.Context, orga
 		tran.Operations = []*operation.Operation{}
 	}
 
+	tran.Source, tran.Destination = transactionLegAliases(tran.Operations, tran.Body)
+
 	if uc.TransactionMetadataRepo != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 		if err != nil {

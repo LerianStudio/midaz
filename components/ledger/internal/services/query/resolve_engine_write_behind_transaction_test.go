@@ -228,7 +228,43 @@ func TestResolveEngineWriteBehindTransactionReturnsRowWithoutPersistedOperations
 	require.Equal(t, constant.NOTED, resolved.Transaction.Status.Code)
 	require.NotNil(t, resolved.Transaction.Operations, "a row without persisted operations serializes operations as an empty list")
 	require.Empty(t, resolved.Transaction.Operations)
+	require.NotNil(t, resolved.Transaction.Source, "a row without legs serializes source aliases as an empty list")
+	require.Empty(t, resolved.Transaction.Source)
+	require.NotNil(t, resolved.Transaction.Destination, "a row without legs or submitted destination serializes destination aliases as an empty list")
+	require.Empty(t, resolved.Transaction.Destination)
 	require.Equal(t, map[string]any{"memo": "annotation"}, resolved.Transaction.Metadata)
+}
+
+func TestResolveEngineWriteBehindTransactionTakesDestinationFromBodyWhenOperationsAreNotPersisted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	transactionRepo := postgres.NewMockRepository(ctrl)
+	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	persisted := &postgres.Transaction{
+		ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		Status: postgres.Status{Code: constant.PENDING},
+		Body: mtransaction.Transaction{
+			Pending: true,
+			Send: mtransaction.Send{Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{
+				{AccountAlias: "@dst#default", BalanceKey: constant.DefaultBalanceKey},
+			}}},
+		},
+	}
+	fake := &engineWriteBehindRepositoryFake{indexErr: redis.ErrEngineWriteBehindNotFound}
+	isPrimary := gomock.Cond(func(ctx context.Context) bool { return readrouting.IsPrimaryRead(ctx) })
+
+	transactionRepo.EXPECT().FindWithOperations(isPrimary, organizationID, ledgerID, transactionID).
+		Return(&postgres.Transaction{}, nil)
+	transactionRepo.EXPECT().Find(isPrimary, organizationID, ledgerID, transactionID).Return(persisted, nil)
+	uc := &UseCase{EngineWriteBehindRepo: fake, EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{}, TransactionRepo: transactionRepo}
+
+	resolved, err := uc.ResolveEngineWriteBehindTransaction(context.Background(), organizationID, ledgerID, transactionID)
+	require.NoError(t, err)
+	require.Equal(t, EngineTransactionResolutionPrimary, resolved.Source)
+	require.NotNil(t, resolved.Transaction.Operations)
+	require.Empty(t, resolved.Transaction.Operations)
+	require.NotNil(t, resolved.Transaction.Source, "no persisted leg names a source, and the body is not a source fallback")
+	require.Empty(t, resolved.Transaction.Source)
+	require.Equal(t, []string{"@dst"}, resolved.Transaction.Destination, "the submitted destination survives in the body")
 }
 
 func requireEntityNotFound(t testing.TB, err error) {
