@@ -74,6 +74,10 @@ instrument `document`, `banking_details.account`, `banking_details.iban`,
 `document`, `banking_details.account`, `banking_details.iban`,
 `regulatory_fields.participant_document`, and `related_parties.document`.
 
+**Idempotency slots.** A holder or instrument create caches its full response for replay in Valkey.
+That response is encrypted as one field (`RecordID` = the slot key, `FieldName` =
+`idempotency_replay`) and decrypted on replay, so Valkey holds no personal data in clear.
+
 ---
 
 ## 3. Search over ciphertext — write one key, read all keys
