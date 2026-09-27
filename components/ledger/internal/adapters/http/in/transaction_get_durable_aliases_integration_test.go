@@ -58,6 +58,8 @@ func TestIntegration_TransactionGetByID_LegAliasesMatchCreate(t *testing.T) {
 		v1Read := readTransaction(t, v1App, v1URL, "false")
 		assertLegAliases(t, v1Read, "source", "destination", "v1 GET, durable index")
 
+		assertLegAliases(t, listOnlyTransaction(t, v2App, organizationID, ledgerID, transactionID), "debit", "credit", "v2 list item")
+
 		patched := decodeTxResponse(t, patchV2(t, v2App, v2URL, `{"description":"edited after persistence"}`), nethttp.StatusOK)
 		require.Equal(t, "edited after persistence", patched["description"])
 
@@ -79,7 +81,7 @@ func TestIntegration_TransactionGetByID_LegAliasesMatchCreate(t *testing.T) {
 	// submitted body, whose entries are stored as "index#alias#balanceKey". No
 	// persisted leg names the source, so it answers empty rather than the alias
 	// the create answered.
-	t.Run("pending_hold_takes_destination_from_persisted_body", func(t *testing.T) {
+	t.Run("persisted_hold_takes_destination_from_body", func(t *testing.T) {
 		organizationID := fixture.infra.orgID
 		ledgerID := fixture.newLedger(t)
 		seedTransfer(t, fixture.infra.pgContainer.DB, organizationID, ledgerID, "@src", "@dst", 100)
@@ -100,14 +102,7 @@ func TestIntegration_TransactionGetByID_LegAliasesMatchCreate(t *testing.T) {
 		assertHoldLegAliases(t, readTransaction(t, v1App, v1TxByIDURL(organizationID, ledgerID, transactionID), "false"),
 			"source", "destination", "v1 GET, durable index")
 
-		page := decodeTxResponse(t, getV2(t, v2App, v2TxListURL(organizationID, ledgerID)), nethttp.StatusOK)
-		items, ok := page["items"].([]any)
-		require.True(t, ok, "list envelope must carry an items array")
-		require.Len(t, items, 1, "the ledger holds only this transaction")
-		item, ok := items[0].(map[string]any)
-		require.True(t, ok, "list item must decode as an object")
-		require.Equal(t, transactionID.String(), item["id"])
-		assertHoldLegAliases(t, item, "debit", "credit", "v2 list item")
+		assertHoldLegAliases(t, listOnlyTransaction(t, v2App, organizationID, ledgerID, transactionID), "debit", "credit", "v2 list item")
 
 		removeEngineIndexEntry(t, fixture, repository, ledgerID, transactionID)
 
@@ -202,6 +197,22 @@ func readTransaction(t *testing.T, app *fiber.App, url, wantCacheHit string) map
 	require.Equal(t, wantCacheHit, response.Header.Get("X-Cache-Hit"), "GET %s answered from an unexpected source", url)
 
 	return body
+}
+
+// listOnlyTransaction lists the ledger's transactions on v2 and returns the
+// single item, asserting it is the given transaction.
+func listOnlyTransaction(t *testing.T, app *fiber.App, organizationID, ledgerID, transactionID uuid.UUID) map[string]any {
+	t.Helper()
+
+	page := decodeTxResponse(t, getV2(t, app, v2TxListURL(organizationID, ledgerID)), nethttp.StatusOK)
+	items, ok := page["items"].([]any)
+	require.True(t, ok, "list envelope must carry an items array")
+	require.Len(t, items, 1, "the ledger holds only this transaction")
+	item, ok := items[0].(map[string]any)
+	require.True(t, ok, "list item must decode as an object")
+	require.Equal(t, transactionID.String(), item["id"])
+
+	return item
 }
 
 // assertLegAliases asserts the leg alias lists by value: a key present with a
