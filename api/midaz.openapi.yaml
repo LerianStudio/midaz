@@ -18898,6 +18898,8 @@ components:
             - Electronic devices development
           maxLength: 256
           type: string
+        annualGrossRevenue:
+          $ref: '#/components/schemas/MonetaryAmount'
         foundingDate:
           examples:
             - '2025-01-01'
@@ -18915,6 +18917,8 @@ components:
             - Active
           maxLength: 100
           type: string
+        totalAssets:
+          $ref: '#/components/schemas/MonetaryAmount'
         tradeName:
           examples:
             - Lerian Studio
@@ -18971,6 +18975,29 @@ components:
         - unique
         - sparse
       type: object
+    MonetaryAmount:
+      additionalProperties: false
+      properties:
+        currency:
+          examples:
+            - BRL
+          pattern: ^[A-Z]{3}$
+          type: string
+        referenceDate:
+          examples:
+            - '2026-06-30'
+          format: date
+          type: string
+        value:
+          examples:
+            - '12500.50'
+          minimum: 0
+          type: string
+      required:
+        - value
+        - currency
+        - referenceDate
+      type: object
     NaturalPerson:
       additionalProperties: false
       properties:
@@ -18999,6 +19026,8 @@ components:
             - Male
           maxLength: 100
           type: string
+        monthlyGrossIncome:
+          $ref: '#/components/schemas/MonetaryAmount'
         motherName:
           examples:
             - Jane Doe
