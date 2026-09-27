@@ -27,8 +27,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -486,8 +486,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
 	_ = v.RegisterValidation("currencycode", validateCurrencyCode)
 	_ = v.RegisterValidation("isodate", validateISODate)
-
-	v.RegisterStructValidation(validateMonetaryAmount, mmodel.MonetaryAmount{})
+	_ = v.RegisterValidation("decimalamount", validateDecimalAmount)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -586,16 +585,16 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return t
 	})
 
-	_ = v.RegisterTranslation("nonnegative", trans, func(ut ut.Translator) error {
-		return ut.Add("nonnegative", "{0} must be 0 or greater", true)
+	_ = v.RegisterTranslation("decimalamount", trans, func(ut ut.Translator) error {
+		return ut.Add("decimalamount", "{0} must be a non-negative decimal with at most 20 integer and 10 fraction digits", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("nonnegative", formatErrorFieldName(fe.Namespace()))
+		t, _ := ut.T("decimalamount", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
 
 	_ = v.RegisterTranslation("currencycode", trans, func(ut ut.Translator) error {
-		return ut.Add("currencycode", "{0} must be an ISO 4217 code of three uppercase letters", true)
+		return ut.Add("currencycode", "{0} must be an ISO 4217 currency code", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("currencycode", formatErrorFieldName(fe.Namespace()))
 
@@ -621,20 +620,17 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	return v, trans, nil
 }
 
-// validateMonetaryAmount refuses a negative amount. It is struct-level because field
-// tags never run on a struct-kind field such as decimal.Decimal.
-func validateMonetaryAmount(sl validator.StructLevel) {
-	amount, ok := sl.Current().Interface().(mmodel.MonetaryAmount)
-	if ok && amount.Value != nil && amount.Value.IsNegative() {
-		sl.ReportError(amount.Value, "value", "Value", "nonnegative", "")
-	}
+// decimalAmountPattern is a plain non-negative decimal: at most 20 integer and 10 fraction digits.
+var decimalAmountPattern = regexp.MustCompile(`^[0-9]{1,20}(\.[0-9]{1,10})?$`)
+
+// validateDecimalAmount accepts a non-negative plain decimal string of bounded size.
+func validateDecimalAmount(fl validator.FieldLevel) bool {
+	return decimalAmountPattern.MatchString(fl.Field().String())
 }
 
-// validateCurrencyCode accepts exactly three uppercase ASCII letters, the shape of an ISO 4217 code.
+// validateCurrencyCode accepts an ISO 4217 code from the list asset creation uses.
 func validateCurrencyCode(fl validator.FieldLevel) bool {
-	code := fl.Field().String()
-
-	return len(code) == 3 && strings.Trim(code, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == ""
+	return utils.ValidateCurrency(fl.Field().String()) == nil
 }
 
 // validateISODate accepts a calendar date written as YYYY-MM-DD.

@@ -6,12 +6,10 @@ package holder
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
@@ -100,7 +98,8 @@ type LegalPersonMongoDBModel struct {
 }
 
 // MonetaryAmountMongoDBModel stores a holder financial figure. Value is the decimal
-// string, or its ciphertext when the figure is natural-person PII.
+// string, or its ciphertext when the figure is natural-person PII. Its fields match
+// mmodel.MonetaryAmount so the two convert directly.
 type MonetaryAmountMongoDBModel struct {
 	Value         string `bson:"value"`
 	Currency      string `bson:"currency"`
@@ -322,7 +321,7 @@ func mapNaturalPersonFromEntity(ctx context.Context, fe encryption.FieldEncrypto
 	}
 
 	if np.MonthlyGrossIncome != nil {
-		income := mapMonetaryAmountFromEntity(np.MonthlyGrossIncome)
+		income := MonetaryAmountMongoDBModel(*np.MonthlyGrossIncome)
 		fieldCtx.FieldName = monthlyGrossIncomeValueField
 
 		encrypted, err := fe.EncryptField(ctx, fieldCtx, income.Value)
@@ -331,7 +330,7 @@ func mapNaturalPersonFromEntity(ctx context.Context, fe encryption.FieldEncrypto
 		}
 
 		income.Value = encrypted
-		result.MonthlyGrossIncome = income
+		result.MonthlyGrossIncome = &income
 	}
 
 	return result, nil
@@ -357,8 +356,8 @@ func mapLegalPersonFromEntity(ctx context.Context, fe encryption.FieldEncryptor,
 		FoundingDate:       parsedFoundingDate,
 		Status:             lp.Status,
 		Size:               lp.Size,
-		AnnualGrossRevenue: mapMonetaryAmountFromEntity(lp.AnnualGrossRevenue),
-		TotalAssets:        mapMonetaryAmountFromEntity(lp.TotalAssets),
+		AnnualGrossRevenue: (*MonetaryAmountMongoDBModel)(lp.AnnualGrossRevenue),
+		TotalAssets:        (*MonetaryAmountMongoDBModel)(lp.TotalAssets),
 	}
 
 	if lp.Representative != nil {
@@ -413,33 +412,6 @@ func mapLegalPersonFromEntity(ctx context.Context, fe encryption.FieldEncryptor,
 
 // monthlyGrossIncomeValueField names the encrypted income value in the ciphertext AAD.
 const monthlyGrossIncomeValueField = "natural_person.monthly_gross_income.value"
-
-// mapMonetaryAmountFromEntity maps a financial figure to its plaintext MongoDB model.
-func mapMonetaryAmountFromEntity(m *mmodel.MonetaryAmount) *MonetaryAmountMongoDBModel {
-	if m == nil {
-		return nil
-	}
-
-	return &MonetaryAmountMongoDBModel{
-		Value:         m.Value.String(),
-		Currency:      m.Currency,
-		ReferenceDate: m.ReferenceDate,
-	}
-}
-
-// toEntity maps a plaintext financial figure back to the entity; a nil model maps to nil.
-func (m *MonetaryAmountMongoDBModel) toEntity() (*mmodel.MonetaryAmount, error) {
-	if m == nil {
-		return nil, nil
-	}
-
-	value, err := decimal.NewFromString(m.Value)
-	if err != nil {
-		return nil, fmt.Errorf("parse stored monetary amount: %w", err)
-	}
-
-	return &mmodel.MonetaryAmount{Value: &value, Currency: m.Currency, ReferenceDate: m.ReferenceDate}, nil
-}
 
 // mapAddressFromEntity maps an address entity to MongoDB model
 func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
@@ -640,7 +612,7 @@ func mapNaturalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor,
 	}
 
 	if np.MonthlyGrossIncome != nil {
-		income := *np.MonthlyGrossIncome
+		income := mmodel.MonetaryAmount(*np.MonthlyGrossIncome)
 		fieldCtx.FieldName = monthlyGrossIncomeValueField
 
 		decrypted, err := fe.DecryptField(ctx, fieldCtx, income.Value)
@@ -649,10 +621,7 @@ func mapNaturalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor,
 		}
 
 		income.Value = decrypted
-
-		if result.MonthlyGrossIncome, err = income.toEntity(); err != nil {
-			return nil, err
-		}
+		result.MonthlyGrossIncome = &income
 	}
 
 	return result, nil
@@ -668,28 +637,23 @@ func mapLegalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor, e
 	}
 
 	legalPerson := &mmodel.LegalPerson{
-		TradeName:    lp.TradeName,
-		Activity:     lp.Activity,
-		Type:         lp.Type,
-		FoundingDate: foundingDate,
-		Status:       lp.Status,
-		Size:         lp.Size,
-	}
-
-	var err error
-
-	if legalPerson.AnnualGrossRevenue, err = lp.AnnualGrossRevenue.toEntity(); err != nil {
-		return nil, err
-	}
-
-	if legalPerson.TotalAssets, err = lp.TotalAssets.toEntity(); err != nil {
-		return nil, err
+		TradeName:          lp.TradeName,
+		Activity:           lp.Activity,
+		Type:               lp.Type,
+		FoundingDate:       foundingDate,
+		Status:             lp.Status,
+		Size:               lp.Size,
+		AnnualGrossRevenue: (*mmodel.MonetaryAmount)(lp.AnnualGrossRevenue),
+		TotalAssets:        (*mmodel.MonetaryAmount)(lp.TotalAssets),
 	}
 
 	if lp.Representative != nil {
-		if legalPerson.Representative, err = mapRepresentativeToEntity(ctx, fe, encryptionCtx, lp.Representative); err != nil {
+		rep, err := mapRepresentativeToEntity(ctx, fe, encryptionCtx, lp.Representative)
+		if err != nil {
 			return nil, err
 		}
+
+		legalPerson.Representative = rep
 	}
 
 	return legalPerson, nil
