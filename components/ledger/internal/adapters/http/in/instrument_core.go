@@ -69,7 +69,7 @@ func (handler *InstrumentHandler) createInstrument(ctx context.Context, organiza
 
 	internalKey := services.InstrumentIdempotencyKey(organizationID.String(), holderID.String(), key)
 
-	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, internalKey, hash, ttl)
+	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, hash, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to claim instrument idempotency", err)
 
@@ -95,7 +95,7 @@ func (handler *InstrumentHandler) createInstrument(ctx context.Context, organiza
 	}
 
 	if value, err := libCommons.StructToJSONString(out); err == nil {
-		handler.Service.SetCRMIdempotencyValue(ctx, internalKey, value, ttl)
+		handler.Service.SetCRMIdempotencyValue(ctx, organizationID.String(), internalKey, value, ttl)
 	} else {
 		logger.Log(ctx, libLog.LevelWarn, "Instrument created but idempotency replay value could not be stored; a retry with the same key will conflict", libLog.Err(err))
 	}

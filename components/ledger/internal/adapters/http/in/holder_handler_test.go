@@ -518,6 +518,7 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 	handler := &HolderHandler{Service: &services.UseCase{
 		HolderRepo:  repo,
 		Idempotency: newFakeCRMIdempotencyRepo(),
+		Encryptor:   newTestFieldEncryptor(t),
 	}}
 
 	app := buildHumaHolderApp(t, handler, true)

@@ -24,6 +24,7 @@ import (
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	crmServices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -227,12 +228,18 @@ func TestHuma_CreateHolder_CanonicalIdempotencyHeaderReachesCore(t *testing.T) {
 
 			return false, nil
 		}).Times(1)
+	fieldEncryptor := newTestFieldEncryptor(t)
 	redisMock.EXPECT().
 		Get(gomock.Any(), gomock.Any()).
-		Return("{}", nil). // valid empty mmodel.Holder JSON -> replay
+		DoAndReturn(func(ctx context.Context, key string) (string, error) {
+			// Sealed empty mmodel.Holder JSON -> replay.
+			return fieldEncryptor.EncryptField(ctx, encryption.FieldContext{
+				TenantID: "default", OrganizationID: orgID.String(), RecordID: key, FieldName: "idempotency_replay",
+			}, "{}")
+		}).
 		Times(1)
 
-	handler := &HolderHandler{Service: &crmServices.UseCase{Idempotency: redisMock}}
+	handler := &HolderHandler{Service: &crmServices.UseCase{Idempotency: redisMock, Encryptor: fieldEncryptor}}
 	app := buildHumaHolderApp(t, handler, true)
 
 	body, _ := json.Marshal(map[string]any{"type": "NATURAL_PERSON", "name": "John Doe", "document": "91315026015"})
