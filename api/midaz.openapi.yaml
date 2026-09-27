@@ -18991,7 +18991,7 @@ components:
         value:
           examples:
             - '12500.50'
-          minimum: 0
+          pattern: ^[0-9]+([.][0-9]+)?$
           type: string
       required:
         - value

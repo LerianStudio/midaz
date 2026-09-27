@@ -287,7 +287,7 @@ type LegalPerson struct {
 type MonetaryAmount struct {
 	// The amount, a non-negative decimal sent as a string.
 	// example: 12500.50
-	Value *decimal.Decimal `json:"value" validate:"required" example:"12500.50" minimum:"0" nullable:"false"`
+	Value *decimal.Decimal `json:"value" validate:"required" example:"12500.50" pattern:"^[0-9]+([.][0-9]+)?$" nullable:"false"`
 
 	// ISO 4217 currency code of the amount.
 	// example: BRL
