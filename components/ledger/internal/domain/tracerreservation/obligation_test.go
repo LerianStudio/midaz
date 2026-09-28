@@ -24,7 +24,7 @@ func intentFixture(t *testing.T) (Intent, tracercontract.ReserveRequest, Config)
 	require.NoError(t, err)
 	key := Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: request.TransactionID}
 	request.ContextID = key.LedgerID.String()
-	scope := tracercontract.ReserveScope{TenantID: "tenant", IntegrationID: "producer", AssetNamespace: "origin-a"}
+	scope := tracercontract.ReserveScope{TenantID: "tenant", IntegrationID: "producer"}
 	created := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	intent, err := NewIntent(t.Context(), key, uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), scope, request, created, created.Add(time.Second), cfg)
 	require.NoError(t, err)
@@ -45,7 +45,6 @@ func TestIntentFreezesScopedRequest(t *testing.T) {
 		func(i *Intent) { i.Key.TransactionID = uuid.Nil },
 		func(i *Intent) { i.Key.LedgerID = i.Key.OrganizationID },
 		func(i *Intent) { i.ExecutionID = uuid.Nil },
-		func(i *Intent) { i.Scope.AssetNamespace = "forged" },
 		func(i *Intent) { i.Scope.IntegrationID = "other" },
 		func(i *Intent) { i.Scope.TenantID = "other" },
 		func(i *Intent) { i.Fingerprint[0] ^= 1 },

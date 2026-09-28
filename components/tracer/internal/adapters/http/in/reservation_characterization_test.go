@@ -84,7 +84,7 @@ func TestContextReserveTransportEquivalence(t *testing.T) {
 		inputs = append(inputs, input)
 		return outcome, nil
 	}).Times(2)
-	identity := contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "origin-a"}
+	identity := contextutil.IntegrationIdentity{ID: "producer"}
 	app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 	app.Use(func(c fiber.Ctx) error {
 		c.SetContext(contextutil.WithIntegrationIdentity(c.Context(), identity))
@@ -101,7 +101,7 @@ func TestContextReserveTransportEquivalence(t *testing.T) {
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&rest))
 	server, err := grpcin.NewContextReservationServer(legacy, clock.NewFixedClock(testutil.FixedTime()), admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
 	require.NoError(t, err)
-	request, err := contractpb.EncodeReserve(t.Context(), expected, identity.AssetNamespace, bounds)
+	request, err := contractpb.EncodeReserve(t.Context(), expected, bounds)
 	require.NoError(t, err)
 	wire, err := server.Reserve(contextutil.WithIntegrationIdentity(t.Context(), identity), request)
 	require.NoError(t, err)

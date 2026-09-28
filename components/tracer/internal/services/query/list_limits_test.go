@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -38,22 +39,42 @@ func TestNewListLimitsQuery_NilRepository(t *testing.T) {
 	assert.Nil(t, query)
 }
 
-func TestListLimitsAssetSemanticsFollowDeploymentProfile(t *testing.T) {
-	for _, native := range []bool{false, true} {
-		repo := NewMockLimitRepository(gomock.NewController(t))
-		q, err := NewListLimitsQuery(repo)
-		require.NoError(t, err)
-		q.NativeAssetCodes = native
-		code, expected := "usd", "USD"
-		if native {
-			expected = code
-		}
-		repo.EXPECT().List(gomock.Any(), gomock.Cond(func(value any) bool {
-			filter, ok := value.(*model.ListLimitsFilter)
-			return ok && filter.Asset != nil && *filter.Asset == expected
-		})).Return(&model.ListLimitsResult{}, nil)
-		_, err = q.Execute(t.Context(), &model.ListLimitsFilter{Asset: &code})
-		require.NoError(t, err)
+func TestListLimitsAssetFilterUsesAssetCodeRule(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []string{"BTC", "USD", "LERIANPOINTS"} {
+		t.Run("accepts "+code, func(t *testing.T) {
+			t.Parallel()
+
+			repo := NewMockLimitRepository(gomock.NewController(t))
+			q, err := NewListLimitsQuery(repo)
+			require.NoError(t, err)
+
+			filterAsset := code
+			repo.EXPECT().List(gomock.Any(), gomock.Cond(func(value any) bool {
+				filter, ok := value.(*model.ListLimitsFilter)
+				return ok && filter.Asset != nil && *filter.Asset == code
+			})).Return(&model.ListLimitsResult{}, nil)
+
+			_, err = q.Execute(t.Context(), &model.ListLimitsFilter{Asset: &filterAsset})
+			require.NoError(t, err)
+		})
+	}
+
+	for _, code := range []string{"usd", " BTC", "US1", ""} {
+		t.Run("rejects "+strconv.Quote(code), func(t *testing.T) {
+			t.Parallel()
+
+			repo := NewMockLimitRepository(gomock.NewController(t))
+			repo.EXPECT().List(gomock.Any(), gomock.Any()).Times(0)
+
+			q, err := NewListLimitsQuery(repo)
+			require.NoError(t, err)
+
+			filterAsset := code
+			_, err = q.Execute(t.Context(), &model.ListLimitsFilter{Asset: &filterAsset})
+			require.ErrorIs(t, err, constant.ErrLimitInvalidCurrency)
+		})
 	}
 }
 

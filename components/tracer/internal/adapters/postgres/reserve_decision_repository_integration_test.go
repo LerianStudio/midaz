@@ -288,7 +288,7 @@ func TestIntegrationReserveDecisionReplayAfterPolicyRebind(t *testing.T) {
 		return policyRepo.BindWithTx(t.Context(), tx, key, model.PolicyRevision{ID: p.ID, Revision: 1}, nil, "admin", testutil.FixedTime())
 	}))
 	d.Policy = &model.ReserveDecisionPolicy{ID: p.ID, Revision: 1, BindingVersion: 1, DefaultUsed: true, EvaluatedRules: []model.RuleRevision{}, MatchedRules: []model.RuleRevision{}}
-	asset := tracercontract.AssetRef{Namespace: "producer-assets", ID: "asset-1", Code: "TOKEN"}
+	asset := "TOKEN"
 	longLived := false
 	request := tracercontract.ReserveRequest{
 		ContractRevision: tracercontract.ReserveContractRevision, TransactionID: d.Key.TransactionID, RequestID: d.Key.RequestID,
@@ -297,7 +297,7 @@ func TestIntegrationReserveDecisionReplayAfterPolicyRebind(t *testing.T) {
 		Context: tracercontract.Context{Accounts: []tracercontract.Account{}, Entries: []tracercontract.Entry{{External: true, Direction: tracercontract.Debit, Amount: "1", Asset: asset}}},
 	}
 	config := query.ReserveReplayConfig{Limits: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxRules: 10, MaxReservations: 100}
-	scope := tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: key.IntegrationID, AssetNamespace: asset.Namespace}
+	scope := tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: key.IntegrationID}
 	d.Fingerprint, err = request.Fingerprint(t.Context(), scope, config.Limits)
 	require.NoError(t, err)
 	saveDecision(t, db, repo, d)
@@ -321,7 +321,7 @@ func TestIntegrationReserveDecisionReplayAfterPolicyRebind(t *testing.T) {
 	require.NoError(t, err)
 	lookup, err := query.NewLookupReserveDecisionQuery(restartedRepo, config)
 	require.NoError(t, err)
-	ctx := tmcore.ContextWithTenantID(contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: key.IntegrationID, AssetNamespace: asset.Namespace}), "tenant-a")
+	ctx := tmcore.ContextWithTenantID(contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: key.IntegrationID}), "tenant-a")
 	request.Amount = "1"
 	replayed, err := lookup.Execute(ctx, request)
 	require.NoError(t, err)

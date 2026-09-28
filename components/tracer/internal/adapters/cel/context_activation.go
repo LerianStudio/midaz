@@ -17,18 +17,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-type contextAsset struct {
-	Namespace string `cel:"namespace"`
-	ID        string `cel:"id"`
-	Code      string `cel:"code"`
-}
-
 type contextAccount struct {
-	ID      string       `cel:"id"`
-	Type    string       `cel:"type"`
-	Status  string       `cel:"status"`
-	Blocked *bool        `cel:"blocked"`
-	Asset   contextAsset `cel:"asset"`
+	ID      string `cel:"id"`
+	Type    string `cel:"type"`
+	Status  string `cel:"status"`
+	Blocked *bool  `cel:"blocked"`
+	Asset   string `cel:"asset"`
 }
 
 type contextEntry struct {
@@ -36,13 +30,13 @@ type contextEntry struct {
 	External  bool         `cel:"external"`
 	Direction string       `cel:"direction"`
 	Amount    decimalValue `cel:"amount"`
-	Asset     contextAsset `cel:"asset"`
+	Asset     string       `cel:"asset"`
 }
 
 type contextDebit struct {
 	AccountID string       `cel:"accountId"`
 	Amount    decimalValue `cel:"amount"`
-	Asset     contextAsset `cel:"asset"`
+	Asset     string       `cel:"asset"`
 }
 
 // contextNativeType overrides reflected Decimal fields with the opaque CEL
@@ -69,8 +63,7 @@ func contextEnvironment(config ContextAdapterConfig) (*celgo.Env, error) {
 	}
 
 	for _, native := range []reflect.Type{
-		reflect.TypeFor[contextAsset](), reflect.TypeFor[contextAccount](),
-		reflect.TypeFor[contextEntry](), reflect.TypeFor[contextDebit](),
+		reflect.TypeFor[contextAccount](), reflect.TypeFor[contextEntry](), reflect.TypeFor[contextDebit](),
 	} {
 		typeInfo, err := types.NewNativeType(native, types.ParseStructTags(true))
 		if err != nil {
@@ -101,9 +94,9 @@ type ContextActivation struct {
 
 // Prepare validates producer facts, computes consumption within the Tracer
 // domain and creates typed CEL values. It never imports a Ledger model or makes
-// an external lookup. Namespace comes from authenticated integration configuration.
-func (a *ContextAdapter) Prepare(ctx context.Context, facts tracercontract.Context, namespace string) (*ContextActivation, error) {
-	debits, err := model.AccountDebits(ctx, facts, namespace, a.config.Limits)
+// an external lookup.
+func (a *ContextAdapter) Prepare(ctx context.Context, facts tracercontract.Context) (*ContextActivation, error) {
+	debits, err := model.AccountDebits(ctx, facts, a.config.Limits)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +106,7 @@ func (a *ContextAdapter) Prepare(ctx context.Context, facts tracercontract.Conte
 		blocked := *account.Blocked // validated by AccountDebits
 		accounts = append(accounts, contextAccount{
 			ID: account.ID.String(), Type: account.Type, Status: account.Status, Blocked: &blocked,
-			Asset: assetActivation(account.Asset),
+			Asset: account.Asset,
 		})
 	}
 
@@ -126,7 +119,7 @@ func (a *ContextAdapter) Prepare(ctx context.Context, facts tracercontract.Conte
 
 		view := contextEntry{
 			External: entry.External, Direction: string(entry.Direction),
-			Amount: decimalValue{amount: amount, size: uint64(len(entry.Amount))}, Asset: assetActivation(entry.Asset),
+			Amount: decimalValue{amount: amount, size: uint64(len(entry.Amount))}, Asset: entry.Asset,
 		}
 		if !entry.External {
 			id := entry.AccountID.String()
@@ -144,14 +137,10 @@ func (a *ContextAdapter) Prepare(ctx context.Context, facts tracercontract.Conte
 		}
 
 		consumption = append(consumption, contextDebit{
-			AccountID: debit.AccountID.String(), Asset: assetActivation(debit.Asset),
+			AccountID: debit.AccountID.String(), Asset: debit.Asset,
 			Amount: decimalValue{amount: debit.Amount, size: uint64(len(raw))},
 		})
 	}
 
 	return &ContextActivation{owner: a, values: map[string]any{"accounts": accounts, "entries": entries, "debits": consumption}}, nil
-}
-
-func assetActivation(asset tracercontract.AssetRef) contextAsset {
-	return contextAsset{Namespace: asset.Namespace, ID: asset.ID, Code: asset.Code}
 }

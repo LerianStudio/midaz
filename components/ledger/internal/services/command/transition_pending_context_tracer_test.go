@@ -38,9 +38,9 @@ func TestPendingContextCompletionIgnoresCurrentMode(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store := NewMockTracerObligationStore(ctrl)
 			now := fixedPendingCreatedAt.Add(time.Hour)
-			uc.ContextTracer = &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", AttemptTimeout: time.Second}}}
+			uc.ContextTracer = &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{IntegrationID: "producer", AttemptTimeout: time.Second}}}
 			key := tracerreservation.Key{OrganizationID: input.OrganizationID, LedgerID: input.LedgerID, TransactionID: input.TransactionID}
-			record := &tracerreservation.Pending{Key: key, ExecutionID: uuid.MustParse("88888888-8888-4888-8888-888888888888"), State: tracerreservation.Executing, ContractRevision: tracercontract.ReserveContractRevision, Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}}
+			record := &tracerreservation.Pending{Key: key, ExecutionID: uuid.MustParse("88888888-8888-4888-8888-888888888888"), State: tracerreservation.Executing, ContractRevision: tracercontract.ReserveContractRevision, Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}}
 			var lookupErr error
 			if scenario == "legacy" {
 				record = nil

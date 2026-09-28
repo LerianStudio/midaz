@@ -20,7 +20,7 @@ import (
 )
 
 func producerContext() context.Context {
-	return contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "assets"})
+	return contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer"})
 }
 
 func TestResolveContextPolicyUsesVerifiedIdentityAndPreservesTenant(t *testing.T) {
@@ -40,7 +40,6 @@ func TestResolveContextPolicyUsesVerifiedIdentityAndPreservesTenant(t *testing.T
 			result, err := resolver.Execute(ctx, "official-context")
 			require.NoError(t, err)
 			require.Equal(t, key, result.Binding)
-			require.Equal(t, "assets", result.Identity.AssetNamespace)
 			require.Equal(t, *snapshot, result.Policy)
 			// Detached rules prevent a repository/cache owner mutating the result.
 			require.NotEmpty(t, snapshot.Rules)
@@ -62,7 +61,7 @@ func TestResolveContextPolicyRejectsBeforeRepository(t *testing.T) {
 	}{
 		{"missing identity", context.Background(), "official", constant.ErrInsufficientPrivileges},
 		{"admin is not producer", contextutil.WithPrincipal(context.Background(), contextutil.Principal{Type: "user", ID: "admin"}), "official", constant.ErrInsufficientPrivileges},
-		{"invalid identity", contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer"}), "official", constant.ErrInsufficientPrivileges},
+		{"invalid identity", contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: " producer"}), "official", constant.ErrInsufficientPrivileges},
 		{"missing context", producerContext(), "", constant.ErrInvalidRequestBody},
 		{"noncanonical context", producerContext(), " official", constant.ErrInvalidRequestBody},
 		{"canceled", canceled, "official", context.Canceled},

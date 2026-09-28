@@ -21,7 +21,7 @@ import (
 const producerURI = "spiffe://example.test/service/producer"
 
 func bindings() []seamidentity.Binding {
-	return []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}
+	return []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}
 }
 
 func verifiedState(t *testing.T, identities ...string) *tls.ConnectionState {
@@ -82,7 +82,7 @@ func TestResolverRequiresVerifiedUnambiguousIdentity(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			resolver, err := seamidentity.NewResolver(bindings(), 256)
+			resolver, err := seamidentity.NewResolver(bindings())
 			require.NoError(t, err)
 			identity, err := resolver.ResolveTLS(context.Background(), tc.state(t))
 			require.ErrorIs(t, err, constant.ErrInsufficientPrivileges)
@@ -94,14 +94,14 @@ func TestResolverRequiresVerifiedUnambiguousIdentity(t *testing.T) {
 func TestResolverCopiesConfigurationAndSupportsRotation(t *testing.T) {
 	t.Parallel()
 	config := bindings()
-	config = append(config, seamidentity.Binding{URI: producerURI + "-rotated", IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}})
-	resolver, err := seamidentity.NewResolver(config, 256)
+	config = append(config, seamidentity.Binding{URI: producerURI + "-rotated", IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}})
+	resolver, err := seamidentity.NewResolver(config)
 	require.NoError(t, err)
 	config[0].IntegrationID = "attacker"
 	for _, uri := range []string{producerURI, producerURI + "-rotated"} {
 		identity, err := resolver.ResolveTLS(context.Background(), verifiedState(t, uri))
 		require.NoError(t, err)
-		require.Equal(t, contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "assets"}, identity)
+		require.Equal(t, contextutil.IntegrationIdentity{ID: "producer"}, identity)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -114,46 +114,42 @@ func TestResolverCopiesConfigurationAndSupportsRotation(t *testing.T) {
 
 func TestResolverRejectsAmbiguousConfiguration(t *testing.T) {
 	t.Parallel()
+	reserve := []seamidentity.Purpose{seamidentity.PurposeReserve}
 	for _, tc := range []struct {
 		name     string
 		bindings []seamidentity.Binding
-		maxText  int
 	}{
-		{"empty", nil, 256},
-		{"missing bound", bindings(), 0},
-		{"oversized namespace", bindings(), 2},
-		{"duplicate URI", append(bindings(), bindings()...), 256},
-		{"namespace shared across integrations", append(bindings(), seamidentity.Binding{URI: producerURI + "/other", IntegrationID: "other", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}), 256},
-		{"integration with two namespaces", append(bindings(), seamidentity.Binding{URI: producerURI + "/other", IntegrationID: "producer", AssetNamespace: "other", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}), 256},
-		{"relative URI", []seamidentity.Binding{{URI: "producer", IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256},
-		{"wildcard URI", []seamidentity.Binding{{URI: "spiffe://*.test/producer", IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256},
-		{"empty integration", []seamidentity.Binding{{URI: producerURI, AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256},
-		{"noncanonical namespace", []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", AssetNamespace: " assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256},
+		{"empty", nil},
+		{"duplicate URI", append(bindings(), bindings()...)},
+		{"duplicate URI across integrations", append(bindings(), seamidentity.Binding{URI: producerURI, IntegrationID: "other", Purposes: reserve})},
+		{"relative URI", []seamidentity.Binding{{URI: "producer", IntegrationID: "producer", Purposes: reserve}}},
+		{"wildcard URI", []seamidentity.Binding{{URI: "spiffe://*.test/producer", IntegrationID: "producer", Purposes: reserve}}},
+		{"empty integration", []seamidentity.Binding{{URI: producerURI, Purposes: reserve}}},
+		{"noncanonical integration", []seamidentity.Binding{{URI: producerURI, IntegrationID: " producer", Purposes: reserve}}},
+		{"no purposes", []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer"}}},
+		{"unknown purpose", []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", Purposes: []seamidentity.Purpose{"unknown"}}}},
+		{"reserve alongside another purpose", []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve, "admin"}}}},
+		{"duplicate purpose", []seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve, seamidentity.PurposeReserve}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			resolver, err := seamidentity.NewResolver(tc.bindings, tc.maxText)
+			resolver, err := seamidentity.NewResolver(tc.bindings)
 			require.ErrorIs(t, err, constant.ErrContextPolicyUnavailable)
 			require.Nil(t, resolver)
 		})
 	}
 }
 
-func TestResolverSeparatesProducerPurposes(t *testing.T) {
-	config := []seamidentity.Binding{
-		{URI: producerURI, IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}},
-		{URI: producerURI + "-admin", IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeAssetAdmin}},
-	}
-	resolver, err := seamidentity.NewResolver(config, 256)
+func TestResolverMapsSeveralIntegrations(t *testing.T) {
+	t.Parallel()
+	reserve := []seamidentity.Purpose{seamidentity.PurposeReserve}
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{
+		{URI: producerURI, IntegrationID: "producer", Purposes: reserve},
+		{URI: producerURI + "/other", IntegrationID: "other", Purposes: reserve},
+	})
 	require.NoError(t, err)
-	_, err = resolver.ResolveTLS(context.Background(), verifiedState(t, producerURI+"-admin"))
-	require.ErrorIs(t, err, constant.ErrInsufficientPrivileges)
-	_, err = resolver.ResolveTLSFor(context.Background(), verifiedState(t, producerURI), seamidentity.PurposeAssetAdmin)
-	require.ErrorIs(t, err, constant.ErrInsufficientPrivileges)
-	_, err = resolver.ResolveTLSFor(context.Background(), verifiedState(t, producerURI+"-admin"), seamidentity.PurposeAssetAdmin)
-	require.NoError(t, err)
-	for _, purposes := range [][]seamidentity.Purpose{nil, {"unknown"}, {seamidentity.PurposeReserve, seamidentity.PurposeReserve}} {
-		config[0].Purposes = purposes
-		_, err := seamidentity.NewResolver(config, 256)
-		require.ErrorIs(t, err, constant.ErrContextPolicyUnavailable)
+	for uri, want := range map[string]string{producerURI: "producer", producerURI + "/other": "other"} {
+		identity, err := resolver.ResolveTLS(context.Background(), verifiedState(t, uri))
+		require.NoError(t, err)
+		require.Equal(t, contextutil.IntegrationIdentity{ID: want}, identity)
 	}
 }

@@ -20,7 +20,7 @@ import (
 // It is not yet a reservation: limits, policy and atomic persistence still apply.
 type AccountDebit struct {
 	AccountID uuid.UUID
-	Asset     tracercontract.AssetRef
+	Asset     string
 	Amount    decimal.Decimal
 }
 
@@ -32,14 +32,13 @@ type AccountDebit struct {
 // Results are ordered by account ID for deterministic downstream processing.
 // This order alone does not replace consistent ordering of database locks,
 // shared counters and audit resources in the reservation orchestrator.
-func AccountDebits(ctx context.Context, input tracercontract.Context, namespace string, limits tracercontract.Limits) ([]AccountDebit, error) {
-	if err := input.Validate(ctx, namespace, limits); err != nil {
+func AccountDebits(ctx context.Context, input tracercontract.Context, limits tracercontract.Limits) ([]AccountDebit, error) {
+	if err := input.Validate(ctx, limits); err != nil {
 		return nil, err
 	}
 
-	// Context validation guarantees one official asset per internal account.
-	// Different asset identities are never netted or converted, even when their
-	// human-readable codes are equal.
+	// Context validation guarantees one asset code per internal account.
+	// Different asset codes are never netted or converted.
 	byAccount := make(map[uuid.UUID]AccountDebit, len(input.Accounts))
 
 	for _, entry := range input.Entries {

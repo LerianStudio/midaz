@@ -28,7 +28,6 @@ func applyContextDefaults(cfg *Config) {
 		{"CONTEXT_RESERVE_MAX_LIMITS", &cfg.ContextReserveMaxLimits, 256},
 		{"CONTEXT_LIMIT_MAX_SCOPES", &cfg.ContextLimitMaxScopes, profile.Facts.MaxAccounts},
 		{"CONTEXT_LIMIT_MAX_SCOPE_BYTES", &cfg.ContextLimitMaxScopeBytes, 65536},
-		{"CONTEXT_LIMIT_MAX_BODY_BYTES", &cfg.ContextLimitMaxBodyBytes, profile.MaxBodyBytes},
 		{"CONTEXT_POLICY_MAX_BODY_BYTES", &cfg.ContextPolicyMaxBodyBytes, profile.MaxBodyBytes},
 		{"CONTEXT_MAX_RULES", &cfg.ContextMaxRules, 100},
 		{"CONTEXT_MAX_EXPRESSION_BYTES", &cfg.ContextMaxExpressionBytes, 8192},

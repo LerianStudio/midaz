@@ -155,19 +155,39 @@ func TestCreateLimitInput_AssetValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "valid - lowercase",
-			asset:   "brl",
+			name:    "valid - non-ISO code",
+			asset:   "BTC",
 			wantErr: false,
 		},
 		{
 			name:    "valid - short native code",
-			asset:   "BR",
+			asset:   "X",
 			wantErr: false,
 		},
 		{
 			name:    "valid - long native code",
-			asset:   "BRLL",
+			asset:   "LERIANPOINTS",
 			wantErr: false,
+		},
+		{
+			name:    "valid - maximum length",
+			asset:   strings.Repeat("A", 100),
+			wantErr: false,
+		},
+		{
+			name:    "invalid - lowercase",
+			asset:   "usd",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - digit",
+			asset:   "BR1",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - exceeds maximum length",
+			asset:   strings.Repeat("A", 101),
+			wantErr: true,
 		},
 		{
 			name:    "invalid - empty",

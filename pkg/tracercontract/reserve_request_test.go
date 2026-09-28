@@ -34,7 +34,7 @@ func reserveRequest(t *testing.T) tracercontract.ReserveRequest {
 }
 
 func reserveScope() tracercontract.ReserveScope {
-	return tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "integration-a", AssetNamespace: "origin-a"}
+	return tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "integration-a"}
 }
 
 func TestReserveFingerprintGolden(t *testing.T) {
@@ -132,10 +132,10 @@ func TestReserveRequestRejectsIncompleteOrInvalidFacts(t *testing.T) {
 		{"zero amount", func(r *tracercontract.ReserveRequest) { r.Amount = "0.00" }},
 		{"exponent amount", func(r *tracercontract.ReserveRequest) { r.Amount = "1e999999999" }},
 		{"oversized amount", func(r *tracercontract.ReserveRequest) { r.Amount = tracercontract.Amount(strings.Repeat("9", 129)) }},
-		{"missing asset", func(r *tracercontract.ReserveRequest) { r.Asset = tracercontract.AssetRef{} }},
-		{"forged namespace", func(r *tracercontract.ReserveRequest) { r.Asset.Namespace = "forged" }},
-		{"contradictory root code", func(r *tracercontract.ReserveRequest) { r.Asset.Code = "USD" }},
-		{"invalid asset text", func(r *tracercontract.ReserveRequest) { r.Asset.ID = "asset\x00btc" }},
+		{"missing asset", func(r *tracercontract.ReserveRequest) { r.Asset = "" }},
+		{"oversized root asset", func(r *tracercontract.ReserveRequest) { r.Asset = strings.Repeat("A", 101) }},
+		{"invalid asset text", func(r *tracercontract.ReserveRequest) { r.Asset = "BT\x00C" }},
+		{"entry asset nul", func(r *tracercontract.ReserveRequest) { r.Context.Entries[1].Asset = "US\x00D" }},
 		{"invalid account text", func(r *tracercontract.ReserveRequest) { r.Context.Accounts[0].Type = "deposit\xff" }},
 		{"missing accounts array", func(r *tracercontract.ReserveRequest) { r.Context.Accounts = nil }},
 		{"missing entries array", func(r *tracercontract.ReserveRequest) { r.Context.Entries = nil }},
@@ -147,7 +147,7 @@ func TestReserveRequestRejectsIncompleteOrInvalidFacts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := reserveRequest(t)
 			tt.change(&r)
-			require.ErrorIs(t, r.Validate(t.Context(), "origin-a", testLimits()), constant.ErrInvalidRequestBody)
+			require.ErrorIs(t, r.Validate(t.Context(), testLimits()), constant.ErrInvalidRequestBody)
 			fingerprint, err := r.Fingerprint(t.Context(), reserveScope(), testLimits())
 			require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 			require.Zero(t, fingerprint, "invalid requests cannot yield a partial fingerprint")
@@ -162,21 +162,21 @@ func TestReserveRequestPresenceAndReplayTimestamp(t *testing.T) {
 	r.ContextID = strings.Repeat("a", 256)
 	// Structural validation must not apply a freshness window to stored replays.
 	r.TransactionTimestamp = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	require.NoError(t, r.Validate(t.Context(), "origin-a", testLimits()))
+	require.NoError(t, r.Validate(t.Context(), testLimits()))
 	encoded, err := json.Marshal(r)
 	require.NoError(t, err)
 	require.Contains(t, string(encoded), `"longLived":false`)
 	for _, replacement := range []string{``, `"longLived":null,`} {
 		var absent tracercontract.ReserveRequest
 		require.NoError(t, json.Unmarshal([]byte(strings.Replace(string(encoded), `"longLived":false,`, replacement, 1)), &absent))
-		require.ErrorIs(t, absent.Validate(t.Context(), "origin-a", testLimits()), constant.ErrInvalidRequestBody)
+		require.ErrorIs(t, absent.Validate(t.Context(), testLimits()), constant.ErrInvalidRequestBody)
 	}
 	// An explicit empty array is valid for external-only transactions.
 	r.Context.Accounts = []tracercontract.Account{}
 	r.Context.Entries = r.Context.Entries[1:]
-	require.NoError(t, r.Validate(t.Context(), "origin-a", testLimits()))
+	require.NoError(t, r.Validate(t.Context(), testLimits()))
 	r.Context.Accounts = nil
-	require.ErrorIs(t, r.Validate(t.Context(), "origin-a", testLimits()), constant.ErrInvalidRequestBody)
+	require.ErrorIs(t, r.Validate(t.Context(), testLimits()), constant.ErrInvalidRequestBody)
 }
 
 func TestReserveFingerprintDetectsContentChanges(t *testing.T) {
@@ -194,17 +194,10 @@ func TestReserveFingerprintDetectsContentChanges(t *testing.T) {
 		}},
 		{"long lived", func(r *tracercontract.ReserveRequest) { *r.LongLived = true }},
 		{"amount", func(r *tracercontract.ReserveRequest) { r.Amount = "9007199254740993.00000002" }},
-		{"root asset identity", func(r *tracercontract.ReserveRequest) { r.Asset.ID = "other" }},
-		{"account asset identity", func(r *tracercontract.ReserveRequest) {
-			r.Context.Accounts[0].Asset.ID = "other"
-			r.Context.Entries[0].Asset.ID = "other"
-		}},
-		{"asset code", func(r *tracercontract.ReserveRequest) {
-			r.Asset.Code = "XBT"
-			r.Context.Accounts[0].Asset.Code = "XBT"
-			for i := range r.Context.Entries {
-				r.Context.Entries[i].Asset.Code = "XBT"
-			}
+		{"root asset", func(r *tracercontract.ReserveRequest) { r.Asset = "USD" }},
+		{"account asset", func(r *tracercontract.ReserveRequest) {
+			r.Context.Accounts[0].Asset = "XBT"
+			r.Context.Entries[0].Asset = "XBT"
 		}},
 		{"account id", func(r *tracercontract.ReserveRequest) {
 			r.Context.Accounts[0].ID[0]++
@@ -215,7 +208,7 @@ func TestReserveFingerprintDetectsContentChanges(t *testing.T) {
 		{"blocked", func(r *tracercontract.ReserveRequest) { *r.Context.Accounts[0].Blocked = true }},
 		{"direction", func(r *tracercontract.ReserveRequest) { r.Context.Entries[1].Direction = tracercontract.Debit }},
 		{"entry amount", func(r *tracercontract.ReserveRequest) { r.Context.Entries[1].Amount = "0.00000002" }},
-		{"entry asset", func(r *tracercontract.ReserveRequest) { r.Context.Entries[1].Asset.ID = "other" }},
+		{"entry asset", func(r *tracercontract.ReserveRequest) { r.Context.Entries[1].Asset = "USD" }},
 		{"entry order", func(r *tracercontract.ReserveRequest) {
 			r.Context.Entries[0], r.Context.Entries[1] = r.Context.Entries[1], r.Context.Entries[0]
 		}},
@@ -260,11 +253,11 @@ func TestReserveFingerprintIncludesPrincipalAssetCode(t *testing.T) {
 	t.Parallel()
 	r := reserveRequest(t)
 	// A principal asset distinct from entry assets has no sum/scale relationship
-	// imposed by this structural contract. Its display code still affects replay.
-	r.Asset.ID = "principal-asset"
+	// imposed by this structural contract. Its code still affects replay.
+	r.Asset = "PRINCIPAL"
 	a, err := r.Fingerprint(t.Context(), reserveScope(), testLimits())
 	require.NoError(t, err)
-	r.Asset.Code = "TOKEN"
+	r.Asset = "TOKEN"
 	b, err := r.Fingerprint(t.Context(), reserveScope(), testLimits())
 	require.NoError(t, err)
 	require.NotEqual(t, a, b)
@@ -275,7 +268,7 @@ func TestReserveFingerprintTrustedScope(t *testing.T) {
 	r := reserveRequest(t)
 	original, err := r.Fingerprint(t.Context(), reserveScope(), testLimits())
 	require.NoError(t, err)
-	for _, field := range []string{"tenant", "integration", "namespace"} {
+	for _, field := range []string{"tenant", "integration"} {
 		t.Run(field, func(t *testing.T) {
 			r := reserveRequest(t)
 			scope := reserveScope()
@@ -284,13 +277,6 @@ func TestReserveFingerprintTrustedScope(t *testing.T) {
 				scope.TenantID = "tenant-b"
 			case "integration":
 				scope.IntegrationID = "integration-b"
-			case "namespace":
-				scope.AssetNamespace = "origin-b"
-				r.Asset.Namespace = scope.AssetNamespace
-				r.Context.Accounts[0].Asset.Namespace = scope.AssetNamespace
-				for i := range r.Context.Entries {
-					r.Context.Entries[i].Asset.Namespace = scope.AssetNamespace
-				}
 			}
 			actual, err := r.Fingerprint(t.Context(), scope, testLimits())
 			require.NoError(t, err)
@@ -299,20 +285,19 @@ func TestReserveFingerprintTrustedScope(t *testing.T) {
 	}
 	for _, scope := range []tracercontract.ReserveScope{
 		{},
-		{IntegrationID: "integration-a", AssetNamespace: "origin-a"},
-		{TenantID: "tenant-a", AssetNamespace: "origin-a"},
-		{TenantID: "tenant-a", IntegrationID: "integration-a", AssetNamespace: "forged"},
-		{TenantID: "tenant\x00a", IntegrationID: "integration-a", AssetNamespace: "origin-a"},
-		{TenantID: "tenant-a", IntegrationID: "integration\xff", AssetNamespace: "origin-a"},
-		{TenantID: "tenant-a", IntegrationID: strings.Repeat("a", 257), AssetNamespace: "origin-a"},
+		{IntegrationID: "integration-a"},
+		{TenantID: "tenant-a"},
+		{TenantID: "tenant\x00a", IntegrationID: "integration-a"},
+		{TenantID: "tenant-a", IntegrationID: "integration\xff"},
+		{TenantID: "tenant-a", IntegrationID: strings.Repeat("a", 257)},
 	} {
 		actual, err := r.Fingerprint(t.Context(), scope, testLimits())
 		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 		require.Zero(t, actual)
 	}
-	a, err := r.Fingerprint(t.Context(), tracercontract.ReserveScope{TenantID: "ab", IntegrationID: "c", AssetNamespace: "origin-a"}, testLimits())
+	a, err := r.Fingerprint(t.Context(), tracercontract.ReserveScope{TenantID: "ab", IntegrationID: "c"}, testLimits())
 	require.NoError(t, err)
-	b, err := r.Fingerprint(t.Context(), tracercontract.ReserveScope{TenantID: "a", IntegrationID: "bc", AssetNamespace: "origin-a"}, testLimits())
+	b, err := r.Fingerprint(t.Context(), tracercontract.ReserveScope{TenantID: "a", IntegrationID: "bc"}, testLimits())
 	require.NoError(t, err)
 	require.NotEqual(t, a, b, "field boundaries must not collide")
 }

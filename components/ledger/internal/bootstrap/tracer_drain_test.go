@@ -99,7 +99,7 @@ func TestDisabledTracerDrainSkipsTenantWithoutTransactionService(t *testing.T) {
 	deps := contextTracerDependencies{catalog: catalog, resolver: resolver, service: "ledger"}
 	catalog.EXPECT().GetActiveTenantsByService(gomock.Any(), "ledger").Return([]*tmclient.TenantSummary{{ID: "tenant-a", Status: "active"}}, nil)
 	resolver.EXPECT().GetDB(gomock.Any(), "tenant-a").Return(nil, tmcore.ErrServiceNotConfigured)
-	runtime, err := buildContextTracer(&Config{MultiTenantEnabled: true, TracerAssetNamespace: "origin-a"}, deps)
+	runtime, err := buildContextTracer(&Config{MultiTenantEnabled: true, TracerIntegrationID: "producer"}, deps)
 	require.NoError(t, err)
 	require.Nil(t, runtime)
 }

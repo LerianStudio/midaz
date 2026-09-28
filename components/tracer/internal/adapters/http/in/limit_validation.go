@@ -91,7 +91,7 @@ type CreateLimitInput struct {
 	Description     *string          `json:"description,omitempty" validate:"omitempty,max=1000" maxLength:"1000"`
 	LimitType       model.LimitType  `json:"limitType" validate:"required,limittype" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" enum:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	MaxAmount       decimal.Decimal  `json:"maxAmount" validate:"required" swaggertype:"string" example:"1000.00"`
-	Asset           string           `json:"asset" validate:"required,min=1,max=256" minLength:"1" maxLength:"256" example:"USD" doc:"Native asset code, preserved exactly; at most 256 UTF-8 bytes. AssetRef supplies economic identity."`
+	Asset           string           `json:"asset" validate:"required,min=1,max=100" minLength:"1" maxLength:"100" example:"USD" doc:"Asset code: uppercase letters only, 1-100 characters, preserved exactly."`
 	Scopes          []model.Scope    `json:"scopes" validate:"required,min=1,max=100,dive,scopenotempty" nullable:"false" minItems:"1" maxItems:"100"`
 	ActiveTimeStart *model.TimeOfDay `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
 	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`

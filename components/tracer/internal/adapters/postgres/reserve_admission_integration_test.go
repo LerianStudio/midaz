@@ -63,14 +63,14 @@ func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connecti
 	require.NoError(t, err)
 	beginner := pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db)))
 	beginner.SetMultiTenantEnabled(!singleTenant)
-	limits, err := NewContextLimitRepository(ContextLimitRepositoryConfig{MaxAccounts: maxAccounts, MaxLimits: 10, MaxScopes: maxAccounts, MaxScopeBytes: 256 * maxAccounts, MaxTextBytes: 256})
+	limits, err := NewContextLimitRepository(ContextLimitRepositoryConfig{MaxAccounts: maxAccounts, MaxLimits: 10, MaxScopes: maxAccounts, MaxScopeBytes: 256 * maxAccounts})
 	require.NoError(t, err)
 	c, err := command.NewReserveAdmissionCommand(command.ReserveAdmissionDependencies{
 		Decisions: decisions, Operations: NewReserveOperationRepository(), Capacity: newReservationRepoIntegration(db), Limits: limits, Policies: compiled, Evaluator: evaluator, Audit: NewAuditEventRepositoryWithConnection(conn), Transactions: beginner,
 	}, clock.NewFixedClock(now), command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: 10, MaxScopesPerLimit: maxAccounts, MaxReservations: 100}, MaxRules: 10, SingleTenant: singleTenant, MaxTimestampAge: 24 * time.Hour, ClockSkewTolerance: time.Second, ReservationLifetime: time.Hour})
 	require.NoError(t, err)
 	account := testutil.MustDeterministicUUID(89001)
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "official-asset", Code: "USD"}
+	asset := "USD"
 	blocked, longLived := false, false
 	r := tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: testutil.MustDeterministicUUID(89002), RequestID: testutil.MustDeterministicUUID(89003), ContextID: "official", ValidationMode: tracercontract.ValidationRulesAndLimits, TransactionTimestamp: testutil.FixedTime(), LongLived: &longLived, Amount: "10.125", Asset: asset, Context: tracercontract.Context{Accounts: []tracercontract.Account{{ID: account, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: asset}}, Entries: []tracercontract.Entry{{AccountID: account, Direction: tracercontract.Debit, Amount: "10.125", Asset: asset}}}}
 	return c, policies, r
@@ -101,8 +101,157 @@ func admissionLimit(t *testing.T, db *sql.DB, r tracercontract.ReserveRequest, s
 		_, err = db.ExecContext(t.Context(), "UPDATE limits SET scopes=$2 WHERE id=$1", id, raw)
 		require.NoError(t, err)
 	}
-	bindContextLimit(t, db, contextLimitRepository(t, 10), id, r.Asset)
+	setContextLimitAsset(t, db, id, r.Asset)
 	return id
+}
+
+func withReserveAsset(r tracercontract.ReserveRequest, asset string, seed int64) tracercontract.ReserveRequest {
+	r.TransactionID = testutil.MustDeterministicUUID(seed)
+	r.RequestID = testutil.MustDeterministicUUID(seed + 1)
+	r.Asset = asset
+	r.Context.Accounts = slices.Clone(r.Context.Accounts)
+	r.Context.Entries = slices.Clone(r.Context.Entries)
+	for i := range r.Context.Accounts {
+		r.Context.Accounts[i].Asset = asset
+	}
+	for i := range r.Context.Entries {
+		r.Context.Entries[i].Asset = asset
+	}
+	return r
+}
+
+func TestIntegrationReserveAdmissionMatchesLimitsByAssetCode(t *testing.T) {
+	db := completionDatabase(t)
+	c, _, base := admissionFixture(t, db)
+	base.ValidationMode = tracercontract.ValidationLimits
+	btc := withReserveAsset(base, "BTC", 89701)
+	limit := admissionLimit(t, db, btc, 89700, "10")
+	ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+	defer cancel()
+
+	denied, err := c.Execute(ctx, btc)
+	require.NoError(t, err)
+	require.Equal(t, tracercontract.DecisionDeny, denied.Decision)
+	require.Equal(t, []tracercontract.ReserveReason{tracercontract.ReasonLimitExceeded}, denied.Reasons)
+	require.Empty(t, denied.ReservationIDs)
+
+	xbt := withReserveAsset(base, "XBT", 89703)
+	allowed, err := c.Execute(ctx, xbt)
+	require.NoError(t, err, "a limit of another asset code is not applicable")
+	require.Equal(t, tracercontract.DecisionAllow, allowed.Decision)
+	require.Equal(t, []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}, allowed.Reasons)
+	require.Empty(t, allowed.ReservationIDs)
+	var counters, reservations int
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM usage_counters WHERE limit_id=$1", limit).Scan(&counters))
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM usage_reservations").Scan(&reservations))
+	require.Zero(t, counters, "neither decision may touch the BTC counter")
+	require.Zero(t, reservations)
+
+	for _, tc := range []struct {
+		request tracercontract.ReserveRequest
+		want    *tracercontract.ReserveResult
+	}{{btc, denied}, {xbt, allowed}} {
+		again, err := c.Execute(ctx, tc.request)
+		require.NoError(t, err)
+		require.Equal(t, tc.want, again)
+		require.Len(t, completionEvents(t, db, tc.request.TransactionID), 1)
+	}
+	var decisions int
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM reserve_decisions").Scan(&decisions))
+	require.Equal(t, 2, decisions)
+	// The fingerprint binds the asset code: the same operation with another code conflicts.
+	conflicting := withReserveAsset(base, "XBT", 89701)
+	result, err := c.Execute(ctx, conflicting)
+	require.ErrorIs(t, err, constant.ErrReserveDecisionConflict)
+	require.Nil(t, result)
+}
+
+// withReserveDebits replaces the request context with one debit per account,
+// each in the code its account holds.
+func withReserveDebits(r tracercontract.ReserveRequest, seed int64, debits ...tracercontract.Entry) tracercontract.ReserveRequest {
+	blocked := false
+	r.TransactionID = testutil.MustDeterministicUUID(seed)
+	r.RequestID = testutil.MustDeterministicUUID(seed + 1)
+	r.Context = tracercontract.Context{}
+	for _, debit := range debits {
+		debit.Direction = tracercontract.Debit
+		r.Context.Accounts = append(r.Context.Accounts, tracercontract.Account{ID: debit.AccountID, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: debit.Asset})
+		r.Context.Entries = append(r.Context.Entries, debit)
+	}
+	return r
+}
+
+func TestIntegrationReserveAdmissionMultiAssetScopeMatchesByCode(t *testing.T) {
+	db := completionDatabase(t)
+	c, _, base := admissionFixture(t, db)
+	base.ValidationMode = tracercontract.ValidationLimits
+	base.Asset = "BTC"
+	x, y := testutil.MustDeterministicUUID(89801), testutil.MustDeterministicUUID(89802)
+	scoped := withReserveDebits(base, 89803, tracercontract.Entry{AccountID: y, Amount: "1", Asset: "BTC"})
+	limit := admissionLimit(t, db, scoped, 89800, "100", model.Scope{AccountID: &x}, model.Scope{AccountID: &y})
+	ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+	defer cancel()
+
+	xbtOnX := tracercontract.Entry{AccountID: x, Amount: "500", Asset: "XBT"}
+	for i, tc := range []struct {
+		name     string
+		debits   []tracercontract.Entry
+		decision tracercontract.Decision
+		reserved int
+	}{
+		{"XBT on X and BTC over cap on Y", []tracercontract.Entry{xbtOnX, {AccountID: y, Amount: "150", Asset: "BTC"}}, tracercontract.DecisionDeny, 0},
+		{"BTC over cap on Y alone", []tracercontract.Entry{{AccountID: y, Amount: "150", Asset: "BTC"}}, tracercontract.DecisionDeny, 0},
+		{"XBT on X alone", []tracercontract.Entry{xbtOnX}, tracercontract.DecisionAllow, 0},
+		{"XBT on X and BTC within cap on Y", []tracercontract.Entry{xbtOnX, {AccountID: y, Amount: "50", Asset: "BTC"}}, tracercontract.DecisionAllow, 1},
+	} {
+		result, err := c.Execute(ctx, withReserveDebits(base, 89810+int64(2*i), tc.debits...))
+		require.NoError(t, err, tc.name)
+		require.Equal(t, tc.decision, result.Decision, tc.name)
+		require.Len(t, result.ReservationIDs, tc.reserved, tc.name)
+		if tc.decision == tracercontract.DecisionDeny {
+			require.Equal(t, []tracercontract.ReserveReason{tracercontract.ReasonLimitExceeded}, result.Reasons, tc.name)
+		}
+	}
+	var scopes []string
+	rows, err := db.QueryContext(ctx, "SELECT scope_key FROM usage_reservations WHERE limit_id=$1", limit)
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		require.NoError(t, rows.Scan(&key))
+		scopes = append(scopes, key)
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []string{"acct:" + y.String()}, scopes, "only the BTC debit reserves against the BTC limit")
+}
+
+func TestIntegrationReserveAdmissionNonConformingStoredCodeSelectsNoLimit(t *testing.T) {
+	db := completionDatabase(t)
+	c, _, base := admissionFixture(t, db)
+	base.ValidationMode = tracercontract.ValidationLimits
+	account := testutil.MustDeterministicUUID(89851)
+	request := withReserveDebits(base, 89852, tracercontract.Entry{AccountID: account, Amount: "10", Asset: "usdt"})
+	// An ACTIVE limit scoped to the account, in the conforming code nearest the
+	// stored one, with a cap below the debit: exact matching must not apply it.
+	limitRequest := request
+	limitRequest.Asset = "USDT"
+	limit := admissionLimit(t, db, limitRequest, 89850, "1")
+	var status, asset string
+	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT status, asset FROM limits WHERE id=$1", limit).Scan(&status, &asset))
+	require.Equal(t, "ACTIVE", status)
+	require.Equal(t, "USDT", asset)
+	ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+	defer cancel()
+	result, err := c.Execute(ctx, request)
+	require.NoError(t, err)
+	require.Equal(t, tracercontract.DecisionAllow, result.Decision)
+	require.Equal(t, []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}, result.Reasons)
+	require.Empty(t, result.ReservationIDs)
+	var counters, reservations int
+	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM usage_counters WHERE limit_id=$1", limit).Scan(&counters))
+	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM usage_reservations WHERE limit_id=$1", limit).Scan(&reservations))
+	require.Zero(t, counters, "the USDT limit accrues no usage from a usdt debit")
+	require.Zero(t, reservations, "the USDT limit holds no reservation for a usdt debit")
 }
 
 func TestIntegrationReserveAdmissionConcurrentLimitExhaustion(t *testing.T) {

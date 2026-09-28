@@ -207,7 +207,7 @@ func (m *MockReserveAdmissionLimits) EXPECT() *MockReserveAdmissionLimitsMockRec
 }
 
 // ListCandidatesWithTx mocks base method.
-func (m *MockReserveAdmissionLimits) ListCandidatesWithTx(arg0 context.Context, arg1 db.Tx, arg2 string, arg3 []uuid.UUID) ([]model.ContextAccountLimit, error) {
+func (m *MockReserveAdmissionLimits) ListCandidatesWithTx(arg0 context.Context, arg1 db.Tx, arg2 []string, arg3 []uuid.UUID) ([]model.ContextAccountLimit, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListCandidatesWithTx", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]model.ContextAccountLimit)
@@ -285,16 +285,16 @@ func (m *MockReserveAdmissionEvaluator) EXPECT() *MockReserveAdmissionEvaluatorM
 }
 
 // Execute mocks base method.
-func (m *MockReserveAdmissionEvaluator) Execute(arg0 context.Context, arg1 *query.CompiledContextPolicy, arg2 tracercontract.Context, arg3 string) (*model.ContextPolicyResult, error) {
+func (m *MockReserveAdmissionEvaluator) Execute(arg0 context.Context, arg1 *query.CompiledContextPolicy, arg2 tracercontract.Context) (*model.ContextPolicyResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*model.ContextPolicyResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockReserveAdmissionEvaluatorMockRecorder) Execute(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockReserveAdmissionEvaluatorMockRecorder) Execute(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockReserveAdmissionEvaluator)(nil).Execute), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockReserveAdmissionEvaluator)(nil).Execute), arg0, arg1, arg2)
 }

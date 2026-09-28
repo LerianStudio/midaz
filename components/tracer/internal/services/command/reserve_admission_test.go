@@ -35,7 +35,7 @@ func TestReserveAdmissionRequiresDependencies(t *testing.T) {
 func admissionUnitRequest() tracercontract.ReserveRequest {
 	blocked, longLived := false, false
 	account := testutil.MustDeterministicUUID(89901)
-	asset := tracercontract.AssetRef{Namespace: "assets", ID: "official", Code: "TOKEN"}
+	asset := "TOKEN"
 	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: testutil.MustDeterministicUUID(89902), RequestID: testutil.MustDeterministicUUID(89903), ContextID: "official", ValidationMode: tracercontract.ValidationLimits, TransactionTimestamp: testutil.FixedTime(), LongLived: &longLived, Amount: "10.125", Asset: asset, Context: tracercontract.Context{Accounts: []tracercontract.Account{{ID: account, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: asset}}, Entries: []tracercontract.Entry{{AccountID: account, Direction: tracercontract.Debit, Amount: "10.125", Asset: asset}}}}
 }
 
@@ -83,7 +83,7 @@ func TestReserveAdmissionTransactionFailures(t *testing.T) {
 						if stage != "second read" && stage != "past" && stage != "future" {
 							calls = append(calls, capacity.EXPECT().AcquireReserveScopeLock(gomock.Any(), tx, reservationlock.AccountKey(request.Context.Accounts[0].ID)).Return(stepErr("account lock")))
 							if stage != "account lock" {
-								calls = append(calls, limits.EXPECT().ListCandidatesWithTx(gomock.Any(), tx, "assets", []uuid.UUID{request.Context.Accounts[0].ID}).Return(nil, stepErr("limits")))
+								calls = append(calls, limits.EXPECT().ListCandidatesWithTx(gomock.Any(), tx, []string{"TOKEN"}, []uuid.UUID{request.Context.Accounts[0].ID}).Return(nil, stepErr("limits")))
 								if stage != "limits" {
 									calls = append(calls, decisions.EXPECT().CreateWithTx(gomock.Any(), tx, gomock.Any()).DoAndReturn(func(_ context.Context, _ pgdb.Tx, d model.ReserveDecision) error {
 										require.NoError(t, d.Validate(10, 100))
@@ -119,6 +119,65 @@ func TestReserveAdmissionTransactionFailures(t *testing.T) {
 				require.ErrorIs(t, err, want)
 				require.Nil(t, got)
 			}
+		})
+	}
+}
+
+func TestReserveAdmissionCandidateCodesFollowTheAssetCodeRule(t *testing.T) {
+	t.Parallel()
+	blocked := false
+	token, legacy, other := testutil.MustDeterministicUUID(89911), testutil.MustDeterministicUUID(89912), testutil.MustDeterministicUUID(89913)
+	for _, tc := range []struct {
+		name   string
+		assets map[uuid.UUID]string
+		want   []string
+	}{
+		{"non-conforming stored code selects nothing", map[uuid.UUID]string{legacy: "usdt"}, []string{}},
+		{"conforming codes are sorted", map[uuid.UUID]string{token: "XBT", legacy: "usdt", other: "BTC"}, []string{"BTC", "XBT"}},
+		{"repeated conforming codes are distinct", map[uuid.UUID]string{token: "TOKEN", legacy: "usdt", other: "TOKEN"}, []string{"TOKEN"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			decisions := mocks.NewMockReserveAdmissionDecisions(ctrl)
+			operations := mocks.NewMockReserveAdmissionOperations(ctrl)
+			capacity := mocks.NewMockReserveAdmissionCapacity(ctrl)
+			limits := mocks.NewMockReserveAdmissionLimits(ctrl)
+			audit := mocks.NewMockAuditEventRepository(ctrl)
+			beginner := dbmocks.NewMockTxBeginner(ctrl)
+			tx := dbmocks.NewMockTx(ctrl)
+			deps := ReserveAdmissionDependencies{Decisions: decisions, Operations: operations, Capacity: capacity, Limits: limits, Policies: mocks.NewMockReserveAdmissionPolicies(ctrl), Evaluator: mocks.NewMockReserveAdmissionEvaluator(ctrl), Audit: audit, Transactions: beginner}
+			config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: time.Hour}
+			c, err := NewReserveAdmissionCommand(deps, clock.NewFixedClock(testutil.FixedTime()), config)
+			require.NoError(t, err)
+			request := admissionUnitRequest()
+			request.Context = tracercontract.Context{}
+			ids := make([]uuid.UUID, 0, len(tc.assets))
+			for _, id := range []uuid.UUID{token, legacy, other} {
+				asset, ok := tc.assets[id]
+				if !ok {
+					continue
+				}
+				ids = append(ids, id)
+				request.Context.Accounts = append(request.Context.Accounts, tracercontract.Account{ID: id, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: asset})
+				request.Context.Entries = append(request.Context.Entries, tracercontract.Entry{AccountID: id, Direction: tracercontract.Debit, Amount: "1", Asset: asset})
+			}
+			request.Amount = "1"
+			decisions.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
+			beginner.EXPECT().BeginTx(gomock.Any(), nil).Return(tx, nil)
+			operations.EXPECT().LockWithTx(gomock.Any(), tx, gomock.Any()).Return(&model.ReserveOperationState{Status: model.OperationOpen}, nil)
+			decisions.EXPECT().GetWithTx(gomock.Any(), tx, gomock.Any()).Return(nil, nil)
+			capacity.EXPECT().AcquireReserveScopeLock(gomock.Any(), tx, gomock.Any()).Return(nil).Times(len(ids))
+			limits.EXPECT().ListCandidatesWithTx(gomock.Any(), tx, tc.want, gomock.Any()).DoAndReturn(func(_ context.Context, _ pgdb.Tx, _ []string, got []uuid.UUID) ([]model.ContextAccountLimit, error) {
+				require.ElementsMatch(t, ids, got)
+				return []model.ContextAccountLimit{}, nil
+			})
+			decisions.EXPECT().CreateWithTx(gomock.Any(), tx, gomock.Any()).Return(nil)
+			audit.EXPECT().InsertWithTx(gomock.Any(), tx, gomock.Any()).Return(nil)
+			tx.EXPECT().Commit().Return(nil)
+			got, err := c.Execute(completionAuth(t.Context()), request)
+			require.NoError(t, err)
+			require.Equal(t, tracercontract.DecisionAllow, got.Decision)
 		})
 	}
 }

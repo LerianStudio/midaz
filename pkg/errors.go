@@ -509,10 +509,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType, Code: constant.ErrTracerFactsUnavailable.Error(),
 			Title: "Official Tracer Facts Unavailable", Message: "Official account and asset records are incomplete or inconsistent; the validation context cannot be built safely.",
 		},
-		constant.ErrLimitAssetReferenceConflict: EntityConflictError{
-			EntityType: entityType, Code: constant.ErrLimitAssetReferenceConflict.Error(),
-			Title: "Limit Asset Reference Conflict", Message: "The limit already has an immutable asset reference.",
-		},
 		constant.ErrContextLimitsUnavailable: ServiceUnavailableError{
 			EntityType: entityType, Code: constant.ErrContextLimitsUnavailable.Error(),
 			Title: "Account Limits Unavailable", Message: "The account and asset limit configuration is incomplete or cannot be evaluated safely.",
@@ -2511,7 +2507,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
 			Title:      "Limit Invalid Asset",
-			Message:    "Asset must be nonempty UTF-8 text of at most 256 bytes, without surrounding whitespace or NUL; case is preserved.",
+			Message:    "Asset code must contain only uppercase letters (1-100).",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,
@@ -2709,7 +2705,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidCurrency.Error(),
 			Title:      "Check Limits Invalid Asset",
-			Message:    "Check limits asset must be valid ISO 4217.",
+			Message:    "Asset code must contain only uppercase letters (1-100).",
 		},
 		constant.ErrCheckLimitsUnknownLimitType: ValidationError{
 			EntityType: entityType,
@@ -2811,7 +2807,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidCurrency.Error(),
 			Title:      "Validation Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset code must contain only uppercase letters (1-100).",
 		},
 		constant.ErrValidationTimestampRequired: ValidationError{
 			EntityType: entityType,

@@ -87,7 +87,7 @@ func (h *ContextReservationHandler) Reserve(ctx context.Context, input *ReserveI
 		return nil, err
 	}
 
-	identity, ok := contextutil.GetIntegrationIdentity(ctx)
+	_, ok := contextutil.GetIntegrationIdentity(ctx)
 	if !ok {
 		return nil, constant.ErrInsufficientPrivileges
 	}
@@ -105,7 +105,7 @@ func (h *ContextReservationHandler) Reserve(ctx context.Context, input *ReserveI
 		return nil, err
 	}
 
-	if err := request.Validate(ctx, identity.AssetNamespace, h.bounds); err != nil {
+	if err := request.Validate(ctx, h.bounds); err != nil {
 		return nil, err
 	}
 
@@ -280,7 +280,7 @@ func contextReservationSecurity(api huma.API) []map[string][]string {
 		api.OpenAPI().Components.SecuritySchemes = map[string]*huma.SecurityScheme{}
 	}
 
-	api.OpenAPI().Components.SecuritySchemes["ProducerMTLS"] = &huma.SecurityScheme{Type: "mutualTLS", Description: "Verified producer certificate registered to the integration namespace."}
+	api.OpenAPI().Components.SecuritySchemes["ProducerMTLS"] = &huma.SecurityScheme{Type: "mutualTLS", Description: "Verified producer certificate bound to a registered integration."}
 
 	return []map[string][]string{{"ProducerMTLS": {}}}
 }

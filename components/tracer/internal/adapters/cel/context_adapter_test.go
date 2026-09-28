@@ -27,7 +27,7 @@ func testContextAdapter(t testing.TB) *ContextAdapter {
 func evaluationFacts() tracercontract.Context {
 	blocked := false
 	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
-	asset := tracercontract.AssetRef{Namespace: "producer", ID: "BTC-A", Code: "BTC"}
+	asset := "BTC"
 	return tracercontract.Context{
 		Accounts: []tracercontract.Account{{ID: id, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: asset}},
 		Entries: []tracercontract.Entry{
@@ -42,12 +42,13 @@ func evaluationFacts() tracercontract.Context {
 func TestContextAdapterTypedFactsAndExactDebits(t *testing.T) {
 	t.Parallel()
 	adapter := testContextAdapter(t)
-	activation, err := adapter.Prepare(context.Background(), evaluationFacts(), "producer")
+	activation, err := adapter.Prepare(context.Background(), evaluationFacts())
 	require.NoError(t, err)
 	for _, expression := range []string{
 		`accounts.exists(a, a.type == "deposit" && a.status == "ACTIVE" && !a.blocked)`,
 		`entries.exists(e, e.direction == "DEBIT" && e.amount.equal(decimal("0.00000001")))`,
-		`debits.exists(d, d.asset.namespace == "producer" && d.asset.id == "BTC-A" && d.amount.equal(decimal("9007199254740993.00000001")))`,
+		`debits.exists(d, d.asset == "BTC" && d.amount.equal(decimal("9007199254740993.00000001")))`,
+		`accounts.exists(a, a.asset == "BTC") && entries.all(e, e.asset == "BTC")`,
 		`entries.exists(e, e.external && !has(e.accountId))`,
 		`accounts.all(a, has(a.blocked))`,
 	} {
@@ -62,6 +63,27 @@ func TestContextAdapterTypedFactsAndExactDebits(t *testing.T) {
 	}
 }
 
+func TestContextAdapterAssetCodeMatchesExactly(t *testing.T) {
+	t.Parallel()
+	adapter := testContextAdapter(t)
+	activation, err := adapter.Prepare(context.Background(), evaluationFacts())
+	require.NoError(t, err)
+	for _, expression := range []string{
+		`debits.exists(d, d.asset == "XBT")`,
+		`debits.exists(d, d.asset == "btc")`,
+		`accounts.exists(a, a.asset == "XBT")`,
+	} {
+		t.Run(expression, func(t *testing.T) {
+			t.Parallel()
+			program, err := adapter.Compile(context.Background(), expression)
+			require.NoError(t, err)
+			matched, _, err := adapter.Evaluate(context.Background(), program, activation, 100000)
+			require.NoError(t, err)
+			require.False(t, matched)
+		})
+	}
+}
+
 func TestContextAdapterRejectsInvalidExpressions(t *testing.T) {
 	t.Parallel()
 	adapter := testContextAdapter(t)
@@ -70,8 +92,8 @@ func TestContextAdapterRejectsInvalidExpressions(t *testing.T) {
 		`entries.exists(e, double(e.amount) > 0.1)`,
 		`entries.exists(e, string(e.amount) == "1")`,
 		`accounts.exists(a, a.blocked == "false")`,
-		`entries.exists(e, e.asset.uuid == "id")`,
-		`entries.exists(e, decimal(e.asset.code).equal(e.amount))`,
+		`debits.exists(d, d.asset.code == "BTC")`,
+		`accounts.exists(a, a.asset.id == "BTC-A")`,
 		`amount > 1`,
 		`entries[0].amount`,
 	} {
@@ -86,7 +108,7 @@ func TestContextAdapterSnapshotAndPresence(t *testing.T) {
 	t.Parallel()
 	adapter := testContextAdapter(t)
 	facts := evaluationFacts()
-	activation, err := adapter.Prepare(context.Background(), facts, "producer")
+	activation, err := adapter.Prepare(context.Background(), facts)
 	require.NoError(t, err)
 	program, err := adapter.Compile(context.Background(), `!accounts[0].blocked && entries[1].amount.equal(decimal("0.00000001"))`)
 	require.NoError(t, err)
@@ -96,14 +118,14 @@ func TestContextAdapterSnapshotAndPresence(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, matched)
 	facts.Accounts[0].Blocked = nil
-	_, err = adapter.Prepare(context.Background(), facts, "producer")
+	_, err = adapter.Prepare(context.Background(), facts)
 	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 }
 
 func TestContextAdapterBudgetsAndCacheIsolation(t *testing.T) {
 	t.Parallel()
 	adapter := testContextAdapter(t)
-	activation, err := adapter.Prepare(context.Background(), evaluationFacts(), "producer")
+	activation, err := adapter.Prepare(context.Background(), evaluationFacts())
 	require.NoError(t, err)
 	program, err := adapter.Compile(context.Background(), `entries.all(e, e.amount.greaterThan(decimal("0")))`)
 	require.NoError(t, err)
@@ -139,7 +161,7 @@ func TestContextAdapterBudgetsAndCacheIsolation(t *testing.T) {
 func TestContextAdapterDoesNotExposeExpressionLiterals(t *testing.T) {
 	t.Parallel()
 	adapter := testContextAdapter(t)
-	activation, err := adapter.Prepare(context.Background(), evaluationFacts(), "producer")
+	activation, err := adapter.Prepare(context.Background(), evaluationFacts())
 	require.NoError(t, err)
 	program, err := adapter.Compile(context.Background(), `{"present": 1}["sensitive-missing-key"] == 1`)
 	require.NoError(t, err)

@@ -10,7 +10,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -26,10 +25,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // Repository uses a read-only repeatable-read transaction on the tenant primary.
-// It never reads replicas or invents a missing asset identity from its code.
+// It never reads replicas.
 type Repository struct {
 	connection    *libPostgres.Client
 	bounds        tracercontract.Limits
@@ -44,13 +44,12 @@ func NewRepository(connection *libPostgres.Client, bounds tracercontract.Limits,
 	return &Repository{connection: connection, bounds: bounds, requireTenant: requireTenant}, nil
 }
 
-// Read returns exactly the requested accounts and their assets plus assets named
-// by entryCodes (including external entries). Empty accounts are allowed only
-// with entry codes. Callers must authorize the scope and apply off/skip gates
-// before reading. A snapshot does not freeze facts against subsequent updates.
-func (r *Repository) Read(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID, entryCodes []string) (_ []*mmodel.Account, _ []*mmodel.Asset, retErr error) {
+// Read returns exactly the requested, non-deleted accounts; at least one account
+// is required. Callers must authorize the scope and apply off/skip gates before
+// reading. A snapshot does not freeze facts against subsequent updates.
+func (r *Repository) Read(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (_ []*mmodel.Account, retErr error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -69,53 +68,39 @@ func (r *Repository) Read(ctx context.Context, organizationID, ledgerID uuid.UUI
 		}
 	}()
 
-	if err := r.validateRequest(organizationID, ledgerID, accountIDs, entryCodes); err != nil {
-		return nil, nil, err
+	if err := r.validateRequest(organizationID, ledgerID, accountIDs); err != nil {
+		return nil, err
 	}
 
 	db, err := r.database(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// dbresolver.BeginTx always selects ReadWrite, even with ReadOnly=true.
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	if err != nil {
-		return nil, nil, fmt.Errorf("begin official record snapshot: %w", err)
+		return nil, fmt.Errorf("begin official record snapshot: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	accounts, err := r.readAccounts(ctx, tx, organizationID, ledgerID, accountIDs)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	codes := make(map[string]struct{}, len(entryCodes))
-	for _, code := range entryCodes {
-		codes[code] = struct{}{}
-	}
-
-	for _, account := range accounts {
-		codes[account.AssetCode] = struct{}{}
-	}
-
-	assets, err := r.readAssets(ctx, tx, organizationID, ledgerID, codes)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, nil, fmt.Errorf("finish official record snapshot: %w", err)
+		return nil, fmt.Errorf("finish official record snapshot: %w", err)
 	}
 
-	return accounts, assets, nil
+	return accounts, nil
 }
 
-func (r *Repository) validateRequest(org, ledger uuid.UUID, ids []uuid.UUID, codes []string) error {
-	if org == uuid.Nil || ledger == uuid.Nil || (len(ids) == 0 && len(codes) == 0) || len(ids) > r.bounds.MaxAccounts || len(codes) > r.bounds.MaxEntries {
+func (r *Repository) validateRequest(org, ledger uuid.UUID, ids []uuid.UUID) error {
+	if org == uuid.Nil || ledger == uuid.Nil || len(ids) == 0 || len(ids) > r.bounds.MaxAccounts {
 		return constant.ErrInvalidRequestBody
 	}
 
@@ -128,17 +113,12 @@ func (r *Repository) validateRequest(org, ledger uuid.UUID, ids []uuid.UUID, cod
 		seen[id] = struct{}{}
 	}
 
-	for _, code := range codes {
-		if !r.validText(code) {
-			return constant.ErrInvalidRequestBody
-		}
-	}
-
 	return nil
 }
 
 func (r *Repository) validText(value string) bool {
-	return value != "" && len(value) <= r.bounds.MaxTextBytes && utf8.ValidString(value) && strings.TrimSpace(value) == value && !strings.ContainsRune(value, '\x00')
+	return value != "" && len(value) <= r.bounds.MaxTextBytes && utf8.ValidString(value) &&
+		strings.TrimSpace(value) == value && !strings.ContainsRune(value, '\x00')
 }
 
 func (r *Repository) database(ctx context.Context) (dbresolver.DB, error) {
@@ -158,16 +138,13 @@ func (r *Repository) database(ctx context.Context) (dbresolver.DB, error) {
 }
 
 func (r *Repository) readAccounts(ctx context.Context, tx dbresolver.Tx, org, ledger uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
-	if len(ids) == 0 {
-		return []*mmodel.Account{}, nil
-	}
 	// Bound text before it crosses the database boundary; NULL fails closed at Scan.
 	rows, err := tx.QueryContext(ctx, `SELECT id,
- CASE WHEN octet_length(asset_code)<=$4 THEN asset_code END,
+ CASE WHEN char_length(asset_code)<=$6 THEN asset_code END,
  CASE WHEN octet_length(type)<=$4 THEN type END,
  CASE WHEN octet_length(status)<=$4 THEN status END, blocked
  FROM account WHERE organization_id=$1 AND ledger_id=$2 AND id=ANY($3)
- AND deleted_at IS NULL ORDER BY id LIMIT $5`, org, ledger, pq.Array(ids), r.bounds.MaxTextBytes, len(ids))
+ AND deleted_at IS NULL ORDER BY id LIMIT $5`, org, ledger, pq.Array(ids), r.bounds.MaxTextBytes, len(ids), utils.MaxAssetCodeLength)
 	if err != nil {
 		return nil, fmt.Errorf("read official accounts: %w", err)
 	}
@@ -190,7 +167,7 @@ func (r *Repository) readAccounts(ctx context.Context, tx dbresolver.Tx, org, le
 			return nil, fmt.Errorf("scan official account: %w", err)
 		}
 
-		if !requested[id] || !r.validText(account.AssetCode) || !r.validText(account.Type) || !r.validText(account.Status.Code) {
+		if !requested[id] || !tracercontract.ValidAssetCodeFact(account.AssetCode) || !r.validText(account.Type) || !r.validText(account.Status.Code) {
 			return nil, constant.ErrTracerFactsUnavailable
 		}
 
@@ -205,52 +182,6 @@ func (r *Repository) readAccounts(ctx context.Context, tx dbresolver.Tx, org, le
 	}
 
 	if len(requested) != 0 {
-		return nil, constant.ErrTracerFactsUnavailable
-	}
-
-	return result, nil
-}
-
-func (r *Repository) readAssets(ctx context.Context, tx dbresolver.Tx, org, ledger uuid.UUID, codes map[string]struct{}) ([]*mmodel.Asset, error) {
-	ordered := make([]string, 0, len(codes))
-	for code := range codes {
-		ordered = append(ordered, code)
-	}
-
-	slices.Sort(ordered)
-	// One extra row detects ambiguous codes, without transferring an unbounded set.
-	rows, err := tx.QueryContext(ctx, `SELECT id, CASE WHEN octet_length(code)<=$4 THEN code END
- FROM asset WHERE organization_id=$1 AND ledger_id=$2 AND code=ANY($3)
- AND deleted_at IS NULL ORDER BY id LIMIT $5`, org, ledger, pq.Array(ordered), r.bounds.MaxTextBytes, int64(len(ordered))+1)
-	if err != nil {
-		return nil, fmt.Errorf("read official assets: %w", err)
-	}
-	defer rows.Close()
-
-	result := make([]*mmodel.Asset, 0, len(codes))
-
-	for rows.Next() {
-		var id uuid.UUID
-
-		asset := &mmodel.Asset{OrganizationID: org.String(), LedgerID: ledger.String()}
-		if err := rows.Scan(&id, &asset.Code); err != nil {
-			return nil, fmt.Errorf("scan official asset: %w", err)
-		}
-
-		if _, exists := codes[asset.Code]; !exists || id == uuid.Nil || !r.validText(asset.Code) {
-			return nil, constant.ErrTracerFactsUnavailable
-		}
-
-		delete(codes, asset.Code)
-		asset.ID = id.String()
-		result = append(result, asset)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate official assets: %w", err)
-	}
-
-	if len(codes) != 0 {
 		return nil, constant.ErrTracerFactsUnavailable
 	}
 

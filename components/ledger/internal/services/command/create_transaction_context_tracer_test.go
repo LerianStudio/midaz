@@ -52,13 +52,13 @@ func TestCreateContextTracerFencesAccounting(t *testing.T) {
 			}
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
 			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
-			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return now })
+			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return now })
 			require.NoError(t, err)
 			coordinator, err := NewContextTracerCoordinator(recovery, loader, cfg)
 			require.NoError(t, err)
 			loader.EXPECT().EvaluationContext(gomock.Any(), organizationID, ledgerID, gomock.Any()).DoAndReturn(func(_ context.Context, _, _ uuid.UUID, entries []traceradapter.PreparedEntry) (tracercontract.Context, error) {
 				require.Len(t, entries, 2, "pending still includes its credit destination")
-				asset := tracercontract.AssetRef{Namespace: "origin-a", ID: "asset-usd", Code: "USD"}
+				asset := "USD"
 				facts := tracercontract.Context{Accounts: []tracercontract.Account{}, Entries: []tracercontract.Entry{}}
 				for _, entry := range entries {
 					blocked := false

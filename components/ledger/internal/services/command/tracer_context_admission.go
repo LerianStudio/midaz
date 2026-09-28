@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -83,7 +84,7 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 	created := c.recovery.now().UTC()
 	request.TransactionTimestamp = created
 
-	scope := tracercontract.ReserveScope{TenantID: tmcore.GetTenantIDContext(ctx), IntegrationID: c.recovery.config.IntegrationID, AssetNamespace: c.recovery.config.Namespace, SingleTenant: c.recovery.config.SingleTenant}
+	scope := tracercontract.ReserveScope{TenantID: tmcore.GetTenantIDContext(ctx), IntegrationID: c.recovery.config.IntegrationID, SingleTenant: c.recovery.config.SingleTenant}
 	// The dispatch grace is bounded independently of Reserve. This permits the
 	// configured fail-open path to acquire its fence after a Reserve timeout.
 	deadline := input.DispatchDeadline
@@ -156,27 +157,14 @@ func (c *ContextTracerCoordinator) request(ctx context.Context, input ContextTra
 		return tracercontract.ReserveRequest{}, fmt.Errorf("load tracer facts: %w", err)
 	}
 
-	var asset tracercontract.AssetRef
-
-	for _, entry := range facts.Entries {
-		if entry.Asset.Code != input.AssetCode {
-			continue
-		}
-
-		if asset.ID != "" && asset != entry.Asset {
-			return tracercontract.ReserveRequest{}, constant.ErrInvalidRequestBody
-		}
-
-		asset = entry.Asset
-	}
-
-	if asset.ID == "" {
+	// The reserved asset must be one the fee-inclusive postings actually move.
+	if !slices.ContainsFunc(facts.Entries, func(entry tracercontract.Entry) bool { return entry.Asset == input.AssetCode }) {
 		return tracercontract.ReserveRequest{}, constant.ErrInvalidRequestBody
 	}
 
 	// Freshness describes this admission attempt. The caller's business date
 	// remains on the Ledger transaction and must not bypass current controls.
-	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: input.Key.TransactionID, RequestID: reservationRequestID(input.Key.TransactionID), ContextID: input.Key.LedgerID.String(), ValidationMode: tracercontract.ValidationMode(input.Settings.ValidationMode), TransactionTimestamp: admittedAt.UTC(), LongLived: &input.LongLived, Amount: amount, Asset: asset, Context: facts}, nil
+	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: input.Key.TransactionID, RequestID: reservationRequestID(input.Key.TransactionID), ContextID: input.Key.LedgerID.String(), ValidationMode: tracercontract.ValidationMode(input.Settings.ValidationMode), TransactionTimestamp: admittedAt.UTC(), LongLived: &input.LongLived, Amount: amount, Asset: input.AssetCode, Context: facts}, nil
 }
 
 // A durable acknowledgement must name the same execution and frozen facts.

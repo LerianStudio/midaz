@@ -37,7 +37,7 @@ func parseContextTracerConfig(cfg *Config, service string) (contextTracerRuntime
 		return contextTracerRuntimeConfig{}, err
 	}
 
-	client := tracer.ContextClientConfig{Namespace: cfg.TracerAssetNamespace, Bounds: bounds, MaxBodyBytes: cfg.TracerContextMaxBodyBytes, MaxReservations: cfg.TracerContextMaxReservations}
+	client := tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: cfg.TracerContextMaxBodyBytes, MaxReservations: cfg.TracerContextMaxReservations}
 	if err := client.Validate(); err != nil {
 		return contextTracerRuntimeConfig{}, err
 	}
@@ -96,7 +96,7 @@ func parseTracerRecoveryConfig(cfg *Config) (command.TracerRecoveryConfig, error
 		return command.TracerRecoveryConfig{}, fmt.Errorf("TRACER_RECOVERY_CYCLE_TIMEOUT_MS: %w", err)
 	}
 
-	recovery := command.TracerRecoveryConfig{IntegrationID: cfg.TracerIntegrationID, Namespace: cfg.TracerAssetNamespace, SingleTenant: !cfg.MultiTenantEnabled, MaxBatch: cfg.TracerRecoveryBatchSize, RetryInterval: interval, AttemptTimeout: attempt, LeaseDuration: lease}
+	recovery := command.TracerRecoveryConfig{IntegrationID: cfg.TracerIntegrationID, SingleTenant: !cfg.MultiTenantEnabled, MaxBatch: cfg.TracerRecoveryBatchSize, RetryInterval: interval, AttemptTimeout: attempt, LeaseDuration: lease}
 
 	recovery.MaxRetryInterval, err = tracerRecoveryDuration(cfg.TracerRecoveryMaxRetryIntervalMs)
 	if err != nil {

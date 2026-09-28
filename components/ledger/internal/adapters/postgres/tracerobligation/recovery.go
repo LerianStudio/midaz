@@ -67,7 +67,7 @@ func (r *Repository) ClaimDue(ctx context.Context, now, nextAttempt time.Time, l
  ) UPDATE tracer_reservation_obligation o SET next_attempt_at=$3,
  recovery_attempts=LEAST(o.recovery_attempts::bigint+1,2147483647)::integer FROM due
  WHERE o.organization_id=due.organization_id AND o.ledger_id=due.ledger_id AND o.transaction_id=due.transaction_id
- RETURNING o.organization_id,o.ledger_id,o.transaction_id,o.execution_id,o.tenant_id,o.integration_id,o.asset_namespace,o.contract_revision,o.state,o.prepare_deadline,o.created_at,o.recovery_attempts`, tmcore.GetTenantIDContext(ctx), now.UTC(), nextAttempt.UTC(), limit)
+ RETURNING o.organization_id,o.ledger_id,o.transaction_id,o.execution_id,o.tenant_id,o.integration_id,o.contract_revision,o.state,o.prepare_deadline,o.created_at,o.recovery_attempts`, tmcore.GetTenantIDContext(ctx), now.UTC(), nextAttempt.UTC(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("claim tracer recovery: %w", err)
 	}
@@ -77,7 +77,7 @@ func (r *Repository) ClaimDue(ctx context.Context, now, nextAttempt time.Time, l
 
 	for rows.Next() {
 		var entry tracerreservation.Pending
-		if err := rows.Scan(&entry.Key.OrganizationID, &entry.Key.LedgerID, &entry.Key.TransactionID, &entry.ExecutionID, &entry.Scope.TenantID, &entry.Scope.IntegrationID, &entry.Scope.AssetNamespace, &entry.ContractRevision, &entry.State, &entry.PrepareDeadline, &entry.CreatedAt, &entry.RecoveryAttempts); err != nil {
+		if err := rows.Scan(&entry.Key.OrganizationID, &entry.Key.LedgerID, &entry.Key.TransactionID, &entry.ExecutionID, &entry.Scope.TenantID, &entry.Scope.IntegrationID, &entry.ContractRevision, &entry.State, &entry.PrepareDeadline, &entry.CreatedAt, &entry.RecoveryAttempts); err != nil {
 			return nil, fmt.Errorf("read tracer recovery: %w", err)
 		}
 

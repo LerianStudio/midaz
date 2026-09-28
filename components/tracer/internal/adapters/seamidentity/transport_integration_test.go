@@ -47,7 +47,7 @@ func TestProducerIdentityMTLS(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			serverTLS, clientTLS := identityTLSConfigs(t, tc.uris)
-			resolver, err := seamidentity.NewResolver(bindings(), 256)
+			resolver, err := seamidentity.NewResolver(bindings())
 			require.NoError(t, err)
 			t.Run("HTTP", func(t *testing.T) { checkHTTPIdentity(t, resolver, serverTLS.Clone(), clientTLS.Clone(), tc.allowed) })
 			t.Run("gRPC", func(t *testing.T) { checkGRPCIdentity(t, resolver, serverTLS.Clone(), clientTLS.Clone(), tc.allowed) })
@@ -84,7 +84,7 @@ func assertCapturedIdentity(t *testing.T, identities <-chan contextutil.Integrat
 	}
 	select {
 	case identity := <-identities:
-		require.Equal(t, contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "assets"}, identity)
+		require.Equal(t, contextutil.IntegrationIdentity{ID: "producer"}, identity)
 	default:
 		t.Fatal("authorized handler did not receive the verified identity")
 	}
@@ -111,7 +111,6 @@ func checkHTTPIdentity(t *testing.T, resolver *seamidentity.Resolver, serverTLS,
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://"+listener.Addr().String()+"/v1/reservations", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Integration-Id", "forged")
-	req.Header.Set("X-Asset-Namespace", "forged")
 	req.Header.Set("X-Forwarded-Client-Cert", producerURI)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
@@ -143,7 +142,7 @@ func checkGRPCIdentity(t *testing.T, resolver *seamidentity.Resolver, serverTLS,
 	t.Cleanup(func() { _ = client.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-integration-id", "forged", "x-asset-namespace", "forged", "x-forwarded-client-cert", producerURI))
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-integration-id", "forged", "x-forwarded-client-cert", producerURI))
 	_, err = healthv1.NewHealthClient(client).Check(ctx, &healthv1.HealthCheckRequest{})
 	want := codes.PermissionDenied
 	if allowed {

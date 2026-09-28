@@ -27,7 +27,7 @@ type ActiveContextPolicyRepository interface {
 }
 
 // ResolvedContextPolicy couples the immutable revision/binding version to the
-// authenticated producer and asset namespace used for context validation.
+// authenticated producer.
 type ResolvedContextPolicy struct {
 	Binding  model.PolicyBindingKey
 	Identity contextutil.IntegrationIdentity
@@ -50,7 +50,7 @@ func NewResolveContextPolicyQuery(repository ActiveContextPolicyRepository, maxR
 }
 
 // Execute accepts only an opaque context derived by the trusted producer. The
-// payload cannot select a policy, an integration, or an asset namespace. Tenant
+// payload cannot select a policy or an integration. Tenant
 // context is preserved unchanged; policy identity alone is not a tenant key.
 func (q *ResolveContextPolicyQuery) Execute(ctx context.Context, contextID string) (*ResolvedContextPolicy, error) {
 	return q.resolve(ctx, contextID, q.repository.GetActive)

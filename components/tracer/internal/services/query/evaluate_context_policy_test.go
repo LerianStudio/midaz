@@ -36,7 +36,7 @@ func policyEngine(t testing.TB) *cel.ContextAdapter {
 func policyFacts() tracercontract.Context {
 	blocked := false
 	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
-	asset := tracercontract.AssetRef{Namespace: "producer", ID: "asset-1", Code: "BTC"}
+	asset := "BTC"
 	return tracercontract.Context{
 		Accounts: []tracercontract.Account{{ID: id, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: asset}},
 		Entries:  []tracercontract.Entry{{AccountID: id, Direction: tracercontract.Debit, Amount: "0.00000001", Asset: asset}},
@@ -86,7 +86,7 @@ func TestContextPolicyPrecedenceAndExplicitDefault(t *testing.T) {
 			}
 			compiled, err := evaluator.Compile(context.Background(), input)
 			require.NoError(t, err)
-			result, err := evaluator.Execute(context.Background(), compiled, policyFacts(), "producer")
+			result, err := evaluator.Execute(context.Background(), compiled, policyFacts())
 			require.NoError(t, err)
 			require.Equal(t, tc.want, result.Decision)
 			require.Len(t, result.EvaluatedRules, len(tc.actions))
@@ -107,7 +107,7 @@ func TestContextPolicySnapshotAndRevisionOrder(t *testing.T) {
 	input.Rules[0].Action = model.DecisionDeny
 	input.Rules[0].Revision = 99
 	input.Rules[0].Expression = "false"
-	result, err := evaluator.Execute(context.Background(), compiled, policyFacts(), "producer")
+	result, err := evaluator.Execute(context.Background(), compiled, policyFacts())
 	require.NoError(t, err)
 	require.Equal(t, model.DecisionReview, result.Decision)
 	require.Len(t, result.EvaluatedRules, 2)
@@ -115,7 +115,7 @@ func TestContextPolicySnapshotAndRevisionOrder(t *testing.T) {
 	require.EqualValues(t, 3, result.EvaluatedRules[1].Revision)
 	require.Equal(t, result.EvaluatedRules, result.MatchedRules)
 	result.MatchedRules[0].Revision = 90
-	again, err := evaluator.Execute(context.Background(), compiled, policyFacts(), "producer")
+	again, err := evaluator.Execute(context.Background(), compiled, policyFacts())
 	require.NoError(t, err)
 	require.EqualValues(t, 2, again.MatchedRules[0].Revision)
 }
@@ -126,7 +126,7 @@ func TestContextPolicyTotalBudgetAcrossRules(t *testing.T) {
 	input := policySnapshot()
 	program, err := engine.Compile(context.Background(), input.Rules[0].Expression)
 	require.NoError(t, err)
-	activation, err := engine.Prepare(context.Background(), policyFacts(), "producer")
+	activation, err := engine.Prepare(context.Background(), policyFacts())
 	require.NoError(t, err)
 	_, perRule, err := engine.Evaluate(context.Background(), program, activation, 100000)
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestContextPolicyTotalBudgetAcrossRules(t *testing.T) {
 		}
 		require.NoError(t, err)
 		for range 2 { // Cached policies retain independent runtime budgets.
-			result, err := evaluator.Execute(context.Background(), compiled, policyFacts(), "producer")
+			result, err := evaluator.Execute(context.Background(), compiled, policyFacts())
 			require.NoError(t, err)
 			require.Equal(t, perRule*2, result.Cost)
 		}
@@ -165,17 +165,17 @@ func TestContextPolicyErrorsNeverBecomeDecisions(t *testing.T) {
 	input.Rules[0].Expression = `{"present": 1}["missing"] == 1`
 	compiled, err := evaluator.Compile(context.Background(), input)
 	require.NoError(t, err)
-	result, err := evaluator.Execute(context.Background(), compiled, policyFacts(), "producer")
+	result, err := evaluator.Execute(context.Background(), compiled, policyFacts())
 	require.ErrorIs(t, err, constant.ErrExpressionEvaluation)
 	require.Nil(t, result)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = evaluator.Execute(ctx, compiled, policyFacts(), "producer")
+	_, err = evaluator.Execute(ctx, compiled, policyFacts())
 	require.ErrorIs(t, err, context.Canceled)
-	_, err = evaluator.Execute(context.Background(), nil, policyFacts(), "producer")
+	_, err = evaluator.Execute(context.Background(), nil, policyFacts())
 	require.Error(t, err)
 	other := policyEvaluator(t, policyEngine(t), 100000)
-	_, err = other.Execute(context.Background(), compiled, policyFacts(), "producer")
+	_, err = other.Execute(context.Background(), compiled, policyFacts())
 	require.Error(t, err)
 	input.Rules = nil
 	input.DefaultDecision = model.DecisionAllow
@@ -183,7 +183,7 @@ func TestContextPolicyErrorsNeverBecomeDecisions(t *testing.T) {
 	require.NoError(t, err)
 	facts := policyFacts()
 	facts.Accounts[0].Blocked = nil
-	_, err = evaluator.Execute(context.Background(), compiled, facts, "producer")
+	_, err = evaluator.Execute(context.Background(), compiled, facts)
 	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 }
 
@@ -245,7 +245,7 @@ func TestContextPolicySpanErrorClassification(t *testing.T) {
 				input.Rules[0].Expression = `{"present": 1}["missing"] == 1`
 				compiled, err := evaluator.Compile(ctx, input)
 				require.NoError(t, err)
-				_, err = evaluator.Execute(ctx, compiled, policyFacts(), "producer")
+				_, err = evaluator.Execute(ctx, compiled, policyFacts())
 				require.Error(t, err)
 			}
 			found := false
@@ -274,7 +274,7 @@ func TestContextPolicyConcurrentRequestsKeepIndependentFactsAndBudgets(t *testin
 				facts.Accounts[0].Type = "future-account-type"
 				want = model.DecisionDeny // No matching rule, use this policy's default.
 			}
-			result, err := evaluator.Execute(context.Background(), compiled, facts, "producer")
+			result, err := evaluator.Execute(context.Background(), compiled, facts)
 			if err != nil {
 				t.Errorf("concurrent policy evaluation failed: %v", err)
 				return

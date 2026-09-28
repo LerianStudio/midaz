@@ -88,9 +88,9 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 		_, err = h.db.ExecContext(t.Context(), `UPDATE ledger SET settings=$1::jsonb WHERE id=$2`, string(settings), h.ledgerID)
 		require.NoError(t, err)
 	}
-	assetID := pgtest.CreateTestAsset(t, h.db, h.orgID, h.ledgerID, "USD")
-	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100), "deposit")
-	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+	pgtest.CreateTestAsset(t, h.db, h.orgID, h.ledgerID, "BTC")
+	h.seedBalance(t, "@payer", "BTC", decimal.NewFromInt(100), "deposit")
+	h.seedBalance(t, "@receiver", "BTC", decimal.Zero, "deposit")
 	bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
 	config := tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}
 	received := make(chan tracercontract.ReserveRequest, 1)
@@ -149,21 +149,21 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 	t.Cleanup(peer.Close)
 	facts, err := tracercontext.NewRepository(h.pgConn, bounds, false)
 	require.NoError(t, err)
-	loader, err := tracer.NewOfficialContextLoader(facts, "origin-a", bounds)
+	loader, err := tracer.NewOfficialContextLoader(facts, bounds)
 	require.NoError(t, err)
 	journal, err := tracerobligation.NewRepository(h.pgConn, config, false, 10)
 	require.NoError(t, err)
-	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Namespace: "origin-a", Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
+	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
 	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-	recoveryConfig := command.TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}
+	recoveryConfig := command.TracerRecoveryConfig{IntegrationID: "producer", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}
 	recovery, err := command.NewTracerRecoveryProcessor(journal, client, journal, recoveryConfig, func() time.Time { return instant })
 	require.NoError(t, err)
 	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, command.ContextTracerConfig{Facts: config, MaxReservations: 100, AdmissionTimeout: 5 * time.Second})
 	require.NoError(t, err)
 	h.handler.Command.ContextTracer = coordinator
 	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
-	response := h.createV2Direct(t, h.newV2App(), h.v2Body("context integration", "USD", "10.125", []string{h.v2Leg("@payer", "10.125")}, []string{h.v2Leg("@receiver", "10.125")}), nil)
+	response := h.createV2Direct(t, h.newV2App(), h.v2Body("context integration", "BTC", "10.125", []string{h.v2Leg("@payer", "10.125")}, []string{h.v2Leg("@receiver", "10.125")}), nil)
 	if allowed {
 		require.Equal(t, http.StatusCreated, response.status, string(response.rawBody))
 	} else if peerError != nil {
@@ -202,7 +202,13 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 		require.Zero(t, transactionCount, "rejected admission must not create a PENDING transaction")
 		require.Zero(t, operationCount)
 	}
-	require.Equal(t, tracercontract.AssetRef{Namespace: "origin-a", ID: assetID.String(), Code: "USD"}, request.Asset)
+	require.Equal(t, "BTC", request.Asset)
+	for _, entry := range request.Context.Entries {
+		require.Equal(t, "BTC", entry.Asset)
+	}
+	for _, account := range request.Context.Accounts {
+		require.Equal(t, "BTC", account.Asset)
+	}
 	require.Len(t, request.Context.Accounts, 2)
 	require.Len(t, request.Context.Entries, 2)
 	require.Equal(t, "10.125", string(request.Amount))
@@ -242,7 +248,7 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 	require.NoError(t, err)
 	journal, err = tracerobligation.NewRepository(h.pgConn, config, false, 10)
 	require.NoError(t, err)
-	client, err = tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Namespace: "origin-a", Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
+	client, err = tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
 	recovery, err = command.NewTracerRecoveryProcessor(journal, client, journal, recoveryConfig, func() time.Time { return instant })
 	require.NoError(t, err)

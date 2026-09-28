@@ -18,16 +18,33 @@ import (
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
 func TestNativeLimitCreateContract(t *testing.T) {
-	for _, code := range []string{"wBTC", "POINTS", "BTC", strings.Repeat("x", 256), " BTC", strings.Repeat("é", 129)} {
+	invalidCode := constant.ErrLimitInvalidCurrency.Error()
+	// The OpenAPI maxLength bound rejects over-long codes before the handler,
+	// with the generic schema-violation code.
+	schemaViolation := constant.ErrMissingFieldsInRequest.Error()
+	cases := map[string]string{
+		"BTC":                    "",
+		"POINTS":                 "",
+		"LERIANPOINTS":           "",
+		strings.Repeat("A", 100): "",
+		"wBTC":                   invalidCode,
+		"usd":                    invalidCode,
+		" BTC":                   invalidCode,
+		"US1":                    invalidCode,
+		strings.Repeat("A", 101): schemaViolation,
+	}
+
+	for code, wantProblem := range cases {
+		valid := wantProblem == ""
 		t.Run(code, func(t *testing.T) {
 			service := NewMockLimitService(gomock.NewController(t))
-			valid := code != " BTC" && len(code) <= 256
 			if valid {
 				service.EXPECT().CreateLimit(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, input *command.CreateLimitInput) (*model.Limit, error) {
 					require.Equal(t, code, input.Asset)
@@ -51,6 +68,11 @@ func TestNativeLimitCreateContract(t *testing.T) {
 				require.Equal(t, http.StatusCreated, response.StatusCode)
 			} else {
 				require.Equal(t, http.StatusBadRequest, response.StatusCode)
+				var problem struct {
+					Code string `json:"code"`
+				}
+				require.NoError(t, json.NewDecoder(response.Body).Decode(&problem))
+				require.Equal(t, wantProblem, problem.Code)
 			}
 		})
 	}
@@ -65,6 +87,6 @@ func TestNativeLimitJSONSchema(t *testing.T) {
 	document := api.OpenAPI().Components.Schemas.Map()["CreateLimitInput"]
 	require.NotNil(t, document)
 	require.Equal(t, 1, *document.Properties["asset"].MinLength)
-	require.Equal(t, 256, *document.Properties["asset"].MaxLength)
+	require.Equal(t, 100, *document.Properties["asset"].MaxLength)
 	require.Equal(t, "string", document.Properties["maxAmount"].Type)
 }

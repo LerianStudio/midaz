@@ -1,0 +1,2 @@
+-- VALIDATE CONSTRAINT has no inverse and is non-destructive; nothing to undo.
+-- The constraint remains valid until the previous migration's rollback drops it.

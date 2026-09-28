@@ -139,7 +139,7 @@ func TestNewTracerGRPCClient_ImplementsTracerReserver(t *testing.T) {
 
 func contextClientFixture(t *testing.T) (tracercontract.ReserveRequest, ContextClientConfig) {
 	t.Helper()
-	config := ContextClientConfig{Namespace: "origin-a", Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100}
+	config := ContextClientConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100}
 	raw, err := os.ReadFile("../../../../../pkg/tracercontract/testdata/reserve_request.json")
 	require.NoError(t, err)
 	request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, config.MaxBodyBytes, config.Bounds)
@@ -169,7 +169,7 @@ func TestContextGRPCClientReserve(t *testing.T) {
 			calls := 0
 			stub := &stubReservationServer{reserveFn: func(input *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
 				calls++
-				actual, err := contractpb.DecodeReserve(t.Context(), input, config.Namespace, config.Bounds, config.MaxBodyBytes)
+				actual, err := contractpb.DecodeReserve(t.Context(), input, config.Bounds, config.MaxBodyBytes)
 				require.NoError(t, err)
 				require.Equal(t, request, actual)
 				switch scenario {

@@ -19,7 +19,7 @@ func consumptionFixture() (tracercontract.Context, tracercontract.Limits) {
 	blocked := false
 	a := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	b := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "btc-1", Code: "BTC"}
+	asset := "BTC"
 	return tracercontract.Context{
 		Accounts: []tracercontract.Account{
 			{ID: a, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: asset},
@@ -38,7 +38,7 @@ func consumptionFixture() (tracercontract.Context, tracercontract.Limits) {
 func TestAccountDebitsGrossExactAndOrdered(t *testing.T) {
 	t.Parallel()
 	c, limits := consumptionFixture()
-	totals, err := AccountDebits(context.Background(), c, "ledger", limits)
+	totals, err := AccountDebits(context.Background(), c, limits)
 	require.NoError(t, err)
 	require.Len(t, totals, 2)
 	require.Equal(t, c.Accounts[0].ID, totals[0].AccountID)
@@ -51,20 +51,21 @@ func TestAccountDebitsGrossExactAndOrdered(t *testing.T) {
 	for i, j := 0, len(c.Entries)-1; i < j; i, j = i+1, j-1 {
 		c.Entries[i], c.Entries[j] = c.Entries[j], c.Entries[i]
 	}
-	again, err := AccountDebits(context.Background(), c, "ledger", limits)
+	again, err := AccountDebits(context.Background(), c, limits)
 	require.NoError(t, err)
 	require.Equal(t, totals, again)
 }
 
-func TestAccountDebitsSeparateAssetIdentities(t *testing.T) {
+func TestAccountDebitsSeparateAssetCodes(t *testing.T) {
 	t.Parallel()
 	c, limits := consumptionFixture()
-	c.Accounts[1].Asset.ID = "btc-2"
+	c.Accounts[1].Asset = "LERIANPOINTS"
 	c.Entries[0].Asset = c.Accounts[1].Asset
-	totals, err := AccountDebits(context.Background(), c, "ledger", limits)
+	totals, err := AccountDebits(context.Background(), c, limits)
 	require.NoError(t, err)
 	require.Len(t, totals, 2)
-	require.NotEqual(t, totals[0].Asset.Identity(), totals[1].Asset.Identity())
+	require.Equal(t, "BTC", totals[0].Asset)
+	require.Equal(t, "LERIANPOINTS", totals[1].Asset)
 }
 
 func TestAccountDebitsNoCreditOffsetOrExternalCounter(t *testing.T) {
@@ -73,14 +74,14 @@ func TestAccountDebitsNoCreditOffsetOrExternalCounter(t *testing.T) {
 	for i := range c.Entries {
 		c.Entries[i].Direction = tracercontract.Credit
 	}
-	totals, err := AccountDebits(context.Background(), c, "ledger", limits)
+	totals, err := AccountDebits(context.Background(), c, limits)
 	require.NoError(t, err)
 	require.Empty(t, totals)
 
 	c.Accounts = nil
 	c.Entries = c.Entries[len(c.Entries)-1:]
 	c.Entries[0].Direction = tracercontract.Debit
-	totals, err = AccountDebits(context.Background(), c, "ledger", limits)
+	totals, err = AccountDebits(context.Background(), c, limits)
 	require.NoError(t, err)
 	require.Empty(t, totals)
 }
@@ -89,7 +90,7 @@ func TestAccountDebitsRejectsIncompleteContextAndOverflow(t *testing.T) {
 	t.Parallel()
 	c, limits := consumptionFixture()
 	c.Accounts[0].Blocked = nil
-	_, err := AccountDebits(context.Background(), c, "ledger", limits)
+	_, err := AccountDebits(context.Background(), c, limits)
 	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 
 	c, limits = consumptionFixture()
@@ -97,11 +98,11 @@ func TestAccountDebitsRejectsIncompleteContextAndOverflow(t *testing.T) {
 	c.Entries[1].Amount = "99"
 	c.Entries[2].Amount = "1"
 	c.Entries[3].Amount = "1"
-	_, err = AccountDebits(context.Background(), c, "ledger", limits)
+	_, err = AccountDebits(context.Background(), c, limits)
 	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = AccountDebits(ctx, c, "ledger", limits)
+	_, err = AccountDebits(ctx, c, limits)
 	require.ErrorIs(t, err, context.Canceled)
 }

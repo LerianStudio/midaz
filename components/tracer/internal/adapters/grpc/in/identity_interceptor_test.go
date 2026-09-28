@@ -29,7 +29,7 @@ func TestIdentityInterceptorIgnoresForgedMetadata(t *testing.T) {
 	t.Parallel()
 	uri, err := url.Parse("spiffe://example.test/service/producer")
 	require.NoError(t, err)
-	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256)
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}})
 	require.NoError(t, err)
 	_, plaintextAuth, err := insecure.NewCredentials().ServerHandshake(nil)
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestIdentityInterceptorIgnoresForgedMetadata(t *testing.T) {
 		{"verified cert", credentials.TLSInfo{State: tls.ConnectionState{HandshakeComplete: true, PeerCertificates: []*x509.Certificate{leaf}, VerifiedChains: [][]*x509.Certificate{{leaf}}}}, codes.OK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-integration-id", "forged", "x-asset-namespace", "forged", "x-forwarded-client-cert", uri.String()))
+			ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-integration-id", "forged", "x-forwarded-client-cert", uri.String()))
 			ctx = tmcore.ContextWithTenantID(ctx, "tenant-a")
 			ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: tc.auth})
 			called := false
@@ -53,7 +53,7 @@ func TestIdentityInterceptorIgnoresForgedMetadata(t *testing.T) {
 				called = true
 				identity, ok := contextutil.GetIntegrationIdentity(ctx)
 				require.True(t, ok)
-				require.Equal(t, contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "assets"}, identity)
+				require.Equal(t, contextutil.IntegrationIdentity{ID: "producer"}, identity)
 				require.Equal(t, "tenant-a", tmcore.GetTenantIDContext(ctx))
 				return nil, nil
 			})
@@ -63,15 +63,17 @@ func TestIdentityInterceptorIgnoresForgedMetadata(t *testing.T) {
 	}
 }
 
-func TestIdentityInterceptorRejectsAdminCertificateForCompletion(t *testing.T) {
-	uri, err := url.Parse("spiffe://example.test/admin")
+func TestIdentityInterceptorRejectsUnboundCertificateForCompletion(t *testing.T) {
+	uri, err := url.Parse("spiffe://example.test/producer")
 	require.NoError(t, err)
-	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeAssetAdmin}}}, 256)
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: uri.String(), IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}})
 	require.NoError(t, err)
-	leaf := &x509.Certificate{Raw: []byte("admin-leaf"), URIs: []*url.URL{uri}}
+	unbound, err := url.Parse("spiffe://example.test/unbound")
+	require.NoError(t, err)
+	leaf := &x509.Certificate{Raw: []byte("unbound-leaf"), URIs: []*url.URL{unbound}}
 	ctx := peer.NewContext(t.Context(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{HandshakeComplete: true, PeerCertificates: []*x509.Certificate{leaf}, VerifiedChains: [][]*x509.Certificate{{leaf}}}}})
 	_, err = IdentityUnaryInterceptor(resolver)(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/reservation.v1.ReservationService/ReleaseByTransaction"}, func(context.Context, any) (any, error) {
-		t.Fatal("administrative certificate reached completion")
+		t.Fatal("unbound certificate reached completion")
 		return nil, nil
 	})
 	require.Equal(t, codes.PermissionDenied, status.Code(err))

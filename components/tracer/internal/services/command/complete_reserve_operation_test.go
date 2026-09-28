@@ -44,7 +44,7 @@ func completionDecision() (*model.ReserveDecision, *model.Reservation) {
 }
 
 func completionAuth(ctx context.Context) context.Context {
-	return contextutil.WithIntegrationIdentity(ctx, contextutil.IntegrationIdentity{ID: "verified-producer", AssetNamespace: "assets"})
+	return contextutil.WithIntegrationIdentity(ctx, contextutil.IntegrationIdentity{ID: "verified-producer"})
 }
 
 func TestCompleteReserveOperationTransactionAndFailures(t *testing.T) {

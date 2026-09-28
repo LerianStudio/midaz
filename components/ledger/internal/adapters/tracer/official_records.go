@@ -12,10 +12,10 @@ import (
 )
 
 // OfficialRecordsReader returns complete records from one tenant-primary
-// snapshot, scoped to organization/ledger. Account IDs must be unique. Assets
-// cover both the accounts and explicit entry codes; missing/ambiguous facts fail.
+// snapshot, scoped to organization/ledger. Account IDs must be unique;
+// missing, deleted or ambiguous accounts fail.
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=official_records.go -destination=mocks/official_records_mock.go -package=mocks
 type OfficialRecordsReader interface {
-	Read(context.Context, uuid.UUID, uuid.UUID, []uuid.UUID, []string) ([]*mmodel.Account, []*mmodel.Asset, error)
+	Read(context.Context, uuid.UUID, uuid.UUID, []uuid.UUID) ([]*mmodel.Account, error)
 }

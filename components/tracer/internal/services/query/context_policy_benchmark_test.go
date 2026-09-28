@@ -60,7 +60,7 @@ func BenchmarkContextPolicySynthetic(b *testing.B) {
 			ctx := context.Background()
 			compiled, err := evaluator.Compile(ctx, policy)
 			require.NoError(b, err)
-			probe, err := evaluator.Execute(ctx, compiled, facts, "synthetic")
+			probe, err := evaluator.Execute(ctx, compiled, facts)
 			require.NoError(b, err)
 			require.Equal(b, model.DecisionAllow, probe.Decision)
 			require.Len(b, probe.EvaluatedRules, shape.rules)
@@ -68,7 +68,7 @@ func BenchmarkContextPolicySynthetic(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {
-					if _, err := evaluator.Execute(ctx, compiled, facts, "synthetic"); err != nil {
+					if _, err := evaluator.Execute(ctx, compiled, facts); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -89,7 +89,7 @@ func BenchmarkContextPolicySynthetic(b *testing.B) {
 }
 
 func syntheticPolicyFixture(accountCount, ruleCount, integerDigits, fractionDigits int) (tracercontract.Context, model.ContextPolicy) {
-	asset := tracercontract.AssetRef{Namespace: "synthetic", ID: "native-asset", Code: "TOKEN"}
+	asset := "TOKEN"
 	amount := tracercontract.Amount(strings.Repeat("1", integerDigits) + "." + strings.Repeat("1", fractionDigits))
 	facts := tracercontract.Context{Accounts: make([]tracercontract.Account, 0, accountCount), Entries: make([]tracercontract.Entry, 0, accountCount)}
 	blocked := false

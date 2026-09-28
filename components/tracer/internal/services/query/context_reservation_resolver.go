@@ -71,12 +71,13 @@ func NewContextReservationResolver(clk clock.Clock, config ContextReservationCon
 	return &ContextReservationResolver{clock: clk, config: config}, nil
 }
 
-// Execute requires namespace from verified integration configuration and every
-// candidate limit, including unresolved/unsupported candidates. The caller must
-// select them on the tenant primary in the admission transaction, without
-// pagination or code-only filtering. Nil/empty snapshots mean proven absence;
-// this pure component cannot prove that a repository returned a complete set.
-func (q *ContextReservationResolver) Execute(ctx context.Context, facts tracercontract.Context, namespace string, limits []model.ContextAccountLimit) (_ *ContextReservationPlan, retErr error) {
+// Execute requires every candidate limit, including unsupported candidates. The
+// caller must select them on the tenant primary in the admission transaction,
+// without pagination. Limits match debits by asset code equality only; a
+// scope account debited in another code is not limited by that limit.
+// Nil/empty snapshots mean proven absence; this pure component cannot prove
+// that a repository returned a complete set.
+func (q *ContextReservationResolver) Execute(ctx context.Context, facts tracercontract.Context, limits []model.ContextAccountLimit) (_ *ContextReservationPlan, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -97,12 +98,12 @@ func (q *ContextReservationResolver) Execute(ctx context.Context, facts tracerco
 		}
 	}()
 
-	debits, err := model.AccountDebits(ctx, facts, namespace, q.config.Facts)
+	debits, err := model.AccountDebits(ctx, facts, q.config.Facts)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := q.validateSnapshot(ctx, facts, namespace, limits); err != nil {
+	if err := q.validateSnapshot(ctx, limits); err != nil {
 		return nil, err
 	}
 
@@ -155,24 +156,14 @@ func (q *ContextReservationResolver) Execute(ctx context.Context, facts tracerco
 	return plan, nil
 }
 
-func (q *ContextReservationResolver) validateSnapshot(ctx context.Context, facts tracercontract.Context, namespace string, limits []model.ContextAccountLimit) error {
+func (q *ContextReservationResolver) validateSnapshot(ctx context.Context, limits []model.ContextAccountLimit) error {
 	if len(limits) > q.config.MaxLimits {
 		return constant.ErrContextLimitsUnavailable
 	}
 
-	assets := make(map[tracercontract.AssetIdentity]string)
-	for _, entry := range facts.Entries {
-		assets[entry.Asset.Identity()] = entry.Asset.Code
-	}
-
-	accounts := make(map[uuid.UUID]tracercontract.AssetIdentity, len(facts.Accounts))
-	for _, account := range facts.Accounts {
-		accounts[account.ID] = account.Asset.Identity()
-	}
-
 	seen := make(map[uuid.UUID]struct{}, len(limits))
 	for _, limit := range limits {
-		if err := limit.Validate(ctx, namespace, q.config.Facts, q.config.MaxScopesPerLimit); err != nil {
+		if err := limit.Validate(ctx, q.config.Facts, q.config.MaxScopesPerLimit); err != nil {
 			return err
 		}
 
@@ -181,23 +172,6 @@ func (q *ContextReservationResolver) validateSnapshot(ctx context.Context, facts
 		}
 
 		seen[limit.Definition.ID] = struct{}{}
-		if code, exists := assets[limit.Asset.Identity()]; exists && code != limit.Asset.Code {
-			return constant.ErrContextLimitsUnavailable
-		}
-
-		assets[limit.Asset.Identity()] = limit.Asset.Code
-
-		// A configured account has one official asset. An incompatible association
-		// is a migration/configuration error, not a reason to silently skip a cap.
-		for _, scope := range limit.Definition.Scopes {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-
-			if asset, known := accounts[*scope.AccountID]; known && asset != limit.Asset.Identity() {
-				return constant.ErrContextLimitsUnavailable
-			}
-		}
 	}
 
 	return nil
@@ -222,8 +196,10 @@ func (q *ContextReservationResolver) appendLimit(ctx context.Context, plan *Cont
 			return err
 		}
 
+		// The asset code is the only identity: a scope account debited in
+		// another code is outside this limit, not a configuration error.
 		debit, exists := debits[*scope.AccountID]
-		if !exists || debit.Asset.Identity() != limit.Asset.Identity() {
+		if !exists || debit.Asset != d.Asset {
 			continue
 		}
 

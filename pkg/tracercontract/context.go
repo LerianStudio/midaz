@@ -15,28 +15,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
-
-// AssetIdentity identifies an asset within the authenticated tenant. Namespace
-// must be authorized by the receiving integration, never trusted from the body.
-// ID is opaque so producers need not share an asset registry or UUID scheme.
-type AssetIdentity struct {
-	Namespace string
-	ID        string
-}
-
-// AssetRef carries an identity and its human-readable code. Equal codes do not
-// imply equivalent assets. Conflicting codes for one identity are invalid.
-type AssetRef struct {
-	Namespace string `json:"namespace"`
-	ID        string `json:"id"`
-	Code      string `json:"code"`
-}
-
-// Identity excludes Code, which is descriptive rather than an identity key.
-func (a AssetRef) Identity() AssetIdentity {
-	return AssetIdentity{Namespace: a.Namespace, ID: a.ID}
-}
 
 // Account contains official facts about one participating internal account.
 // Type and Status retain the producer's vocabulary. Blocked must be present;
@@ -47,7 +27,7 @@ type Account struct {
 	Type    string    `json:"type"`
 	Status  string    `json:"status"`
 	Blocked *bool     `json:"blocked"`
-	Asset   AssetRef  `json:"asset"`
+	Asset   string    `json:"asset"`
 }
 
 // Direction describes a posting, independently of payment rail or account type.
@@ -66,7 +46,7 @@ type Entry struct {
 	External  bool      `json:"external,omitempty"`
 	Direction Direction `json:"direction"`
 	Amount    Amount    `json:"amount"`
-	Asset     AssetRef  `json:"asset"`
+	Asset     string    `json:"asset"`
 }
 
 // Context describes the participating accounts once and their prepared entries,
@@ -108,16 +88,10 @@ func validText(s string, limit int) bool {
 }
 
 // Validate checks structure and completeness, not policy or accounting balance.
-// authorizedNamespace must come from trusted integration configuration. Tenant
-// isolation and authorization of the context remain adapter responsibilities.
-// The context is not mutated, so official producer facts cannot be rewritten.
-func (c Context) Validate(ctx context.Context, authorizedNamespace string, limits Limits) error {
-	return c.validate(ctx, authorizedNamespace, limits, nil)
-}
-
-// validate accepts previously validated asset identities from the envelope so
-// contradictory codes are rejected across both header and participating facts.
-func (c Context) validate(ctx context.Context, authorizedNamespace string, limits Limits, assets map[AssetIdentity]string) error {
+// Tenant isolation and authorization of the context remain adapter
+// responsibilities. The context is not mutated, so official producer facts
+// cannot be rewritten.
+func (c Context) Validate(ctx context.Context, limits Limits) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -126,25 +100,18 @@ func (c Context) validate(ctx context.Context, authorizedNamespace string, limit
 		return err
 	}
 
-	if !validText(authorizedNamespace, limits.MaxTextBytes) {
-		return invalid("authorized namespace")
-	}
-
 	if len(c.Accounts) > limits.MaxAccounts || len(c.Entries) == 0 || len(c.Entries) > limits.MaxEntries {
 		return invalid("context size")
 	}
 
 	accounts := make(map[uuid.UUID]Account, len(c.Accounts))
-	if assets == nil {
-		assets = make(map[AssetIdentity]string)
-	}
 
 	for i, account := range c.Accounts {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		if err := validateAccount(account, authorizedNamespace, limits, accounts, assets); err != nil {
+		if err := validateAccount(account, limits, accounts); err != nil {
 			return fmt.Errorf("accounts[%d]: %w", i, err)
 		}
 
@@ -154,7 +121,7 @@ func (c Context) validate(ctx context.Context, authorizedNamespace string, limit
 	used := make(map[uuid.UUID]bool, len(accounts))
 
 	for i, entry := range c.Entries {
-		if err := validateEntry(ctx, entry, authorizedNamespace, limits, accounts, assets); err != nil {
+		if err := validateEntry(ctx, entry, limits, accounts); err != nil {
 			return fmt.Errorf("entries[%d]: %w", i, err)
 		}
 
@@ -170,7 +137,7 @@ func (c Context) validate(ctx context.Context, authorizedNamespace string, limit
 	return nil
 }
 
-func validateAccount(account Account, namespace string, limits Limits, accounts map[uuid.UUID]Account, assets map[AssetIdentity]string) error {
+func validateAccount(account Account, limits Limits, accounts map[uuid.UUID]Account) error {
 	if account.ID == uuid.Nil || !validText(account.Type, limits.MaxTextBytes) ||
 		!validText(account.Status, limits.MaxTextBytes) || account.Blocked == nil {
 		return invalid("account facts")
@@ -180,35 +147,29 @@ func validateAccount(account Account, namespace string, limits Limits, accounts 
 		return invalid("duplicate account")
 	}
 
-	return validateAsset(account.Asset, namespace, limits, assets)
+	return validateAsset(account.Asset)
 }
 
-// Validate checks one reference against an already authorized namespace. It
-// does not resolve an asset registry or authorize caller-supplied namespaces.
-func (a AssetRef) Validate(namespace string, maxTextBytes int) error {
-	if !validText(namespace, maxTextBytes) || a.Namespace != namespace ||
-		!validText(a.ID, maxTextBytes) || !validText(a.Code, maxTextBytes) {
-		return invalid("asset reference")
+// ValidAssetCodeFact reports whether code is acceptable as a stored ledger
+// asset code fact: non-empty, valid UTF-8, free of NUL and surrounding
+// whitespace, and at most utils.MaxAssetCodeLength characters. It does not
+// require the ledger's uppercase rule, so codes stored before that rule
+// remain valid facts; the code format is a limit matching concern, not a
+// context completeness one. No registry is resolved.
+func ValidAssetCodeFact(code string) bool {
+	return len(code) <= utf8.UTFMax*utils.MaxAssetCodeLength && validText(code, len(code)) &&
+		utf8.RuneCountInString(code) <= utils.MaxAssetCodeLength
+}
+
+func validateAsset(code string) error {
+	if !ValidAssetCodeFact(code) {
+		return invalid("asset code")
 	}
 
 	return nil
 }
 
-func validateAsset(asset AssetRef, namespace string, limits Limits, seen map[AssetIdentity]string) error {
-	if err := asset.Validate(namespace, limits.MaxTextBytes); err != nil {
-		return err
-	}
-
-	if code, exists := seen[asset.Identity()]; exists && code != asset.Code {
-		return invalid("conflicting asset code")
-	}
-
-	seen[asset.Identity()] = asset.Code
-
-	return nil
-}
-
-func validateEntry(ctx context.Context, entry Entry, namespace string, limits Limits, accounts map[uuid.UUID]Account, assets map[AssetIdentity]string) error {
+func validateEntry(ctx context.Context, entry Entry, limits Limits, accounts map[uuid.UUID]Account) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -221,7 +182,7 @@ func validateEntry(ctx context.Context, entry Entry, namespace string, limits Li
 		return invalid("participant reference")
 	}
 
-	if err := validateAsset(entry.Asset, namespace, limits, assets); err != nil {
+	if err := validateAsset(entry.Asset); err != nil {
 		return err
 	}
 

@@ -55,8 +55,8 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 				settings.Mode = "off"
 			}
 			require.NotEmpty(t, request.Context.Accounts)
-			entries := []traceradapter.PreparedEntry{{AccountID: request.Context.Accounts[0].ID, Direction: tracercontract.Debit, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset.Code}}
-			input := ContextTracerInput{Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Settings: settings, Timestamp: instant, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset.Code, Entries: entries, HonoredSkip: scenario == "skip"}
+			entries := []traceradapter.PreparedEntry{{AccountID: request.Context.Accounts[0].ID, Direction: tracercontract.Debit, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset}}
+			input := ContextTracerInput{Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Settings: settings, Timestamp: instant, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset, Entries: entries, HonoredSkip: scenario == "skip"}
 			if scenario == "backdated" {
 				input.Timestamp = instant.AddDate(-5, 0, 0)
 			}
@@ -134,7 +134,7 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 					}
 				}
 			}
-			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return instant })
+			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return instant })
 			require.NoError(t, err)
 			coordinator, err := NewContextTracerCoordinator(recovery, loader, cfg)
 			require.NoError(t, err)

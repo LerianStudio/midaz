@@ -54,7 +54,7 @@ func (c *ContextHTTPClient) Reserve(ctx context.Context, request tracercontract.
 	ctx, cancel := context.WithTimeout(ctx, c.transport.operationTimeout)
 	defer cancel()
 
-	if err := request.Validate(ctx, c.config.Namespace, c.config.Bounds); err != nil {
+	if err := request.Validate(ctx, c.config.Bounds); err != nil {
 		return nil, err
 	}
 

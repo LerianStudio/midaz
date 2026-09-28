@@ -813,7 +813,7 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 		"Error code should be TRC-0228 for timestamp too far in the past")
 }
 
-// Test 1.1.51: Validation rejects lowercase asset (ISO 4217 requires uppercase)
+// Test 1.1.51: Validation rejects lowercase asset (asset codes are uppercase letters)
 func TestValidation_1_1_51_LowercaseAssetRejected(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1110).String()
 	requestID := testutil.MustDeterministicUUID(1111).String()
@@ -822,7 +822,7 @@ func TestValidation_1_1_51_LowercaseAssetRejected(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      "CARD",
 		Amount:               decimal.RequireFromString("100"),
-		Asset:                "brl", // Lowercase asset - ISO 4217 specifies uppercase
+		Asset:                "brl", // Lowercase asset - asset codes are uppercase letters
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -832,17 +832,17 @@ func TestValidation_1_1_51_LowercaseAssetRejected(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	// ISO 4217 asset codes are canonically uppercase (USD, EUR, BRL)
+	// Asset codes are uppercase letters (USD, BRL, BTC)
 	// API enforces strict validation - lowercase is rejected
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Lowercase asset should be rejected (ISO 4217 requires uppercase)")
+		"Lowercase asset should be rejected (asset codes are uppercase letters)")
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
 	assert.Equal(t, "0417", errResp.Code, "Error response should have invalid asset error code")
 	assert.Equal(t, "Validation Invalid Asset", errResp.Title, "Error response should have invalid asset title")
 	assert.Empty(t, errResp.Message, "RFC 9457 carries the human message in detail, not message")
-	assert.Equal(t, "Asset must be valid ISO 4217.", errResp.Detail, "RFC 9457 detail carries the human-readable asset validation message")
+	assert.Equal(t, "Asset code must contain only uppercase letters (1-100).", errResp.Detail, "RFC 9457 detail carries the human-readable asset validation message")
 }
 
 // Test 1.1.52: Duplicate requestId returns cached response (idempotent behavior)

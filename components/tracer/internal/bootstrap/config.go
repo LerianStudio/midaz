@@ -217,11 +217,9 @@ type Config struct {
 	ContextReserveMaxReservations int    `env:"CONTEXT_RESERVE_MAX_RESERVATIONS"`
 	ContextPolicyCacheEntries     int    `env:"CONTEXT_POLICY_CACHE_ENTRIES"`
 	ContextPolicyMaxCompilations  int    `env:"CONTEXT_POLICY_MAX_COMPILATIONS"`
-	ContextLimitAdminEnabled      bool   `env:"CONTEXT_LIMIT_ADMIN_ENABLED"`
 	ContextProducerBindings       string `env:"CONTEXT_PRODUCER_BINDINGS"`
 	ContextLimitMaxScopes         int    `env:"CONTEXT_LIMIT_MAX_SCOPES"`
 	ContextLimitMaxScopeBytes     int    `env:"CONTEXT_LIMIT_MAX_SCOPE_BYTES"`
-	ContextLimitMaxBodyBytes      int    `env:"CONTEXT_LIMIT_MAX_BODY_BYTES"`
 	ContextPolicyAdminEnabled     bool   `env:"CONTEXT_POLICY_ADMIN_ENABLED"`
 	ContextMaxAccounts            int    `env:"CONTEXT_MAX_ACCOUNTS"`
 	ContextMaxEntries             int    `env:"CONTEXT_MAX_ENTRIES"`
@@ -1088,7 +1086,6 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	}
 
 	createLimitCmd.Streaming = streaming
-	createLimitCmd.NativeAssetCodes = cfg.ContextReserveEnabled
 	createLimitCmd.ContextLimits = definitionPolicy
 
 	updateLimitCmd, err := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
@@ -1134,8 +1131,6 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list limits query: %w", err)
 	}
-
-	listLimitsQuery.NativeAssetCodes = cfg.ContextReserveEnabled
 
 	service := services.NewLimitService(createLimitCmd, updateLimitCmd, activateLimitCmd, deactivateLimitCmd, draftLimitCmd, deleteLimitCmd, getLimitQuery, listLimitsQuery, usageCounterRepo)
 
@@ -1272,11 +1267,6 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("initialize context policy administration: %w", err)
 	}
 
-	limitAssetAdmin, err := initLimitAssetAdmin(cfg, txBeginner, auditEventRepo, clk)
-	if err != nil {
-		return nil, nil, fmt.Errorf("initialize limit asset administration: %w", err)
-	}
-
 	// Init Audit Event service (read-only per SOX/GLBA requirements)
 	auditEventService, err := initAuditEventService(auditEventRepo)
 	if err != nil {
@@ -1350,7 +1340,6 @@ func initHTTPServer(
 	// individual request lifecycles).
 	httpApp, err := in.NewRoutes(in.RoutesDeps{
 		ContextPolicyService:         contextPolicyService,
-		LimitAssetAdmin:              limitAssetAdmin,
 		ContextPolicyMaxRules:        cfg.ContextMaxRules,
 		ContextPolicyMaxBodyBytes:    cfg.ContextPolicyMaxBodyBytes,
 		Logger:                       logger,

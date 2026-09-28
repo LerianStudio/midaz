@@ -7,29 +7,27 @@ package contextutil
 import (
 	"context"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
-// IntegrationIdentity identifies a verified producer and its configured asset
-// namespace. It is separate from the administrative user/API-key principal.
-// Neither field may be read from a transaction body or an unverified header.
+// IntegrationIdentity identifies a verified producer. It is separate from the
+// administrative user/API-key principal and must never be read from a
+// transaction body or an unverified header.
 type IntegrationIdentity struct {
-	ID             string
-	AssetNamespace string
+	ID string
 }
 
 type integrationIdentityKey struct{}
 
-// Valid checks canonical values; the transport registry additionally enforces
-// the configured namespace byte bound. The ID bound matches policy storage.
-func (i IntegrationIdentity) Valid() bool {
-	for _, value := range []string{i.ID, i.AssetNamespace} {
-		if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value || strings.ContainsRune(value, 0) {
-			return false
-		}
-	}
+// maxIntegrationIDBytes matches the policy storage bound for integration IDs.
+const maxIntegrationIDBytes = 256
 
-	return len(i.ID) <= 256
+// Valid checks that the ID is canonical: non-empty, valid UTF-8, free of
+// surrounding whitespace and control characters, and within the storage bound.
+func (i IntegrationIdentity) Valid() bool {
+	return i.ID != "" && len(i.ID) <= maxIntegrationIDBytes && utf8.ValidString(i.ID) &&
+		strings.TrimSpace(i.ID) == i.ID && !strings.ContainsFunc(i.ID, unicode.IsControl)
 }
 
 // WithIntegrationIdentity is for authenticated transport adapters only. It

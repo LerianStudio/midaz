@@ -29,17 +29,17 @@ func replayConfig() query.ReserveReplayConfig {
 
 func replayRequest() tracercontract.ReserveRequest {
 	longLived := false
-	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: testutil.MustDeterministicUUID(71001), RequestID: testutil.MustDeterministicUUID(71002), ContextID: "ledger", ValidationMode: tracercontract.ValidationLimits, TransactionTimestamp: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), LongLived: &longLived, Amount: "0.00000001", Asset: tracercontract.AssetRef{Namespace: "producer", ID: "asset-1", Code: "BTC"}, Context: policyFacts()}
+	return tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: testutil.MustDeterministicUUID(71001), RequestID: testutil.MustDeterministicUUID(71002), ContextID: "ledger", ValidationMode: tracercontract.ValidationLimits, TransactionTimestamp: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), LongLived: &longLived, Amount: "0.00000001", Asset: "BTC", Context: policyFacts()}
 }
 
 func replayContext() context.Context {
-	return tmcore.ContextWithTenantID(contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "producer"}), "tenant-a")
+	return tmcore.ContextWithTenantID(contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer"}), "tenant-a")
 }
 
 func replayDecision(t *testing.T) model.ReserveDecision {
 	t.Helper()
 	r := replayRequest()
-	fingerprint, err := r.Fingerprint(t.Context(), tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "producer"}, replayConfig().Limits)
+	fingerprint, err := r.Fingerprint(t.Context(), tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}, replayConfig().Limits)
 	require.NoError(t, err)
 	return model.ReserveDecision{Key: model.ReserveOperationKey{IntegrationID: "producer", TransactionID: r.TransactionID, RequestID: r.RequestID}, ContextID: r.ContextID, Fingerprint: fingerprint, ValidationMode: r.ValidationMode, CreatedAt: testutil.FixedTime(), Result: tracercontract.ReserveResult{ContractRevision: r.ContractRevision, TransactionID: r.TransactionID, EvaluationID: testutil.MustDeterministicUUID(71003), Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesNotRequested, Limits: tracercontract.LimitsEvaluated}, ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}}}
 }
@@ -108,7 +108,7 @@ func TestLookupReserveDecisionRejectsBeforeRead(t *testing.T) {
 		want   error
 	}{
 		{"no producer", context.Background(), nil, constant.ErrInsufficientPrivileges},
-		{"no tenant", contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "producer"}), nil, constant.ErrReservationTenantRequired},
+		{"no tenant", contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer"}), nil, constant.ErrReservationTenantRequired},
 		{"canceled", canceled, nil, context.Canceled},
 		{"invalid request", replayContext(), func(r *tracercontract.ReserveRequest) { r.LongLived = nil }, constant.ErrInvalidRequestBody},
 	} {
@@ -134,7 +134,7 @@ func TestLookupReserveDecisionSingleTenantAndCancellation(t *testing.T) {
 	config.SingleTenant = true
 	q, err := query.NewLookupReserveDecisionQuery(repo, config)
 	require.NoError(t, err)
-	ctx := contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "producer"})
+	ctx := contextutil.WithIntegrationIdentity(context.Background(), contextutil.IntegrationIdentity{ID: "producer"})
 	repo.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, nil)
 	got, err := q.Execute(ctx, replayRequest())
 	require.NoError(t, err)

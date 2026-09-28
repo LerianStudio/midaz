@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
@@ -29,7 +28,7 @@ import (
 
 func contextLimitRepository(t *testing.T, maximum int) *ContextLimitRepository {
 	t.Helper()
-	repo, err := NewContextLimitRepository(ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: maximum, MaxScopes: 10, MaxScopeBytes: 4096, MaxTextBytes: 256})
+	repo, err := NewContextLimitRepository(ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: maximum, MaxScopes: 10, MaxScopeBytes: 4096})
 	require.NoError(t, err)
 	return repo
 }
@@ -44,13 +43,10 @@ func contextLimitRow(t *testing.T, db *sql.DB, seed int64, account uuid.UUID) uu
 	return id
 }
 
-func bindContextLimit(t *testing.T, db *sql.DB, repo *ContextLimitRepository, id uuid.UUID, asset tracercontract.AssetRef) {
+func setContextLimitAsset(t *testing.T, db *sql.DB, id uuid.UUID, asset string) {
 	t.Helper()
-	tx, err := db.BeginTx(t.Context(), nil)
+	_, err := db.ExecContext(t.Context(), "UPDATE limits SET asset=$2 WHERE id=$1", id, asset)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = tx.Rollback() })
-	require.NoError(t, repo.BindAssetWithTx(t.Context(), tx, id, asset))
-	require.NoError(t, tx.Commit())
 }
 
 func contextLimitEligibilityReport(t *testing.T) string {
@@ -80,17 +76,19 @@ func countContextLimitEligibilityFailures(t *testing.T, db *sql.DB) int {
 
 func TestIntegrationContextLimitEligibilityReport(t *testing.T) {
 	db := completionDatabase(t)
-	repo := contextLimitRepository(t, 10)
 	account := testutil.MustDeterministicUUID(81901)
-	eligible := contextLimitRow(t, db, 81902, account)
-	bindContextLimit(t, db, repo, eligible, tracercontract.AssetRef{Namespace: "ledger", ID: "usd", Code: "USD"})
+	contextLimitRow(t, db, 81902, account)
+	other := contextLimitRow(t, db, 81903, account)
+	setContextLimitAsset(t, db, other, "LERIANPOINTS")
 	require.Zero(t, countContextLimitEligibilityFailures(t, db))
 
-	contextLimitRow(t, db, 81903, account)
+	broad := contextLimitRow(t, db, 81904, account)
+	_, err := db.ExecContext(t.Context(), "UPDATE limits SET scopes='[]' WHERE id=$1", broad)
+	require.NoError(t, err)
 	require.Equal(t, 1, countContextLimitEligibilityFailures(t, db))
 }
 
-func TestIntegrationContextLimitAssetPreservesHistory(t *testing.T) {
+func TestIntegrationContextLimitCandidateCarriesStoredCode(t *testing.T) {
 	db := completionDatabase(t)
 	repo := contextLimitRepository(t, 10)
 	account := testutil.MustDeterministicUUID(82001)
@@ -101,42 +99,24 @@ func TestIntegrationContextLimitAssetPreservesHistory(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(t.Context(), `INSERT INTO usage_reservations (id,limit_id,scope_key,period_key,amount,transaction_id,reservation_expires_at) VALUES ($1,$2,$3,'2026-09-24',10.125,$4,$5)`, reservation, limit, scope, transaction, testutil.FixedTime())
 	require.NoError(t, err)
-	// Empty association schema can roll back, preserving all financial rows.
-	_, err = db.ExecContext(t.Context(), capacityMigration(t, "000032_limit_asset_references.down.sql"))
-	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), capacityMigration(t, "000032_limit_asset_references.up.sql"))
-	require.NoError(t, err)
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "opaque-asset", Code: "USD"}
-	bindContextLimit(t, db, repo, limit, asset)
-	current, held := readCounterDecimal(t, db, limit, scope, "2026-09-24")
-	require.Equal(t, "7.125", current.String())
-	require.Equal(t, "10.125", held.String())
-	var amount, status string
-	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT amount::text,status FROM usage_reservations WHERE id=$1", reservation).Scan(&amount, &status))
-	require.Equal(t, "10.125", amount)
-	require.Equal(t, "RESERVED", status)
-	for _, statement := range []string{
-		"UPDATE limit_asset_references SET asset_id='other'", "DELETE FROM limit_asset_references", "TRUNCATE limit_asset_references",
-		"UPDATE limits SET asset='EUR'", capacityMigration(t, "000032_limit_asset_references.down.sql"),
-	} {
-		_, err := db.ExecContext(t.Context(), statement)
-		require.Error(t, err)
-	}
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
-	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 	require.NoError(t, err)
 	require.Len(t, limits, 1)
-	require.Equal(t, asset, limits[0].Asset)
+	require.Equal(t, "USD", limits[0].Definition.Asset)
 	require.Equal(t, limit, limits[0].Definition.ID)
+	current, held := readCounterDecimal(t, db, limit, scope, "2026-09-24")
+	require.Equal(t, "7.125", current.String())
+	require.Equal(t, "10.125", held.String())
 	blocked := false
-	facts := tracercontract.Context{Accounts: []tracercontract.Account{{ID: account, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: asset}}, Entries: []tracercontract.Entry{{AccountID: account, Direction: tracercontract.Debit, Amount: "10.125", Asset: asset}}}
+	facts := tracercontract.Context{Accounts: []tracercontract.Account{{ID: account, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: "USD"}}, Entries: []tracercontract.Entry{{AccountID: account, Direction: tracercontract.Debit, Amount: "10.125", Asset: "USD"}}}
 	resolver, err := query.NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), query.ContextReservationConfig{
 		Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 30, MaxFractionDigits: 20}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 20,
 	})
 	require.NoError(t, err)
-	plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Len(t, plan.Reservations, 1)
 	require.Equal(t, limit, plan.Reservations[0].LimitID)
@@ -148,44 +128,57 @@ func TestIntegrationContextLimitSelectionIsComplete(t *testing.T) {
 	db := completionDatabase(t)
 	repo := contextLimitRepository(t, 10)
 	account, other := testutil.MustDeterministicUUID(82101), testutil.MustDeterministicUUID(82102)
-	bound := contextLimitRow(t, db, 82103, account)
-	missing := contextLimitRow(t, db, 82104, account)
-	foreign := contextLimitRow(t, db, 82105, account)
+	first := contextLimitRow(t, db, 82103, account)
+	second := contextLimitRow(t, db, 82104, account)
+	otherCode := contextLimitRow(t, db, 82105, account)
+	setContextLimitAsset(t, db, otherCode, "EUR")
 	contextLimitRow(t, db, 82106, other)
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "usd-a", Code: "USD"}
-	bindContextLimit(t, db, repo, bound, asset)
-	asset.Namespace = "other"
-	bindContextLimit(t, db, repo, foreign, asset)
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
-	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 	require.NoError(t, err)
-	require.Len(t, limits, 2)
-	found := map[uuid.UUID]tracercontract.AssetRef{}
+	found := map[uuid.UUID]string{}
 	for _, limit := range limits {
-		found[limit.Definition.ID] = limit.Asset
+		found[limit.Definition.ID] = limit.Definition.Asset
 	}
-	require.Equal(t, "usd-a", found[bound].ID)
-	require.Equal(t, tracercontract.AssetRef{}, found[missing])
+	require.Equal(t, map[uuid.UUID]string{first: "USD", second: "USD"}, found)
+	require.NoError(t, tx.Rollback())
+	// Each requested code selects its own limits; codes are never equated.
+	tx, err = db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	limits, err = repo.ListCandidatesWithTx(t.Context(), tx, []string{"EUR"}, []uuid.UUID{account})
+	require.NoError(t, err)
+	require.Len(t, limits, 1)
+	require.Equal(t, otherCode, limits[0].Definition.ID)
+	require.Equal(t, "EUR", limits[0].Definition.Asset)
+	limits, err = repo.ListCandidatesWithTx(t.Context(), tx, []string{"XBT"}, []uuid.UUID{account})
+	require.NoError(t, err)
+	require.Empty(t, limits)
 	require.NoError(t, tx.Rollback())
 	// No limit is dropped to satisfy a result cap.
 	tx, err = db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
-	limits, err = contextLimitRepository(t, 1).ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+	limits, err = contextLimitRepository(t, 1).ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 	require.Nil(t, limits)
 	require.NoError(t, tx.Rollback())
-	// Unknown ownership of a broad scope must reach validation, even if its code
-	// differs from the incoming asset; code-only filtering would omit it.
+	// A broad scope of the requested code must reach validation; one of another
+	// code does not apply.
 	broad := createTestLimitNamed(t, db, 82107, "broad")
-	_, err = db.ExecContext(t.Context(), "UPDATE limits SET asset='EUR',scopes='[{\"segmentId\":\"11111111-1111-1111-1111-111111111111\"}]' WHERE id=$1", broad)
+	_, err = db.ExecContext(t.Context(), "UPDATE limits SET scopes='[{\"segmentId\":\"11111111-1111-1111-1111-111111111111\"}]' WHERE id=$1", broad)
+	require.NoError(t, err)
+	foreignBroad := createTestLimitNamed(t, db, 82108, "foreign-broad")
+	_, err = db.ExecContext(t.Context(), "UPDATE limits SET asset='EUR',scopes='[]' WHERE id=$1", foreignBroad)
 	require.NoError(t, err)
 	tx, err = db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
-	limits, err = repo.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+	limits, err = repo.ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 	require.NoError(t, err)
 	require.Len(t, limits, 3)
+	limits, err = repo.ListCandidatesWithTx(t.Context(), tx, []string{"EUR", "USD"}, []uuid.UUID{account, other})
+	require.NoError(t, err)
+	require.Len(t, limits, 6)
 }
 
 func TestIntegrationContextLimitRejectsCorruptScopes(t *testing.T) {
@@ -200,7 +193,7 @@ func TestIntegrationContextLimitRejectsCorruptScopes(t *testing.T) {
 			tx, err := db.BeginTx(t.Context(), nil)
 			require.NoError(t, err)
 			defer tx.Rollback()
-			limits, err := repo.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+			limits, err := repo.ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 			require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 			require.Nil(t, limits)
 		})
@@ -212,20 +205,21 @@ func TestIntegrationContextLimitTenantTransactions(t *testing.T) {
 	account := testutil.MustDeterministicUUID(82301)
 	repo := contextLimitRepository(t, 10)
 	for i, db := range []*sql.DB{a, b} {
-		limit := contextLimitRow(t, db, 82302, account)
-		asset := tracercontract.AssetRef{Namespace: "ledger", ID: []string{"asset-a", "asset-b"}[i], Code: "USD"}
-		bindContextLimit(t, db, repo, limit, asset)
+		limit := contextLimitRow(t, db, 82302+int64(i), account)
+		asset := []string{"USD", "LERIANPOINTS"}[i]
+		setContextLimitAsset(t, db, limit, asset)
 		tx, err := db.BeginTx(t.Context(), nil)
 		require.NoError(t, err)
-		limits, err := repo.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+		limits, err := repo.ListCandidatesWithTx(t.Context(), tx, []string{"USD", "LERIANPOINTS"}, []uuid.UUID{account, testutil.MustDeterministicUUID(82309)})
 		require.NoError(t, err)
 		require.Len(t, limits, 1)
-		require.Equal(t, asset, limits[0].Asset)
+		require.Equal(t, limit, limits[0].Definition.ID)
+		require.Equal(t, asset, limits[0].Definition.Asset)
 		require.NoError(t, tx.Rollback())
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	result, err := repo.ListCandidatesWithTx(ctx, nil, "ledger", []uuid.UUID{account})
+	result, err := repo.ListCandidatesWithTx(ctx, nil, []string{"USD"}, []uuid.UUID{account})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, result)
 }
@@ -238,13 +232,8 @@ func TestIntegrationContextLimitReadLocksSnapshot(t *testing.T) {
 	read, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer read.Rollback()
-	_, err = repo.ListCandidatesWithTx(t.Context(), read, "ledger", []uuid.UUID{account})
+	_, err = repo.ListCandidatesWithTx(t.Context(), read, []string{"USD"}, []uuid.UUID{account})
 	require.NoError(t, err)
-	// Rollback cannot race an in-flight admission snapshot or wait indefinitely.
-	_, err = db.ExecContext(t.Context(), capacityMigration(t, "000032_limit_asset_references.down.sql"))
-	var locked *pgconn.PgError
-	require.ErrorAs(t, err, &locked)
-	require.Equal(t, "55P03", locked.Code)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	write, err := db.BeginTx(ctx, nil)
@@ -267,61 +256,6 @@ func TestIntegrationContextLimitReadLocksSnapshot(t *testing.T) {
 	require.NoError(t, write.Commit())
 }
 
-func TestIntegrationContextLimitAssociationConflictsAndRollback(t *testing.T) {
-	db := completionDatabase(t)
-	repo := contextLimitRepository(t, 10)
-	account := testutil.MustDeterministicUUID(82601)
-	limit := contextLimitRow(t, db, 82602, account)
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "asset", Code: "USD"}
-	tx, err := db.BeginTx(t.Context(), nil)
-	require.NoError(t, err)
-	require.NoError(t, repo.BindAssetWithTx(t.Context(), tx, limit, asset))
-	require.NoError(t, tx.Rollback())
-	var count int
-	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM limit_asset_references").Scan(&count))
-	require.Zero(t, count)
-	for _, tc := range []struct {
-		id   uuid.UUID
-		code string
-	}{{limit, "EUR"}, {testutil.MustDeterministicUUID(82603), "USD"}} {
-		tx, err := db.BeginTx(t.Context(), nil)
-		require.NoError(t, err)
-		wrong := asset
-		wrong.Code = tc.code
-		require.ErrorIs(t, repo.BindAssetWithTx(t.Context(), tx, tc.id, wrong), constant.ErrContextLimitsUnavailable)
-		require.NoError(t, tx.Rollback())
-	}
-	winner, err := db.BeginTx(t.Context(), nil)
-	require.NoError(t, err)
-	defer winner.Rollback()
-	require.NoError(t, repo.BindAssetWithTx(t.Context(), winner, limit, asset))
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	loser, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer loser.Rollback()
-	var pid int
-	require.NoError(t, loser.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid))
-	done := make(chan error, 1)
-	other := asset
-	other.ID = "different"
-	go func() { done <- repo.BindAssetWithTx(ctx, loser, limit, other) }()
-	require.Eventually(t, func() bool {
-		var blocked bool
-		err := db.QueryRowContext(ctx, "SELECT cardinality(pg_blocking_pids($1))>0", pid).Scan(&blocked)
-		return err == nil && blocked
-	}, 2*time.Second, 10*time.Millisecond)
-	require.NoError(t, winner.Commit())
-	require.ErrorIs(t, <-done, constant.ErrLimitAssetReferenceConflict)
-	require.NoError(t, loser.Rollback())
-	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM limit_asset_references").Scan(&count))
-	require.Equal(t, 1, count)
-	tx, err = db.BeginTx(t.Context(), nil)
-	require.NoError(t, err)
-	defer tx.Rollback()
-	require.ErrorIs(t, repo.BindAssetWithTx(t.Context(), tx, limit, asset), constant.ErrLimitAssetReferenceConflict)
-}
-
 func TestIntegrationContextLimitSnapshotBoundsAndAccountEncoding(t *testing.T) {
 	db := completionDatabase(t)
 	account := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
@@ -332,7 +266,7 @@ func TestIntegrationContextLimitSnapshotBoundsAndAccountEncoding(t *testing.T) {
 	repo := contextLimitRepository(t, 10)
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
-	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 	require.NoError(t, err)
 	require.Len(t, limits, 1)
 	require.NoError(t, tx.Rollback())
@@ -340,8 +274,8 @@ func TestIntegrationContextLimitSnapshotBoundsAndAccountEncoding(t *testing.T) {
 		name   string
 		config ContextLimitRepositoryConfig
 	}{
-		{"scope bytes", ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: 10, MaxScopes: 10, MaxScopeBytes: 10, MaxTextBytes: 256}},
-		{"scope count", ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: 10, MaxScopes: 1, MaxScopeBytes: 4096, MaxTextBytes: 256}},
+		{"scope bytes", ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: 10, MaxScopes: 10, MaxScopeBytes: 10}},
+		{"scope count", ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: 10, MaxScopes: 1, MaxScopeBytes: 4096}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.name == "scope count" {
@@ -353,26 +287,29 @@ func TestIntegrationContextLimitSnapshotBoundsAndAccountEncoding(t *testing.T) {
 			tx, err := db.BeginTx(t.Context(), nil)
 			require.NoError(t, err)
 			defer tx.Rollback()
-			limits, err := bounded.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
+			limits, err := bounded.ListCandidatesWithTx(t.Context(), tx, []string{"USD"}, []uuid.UUID{account})
 			require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 			require.Nil(t, limits)
 		})
 	}
 }
 
-func TestIntegrationContextLimitStoredReferenceBounds(t *testing.T) {
+func TestIntegrationContextLimitCodeBounds(t *testing.T) {
 	db := completionDatabase(t)
 	account := testutil.MustDeterministicUUID(82801)
 	limit := contextLimitRow(t, db, 82802, account)
+	long := "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUV"
+	require.Len(t, long, 100)
+	setContextLimitAsset(t, db, limit, long)
 	repo := contextLimitRepository(t, 10)
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "opaque-asset-longer-than-ten", Code: "USD"}
-	bindContextLimit(t, db, repo, limit, asset)
-	bounded, err := NewContextLimitRepository(ContextLimitRepositoryConfig{MaxAccounts: 10, MaxLimits: 10, MaxScopes: 10, MaxScopeBytes: 4096, MaxTextBytes: 10})
-	require.NoError(t, err)
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
-	limits, err := bounded.ListCandidatesWithTx(t.Context(), tx, "ledger", []uuid.UUID{account})
-	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
+	limits, err := repo.ListCandidatesWithTx(t.Context(), tx, []string{long}, []uuid.UUID{account})
+	require.NoError(t, err)
+	require.Len(t, limits, 1)
+	require.Equal(t, long, limits[0].Definition.Asset)
+	limits, err = repo.ListCandidatesWithTx(t.Context(), tx, []string{long + "A"}, []uuid.UUID{account})
+	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 	require.Nil(t, limits)
 }

@@ -84,10 +84,9 @@ func TestNewCheckLimitsInput_InvalidAsset(t *testing.T) {
 		asset string
 	}{
 		{"empty asset", ""},
-		{"too short", "BR"},
-		{"too long", "BRLL"},
-		{"two chars lowercase", "br"},
+		{"too long", strings.Repeat("B", 101)},
 		{"numeric", "123"},
+		{"digit suffix", "BR1"},
 		{"special chars", "BR$"},
 	}
 
@@ -303,7 +302,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 			name: "invalid asset",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("100"),
-				Asset:                "XX",
+				Asset:                "brl",
 				AccountID:            accountID,
 				TransactionTimestamp: fixedTime,
 			},

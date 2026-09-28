@@ -26,11 +26,11 @@ func (r ReserveRequest) Fingerprint(ctx context.Context, scope ReserveScope, lim
 		return [sha256.Size]byte{}, err
 	}
 
-	if err := scope.validate(limits); err != nil {
+	if err := scope.validate(); err != nil {
 		return [sha256.Size]byte{}, err
 	}
 
-	if err := r.Validate(ctx, scope.AssetNamespace, limits); err != nil {
+	if err := r.Validate(ctx, limits); err != nil {
 		return [sha256.Size]byte{}, err
 	}
 
@@ -38,7 +38,6 @@ func (r ReserveRequest) Fingerprint(ctx context.Context, scope ReserveScope, lim
 	w.text(reserveFingerprintDomain)
 	w.text(scope.TenantID)
 	w.text(scope.IntegrationID)
-	w.text(scope.AssetNamespace)
 	w.text(r.ContractRevision)
 	w.bytes(r.TransactionID[:])
 	w.bytes(r.RequestID[:])
@@ -51,7 +50,7 @@ func (r ReserveRequest) Fingerprint(ctx context.Context, scope ReserveScope, lim
 		return [sha256.Size]byte{}, err
 	}
 
-	w.asset(r.Asset)
+	w.text(r.Asset)
 	w.count(len(r.Context.Accounts))
 
 	for _, account := range r.Context.Accounts {
@@ -63,7 +62,7 @@ func (r ReserveRequest) Fingerprint(ctx context.Context, scope ReserveScope, lim
 		w.text(account.Type)
 		w.text(account.Status)
 		w.boolean(*account.Blocked)
-		w.asset(account.Asset)
+		w.text(account.Asset)
 	}
 
 	w.count(len(r.Context.Entries))
@@ -81,7 +80,7 @@ func (r ReserveRequest) Fingerprint(ctx context.Context, scope ReserveScope, lim
 			return [sha256.Size]byte{}, err
 		}
 
-		w.asset(entry.Asset)
+		w.text(entry.Asset)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -124,12 +123,6 @@ func (w reserveHashWriter) boolean(value bool) {
 	}
 
 	w.bytes([]byte{encoded})
-}
-
-func (w reserveHashWriter) asset(value AssetRef) {
-	w.text(value.Namespace)
-	w.text(value.ID)
-	w.text(value.Code)
 }
 
 func (w reserveHashWriter) amount(ctx context.Context, value Amount, limits Limits) error {

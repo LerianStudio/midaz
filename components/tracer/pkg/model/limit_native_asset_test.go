@@ -8,23 +8,52 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestLimitNativeAssetCodes(t *testing.T) {
-	for _, code := range []string{"BTC", "POINTS", "wBTC", "US1", "X", "token/v1", strings.Repeat("x", 256)} {
-		t.Run(code, func(t *testing.T) {
-			limit, err := NewLimit("Native", LimitTypeDaily, decimal.RequireFromString("10.125"), code, []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(89001))}}, nil, testutil.FixedTime())
+	t.Parallel()
+
+	scopes := func() []Scope {
+		return []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(89001))}}
+	}
+
+	for _, code := range []string{"BTC", "USD", "X", "LERIANPOINTS", strings.Repeat("A", 100)} {
+		t.Run("accepts_"+code, func(t *testing.T) {
+			t.Parallel()
+
+			limit, err := NewLimit("Native", LimitTypeDaily, decimal.RequireFromString("10.125"), code, scopes(), nil, testutil.FixedTime())
 			require.NoError(t, err)
 			require.Equal(t, code, limit.Asset)
+			require.NoError(t, ValidateLimitAssetCode(code))
 		})
 	}
-	for _, code := range []string{"", " BTC", "BTC ", "x\x00y", string([]byte{0xff}), strings.Repeat("é", 129)} {
-		t.Run("invalid"+code, func(t *testing.T) {
-			_, err := NewLimit("Native", LimitTypeDaily, decimal.RequireFromString("10.125"), code, []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(89001))}}, nil, testutil.FixedTime())
-			require.Error(t, err)
+
+	invalid := map[string]string{
+		"empty":        "",
+		"lowercase":    "usd",
+		"mixed_case":   "wBTC",
+		"digit":        "US1",
+		"hyphen":       "US-D",
+		"slash":        "token/v1",
+		"leading_ws":   " BTC",
+		"trailing_ws":  "BTC ",
+		"nul":          "B\x00C",
+		"invalid_utf8": string([]byte{0xff}),
+		"too_long":     strings.Repeat("A", 101),
+	}
+
+	for name, code := range invalid {
+		t.Run("rejects_"+name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NewLimit("Native", LimitTypeDaily, decimal.RequireFromString("10.125"), code, scopes(), nil, testutil.FixedTime())
+			require.ErrorIs(t, err, constant.ErrLimitInvalidCurrency)
+			require.ErrorIs(t, ValidateLimitAssetCode(code), constant.ErrLimitInvalidCurrency)
 		})
 	}
 }

@@ -7,6 +7,7 @@ package tracer
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -21,12 +22,10 @@ func projectionFixture() (ContextInput, tracercontract.Limits) {
 	org := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	ledger := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
 	account := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
-	asset := uuid.MustParse("550e8400-e29b-41d4-a716-446655440004")
 	blocked := false
 	return ContextInput{
-		Namespace: "ledger-instance", OrganizationID: org, LedgerID: ledger,
+		OrganizationID: org, LedgerID: ledger,
 		Accounts: []*mmodel.Account{{ID: account.String(), OrganizationID: org.String(), LedgerID: ledger.String(), AssetCode: "BTC", Type: "deposit", Status: mmodel.Status{Code: "ACTIVE"}, Blocked: &blocked}},
-		Assets:   []*mmodel.Asset{{ID: asset.String(), OrganizationID: org.String(), LedgerID: ledger.String(), Code: "BTC"}},
 		Entries: []PreparedEntry{
 			{AccountID: account, Direction: tracercontract.Debit, Amount: decimal.RequireFromString("9007199254740993.00000001"), AssetCode: "BTC"},
 			{External: true, Direction: tracercontract.Credit, Amount: decimal.RequireFromString("9007199254740993.00000001"), AssetCode: "BTC"},
@@ -45,7 +44,9 @@ func TestBuildEvaluationContextOfficialFacts(t *testing.T) {
 	require.Equal(t, "ACTIVE", result.Accounts[0].Status)
 	require.NotNil(t, result.Accounts[0].Blocked)
 	require.False(t, *result.Accounts[0].Blocked)
-	require.Equal(t, input.Assets[0].ID, result.Entries[0].Asset.ID)
+	require.Equal(t, "BTC", result.Accounts[0].Asset)
+	require.Equal(t, "BTC", result.Entries[0].Asset)
+	require.Equal(t, "BTC", result.Entries[1].Asset)
 	require.Equal(t, tracercontract.Amount("9007199254740993.00000001"), result.Entries[0].Amount)
 	require.True(t, result.Entries[1].External)
 	require.Equal(t, uuid.Nil, result.Entries[1].AccountID)
@@ -61,17 +62,17 @@ func TestBuildEvaluationContextRejectsAmbiguousOrUntrustedFacts(t *testing.T) {
 		change func(*ContextInput)
 	}{
 		{name: "account from another organization", change: func(i *ContextInput) { i.Accounts[0].OrganizationID = i.LedgerID.String() }},
-		{name: "asset from another ledger", change: func(i *ContextInput) { i.Assets[0].LedgerID = i.OrganizationID.String() }},
-		{name: "invalid asset UUID", change: func(i *ContextInput) { i.Assets[0].ID = "not-a-uuid" }},
-		{name: "missing account blocked", change: func(i *ContextInput) { i.Accounts[0].Blocked = nil }},
-		{name: "unresolved code", change: func(i *ContextInput) { i.Entries[0].AssetCode = "BRL" }},
-		{name: "duplicate code", change: func(i *ContextInput) {
-			other := *i.Assets[0]
-			other.ID = i.OrganizationID.String()
-			i.Assets = append(i.Assets, &other)
+		{name: "account from another ledger", change: func(i *ContextInput) { i.Accounts[0].LedgerID = i.OrganizationID.String() }},
+		{name: "invalid account UUID", change: func(i *ContextInput) { i.Accounts[0].ID = "not-a-uuid" }},
+		{name: "deleted account", change: func(i *ContextInput) {
+			deleted := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			i.Accounts[0].DeletedAt = &deleted
 		}},
-		{name: "duplicate asset id with different codes", change: func(i *ContextInput) { other := *i.Assets[0]; other.Code = "USD"; i.Assets = append(i.Assets, &other) }},
-		{name: "nil asset", change: func(i *ContextInput) { i.Assets[0] = nil }},
+		{name: "missing account blocked", change: func(i *ContextInput) { i.Accounts[0].Blocked = nil }},
+		{name: "lowercase entry code", change: func(i *ContextInput) { i.Entries[0].AssetCode = "btc" }},
+		{name: "empty entry code", change: func(i *ContextInput) { i.Entries[1].AssetCode = "" }},
+		{name: "invalid account code", change: func(i *ContextInput) { i.Accounts[0].AssetCode = "BTC1" }},
+		{name: "account and entry code differ", change: func(i *ContextInput) { i.Entries[0].AssetCode = "USD" }},
 		{name: "nil account", change: func(i *ContextInput) { i.Accounts[0] = nil }},
 		{name: "external claims account", change: func(i *ContextInput) { i.Entries[0].External = true }},
 		{name: "extreme decimal exponent", change: func(i *ContextInput) { i.Entries[0].Amount = decimal.New(1, 1000000000) }},

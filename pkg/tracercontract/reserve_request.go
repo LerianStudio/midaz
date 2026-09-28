@@ -40,7 +40,7 @@ type ReserveRequest struct {
 	TransactionTimestamp time.Time      `json:"transactionTimestamp"`
 	LongLived            *bool          `json:"longLived"`
 	Amount               Amount         `json:"amount"`
-	Asset                AssetRef       `json:"asset"`
+	Asset                string         `json:"asset"`
 	Context              Context        `json:"context"`
 }
 
@@ -49,20 +49,19 @@ type ReserveRequest struct {
 // headers. SingleTenant explicitly permits an empty tenant identity; the zero
 // value cannot accidentally disable tenant isolation.
 type ReserveScope struct {
-	TenantID       string
-	IntegrationID  string
-	AssetNamespace string
-	SingleTenant   bool
+	TenantID      string
+	IntegrationID string
+	SingleTenant  bool
 }
 
 const maxReserveIdentityBytes = 256
 
-func (s ReserveScope) validate(limits Limits) error {
+func (s ReserveScope) validate() error {
 	if (s.TenantID != "" || !s.SingleTenant) && !validText(s.TenantID, maxReserveIdentityBytes) {
 		return invalid("resolved tenant")
 	}
 
-	if !validText(s.IntegrationID, maxReserveIdentityBytes) || !validText(s.AssetNamespace, limits.MaxTextBytes) {
+	if !validText(s.IntegrationID, maxReserveIdentityBytes) {
 		return invalid("authenticated integration")
 	}
 
@@ -73,7 +72,7 @@ func (s ReserveScope) validate(limits Limits) error {
 // applying business policies. Timestamp freshness belongs only to first-time
 // evaluation: a stored decision remains replayable outside that time window.
 // Amount is the declared principal, not gross consumption across accounts/assets.
-func (r ReserveRequest) Validate(ctx context.Context, authorizedNamespace string, limits Limits) error {
+func (r ReserveRequest) Validate(ctx context.Context, limits Limits) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -108,12 +107,11 @@ func (r ReserveRequest) Validate(ctx context.Context, authorizedNamespace string
 		return invalid("positive principal amount required")
 	}
 
-	assets := make(map[AssetIdentity]string)
-	if err := validateAsset(r.Asset, authorizedNamespace, limits, assets); err != nil {
+	if err := validateAsset(r.Asset); err != nil {
 		return err
 	}
 
-	return r.Context.validate(ctx, authorizedNamespace, limits, assets)
+	return r.Context.Validate(ctx, limits)
 }
 
 // The canonical format uses uint32 lengths. Reject configurations that could

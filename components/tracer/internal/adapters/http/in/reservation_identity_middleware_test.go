@@ -19,7 +19,7 @@ import (
 
 func TestReservationIdentityRejectsPlaintextAndForgedHeaders(t *testing.T) {
 	t.Parallel()
-	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/producer", IntegrationID: "producer", AssetNamespace: "assets", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256)
+	resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: "spiffe://example.test/producer", IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}})
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name     string
@@ -39,7 +39,6 @@ func TestReservationIdentityRejectsPlaintextAndForgedHeaders(t *testing.T) {
 			})
 			req := httptest.NewRequest(http.MethodPost, "/v1/reservations", nil)
 			req.Header.Set("X-Integration-Id", "producer")
-			req.Header.Set("X-Asset-Namespace", "assets")
 			req.Header.Set("X-Forwarded-Client-Cert", "spiffe://example.test/producer")
 			resp, err := app.Test(req)
 			require.NoError(t, err)

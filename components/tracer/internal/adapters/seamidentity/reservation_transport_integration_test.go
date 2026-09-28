@@ -51,7 +51,7 @@ func TestContextReserveNativeGRPC(t *testing.T) {
 			require.NoError(t, err)
 			request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, 65536, bounds)
 			require.NoError(t, err)
-			wire, err := contractpb.EncodeReserve(t.Context(), request, "origin-a", bounds)
+			wire, err := contractpb.EncodeReserve(t.Context(), request, bounds)
 			require.NoError(t, err)
 			uri := producerURI
 
@@ -89,7 +89,7 @@ func TestContextReserveNativeGRPC(t *testing.T) {
 					assertTenant(ctx)
 					identity, ok := contextutil.GetIntegrationIdentity(ctx)
 					require.True(t, ok)
-					require.Equal(t, contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "origin-a"}, identity)
+					require.Equal(t, contextutil.IntegrationIdentity{ID: "producer"}, identity)
 					return &tracercontract.ReserveResult{ContractRevision: got.ContractRevision, TransactionID: got.TransactionID, EvaluationID: testutil.MustDeterministicUUID(89441), Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonRuleAllow}, ReservationIDs: []uuid.UUID{}}, nil
 				})
 				completion.EXPECT().ExecuteReport(gomock.Any(), request.TransactionID, model.OperationConfirmed).DoAndReturn(func(ctx context.Context, _ uuid.UUID, _ model.ReserveOperationStatus) (*tracercontract.TransactionCompletionResult, error) {
@@ -110,7 +110,7 @@ func TestContextReserveNativeGRPC(t *testing.T) {
 			case "unsupported revision":
 				wire.ContractRevision = "unsupported"
 			}
-			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", AssetNamespace: "origin-a", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}}, 256)
+			resolver, err := seamidentity.NewResolver([]seamidentity.Binding{{URI: producerURI, IntegrationID: "producer", Purposes: []seamidentity.Purpose{seamidentity.PurposeReserve}}})
 			require.NoError(t, err)
 			service, err := grpcin.NewContextReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewDefaultMockClock(), admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
 			require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestContextReserveNativeGRPC(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, conn.Close()) })
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
-			ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-integration-id", "forged", "x-asset-namespace", "forged", seamtenant.MetadataKey, tenantID))
+			ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-integration-id", "forged", seamtenant.MetadataKey, tenantID))
 			client := reservationv1.NewReservationServiceClient(conn)
 			response, err := client.Reserve(ctx, wire)
 			require.Equal(t, want, status.Code(err))

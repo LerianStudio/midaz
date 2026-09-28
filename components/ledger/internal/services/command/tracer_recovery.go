@@ -32,7 +32,6 @@ import (
 
 type TracerRecoveryConfig struct {
 	IntegrationID    string
-	Namespace        string
 	SingleTenant     bool
 	MaxBatch         int
 	RetryInterval    time.Duration
@@ -46,7 +45,7 @@ func (c TracerRecoveryConfig) Validate() error {
 		return constant.ErrInvalidRequestBody
 	}
 
-	if !validTracerIdentity(c.IntegrationID) || !validTracerIdentity(c.Namespace) || c.MaxBatch <= 0 || c.RetryInterval <= 0 || c.AttemptTimeout <= 0 || c.LeaseDuration < c.AttemptTimeout {
+	if !validTracerIdentity(c.IntegrationID) || c.MaxBatch <= 0 || c.RetryInterval <= 0 || c.AttemptTimeout <= 0 || c.LeaseDuration < c.AttemptTimeout {
 		return constant.ErrInvalidRequestBody
 	}
 
@@ -288,7 +287,7 @@ func (p *TracerRecoveryProcessor) validatePending(ctx context.Context, record tr
 		return err
 	}
 
-	if record.ExecutionID == uuid.Nil || record.Scope.TenantID != tmcore.GetTenantIDContext(ctx) || record.Scope.IntegrationID != p.config.IntegrationID || record.Scope.AssetNamespace != p.config.Namespace || record.ContractRevision != tracercontract.ReserveContractRevision {
+	if record.ExecutionID == uuid.Nil || record.Scope.TenantID != tmcore.GetTenantIDContext(ctx) || record.Scope.IntegrationID != p.config.IntegrationID || record.ContractRevision != tracercontract.ReserveContractRevision {
 		return constant.ErrTracerContractUnavailable
 	}
 

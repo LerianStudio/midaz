@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // CheckLimitsInput represents the input for limit checking operations.
@@ -87,7 +87,7 @@ func (i *CheckLimitsInput) validate(requireAccount bool) error {
 		return constant.ErrCheckLimitsInvalidAmount
 	}
 
-	if !pkg.IsValidCurrency(i.Asset) {
+	if utils.ValidateAssetCode(i.Asset) != nil {
 		return constant.ErrCheckLimitsInvalidCurrency
 	}
 

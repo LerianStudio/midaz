@@ -85,7 +85,7 @@ func TestIntegrationReserveHTTPPersistsAndReplays(t *testing.T) {
 	client := reservePersistenceGRPCClient(t, server)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	wire, err := contractpb.EncodeReserve(ctx, request, request.Asset.Namespace, bounds)
+	wire, err := contractpb.EncodeReserve(ctx, request, bounds)
 	require.NoError(t, err)
 	wireResult, err := client.Reserve(ctx, wire)
 	require.NoError(t, err)

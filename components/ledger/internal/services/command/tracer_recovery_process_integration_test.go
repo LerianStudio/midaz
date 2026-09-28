@@ -103,7 +103,7 @@ func TestTracerRecoveryProcessHelper(t *testing.T) {
 		if phase == "empty" {
 			client.expectedCalls = 0
 		}
-		processor, buildErr := NewTracerRecoveryProcessor(store, client, store, TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return intent.PrepareDeadline.Add(time.Second) })
+		processor, buildErr := NewTracerRecoveryProcessor(store, client, store, TracerRecoveryConfig{IntegrationID: "producer", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return intent.PrepareDeadline.Add(time.Second) })
 		require.NoError(t, buildErr)
 		summary, runErr := processor.RunOnce(ctx)
 		require.NoError(t, runErr)
@@ -133,7 +133,7 @@ func processRecoveryFixture(t *testing.T, ctx context.Context) (*tracerobligatio
 	request.RequestID = uuid.MustParse("47d56dde-bdea-4e9f-841a-ec50fa7efbeb")
 	request.ContextID = key.LedgerID.String()
 	instant := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
-	intent, err := tracerreservation.NewIntent(ctx, key, uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, request, instant, instant.Add(time.Second), cfg)
+	intent, err := tracerreservation.NewIntent(ctx, key, uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}, request, instant, instant.Add(time.Second), cfg)
 	require.NoError(t, err)
 	store, err := tracerobligation.NewRepository(nil, cfg, true, 10)
 	require.NoError(t, err)

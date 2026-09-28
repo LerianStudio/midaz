@@ -133,7 +133,7 @@ func (c *TracerGRPCClient) Close() error {
 // comes back as a successful ReserveResult with Denied=true (not an error); only
 // transport / availability failures return ErrTracerUnavailable.
 func (c *TracerGRPCClient) Reserve(_ context.Context, _ ReserveRequest) (*ReserveResult, error) {
-	// A legacy envelope has no authenticated asset identity or complete facts.
+	// A legacy envelope has no authenticated producer identity or complete facts.
 	// Never manufacture a context or send it under the replacement wire contract.
 	return nil, constant.ErrInvalidRequestBody
 }

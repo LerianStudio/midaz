@@ -144,10 +144,9 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 
 	// Idempotency: if already active, return the limit (no-op)
 	if limit.Status == model.LimitStatusActive {
-		if c.ContextLimits != nil {
-			if err := executeWithTx(ctx, c.txBeginner, func(tx pgdb.Tx) error { return c.ContextLimits.validateActivation(ctx, tx, id) }); err != nil {
-				return nil, err
-			}
+		if err := c.ContextLimits.validateActivation(ctx, limit); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
+			return nil, err
 		}
 
 		logger.With(
@@ -177,15 +176,15 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 		return nil, pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit)
 	}
 
+	if err := c.ContextLimits.validateActivation(ctx, limit); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
+		return nil, err
+	}
+
 	afterState := LimitToMap(limit)
 
 	// Persist status change + audit event atomically.
-	txErr := executeWithTx(ctx, c.txBeginner, func(db pgdb.Tx) error {
-		if err := c.ContextLimits.validateActivation(ctx, db, id); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
-			return err
-		}
-
+	txErr := executeInTx(ctx, c.txBeginner, func(db pgdb.DB) error {
 		if err := c.repo.UpdateStatusWithTx(ctx, db, id, model.LimitStatusActive, limit.UpdatedAt); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to update limit status", err)
 			logger.With(

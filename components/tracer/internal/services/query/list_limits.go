@@ -7,17 +7,16 @@ package query
 import (
 	"context"
 	"errors"
-	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
-	tracerpkg "github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // ErrNilListLimitsRepository is returned when the LimitRepository is nil.
@@ -25,9 +24,7 @@ var ErrNilListLimitsRepository = errors.New("limit repository is nil")
 
 // ListLimitsQuery handles listing limits with filters.
 type ListLimitsQuery struct {
-	// NativeAssetCodes preserves exact codes only in the shared deployment profile.
-	NativeAssetCodes bool
-	repo             LimitRepository
+	repo LimitRepository
 }
 
 // NewListLimitsQuery creates a new ListLimitsQuery with dependencies.
@@ -61,14 +58,9 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		filter = &model.ListLimitsFilter{}
 	}
 
-	if !q.NativeAssetCodes && filter.Asset != nil {
-		code := strings.ToUpper(strings.TrimSpace(*filter.Asset))
-		if !tracerpkg.IsValidCurrency(code) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid legacy asset filter", constant.ErrLimitInvalidCurrency)
-			return nil, constant.ErrLimitInvalidCurrency
-		}
-
-		filter.Asset = &code
+	if filter.Asset != nil && utils.ValidateAssetCode(*filter.Asset) != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid asset filter", constant.ErrLimitInvalidCurrency)
+		return nil, constant.ErrLimitInvalidCurrency
 	}
 
 	// Apply defaults first to normalize values (limit, sortBy, sortOrder)

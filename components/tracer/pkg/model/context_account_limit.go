@@ -11,22 +11,20 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// ContextAccountLimit is a trusted active limit snapshot with an explicitly
-// resolved asset identity. It is not a transport DTO or an inferred mapping from
-// a currency code. Definition.ID and account scope keys retain existing usage.
-// A repository must preserve unresolved candidates so validation can reject
-// missing migration/configuration instead of silently removing a control.
+// ContextAccountLimit is a trusted active limit snapshot matched to contextual
+// facts by asset code. It is not a transport DTO. Definition.ID and account
+// scope keys retain existing usage.
 type ContextAccountLimit struct {
 	Definition Limit
-	Asset      tracercontract.AssetRef
 }
 
-// Validate checks the account-only profile without applying legacy ISO asset
-// restrictions or silently ignoring unsupported dimensions. Administrative
-// labels are not part of runtime selection. Even expired windows must be valid.
-func (l ContextAccountLimit) Validate(ctx context.Context, namespace string, bounds tracercontract.Limits, maxScopes int) error {
+// Validate checks the account-only profile without silently ignoring
+// unsupported dimensions. Administrative labels are not part of runtime
+// selection. Even expired windows must be valid.
+func (l ContextAccountLimit) Validate(ctx context.Context, bounds tracercontract.Limits, maxScopes int) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -42,11 +40,7 @@ func (l ContextAccountLimit) Validate(ctx context.Context, namespace string, bou
 		return constant.ErrContextLimitsUnavailable
 	}
 
-	if err := l.Asset.Validate(namespace, bounds.MaxTextBytes); err != nil {
-		return constant.ErrContextLimitsUnavailable
-	}
-
-	if d.Asset != l.Asset.Code {
+	if utils.ValidateAssetCode(d.Asset) != nil {
 		return constant.ErrContextLimitsUnavailable
 	}
 
@@ -54,7 +48,7 @@ func (l ContextAccountLimit) Validate(ctx context.Context, namespace string, bou
 }
 
 // ValidateContextLimitDefinition checks shared-profile definitions before
-// persistence, including draft limits which have not received an AssetRef yet.
+// persistence, including draft limits.
 func ValidateContextLimitDefinition(ctx context.Context, d Limit, bounds tracercontract.Limits, maxScopes int) error {
 	if err := ctx.Err(); err != nil {
 		return err

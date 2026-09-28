@@ -65,10 +65,10 @@ func checkProfiles(ledgerPath, tracerPath string) error {
 		return fmt.Errorf("ledger and tracer resource profiles differ; align accounts, entries, text, integer/fraction digits, body bytes and reservation counts before activation")
 	}
 
-	return checkActivationProfile(ledgerEnv, tracerEnv, tracer)
+	return checkActivationProfile(ledgerEnv, tracerEnv)
 }
 
-func checkActivationProfile(ledgerEnv, tracerEnv map[string]string, profile tracercontract.ResourceProfile) error {
+func checkActivationProfile(ledgerEnv, tracerEnv map[string]string) error {
 	if err := requireEnabled(ledgerEnv, "TRACER_CONTEXT_ENABLED"); err != nil {
 		return err
 	}
@@ -78,34 +78,17 @@ func checkActivationProfile(ledgerEnv, tracerEnv map[string]string, profile trac
 	}
 
 	integrationID := strings.TrimSpace(ledgerEnv["TRACER_INTEGRATION_ID"])
-
-	assetNamespace := strings.TrimSpace(ledgerEnv["TRACER_ASSET_NAMESPACE"])
-	if integrationID == "" || assetNamespace == "" {
-		return fmt.Errorf("TRACER_INTEGRATION_ID and TRACER_ASSET_NAMESPACE are required before activation")
+	if integrationID == "" {
+		return fmt.Errorf("TRACER_INTEGRATION_ID is required before activation")
 	}
 
-	bindings, err := producerBindings(tracerEnv["CONTEXT_PRODUCER_BINDINGS"], profile.Facts.MaxTextBytes)
+	bindings, err := producerBindings(tracerEnv["CONTEXT_PRODUCER_BINDINGS"])
 	if err != nil {
 		return err
 	}
 
-	matched := false
-
-	for _, binding := range bindings {
-		if binding.IntegrationID != integrationID || binding.AssetNamespace != assetNamespace {
-			continue
-		}
-
-		for _, purpose := range binding.Purposes {
-			if purpose == seamidentity.PurposeReserve {
-				matched = true
-				break
-			}
-		}
-	}
-
-	if !matched {
-		return fmt.Errorf("CONTEXT_PRODUCER_BINDINGS has no reserve identity matching the Ledger integration and asset namespace")
+	if !hasReserveBinding(bindings, integrationID) {
+		return fmt.Errorf("CONTEXT_PRODUCER_BINDINGS has no reserve identity matching the Ledger integration")
 	}
 
 	transactionBatch, err := positiveIntegerSetting(ledgerEnv, "TRANSACTION_BATCH_MAX_SIZE", 10)
@@ -123,6 +106,22 @@ func checkActivationProfile(ledgerEnv, tracerEnv map[string]string, profile trac
 	}
 
 	return nil
+}
+
+func hasReserveBinding(bindings []seamidentity.Binding, integrationID string) bool {
+	for _, binding := range bindings {
+		if binding.IntegrationID != integrationID {
+			continue
+		}
+
+		for _, purpose := range binding.Purposes {
+			if purpose == seamidentity.PurposeReserve {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func requireEnabled(values map[string]string, key string) error {
@@ -153,7 +152,7 @@ func positiveIntegerSetting(values map[string]string, key string, fallback int) 
 	return value, nil
 }
 
-func producerBindings(raw string, maxNamespaceBytes int) ([]seamidentity.Binding, error) {
+func producerBindings(raw string) ([]seamidentity.Binding, error) {
 	if len(raw) == 0 || len(raw) > 65536 {
 		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain 1 to 65536 bytes of JSON")
 	}
@@ -171,7 +170,7 @@ func producerBindings(raw string, maxNamespaceBytes int) ([]seamidentity.Binding
 		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain one JSON array")
 	}
 
-	if _, err := seamidentity.NewResolver(bindings, maxNamespaceBytes); err != nil {
+	if _, err := seamidentity.NewResolver(bindings); err != nil {
 		return nil, fmt.Errorf("invalid CONTEXT_PRODUCER_BINDINGS")
 	}
 

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ import (
 
 func contextReservationFixture() (tracercontract.Context, []model.ContextAccountLimit, ContextReservationConfig) {
 	a, b := testutil.MustDeterministicUUID(80101), testutil.MustDeterministicUUID(80102)
-	asset := tracercontract.AssetRef{Namespace: "ledger", ID: "opaque-asset", Code: "TOKEN"}
+	asset := "TOKEN"
 	blocked := false
 	facts := tracercontract.Context{
 		Accounts: []tracercontract.Account{
@@ -40,8 +41,8 @@ func contextReservationFixture() (tracercontract.Context, []model.ContextAccount
 			{External: true, Direction: tracercontract.Debit, Amount: "900", Asset: asset},
 		},
 	}
-	limits := []model.ContextAccountLimit{{Asset: asset, Definition: model.Limit{
-		ID: testutil.MustDeterministicUUID(80201), Asset: asset.Code, Status: model.LimitStatusActive,
+	limits := []model.ContextAccountLimit{{Definition: model.Limit{
+		ID: testutil.MustDeterministicUUID(80201), Asset: asset, Status: model.LimitStatusActive,
 		LimitType: model.LimitTypeDaily, MaxAmount: decimal.RequireFromString("20"),
 		Scopes: []model.Scope{{AccountID: &b}, {AccountID: &a}},
 	}}}
@@ -58,7 +59,7 @@ func TestContextReservationsGrossDebitsAndStableCoordinates(t *testing.T) {
 	limits[0].Definition.ResetAt = &stale
 	resolver, err := NewContextReservationResolver(clock.NewFixedClock(at), config)
 	require.NoError(t, err)
-	plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.False(t, plan.Denied)
 	require.Len(t, plan.Reservations, 2)
@@ -74,37 +75,39 @@ func TestContextReservationsGrossDebitsAndStableCoordinates(t *testing.T) {
 	slices.Reverse(facts.Accounts)
 	slices.Reverse(facts.Entries)
 	slices.Reverse(limits[0].Definition.Scopes)
-	again, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	again, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Equal(t, plan, again)
 }
 
-func TestContextReservationsAssetIdentity(t *testing.T) {
+func TestContextReservationsAssetCode(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		change func(*model.ContextAccountLimit)
 		bad    bool
 		count  int
 	}{
-		{name: "exact identity", change: func(*model.ContextAccountLimit) {}, count: 2},
-		{name: "same code different id on configured account", change: func(l *model.ContextAccountLimit) { l.Asset.ID = "another-asset" }, bad: true},
-		{name: "missing association", change: func(l *model.ContextAccountLimit) { l.Asset = tracercontract.AssetRef{} }, bad: true},
-		{name: "foreign namespace", change: func(l *model.ContextAccountLimit) { l.Asset.Namespace = "another-producer" }, bad: true},
-		{name: "contradictory code", change: func(l *model.ContextAccountLimit) { l.Asset.Code = "OTHER"; l.Definition.Asset = "OTHER" }, bad: true},
-		{name: "stored code differs", change: func(l *model.ContextAccountLimit) { l.Definition.Asset = "OTHER" }, bad: true},
+		{name: "exact code", change: func(*model.ContextAccountLimit) {}, count: 2},
+		{name: "scope accounts debited in another code", change: func(l *model.ContextAccountLimit) { l.Definition.Asset = "OTHER" }, count: 0},
+		{name: "missing code", change: func(l *model.ContextAccountLimit) { l.Definition.Asset = "" }, bad: true},
+		{name: "lowercase code", change: func(l *model.ContextAccountLimit) { l.Definition.Asset = "token" }, bad: true},
+		{name: "code longer than the asset code rule", change: func(l *model.ContextAccountLimit) { l.Definition.Asset = strings.Repeat("A", 101) }, bad: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			facts, limits, config := contextReservationFixture()
 			tc.change(&limits[0])
 			resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 			require.NoError(t, err)
-			plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err := resolver.Execute(t.Context(), facts, limits)
 			if tc.bad {
 				require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 				require.Nil(t, plan)
 				return
 			}
 			require.NoError(t, err)
+			require.False(t, plan.Denied)
 			require.Len(t, plan.Reservations, tc.count)
 		})
 	}
@@ -152,7 +155,7 @@ func TestContextReservationsCompleteConfigurationBeforeDenial(t *testing.T) {
 			limits = append(limits, broken)
 			resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 			require.NoError(t, err)
-			plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err := resolver.Execute(t.Context(), facts, limits)
 			require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 			require.Nil(t, plan)
 		})
@@ -167,14 +170,14 @@ func TestContextReservationsCapAndResourceBounds(t *testing.T) {
 			limits[0].Definition.MaxAmount = decimal.RequireFromString("10.13")
 			resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 			require.NoError(t, err)
-			plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err := resolver.Execute(t.Context(), facts, limits)
 			require.NoError(t, err)
 			require.False(t, plan.Denied)
 			if kind == model.LimitTypePerTransaction {
 				require.Empty(t, plan.Reservations)
 			}
 			limits[0].Definition.MaxAmount = decimal.RequireFromString("10.129")
-			plan, err = resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err = resolver.Execute(t.Context(), facts, limits)
 			require.NoError(t, err)
 			require.True(t, plan.Denied)
 			require.Empty(t, plan.Reservations)
@@ -199,7 +202,7 @@ func TestContextReservationsCapAndResourceBounds(t *testing.T) {
 			}
 			resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 			require.NoError(t, err)
-			plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err := resolver.Execute(t.Context(), facts, limits)
 			require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 			require.Nil(t, plan)
 		})
@@ -212,16 +215,16 @@ func TestContextReservationsCancellationAndNoLimits(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	plan, err := resolver.Execute(ctx, facts, "ledger", nil)
+	plan, err := resolver.Execute(ctx, facts, nil)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, plan)
-	plan, err = resolver.Execute(t.Context(), facts, "ledger", nil)
+	plan, err = resolver.Execute(t.Context(), facts, nil)
 	require.NoError(t, err)
 	require.False(t, plan.Denied)
 	require.Empty(t, plan.Reservations)
 	require.Len(t, plan.AccountIDs, 2)
 	facts.Entries[0].Amount = "-1"
-	plan, err = resolver.Execute(t.Context(), facts, "ledger", nil)
+	plan, err = resolver.Execute(t.Context(), facts, nil)
 	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 	require.Nil(t, plan)
 }
@@ -249,7 +252,7 @@ func TestContextReservationsPeriodsAndServerTime(t *testing.T) {
 			}
 			resolver, err := NewContextReservationResolver(clock.NewFixedClock(at), config)
 			require.NoError(t, err)
-			plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err := resolver.Execute(t.Context(), facts, limits)
 			require.NoError(t, err)
 			require.Len(t, plan.Reservations, 2)
 			for _, spec := range plan.Reservations {
@@ -288,7 +291,7 @@ func TestContextReservationsPeriodsAndServerTime(t *testing.T) {
 			}
 			resolver, err := NewContextReservationResolver(clock.NewFixedClock(tc.now), config)
 			require.NoError(t, err)
-			plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+			plan, err := resolver.Execute(t.Context(), facts, limits)
 			require.NoError(t, err)
 			require.Len(t, plan.Reservations, tc.count)
 		})
@@ -298,33 +301,33 @@ func TestContextReservationsPeriodsAndServerTime(t *testing.T) {
 func TestContextReservationsOrderingAndDistinctAssets(t *testing.T) {
 	facts, limits, config := contextReservationFixture()
 	a, b := facts.Accounts[0].ID, facts.Accounts[1].ID
-	facts.Accounts[1].Asset.ID = "fee-asset"
+	facts.Accounts[1].Asset = "FEE"
 	facts.Entries[3].Asset = facts.Accounts[1].Asset
 	limits[0].Definition.Scopes = []model.Scope{{AccountID: &a}}
 	other := limits[0]
 	other.Definition.ID = testutil.MustDeterministicUUID(80202)
-	other.Asset = facts.Accounts[1].Asset
+	other.Definition.Asset = facts.Accounts[1].Asset
 	other.Definition.Scopes = []model.Scope{{AccountID: &b}}
 	limits = append(limits, other)
 	resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 	require.NoError(t, err)
-	plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Len(t, plan.Reservations, 2)
 	require.True(t, bytes.Compare(plan.Reservations[0].LimitID[:], plan.Reservations[1].LimitID[:]) < 0)
 	require.True(t, bytes.Compare(plan.AccountIDs[0][:], plan.AccountIDs[1][:]) < 0)
 	slices.Reverse(limits)
-	again, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	again, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Equal(t, plan, again)
 	// Returned values must not alias the policy/facts or subsequent plans.
 	plan.AccountIDs[0] = uuid.Nil
 	plan.Reservations[0].Amount = decimal.Zero
-	after, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	after, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Equal(t, again, after)
 	limits = append(limits, limits[0])
-	plan, err = resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err = resolver.Execute(t.Context(), facts, limits)
 	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 	require.Nil(t, plan)
 }
@@ -336,14 +339,14 @@ func TestContextReservationsNoDebitAndInvalidConfig(t *testing.T) {
 	for i := range facts.Entries {
 		facts.Entries[i].Direction = tracercontract.Credit
 	}
-	plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Empty(t, plan.AccountIDs)
 	require.Empty(t, plan.Reservations)
 	facts.Accounts = nil
 	facts.Entries = facts.Entries[len(facts.Entries)-1:]
 	facts.Entries[0].Direction = tracercontract.Debit
-	plan, err = resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err = resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.Empty(t, plan.AccountIDs)
 	require.Empty(t, plan.Reservations)
@@ -360,15 +363,100 @@ func TestContextReservationsNoDebitAndInvalidConfig(t *testing.T) {
 	}
 }
 
-func TestContextReservationsRejectMixedAssetScopes(t *testing.T) {
+func TestContextReservationsScopeAccountOfAnotherCodeIsOutsideLimit(t *testing.T) {
+	t.Parallel()
 	facts, limits, config := contextReservationFixture()
-	facts.Accounts[1].Asset.ID = "fee-asset"
+	a := facts.Accounts[0].ID
+	facts.Accounts[1].Asset = "FEE"
 	facts.Entries[3].Asset = facts.Accounts[1].Asset
 	resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 	require.NoError(t, err)
-	plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
-	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
-	require.Nil(t, plan)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
+	require.NoError(t, err)
+	require.False(t, plan.Denied)
+	require.Len(t, plan.Reservations, 1)
+	require.Equal(t, "acct:"+a.String(), plan.Reservations[0].ScopeKey)
+}
+
+func TestContextReservationsDebitOfAnotherCodeIsNotLimited(t *testing.T) {
+	t.Parallel()
+	facts, limits, config := contextReservationFixture()
+	a, b := facts.Accounts[0].ID, facts.Accounts[1].ID
+	facts.Accounts[1].Asset = "FEE"
+	facts.Entries[3].Asset = "FEE"
+	facts.Entries[3].Amount = "900"
+	// b stays in the TOKEN limit's scope; its FEE debit exceeds the TOKEN cap
+	// and must neither be reserved against nor deny through that limit.
+	require.ElementsMatch(t, []uuid.UUID{a, b}, []uuid.UUID{*limits[0].Definition.Scopes[0].AccountID, *limits[0].Definition.Scopes[1].AccountID})
+	resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
+	require.NoError(t, err)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
+	require.NoError(t, err)
+	require.False(t, plan.Denied)
+	require.Empty(t, plan.ExceededLimitIDs)
+	require.Len(t, plan.Reservations, 1)
+	require.Equal(t, "acct:"+a.String(), plan.Reservations[0].ScopeKey)
+	require.Contains(t, plan.AccountIDs, b)
+}
+
+func TestContextReservationsMultiAssetScopeMatchesByCode(t *testing.T) {
+	t.Parallel()
+	x, y := testutil.MustDeterministicUUID(80301), testutil.MustDeterministicUUID(80302)
+	blocked := false
+	limit := model.ContextAccountLimit{Definition: model.Limit{
+		ID: testutil.MustDeterministicUUID(80303), Asset: "BTC", Status: model.LimitStatusActive,
+		LimitType: model.LimitTypeDaily, MaxAmount: decimal.RequireFromString("100"),
+		Scopes: []model.Scope{{AccountID: &x}, {AccountID: &y}},
+	}}
+	facts := func(debits map[uuid.UUID]string) tracercontract.Context {
+		c := tracercontract.Context{}
+		for _, id := range []uuid.UUID{x, y} {
+			amount, ok := debits[id]
+			if !ok {
+				continue
+			}
+			asset := "BTC"
+			if id == x {
+				asset = "XBT"
+			}
+			c.Accounts = append(c.Accounts, tracercontract.Account{ID: id, Type: "checking", Status: "ACTIVE", Blocked: &blocked, Asset: asset})
+			c.Entries = append(c.Entries, tracercontract.Entry{AccountID: id, Direction: tracercontract.Debit, Amount: tracercontract.Amount(amount), Asset: asset})
+		}
+		return c
+	}
+	_, _, config := contextReservationFixture()
+	resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
+	require.NoError(t, err)
+	yScope := "acct:" + y.String()
+	for _, tc := range []struct {
+		name     string
+		debits   map[uuid.UUID]string
+		denied   bool
+		reserved []string
+	}{
+		{"XBT on X and BTC over cap on Y", map[uuid.UUID]string{x: "500", y: "150"}, true, nil},
+		{"BTC over cap on Y alone", map[uuid.UUID]string{y: "150"}, true, nil},
+		{"XBT on X and BTC within cap on Y", map[uuid.UUID]string{x: "500", y: "50"}, false, []string{yScope}},
+		{"BTC within cap on Y alone", map[uuid.UUID]string{y: "50"}, false, []string{yScope}},
+		{"XBT on X alone", map[uuid.UUID]string{x: "500"}, false, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			plan, err := resolver.Execute(t.Context(), facts(tc.debits), []model.ContextAccountLimit{limit})
+			require.NoError(t, err)
+			require.Equal(t, tc.denied, plan.Denied)
+			if tc.denied {
+				require.Equal(t, []uuid.UUID{limit.Definition.ID}, plan.ExceededLimitIDs)
+			} else {
+				require.Empty(t, plan.ExceededLimitIDs)
+			}
+			keys := make([]string, 0, len(plan.Reservations))
+			for _, spec := range plan.Reservations {
+				keys = append(keys, spec.ScopeKey)
+			}
+			require.ElementsMatch(t, tc.reserved, keys)
+		})
+	}
 }
 
 func TestContextReservationsExactLargeAmountAndNoTruncation(t *testing.T) {
@@ -377,7 +465,7 @@ func TestContextReservationsExactLargeAmountAndNoTruncation(t *testing.T) {
 	limits[0].Definition.MaxAmount = decimal.RequireFromString("9007199254740993.13")
 	resolver, err := NewContextReservationResolver(clock.NewFixedClock(testutil.FixedTime()), config)
 	require.NoError(t, err)
-	plan, err := resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err := resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.False(t, plan.Denied)
 	require.Len(t, plan.Reservations, 2)
@@ -387,12 +475,12 @@ func TestContextReservationsExactLargeAmountAndNoTruncation(t *testing.T) {
 		}
 	}
 	limits[0].Definition.MaxAmount = decimal.RequireFromString("9007199254740993.129")
-	plan, err = resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err = resolver.Execute(t.Context(), facts, limits)
 	require.NoError(t, err)
 	require.True(t, plan.Denied)
 	require.Empty(t, plan.Reservations)
 	limits[0].Definition.MaxAmount = decimal.RequireFromString("9007199254740993.12345678901")
-	plan, err = resolver.Execute(t.Context(), facts, "ledger", limits)
+	plan, err = resolver.Execute(t.Context(), facts, limits)
 	require.ErrorIs(t, err, constant.ErrContextLimitsUnavailable)
 	require.Nil(t, plan)
 }

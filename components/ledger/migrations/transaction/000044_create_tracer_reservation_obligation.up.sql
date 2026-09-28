@@ -8,7 +8,6 @@ CREATE TABLE tracer_reservation_obligation (
     execution_id UUID NOT NULL,
     tenant_id TEXT NOT NULL CHECK (octet_length(tenant_id) <= 256),
     integration_id TEXT NOT NULL CHECK (octet_length(integration_id) BETWEEN 1 AND 256),
-    asset_namespace TEXT NOT NULL CHECK (octet_length(asset_namespace) BETWEEN 1 AND 256),
     contract_revision TEXT NOT NULL CHECK (octet_length(contract_revision) BETWEEN 1 AND 256),
     fingerprint BYTEA NOT NULL CHECK (octet_length(fingerprint) = 32),
     payload BYTEA NOT NULL CHECK (octet_length(payload) > 0),
@@ -38,11 +37,11 @@ BEGIN
         RAISE EXCEPTION 'tracer reservation coordination history cannot be deleted' USING ERRCODE = '23514';
     END IF;
     IF ROW(NEW.organization_id,NEW.ledger_id,NEW.transaction_id,NEW.execution_id,
-           NEW.tenant_id,NEW.integration_id,NEW.asset_namespace,NEW.contract_revision,
+           NEW.tenant_id,NEW.integration_id,NEW.contract_revision,
            NEW.fingerprint,NEW.payload,NEW.created_at,NEW.prepare_deadline)
        IS DISTINCT FROM
        ROW(OLD.organization_id,OLD.ledger_id,OLD.transaction_id,OLD.execution_id,
-           OLD.tenant_id,OLD.integration_id,OLD.asset_namespace,OLD.contract_revision,
+           OLD.tenant_id,OLD.integration_id,OLD.contract_revision,
            OLD.fingerprint,OLD.payload,OLD.created_at,OLD.prepare_deadline) THEN
         RAISE EXCEPTION 'tracer reservation intent is immutable' USING ERRCODE = '23514';
     END IF;

@@ -70,7 +70,7 @@ func buildContextTracer(cfg *Config, deps contextTracerDependencies) (_ *context
 		return nil, err
 	}
 
-	loader, err := tracerclient.NewOfficialContextLoader(facts, parsed.client.Namespace, parsed.client.Bounds)
+	loader, err := tracerclient.NewOfficialContextLoader(facts, parsed.client.Bounds)
 	if err != nil {
 		return nil, err
 	}

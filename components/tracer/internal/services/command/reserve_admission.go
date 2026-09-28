@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // ReserveAdmissionConfig explicitly bounds facts, stored results and time.
@@ -112,7 +113,7 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 		}
 	}
 
-	hash, err := r.Fingerprint(ctx, tracercontract.ReserveScope{TenantID: tenant, IntegrationID: identity.ID, AssetNamespace: identity.AssetNamespace, SingleTenant: c.config.SingleTenant}, c.config.Plan.Facts)
+	hash, err := r.Fingerprint(ctx, tracercontract.ReserveScope{TenantID: tenant, IntegrationID: identity.ID, SingleTenant: c.config.SingleTenant}, c.config.Plan.Facts)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +159,7 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 			return constant.ErrReserveOperationConflict
 		}
 
-		decision, err := c.admit(ctx, tx, r, key, hash, identity.AssetNamespace)
+		decision, err := c.admit(ctx, tx, r, key, hash)
 		if err != nil {
 			return err
 		}
@@ -190,7 +191,7 @@ func (c *ReserveAdmissionCommand) replay(r tracercontract.ReserveRequest, key mo
 	return &snapshot.Result, nil
 }
 
-func (c *ReserveAdmissionCommand) admit(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, key model.ReserveOperationKey, hash [sha256.Size]byte, namespace string) (*model.ReserveDecision, error) {
+func (c *ReserveAdmissionCommand) admit(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, key model.ReserveOperationKey, hash [sha256.Size]byte) (*model.ReserveDecision, error) {
 	now := c.clock.Now().UTC()
 	if now.IsZero() {
 		return nil, constant.ErrInternalServer
@@ -214,14 +215,14 @@ func (c *ReserveAdmissionCommand) admit(ctx context.Context, tx pgdb.Tx, r trace
 		},
 	}
 	if r.ValidationMode == tracercontract.ValidationRulesAndLimits {
-		if err := c.rules(ctx, tx, r, namespace, d); err != nil {
+		if err := c.rules(ctx, tx, r, d); err != nil {
 			return nil, err
 		}
 	}
 
 	if d.Result.Decision == tracercontract.DecisionDeny {
 		d.Result.Controls.Limits = tracercontract.LimitsSkippedRuleDeny
-	} else if err := c.reserve(ctx, tx, r, namespace, d); err != nil {
+	} else if err := c.reserve(ctx, tx, r, d); err != nil {
 		return nil, err
 	}
 
@@ -242,7 +243,7 @@ func (c *ReserveAdmissionCommand) admit(ctx context.Context, tx pgdb.Tx, r trace
 	return d, nil
 }
 
-func (c *ReserveAdmissionCommand) rules(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, namespace string, d *model.ReserveDecision) error {
+func (c *ReserveAdmissionCommand) rules(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, d *model.ReserveDecision) error {
 	prepared, err := c.deps.Policies.ExecuteWithTx(ctx, tx, r.ContextID)
 	if err != nil {
 		return err
@@ -253,11 +254,11 @@ func (c *ReserveAdmissionCommand) rules(ctx context.Context, tx pgdb.Tx, r trace
 	}
 
 	resolved := prepared.Resolved
-	if resolved.Binding != (model.PolicyBindingKey{IntegrationID: d.Key.IntegrationID, ContextID: r.ContextID}) || resolved.Identity.AssetNamespace != namespace || resolved.Identity.ID != d.Key.IntegrationID {
+	if resolved.Binding != (model.PolicyBindingKey{IntegrationID: d.Key.IntegrationID, ContextID: r.ContextID}) || resolved.Identity.ID != d.Key.IntegrationID {
 		return constant.ErrContextPolicyUnavailable
 	}
 
-	result, err := c.deps.Evaluator.Execute(ctx, prepared.Program, r.Context, namespace)
+	result, err := c.deps.Evaluator.Execute(ctx, prepared.Program, r.Context)
 	if err != nil {
 		return err
 	}
@@ -297,16 +298,26 @@ func (c *ReserveAdmissionCommand) rules(ctx context.Context, tx pgdb.Tx, r trace
 	return nil
 }
 
-func (c *ReserveAdmissionCommand) reserve(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, namespace string, d *model.ReserveDecision) error {
-	debits, err := model.AccountDebits(ctx, r.Context, namespace, c.config.Plan.Facts)
+func (c *ReserveAdmissionCommand) reserve(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, d *model.ReserveDecision) error {
+	debits, err := model.AccountDebits(ctx, r.Context, c.config.Plan.Facts)
 	if err != nil {
 		return err
 	}
 
 	ids := make([]uuid.UUID, len(debits))
+	assets := make([]string, 0, len(debits))
+
+	// Facts may carry stored ledger codes outside the asset code rule; no limit
+	// can be defined in such a code, so those debits select no candidates.
 	for i, debit := range debits {
 		ids[i] = debit.AccountID
+		if utils.ValidateAssetCode(debit.Asset) == nil {
+			assets = append(assets, debit.Asset)
+		}
 	}
+
+	slices.Sort(assets)
+	assets = slices.Compact(assets)
 
 	for _, key := range reservationlock.AccountKeys(ids) {
 		if err := c.deps.Capacity.AcquireReserveScopeLock(ctx, tx, key); err != nil {
@@ -314,12 +325,12 @@ func (c *ReserveAdmissionCommand) reserve(ctx context.Context, tx pgdb.Tx, r tra
 		}
 	}
 
-	limits, err := c.deps.Limits.ListCandidatesWithTx(ctx, tx, namespace, ids)
+	limits, err := c.deps.Limits.ListCandidatesWithTx(ctx, tx, assets, ids)
 	if err != nil {
 		return err
 	}
 
-	plan, err := c.planner.Execute(ctx, r.Context, namespace, limits)
+	plan, err := c.planner.Execute(ctx, r.Context, limits)
 	if err != nil {
 		return err
 	}

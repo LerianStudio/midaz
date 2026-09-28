@@ -54,7 +54,7 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 			now := uc.Clock()
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
 			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
-			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, uc.Clock)
+			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, uc.Clock)
 			require.NoError(t, err)
 			uc.ContextTracer, err = NewContextTracerCoordinator(recovery, loader, cfg)
 			require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 				facts := tracercontract.Context{Accounts: []tracercontract.Account{}, Entries: []tracercontract.Entry{}}
 				for _, entry := range entries {
 					blocked := false
-					asset := tracercontract.AssetRef{Namespace: "origin-a", ID: "asset-brl", Code: entry.AssetCode}
+					asset := entry.AssetCode
 					facts.Accounts = append(facts.Accounts, tracercontract.Account{ID: entry.AccountID, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: asset})
 					facts.Entries = append(facts.Entries, tracercontract.Entry{AccountID: entry.AccountID, Direction: entry.Direction, Amount: tracercontract.Amount(entry.Amount.String()), Asset: asset})
 				}
@@ -160,7 +160,7 @@ func TestReserveAtomicContextBatchUsesEachLedgerScope(t *testing.T) {
 		store,
 		client,
 		NewMockTracerAccountingEvidence(ctrl),
-		TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second},
+		TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second},
 		func() time.Time { return now },
 	)
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestReserveAtomicContextBatchUsesEachLedgerScope(t *testing.T) {
 				facts := tracercontract.Context{}
 				for _, entry := range entries {
 					blocked := false
-					asset := tracercontract.AssetRef{Namespace: "origin-a", ID: "asset-brl", Code: entry.AssetCode}
+					asset := entry.AssetCode
 					facts.Accounts = append(facts.Accounts, tracercontract.Account{ID: entry.AccountID, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: asset})
 					facts.Entries = append(facts.Entries, tracercontract.Entry{AccountID: entry.AccountID, Direction: entry.Direction, Amount: tracercontract.Amount(entry.Amount.String()), Asset: asset})
 				}

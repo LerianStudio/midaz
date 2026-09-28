@@ -5,7 +5,10 @@
 package bootstrap
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -51,7 +54,7 @@ func loadContextReservationConfig(cfg *Config) (*contextReservationConfig, error
 		return nil, err
 	}
 
-	identity, err := loadContextProducerIdentity(cfg, evaluation.CEL.Limits)
+	identity, err := loadContextProducerIdentity(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,7 @@ func loadContextReservationConfig(cfg *Config) (*contextReservationConfig, error
 
 	return &contextReservationConfig{
 		evaluation: evaluation, identity: identity, maxBodyBytes: cfg.ContextReserveMaxBodyBytes,
-		limits:    postgres.ContextLimitRepositoryConfig{MaxAccounts: facts.MaxAccounts, MaxLimits: cfg.ContextReserveMaxLimits, MaxScopes: cfg.ContextLimitMaxScopes, MaxScopeBytes: cfg.ContextLimitMaxScopeBytes, MaxTextBytes: facts.MaxTextBytes},
+		limits:    postgres.ContextLimitRepositoryConfig{MaxAccounts: facts.MaxAccounts, MaxLimits: cfg.ContextReserveMaxLimits, MaxScopes: cfg.ContextLimitMaxScopes, MaxScopeBytes: cfg.ContextLimitMaxScopeBytes},
 		cache:     query.CompiledPolicyCacheConfig{MaxEntries: cfg.ContextPolicyCacheEntries, MaxCompilations: cfg.ContextPolicyMaxCompilations, SingleTenant: !cfg.MultiTenantEnabled},
 		admission: command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: cfg.ContextReserveMaxLimits, MaxScopesPerLimit: cfg.ContextLimitMaxScopes, MaxReservations: cfg.ContextReserveMaxReservations}, MaxRules: cfg.ContextMaxRules, SingleTenant: !cfg.MultiTenantEnabled, MaxTimestampAge: model.MaxTimestampAge, ClockSkewTolerance: model.ClockSkewTolerance, ReservationLifetime: lifetime},
 	}, nil
@@ -139,4 +142,32 @@ func initContextReservation(cfg *Config, conn pgdb.Connection, tx pgdb.TxBeginne
 	}
 
 	return &contextReservationRuntime{handler: handler, identity: config.identity, admission: admission, completion: completion, reservationCompletion: reservationCompletion, config: config}, nil
+}
+
+func loadContextProducerIdentity(cfg *Config) (*seamidentity.Resolver, error) {
+	// Operator configuration has a fixed boot-time size cap, separate from the
+	// measured financial request envelope. Never decode an unbounded env value.
+	if len(cfg.ContextProducerBindings) == 0 || len(cfg.ContextProducerBindings) > 65536 {
+		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain 1 to 65536 bytes of JSON")
+	}
+
+	var bindings []seamidentity.Binding
+
+	decoder := json.NewDecoder(bytes.NewBufferString(cfg.ContextProducerBindings))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&bindings); err != nil {
+		return nil, fmt.Errorf("decode CONTEXT_PRODUCER_BINDINGS: %w", err)
+	}
+
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, fmt.Errorf("CONTEXT_PRODUCER_BINDINGS must contain one JSON array")
+	}
+
+	identity, err := seamidentity.NewResolver(bindings)
+	if err != nil {
+		return nil, fmt.Errorf("invalid CONTEXT_PRODUCER_BINDINGS: %w", err)
+	}
+
+	return identity, nil
 }

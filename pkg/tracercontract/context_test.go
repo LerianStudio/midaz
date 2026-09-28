@@ -16,6 +16,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func testLimits() tracercontract.Limits {
@@ -25,7 +26,7 @@ func testLimits() tracercontract.Limits {
 func testContext() tracercontract.Context {
 	blocked := false
 	id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
-	asset := tracercontract.AssetRef{Namespace: "origin-a", ID: "asset/btc", Code: "BTC"}
+	asset := "BTC"
 	return tracercontract.Context{
 		Accounts: []tracercontract.Account{{ID: id, Type: "deposit", Status: "CUSTOM_ACTIVE", Blocked: &blocked, Asset: asset}},
 		Entries: []tracercontract.Entry{
@@ -57,9 +58,19 @@ func TestContextValidate(t *testing.T) {
 		{name: "negative magnitude", invalid: true, change: func(c *tracercontract.Context) { c.Entries[0].Amount = "-1" }},
 		{name: "zero magnitude", invalid: true, change: func(c *tracercontract.Context) { c.Entries[0].Amount = "0.000" }},
 		{name: "invalid direction", invalid: true, change: func(c *tracercontract.Context) { c.Entries[0].Direction = "out" }},
-		{name: "same code different asset", invalid: true, change: func(c *tracercontract.Context) { c.Entries[0].Asset.ID = "another-btc" }},
-		{name: "same identity different code", invalid: true, change: func(c *tracercontract.Context) { c.Entries[1].Asset.Code = "USD" }},
-		{name: "namespace is authenticated", invalid: true, change: func(c *tracercontract.Context) { c.Entries[1].Asset.Namespace = "forged" }},
+		{name: "entry asset differs from account asset", invalid: true, change: func(c *tracercontract.Context) { c.Entries[0].Asset = "USD" }},
+		{name: "external entry may carry another asset", change: func(c *tracercontract.Context) { c.Entries[1].Asset = "USD" }},
+		{name: "entry asset differs from account asset by case", invalid: true, change: func(c *tracercontract.Context) { c.Entries[0].Asset = "btc" }},
+		{name: "stored lowercase entry asset is a fact", change: func(c *tracercontract.Context) { c.Entries[1].Asset = "btc" }},
+		{name: "stored lowercase account asset is a fact", change: func(c *tracercontract.Context) {
+			c.Accounts[0].Asset = "btc"
+			c.Entries[0].Asset = "btc"
+		}},
+		{name: "empty entry asset", invalid: true, change: func(c *tracercontract.Context) { c.Entries[1].Asset = "" }},
+		{name: "stored asset with digit is a fact", change: func(c *tracercontract.Context) { c.Entries[1].Asset = "BTC2" }},
+		{name: "asset beyond text bound", invalid: true, change: func(c *tracercontract.Context) {
+			c.Entries[1].Asset = strings.Repeat("A", 101)
+		}},
 		{name: "no entries", invalid: true, change: func(c *tracercontract.Context) { c.Entries = nil }},
 		{name: "external only", change: func(c *tracercontract.Context) {
 			c.Accounts = nil
@@ -76,7 +87,7 @@ func TestContextValidate(t *testing.T) {
 			if tt.change != nil {
 				tt.change(&c)
 			}
-			err := c.Validate(context.Background(), "origin-a", testLimits())
+			err := c.Validate(context.Background(), testLimits())
 			if tt.invalid {
 				require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 				return
@@ -86,14 +97,66 @@ func TestContextValidate(t *testing.T) {
 	}
 }
 
-func TestContextRequiresTrustedNamespaceAndLimits(t *testing.T) {
+func TestContextRequiresLimits(t *testing.T) {
 	t.Parallel()
 	c := testContext()
-	require.Error(t, c.Validate(context.Background(), "", testLimits()))
-	require.Error(t, c.Validate(context.Background(), "origin-a", tracercontract.Limits{}))
+	require.Error(t, c.Validate(context.Background(), tracercontract.Limits{}))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	require.ErrorIs(t, c.Validate(ctx, "origin-a", testLimits()), context.Canceled)
+	require.ErrorIs(t, c.Validate(ctx, testLimits()), context.Canceled)
+}
+
+func TestAssetFactsCarryStoredLedgerCode(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		asset string
+		valid bool
+	}{
+		{"uppercase", "BTC", true},
+		{"long uppercase", "LERIANPOINTS", true},
+		{"legacy lowercase", "usd", true},
+		{"legacy mixed", "USDC2", true},
+		{"hundred multi-byte letters", strings.Repeat("É", utils.MaxAssetCodeLength), true},
+		{"empty", "", false},
+		{"nul", "US\x00D", false},
+		{"invalid utf8", "US\xff", false},
+		{"surrounding space", " USD", false},
+		{"over hundred characters", strings.Repeat("A", utils.MaxAssetCodeLength+1), false},
+		{"over hundred multi-byte characters", strings.Repeat("É", utils.MaxAssetCodeLength+1), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.valid, tracercontract.ValidAssetCodeFact(tc.asset))
+			limits := testLimits()
+			limits.MaxTextBytes = 256
+			id := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+			for _, c := range []tracercontract.Context{
+				{Entries: []tracercontract.Entry{{External: true, Direction: tracercontract.Debit, Amount: "1", Asset: tc.asset}}},
+				{
+					Accounts: []tracercontract.Account{{ID: id, Type: "deposit", Status: "ACTIVE", Blocked: new(bool), Asset: tc.asset}},
+					Entries:  []tracercontract.Entry{{AccountID: id, Direction: tracercontract.Debit, Amount: "1", Asset: tc.asset}},
+				},
+			} {
+				err := c.Validate(context.Background(), limits)
+				if tc.valid {
+					require.NoError(t, err)
+					continue
+				}
+				require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+			}
+		})
+	}
+}
+
+func TestAssetCodeBoundIsIndependentOfTextBytes(t *testing.T) {
+	t.Parallel()
+	limits := testLimits()
+	limits.MaxTextBytes = 8
+	c := tracercontract.Context{Entries: []tracercontract.Entry{{
+		External: true, Direction: tracercontract.Debit, Amount: "1", Asset: strings.Repeat("É", utils.MaxAssetCodeLength),
+	}}}
+	require.NoError(t, c.Validate(context.Background(), limits))
 }
 
 func TestAmountExactAndBounded(t *testing.T) {
@@ -125,19 +188,6 @@ func TestContextJSONKeepsPresenceAndExactAmounts(t *testing.T) {
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	require.Equal(t, c, decoded)
 	require.Error(t, json.Unmarshal([]byte(`{"amount":0.1}`), &tracercontract.Entry{}))
-}
-
-func TestAssetIdentityExcludesDisplayCode(t *testing.T) {
-	t.Parallel()
-	a := tracercontract.AssetRef{Namespace: "a", ID: "id", Code: "BTC"}
-	b := a
-	b.Code = "USD"
-	require.Equal(t, a.Identity(), b.Identity())
-	b.Namespace = "b"
-	require.NotEqual(t, a.Identity(), b.Identity())
-	b = a
-	b.ID = "different"
-	require.NotEqual(t, a.Identity(), b.Identity())
 }
 
 func TestAmountFromDecimalBoundsBeforeFormatting(t *testing.T) {

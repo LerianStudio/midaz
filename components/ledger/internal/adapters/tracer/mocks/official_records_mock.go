@@ -43,17 +43,16 @@ func (m *MockOfficialRecordsReader) EXPECT() *MockOfficialRecordsReaderMockRecor
 }
 
 // Read mocks base method.
-func (m *MockOfficialRecordsReader) Read(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID, arg4 []string) ([]*mmodel.Account, []*mmodel.Asset, error) {
+func (m *MockOfficialRecordsReader) Read(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*mmodel.Account, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "Read", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.Account)
-	ret1, _ := ret[1].([]*mmodel.Asset)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Read indicates an expected call of Read.
-func (mr *MockOfficialRecordsReaderMockRecorder) Read(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockOfficialRecordsReaderMockRecorder) Read(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockOfficialRecordsReader)(nil).Read), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockOfficialRecordsReader)(nil).Read), arg0, arg1, arg2, arg3)
 }

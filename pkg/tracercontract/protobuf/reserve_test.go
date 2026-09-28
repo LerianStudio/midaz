@@ -6,6 +6,7 @@ package protobuf
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
@@ -23,18 +25,30 @@ func TestReserveRESTProtobufEquivalence(t *testing.T) {
 	limits := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
 	expected, err := tracercontract.DecodeReserveJSON(t.Context(), raw, 65536, limits)
 	require.NoError(t, err)
-	encoded, err := EncodeReserve(t.Context(), expected, "origin-a", limits)
+	encoded, err := EncodeReserve(t.Context(), expected, limits)
 	require.NoError(t, err)
-	actual, err := DecodeReserve(t.Context(), encoded, "origin-a", limits, 65536)
+	require.Equal(t, "BTC", encoded.Asset)
+	require.Equal(t, "BTC", encoded.Context.Accounts[0].Asset)
+	require.Equal(t, "BTC", encoded.Context.Entries[0].Asset)
+	wire, err := proto.Marshal(encoded)
+	require.NoError(t, err)
+	var received reservationv1.ReserveRequest
+	require.NoError(t, proto.Unmarshal(wire, &received))
+	actual, err := DecodeReserve(t.Context(), &received, limits, 65536)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
-	scope := tracercontract.ReserveScope{IntegrationID: "producer", AssetNamespace: "origin-a", SingleTenant: true}
+	require.Equal(t, "BTC", actual.Asset)
+	require.Equal(t, "BTC", actual.Context.Accounts[0].Asset)
+	for _, entry := range actual.Context.Entries {
+		require.Equal(t, "BTC", entry.Asset)
+	}
+	scope := tracercontract.ReserveScope{IntegrationID: "producer", SingleTenant: true}
 	before, err := expected.Fingerprint(t.Context(), scope, limits)
 	require.NoError(t, err)
 	after, err := actual.Fingerprint(t.Context(), scope, limits)
 	require.NoError(t, err)
 	require.Equal(t, before, after)
-	for _, scenario := range []string{"missing presence", "unknown field", "legacy field", "nested unknown", "namespace", "oversize"} {
+	for _, scenario := range []string{"missing presence", "unknown field", "legacy field", "nested unknown", "empty asset", "entry asset nul", "entry asset over hundred characters", "oversize"} {
 		t.Run(scenario, func(t *testing.T) {
 			request := proto.Clone(encoded).(*reservationv1.ReserveRequest)
 			bound := 65536
@@ -46,17 +60,42 @@ func TestReserveRESTProtobufEquivalence(t *testing.T) {
 			case "legacy field":
 				request.ProtoReflect().SetUnknown(protowire.AppendString(protowire.AppendTag(nil, 1, protowire.BytesType), "legacy"))
 			case "nested unknown":
-				request.Context.Entries[0].Asset.ProtoReflect().SetUnknown(protowire.AppendVarint(protowire.AppendTag(nil, 99, protowire.VarintType), 1))
-			case "namespace":
-				request.Asset.Namespace = "forged"
+				request.Context.Entries[0].ProtoReflect().SetUnknown(protowire.AppendVarint(protowire.AppendTag(nil, 99, protowire.VarintType), 1))
+			case "empty asset":
+				request.Asset = ""
+			case "entry asset nul":
+				request.Context.Entries[1].Asset = "US\x00D"
+			case "entry asset over hundred characters":
+				request.Context.Entries[1].Asset = strings.Repeat("A", 101)
 			case "oversize":
 				bound = 1
 			}
-			result, err := DecodeReserve(t.Context(), request, "origin-a", limits, bound)
+			result, err := DecodeReserve(t.Context(), request, limits, bound)
 			require.Error(t, err)
 			require.Equal(t, tracercontract.ReserveRequest{}, result)
 		})
 	}
+}
+
+func TestEncodeReserveCarriesStoredAssetCode(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("../testdata/reserve_request.json")
+	require.NoError(t, err)
+	limits := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
+	request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, 65536, limits)
+	require.NoError(t, err)
+	request.Context.Entries[1].Asset = "usd"
+	encoded, err := EncodeReserve(t.Context(), request, limits)
+	require.NoError(t, err, "a stored ledger code outside the uppercase rule is still a fact")
+	decoded, err := DecodeReserve(t.Context(), encoded, limits, 65536)
+	require.NoError(t, err)
+	require.Equal(t, "usd", decoded.Context.Entries[1].Asset)
+
+	request.Context.Entries[1].Asset = ""
+	encoded, err = EncodeReserve(t.Context(), request, limits)
+	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+	require.Nil(t, encoded)
 }
 
 func TestResultCodecRejectsIncompleteDecisions(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ import (
 )
 
 func TestContextReservationTransportStrictRequest(t *testing.T) {
-	for _, scenario := range []string{"valid", "duplicate", "identity absent", "namespace", "service unavailable"} {
+	for _, scenario := range []string{"valid", "duplicate", "identity absent", "invalid asset code", "service unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			admission := mocks.NewMockContextReserveAdmitter(ctrl)
@@ -38,18 +39,21 @@ func TestContextReservationTransportStrictRequest(t *testing.T) {
 			require.NoError(t, err)
 			blocked, longLived := false, false
 			account := testutil.MustDeterministicUUID(89801)
-			asset := tracercontract.AssetRef{Namespace: "official", ID: "asset", Code: "TOKEN"}
+			asset := "TOKEN"
 			r := tracercontract.ReserveRequest{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: testutil.MustDeterministicUUID(89802), RequestID: testutil.MustDeterministicUUID(89803), ContextID: "context", ValidationMode: tracercontract.ValidationLimits, TransactionTimestamp: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), LongLived: &longLived, Amount: "10.125", Asset: asset, Context: tracercontract.Context{Accounts: []tracercontract.Account{{ID: account, Type: "native", Status: "ACTIVE", Blocked: &blocked, Asset: asset}}, Entries: []tracercontract.Entry{{AccountID: account, Direction: tracercontract.Debit, Amount: "10.125", Asset: asset}}}}
 			raw, err := json.Marshal(r)
 			require.NoError(t, err)
-			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "official"})
+			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer"})
 			switch scenario {
 			case "duplicate":
 				raw = append(raw[:len(raw)-1], []byte(`,"longLived":true}`)...)
 			case "identity absent":
 				ctx = t.Context()
-			case "namespace":
-				ctx = contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "other", AssetNamespace: "other"})
+			case "invalid asset code":
+				invalid := r
+				invalid.Asset = strings.Repeat("A", 101)
+				raw, err = json.Marshal(invalid)
+				require.NoError(t, err)
 			default:
 				result := &tracercontract.ReserveResult{ContractRevision: r.ContractRevision, TransactionID: r.TransactionID, EvaluationID: testutil.MustDeterministicUUID(89804), Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesNotRequested, Limits: tracercontract.LimitsEvaluated}, ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}}
 				var serviceErr error

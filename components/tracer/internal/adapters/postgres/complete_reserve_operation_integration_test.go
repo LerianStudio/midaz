@@ -86,7 +86,7 @@ func completionCommand(t *testing.T, db *sql.DB, singleTenant bool) (*command.Co
 }
 
 func completionContext(ctx context.Context, integration string) context.Context {
-	return contextutil.WithIntegrationIdentity(ctx, contextutil.IntegrationIdentity{ID: integration, AssetNamespace: "ledger"})
+	return contextutil.WithIntegrationIdentity(ctx, contextutil.IntegrationIdentity{ID: integration})
 }
 
 func completionEvents(t *testing.T, db *sql.DB, transactionID uuid.UUID) []uuid.UUID {

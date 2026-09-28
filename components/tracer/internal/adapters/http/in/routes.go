@@ -156,7 +156,6 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 type RoutesDeps struct {
 	ContextReservation           *ContextReservationHandler
 	ContextReservationIdentity   *seamidentity.Resolver
-	LimitAssetAdmin              *LimitAssetHandler
 	ContextPolicyService         ContextPolicyAdminService
 	ContextPolicyMaxRules        int
 	ContextPolicyMaxBodyBytes    int
@@ -401,7 +400,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		ContextPolicy:              contextPolicyHandler,
 		ContextReservation:         deps.ContextReservation,
 		ContextReservationIdentity: deps.ContextReservationIdentity,
-		LimitAssetAdmin:            deps.LimitAssetAdmin,
 		APIKeyOnlyValidation:       cfg.APIKeyOnlyValidation,
 		Rule:                       NewHandler(ruleService),
 		Limit:                      NewLimitHandler(limitService),
@@ -503,7 +501,6 @@ func handleWorkerEnsureError(c fiber.Ctx, logger libLog.Logger, tenantID string,
 type tracerHumaHandlers struct {
 	ContextReservation         *ContextReservationHandler
 	ContextReservationIdentity *seamidentity.Resolver
-	LimitAssetAdmin            *LimitAssetHandler
 	ContextPolicy              *ContextPolicyHandler
 	Guard                      *middleware.AuthGuard
 	APIKeyOnlyValidation       bool
@@ -535,11 +532,6 @@ type tracerHumaHandlers struct {
 // behavior.
 func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
 	guard := h.Guard
-	if h.LimitAssetAdmin != nil {
-		api.Put("/limits/:id/asset-reference", NewLimitAssetIdentityMiddleware(h.LimitAssetAdmin.identity), guard.WithPolicyPermission("limit-asset-references", "put"))
-		RegisterLimitAssetRoutes(humaAPI, h.LimitAssetAdmin)
-	}
-
 	if h.ContextPolicy != nil {
 		api.Post("/policies", guard.WithPolicyPermission("policies", "post"))
 		api.Get("/policies/:id/revisions/:revision", guard.WithPolicyPermission("policies", "get"))

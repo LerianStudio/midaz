@@ -44,11 +44,11 @@ func TestTracerRecoveryQuarantinesOnlyMalformedRecords(t *testing.T) {
 			LedgerID:       uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"),
 			TransactionID:  uuid.MustParse("1e1dd8ae-cd4b-4cb6-a88e-2926c47906aa"),
 		},
-		Scope:            tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"},
+		Scope:            tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"},
 		ContractRevision: tracercontract.ReserveContractRevision,
 		State:            tracerreservation.Executing,
 	}
-	cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
+	cfg := TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
 
 	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 10).Return([]tracerreservation.Pending{record}, nil)
 	store.EXPECT().ScheduleRetry(gomock.Any(), record, now.Add(time.Second), true).Return(nil)
@@ -68,8 +68,8 @@ func TestTracerRecoveryDrainsFullBatchesWithinCycle(t *testing.T) {
 	evidence := NewMockTracerAccountingEvidence(ctrl)
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	key := tracerreservation.Key{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
-	record := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.New(), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Confirmed}
-	cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 1, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
+	record := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.New(), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Confirmed}
+	cfg := TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 1, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
 
 	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 1).Return([]tracerreservation.Pending{record}, nil)
 	client.EXPECT().ConfirmByTransaction(gomock.Any(), key.TransactionID).Return(&tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: key.TransactionID, Status: string(tracerreservation.Confirmed)}, nil)
@@ -91,8 +91,8 @@ func TestTracerRecoveryContainsRecordPanicAndSchedulesRetry(t *testing.T) {
 	evidence := NewMockTracerAccountingEvidence(ctrl)
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	key := tracerreservation.Key{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
-	record := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.New(), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Confirmed}
-	cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
+	record := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.New(), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Confirmed}
+	cfg := TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second, LeaseDuration: 5 * time.Second}
 
 	store.EXPECT().ClaimDue(gomock.Any(), now, now.Add(5*time.Second), 10).Return([]tracerreservation.Pending{record}, nil)
 	client.EXPECT().ConfirmByTransaction(gomock.Any(), key.TransactionID).DoAndReturn(func(context.Context, uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
@@ -115,9 +115,9 @@ func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
 			client := NewMockContextTracerReserver(ctrl)
 			evidence := NewMockTracerAccountingEvidence(ctrl)
 			instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-			cfg := TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}
+			cfg := TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}
 			key := tracerreservation.Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: uuid.MustParse("1e1dd8ae-cd4b-4cb6-a88e-2926c47906aa")}
-			entry := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Executing, PrepareDeadline: instant.Add(-time.Second)}
+			entry := tracerreservation.Pending{RecoveryAttempts: 1, Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}, ContractRevision: tracercontract.ReserveContractRevision, State: tracerreservation.Executing, PrepareDeadline: instant.Add(-time.Second)}
 			known := true
 			failed := false
 			outcome := tracerreservation.Confirmed

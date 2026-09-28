@@ -1,16 +1,5 @@
 components:
   schemas:
-    AccountAsset:
-      additionalProperties: false
-      properties:
-        accountId:
-          type: string
-        asset:
-          $ref: "#/components/schemas/AssetRef"
-      required:
-        - accountId
-        - asset
-      type: object
     AccountContext:
       additionalProperties: false
       properties:
@@ -78,20 +67,6 @@ components:
       required:
         - asset
         - amount
-      type: object
-    AssetRef:
-      additionalProperties: false
-      properties:
-        code:
-          type: string
-        id:
-          type: string
-        namespace:
-          type: string
-      required:
-        - namespace
-        - id
-        - code
       type: object
     AuditEvent:
       additionalProperties: false
@@ -292,10 +267,10 @@ components:
             - "09:00"
           type: string
         asset:
-          description: Native asset code, preserved exactly; at most 256 UTF-8 bytes. AssetRef supplies economic identity.
+          description: "Asset code: uppercase letters only, 1-100 characters, preserved exactly."
           examples:
             - USD
-          maxLength: 256
+          maxLength: 100
           minLength: 1
           type: string
         customEndDate:
@@ -521,7 +496,7 @@ components:
         amount:
           type: string
         asset:
-          $ref: "#/components/schemas/AssetRef"
+          type: string
         direction:
           enum:
             - DEBIT
@@ -596,7 +571,7 @@ components:
       additionalProperties: false
       properties:
         asset:
-          $ref: "#/components/schemas/AssetRef"
+          type: string
         blocked:
           type: boolean
         id:
@@ -753,17 +728,6 @@ components:
         - status
         - createdAt
         - updatedAt
-      type: object
-    LimitAssetDocument:
-      additionalProperties: false
-      properties:
-        accountAssets:
-          items:
-            $ref: "#/components/schemas/AccountAsset"
-          minItems: 1
-          type: array
-      required:
-        - accountAssets
       type: object
     LimitUsageDetail:
       additionalProperties: false
@@ -1004,7 +968,7 @@ components:
         amount:
           type: string
         asset:
-          $ref: "#/components/schemas/AssetRef"
+          type: string
         context:
           $ref: "#/components/schemas/Context"
         contextId:
@@ -1609,7 +1573,7 @@ components:
       scheme: bearer
       type: http
     ProducerMTLS:
-      description: Verified producer certificate registered to the integration namespace.
+      description: Verified producer certificate bound to a registered integration.
       type: mutualTLS
 info:
   title: Midaz Tracer API
@@ -2438,89 +2402,6 @@ paths:
         - BearerAuth: []
         - ApiKeyAuth: []
       summary: Activate a spending limit
-      tags:
-        - Limits
-  /limits/{id}/asset-reference:
-    put:
-      description: Requires a verified producer certificate and Access Manager permission on limit-asset-references. The association is immutable and audited; repeating it returns a conflict.
-      operationId: bindLimitAsset
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LimitAssetDocument"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AssetRef"
-          description: OK
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Bad Request
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unauthorized
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Forbidden
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Not Found
-        "409":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Conflict
-        "413":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Request Entity Too Large
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        "503":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Service Unavailable
-      security:
-        - BearerAuth: []
-          ProducerMTLS: []
-      summary: Associate a limit with official account asset facts
       tags:
         - Limits
   /limits/{id}/deactivate:

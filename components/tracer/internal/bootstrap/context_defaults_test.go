@@ -24,7 +24,6 @@ func TestContextDefaultsPreserveExplicitZero(t *testing.T) {
 	require.Equal(t, tracercontract.DefaultResourceProfile().Facts.MaxAccounts, cfg.ContextMaxAccounts)
 	require.False(t, cfg.ContextReserveEnabled)
 	require.False(t, cfg.ContextPolicyAdminEnabled)
-	require.False(t, cfg.ContextLimitAdminEnabled)
 	require.Empty(t, cfg.ContextProducerBindings)
 	t.Setenv("CONTEXT_MAX_FRACTION_DIGITS", "0")
 	t.Setenv("CONTEXT_MAX_ACCOUNTS", "0")

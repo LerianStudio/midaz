@@ -25,7 +25,7 @@ func obligationFixture(t *testing.T) (tracerreservation.Intent, tracerreservatio
 	key := tracerreservation.Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: request.TransactionID}
 	request.ContextID = key.LedgerID.String()
 	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-	intent, err := tracerreservation.NewIntent(t.Context(), key, uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}, request, instant, instant.Add(time.Second), cfg)
+	intent, err := tracerreservation.NewIntent(t.Context(), key, uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}, request, instant, instant.Add(time.Second), cfg)
 	require.NoError(t, err)
 	return intent, cfg
 }

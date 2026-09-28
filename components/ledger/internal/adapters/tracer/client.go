@@ -79,9 +79,10 @@ type ReserveAccount struct {
 // from the fee-inclusive transaction state; this client only transports it.
 //
 // The tracer's reserve validation requires requestId, a positive amount, a
-// valid ISO-4217 asset, and an in-window transactionTimestamp. account.accountId
-// is OPTIONAL on the relaxed reserve path: an external-only source omits it and
-// the tracer accepts the accountless body (parsing the absent key to uuid.Nil).
+// valid asset code (1-100 uppercase letters), and an in-window
+// transactionTimestamp. account.accountId is OPTIONAL on the relaxed reserve
+// path: an external-only source omits it and the tracer accepts the accountless
+// body (parsing the absent key to uuid.Nil).
 // transactionType is OPTIONAL too (the ledger has no card-rail nature to
 // honestly report; when empty the tracer matches account-scoped limits without
 // a transaction-type constraint).

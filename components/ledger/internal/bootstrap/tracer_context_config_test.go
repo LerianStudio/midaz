@@ -17,14 +17,14 @@ import (
 func contextTracerTestConfig() Config {
 	return Config{
 		TracerRecoveryMaxRetryIntervalMs: 300000,
-		TracerContextEnabled:             true, TracerBaseURL: "https://tracer.test:4020", TracerTLSMode: "mtls", TracerTimeoutMs: 250, TracerIntegrationID: "producer", TracerAssetNamespace: "origin-a",
+		TracerContextEnabled:             true, TracerBaseURL: "https://tracer.test:4020", TracerTLSMode: "mtls", TracerTimeoutMs: 250, TracerIntegrationID: "producer",
 		TracerContextMaxBodyBytes: 65536, TracerContextMaxAccounts: 10, TracerContextMaxEntries: 20, TracerContextMaxTextBytes: 256, TracerContextMaxIntegerDigits: 128, TracerContextMaxFractionDigits: "128", TracerContextMaxReservations: 100,
 		TracerRecoveryBatchSize: 10, TracerRecoveryIntervalMs: 1000, TracerRecoveryCycleTimeoutMs: 1000, TracerRecoveryTenantTimeoutMs: 500, TracerRecoveryAttemptTimeoutMs: 250, TracerRecoveryMaxTenants: 10, TracerRecoveryMaxCatalogTenants: 100,
 	}
 }
 
 func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
-	for _, scenario := range []string{"valid", "zero precision", "missing precision", "missing namespace", "missing producer", "mesh", "empty endpoint", "empty timeout", "empty interval", "empty batch", "empty catalog bound", "batch exceeds recovery"} {
+	for _, scenario := range []string{"valid", "zero precision", "missing precision", "missing producer", "mesh", "empty endpoint", "empty timeout", "empty interval", "empty batch", "empty catalog bound", "batch exceeds recovery"} {
 		t.Run(scenario, func(t *testing.T) {
 			cfg := contextTracerTestConfig()
 			switch scenario {
@@ -32,8 +32,6 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 				cfg.TracerContextMaxFractionDigits = "0"
 			case "missing precision":
 				cfg.TracerContextMaxFractionDigits = ""
-			case "missing namespace":
-				cfg.TracerAssetNamespace = ""
 			case "missing producer":
 				cfg.TracerIntegrationID = ""
 			case "mesh":

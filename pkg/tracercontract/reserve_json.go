@@ -16,9 +16,9 @@ import (
 // DecodeReserveJSON enforces a closed, case-sensitive JSON shape before typed
 // decoding. It preserves monetary text and boolean presence, rejects duplicate
 // decoded keys and invalid Unicode, and bounds arrays before allocating facts.
-// It does not authenticate a namespace, decide policy or apply freshness. The
-// admission command must still call ReserveRequest.Validate/Fingerprint with
-// the authenticated scope, including on replay.
+// It does not decide policy or apply freshness. The admission command must
+// still call ReserveRequest.Validate/Fingerprint with the authenticated scope,
+// including on replay.
 func DecodeReserveJSON(ctx context.Context, raw []byte, maxBodyBytes int, limits Limits) (ReserveRequest, error) {
 	if err := ctx.Err(); err != nil {
 		return ReserveRequest{}, err
@@ -74,15 +74,14 @@ var reserveWireShape = newReserveWireShape()
 func newReserveWireShape() *reserveJSONShape {
 	text := &reserveJSONShape{kind: 's'}
 	boolean := &reserveJSONShape{kind: 'b'}
-	asset := &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"namespace": text, "id": text, "code": text}}
-	account := &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"id": text, "type": text, "status": text, "blocked": boolean, "asset": asset}}
-	entry := &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"accountId": text, "external": boolean, "direction": text, "amount": text, "asset": asset}}
+	account := &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"id": text, "type": text, "status": text, "blocked": boolean, "asset": text}}
+	entry := &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"accountId": text, "external": boolean, "direction": text, "amount": text, "asset": text}}
 	facts := &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"accounts": {kind: 'a', element: account}, "entries": {kind: 'e', element: entry}}}
 
 	return &reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{
 		"contractRevision": text, "transactionId": text, "requestId": text, "contextId": text,
 		"validationMode": text, "transactionTimestamp": text, "longLived": boolean,
-		"amount": text, "asset": asset, "context": facts,
+		"amount": text, "asset": text, "context": facts,
 	}}
 }
 

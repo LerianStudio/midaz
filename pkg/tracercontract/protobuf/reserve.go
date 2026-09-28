@@ -18,7 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-func DecodeReserve(ctx context.Context, p *reservationv1.ReserveRequest, namespace string, bounds tracercontract.Limits, maxBodyBytes int) (tracercontract.ReserveRequest, error) {
+func DecodeReserve(ctx context.Context, p *reservationv1.ReserveRequest, bounds tracercontract.Limits, maxBodyBytes int) (tracercontract.ReserveRequest, error) {
 	if err := ctx.Err(); err != nil {
 		return tracercontract.ReserveRequest{}, err
 	}
@@ -65,7 +65,7 @@ func DecodeReserve(ctx context.Context, p *reservationv1.ReserveRequest, namespa
 		r.Context.Entries = append(r.Context.Entries, decoded)
 	}
 
-	if err := r.Validate(ctx, namespace, bounds); err != nil {
+	if err := r.Validate(ctx, bounds); err != nil {
 		return tracercontract.ReserveRequest{}, err
 	}
 
@@ -82,12 +82,7 @@ func decodeAccount(account *reservationv1.ContextAccount) (tracercontract.Accoun
 		return tracercontract.Account{}, constant.ErrInvalidRequestBody
 	}
 
-	asset, err := decodeAsset(account.Asset)
-	if err != nil {
-		return tracercontract.Account{}, err
-	}
-
-	return tracercontract.Account{ID: id, Type: account.Type, Status: account.Status, Blocked: copyBool(account.Blocked), Asset: asset}, nil
+	return tracercontract.Account{ID: id, Type: account.Type, Status: account.Status, Blocked: copyBool(account.Blocked), Asset: account.Asset}, nil
 }
 
 func decodeEnvelope(p *reservationv1.ReserveRequest) (tracercontract.ReserveRequest, error) {
@@ -106,12 +101,7 @@ func decodeEnvelope(p *reservationv1.ReserveRequest) (tracercontract.ReserveRequ
 		return tracercontract.ReserveRequest{}, constant.ErrInvalidRequestBody
 	}
 
-	asset, err := decodeAsset(p.Asset)
-	if err != nil {
-		return tracercontract.ReserveRequest{}, err
-	}
-
-	return tracercontract.ReserveRequest{ContractRevision: p.ContractRevision, TransactionID: transaction, RequestID: request, ContextID: p.ContextId, ValidationMode: tracercontract.ValidationMode(p.ValidationMode), TransactionTimestamp: at, LongLived: copyBool(p.LongLived), Amount: tracercontract.Amount(p.Amount), Asset: asset}, nil
+	return tracercontract.ReserveRequest{ContractRevision: p.ContractRevision, TransactionID: transaction, RequestID: request, ContextID: p.ContextId, ValidationMode: tracercontract.ValidationMode(p.ValidationMode), TransactionTimestamp: at, LongLived: copyBool(p.LongLived), Amount: tracercontract.Amount(p.Amount), Asset: p.Asset}, nil
 }
 
 func decodeEntry(p *reservationv1.ContextEntry) (tracercontract.Entry, error) {
@@ -130,26 +120,21 @@ func decodeEntry(p *reservationv1.ContextEntry) (tracercontract.Entry, error) {
 		id = parsed
 	}
 
-	asset, err := decodeAsset(p.Asset)
-	if err != nil {
-		return tracercontract.Entry{}, err
-	}
-
-	return tracercontract.Entry{AccountID: id, External: p.External, Direction: tracercontract.Direction(p.Direction), Amount: tracercontract.Amount(p.Amount), Asset: asset}, nil
+	return tracercontract.Entry{AccountID: id, External: p.External, Direction: tracercontract.Direction(p.Direction), Amount: tracercontract.Amount(p.Amount), Asset: p.Asset}, nil
 }
 
-func EncodeReserve(ctx context.Context, r tracercontract.ReserveRequest, namespace string, bounds tracercontract.Limits) (*reservationv1.ReserveRequest, error) {
-	if err := r.Validate(ctx, namespace, bounds); err != nil {
+func EncodeReserve(ctx context.Context, r tracercontract.ReserveRequest, bounds tracercontract.Limits) (*reservationv1.ReserveRequest, error) {
+	if err := r.Validate(ctx, bounds); err != nil {
 		return nil, err
 	}
 
 	p := &reservationv1.ReserveRequest{
 		ContractRevision: r.ContractRevision, TransactionId: r.TransactionID.String(), RequestId: r.RequestID.String(), ContextId: r.ContextID,
-		ValidationMode: string(r.ValidationMode), TransactionTimestamp: r.TransactionTimestamp.UTC().Format(time.RFC3339Nano), LongLived: copyBool(r.LongLived), Amount: string(r.Amount), Asset: encodeAsset(r.Asset),
+		ValidationMode: string(r.ValidationMode), TransactionTimestamp: r.TransactionTimestamp.UTC().Format(time.RFC3339Nano), LongLived: copyBool(r.LongLived), Amount: string(r.Amount), Asset: r.Asset,
 		Context: &reservationv1.EvaluationContext{Accounts: make([]*reservationv1.ContextAccount, 0, len(r.Context.Accounts)), Entries: make([]*reservationv1.ContextEntry, 0, len(r.Context.Entries))},
 	}
 	for _, account := range r.Context.Accounts {
-		p.Context.Accounts = append(p.Context.Accounts, &reservationv1.ContextAccount{Id: account.ID.String(), Type: account.Type, Status: account.Status, Blocked: copyBool(account.Blocked), Asset: encodeAsset(account.Asset)})
+		p.Context.Accounts = append(p.Context.Accounts, &reservationv1.ContextAccount{Id: account.ID.String(), Type: account.Type, Status: account.Status, Blocked: copyBool(account.Blocked), Asset: account.Asset})
 	}
 
 	for _, entry := range r.Context.Entries {
@@ -158,7 +143,7 @@ func EncodeReserve(ctx context.Context, r tracercontract.ReserveRequest, namespa
 			id = entry.AccountID.String()
 		}
 
-		p.Context.Entries = append(p.Context.Entries, &reservationv1.ContextEntry{AccountId: id, External: entry.External, Direction: string(entry.Direction), Amount: string(entry.Amount), Asset: encodeAsset(entry.Asset)})
+		p.Context.Entries = append(p.Context.Entries, &reservationv1.ContextEntry{AccountId: id, External: entry.External, Direction: string(entry.Direction), Amount: string(entry.Amount), Asset: entry.Asset})
 	}
 
 	return p, nil
@@ -233,16 +218,4 @@ func copyBool(value *bool) *bool {
 	copied := *value
 
 	return &copied
-}
-
-func decodeAsset(p *reservationv1.AssetRef) (tracercontract.AssetRef, error) {
-	if unknown(p) {
-		return tracercontract.AssetRef{}, constant.ErrInvalidRequestBody
-	}
-
-	return tracercontract.AssetRef{Namespace: p.Namespace, ID: p.Id, Code: p.Code}, nil
-}
-
-func encodeAsset(a tracercontract.AssetRef) *reservationv1.AssetRef {
-	return &reservationv1.AssetRef{Namespace: a.Namespace, Id: a.ID, Code: a.Code}
 }

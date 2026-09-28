@@ -82,7 +82,7 @@ func (q *LookupReserveDecisionQuery) Execute(ctx context.Context, request tracer
 		return nil, constant.ErrReservationTenantRequired
 	}
 
-	scope := tracercontract.ReserveScope{TenantID: tenant, IntegrationID: identity.ID, AssetNamespace: identity.AssetNamespace, SingleTenant: q.config.SingleTenant}
+	scope := tracercontract.ReserveScope{TenantID: tenant, IntegrationID: identity.ID, SingleTenant: q.config.SingleTenant}
 
 	fingerprint, err := request.Fingerprint(ctx, scope, q.config.Limits)
 	if err != nil {

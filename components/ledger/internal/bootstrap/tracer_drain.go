@@ -21,10 +21,9 @@ import (
 
 // tracerDrainRequired distinguishes an explicitly configured shared profile
 // being disabled from the default state and from the legacy REST integration.
-// Operators must retain at least one shared identity setting until drainage is
-// complete; the rollout procedure forbids removing both settings first.
+// Operators must retain TRACER_INTEGRATION_ID until drainage is complete.
 func tracerDrainRequired(cfg *Config) bool {
-	return cfg != nil && (strings.TrimSpace(cfg.TracerIntegrationID) != "" || strings.TrimSpace(cfg.TracerAssetNamespace) != "")
+	return cfg != nil && strings.TrimSpace(cfg.TracerIntegrationID) != ""
 }
 
 // Disabling a previously configured shared runtime requires proof of drainage.

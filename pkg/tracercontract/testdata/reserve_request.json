@@ -7,11 +7,7 @@
   "transactionTimestamp": "2026-09-24T12:00:00.123456789Z",
   "longLived": false,
   "amount": "9007199254740993.00000001",
-  "asset": {
-    "namespace": "origin-a",
-    "id": "asset/btc",
-    "code": "BTC"
-  },
+  "asset": "BTC",
   "context": {
     "accounts": [
       {
@@ -19,11 +15,7 @@
         "type": "deposit",
         "status": "CUSTOM_ACTIVE",
         "blocked": false,
-        "asset": {
-          "namespace": "origin-a",
-          "id": "asset/btc",
-          "code": "BTC"
-        }
+        "asset": "BTC"
       }
     ],
     "entries": [
@@ -31,21 +23,13 @@
         "accountId": "550e8400-e29b-41d4-a716-446655440001",
         "direction": "DEBIT",
         "amount": "0.00000001",
-        "asset": {
-          "namespace": "origin-a",
-          "id": "asset/btc",
-          "code": "BTC"
-        }
+        "asset": "BTC"
       },
       {
         "external": true,
         "direction": "CREDIT",
         "amount": "0.00000001",
-        "asset": {
-          "namespace": "origin-a",
-          "id": "asset/btc",
-          "code": "BTC"
-        }
+        "asset": "BTC"
       }
     ]
   }

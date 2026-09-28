@@ -33,7 +33,7 @@ const (
 
 func newReserveRequest(now time.Time, transactionID, requestID, accountID uuid.UUID) *reservationv1.ReserveRequest {
 	blocked, longLived := false, false
-	asset := &reservationv1.AssetRef{Namespace: "official", Id: "asset", Code: canonicalAsset}
+	asset := canonicalAsset
 	return &reservationv1.ReserveRequest{
 		ContractRevision: tracercontract.ReserveContractRevision,
 		TransactionId:    transactionID.String(), RequestId: requestID.String(),
@@ -100,7 +100,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 			require.NoError(t, err)
 			transaction := testutil.MustDeterministicUUID(1)
 			request := newReserveRequest(testutil.FixedTime(), transaction, testutil.MustDeterministicUUID(2), testutil.MustDeterministicUUID(3))
-			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "official"})
+			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer"})
 			expectedCode := codes.OK
 			decision := tracercontract.DecisionAllow
 			switch scenario {
@@ -282,7 +282,7 @@ func TestContextReservationCompletion(t *testing.T) {
 			require.NoError(t, err)
 			transaction := testutil.MustDeterministicUUID(88101)
 			evaluation := testutil.MustDeterministicUUID(88102)
-			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer", AssetNamespace: "official"})
+			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer"})
 			revision := tracercontract.ReserveContractRevision
 			expected := codes.OK
 			outcome := model.OperationConfirmed

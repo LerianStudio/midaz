@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
-	"unicode/utf8"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -24,24 +22,22 @@ import (
 )
 
 // OfficialContextLoader enriches prepared, fee-inclusive entries in one batch.
-// Its namespace is trusted configuration, never a field selected by the caller.
 // Invoke only after the authorized off/skip gates and within the total deadline.
 type OfficialContextLoader struct {
-	reader    OfficialRecordsReader
-	namespace string
-	bounds    tracercontract.Limits
+	reader OfficialRecordsReader
+	bounds tracercontract.Limits
 }
 
-func NewOfficialContextLoader(reader OfficialRecordsReader, namespace string, bounds tracercontract.Limits) (*OfficialContextLoader, error) {
+func NewOfficialContextLoader(reader OfficialRecordsReader, bounds tracercontract.Limits) (*OfficialContextLoader, error) {
 	if err := bounds.Validate(); err != nil {
 		return nil, err
 	}
 
-	if reader == nil || !officialText(namespace, bounds.MaxTextBytes) {
+	if reader == nil {
 		return nil, constant.ErrInvalidRequestBody
 	}
 
-	return &OfficialContextLoader{reader: reader, namespace: namespace, bounds: bounds}, nil
+	return &OfficialContextLoader{reader: reader, bounds: bounds}, nil
 }
 
 func (l *OfficialContextLoader) EvaluationContext(ctx context.Context, org, ledger uuid.UUID, entries []PreparedEntry) (_ tracercontract.Context, retErr error) {
@@ -55,79 +51,48 @@ func (l *OfficialContextLoader) EvaluationContext(ctx context.Context, org, ledg
 	defer span.End()
 	defer func() { recordOfficialContextError(span, retErr) }()
 
-	ids, codes, err := l.entryReferences(ctx, entries)
+	ids, err := l.entryReferences(ctx, entries)
 	if err != nil {
 		return tracercontract.Context{}, err
 	}
 
-	accounts, assets, err := l.read(ctx, org, ledger, ids, codes)
+	accounts, err := l.read(ctx, org, ledger, ids)
 	if err != nil {
 		return tracercontract.Context{}, err
 	}
 
-	return BuildEvaluationContext(ctx, ContextInput{Namespace: l.namespace, OrganizationID: org, LedgerID: ledger, Accounts: accounts, Assets: assets, Entries: entries}, l.bounds)
+	return BuildEvaluationContext(ctx, ContextInput{OrganizationID: org, LedgerID: ledger, Accounts: accounts, Entries: entries}, l.bounds)
 }
 
-// AccountAssets loads official facts for migration/administration without
-// fabricating transaction entries or transferring limit policy into Ledger.
-func (l *OfficialContextLoader) AccountAssets(ctx context.Context, org, ledger uuid.UUID, ids []uuid.UUID) (_ []tracercontract.AccountAsset, retErr error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.load_account_assets")
-	defer span.End()
-	defer func() { recordOfficialContextError(span, retErr) }()
-
-	if len(ids) == 0 {
+func (l *OfficialContextLoader) entryReferences(ctx context.Context, entries []PreparedEntry) ([]uuid.UUID, error) {
+	if len(entries) == 0 || len(entries) > l.bounds.MaxEntries {
 		return nil, constant.ErrInvalidRequestBody
 	}
 
-	ordered := slices.Clone(ids)
-	slices.SortFunc(ordered, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
-
-	accounts, assets, err := l.read(ctx, org, ledger, ordered, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return BuildAccountAssets(ctx, AccountAssetsInput{Namespace: l.namespace, OrganizationID: org, LedgerID: ledger, Accounts: accounts, Assets: assets}, l.bounds)
-}
-
-func (l *OfficialContextLoader) entryReferences(ctx context.Context, entries []PreparedEntry) ([]uuid.UUID, []string, error) {
-	if len(entries) == 0 || len(entries) > l.bounds.MaxEntries {
-		return nil, nil, constant.ErrInvalidRequestBody
-	}
-
 	accounts := make(map[uuid.UUID]struct{})
-	assets := make(map[string]struct{})
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		if !officialText(entry.AssetCode, l.bounds.MaxTextBytes) ||
+		if !tracercontract.ValidAssetCodeFact(entry.AssetCode) ||
 			(entry.Direction != tracercontract.Debit && entry.Direction != tracercontract.Credit) ||
 			(entry.External != (entry.AccountID == uuid.Nil)) || !entry.Amount.IsPositive() {
-			return nil, nil, constant.ErrInvalidRequestBody
+			return nil, constant.ErrInvalidRequestBody
 		}
 
 		if _, err := tracercontract.AmountFromDecimal(ctx, entry.Amount, l.bounds); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if !entry.External {
 			accounts[entry.AccountID] = struct{}{}
 		}
-
-		assets[entry.AssetCode] = struct{}{}
 	}
 
 	if len(accounts) > l.bounds.MaxAccounts {
-		return nil, nil, constant.ErrInvalidRequestBody
+		return nil, constant.ErrInvalidRequestBody
 	}
 
 	ids := make([]uuid.UUID, 0, len(accounts))
@@ -137,57 +102,50 @@ func (l *OfficialContextLoader) entryReferences(ctx context.Context, entries []P
 
 	slices.SortFunc(ids, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
 
-	codes := make([]string, 0, len(assets))
-	for code := range assets {
-		codes = append(codes, code)
-	}
-
-	slices.Sort(codes)
-
-	return ids, codes, nil
+	return ids, nil
 }
 
-func (l *OfficialContextLoader) read(ctx context.Context, org, ledger uuid.UUID, ids []uuid.UUID, codes []string) ([]*mmodel.Account, []*mmodel.Asset, error) {
+func (l *OfficialContextLoader) read(ctx context.Context, org, ledger uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	if org == uuid.Nil || ledger == uuid.Nil || len(ids) > l.bounds.MaxAccounts {
-		return nil, nil, constant.ErrInvalidRequestBody
+		return nil, constant.ErrInvalidRequestBody
 	}
 
 	expected := make(map[uuid.UUID]bool, len(ids))
 	for _, id := range ids {
 		if id == uuid.Nil || expected[id] {
-			return nil, nil, constant.ErrInvalidRequestBody
+			return nil, constant.ErrInvalidRequestBody
 		}
 
 		expected[id] = true
 	}
 
-	accounts, assets, err := l.reader.Read(ctx, org, ledger, ids, codes)
+	if len(ids) == 0 {
+		return []*mmodel.Account{}, nil
+	}
+
+	accounts, err := l.reader.Read(ctx, org, ledger, ids)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load official tracer records: %w", err)
+		return nil, fmt.Errorf("load official tracer records: %w", err)
 	}
 
 	for _, account := range accounts {
 		if account == nil {
-			return nil, nil, constant.ErrTracerFactsUnavailable
+			return nil, constant.ErrTracerFactsUnavailable
 		}
 
 		id, err := uuid.Parse(account.ID)
 		if err != nil || !expected[id] {
-			return nil, nil, constant.ErrTracerFactsUnavailable
+			return nil, constant.ErrTracerFactsUnavailable
 		}
 
 		delete(expected, id)
 	}
 
 	if len(expected) != 0 {
-		return nil, nil, constant.ErrTracerFactsUnavailable
+		return nil, constant.ErrTracerFactsUnavailable
 	}
 
-	return accounts, assets, nil
-}
-
-func officialText(value string, maxBytes int) bool {
-	return value != "" && len(value) <= maxBytes && utf8.ValidString(value) && strings.TrimSpace(value) == value && !strings.ContainsRune(value, '\x00')
+	return accounts, nil
 }
 
 func recordOfficialContextError(span trace.Span, err error) {

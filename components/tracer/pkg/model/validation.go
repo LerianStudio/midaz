@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // metadataKeyPattern allows only alphanumeric characters and underscores
@@ -156,14 +156,14 @@ func NewValidationRequest(
 // - Top-level Metadata map is shallow-copied
 // - Nested context metadata (Segment.Metadata, Portfolio.Metadata, Merchant.Metadata) are also shallow-copied
 // Note: Values within metadata maps remain shared references if they are maps/slices themselves.
-// Asset is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
+// Asset is NOT normalized - API enforces the strict uppercase asset code rule (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
 //
 // Atomicity: If validation fails, the receiver is NOT modified. Normalization is only applied
 // after successful validation. This allows callers to safely retry or inspect the original values.
 //
 // Use this method when:
-// - Validating after JSON deserialization where strict ISO 4217 uppercase asset is required
+// - Validating after JSON deserialization where a strict uppercase asset code is required
 // - You want to enforce that clients send properly formatted asset codes
 //
 // For programmatic construction with automatic asset normalization, use NewValidationRequest() instead.
@@ -359,7 +359,7 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 
 // ValidateForReserve validates the request for the two-phase reserve path. It
 // runs the SAME core checks as the synchronous validate path (requestId,
-// positive amount, ISO-4217 asset, in-window timestamp) but relaxes two
+// positive amount, valid asset code, in-window timestamp) but relaxes two
 // fields the ledger legitimately cannot supply at the reserve anchor:
 //
 //   - transactionType: optional. The ledger is a double-entry ledger with no
@@ -399,7 +399,7 @@ func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 
 // validateAmountAssetTimestamp validates the value/asset/timestamp core
 // shared by the synchronous validate path and the reserve path: a positive
-// amount, an ISO-4217 asset, and an in-window (not-future / not-too-far-past)
+// amount, a valid asset code, and an in-window (not-future / not-too-far-past)
 // timestamp. The requestId, transactionType-enum, and account-presence checks
 // live in the orchestrators (Validate / ValidateForReserve) because their
 // requiredness differs between the two paths.
@@ -412,7 +412,7 @@ func (r *ValidationRequest) validateAmountAssetTimestamp(now time.Time) error {
 		return constant.ErrValidationCurrencyRequired
 	}
 
-	if !pkg.IsValidCurrency(r.Asset) {
+	if utils.ValidateAssetCode(r.Asset) != nil {
 		return constant.ErrValidationInvalidCurrency
 	}
 

@@ -22,17 +22,15 @@ import (
 	contractpb "github.com/LerianStudio/midaz/v4/pkg/tracercontract/protobuf"
 )
 
-// ContextClientConfig bounds both directions of the coordinated contract. The
-// namespace comes from deployment configuration, never from request metadata.
+// ContextClientConfig bounds both directions of the coordinated contract.
 type ContextClientConfig struct {
-	Namespace       string
 	Bounds          tracercontract.Limits
 	MaxBodyBytes    int
 	MaxReservations int
 }
 
 func (c ContextClientConfig) Validate() error {
-	if c.Namespace == "" || c.MaxBodyBytes <= 0 || c.MaxBodyBytes > math.MaxInt32 || c.MaxReservations <= 0 || c.Bounds.MaxFractionDigits < tracercontract.MinimumResourceProfileFractionDigits {
+	if c.MaxBodyBytes <= 0 || c.MaxBodyBytes > math.MaxInt32 || c.MaxReservations <= 0 || c.Bounds.MaxFractionDigits < tracercontract.MinimumResourceProfileFractionDigits {
 		return constant.ErrInvalidRequestBody
 	}
 
@@ -75,7 +73,7 @@ func (c *ContextGRPCClient) Reserve(ctx context.Context, request tracercontract.
 	ctx, cancel := context.WithTimeout(ctx, c.transport.operationTimeout)
 	defer cancel()
 
-	input, err := contractpb.EncodeReserve(ctx, request, c.config.Namespace, c.config.Bounds)
+	input, err := contractpb.EncodeReserve(ctx, request, c.config.Bounds)
 	if err != nil {
 		return nil, err
 	}

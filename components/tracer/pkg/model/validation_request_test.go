@@ -5,6 +5,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -88,23 +89,23 @@ func TestValidationRequest_Validate(t *testing.T) {
 			expectedErr: constant.ErrValidationCurrencyRequired,
 		},
 		{
-			name: "invalid asset format fails",
+			name: "lowercase asset fails",
 			modify: func(r *ValidationRequest) {
-				r.Asset = "INVALID"
+				r.Asset = "usd"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
 		{
-			name: "too short asset fails",
+			name: "asset with digit fails",
 			modify: func(r *ValidationRequest) {
-				r.Asset = "US"
+				r.Asset = "US1"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
 		{
 			name: "too long asset fails",
 			modify: func(r *ValidationRequest) {
-				r.Asset = "USDD"
+				r.Asset = strings.Repeat("A", 101)
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},

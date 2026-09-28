@@ -29,12 +29,11 @@ type PreparedEntry struct {
 // ContextInput holds official records already resolved in the authenticated
 // tenant. The use case fetches them in batches after the off/skip gates; this
 // adapter only maps facts and checks their organization/ledger ownership.
+// Accounts and entries carry their asset codes verbatim.
 type ContextInput struct {
-	Namespace      string
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
 	Accounts       []*mmodel.Account
-	Assets         []*mmodel.Asset
 	Entries        []PreparedEntry
 }
 
@@ -51,14 +50,8 @@ func BuildEvaluationContext(ctx context.Context, input ContextInput, limits trac
 	}
 
 	if input.OrganizationID == uuid.Nil || input.LedgerID == uuid.Nil ||
-		len(input.Accounts) > limits.MaxAccounts || len(input.Entries) > limits.MaxEntries ||
-		len(input.Assets) > limits.MaxEntries {
+		len(input.Accounts) > limits.MaxAccounts || len(input.Entries) > limits.MaxEntries {
 		return tracercontract.Context{}, projectionError("scope or context size")
-	}
-
-	assets, err := projectAssets(ctx, input)
-	if err != nil {
-		return tracercontract.Context{}, err
 	}
 
 	result := tracercontract.Context{
@@ -71,7 +64,7 @@ func BuildEvaluationContext(ctx context.Context, input ContextInput, limits trac
 			return tracercontract.Context{}, err
 		}
 
-		projected, err := projectAccount(account, input, assets)
+		projected, err := projectAccount(account, input)
 		if err != nil {
 			return tracercontract.Context{}, err
 		}
@@ -80,11 +73,6 @@ func BuildEvaluationContext(ctx context.Context, input ContextInput, limits trac
 	}
 
 	for _, entry := range input.Entries {
-		asset, exists := assets[entry.AssetCode]
-		if !exists {
-			return tracercontract.Context{}, projectionError("unresolved entry asset")
-		}
-
 		amount, err := tracercontract.AmountFromDecimal(ctx, entry.Amount, limits)
 		if err != nil {
 			return tracercontract.Context{}, err
@@ -92,47 +80,18 @@ func BuildEvaluationContext(ctx context.Context, input ContextInput, limits trac
 
 		result.Entries = append(result.Entries, tracercontract.Entry{
 			AccountID: entry.AccountID, External: entry.External, Direction: entry.Direction,
-			Amount: amount, Asset: asset,
+			Amount: amount, Asset: entry.AssetCode,
 		})
 	}
 
-	if err := result.Validate(ctx, input.Namespace, limits); err != nil {
+	if err := result.Validate(ctx, limits); err != nil {
 		return tracercontract.Context{}, err
 	}
 
 	return result, nil
 }
 
-func projectAssets(ctx context.Context, input ContextInput) (map[string]tracercontract.AssetRef, error) {
-	assets := make(map[string]tracercontract.AssetRef, len(input.Assets))
-	ids := make(map[uuid.UUID]bool, len(input.Assets))
-
-	for _, asset := range input.Assets {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		if asset == nil || asset.DeletedAt != nil || !sameScope(asset.OrganizationID, asset.LedgerID, input) {
-			return nil, projectionError("asset outside official scope")
-		}
-
-		id, err := uuid.Parse(asset.ID)
-		if err != nil || id == uuid.Nil {
-			return nil, projectionError("invalid asset UUID")
-		}
-
-		if _, exists := assets[asset.Code]; exists || ids[id] {
-			return nil, projectionError("ambiguous asset")
-		}
-
-		ids[id] = true
-		assets[asset.Code] = tracercontract.AssetRef{Namespace: input.Namespace, ID: id.String(), Code: asset.Code}
-	}
-
-	return assets, nil
-}
-
-func projectAccount(account *mmodel.Account, input ContextInput, assets map[string]tracercontract.AssetRef) (tracercontract.Account, error) {
+func projectAccount(account *mmodel.Account, input ContextInput) (tracercontract.Account, error) {
 	if account == nil || account.DeletedAt != nil || account.Blocked == nil || !sameScope(account.OrganizationID, account.LedgerID, input) {
 		return tracercontract.Account{}, projectionError("incomplete account or account outside official scope")
 	}
@@ -142,15 +101,10 @@ func projectAccount(account *mmodel.Account, input ContextInput, assets map[stri
 		return tracercontract.Account{}, projectionError("invalid account UUID")
 	}
 
-	asset, exists := assets[account.AssetCode]
-	if !exists {
-		return tracercontract.Account{}, projectionError("unresolved account asset")
-	}
-
 	blocked := *account.Blocked
 
 	return tracercontract.Account{
-		ID: id, Type: account.Type, Status: account.Status.Code, Blocked: &blocked, Asset: asset,
+		ID: id, Type: account.Type, Status: account.Status.Code, Blocked: &blocked, Asset: account.AssetCode,
 	}, nil
 }
 

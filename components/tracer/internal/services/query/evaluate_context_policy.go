@@ -30,7 +30,7 @@ import (
 // CEL adapter handles; policy selection and decision precedence stay here.
 type ContextExpressionEvaluator interface {
 	Compile(context.Context, string) (*cel.ContextProgram, error)
-	Prepare(context.Context, tracercontract.Context, string) (*cel.ContextActivation, error)
+	Prepare(context.Context, tracercontract.Context) (*cel.ContextActivation, error)
 	Evaluate(context.Context, *cel.ContextProgram, *cel.ContextActivation, uint64) (bool, uint64, error)
 }
 
@@ -138,7 +138,7 @@ func (q *ContextPolicyEvaluator) Compile(ctx context.Context, policy model.Conte
 // after a matching ALLOW or DENY; a partially evaluated policy cannot decide.
 // Policy resolution, limit checks and durable recording belong to the enclosing
 // reservation use case and are deliberately not implied by this result.
-func (q *ContextPolicyEvaluator) Execute(ctx context.Context, policy *CompiledContextPolicy, facts tracercontract.Context, namespace string) (_ *model.ContextPolicyResult, retErr error) {
+func (q *ContextPolicyEvaluator) Execute(ctx context.Context, policy *CompiledContextPolicy, facts tracercontract.Context) (_ *model.ContextPolicyResult, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (q *ContextPolicyEvaluator) Execute(ctx context.Context, policy *CompiledCo
 		return nil, constant.ErrExpressionProgram
 	}
 
-	activation, err := q.engine.Prepare(ctx, facts, namespace)
+	activation, err := q.engine.Prepare(ctx, facts)
 	if err != nil {
 		return nil, err
 	}

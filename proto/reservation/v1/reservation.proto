@@ -35,20 +35,16 @@ service ReservationService {
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
 }
 
-// AssetRef identifies an asset in the authenticated producer namespace.
-message AssetRef {
-  string namespace = 1;
-  string id = 2;
-  string code = 3;
-}
-
 // ContextAccount carries producer facts without imposing a Ledger taxonomy.
 message ContextAccount {
   string id = 1;
   string type = 2;
   string status = 3;
   optional bool blocked = 4;
-  AssetRef asset = 5;
+  // asset is the account's stored ledger asset code, at most 100 characters.
+  // Limits match it by exact equality, so a code outside the ledger asset
+  // code rule (uppercase letters, 1-100) is never limited.
+  string asset = 5;
 }
 
 // ContextEntry is one prepared posting, including fee postings.
@@ -57,7 +53,10 @@ message ContextEntry {
   bool external = 2;
   string direction = 3;
   string amount = 4;
-  AssetRef asset = 5;
+  // asset is the entry's stored ledger asset code, at most 100 characters.
+  // Limits match it by exact equality, so a code outside the ledger asset
+  // code rule (uppercase letters, 1-100) is never limited.
+  string asset = 5;
 }
 
 // EvaluationContext preserves entry ordering and multiplicity.
@@ -79,7 +78,9 @@ message ReserveRequest {
   string transaction_timestamp = 21;
   optional bool long_lived = 22;
   string amount = 23;
-  AssetRef asset = 24;
+  // asset is the stored ledger asset code of the principal amount, at most
+  // 100 characters.
+  string asset = 24;
   EvaluationContext context = 25;
 }
 

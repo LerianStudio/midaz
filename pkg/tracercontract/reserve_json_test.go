@@ -38,6 +38,7 @@ func TestDecodeReserveJSONStrictWire(t *testing.T) {
 		{"high followed by high", strings.Replace(string(raw), "deposit", `\ud800\ud800`, 1), false},
 		{"unpaired surrogate", strings.Replace(string(raw), "deposit", `\ud800`, 1), false},
 		{"lone low surrogate", strings.Replace(string(raw), "deposit", `\udc00`, 1), false},
+		{"legacy asset object", strings.Replace(string(raw), `"asset": "BTC",`, `"asset": {"namespace": "origin-a", "id": "asset/btc", "code": "BTC"},`, 1), false},
 		{"valid surrogate pair", strings.Replace(string(raw), "deposit", `\ud83d\ude00`, 1), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -51,7 +52,8 @@ func TestDecodeReserveJSONStrictWire(t *testing.T) {
 			require.NotNil(t, result.LongLived)
 			require.False(t, *result.LongLived)
 			require.Equal(t, Amount("9007199254740993.00000001"), result.Amount)
-			require.NoError(t, result.Validate(t.Context(), "origin-a", limits))
+			require.NoError(t, result.Validate(t.Context(), limits))
+			require.Equal(t, "BTC", result.Asset)
 		})
 	}
 	_, err = DecodeReserveJSON(t.Context(), raw, len(raw)-1, limits)

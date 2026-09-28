@@ -129,9 +129,9 @@ func (r *Repository) Prepare(ctx context.Context, intent tracerreservation.Inten
 	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx, `INSERT INTO tracer_reservation_obligation
- (organization_id,ledger_id,transaction_id,execution_id,tenant_id,integration_id,asset_namespace,contract_revision,fingerprint,payload,created_at,prepare_deadline,updated_at,next_attempt_at)
- VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$11,$12) ON CONFLICT DO NOTHING`,
-		intent.Key.OrganizationID, intent.Key.LedgerID, intent.Key.TransactionID, intent.ExecutionID, intent.Scope.TenantID, intent.Scope.IntegrationID, intent.Scope.AssetNamespace, tracercontract.ReserveContractRevision, intent.Fingerprint[:], intent.Payload, intent.CreatedAt, intent.PrepareDeadline)
+ (organization_id,ledger_id,transaction_id,execution_id,tenant_id,integration_id,contract_revision,fingerprint,payload,created_at,prepare_deadline,updated_at,next_attempt_at)
+ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$10,$11) ON CONFLICT DO NOTHING`,
+		intent.Key.OrganizationID, intent.Key.LedgerID, intent.Key.TransactionID, intent.ExecutionID, intent.Scope.TenantID, intent.Scope.IntegrationID, tracercontract.ReserveContractRevision, intent.Fingerprint[:], intent.Payload, intent.CreatedAt, intent.PrepareDeadline)
 	if err != nil {
 		return nil, fmt.Errorf("persist tracer intent: %w", err)
 	}
@@ -141,7 +141,7 @@ func (r *Repository) Prepare(ctx context.Context, intent tracerreservation.Inten
 		return nil, err
 	}
 
-	if stored.Intent.Fingerprint != intent.Fingerprint || stored.Intent.ExecutionID != intent.ExecutionID || stored.Intent.Scope.IntegrationID != intent.Scope.IntegrationID || stored.Intent.Scope.AssetNamespace != intent.Scope.AssetNamespace {
+	if stored.Intent.Fingerprint != intent.Fingerprint || stored.Intent.ExecutionID != intent.ExecutionID || stored.Intent.Scope.IntegrationID != intent.Scope.IntegrationID {
 		return nil, constant.ErrReserveDecisionConflict
 	}
 
@@ -160,11 +160,11 @@ func (r *Repository) readIntent(ctx context.Context, tx dbresolver.Tx, key trace
 		revision    string
 	)
 
-	err := tx.QueryRowContext(ctx, `SELECT execution_id,tenant_id,integration_id,asset_namespace,contract_revision,fingerprint,
+	err := tx.QueryRowContext(ctx, `SELECT execution_id,tenant_id,integration_id,contract_revision,fingerprint,
  CASE WHEN octet_length(payload)<=$5 THEN payload END,created_at,prepare_deadline,state,updated_at,delivered_at
  FROM tracer_reservation_obligation WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4`,
 		key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx), r.config.MaxBodyBytes).Scan(
-		&record.Intent.ExecutionID, &record.Intent.Scope.TenantID, &record.Intent.Scope.IntegrationID, &record.Intent.Scope.AssetNamespace, &revision, &fingerprint,
+		&record.Intent.ExecutionID, &record.Intent.Scope.TenantID, &record.Intent.Scope.IntegrationID, &revision, &fingerprint,
 		&record.Intent.Payload, &record.Intent.CreatedAt, &record.Intent.PrepareDeadline, &record.State, &record.UpdatedAt, &record.DeliveredAt,
 	)
 	if err != nil {

@@ -8,13 +8,13 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // LimitType represents the period type of a limit
@@ -98,7 +98,7 @@ type Limit struct {
 	// Maximum amount allowed within the period
 	MaxAmount decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
 
-	// ISO 4217 asset code this limit applies to
+	// Asset code this limit applies to
 	// example: USD
 	Asset string `json:"asset" example:"USD"`
 
@@ -223,14 +223,10 @@ func CalculateCustomResetAt(customEndDate time.Time) *time.Time {
 	return &resetAt
 }
 
-// MaxLimitAssetCodeBytes bounds the administrative code; runtime fact profiles
-// may enforce a smaller bound. Codes are descriptive, not economic identity.
-const MaxLimitAssetCodeBytes = 256
-
-// ValidateLimitAssetCode preserves native codes exactly, including case.
+// ValidateLimitAssetCode applies the shared asset code rule and reports any
+// failure as the limit's public invalid-asset error.
 func ValidateLimitAssetCode(asset string) error {
-	if len(asset) == 0 || len(asset) > MaxLimitAssetCodeBytes || !utf8.ValidString(asset) ||
-		strings.TrimSpace(asset) != asset || strings.ContainsRune(asset, '\x00') {
+	if utils.ValidateAssetCode(asset) != nil {
 		return constant.ErrLimitInvalidCurrency
 	}
 

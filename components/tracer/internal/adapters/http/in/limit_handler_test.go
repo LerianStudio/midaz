@@ -31,12 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-func TestClassifyLimitServiceErrorMapsContextAdminFailures(t *testing.T) {
-	conflict := classifyLimitServiceError(trace.SpanFromContext(t.Context()), constant.ErrLimitAssetReferenceConflict)
-	var conflictError pkg.EntityConflictError
-	require.ErrorAs(t, conflict, &conflictError)
-	require.Equal(t, constant.ErrLimitAssetReferenceConflict.Error(), conflictError.Code)
-
+func TestClassifyLimitServiceErrorMapsContextEligibilityFailure(t *testing.T) {
 	ineligible := classifyLimitServiceError(trace.SpanFromContext(t.Context()), constant.ErrContextLimitsUnavailable)
 	var unprocessable pkg.UnprocessableOperationError
 	require.ErrorAs(t, ineligible, &unprocessable)

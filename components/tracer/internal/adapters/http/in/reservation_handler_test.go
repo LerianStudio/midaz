@@ -206,10 +206,34 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
+			name: "non-ISO asset code is accepted, service called",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.Asset = "BTC"
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Cond(func(x any) bool {
+						req, ok := x.(*model.CheckLimitsInput)
+						return ok && req.Asset == "BTC"
+					}), false).
+					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.False(t, resp.Denied)
+			},
+		},
+		{
 			name: "bad input - invalid asset returns 400, service not called",
 			requestBody: func() any {
 				r := newValidReserveRequest()
-				r.Asset = "usd" // lowercase rejected by strict ISO 4217 check
+				r.Asset = "usd" // lowercase rejected by the asset code rule
 				return r
 			}(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {

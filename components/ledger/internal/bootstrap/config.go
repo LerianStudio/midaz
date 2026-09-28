@@ -358,7 +358,6 @@ type Config struct {
 	// Per-ledger mode=off stops admission, never recovery of existing records.
 	TracerContextEnabled             bool   `env:"TRACER_CONTEXT_ENABLED"`
 	TracerIntegrationID              string `env:"TRACER_INTEGRATION_ID"`
-	TracerAssetNamespace             string `env:"TRACER_ASSET_NAMESPACE"`
 	TracerContextMaxBodyBytes        int    `env:"TRACER_CONTEXT_MAX_BODY_BYTES"`
 	TracerContextMaxAccounts         int    `env:"TRACER_CONTEXT_MAX_ACCOUNTS"`
 	TracerContextMaxEntries          int    `env:"TRACER_CONTEXT_MAX_ENTRIES"`

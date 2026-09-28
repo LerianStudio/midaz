@@ -38,9 +38,10 @@ type ReserveAdmissionCapacity interface {
 	ReserveForDecisionWithTx(context.Context, pgdb.Tx, uuid.UUID, *model.Reservation, decimal.Decimal, time.Time) error
 }
 
-// ReserveAdmissionLimits returns the complete eligible snapshot on the primary.
+// ReserveAdmissionLimits returns the complete eligible snapshot on the primary
+// for the given debit asset codes and internal debit accounts.
 type ReserveAdmissionLimits interface {
-	ListCandidatesWithTx(context.Context, pgdb.Tx, string, []uuid.UUID) ([]model.ContextAccountLimit, error)
+	ListCandidatesWithTx(context.Context, pgdb.Tx, []string, []uuid.UUID) ([]model.ContextAccountLimit, error)
 }
 
 // ReserveAdmissionPolicies resolves the current binding before compiling/reusing
@@ -51,5 +52,5 @@ type ReserveAdmissionPolicies interface {
 
 // ReserveAdmissionEvaluator evaluates rules without consuming limit capacity.
 type ReserveAdmissionEvaluator interface {
-	Execute(context.Context, *query.CompiledContextPolicy, tracercontract.Context, string) (*model.ContextPolicyResult, error)
+	Execute(context.Context, *query.CompiledContextPolicy, tracercontract.Context) (*model.ContextPolicyResult, error)
 }

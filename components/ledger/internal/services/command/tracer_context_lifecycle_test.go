@@ -67,9 +67,9 @@ func TestContextTracerPendingCompletionSurvivesSettingsChanges(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store := NewMockTracerObligationStore(ctrl)
 			now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-			coordinator := &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{IntegrationID: "producer", Namespace: "origin-a", AttemptTimeout: time.Second}}}
+			coordinator := &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{IntegrationID: "producer", AttemptTimeout: time.Second}}}
 			key := tracerreservation.Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a")}
-			record := &tracerreservation.Pending{Key: key, ExecutionID: uuid.MustParse("88888888-8888-4888-8888-888888888888"), State: tracerreservation.Executing, ContractRevision: tracercontract.ReserveContractRevision, Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer", AssetNamespace: "origin-a"}}
+			record := &tracerreservation.Pending{Key: key, ExecutionID: uuid.MustParse("88888888-8888-4888-8888-888888888888"), State: tracerreservation.Executing, ContractRevision: tracercontract.ReserveContractRevision, Scope: tracercontract.ReserveScope{TenantID: "tenant-a", IntegrationID: "producer"}}
 			var lookupErr error
 			if scenario == "legacy" {
 				record = nil

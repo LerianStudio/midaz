@@ -82,7 +82,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, input *reservationv1.Re
 		}
 	}()
 
-	identity, ok := contextutil.GetIntegrationIdentity(ctx)
+	_, ok := contextutil.GetIntegrationIdentity(ctx)
 	if !ok {
 		return nil, contextReservationError(constant.ErrInsufficientPrivileges)
 	}
@@ -95,7 +95,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, input *reservationv1.Re
 		return nil, status.Error(codes.ResourceExhausted, constant.ErrInvalidRequestBody.Error())
 	}
 
-	request, err := contractpb.DecodeReserve(ctx, input, identity.AssetNamespace, s.contextConfig.Bounds, s.contextConfig.MaxBodyBytes)
+	request, err := contractpb.DecodeReserve(ctx, input, s.contextConfig.Bounds, s.contextConfig.MaxBodyBytes)
 	if err != nil {
 		return nil, contextReservationError(err)
 	}
