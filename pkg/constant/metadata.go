@@ -22,25 +22,13 @@ const MetadataValueFeeLeg = "true"
 // "<feeIndex>:<payerKey>" token, so translation can pair the payer debit with its fee credit.
 const MetadataKeyFeeDeferPair = "feeDeferPair"
 
-// MetadataKeyFeeDebtDebtor names, on a fee-account settlement row, the debtor balance
-// (alias#key) whose debt that row settled.
-const MetadataKeyFeeDebtDebtor = "feeDebtDebtor"
-
-// MetadataKeyFeeDebtID, MetadataKeyFeeDebtSeq and MetadataKeyFeeDebtOpened name, on the
-// same row, the settled debt's id, its seq and its opened amount, as text.
+// MetadataKeyFeeDebtOpenings and MetadataKeyFeeDebtSettlements hold, on a transaction, the
+// JSON arrays of the fee debts its result opened and settled, in result order; completion alone
+// writes them, and a revert of the transaction reads them.
 const (
-	MetadataKeyFeeDebtID     = "feeDebtId"
-	MetadataKeyFeeDebtSeq    = "feeDebtSeq"
-	MetadataKeyFeeDebtOpened = "feeDebtOpened"
+	MetadataKeyFeeDebtOpenings    = "feeDebtOpenings"
+	MetadataKeyFeeDebtSettlements = "feeDebtSettlements"
 )
-
-// MetadataKeyFeeDebtOpenings holds, on a transaction that opened fee debts, the JSON
-// array of those debts in opening order; a revert of it refunds them.
-const MetadataKeyFeeDebtOpenings = "feeDebtOpenings"
-
-// MetadataKeyFeeDebtCollection marks, with the string true, a transaction created by a
-// standalone fee-debt collection.
-const MetadataKeyFeeDebtCollection = "feeDebtCollection"
 
 // IsReservedMetadataKey reports whether the ledger reserves a metadata key for its own writes.
 // A request body naming one is rejected with ErrReservedMetadataKey rather than stripped, because
@@ -55,18 +43,16 @@ const MetadataKeyFeeDebtCollection = "feeDebtCollection"
 // its own word about a record, which is what makes a caller-written copy a lie rather than a
 // collision.
 //
-// Eleven keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. Three are the
+// Seven keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. Three are the
 // transaction-level statements the fee engine writes about a charge: whether a fee was actually
 // charged, which fee package the engine applied, and which exemption it recorded. They are spelled
 // literally here because the wire spelling is the contract a client reads, and this refusal has to
 // match what the client can send rather than what the engine happens to name its writes. The last
-// seven are the fee-debt marks: the deferrable pair, the collection marker, the debts a transaction
-// opened, and the debtor, id, seq and opened amount of the debt a settlement row settled.
+// three are the fee-debt marks: the deferrable pair, and the debts a transaction opened and settled.
 func IsReservedMetadataKey(key string) bool {
 	switch key {
 	case MetadataKeyFeeLeg, "feeApplied", "packageAppliedID", "feeExemption",
-		MetadataKeyFeeDeferPair, MetadataKeyFeeDebtDebtor, MetadataKeyFeeDebtID, MetadataKeyFeeDebtSeq,
-		MetadataKeyFeeDebtOpened, MetadataKeyFeeDebtOpenings, MetadataKeyFeeDebtCollection:
+		MetadataKeyFeeDeferPair, MetadataKeyFeeDebtOpenings, MetadataKeyFeeDebtSettlements:
 		return true
 	default:
 		return false

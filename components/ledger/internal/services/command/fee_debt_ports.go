@@ -32,13 +32,25 @@ type FeeDebtRecorder interface {
 	Apply(ctx context.Context, record FeeDebtRecord) error
 }
 
-// FeeDebtOpening is one element of the feeDebtOpenings transaction metadata, written
-// by completion from the result's opened changes in their order. A revert of that
-// transaction turns each into an accounting.FeeDebtRefund of the refund posting.
+// FeeDebtOpening is one element of the feeDebtOpenings transaction metadata, built by
+// completion from the result's opened changes. A revert of that transaction turns
+// each into an accounting.FeeDebtRefund of the refund posting.
 type FeeDebtOpening struct {
 	DebtID    string          `json:"debtId"`
 	DebtorRef string          `json:"debtorRef"`
 	CreditRef string          `json:"creditRef"`
+	Opened    decimal.Decimal `json:"opened"`
+	Seq       int64           `json:"seq,string"`
+}
+
+// FeeDebtSettlement is one element of the feeDebtSettlements transaction metadata, built
+// by completion from the result's settled changes. A revert of that transaction turns
+// each into an accounting.FeeDebtReopen, unless the debt's origin is already reverted.
+type FeeDebtSettlement struct {
+	DebtID    string          `json:"debtId"`
+	DebtorRef string          `json:"debtorRef"`
+	CreditRef string          `json:"creditRef"`
+	Amount    decimal.Decimal `json:"amount"`
 	Opened    decimal.Decimal `json:"opened"`
 	Seq       int64           `json:"seq,string"`
 }

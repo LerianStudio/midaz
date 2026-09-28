@@ -204,10 +204,6 @@ type UseCase struct {
 	// application (the create path stays unchanged).
 	FeeApplier FeeApplier
 
-	// FeeDebtRecorder projects engine fee-debt changes into Fees. Nil is valid only
-	// while no engine result carries fee-debt changes.
-	FeeDebtRecorder FeeDebtRecorder
-
 	// TracerReserver drives the tracer two-phase reservation lifecycle from the
 	// create seam. It is injected at bootstrap from the tracer client; a nil
 	// reserver means the tracer integration is disabled (the create path stays
