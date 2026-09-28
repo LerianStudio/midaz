@@ -25,9 +25,9 @@ import (
 // in Fiber path syntax.
 const feesV2Scope = "/v2/organizations/:organization_id/ledgers/:ledger_id"
 
-// feesV2FullRoutes is the route surface the four fee registrars mount: the twelve
-// organization-scoped fee and billing operations, re-scoped to a ledger. POST /fees is
-// absent for the reason it is absent from /v1.
+// feesV2FullRoutes is the route surface the five fee registrars mount: the twelve
+// organization-scoped fee and billing operations, re-scoped to a ledger, plus the two
+// fee-debt reads. POST /fees is absent for the reason it is absent from /v1.
 var feesV2FullRoutes = []string{
 	"POST:" + feesV2Scope + "/packages",
 	"GET:" + feesV2Scope + "/packages",
@@ -41,6 +41,8 @@ var feesV2FullRoutes = []string{
 	"PATCH:" + feesV2Scope + "/billing-packages/:id",
 	"DELETE:" + feesV2Scope + "/billing-packages/:id",
 	"POST:" + feesV2Scope + "/billing/calculate",
+	"GET:" + feesV2Scope + "/fee-debts",
+	"GET:" + feesV2Scope + "/fee-debts/:debt_id",
 }
 
 // feesV2OperationIDs is the operation ID each published v2 fee operation must carry,
@@ -61,9 +63,11 @@ var feesV2OperationIDs = map[string]string{
 	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}":  "updateBillingPackageV2",
 	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}": "deleteBillingPackageV2",
 	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate":       "calculateBillingV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts":                "listFeeDebtsV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}":      "getFeeDebtV2",
 }
 
-// mountFeesV2Routes wires the four fee registrars on a /v2 group, mirroring the
+// mountFeesV2Routes wires the five fee registrars on a /v2 group, mirroring the
 // production humaMountV2 seam: problem.Install() before any huma.Register, the Huma
 // API built with openapi.New over the /v2 group, and the registrar attaching the Fiber
 // guard chain plus the Huma terminals on that group.
@@ -80,11 +84,12 @@ func mountFeesV2Routes(app *fiber.App, auth *middleware.AuthClient, routeOptions
 	RegisterFeeEstimateV2RoutesToApp(apiV2, hAPI, auth, &FeeHandler{}, routeOptions)
 	RegisterBillingPackageV2RoutesToApp(apiV2, hAPI, auth, &BillingPackageHandler{}, routeOptions)
 	RegisterBillingCalculateV2RoutesToApp(apiV2, hAPI, auth, &BillingCalculateHandler{}, routeOptions)
+	RegisterFeeDebtV2RoutesToApp(apiV2, hAPI, auth, &FeeDebtHandler{}, routeOptions)
 
 	return hAPI
 }
 
-// TestFeesV2RoutesMountedOnGroup asserts the twelve ledger-scoped fee and billing ops
+// TestFeesV2RoutesMountedOnGroup asserts the fourteen ledger-scoped fee, billing and fee-debt ops
 // are both SERVED on the /v2 Fiber group and PUBLISHED on the /v2 Huma document under
 // the suffixed operation IDs. A missing route means the guard-chain attach or the Huma
 // registration regressed; a missing or renamed operation ID means the two contracts
@@ -115,7 +120,7 @@ func TestFeesV2RoutesMountedOnGroup(t *testing.T) {
 	}
 
 	assert.Len(t, publishedIDs, len(feesV2OperationIDs),
-		"the v2 fee contract must publish exactly the twelve operations")
+		"the v2 fee contract must publish exactly the fourteen operations")
 
 	for where, wantID := range feesV2OperationIDs {
 		assert.Equalf(t, wantID, publishedIDs[where], "operation ID published for %s", where)
@@ -182,7 +187,7 @@ func TestFeesV2RoutesParameterNamesAgree(t *testing.T) {
 		spellings[canonicalizePath("/v2"+path)] = make(map[string][]string)
 	}
 
-	require.Len(t, spellings, 6, "the v2 fee surface publishes six distinct path structures")
+	require.Len(t, spellings, 8, "the v2 fee surface publishes eight distinct path structures")
 
 	for _, r := range app.GetRoutes() {
 		path := canonicalizePath(r.Path)
@@ -205,6 +210,10 @@ func TestFeesV2RoutesParameterNamesAgree(t *testing.T) {
 				path, names)
 
 			for _, name := range seen[names[0]] {
+				if name == "debt_id" {
+					continue // a fee debt id is "<transaction id>:<posting ref>"; an unknown one is a 404
+				}
+
 				assert.Containsf(t, constant.UUIDPathParameters, name,
 					"%s: parameter %q is not UUID-validated by ParseUUIDPathParameters", path, name)
 			}
@@ -218,8 +227,8 @@ func TestFeesV2RoutesParameterNamesAgree(t *testing.T) {
 // stays green on a route mounted with no chain at all.
 //
 // The probe rides in PostAuthMiddlewares — the slot the production feesRouteOptions
-// fills with the fee tenant chain — and records the path it ran on. A route whose
-// terminal answers without the probe having run was registered on the Huma API without
+// fills with the fee tenant chain — records the path it ran on and answers, so no
+// terminal runs. A route the probe never saw was registered on the Huma API without
 // the Fiber chain in front of it.
 func TestFeesV2RoutesRunTheGuardChain(t *testing.T) {
 	// NOT parallel: huma registration mutates process-global state.
@@ -228,12 +237,11 @@ func TestFeesV2RoutesRunTheGuardChain(t *testing.T) {
 	probe := func(c fiber.Ctx) error {
 		ran = append(ran, c.Method()+":"+c.Route().Path)
 
-		return c.Next()
+		return c.SendStatus(fiber.StatusNoContent)
 	}
 
-	app, stubs := buildFeesV2AppWithOptions(t,
+	app, _ := buildFeesV2AppWithOptions(t,
 		&pkgHTTP.ProtectedRouteOptions{PostAuthMiddlewares: []fiber.Handler{probe}})
-	seedFeesV2Results(stubs)
 
 	for _, route := range feesV2FullRoutes {
 		method, path, ok := strings.Cut(route, ":")

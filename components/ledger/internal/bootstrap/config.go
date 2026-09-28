@@ -46,6 +46,7 @@ import (
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
+	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -1128,6 +1129,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
 	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
 	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
+	feeDebtHandler := &httpin.FeeDebtHandler{Service: &feesservices.FeeDebtService{Repo: feeMgo.feeDebtRepo}}
 
 	// Composition reuses the SAME account-create and instrument-create use-case instances
 	// the onboarding and CRM registrars already use — it composes them, it never
@@ -1151,7 +1153,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		transactionHandler,
 		dashboardHandler,
 		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
-		feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler,
+		feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, feeDebtHandler,
 		compositionHandler,
 		routeSetup,
 	)
@@ -1916,6 +1918,7 @@ func buildHumaMountDeps(
 	feeHandler *httpin.FeeHandler,
 	billingPackageHandler *httpin.BillingPackageHandler,
 	billingCalculateHandler *httpin.BillingCalculateHandler,
+	feeDebtHandler *httpin.FeeDebtHandler,
 	compositionHandler *httpin.CompositionHandler,
 	setup *unifiedRouteSetup,
 ) httpin.HumaMountDeps {
@@ -1954,6 +1957,7 @@ func buildHumaMountDeps(
 		Fee:              feeHandler,
 		BillingPackage:   billingPackageHandler,
 		BillingCalculate: billingCalculateHandler,
+		FeeDebt:          feeDebtHandler,
 
 		Composition: compositionHandler,
 
