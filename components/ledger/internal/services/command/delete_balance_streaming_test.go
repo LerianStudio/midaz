@@ -73,6 +73,7 @@ func newDeleteBalanceStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller,
 	return &UseCase{
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    &feeDebtReader{},
 		Streaming:            emitter,
 	}
 }

@@ -683,6 +683,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Administrative Operation In Progress Error",
 			Message:    "Another operation on this account is in progress. Please try again shortly.",
 		},
+		constant.ErrBalanceHasOpenFeeDebt: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceHasOpenFeeDebt.Error(),
+			Title:      "Balance Has Open Fee Debt Error",
+			Message:    "A balance that still owes pending fees cannot be deleted, and its account cannot be deleted or closed. Please credit the balance so the pending fees are collected and try again.",
+		},
 		constant.ErrAccountBalanceNotZero: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceNotZero.Error(),

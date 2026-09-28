@@ -77,11 +77,13 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		recordCommandError(ctx, span, logger, "Failed to delete all balances by account id", err)
 
 		var (
-			unauthorized pkg.UnauthorizedError
-			forbidden    pkg.ForbiddenError
+			unauthorized  pkg.UnauthorizedError
+			forbidden     pkg.ForbiddenError
+			unprocessable pkg.UnprocessableOperationError
 		)
 
-		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) ||
+			(errors.As(err, &unprocessable) && unprocessable.Code == constant.ErrBalanceHasOpenFeeDebt.Error()) {
 			return err
 		}
 

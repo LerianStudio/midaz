@@ -702,6 +702,7 @@ func setupDeleteAllBalancesUseCase(t *testing.T) (*UseCase, *balance.MockReposit
 	return &UseCase{
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    &feeDebtReader{},
 	}, mockBalanceRepo, mockRedisRepo
 }
 

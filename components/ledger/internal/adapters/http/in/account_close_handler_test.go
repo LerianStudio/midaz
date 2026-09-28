@@ -88,6 +88,7 @@ func newCloseRouteHandler(t *testing.T) (*AccountHandler, *closeRouteMocks) {
 			OperationRepo:        mocks.operation,
 			TransactionRepo:      mocks.transaction,
 			TransactionRedisRepo: mocks.redis,
+			TransactionReader:    noFeeDebtReader{},
 		},
 	}
 
