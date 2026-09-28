@@ -197,3 +197,36 @@ func settlementLegs(legs []persistedLeg) []persistedLeg {
 	}
 	return out
 }
+
+// TestFeeProof_MetadataSelectorScoping drives package selection over HTTP: a
+// package scoped to a metadata pair is charged on a v2 create whose metadata
+// carries it, and the unscoped package is charged when the metadata does not.
+func TestFeeProof_MetadataSelectorScoping(t *testing.T) {
+	h := setupFeeHarness(t)
+	h.enableAccountingEngine(t)
+	app := h.newV2App()
+
+	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
+	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+	h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
+	h.seedBalance(t, "@fee_ted", "USD", decimal.Zero, "deposit")
+
+	h.seedPackage(t, packageSpec{label: "any_pkg", fees: []feeSpec{flatFee("any_fee", "@fee_rev", "10", false)}})
+	h.seedPackage(t, packageSpec{
+		label:            "ted_salario_pkg",
+		metadataSelector: map[string]string{"fee_context": "ted_salario"},
+		fees:             []feeSpec{flatFee("ted_fee", "@fee_ted", "25", false)},
+	})
+
+	body := h.v2Body("selector tx", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
+
+	tagged := h.createV2Direct(t, app, h.v2WithMetadata(body, `{"fee_context":"ted_salario"}`), nil)
+	require.Equalf(t, 201, tagged.status, "tagged create must succeed: %s", string(tagged.rawBody))
+	assert.Len(t, legsFor(loadLegs(t, h.db, mustTxID(t, tagged)), "@fee_ted", ""), 1, "the scoped package's credit account must receive the fee")
+
+	plain := h.createV2Direct(t, app, body, nil)
+	require.Equalf(t, 201, plain.status, "plain create must succeed: %s", string(plain.rawBody))
+	assert.Len(t, legsFor(loadLegs(t, h.db, mustTxID(t, plain)), "@fee_rev", ""), 1, "the unscoped package's credit account must receive the fee")
+}

@@ -471,6 +471,14 @@ its `0234` code are retired), and `?ledgerId=` is refused on the two listings (`
 value would mean "every ledger", the one scope a ledger-scoped listing must not express. Authz is
 `plugin-fees` with the usual `(resource, verb)` tuples.
 
+A package is scoped by up to three create-only selectors plus its amount band: `transactionRoute`,
+`segmentId`, and `metadataSelector`, a flat map of key/value pairs the transaction's `metadata` must
+all carry as equal strings (a numeric metadata value never matches). A package applies to a
+transaction only when every selector it carries matches and the amount is inside its band; when
+several apply, the one carrying the most selectors wins, each metadata pair counting one, and a tie
+is refused (`0198`). Two packages on overlapping bands collide (`0184`/`0199`) only when their
+selectors are identical.
+
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
 

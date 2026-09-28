@@ -425,6 +425,11 @@ func (h *feeHarness) v2RoutedBody(description, asset, amount string, transaction
 		`,"routeId":"` + transactionRouteID.String() + `"}`
 }
 
+// v2WithMetadata attaches a metadata object to an assembled v2 body.
+func (h *feeHarness) v2WithMetadata(body, metadataJSON string) string {
+	return strings.TrimSuffix(body, "}") + `,"metadata":` + metadataJSON + `}`
+}
+
 // v2CreatePath builds the create path for a v2 action (direct, hold, block, unblock).
 func (h *feeHarness) v2CreatePath(action string) string {
 	return "/v2/transactions/" + action
@@ -532,12 +537,13 @@ type feeSpec struct {
 
 // packageSpec describes a fee package to seed.
 type packageSpec struct {
-	label          string
-	minAmount      decimal.Decimal
-	maxAmount      decimal.Decimal
-	segmentID      *uuid.UUID
-	waivedAccounts []string
-	fees           []feeSpec
+	label            string
+	minAmount        decimal.Decimal
+	maxAmount        decimal.Decimal
+	segmentID        *uuid.UUID
+	metadataSelector map[string]string
+	waivedAccounts   []string
+	fees             []feeSpec
 }
 
 // seedPackage persists a package from the spec via the real repository and
@@ -588,6 +594,7 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 	require.NoError(t, err, "build package")
 
 	p.SegmentID = spec.segmentID
+	p.MetadataSelector = spec.metadataSelector
 	if len(spec.waivedAccounts) > 0 {
 		wa := spec.waivedAccounts
 		p.WaivedAccounts = &wa

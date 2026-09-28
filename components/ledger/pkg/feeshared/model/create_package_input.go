@@ -19,12 +19,13 @@ type CreatePackageInput struct {
 	SegmentID     *string `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
 	// TransactionRoute carries no schema format: the validator accepts the empty string as
 	// "any route" alongside a UUID, and a uuid format would tell a spec-driven client to refuse it.
-	TransactionRoute *string        `json:"transactionRoute,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" doc:"Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment."`
-	MinAmount        string         `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
-	MaxAmount        string         `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`
-	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
-	Fee              map[string]Fee `json:"fees" validate:"required,min=1,dive"`
-	Enable           *bool          `json:"enable" validate:"required"`
+	TransactionRoute *string           `json:"transactionRoute,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" doc:"Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment."`
+	MetadataSelector map[string]string `json:"metadataSelector" required:"false" validate:"dive,keys,required,max=100,noreservedkey,endkeys,required,max=2000" example:"{\"fee_context\":\"ted_salario\"}" doc:"Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Omit it to apply the package whatever the metadata."`
+	MinAmount        string            `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
+	MaxAmount        string            `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`
+	WaivedAccounts   *[]string         `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
+	Fee              map[string]Fee    `json:"fees" validate:"required,min=1,dive"`
+	Enable           *bool             `json:"enable" validate:"required"`
 }
 
 func (cp *CreatePackageInput) GetTransactionRoute() string {
