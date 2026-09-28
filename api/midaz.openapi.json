@@ -15801,12 +15801,12 @@
             }
           },
           {
-            "description": "Only the debts of this debtor account",
+            "description": "Only the debts of this debtor account, in settlement order",
             "explode": false,
             "in": "query",
             "name": "account_alias",
             "schema": {
-              "description": "Only the debts of this debtor account",
+              "description": "Only the debts of this debtor account, in settlement order",
               "type": "string"
             }
           },

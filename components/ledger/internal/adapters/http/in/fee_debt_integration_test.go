@@ -57,7 +57,7 @@ func buildFeeDebtApp(t *testing.T) (*fiber.App, string, []string) {
 			Changes: []accounting.FeeDebtChange{{
 				TransactionID: origin, PostingRef: "from:1:debit", Kind: accounting.FeeDebtOpened, DebtID: ids[i],
 				DebtorRef: debtor, CreditRef: "@fees#default", OriginTransactionID: origin,
-				Seq: int64(i + 1), AssetCode: "BRL", Amount: decimal.RequireFromString("12.5"),
+				Seq: int64(i + 1), AssetCode: "BRL", Amount: decimal.RequireFromString("12.5"), Opened: decimal.RequireFromString("12.5"),
 			}},
 		}))
 	}

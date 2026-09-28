@@ -40,9 +40,9 @@ func EnsureIndexes(ctx context.Context, mc *mmongoDB.MongoConnection) error {
 				{Key: "organization_id", Value: 1},
 				{Key: "ledger_id", Value: 1},
 				{Key: "debtor_balance_ref", Value: 1},
-				{Key: "_id", Value: 1},
+				{Key: "seq", Value: 1},
 			},
-			Options: options.Index().SetName("idx_fd_org_ledger_debtor_id"),
+			Options: options.Index().SetName("idx_fd_org_ledger_debtor_seq"),
 		},
 	})
 

@@ -55,7 +55,7 @@ type FeeDebtListBody struct {
 type ListFeeDebtsV2Request struct {
 	FeeV2Path
 
-	AccountAlias string `query:"account_alias" doc:"Only the debts of this debtor account"`
+	AccountAlias string `query:"account_alias" doc:"Only the debts of this debtor account, in settlement order"`
 	BalanceKey   string `query:"balance_key" doc:"Debtor balance key; requires account_alias (default \"default\")"`
 	Limit        string `query:"limit" doc:"Number of items per page (default 10, max 100)"`
 	Cursor       string `query:"cursor" doc:"Opaque cursor from a previous page"`

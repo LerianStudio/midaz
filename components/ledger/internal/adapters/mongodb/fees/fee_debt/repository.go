@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	cn "github.com/LerianStudio/lib-commons/v7/commons/constants"
@@ -29,8 +30,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 )
 
-// ListQuery pages one ledger's debts in _id order, which is oldest first because a
-// debt id starts with its origin transaction id, a UUIDv7.
+// ListQuery pages one ledger's debts oldest first: by debt id, which starts with its
+// origin transaction id (a UUIDv7), or by seq, the engine's settlement order, within one debtor.
 type ListQuery struct {
 	// DebtorBalanceRef ("alias#key") narrows the listing to one debtor; empty lists all.
 	DebtorBalanceRef string
@@ -58,8 +59,8 @@ func NewRepository(mc *mmongoDB.MongoConnection, tenantDB command.TenantMongoRes
 }
 
 // Apply records each change once per entry key: a replay is a no-op, and a debt's
-// changes converge in any order because remaining moves by commuting increments and
-// entries stay sorted by (applied_at, key) between the min/max applied timestamps.
+// changes converge in any order because the first one seeds remaining with the opened
+// amount, the rest move it by commuting increments and entries stay sorted.
 func (r *Repository) Apply(ctx context.Context, record command.FeeDebtRecord) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -84,7 +85,7 @@ func (r *Repository) Apply(ctx context.Context, record command.FeeDebtRecord) er
 	}
 
 	for _, change := range record.Changes {
-		filter, update, err := changeUpdate(record, change)
+		seed, filter, update, err := changeUpdate(record, change)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Invalid fee debt change", err)
 
@@ -93,12 +94,7 @@ func (r *Repository) Apply(ctx context.Context, record command.FeeDebtRecord) er
 
 		_, spanUpsert := tracer.Start(ctx, "repository.fee_debt.apply.upsert")
 
-		err = retryDuplicateKeyOnce(func() error {
-			_, err := coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
-
-			return err
-		})
-		if err != nil {
+		if err := applyChange(ctx, coll, change.DebtID, seed, filter, update); err != nil {
 			libOpentelemetry.HandleSpanError(spanUpsert, "Failed to record fee debt change", err)
 			spanUpsert.End()
 
@@ -178,39 +174,28 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 		filter = append(filter, bson.E{Key: "debtor_balance_ref", Value: query.DebtorBalanceRef})
 	}
 
+	key := "_id"
+	if query.DebtorBalanceRef != "" {
+		key = "seq"
+	}
+
 	isFirstPage := query.Cursor == ""
 	direction := libHTTP.CursorDirectionNext
 	sortOrder := 1
 
 	if !isFirstPage {
-		decoded, err := libHTTP.DecodeCursor(query.Cursor)
+		bound, cursorDirection, order, err := cursorBound(query.Cursor, key)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid fee debt cursor", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		operator, order, err := libHTTP.CursorDirectionRules(cn.SortDirASC, decoded.Direction)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid fee debt cursor direction", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
-		mongoOperator := "$gt"
-		if operator == "<" {
-			mongoOperator = "$lt"
-		}
-
-		if order != cn.SortDirASC {
-			sortOrder = -1
-		}
-
-		direction = decoded.Direction
-		filter = append(filter, bson.E{Key: "_id", Value: bson.D{{Key: mongoOperator, Value: decoded.ID}}})
+		filter = append(filter, bound)
+		direction, sortOrder = cursorDirection, order
 	}
 
-	debts, err := r.find(ctx, filter, sortOrder, query.Limit)
+	debts, err := r.find(ctx, filter, bson.D{{Key: key, Value: sortOrder}}, query.Limit)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to list fee debts", err)
 
@@ -223,7 +208,7 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 	var pagination libHTTP.CursorPagination
 
 	if len(debts) > 0 {
-		pagination, err = libHTTP.CalculateCursor(isFirstPage, hasMore, direction, debts[0].ID, debts[len(debts)-1].ID)
+		pagination, err = libHTTP.CalculateCursor(isFirstPage, hasMore, direction, position(key, debts[0]), position(key, debts[len(debts)-1]))
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to calculate fee debt cursor", err)
 
@@ -236,8 +221,8 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 	return debts, pagination, nil
 }
 
-// find reads up to limit+1 debts in _id order, the extra one telling whether more remain.
-func (r *Repository) find(ctx context.Context, filter bson.D, sortOrder, limit int) ([]*model.FeeDebt, error) {
+// find reads up to limit+1 debts in sort order, the extra one telling whether more remain.
+func (r *Repository) find(ctx context.Context, filter, sort bson.D, limit int) ([]*model.FeeDebt, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	coll, err := r.collection(ctx)
@@ -248,7 +233,7 @@ func (r *Repository) find(ctx context.Context, filter bson.D, sortOrder, limit i
 	_, spanFind := tracer.Start(ctx, "repository.fee_debt.find_all.find")
 	defer spanFind.End()
 
-	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: sortOrder}}).SetLimit(int64(limit) + 1)
+	opts := options.Find().SetSort(sort).SetLimit(int64(limit) + 1)
 
 	cur, err := coll.Find(ctx, filter, opts)
 	if err != nil {
@@ -288,26 +273,101 @@ func (r *Repository) collection(ctx context.Context) (*mongo.Collection, error) 
 	return client.Database(r.database).Collection(feeconstant.FeeDebtCollection), nil
 }
 
-// changeUpdate is the guarded upsert of one change: the filter matches the debt only
-// while it lacks the change's entry, so an applied change turns the upsert into a
-// duplicate-key insert. Refunded returns money without moving remaining.
-func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange) (bson.D, bson.D, error) {
-	delta := change.Amount
+// cursorBound decodes a listing cursor into the keyset bound on key, the page direction
+// and the sort order. A seq cursor that is not a number is libHTTP.ErrInvalidCursor.
+func cursorBound(cursor, key string) (bson.E, string, int, error) {
+	decoded, err := libHTTP.DecodeCursor(cursor)
+	if err != nil {
+		return bson.E{}, "", 0, err
+	}
+
+	operator, order, err := libHTTP.CursorDirectionRules(cn.SortDirASC, decoded.Direction)
+	if err != nil {
+		return bson.E{}, "", 0, err
+	}
+
+	var value any = decoded.ID
+
+	if key == "seq" {
+		if value, err = strconv.ParseInt(decoded.ID, 10, 64); err != nil {
+			return bson.E{}, "", 0, fmt.Errorf("%w: seq: %w", libHTTP.ErrInvalidCursor, err)
+		}
+	}
+
+	mongoOperator, sortOrder := "$gt", 1
+	if operator == "<" {
+		mongoOperator = "$lt"
+	}
+
+	if order != cn.SortDirASC {
+		sortOrder = -1
+	}
+
+	return bson.E{Key: key, Value: bson.D{{Key: mongoOperator, Value: value}}}, decoded.Direction, sortOrder, nil
+}
+
+// position is a debt's cursor value on the listing key.
+func position(key string, debt *model.FeeDebt) string {
+	if key == "seq" {
+		return strconv.FormatInt(debt.Seq, 10)
+	}
+
+	return debt.ID
+}
+
+// applyChange seeds the debt, then records the change unless its entry is already
+// there. The seed filters on _id alone, so MongoDB retries a concurrent seed's
+// duplicate-key insert as a no-op update instead of failing it.
+func applyChange(ctx context.Context, coll *mongo.Collection, id string, seed, filter, update bson.D) error {
+	if _, err := coll.UpdateOne(ctx, bson.D{{Key: "_id", Value: id}}, seed, options.UpdateOne().SetUpsert(true)); err != nil {
+		return err
+	}
+
+	_, err := coll.UpdateOne(ctx, filter, update)
+
+	return err
+}
+
+// changeUpdate builds the seed that creates a debt from whichever of its changes lands
+// first, with remaining = opened, and the update guarded on the change's entry key that
+// moves remaining by -settled -canceled +reopened. Opened and refunded leave it alone.
+func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange) (bson.D, bson.D, bson.D, error) {
+	delta := decimal.Zero
 
 	switch change.Kind {
-	case accounting.FeeDebtOpened, accounting.FeeDebtReopened:
+	case accounting.FeeDebtOpened, accounting.FeeDebtRefunded:
+	case accounting.FeeDebtReopened:
+		delta = change.Amount
 	case accounting.FeeDebtSettled, accounting.FeeDebtCanceled:
-		delta = delta.Neg()
-	case accounting.FeeDebtRefunded:
-		delta = decimal.Zero
+		delta = change.Amount.Neg()
 	default:
-		return nil, nil, fmt.Errorf("unknown fee debt change kind %q", change.Kind)
+		return nil, nil, nil, fmt.Errorf("unknown fee debt change kind %q", change.Kind)
 	}
 
 	increment, err := bson.ParseDecimal128(delta.String())
 	if err != nil {
-		return nil, nil, fmt.Errorf("fee debt change amount: %w", err)
+		return nil, nil, nil, fmt.Errorf("fee debt change amount: %w", err)
 	}
+
+	opened, err := bson.ParseDecimal128(change.Opened.String())
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fee debt opened amount: %w", err)
+	}
+
+	seed := bson.D{{Key: "$setOnInsert", Value: bson.D{
+		{Key: "organization_id", Value: record.OrganizationID.String()},
+		{Key: "ledger_id", Value: record.LedgerID.String()},
+		{Key: "debtor_balance_ref", Value: change.DebtorRef},
+		{Key: "credit_balance_ref", Value: change.CreditRef},
+		{Key: "origin_transaction_id", Value: change.OriginTransactionID.String()},
+		{Key: "asset_code", Value: change.AssetCode},
+		{Key: "seq", Value: change.Seq},
+		{Key: "opened_amount", Value: opened},
+		{Key: "remaining", Value: opened},
+		{Key: "entries", Value: bson.A{}},
+		{Key: "created_at", Value: record.AppliedAt},
+		{Key: "updated_at", Value: record.AppliedAt},
+	}}}
 
 	key := change.TransactionID.String() + ":" + change.PostingRef + ":" + string(change.Kind)
 	entry := model.FeeDebtEntry{
@@ -320,15 +380,6 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 	}
 
 	update := bson.D{
-		{Key: "$setOnInsert", Value: bson.D{
-			{Key: "organization_id", Value: record.OrganizationID.String()},
-			{Key: "ledger_id", Value: record.LedgerID.String()},
-			{Key: "debtor_balance_ref", Value: change.DebtorRef},
-			{Key: "credit_balance_ref", Value: change.CreditRef},
-			{Key: "origin_transaction_id", Value: change.OriginTransactionID.String()},
-			{Key: "asset_code", Value: change.AssetCode},
-			{Key: "seq", Value: change.Seq},
-		}},
 		{Key: "$inc", Value: bson.D{{Key: "remaining", Value: increment}}},
 		{Key: "$push", Value: bson.D{{Key: "entries", Value: bson.D{
 			{Key: "$each", Value: bson.A{entry}},
@@ -339,12 +390,7 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 	}
 
 	if change.Kind == accounting.FeeDebtOpened {
-		opened, err := bson.ParseDecimal128(change.Amount.String())
-		if err != nil {
-			return nil, nil, fmt.Errorf("fee debt opened amount: %w", err)
-		}
-
-		set := bson.D{{Key: "opened_amount", Value: opened}, {Key: "opened_at", Value: record.AppliedAt}}
+		set := bson.D{{Key: "opened_at", Value: record.AppliedAt}}
 		if record.FeePackageID != "" {
 			set = append(set, bson.E{Key: "fee_package_id", Value: record.FeePackageID})
 		}
@@ -357,21 +403,5 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 		{Key: "entries.key", Value: bson.D{{Key: "$ne", Value: key}}},
 	}
 
-	return filter, update, nil
-}
-
-// retryDuplicateKeyOnce runs a guarded upsert. A first duplicate key is either a
-// concurrent insert of the same debt, which the retry then updates, or an entry
-// already recorded; a second one can only be the latter.
-func retryDuplicateKeyOnce(upsert func() error) error {
-	err := upsert()
-	if mongo.IsDuplicateKeyError(err) {
-		err = upsert()
-	}
-
-	if mongo.IsDuplicateKeyError(err) {
-		return nil
-	}
-
-	return err
+	return seed, filter, update, nil
 }

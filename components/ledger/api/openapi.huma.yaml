@@ -15307,12 +15307,12 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
-        - description: Only the debts of this debtor account
+        - description: Only the debts of this debtor account, in settlement order
           explode: false
           in: query
           name: account_alias
           schema:
-            description: Only the debts of this debtor account
+            description: Only the debts of this debtor account, in settlement order
             type: string
         - description: Debtor balance key; requires account_alias (default "default")
           explode: false
