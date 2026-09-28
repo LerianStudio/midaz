@@ -99,3 +99,85 @@ func TestUnmarshallingFieldDetails_RecoversOmittedSliceIndex(t *testing.T) {
 		Message:  "invalid value: expected type 'string', but got 'number'",
 	}}, details)
 }
+
+type nullDetailsContact struct {
+	PrimaryEmail *string `json:"primaryEmail,omitempty"`
+}
+
+type nullDetailsRequest struct {
+	Name    string              `json:"name" validate:"required"`
+	Contact *nullDetailsContact `json:"contact,omitempty"`
+}
+
+func TestDecodeAndValidateWithDetails_UnknownFieldsWithNullKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		fields   []string
+		details  []pkg.FieldError
+		excluded []string
+	}{
+		{
+			name:   "several unknown non-null keys are listed together",
+			body:   `{"name": "x", "foo": 1, "contact": {"bar": "y"}}`,
+			fields: []string{"foo", "contact"},
+			details: []pkg.FieldError{
+				{Location: "contact.bar", Message: "unexpected field"},
+				{Location: "foo", Message: "unexpected field"},
+			},
+		},
+		{
+			name:   "unknown non-null key wins over unknown null key",
+			body:   `{"name": "x", "foo": 1, "createdAt": null}`,
+			fields: []string{"foo"},
+			details: []pkg.FieldError{
+				{Location: "foo", Message: "unexpected field"},
+			},
+			excluded: []string{"createdAt"},
+		},
+		{
+			name:   "nested form of a managed field stays rejected",
+			body:   `{"name": "x", "search": {"document": null}}`,
+			fields: []string{"search"},
+			details: []pkg.FieldError{
+				{Location: "search", Message: "unexpected field"},
+			},
+		},
+		{
+			name:   "unknown null key keeps precedence over missing required field",
+			body:   `{"contact": {"bogus": null}}`,
+			fields: []string{"contact.bogus"},
+			details: []pkg.FieldError{
+				{Location: "contact.bogus", Message: "unexpected field"},
+				{Location: "name", Message: "name is a required field"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input nullDetailsRequest
+			originalMap, details, err := DecodeAndValidateWithDetails([]byte(tc.body), &input)
+			require.Error(t, err)
+			assert.Nil(t, originalMap)
+
+			var unknownErr pkg.ValidationUnknownFieldsError
+			require.ErrorAs(t, err, &unknownErr)
+			assert.Equal(t, "0053", unknownErr.Code)
+
+			for _, field := range tc.fields {
+				assert.Contains(t, unknownErr.Fields, field)
+			}
+
+			for _, field := range tc.excluded {
+				assert.NotContains(t, unknownErr.Fields, field)
+			}
+
+			assert.Equal(t, tc.details, details)
+		})
+	}
+}
