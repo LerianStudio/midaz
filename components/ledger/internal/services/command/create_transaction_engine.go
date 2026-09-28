@@ -222,7 +222,7 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog
 	}
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, *tran, run.idempotencyTTL)
+	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyFingerprint, *tran, run.idempotencyTTL)
 
 	if shouldEmitEngineWriteBehindAudit(dispatched, projected) {
 		uc.sendLogTransactionAuditQueueAsync(bgCtx, tran.Operations, run.organizationID, run.ledgerID, tran.IDtoUUID())

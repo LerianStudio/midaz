@@ -88,7 +88,7 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
-	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "")
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "", "")
 	if err != nil {
 		return nil, false, err
 	}

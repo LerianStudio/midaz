@@ -34,19 +34,37 @@ type TransactionIdempotencyResult struct {
 	InternalKey *string
 }
 
+// transactionIdempotencySlot is the value stored in a transaction idempotency
+// slot: the transaction's JSON object plus the fingerprint of the request that
+// created it. The fingerprint sits beside the transaction's own fields rather than
+// in an envelope, because pods that predate it decode the slot straight into a
+// transaction.Transaction and must keep replaying it. Embedding flattens the
+// transaction's fields only because transaction.Transaction defines no MarshalJSON.
+type transactionIdempotencySlot struct {
+	transaction.Transaction
+	RequestFingerprint string `json:"idempotencyFingerprint,omitempty"`
+}
+
 // CreateOrCheckTransactionIdempotency atomically claims an idempotency slot in Redis.
 //
 // If the key is new (SetNX succeeds), the result contains no Replay and the
 // caller should proceed with the transaction. If the key already holds a
-// serialized transaction, the result contains the deserialized Replay and the
-// caller should return it directly as a cached response.
+// serialized transaction created by the same request (same fingerprint), the
+// result contains the deserialized Replay and the caller should return it
+// directly as a cached response. A slot created by a different request, or one
+// still being created, answers ErrIdempotencyKey. A slot written without a
+// fingerprint replays regardless of the request.
 //
 // InternalKey is always populated so the caller can clean up on error.
-func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*TransactionIdempotencyResult, error) {
+func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash, fingerprint string, ttl time.Duration) (*TransactionIdempotencyResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_idempotency_key")
 	defer span.End()
+
+	// Recorded before the key falls back to the hash, so a conflict on a key the
+	// client chose can be told apart from two key-less requests that share a body hash.
+	explicitKey := key != ""
 
 	if key == "" {
 		key = hash
@@ -75,15 +93,24 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 		if !libCommons.IsNilOrEmpty(&value) {
 			logger.Log(ctx, libLog.LevelDebug, "Found cached value for idempotency key lookup")
 
-			replay := &transaction.Transaction{}
-			if err := json.Unmarshal([]byte(value), replay); err != nil {
+			slot := &transactionIdempotencySlot{}
+			if err := json.Unmarshal([]byte(value), slot); err != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to deserialize idempotency transaction from redis", err)
 				logger.Log(ctx, libLog.LevelError, "Failed to deserialize idempotency transaction from redis", libLog.Err(err))
 
 				return result, err
 			}
 
-			result.Replay = replay
+			if slot.RequestFingerprint != "" && slot.RequestFingerprint != fingerprint {
+				err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckTransactionIdempotency", key)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Idempotency key reused with a different request", err)
+				logger.Log(ctx, libLog.LevelWarn, "Idempotency key reused with a different request",
+					libLog.Bool("idempotency_key_explicit", explicitKey), libLog.Err(err))
+
+				return result, err
+			}
+
+			result.Replay = &slot.Transaction
 
 			return result, nil
 		}
@@ -98,7 +125,9 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 }
 
 // SetTransactionIdempotencyValue func that set value on idempotency key to return to user.
-func (uc *UseCase) SetTransactionIdempotencyValue(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, t transaction.Transaction, ttl time.Duration) {
+// The fingerprint is stored with the transaction so a later request reusing the
+// key can be told apart from a retry of this one.
+func (uc *UseCase) SetTransactionIdempotencyValue(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash, fingerprint string, t transaction.Transaction, ttl time.Duration) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.set_value_idempotency_key")
@@ -110,7 +139,7 @@ func (uc *UseCase) SetTransactionIdempotencyValue(ctx context.Context, organizat
 
 	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 
-	value, err := libCommons.StructToJSONString(t)
+	value, err := libCommons.StructToJSONString(transactionIdempotencySlot{Transaction: t, RequestFingerprint: fingerprint})
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency", libLog.Err(err))
 		return // Do not store invalid data

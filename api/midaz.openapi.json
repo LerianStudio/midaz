@@ -7495,11 +7495,11 @@
             }
           },
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -7609,11 +7609,11 @@
             }
           },
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -7723,11 +7723,11 @@
             }
           },
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -7837,11 +7837,11 @@
             }
           },
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -8054,11 +8054,11 @@
             }
           },
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -8168,11 +8168,11 @@
             }
           },
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -20789,11 +20789,11 @@
         "operationId": "createTransactionBlockV2",
         "parameters": [
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -20882,11 +20882,11 @@
         "operationId": "createTransactionDirectV2",
         "parameters": [
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -20982,11 +20982,11 @@
         "operationId": "createTransactionHoldV2",
         "parameters": [
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },
@@ -21082,11 +21082,11 @@
         "operationId": "createTransactionUnblockV2",
         "parameters": [
           {
-            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
             "in": "header",
             "name": "X-Idempotency",
             "schema": {
-              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)",
               "type": "string"
             }
           },

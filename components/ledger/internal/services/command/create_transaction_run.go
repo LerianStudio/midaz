@@ -37,6 +37,7 @@ type createTransactionRun struct {
 	idempotencyKey         string
 	idempotencyTTL         time.Duration
 	idempotencyHash        string
+	idempotencyFingerprint string
 	idempotencyInternalKey *string
 
 	balances         []*mmodel.Balance
