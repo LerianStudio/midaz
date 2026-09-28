@@ -43,9 +43,11 @@ const (
 	AuditEventPolicyPublished AuditEventType = "POLICY_PUBLISHED"
 	AuditEventPolicyBound     AuditEventType = "POLICY_BOUND"
 
-	// Known producer outcomes, including completion before any reservation.
+	// Known producer outcomes, including completion before any reservation, and
+	// the reaper's expiry of an operation whose reservation TTL elapsed first.
 	AuditEventOperationConfirmed AuditEventType = "RESERVE_OPERATION_CONFIRMED"
 	AuditEventOperationReleased  AuditEventType = "RESERVE_OPERATION_RELEASED"
+	AuditEventOperationExpired   AuditEventType = "RESERVE_OPERATION_EXPIRED"
 
 	// Rule lifecycle events
 	AuditEventRuleCreated     AuditEventType = "RULE_CREATED"
@@ -78,7 +80,7 @@ const (
 // IsValid checks if the AuditEventType is a valid enum value.
 func (t AuditEventType) IsValid() bool {
 	switch t {
-	case AuditEventTransactionValidated, AuditEventPolicyPublished, AuditEventPolicyBound, AuditEventOperationConfirmed, AuditEventOperationReleased,
+	case AuditEventTransactionValidated, AuditEventPolicyPublished, AuditEventPolicyBound, AuditEventOperationConfirmed, AuditEventOperationReleased, AuditEventOperationExpired,
 		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
 		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted,
 		AuditEventReservationReserved, AuditEventReservationConfirmed, AuditEventReservationReleased, AuditEventReservationExpired, AuditEventReservationSkipped:
@@ -207,8 +209,8 @@ type AuditEvent struct {
 
 	// Type of event that occurred
 	// example: TRANSACTION_VALIDATED
-	// enums: TRANSACTION_VALIDATED,POLICY_PUBLISHED,POLICY_BOUND,RESERVE_OPERATION_CONFIRMED,RESERVE_OPERATION_RELEASED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
-	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,POLICY_PUBLISHED,POLICY_BOUND,RESERVE_OPERATION_CONFIRMED,RESERVE_OPERATION_RELEASED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
+	// enums: TRANSACTION_VALIDATED,POLICY_PUBLISHED,POLICY_BOUND,RESERVE_OPERATION_CONFIRMED,RESERVE_OPERATION_RELEASED,RESERVE_OPERATION_EXPIRED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
+	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,POLICY_PUBLISHED,POLICY_BOUND,RESERVE_OPERATION_CONFIRMED,RESERVE_OPERATION_RELEASED,RESERVE_OPERATION_EXPIRED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
 
 	// Timestamp when the event occurred
 	// format: date-time

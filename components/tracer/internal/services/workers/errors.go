@@ -19,6 +19,10 @@ var (
 	ErrInvalidReaperInterval = errors.New("reservation reaper interval must be positive")
 	// ErrNilReservationAuditor is returned when the required reservation expiry auditor dependency is nil.
 	ErrNilReservationAuditor = errors.New("reservation expiry auditor cannot be nil")
+	// ErrInvalidReaperBatchSize is returned when the reservation reaper batch size is not positive.
+	ErrInvalidReaperBatchSize = errors.New("reservation reaper batch size must be positive")
+	// ErrNilOperationExpirer is returned when the required reserve operation expirer dependency is nil.
+	ErrNilOperationExpirer = errors.New("reserve operation expirer cannot be nil")
 	// ErrNilRuleCache is returned when the required rule cache dependency is nil.
 	ErrNilRuleCache = errors.New("rule cache cannot be nil")
 	// ErrNilExpressionCompiler is returned when the required expression compiler dependency is nil.

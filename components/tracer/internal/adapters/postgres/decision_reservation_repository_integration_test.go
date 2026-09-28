@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/migrations"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -166,19 +168,19 @@ func TestIntegrationDecisionCapacityDeferredOwnershipAndRollback(t *testing.T) {
 	}
 }
 
-func TestIntegrationDecisionCapacityIgnoresTTLAndProtectsCounter(t *testing.T) {
+func TestIntegrationDecisionCapacityExpiresOnlyThroughOperationAndProtectsCounter(t *testing.T) {
 	db, decisions, repo := capacityDatabase(t)
 	limitID := createTestLimitNamed(t, db, 75201, "ttl")
 	d, res := persistedDecision(), decisionCapacity(limitID, 75202)
 	persistDecisionCapacity(t, db, repo, decisions, d, res)
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
-	reaper := NewReservationReaperRepository(adapter, nil, repo)
-	ids, err := reaper.FindExpiredReservations(t.Context(), testutil.FixedTime())
+	reaper := NewReservationReaperRepository(adapter, pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db))), repo)
+	expired, err := reaper.FindExpiredReservations(t.Context(), testutil.FixedTime(), nil, 100)
 	require.NoError(t, err)
-	require.Empty(t, ids)
+	require.Equal(t, []model.ExpiredReservation{{ID: res.ID, ExpiresAt: res.ReservationExpiresAt.UTC(), Operation: &model.ReserveOperationIdentity{IntegrationID: d.Key.IntegrationID, TransactionID: d.Key.TransactionID}}}, expired)
+	require.ErrorIs(t, reaper.ReleaseExpired(t.Context(), res.ID), constant.ErrReservationNotFound, "legacy expiry must not touch decision capacity")
 	for _, query := range []string{
 		"UPDATE usage_reservations SET decision_id=NULL",
-		"UPDATE usage_reservations SET status='EXPIRED'",
 		"UPDATE usage_reservations SET amount=0",
 		"DELETE FROM usage_reservations",
 		"TRUNCATE usage_reservations",
@@ -423,4 +425,33 @@ func TestIntegrationDecisionCapacityGuardAndDuplicateDoNotLeakHolds(t *testing.T
 			require.Equal(t, 1, count)
 		})
 	}
+}
+
+func TestIntegrationDecisionCapacityMigrationAcceptsExpiry(t *testing.T) {
+	db, decisions, repo := capacityDatabase(t)
+	limitID := createTestLimitNamed(t, db, 75901, "expiry-migration")
+	d, res := persistedDecision(), decisionCapacity(limitID, 75902)
+	persistDecisionCapacity(t, db, repo, decisions, d, res)
+	at := testutil.FixedTime()
+	_, err := db.ExecContext(t.Context(), "UPDATE reserve_operations SET status='EXPIRED'")
+	require.Error(t, err, "a terminal operation records when it completed")
+	_, err = db.ExecContext(t.Context(), "UPDATE reserve_operations SET status='EXPIRED', completed_at=$1", at)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), "UPDATE usage_reservations SET status='EXPIRED', released_at=$1 WHERE id=$2", at, res.ID)
+	require.NoError(t, err)
+	for _, query := range []string{
+		"UPDATE reserve_operations SET status='CONFIRMED'",
+		"UPDATE reserve_operations SET status='OPEN', completed_at=NULL",
+		"UPDATE usage_reservations SET status='RESERVED'",
+		"UPDATE usage_reservations SET status='CONFIRMED'",
+		"DELETE FROM reserve_operations",
+	} {
+		_, err := db.ExecContext(t.Context(), query)
+		require.Error(t, err, query)
+	}
+	_, err = db.ExecContext(t.Context(), capacityMigration(t, "000030_decision_reservations.down.sql"))
+	require.Error(t, err, "rollback cannot erase expired decision history")
+	_, err = db.ExecContext(t.Context(), operationMigration(t, "down"))
+	require.Error(t, err, "rollback cannot erase expired operations")
+	require.Equal(t, string(model.StatusExpired), readReservationStatus(t, db, res.ID))
 }

@@ -252,6 +252,8 @@ type Config struct {
 	ReservationReaperEnabled bool `env:"RESERVATION_REAPER_ENABLED"`
 	// ReservationReaperIntervalSeconds is the sub-minute interval between reaper sweeps in seconds (default: 30).
 	ReservationReaperIntervalSeconds string `env:"RESERVATION_REAPER_INTERVAL_SECONDS"`
+	// ReservationReaperBatchSize caps the expired reservations one sweep reads (default: 500).
+	ReservationReaperBatchSize string `env:"RESERVATION_REAPER_BATCH_SIZE"`
 	// ReservationLongLivedTTLHours is the lifetime granted to a PENDING-transaction
 	// reservation (the longLived reserve hint, R18), in hours (default: 720 = 30 days).
 	// Direct-transaction reservations use a fixed short TTL and ignore this knob.
@@ -452,9 +454,33 @@ func parseReservationReaperIntervalSeconds(s string) (time.Duration, error) {
 	return time.Duration(seconds) * time.Second, nil
 }
 
+// parseReservationReaperBatchSize parses the per-sweep cap on expired
+// reservations. Returns the default when empty, and an error when the value is
+// invalid, non-positive or above 10000: a larger sweep holds the per-operation
+// audit writes of one tenant in a single burst again.
+func parseReservationReaperBatchSize(s string) (int, error) {
+	const maxAllowed = 10000
+
+	if s == "" {
+		return workers.DefaultReservationReaperBatchSize, nil
+	}
+
+	size, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RESERVATION_REAPER_BATCH_SIZE value '%s': %w", s, err)
+	}
+
+	if size <= 0 || size > maxAllowed {
+		return 0, fmt.Errorf("RESERVATION_REAPER_BATCH_SIZE must be between 1 and %d, got %d", maxAllowed, size)
+	}
+
+	return size, nil
+}
+
 // parseReservationLongLivedTTLHours parses the long-lived reservation TTL from
-// string to time.Duration. Returns 0 when empty so the service applies its own
-// default (defaultLongLivedReservationTTL, 30 days). The unit is hours because a
+// string to time.Duration, and is the one place its default is resolved: empty
+// yields services.DefaultLongLivedReservationTTL (30 days) for both the legacy
+// reservation service and context admission. The unit is hours because a
 // long-lived pending reservation spans days, not seconds (unlike the reaper
 // interval). Returns an error if the value is invalid, non-positive, or exceeds
 // 1 year — beyond that the reaper effectively never converges an abandoned pending.
@@ -465,7 +491,7 @@ func parseReservationLongLivedTTLHours(s string) (time.Duration, error) {
 	const maxAllowedHours = 8760
 
 	if s == "" {
-		return 0, nil
+		return services.DefaultLongLivedReservationTTL, nil
 	}
 
 	hours, err := strconv.Atoi(s)
@@ -674,7 +700,8 @@ func ApplyReservationReaperDefaults(cfg *Config) {
 // environment configuration. Returns a nil config (no error) when the operator
 // disabled the reaper (RESERVATION_REAPER_ENABLED=false) so the caller can
 // propagate the "disabled" signal end-to-end exactly like LoadCleanupWorkerConfig.
-// Returns an error if config or logger is nil, or if the interval is invalid.
+// Returns an error if config or logger is nil, or if the interval or batch size
+// is invalid.
 func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog.Logger) (*workers.ReservationReaperWorkerConfig, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config cannot be nil")
@@ -697,12 +724,19 @@ func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog
 		return nil, fmt.Errorf("invalid RESERVATION_REAPER_INTERVAL_SECONDS: %w", err)
 	}
 
+	batchSize, err := parseReservationReaperBatchSize(cfg.ReservationReaperBatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RESERVATION_REAPER_BATCH_SIZE: %w", err)
+	}
+
 	logger.With(
 		libLog.String("reap_interval", reapInterval.String()),
+		libLog.Int("batch_size", batchSize),
 	).Log(ctx, libLog.LevelInfo, "Reservation reaper worker configuration loaded")
 
 	return &workers.ReservationReaperWorkerConfig{
 		ReapInterval: reapInterval,
+		BatchSize:    batchSize,
 	}, nil
 }
 
@@ -1063,6 +1097,9 @@ type limitServiceDeps struct {
 	// reaperRepo is the narrow sweep surface the reservation reaper consumes:
 	// find the RESERVED rows past their TTL and release each as EXPIRED.
 	reaperRepo *postgres.ReservationReaperRepository
+	// operationExpirer lets the reaper expire decision-owned reservations with
+	// their operation. It needs the audit repository, so InitServers sets it.
+	operationExpirer workers.ReserveOperationExpirer
 }
 
 // initLimitService creates the limit service with all its dependencies.
@@ -1501,6 +1538,7 @@ func initReaperWorker(
 	cfg *Config,
 	reaperRepo *postgres.ReservationReaperRepository,
 	auditor *command.RecordAuditEventCommand,
+	expirer workers.ReserveOperationExpirer,
 	logger libLog.Logger,
 	clk clock.Clock,
 ) (*workers.ReservationReaperWorker, error) {
@@ -1514,7 +1552,7 @@ func initReaperWorker(
 	}
 
 	// tenantID is empty in single-tenant mode; the supervisor passes the real tenantID in MT mode.
-	reaperWorker, err := workers.NewReservationReaperWorker(reaperRepo, auditor, *reaperConfig, logger, clk, "")
+	reaperWorker, err := workers.NewReservationReaperWorkerWithPoolResolver(reaperRepo, auditor, expirer, *reaperConfig, logger, clk, "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reservation reaper worker: %w", err)
 	}
@@ -1657,20 +1695,14 @@ func initMultiTenant(
 				MinRequests:   syncCBConfig.MinRequests,
 			},
 		},
-		workers.WorkerSupervisorDeps{
+		withReservationReaper(workers.WorkerSupervisorDeps{
 			RuleCache:  ruleCache,
 			Clock:      clk,
 			Logger:     logger,
 			MaxTenants: cfg.MultiTenantMaxTenantPools,
 			Service:    cfg.ApplicationName,
 			Metrics:    mtMetrics,
-			// Per-tenant reservation reaper. buildSupervisorDeps only overwrites
-			// the fields it names, so these survive onto the supervisor.
-			ReaperRepo:          limitDeps.reaperRepo,
-			ReaperAuditor:       auditWriter,
-			ReaperConfig:        resolvedReaper,
-			ReaperWorkerEnabled: reaperEnabled,
-		},
+		}, limitDeps, auditWriter, resolvedReaper, reaperEnabled),
 	)
 	if err != nil {
 		return nil, err
@@ -1688,6 +1720,19 @@ func initMultiTenant(
 	go runInitialTenantSync(ctx, logger, components.supervisor)
 
 	return components, nil
+}
+
+// withReservationReaper sets the per-tenant reservation reaper fields of the
+// supervisor deps from the same repository and operation expirer the
+// single-tenant reaper uses.
+func withReservationReaper(deps workers.WorkerSupervisorDeps, limitDeps *limitServiceDeps, auditor workers.ReservationExpiryAuditor, reaperConfig workers.ReservationReaperWorkerConfig, enabled bool) workers.WorkerSupervisorDeps {
+	deps.ReaperRepo = limitDeps.reaperRepo
+	deps.ReaperAuditor = auditor
+	deps.ReaperExpirer = limitDeps.operationExpirer
+	deps.ReaperConfig = reaperConfig
+	deps.ReaperWorkerEnabled = enabled
+
+	return deps
 }
 
 // runInitialTenantSync invokes the supervisor's InitialTenantSync under a
@@ -1757,7 +1802,7 @@ func initWorkers(
 		return nil, err
 	}
 
-	reaperWorker, err := initReaperWorker(ctx, cfg, limitDeps.reaperRepo, auditWriter, logger, clk)
+	reaperWorker, err := initReaperWorker(ctx, cfg, limitDeps.reaperRepo, auditWriter, limitDeps.operationExpirer, logger, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -2135,6 +2180,11 @@ func InitServers(ctx context.Context) (*Service, error) {
 	limitDeps, err := initLimitService(cfg, pgConn, auditWriter, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
+	}
+
+	limitDeps.operationExpirer, err = initReserveOperationExpiry(cfg, pgConn, txBeginner, auditEventRepo, limitDeps.reservationRepo)
+	if err != nil {
+		return nil, fmt.Errorf("initialize reserve operation expiry: %w", err)
 	}
 
 	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk)

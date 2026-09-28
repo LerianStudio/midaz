@@ -77,43 +77,37 @@ func checkActivationProfile(ledgerEnv, tracerEnv map[string]string) error {
 		return err
 	}
 
-	integrationID := strings.TrimSpace(ledgerEnv["TRACER_INTEGRATION_ID"])
-	if integrationID == "" {
-		return fmt.Errorf("TRACER_INTEGRATION_ID is required before activation")
-	}
-
 	bindings, err := producerBindings(tracerEnv["CONTEXT_PRODUCER_BINDINGS"])
 	if err != nil {
 		return err
 	}
 
-	if !hasReserveBinding(bindings, integrationID) {
-		return fmt.Errorf("CONTEXT_PRODUCER_BINDINGS has no reserve identity matching the Ledger integration")
+	if !hasReserveBinding(bindings) {
+		return fmt.Errorf("CONTEXT_PRODUCER_BINDINGS has no identity with the reserve purpose")
 	}
 
-	transactionBatch, err := positiveIntegerSetting(ledgerEnv, "TRANSACTION_BATCH_MAX_SIZE", 10)
-	if err != nil {
-		return err
+	return requireReaperEnabled(tracerEnv)
+}
+
+// requireReaperEnabled rejects a Tracer that admits decisions without the
+// reaper: an operation whose completion never arrives only returns its
+// capacity when the reaper expires it. Unset keeps the Tracer default (on).
+func requireReaperEnabled(tracerEnv map[string]string) error {
+	raw, present := tracerEnv["RESERVATION_REAPER_ENABLED"]
+	if !present {
+		return nil
 	}
 
-	recoveryBatch, err := positiveIntegerSetting(ledgerEnv, "TRACER_RECOVERY_BATCH_SIZE", 10)
-	if err != nil {
-		return err
-	}
-
-	if transactionBatch > recoveryBatch {
-		return fmt.Errorf("TRANSACTION_BATCH_MAX_SIZE cannot exceed TRACER_RECOVERY_BATCH_SIZE before activation")
+	enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil || !enabled {
+		return fmt.Errorf("RESERVATION_REAPER_ENABLED must stay true while CONTEXT_RESERVE_ENABLED is true; without it, capacity held by an operation that never completes is never returned")
 	}
 
 	return nil
 }
 
-func hasReserveBinding(bindings []seamidentity.Binding, integrationID string) bool {
+func hasReserveBinding(bindings []seamidentity.Binding) bool {
 	for _, binding := range bindings {
-		if binding.IntegrationID != integrationID {
-			continue
-		}
-
 		for _, purpose := range binding.Purposes {
 			if purpose == seamidentity.PurposeReserve {
 				return true
@@ -136,20 +130,6 @@ func requireEnabled(values map[string]string, key string) error {
 	}
 
 	return nil
-}
-
-func positiveIntegerSetting(values map[string]string, key string, fallback int) (int, error) {
-	raw, present := values[key]
-	if !present {
-		return fallback, nil
-	}
-
-	value, err := strconv.Atoi(raw)
-	if err != nil || value <= 0 {
-		return 0, fmt.Errorf("%s must be a positive integer", key)
-	}
-
-	return value, nil
 }
 
 func producerBindings(raw string) ([]seamidentity.Binding, error) {

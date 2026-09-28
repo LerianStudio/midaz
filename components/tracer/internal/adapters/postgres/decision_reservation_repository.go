@@ -34,7 +34,7 @@ import (
 // DENY/REVIEW before persisting the final result. The caller must write that
 // decision and mandatory audit before commit, and roll back on any error.
 // counterExpiresAt is the resolved limit period's cleanup time, NOT the request's
-// reservation TTL. The latter cannot expire a decision-owned reservation.
+// reservation TTL, which only the reaper applies through the operation.
 func (r *UsageReservationRepository) ReserveForDecisionWithTx(ctx context.Context, tx pgdb.Tx, decisionID uuid.UUID, reservation *model.Reservation, maxAmount decimal.Decimal, counterExpiresAt time.Time) (retErr error) {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -102,6 +102,7 @@ func (r *UsageReservationRepository) ReserveForDecisionWithTx(ctx context.Contex
 // not authenticate, infer a missing decision's outcome, commit or retry.
 // Returned rows are the pre-transition snapshots for audit; an identical repeat
 // returns an empty list. Opposite terminal states conflict rather than remap money.
+// EXPIRED moves capacity exactly as RELEASED does.
 func (r *UsageReservationRepository) SettleDecisionWithTx(ctx context.Context, tx pgdb.Tx, decisionID uuid.UUID, status model.ReservationStatus) (_ []*model.Reservation, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -117,7 +118,7 @@ func (r *UsageReservationRepository) SettleDecisionWithTx(ctx context.Context, t
 		return nil, pgdb.ErrNilConnection
 	}
 
-	if decisionID == uuid.Nil || (status != model.StatusConfirmed && status != model.StatusReleased) {
+	if decisionID == uuid.Nil || (status != model.StatusConfirmed && status != model.StatusReleased && status != model.StatusExpired) {
 		return nil, constant.ErrInvalidRequestBody
 	}
 

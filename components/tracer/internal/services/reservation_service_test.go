@@ -102,6 +102,9 @@ func TestNewReservationService_NilDeps(t *testing.T) {
 
 	_, err = NewReservationService(conn, resolver, repo, nil, nil)
 	require.ErrorIs(t, err, ErrNilReservationAuditWriter)
+
+	_, err = NewReservationServiceWithLongLivedTTL(conn, resolver, repo, audit, nil, 0)
+	require.ErrorIs(t, err, ErrInvalidLongLivedTTL)
 }
 
 func testCheckLimitsInput(t *testing.T) *model.CheckLimitsInput {
@@ -399,7 +402,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 
 		// Direct transactions use the fixed short TTL, NOT the long-lived knob.
-		assert.Equal(t, now.UTC().Add(reservationTTL), captured)
+		assert.Equal(t, now.UTC().Add(ReservationTTL), captured)
 	})
 
 	t.Run("longLived=true sets the configured long-lived TTL on the reservation", func(t *testing.T) {
@@ -450,7 +453,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// PENDING reservations expire far out (the configured long-lived TTL), well
 		// beyond the short direct TTL the reaper sweeps on (R18).
 		assert.Equal(t, now.UTC().Add(longLivedTTL), captured)
-		assert.True(t, captured.After(now.UTC().Add(reservationTTL)), "long-lived TTL must outlive the direct TTL")
+		assert.True(t, captured.After(now.UTC().Add(ReservationTTL)), "long-lived TTL must outlive the direct TTL")
 	})
 
 	t.Run("longLived=true with default service TTL uses the 30-day ceiling", func(t *testing.T) {
@@ -485,9 +488,9 @@ func TestReservationService_Reserve(t *testing.T) {
 		_, err := svc.Reserve(context.Background(), txID, input, true)
 		require.NoError(t, err)
 
-		// newReservationServiceDeps passes longLivedTTL=0, so the service falls back
-		// to defaultLongLivedReservationTTL (30 days).
-		assert.Equal(t, now.UTC().Add(defaultLongLivedReservationTTL), captured)
+		// newReservationServiceDeps uses NewReservationService, which grants
+		// DefaultLongLivedReservationTTL (30 days).
+		assert.Equal(t, now.UTC().Add(DefaultLongLivedReservationTTL), captured)
 	})
 }
 

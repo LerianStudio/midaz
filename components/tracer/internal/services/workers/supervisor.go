@@ -81,11 +81,13 @@ type WorkerSupervisorDeps struct {
 	// single-tenant CLEANUP_WORKER_ENABLED knob so operators get consistent
 	// behavior in both modes (H8).
 	CleanupWorkerEnabled bool
-	// ReaperRepo + ReaperAuditor + ReaperConfig drive the per-tenant reservation
-	// reaper. Only required when ReaperWorkerEnabled is true (mirrors the
-	// UsageRepo / CleanupWorkerEnabled coupling).
+	// ReaperRepo + ReaperAuditor + ReaperExpirer + ReaperConfig drive the
+	// per-tenant reservation reaper. Only required when ReaperWorkerEnabled is
+	// true (mirrors the UsageRepo / CleanupWorkerEnabled coupling).
 	ReaperRepo    ReservationReaperRepository
 	ReaperAuditor ReservationExpiryAuditor
+	// ReaperExpirer closes the operations of expired decision-owned reservations.
+	ReaperExpirer ReserveOperationExpirer
 	ReaperConfig  ReservationReaperWorkerConfig
 	// ReaperWorkerEnabled gates whether per-tenant reservation reapers spawn.
 	// False ⇒ the reaper does not run per tenant. Mirrors the single-tenant
@@ -145,6 +147,7 @@ type WorkerSupervisor struct {
 	cleanupWorkerEnabled bool
 	reaperRepo           ReservationReaperRepository
 	reaperAuditor        ReservationExpiryAuditor
+	reaperExpirer        ReserveOperationExpirer
 	reaperConfig         ReservationReaperWorkerConfig
 	reaperWorkerEnabled  bool
 	cbTemplate           CircuitBreakerTemplate
@@ -228,6 +231,10 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		return nil, constant.ErrSupervisorNilReaperAuditor
 	}
 
+	if deps.ReaperWorkerEnabled && deps.ReaperExpirer == nil {
+		return nil, ErrNilOperationExpirer
+	}
+
 	if deps.Compiler == nil {
 		return nil, constant.ErrSupervisorNilCompiler
 	}
@@ -267,6 +274,7 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		cleanupWorkerEnabled: deps.CleanupWorkerEnabled,
 		reaperRepo:           deps.ReaperRepo,
 		reaperAuditor:        deps.ReaperAuditor,
+		reaperExpirer:        deps.ReaperExpirer,
 		reaperConfig:         deps.ReaperConfig,
 		reaperWorkerEnabled:  deps.ReaperWorkerEnabled,
 		cbTemplate:           deps.CBTemplate,
@@ -410,7 +418,7 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 
 	if s.reaperWorkerEnabled {
 		reaperWorker, err = NewReservationReaperWorkerWithPoolResolver(
-			s.reaperRepo, s.reaperAuditor, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
+			s.reaperRepo, s.reaperAuditor, s.reaperExpirer, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
 		)
 		if err != nil {
 			s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "reaper_worker_init")

@@ -33,8 +33,9 @@ import (
 )
 
 // ReserveAdmissionConfig explicitly bounds facts, stored results and time.
-// ReservationLifetime only populates the historical column: decision-owned
-// reservations are never expired by TTL. Known completion must settle them.
+// ReservationLifetime is the TTL of held capacity, and LongLivedLifetime the TTL
+// when the request declares a long-lived transaction. Once it elapses without a
+// known completion, the reaper expires the whole operation.
 type ReserveAdmissionConfig struct {
 	Plan                query.ContextReservationConfig
 	MaxRules            int
@@ -42,6 +43,7 @@ type ReserveAdmissionConfig struct {
 	MaxTimestampAge     time.Duration
 	ClockSkewTolerance  time.Duration
 	ReservationLifetime time.Duration
+	LongLivedLifetime   time.Duration
 }
 
 type ReserveAdmissionDependencies struct {
@@ -69,7 +71,7 @@ func NewReserveAdmissionCommand(deps ReserveAdmissionDependencies, clk clock.Clo
 		return nil, pgdb.ErrNilConnection
 	}
 
-	if config.MaxRules <= 0 || config.MaxTimestampAge <= 0 || config.ClockSkewTolerance < 0 || config.ReservationLifetime <= 0 {
+	if config.MaxRules <= 0 || config.MaxTimestampAge <= 0 || config.ClockSkewTolerance < 0 || config.ReservationLifetime <= 0 || config.LongLivedLifetime <= 0 {
 		return nil, constant.ErrInvalidRequestBody
 	}
 
@@ -82,9 +84,11 @@ func NewReserveAdmissionCommand(deps ReserveAdmissionDependencies, clk clock.Clo
 }
 
 // Execute authenticates and checks replay before temporal/policy validation.
-// New operations serialize before the second replay check; commit failure
-// returns no result and no automatic retry. Transport wiring is deliberately
-// separate so both REST and gRPC use this same admission transaction.
+// Every operation serializes before the second replay check, and a replay of a
+// decision whose operation expired conflicts instead of returning it. Commit
+// failure returns no result and no automatic retry. Transport wiring is
+// deliberately separate so both REST and gRPC use this same admission
+// transaction.
 func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.ReserveRequest) (_ *tracercontract.ReserveResult, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -129,8 +133,13 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 		return nil, err
 	}
 
+	// A mismatched replay is rejected without the lock; a matching one still
+	// takes it, because only the locked operation status tells whether the
+	// decision it would return has since expired.
 	if stored != nil {
-		return c.replay(r, key, hash, stored)
+		if _, err := c.replay(r, key, hash, stored); err != nil {
+			return nil, err
+		}
 	}
 
 	var result *tracercontract.ReserveResult
@@ -146,13 +155,24 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 			return err
 		}
 
-		if lockedDecision != nil {
-			result, err = c.replay(r, key, hash, lockedDecision)
-			return err
-		}
-
 		if state == nil || state.Validate() != nil {
 			return constant.ErrInternalServer
+		}
+
+		if lockedDecision != nil {
+			replayed, err := c.replay(r, key, hash, lockedDecision)
+			if err != nil {
+				return err
+			}
+			// The expired operation returned the capacity this decision held, so
+			// its stored ALLOW no longer describes anything the producer may use.
+			if state.Status == model.OperationExpired {
+				return constant.ErrReserveOperationConflict
+			}
+
+			result = replayed
+
+			return nil
 		}
 
 		if state.Status != model.OperationOpen {
@@ -337,7 +357,7 @@ func (c *ReserveAdmissionCommand) reserve(ctx context.Context, tx pgdb.Tx, r tra
 
 	denied := plan.Denied
 	if !denied {
-		denied, err = c.capacity(ctx, tx, plan, d)
+		denied, err = c.capacity(ctx, tx, plan, d, c.lifetime(r))
 		if err != nil {
 			return err
 		}
@@ -353,7 +373,15 @@ func (c *ReserveAdmissionCommand) reserve(ctx context.Context, tx pgdb.Tx, r tra
 	return nil
 }
 
-func (c *ReserveAdmissionCommand) capacity(ctx context.Context, tx pgdb.Tx, plan *query.ContextReservationPlan, d *model.ReserveDecision) (bool, error) {
+func (c *ReserveAdmissionCommand) lifetime(r tracercontract.ReserveRequest) time.Duration {
+	if r.LongLived != nil && *r.LongLived {
+		return c.config.LongLivedLifetime
+	}
+
+	return c.config.ReservationLifetime
+}
+
+func (c *ReserveAdmissionCommand) capacity(ctx context.Context, tx pgdb.Tx, plan *query.ContextReservationPlan, d *model.ReserveDecision, lifetime time.Duration) (bool, error) {
 	if len(plan.Reservations) == 0 {
 		return false, nil
 	}
@@ -365,7 +393,7 @@ func (c *ReserveAdmissionCommand) capacity(ctx context.Context, tx pgdb.Tx, plan
 	denied := false
 
 	for _, spec := range plan.Reservations {
-		res, err := model.NewReservation(spec.LimitID, d.Key.TransactionID, spec.ScopeKey, spec.PeriodKey, spec.Amount, d.CreatedAt.Add(c.config.ReservationLifetime), d.CreatedAt)
+		res, err := model.NewReservation(spec.LimitID, d.Key.TransactionID, spec.ScopeKey, spec.PeriodKey, spec.Amount, d.CreatedAt.Add(lifetime), d.CreatedAt)
 		if err != nil {
 			return false, err
 		}

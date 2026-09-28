@@ -435,6 +435,18 @@ func TestNewWorkerSupervisor_ValidatesRequiredDeps(t *testing.T) {
 			mutate:  func(d *WorkerSupervisorDeps) { d.Logger = nil },
 			wantErr: constant.ErrSupervisorNilLogger,
 		},
+		{
+			// A per-tenant reaper without the expirer would leave every
+			// decision-owned reservation held past its TTL.
+			name: "nil reaper expirer with the reaper enabled",
+			mutate: func(d *WorkerSupervisorDeps) {
+				d.ReaperWorkerEnabled = true
+				d.ReaperRepo = &ttlPredicateRepo{}
+				d.ReaperAuditor = mocks.NewMockReservationExpiryAuditor(gomock.NewController(t))
+				d.ReaperConfig = DefaultReservationReaperWorkerConfig()
+			},
+			wantErr: ErrNilOperationExpirer,
+		},
 	}
 
 	for _, tt := range tests {

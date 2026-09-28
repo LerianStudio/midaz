@@ -60,23 +60,69 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(-time.Minute)
+	columns := []string{"id", "reservation_expires_at", "decision_id", "integration_id", "transaction_id"}
 
-	t.Run("Success - returns ids of expired reserved rows", func(t *testing.T) {
+	const findExpired = `SELECT r.id, r.reservation_expires_at, r.decision_id, d.integration_id, d.transaction_id FROM usage_reservations AS r LEFT JOIN reserve_decisions AS d`
+
+	t.Run("Success - returns expired reserved rows with decision operations", func(t *testing.T) {
 		reaper, _, mock, _, cleanup := setupReaperRepo(t)
 		defer cleanup()
 
 		idA := testutil.MustDeterministicUUID(7001)
 		idB := testutil.MustDeterministicUUID(7002)
+		decisionID := testutil.MustDeterministicUUID(7004)
+		transactionID := testutil.MustDeterministicUUID(7005)
 
-		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations`).
+		mock.ExpectQuery(findExpired).
 			WithArgs(now.UTC()).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(idA).AddRow(idB))
+			WillReturnRows(sqlmock.NewRows(columns).AddRow(idA, expiresAt, nil, nil, nil).AddRow(idB, expiresAt, decisionID, "producer", transactionID))
 
-		ids, err := reaper.FindExpiredReservations(context.Background(), now)
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 100)
 		require.NoError(t, err)
-		require.Len(t, ids, 2)
-		assert.Equal(t, idA, ids[0])
-		assert.Equal(t, idB, ids[1])
+		require.Len(t, expired, 2)
+		assert.Equal(t, model.ExpiredReservation{ID: idA, ExpiresAt: expiresAt}, expired[0])
+		assert.Equal(t, model.ExpiredReservation{ID: idB, ExpiresAt: expiresAt, Operation: &model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: transactionID}}, expired[1])
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Success - status is a literal and the sweep is capped", func(t *testing.T) {
+		reaper, _, mock, _, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`WHERE r.status = 'RESERVED' AND r.reservation_expires_at < \$1 ORDER BY r.reservation_expires_at, r.id LIMIT 7`).
+			WithArgs(now.UTC()).
+			WillReturnRows(sqlmock.NewRows(columns))
+
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 7)
+		require.NoError(t, err)
+		assert.Empty(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Success - a resume position reads strictly past it", func(t *testing.T) {
+		reaper, _, mock, _, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		after := model.ReservationExpiryPosition{ExpiresAt: expiresAt, ID: testutil.MustDeterministicUUID(7008)}
+
+		mock.ExpectQuery(`AND r.reservation_expires_at < \$1 AND \(r.reservation_expires_at, r.id\) > \(\$2, \$3\) ORDER BY r.reservation_expires_at, r.id LIMIT 7`).
+			WithArgs(now.UTC(), after.ExpiresAt, after.ID).
+			WillReturnRows(sqlmock.NewRows(columns))
+
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, &after, 7)
+		require.NoError(t, err)
+		assert.Empty(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error - non-positive limit is rejected before the query", func(t *testing.T) {
+		reaper, _, mock, _, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 0)
+		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+		assert.Nil(t, expired)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -84,13 +130,13 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 		reaper, _, mock, _, cleanup := setupReaperRepo(t)
 		defer cleanup()
 
-		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations`).
+		mock.ExpectQuery(findExpired).
 			WithArgs(now.UTC()).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}))
+			WillReturnRows(sqlmock.NewRows(columns))
 
-		ids, err := reaper.FindExpiredReservations(context.Background(), now)
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 100)
 		require.NoError(t, err)
-		assert.Empty(t, ids)
+		assert.Empty(t, expired)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -98,12 +144,12 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 		reaper, _, mock, _, cleanup := setupReaperRepo(t)
 		defer cleanup()
 
-		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations`).
+		mock.ExpectQuery(findExpired).
 			WillReturnError(errors.New("connection reset"))
 
-		ids, err := reaper.FindExpiredReservations(context.Background(), now)
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 100)
 		require.Error(t, err)
-		assert.Nil(t, ids)
+		assert.Nil(t, expired)
 		assert.Contains(t, err.Error(), "failed to query expired reservations")
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -112,14 +158,28 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 		reaper, _, mock, _, cleanup := setupReaperRepo(t)
 		defer cleanup()
 
-		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations`).
+		mock.ExpectQuery(findExpired).
 			WithArgs(now.UTC()).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("not-a-uuid"))
+			WillReturnRows(sqlmock.NewRows(columns).AddRow("not-a-uuid", expiresAt, nil, nil, nil))
 
-		ids, err := reaper.FindExpiredReservations(context.Background(), now)
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 100)
 		require.Error(t, err)
-		assert.Nil(t, ids)
-		assert.Contains(t, err.Error(), "failed to scan expired reservation id")
+		assert.Nil(t, expired)
+		assert.Contains(t, err.Error(), "failed to scan expired reservation")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error - decision row without its decision fails closed", func(t *testing.T) {
+		reaper, _, mock, _, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		mock.ExpectQuery(findExpired).
+			WithArgs(now.UTC()).
+			WillReturnRows(sqlmock.NewRows(columns).AddRow(testutil.MustDeterministicUUID(7006), expiresAt, testutil.MustDeterministicUUID(7007), nil, nil))
+
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 100)
+		require.ErrorIs(t, err, constant.ErrInternalServer)
+		assert.Nil(t, expired)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -129,17 +189,17 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 
 		idA := testutil.MustDeterministicUUID(7003)
 
-		mock.ExpectQuery(`SELECT id\s+FROM usage_reservations`).
+		mock.ExpectQuery(findExpired).
 			WithArgs(now.UTC()).
 			WillReturnRows(
-				sqlmock.NewRows([]string{"id"}).
-					AddRow(idA).
+				sqlmock.NewRows(columns).
+					AddRow(idA, expiresAt, nil, nil, nil).
 					RowError(0, errors.New("read error mid-stream")),
 			)
 
-		ids, err := reaper.FindExpiredReservations(context.Background(), now)
+		expired, err := reaper.FindExpiredReservations(context.Background(), now, nil, 100)
 		require.Error(t, err)
-		assert.Nil(t, ids)
+		assert.Nil(t, expired)
 		assert.Contains(t, err.Error(), "failed to iterate expired reservations")
 		require.NoError(t, mock.ExpectationsWereMet())
 	})

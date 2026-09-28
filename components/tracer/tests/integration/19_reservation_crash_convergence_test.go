@@ -192,6 +192,14 @@ func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, a
 	return svc
 }
 
+// resLegacyOnlyExpirer satisfies the reaper's required expirer; these proofs
+// seed only legacy reservations, so any call fails the sweep.
+type resLegacyOnlyExpirer struct{}
+
+func (resLegacyOnlyExpirer) Execute(context.Context, model.ReserveOperationIdentity, time.Time) (int, error) {
+	return 0, errors.New("legacy-only sweep expired a decision operation")
+}
+
 // resWireReaper builds the real reaper worker over the integration DB with an
 // injected MockClock, so a sweep can be driven past the reservation TTL
 // deterministically via RunOnce. The reaper shares the counting audit writer so
@@ -204,13 +212,15 @@ func resWireReaper(t *testing.T, db *sql.DB, audit *resCountingAudit, sweepAt ti
 	resRepo := postgres.NewUsageReservationRepositoryWithConnection(counterRepo)
 	reaperRepo := postgres.NewReservationReaperRepository(adapter, resSQLTxBeginner{db: db}, resRepo)
 
-	reaper, err := workers.NewReservationReaperWorker(
+	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(
 		reaperRepo,
 		audit,
+		resLegacyOnlyExpirer{},
 		workers.DefaultReservationReaperWorkerConfig(),
 		testutil.NewMockLogger(),
 		testutil.NewMockClock(sweepAt),
 		"", // single-tenant
+		nil,
 	)
 	require.NoError(t, err, "failed to wire reservation reaper worker")
 

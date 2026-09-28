@@ -56,7 +56,7 @@ func TestDecisionCapacityRejectsBeforeDatabase(t *testing.T) {
 	require.ErrorIs(t, repo.ReserveForDecisionWithTx(t.Context(), tx, id, res, decimal.NewFromInt(100), time.Time{}), constant.ErrInvalidRequestBody)
 	_, err = repo.SettleDecisionWithTx(t.Context(), nil, id, model.StatusConfirmed)
 	require.ErrorIs(t, err, pgdb.ErrNilConnection)
-	for _, status := range []model.ReservationStatus{model.StatusExpired, model.StatusReserved, ""} {
+	for _, status := range []model.ReservationStatus{model.StatusReserved, ""} {
 		_, err := repo.SettleDecisionWithTx(t.Context(), tx, id, status)
 		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 	}

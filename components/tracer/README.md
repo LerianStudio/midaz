@@ -817,7 +817,8 @@ Built with ❤️ by LerianStudio Engineering Team
 Ledger integration uses the existing `POST /v1/reservations` and
 `ReservationService.Reserve` RPC. It does not call `/v1/validations` first.
 `CONTEXT_RESERVE_ENABLED` installs the shared contract on Tracer;
-`TRACER_CONTEXT_ENABLED` installs the matching Ledger coordinator and recovery.
+`TRACER_CONTEXT_ENABLED` installs the matching Ledger coordinator, which confirms
+or releases inline; an undelivered completion expires by the Tracer reservation TTL.
 The replacement reservation payload requires coordinated client/rule migration.
 
 The synchronous validation examples above retain their own context and enums.
@@ -840,6 +841,6 @@ debits.exists(d, d.asset == "BTC" && d.amount.greaterThan(decimal("100.01")))
 Rules and limits execute in one reservation admission. Gross debits include fees;
 credits do not offset consumption. Enforced REVIEW blocks accounting without
 creating a pending hold. Confirmation/release follows the accounting outcome;
-unknown outcomes are retained for recovery, never resolved by repeating accounting.
-See [invariants](../../docs/tracer/INVARIANTS.md) and
-[deployment and recovery configuration](../../docs/architecture/ledger-tracer-topology.md).
+unknown outcomes make no completion call and expire by the reservation TTL;
+accounting is never repeated. See [invariants](../../docs/tracer/INVARIANTS.md) and
+[deployment configuration](../../docs/architecture/ledger-tracer-topology.md).

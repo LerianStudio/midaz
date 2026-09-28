@@ -31,7 +31,7 @@ func TestReserveOperationIdentityDoesNotDependOnRequestID(t *testing.T) {
 	require.ErrorIs(t, key.Validate(), constant.ErrInvalidRequestBody)
 }
 
-func TestReserveOperationStateNeverExpiresUnknownOutcome(t *testing.T) {
+func TestReserveOperationStateTerminalStatusRequiresCompletionTime(t *testing.T) {
 	t.Parallel()
 	at := testutil.FixedTime()
 	zero := time.Time{}
@@ -44,7 +44,8 @@ func TestReserveOperationStateNeverExpiresUnknownOutcome(t *testing.T) {
 		{"confirmed", model.ReserveOperationState{Status: model.OperationConfirmed, CompletedAt: &at}, true},
 		{"released", model.ReserveOperationState{Status: model.OperationReleased, CompletedAt: &at}, true},
 		{"unknown", model.ReserveOperationState{}, false},
-		{"no ttl completion", model.ReserveOperationState{Status: "EXPIRED", CompletedAt: &at}, false},
+		{"expired", model.ReserveOperationState{Status: model.OperationExpired, CompletedAt: &at}, true},
+		{"expired without completion time", model.ReserveOperationState{Status: model.OperationExpired}, false},
 		{"missing completion time", model.ReserveOperationState{Status: model.OperationConfirmed}, false},
 		{"zero completion time", model.ReserveOperationState{Status: model.OperationReleased, CompletedAt: &zero}, false},
 		{"open cannot be completed", model.ReserveOperationState{Status: model.OperationOpen, CompletedAt: &at}, false},

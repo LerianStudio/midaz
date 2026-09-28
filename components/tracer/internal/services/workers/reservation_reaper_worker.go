@@ -8,9 +8,11 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,10 +21,13 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // DefaultReservationReaperInterval is the sub-minute cadence at which the reaper
@@ -32,6 +37,10 @@ import (
 // frees its hold within an operator-tolerable window. 30s is the chosen default;
 // operators tune it via RESERVATION_REAPER_INTERVAL_SECONDS.
 const DefaultReservationReaperInterval = 30 * time.Second
+
+// DefaultReservationReaperBatchSize is the number of expired reservations one
+// sweep reads when RESERVATION_REAPER_BATCH_SIZE is unset.
+const DefaultReservationReaperBatchSize = 500
 
 // ReservationExpiryAuditor records the single batch-summary audit row per reaper
 // sweep. It is the narrow slice of the audit writer the reaper needs: per-row
@@ -51,20 +60,26 @@ type ReservationReaperWorkerConfig struct {
 	// ReapInterval is how often the reaper sweeps expired reservations
 	// (default: DefaultReservationReaperInterval, 30s).
 	ReapInterval time.Duration
+	// BatchSize caps the expired reservations one sweep reads (default:
+	// DefaultReservationReaperBatchSize). A larger backlog drains over several
+	// sweeps instead of one long burst of per-operation audit writes.
+	BatchSize int
 }
 
 // DefaultReservationReaperWorkerConfig returns default configuration values.
 func DefaultReservationReaperWorkerConfig() ReservationReaperWorkerConfig {
 	return ReservationReaperWorkerConfig{
 		ReapInterval: DefaultReservationReaperInterval,
+		BatchSize:    DefaultReservationReaperBatchSize,
 	}
 }
 
 // ReservationReaperWorker periodically releases expired RESERVED reservations.
 // It runs in the background at a sub-minute cadence and, for each reservation
 // whose TTL has elapsed without a confirm or release, returns the held amount to
-// the counter (status -> EXPIRED). One batch-summary audit row is written per
-// sweep rather than one per expired row.
+// the counter (status -> EXPIRED). Legacy reservations share one batch-summary
+// audit row per sweep; a decision-owned reservation expires with its whole
+// operation, which is audited once.
 // Implements libCommons.App for Launcher integration.
 //
 // In multi-tenant mode tenantID scopes every sweep to a single tenant (the
@@ -75,9 +90,11 @@ type ReservationReaperWorker struct {
 	tenantID string
 	repo     ReservationReaperRepository
 	auditor  ReservationExpiryAuditor
-	config   ReservationReaperWorkerConfig
-	logger   libLog.Logger
-	clock    clock.Clock
+	// expirer closes the operations of decision-owned reservations.
+	expirer ReserveOperationExpirer
+	config  ReservationReaperWorkerConfig
+	logger  libLog.Logger
+	clock   clock.Clock
 	// poolResolver is non-nil in multi-tenant mode. Each sweep resolves the
 	// tenant-scoped pool and injects it onto the cycle context via
 	// tmcore.ContextWithPG so the find + per-row releases land on the tenant DB.
@@ -86,32 +103,26 @@ type ReservationReaperWorker struct {
 	// single-tenant mode this is nil and the cycle falls through to the
 	// repository's static connection.
 	poolResolver WorkerPoolResolver
+
+	// sweepMu serializes sweeps so resumeAfter advances one page at a time.
+	sweepMu sync.Mutex
+	// resumeAfter is where the next sweep starts: past the last row of a full
+	// page, so rows that keep failing to expire cannot hold the head of the
+	// expiry order. nil starts from the oldest expiry.
+	resumeAfter *model.ReservationExpiryPosition
 }
 
-// NewReservationReaperWorker creates a new reservation reaper worker.
-// Returns ErrNilRepository if repo is nil.
-// Returns ErrNilReservationAuditor if auditor is nil.
-// Returns ErrNilLogger if logger is nil.
-// Returns ErrInvalidReaperInterval if ReapInterval <= 0.
-// The clk parameter is optional; if nil, uses clock.RealClock{}.
-func NewReservationReaperWorker(
-	repo ReservationReaperRepository,
-	auditor ReservationExpiryAuditor,
-	config ReservationReaperWorkerConfig,
-	logger libLog.Logger,
-	clk clock.Clock,
-	tenantID string,
-) (*ReservationReaperWorker, error) {
-	return NewReservationReaperWorkerWithPoolResolver(repo, auditor, config, logger, clk, tenantID, nil)
-}
-
-// NewReservationReaperWorkerWithPoolResolver is the full constructor. MT callers
-// pass a non-nil poolResolver so each sweep stashes the tenant DB on the context
-// via tmcore.ContextWithPG. Single-tenant callers may use NewReservationReaperWorker
-// (poolResolver defaults to nil).
+// NewReservationReaperWorkerWithPoolResolver creates a reservation reaper
+// worker. MT callers pass a non-nil poolResolver so each sweep stashes the tenant
+// DB on the context via tmcore.ContextWithPG; single-tenant callers pass nil.
+// Returns ErrNilRepository, ErrNilReservationAuditor, ErrNilOperationExpirer or
+// ErrNilLogger for a missing dependency, and ErrInvalidReaperInterval if
+// ReapInterval <= 0 or ErrInvalidReaperBatchSize if BatchSize <= 0. A nil clk
+// uses clock.RealClock{}.
 func NewReservationReaperWorkerWithPoolResolver(
 	repo ReservationReaperRepository,
 	auditor ReservationExpiryAuditor,
+	expirer ReserveOperationExpirer,
 	config ReservationReaperWorkerConfig,
 	logger libLog.Logger,
 	clk clock.Clock,
@@ -126,12 +137,20 @@ func NewReservationReaperWorkerWithPoolResolver(
 		return nil, ErrNilReservationAuditor
 	}
 
+	if expirer == nil {
+		return nil, ErrNilOperationExpirer
+	}
+
 	if logger == nil {
 		return nil, ErrNilLogger
 	}
 
 	if config.ReapInterval <= 0 {
 		return nil, ErrInvalidReaperInterval
+	}
+
+	if config.BatchSize <= 0 {
+		return nil, ErrInvalidReaperBatchSize
 	}
 
 	if clk == nil {
@@ -142,6 +161,7 @@ func NewReservationReaperWorkerWithPoolResolver(
 		tenantID:     tenantID,
 		repo:         repo,
 		auditor:      auditor,
+		expirer:      expirer,
 		config:       config,
 		logger:       logger,
 		clock:        clk,
@@ -257,17 +277,28 @@ func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
 }
 
 // RunOnce executes a single reap sweep: find the expired RESERVED reservations,
-// release each as EXPIRED in its own transaction, then write ONE batch-summary
-// audit row for the sweep. Returns the number of reservations released.
+// expire each decision-owned operation once through the expirer, release each
+// legacy reservation as EXPIRED in its own transaction, then write ONE
+// batch-summary audit row for the legacy releases. Returns the number of
+// reservations released. At most config.BatchSize reservations are read; the
+// rest stay expired for the next sweep.
+//
+// Sweeps walk the expiry order (expiry, id) page by page. After a full page the
+// next sweep resumes past its last row, whatever the page's outcome; a short
+// page, or an empty page past the resume position, returns the walk to the
+// oldest expiry. An operation that fails on every sweep is therefore retried
+// once per pass instead of holding every sweep's head, so newer rows behind it
+// still expire.
 //
 // A per-row release that hits an already-terminal reservation (a confirm/release
 // raced the sweep) is an idempotent no-op handled inside the repository, so the
-// reaper does not special-case it here. A genuine release failure aborts the
-// remaining releases for the cycle and is returned so the cycle is logged as
-// failed; the next tick retries the still-expired rows.
+// reaper does not special-case it here. A genuine legacy release failure aborts
+// the remaining legacy releases for the cycle and is returned so the cycle is
+// logged as failed; the next tick retries the still-expired rows. An operation
+// that fails to expire does not stop the others.
 //
-// The batch audit is only written when at least one reservation expired — an
-// empty sweep produces no audit row.
+// The batch audit is only written when at least one legacy reservation expired;
+// each expired operation carries its own audit event.
 func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
@@ -278,20 +309,107 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 
 	now := w.clock.Now().UTC()
 
-	expired, err := w.repo.FindExpiredReservations(ctx, now)
+	w.sweepMu.Lock()
+	defer w.sweepMu.Unlock()
+
+	expired, err := w.findPage(ctx, now)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to find expired reservations", err)
 
 		return 0, fmt.Errorf("failed to find expired reservations: %w", err)
 	}
 
+	w.resumeAfter = nil
+	if len(expired) == w.config.BatchSize {
+		position := expired[len(expired)-1].Position()
+		w.resumeAfter = &position
+	}
+
 	if len(expired) == 0 {
+		return 0, nil
+	}
+
+	legacy := make([]uuid.UUID, 0, len(expired))
+	operations := make([]model.ReserveOperationIdentity, 0)
+	seen := make(map[model.ReserveOperationIdentity]struct{})
+
+	for _, reservation := range expired {
+		if reservation.Operation == nil {
+			legacy = append(legacy, reservation.ID)
+			continue
+		}
+
+		if _, ok := seen[*reservation.Operation]; !ok {
+			seen[*reservation.Operation] = struct{}{}
+			operations = append(operations, *reservation.Operation)
+		}
+	}
+
+	released, operationErr := w.expireOperations(ctx, span, operations, now)
+
+	legacyReleased, legacyErr := w.releaseLegacy(ctx, span, legacy, now)
+	released += legacyReleased
+
+	if err := errors.Join(operationErr, legacyErr); err != nil {
+		return released, err
+	}
+
+	logger.With(
+		libLog.String("operation", "worker.reservation_reaper.run_once"),
+		libLog.String("now", now.Format(time.RFC3339)),
+		libLog.Int("released_count", released),
+	).Log(ctx, libLog.LevelDebug, "Released expired reservations")
+
+	return released, nil
+}
+
+// findPage reads the sweep's page from the resume position, returning to the
+// oldest expiry when nothing is left past it. It keeps the resume position on
+// error so a failed read retries the same page.
+func (w *ReservationReaperWorker) findPage(ctx context.Context, now time.Time) ([]model.ExpiredReservation, error) {
+	expired, err := w.repo.FindExpiredReservations(ctx, now, w.resumeAfter, w.config.BatchSize)
+	if err != nil || len(expired) > 0 || w.resumeAfter == nil {
+		return expired, err
+	}
+
+	return w.repo.FindExpiredReservations(ctx, now, nil, w.config.BatchSize)
+}
+
+// expireOperations expires each decision-owned operation once and counts the
+// reservations the expirer moved. The expirer settles every reservation of the
+// operation, including any the sweep's batch cap left unread, so the count is
+// what moved rather than what this sweep happened to read.
+func (w *ReservationReaperWorker) expireOperations(ctx context.Context, span trace.Span, operations []model.ReserveOperationIdentity, now time.Time) (int, error) {
+	released := 0
+
+	var errs []error
+
+	for _, operation := range operations {
+		moved, err := w.expirer.Execute(ctx, operation, now)
+		if err != nil {
+			libOtel.HandleSpanError(span, "Failed to expire reserve operation", err)
+
+			errs = append(errs, fmt.Errorf("failed to expire reserve operation for transaction %s: %w", operation.TransactionID, err))
+
+			continue
+		}
+
+		released += moved
+	}
+
+	return released, errors.Join(errs...)
+}
+
+// releaseLegacy releases reservations without a decision one by one and writes
+// the sweep's batch-summary audit row for them.
+func (w *ReservationReaperWorker) releaseLegacy(ctx context.Context, span trace.Span, legacy []uuid.UUID, now time.Time) (int, error) {
+	if len(legacy) == 0 {
 		return 0, nil
 	}
 
 	released := 0
 
-	for _, reservationID := range expired {
+	for _, reservationID := range legacy {
 		if err := w.repo.ReleaseExpired(ctx, reservationID); err != nil {
 			libOtel.HandleSpanError(span, "Failed to release expired reservation", err)
 
@@ -315,12 +433,6 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 
 		return released, fmt.Errorf("failed to record reservation expiry batch: %w", err)
 	}
-
-	logger.With(
-		libLog.String("operation", "worker.reservation_reaper.run_once"),
-		libLog.String("now", now.Format(time.RFC3339)),
-		libLog.Int("released_count", released),
-	).Log(ctx, libLog.LevelDebug, "Released expired reservations")
 
 	return released, nil
 }

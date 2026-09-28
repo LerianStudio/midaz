@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	validLedgerActivation = "TRACER_CONTEXT_ENABLED=true\nTRACER_INTEGRATION_ID=ledger\n"
+	validLedgerActivation = "TRACER_CONTEXT_ENABLED=true\n"
 	validTracerActivation = "CONTEXT_RESERVE_ENABLED=true\nCONTEXT_PRODUCER_BINDINGS='[{\"uri\":\"spiffe://example.test/ledger\",\"integrationId\":\"ledger\",\"purposes\":[\"reserve\"]}]'\n"
 )
 
@@ -57,13 +57,15 @@ func TestProfileCheckRejectsActivationDrift(t *testing.T) {
 		ledger string
 		tracer string
 	}{
-		{name: "invalid ledger boolean", ledger: "TRACER_CONTEXT_ENABLED=yes\nTRACER_INTEGRATION_ID=ledger\n", tracer: validTracerActivation},
+		{name: "invalid ledger boolean", ledger: "TRACER_CONTEXT_ENABLED=yes\n", tracer: validTracerActivation},
+		{name: "ledger context disabled", ledger: "TRACER_CONTEXT_ENABLED=false\n", tracer: validTracerActivation},
 		{name: "tracer reserve disabled", ledger: validLedgerActivation, tracer: "CONTEXT_RESERVE_ENABLED=false\nCONTEXT_PRODUCER_BINDINGS='[{\"uri\":\"spiffe://example.test/ledger\",\"integrationId\":\"ledger\",\"purposes\":[\"reserve\"]}]'\n"},
-		{name: "identity differs", ledger: validLedgerActivation, tracer: "CONTEXT_RESERVE_ENABLED=true\nCONTEXT_PRODUCER_BINDINGS='[{\"uri\":\"spiffe://example.test/ledger\",\"integrationId\":\"another\",\"purposes\":[\"reserve\"]}]'\n"},
-		{name: "integration missing", ledger: "TRACER_CONTEXT_ENABLED=true\n", tracer: validTracerActivation},
 		{name: "binding carries an unknown field", ledger: validLedgerActivation, tracer: "CONTEXT_RESERVE_ENABLED=true\nCONTEXT_PRODUCER_BINDINGS='[{\"uri\":\"spiffe://example.test/ledger\",\"integrationId\":\"ledger\",\"tenantId\":\"acme\",\"purposes\":[\"reserve\"]}]'\n"},
+		{name: "bindings missing", ledger: validLedgerActivation, tracer: "CONTEXT_RESERVE_ENABLED=true\n"},
+		{name: "reaper disabled", ledger: validLedgerActivation, tracer: validTracerActivation + "RESERVATION_REAPER_ENABLED=false\n"},
+		{name: "reaper flag unparsable", ledger: validLedgerActivation, tracer: validTracerActivation + "RESERVATION_REAPER_ENABLED=on\n"},
+		{name: "reaper flag empty", ledger: validLedgerActivation, tracer: validTracerActivation + "RESERVATION_REAPER_ENABLED=\n"},
 		{name: "purpose differs", ledger: validLedgerActivation, tracer: "CONTEXT_RESERVE_ENABLED=true\nCONTEXT_PRODUCER_BINDINGS='[{\"uri\":\"spiffe://example.test/admin\",\"integrationId\":\"ledger\",\"purposes\":[\"admin\"]}]'\n"},
-		{name: "recovery cannot cover batch", ledger: validLedgerActivation + "TRANSACTION_BATCH_MAX_SIZE=50\nTRACER_RECOVERY_BATCH_SIZE=10\n", tracer: validTracerActivation},
 	}
 
 	for _, test := range tests {
@@ -75,13 +77,23 @@ func TestProfileCheckRejectsActivationDrift(t *testing.T) {
 	}
 }
 
-func TestProfileCheckAcceptsMatchingRotationBindingsAndBatch(t *testing.T) {
+func TestProfileCheckAcceptsRotationBindings(t *testing.T) {
 	dir := t.TempDir()
 	ledgerPath, tracerPath := filepath.Join(dir, "ledger.env"), filepath.Join(dir, "tracer.env")
-	ledger := validLedgerActivation + "TRANSACTION_BATCH_MAX_SIZE=50\nTRACER_RECOVERY_BATCH_SIZE=50\n"
+	ledger := validLedgerActivation + "TRANSACTION_BATCH_MAX_SIZE=50\n"
 	bindings := `[{"uri":"spiffe://example.test/old","integrationId":"ledger","purposes":["reserve"]},{"uri":"spiffe://example.test/new","integrationId":"ledger","purposes":["reserve"]}]`
 	tracer := fmt.Sprintf("CONTEXT_RESERVE_ENABLED=true\nCONTEXT_PRODUCER_BINDINGS='%s'\n", bindings)
 	require.NoError(t, os.WriteFile(ledgerPath, []byte(ledger), 0o600))
 	require.NoError(t, os.WriteFile(tracerPath, []byte(tracer), 0o600))
 	require.NoError(t, checkProfiles(ledgerPath, tracerPath))
+}
+
+func TestProfileCheckAcceptsTheReaperOnOrDefaulted(t *testing.T) {
+	dir := t.TempDir()
+	ledgerPath, tracerPath := filepath.Join(dir, "ledger.env"), filepath.Join(dir, "tracer.env")
+	require.NoError(t, os.WriteFile(ledgerPath, []byte(validLedgerActivation), 0o600))
+	for _, tracer := range []string{validTracerActivation, validTracerActivation + "RESERVATION_REAPER_ENABLED=true\n"} {
+		require.NoError(t, os.WriteFile(tracerPath, []byte(tracer), 0o600))
+		require.NoError(t, checkProfiles(ledgerPath, tracerPath))
+	}
 }

@@ -16,8 +16,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
@@ -63,7 +65,7 @@ func loadContextReservationConfig(cfg *Config) (*contextReservationConfig, error
 		return nil, fmt.Errorf("context reservation body, limits, scopes, cache and compilation bounds must be positive")
 	}
 
-	lifetime, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
+	longLived, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func loadContextReservationConfig(cfg *Config) (*contextReservationConfig, error
 		evaluation: evaluation, identity: identity, maxBodyBytes: cfg.ContextReserveMaxBodyBytes,
 		limits:    postgres.ContextLimitRepositoryConfig{MaxAccounts: facts.MaxAccounts, MaxLimits: cfg.ContextReserveMaxLimits, MaxScopes: cfg.ContextLimitMaxScopes, MaxScopeBytes: cfg.ContextLimitMaxScopeBytes},
 		cache:     query.CompiledPolicyCacheConfig{MaxEntries: cfg.ContextPolicyCacheEntries, MaxCompilations: cfg.ContextPolicyMaxCompilations, SingleTenant: !cfg.MultiTenantEnabled},
-		admission: command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: cfg.ContextReserveMaxLimits, MaxScopesPerLimit: cfg.ContextLimitMaxScopes, MaxReservations: cfg.ContextReserveMaxReservations}, MaxRules: cfg.ContextMaxRules, SingleTenant: !cfg.MultiTenantEnabled, MaxTimestampAge: model.MaxTimestampAge, ClockSkewTolerance: model.ClockSkewTolerance, ReservationLifetime: lifetime},
+		admission: command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: cfg.ContextReserveMaxLimits, MaxScopesPerLimit: cfg.ContextLimitMaxScopes, MaxReservations: cfg.ContextReserveMaxReservations}, MaxRules: cfg.ContextMaxRules, SingleTenant: !cfg.MultiTenantEnabled, MaxTimestampAge: model.MaxTimestampAge, ClockSkewTolerance: model.ClockSkewTolerance, ReservationLifetime: services.ReservationTTL, LongLivedLifetime: longLived},
 	}, nil
 }
 
@@ -170,4 +172,22 @@ func loadContextProducerIdentity(cfg *Config) (*seamidentity.Resolver, error) {
 	}
 
 	return identity, nil
+}
+
+// initReserveOperationExpiry builds the reaper's expiry of decision-owned
+// operations whether or not Reserve is enabled: capacity held by an earlier
+// decision must still return when its TTL elapses.
+func initReserveOperationExpiry(cfg *Config, conn pgdb.Connection, tx pgdb.TxBeginner, audit command.AuditEventRepository, capacity *postgres.UsageReservationRepository) (workers.ReserveOperationExpirer, error) {
+	decisions, err := postgres.NewReserveDecisionRepository(conn, cfg.ContextMaxRules, cfg.ContextReserveMaxReservations)
+	if err != nil {
+		return nil, err
+	}
+
+	expiry, err := command.NewExpireReserveOperationCommand(postgres.NewReserveOperationRepository(), decisions, capacity, audit, tx,
+		command.ReserveCompletionConfig{SingleTenant: !cfg.MultiTenantEnabled, MaxRules: cfg.ContextMaxRules, MaxReservations: cfg.ContextReserveMaxReservations})
+	if err != nil {
+		return nil, err
+	}
+
+	return expiry, nil
 }

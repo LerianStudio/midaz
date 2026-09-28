@@ -105,6 +105,14 @@ func (failingPoolResolver) GetTenantDB(_ context.Context, _ string) (dbresolver.
 // reservation_expires_at values are placed strictly before this for expired rows
 // and far after it for fresh rows, so the find query's predicate is unambiguous
 // regardless of wall-clock time during the run.
+// legacyOnlyReaperExpirer satisfies the required expirer for sweeps that seed
+// only legacy reservations; any call fails the sweep.
+type legacyOnlyReaperExpirer struct{}
+
+func (legacyOnlyReaperExpirer) Execute(context.Context, model.ReserveOperationIdentity, time.Time) (int, error) {
+	return 0, errors.New("legacy-only sweep expired a decision operation")
+}
+
 func fixedReaperNow() time.Time {
 	return time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 }
@@ -130,10 +138,10 @@ func newRealReaper(
 	auditRepo := NewAuditEventRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
 	auditor := command.NewRecordAuditEventCommand(auditRepo)
 
-	config := workers.ReservationReaperWorkerConfig{ReapInterval: clk.interval}
+	config := workers.ReservationReaperWorkerConfig{ReapInterval: clk.interval, BatchSize: workers.DefaultReservationReaperBatchSize}
 
 	worker, err := workers.NewReservationReaperWorkerWithPoolResolver(
-		reaperRepo, auditor, config, testutil.NewMockLogger(), clk, tenantID, resolver,
+		reaperRepo, auditor, legacyOnlyReaperExpirer{}, config, testutil.NewMockLogger(), clk, tenantID, resolver,
 	)
 	require.NoError(t, err)
 

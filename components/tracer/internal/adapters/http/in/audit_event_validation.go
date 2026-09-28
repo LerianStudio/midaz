@@ -56,7 +56,7 @@ func validateAuditEventType(fl validator.FieldLevel) bool {
 
 	eventType := model.AuditEventType(field.String())
 	switch eventType {
-	case model.AuditEventTransactionValidated, model.AuditEventPolicyPublished, model.AuditEventPolicyBound, model.AuditEventOperationConfirmed, model.AuditEventOperationReleased,
+	case model.AuditEventTransactionValidated, model.AuditEventPolicyPublished, model.AuditEventPolicyBound, model.AuditEventOperationConfirmed, model.AuditEventOperationReleased, model.AuditEventOperationExpired,
 		model.AuditEventRuleCreated, model.AuditEventRuleUpdated,
 		model.AuditEventRuleActivated, model.AuditEventRuleDeactivated,
 		model.AuditEventRuleDrafted, model.AuditEventRuleDeleted,
@@ -85,7 +85,8 @@ func validateAuditAction(fl validator.FieldLevel) bool {
 	case model.AuditActionValidate, model.AuditActionCreate,
 		model.AuditActionUpdate, model.AuditActionDelete,
 		model.AuditActionActivate, model.AuditActionDeactivate,
-		model.AuditActionDraft, model.AuditActionConfirm, model.AuditActionRelease:
+		model.AuditActionDraft, model.AuditActionConfirm, model.AuditActionRelease,
+		model.AuditActionExpire:
 		return true
 	default:
 		return false

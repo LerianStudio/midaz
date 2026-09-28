@@ -16,8 +16,8 @@ BEGIN
         FOREIGN KEY (decision_id, transaction_id)
         REFERENCES reserve_decisions(evaluation_id, transaction_id)
         DEFERRABLE INITIALLY DEFERRED;
-    ALTER TABLE usage_reservations ADD CONSTRAINT decision_reservation_no_expiry
-        CHECK (decision_id IS NULL OR (status <> 'EXPIRED' AND amount > 0));
+    ALTER TABLE usage_reservations ADD CONSTRAINT decision_reservation_positive_amount
+        CHECK (decision_id IS NULL OR amount > 0);
 
     DROP INDEX idx_usage_reservations_request;
     CREATE UNIQUE INDEX idx_usage_reservations_request
@@ -26,9 +26,6 @@ BEGIN
     CREATE UNIQUE INDEX idx_usage_reservations_decision
         ON usage_reservations(decision_id, limit_id, scope_key, period_key)
         WHERE decision_id IS NOT NULL;
-    DROP INDEX idx_usage_reservations_reaper;
-    CREATE INDEX idx_usage_reservations_reaper ON usage_reservations(reservation_expires_at)
-        WHERE status = 'RESERVED' AND decision_id IS NULL;
 
     CREATE FUNCTION guard_decision_reservation_mutation() RETURNS trigger AS $function$
     BEGIN
@@ -47,7 +44,7 @@ BEGIN
             IS DISTINCT FROM
             (OLD.id, OLD.limit_id, OLD.scope_key, OLD.period_key, OLD.amount,
              OLD.transaction_id, OLD.reservation_expires_at, OLD.created_at)
-            OR OLD.status <> 'RESERVED' OR NEW.status NOT IN ('CONFIRMED', 'RELEASED')
+            OR OLD.status <> 'RESERVED' OR NEW.status NOT IN ('CONFIRMED', 'RELEASED', 'EXPIRED')
         ) THEN
             RAISE EXCEPTION 'decision reservation transition conflicts with stored state' USING ERRCODE = '23514';
         END IF;

@@ -34,7 +34,7 @@ func TestReserveOperationRepositoryRejectsBeforeWrite(t *testing.T) {
 	tx := mocks.NewMockTx(gomock.NewController(t))
 	_, err = repo.LockWithTx(t.Context(), tx, model.ReserveOperationIdentity{})
 	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
-	for _, state := range []model.ReserveOperationStatus{model.OperationOpen, "EXPIRED", ""} {
+	for _, state := range []model.ReserveOperationStatus{model.OperationOpen, "UNKNOWN", ""} {
 		_, _, err = repo.CompleteWithTx(t.Context(), tx, identity, state, testutil.FixedTime())
 		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 	}

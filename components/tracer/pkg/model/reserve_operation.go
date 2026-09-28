@@ -31,15 +31,17 @@ func (k ReserveOperationIdentity) Validate() error {
 	return nil
 }
 
-// ReserveOperationStatus records the producer's known accounting outcome.
-// OPEN means no terminal outcome was recorded; there is deliberately no TTL
-// transition, and elapsed time cannot prove that accounting did not commit.
+// ReserveOperationStatus records the producer's known accounting outcome, or
+// EXPIRED when the reservation TTL elapsed first. OPEN means no terminal outcome
+// was recorded. EXPIRED returns held capacity without proving that accounting
+// did not commit; a later confirm or release conflicts with it.
 type ReserveOperationStatus string
 
 const (
 	OperationOpen      ReserveOperationStatus = "OPEN"
 	OperationConfirmed ReserveOperationStatus = "CONFIRMED"
 	OperationReleased  ReserveOperationStatus = "RELEASED"
+	OperationExpired   ReserveOperationStatus = "EXPIRED"
 )
 
 // ReserveOperationState is separate from the immutable decision. CompletedAt
@@ -58,7 +60,7 @@ func (s ReserveOperationState) Validate() error {
 		return nil
 	}
 
-	if (s.Status != OperationConfirmed && s.Status != OperationReleased) || s.CompletedAt == nil || s.CompletedAt.IsZero() {
+	if (s.Status != OperationConfirmed && s.Status != OperationReleased && s.Status != OperationExpired) || s.CompletedAt == nil || s.CompletedAt.IsZero() {
 		return constant.ErrInvalidRequestBody
 	}
 
@@ -83,4 +85,25 @@ func (o ReserveReservationOwner) Validate() error {
 	}
 
 	return o.Operation.Validate()
+}
+
+// ExpiredReservation locates a RESERVED row past its TTL. Operation is nil for a
+// legacy reservation, which expires alone; a decision-owned reservation expires
+// only together with its whole operation.
+type ExpiredReservation struct {
+	ID        uuid.UUID
+	ExpiresAt time.Time
+	Operation *ReserveOperationIdentity
+}
+
+// Position returns the sweep position this reservation occupies.
+func (e ExpiredReservation) Position() ReservationExpiryPosition {
+	return ReservationExpiryPosition{ExpiresAt: e.ExpiresAt, ID: e.ID}
+}
+
+// ReservationExpiryPosition orders RESERVED rows by (expiry, id) so a TTL sweep
+// can resume strictly after a row it already read.
+type ReservationExpiryPosition struct {
+	ExpiresAt time.Time
+	ID        uuid.UUID
 }

@@ -48,6 +48,11 @@ func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connecti
 	if len(accountBounds) > 0 {
 		maxAccounts = accountBounds[0]
 	}
+	return admissionFixtureWithLifetime(t, db, conn, now, singleTenant, maxAccounts, time.Hour, 720*time.Hour)
+}
+
+func admissionFixtureWithLifetime(t *testing.T, db *sql.DB, conn pgdb.Connection, now time.Time, singleTenant bool, maxAccounts int, lifetime, longLivedLifetime time.Duration) (*command.ReserveAdmissionCommand, *ContextPolicyRepository, tracercontract.ReserveRequest) {
+	t.Helper()
 	facts := tracercontract.Limits{MaxAccounts: maxAccounts, MaxEntries: 2 * maxAccounts, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
 	engine, err := cel.NewContextAdapter(cel.ContextAdapterConfig{Limits: facts, CostLimit: 100000, MaxExpressionBytes: 5000})
 	require.NoError(t, err)
@@ -67,7 +72,7 @@ func admissionFixtureWithConnection(t *testing.T, db *sql.DB, conn pgdb.Connecti
 	require.NoError(t, err)
 	c, err := command.NewReserveAdmissionCommand(command.ReserveAdmissionDependencies{
 		Decisions: decisions, Operations: NewReserveOperationRepository(), Capacity: newReservationRepoIntegration(db), Limits: limits, Policies: compiled, Evaluator: evaluator, Audit: NewAuditEventRepositoryWithConnection(conn), Transactions: beginner,
-	}, clock.NewFixedClock(now), command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: 10, MaxScopesPerLimit: maxAccounts, MaxReservations: 100}, MaxRules: 10, SingleTenant: singleTenant, MaxTimestampAge: 24 * time.Hour, ClockSkewTolerance: time.Second, ReservationLifetime: time.Hour})
+	}, clock.NewFixedClock(now), command.ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: facts, MaxLimits: 10, MaxScopesPerLimit: maxAccounts, MaxReservations: 100}, MaxRules: 10, SingleTenant: singleTenant, MaxTimestampAge: 24 * time.Hour, ClockSkewTolerance: time.Second, ReservationLifetime: lifetime, LongLivedLifetime: longLivedLifetime})
 	require.NoError(t, err)
 	account := testutil.MustDeterministicUUID(89001)
 	asset := "USD"
@@ -579,4 +584,61 @@ func TestIntegrationReserveAdmissionConcurrentContentConflict(t *testing.T) {
 	var reservations int
 	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM usage_reservations").Scan(&reservations))
 	require.Equal(t, 1, reservations)
+}
+
+func TestIntegrationReserveAdmissionReservationLifetimeFollowsLongLived(t *testing.T) {
+	for _, longLived := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "long-lived"}[longLived], func(t *testing.T) {
+			db := completionDatabase(t)
+			c, _, r := admissionFixtureWithLifetime(t, db, &testutil.IntegrationDBAdapter{DB: db}, testutil.FixedTime(), true, 10, 5*time.Minute, 720*time.Hour)
+			r.ValidationMode = tracercontract.ValidationLimits
+			r.LongLived = &longLived
+			admissionLimit(t, db, r, 89801, "100")
+			ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+			defer cancel()
+			result, err := c.Execute(ctx, r)
+			require.NoError(t, err)
+			require.Equal(t, tracercontract.DecisionAllow, result.Decision)
+			require.Len(t, result.ReservationIDs, 1)
+			var expiresAt time.Time
+			require.NoError(t, db.QueryRowContext(ctx, "SELECT reservation_expires_at FROM usage_reservations WHERE id=$1", result.ReservationIDs[0]).Scan(&expiresAt))
+			want := 5 * time.Minute
+			if longLived {
+				want = 720 * time.Hour
+			}
+			require.Equal(t, testutil.FixedTime().Add(want), expiresAt.UTC())
+		})
+	}
+}
+
+// TestIntegrationReserveAdmissionReplayAfterExpiryConflicts proves an expired
+// operation's stored ALLOW is never replayed: its capacity went back to the
+// counter, so the producer must not treat the decision as still holding it.
+func TestIntegrationReserveAdmissionReplayAfterExpiryConflicts(t *testing.T) {
+	db := completionDatabase(t)
+	c, _, r := admissionFixtureWithLifetime(t, db, &testutil.IntegrationDBAdapter{DB: db}, testutil.FixedTime(), true, 10, 5*time.Minute, 720*time.Hour)
+	r.ValidationMode = tracercontract.ValidationLimits
+	limitID := admissionLimit(t, db, r, 89811, "100")
+	ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+	defer cancel()
+
+	first, err := c.Execute(ctx, r)
+	require.NoError(t, err)
+	require.Equal(t, tracercontract.DecisionAllow, first.Decision)
+	require.Len(t, first.ReservationIDs, 1)
+	replayed, err := c.Execute(ctx, r)
+	require.NoError(t, err, "a replay before expiry returns the stored decision")
+	require.Equal(t, first.EvaluationID, replayed.EvaluationID)
+
+	key := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: r.TransactionID}
+	expired, err := expireCommand(t, db).Execute(ctx, key, testutil.FixedTime().Add(10*time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, 1, expired)
+
+	late, err := c.Execute(ctx, r)
+	require.ErrorIs(t, err, constant.ErrReserveOperationConflict)
+	require.Nil(t, late)
+	var reserved string
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT reserved_usage::text FROM usage_counters WHERE limit_id=$1", limitID).Scan(&reserved))
+	require.True(t, decimal.RequireFromString(reserved).IsZero(), "the replay reserves nothing again")
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // fixedReaperTime is the deterministic "now" used across reaper tests. Per the
@@ -29,19 +30,48 @@ func fixedReaperTime() time.Time {
 	return time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 }
 
+func legacyExpired(ids ...uuid.UUID) []model.ExpiredReservation {
+	expired := make([]model.ExpiredReservation, 0, len(ids))
+	for _, id := range ids {
+		expired = append(expired, model.ExpiredReservation{ID: id})
+	}
+
+	return expired
+}
+
+// legacyOnlyExpirer satisfies the required expirer for sweeps that only find
+// legacy reservations; it fails any call so a decision row cannot slip through.
+type legacyOnlyExpirer struct{}
+
+func (legacyOnlyExpirer) Execute(context.Context, model.ReserveOperationIdentity, time.Time) (int, error) {
+	return 0, errors.New("legacy-only sweep expired a decision operation")
+}
+
 func TestNewReservationReaperWorker(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      ReservationReaperWorkerConfig
 		nilRepo     bool
 		nilAuditor  bool
+		nilExpirer  bool
 		nilLogger   bool
 		expectError error
 	}{
 		{
 			name:        "creates worker with valid config",
-			config:      ReservationReaperWorkerConfig{ReapInterval: 30 * time.Second},
+			config:      ReservationReaperWorkerConfig{ReapInterval: 30 * time.Second, BatchSize: 10},
 			expectError: nil,
+		},
+		{
+			name:        "returns error when expirer is nil",
+			config:      ReservationReaperWorkerConfig{ReapInterval: 30 * time.Second, BatchSize: 10},
+			nilExpirer:  true,
+			expectError: ErrNilOperationExpirer,
+		},
+		{
+			name:        "returns error when batch size is zero",
+			config:      ReservationReaperWorkerConfig{ReapInterval: 30 * time.Second},
+			expectError: ErrInvalidReaperBatchSize,
 		},
 		{
 			name:        "returns error when repository is nil",
@@ -89,12 +119,17 @@ func TestNewReservationReaperWorker(t *testing.T) {
 				auditor = mocks.NewMockReservationExpiryAuditor(ctrl)
 			}
 
+			var expirer ReserveOperationExpirer = legacyOnlyExpirer{}
+			if tt.nilExpirer {
+				expirer = nil
+			}
+
 			var logger libLog.Logger = testutil.NewMockLogger()
 			if tt.nilLogger {
 				logger = nil
 			}
 
-			worker, err := NewReservationReaperWorker(repo, auditor, tt.config, logger, nil, "")
+			worker, err := NewReservationReaperWorkerWithPoolResolver(repo, auditor, expirer, tt.config, logger, nil, "", nil)
 
 			if tt.expectError != nil {
 				require.Error(t, err)
@@ -138,8 +173,8 @@ func TestReservationReaperWorker_RunOnce_ReleasesExpired(t *testing.T) {
 
 	// The sweep reads with the injected clock's "now".
 	mockRepo.EXPECT().
-		FindExpiredReservations(gomock.Any(), now.UTC()).
-		Return(expired, nil).
+		FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).
+		Return(legacyExpired(expired...), nil).
 		Times(1)
 
 	// Each expired reservation is released as EXPIRED exactly once.
@@ -160,7 +195,7 @@ func TestReservationReaperWorker_RunOnce_ReleasesExpired(t *testing.T) {
 		}).
 		Times(1)
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, DefaultReservationReaperWorkerConfig(), logger, testClock, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, testClock, "", nil)
 	require.NoError(t, err)
 
 	released, err := worker.RunOnce(context.Background())
@@ -185,14 +220,14 @@ func TestReservationReaperWorker_RunOnce_FreshUntouched(t *testing.T) {
 	testClock := mockClock{fixedTime: now}
 
 	mockRepo.EXPECT().
-		FindExpiredReservations(gomock.Any(), now.UTC()).
+		FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).
 		Return(nil, nil).
 		Times(1)
 
 	// No ReleaseExpired and no RecordReservationExpiryBatch expected — gomock
 	// fails the test if either is called.
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, DefaultReservationReaperWorkerConfig(), logger, testClock, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, testClock, "", nil)
 	require.NoError(t, err)
 
 	released, err := worker.RunOnce(context.Background())
@@ -212,7 +247,7 @@ type ttlPredicateRepo struct {
 	released  []uuid.UUID
 }
 
-func (r *ttlPredicateRepo) FindExpiredReservations(_ context.Context, now time.Time) ([]uuid.UUID, error) {
+func (r *ttlPredicateRepo) FindExpiredReservations(_ context.Context, now time.Time, _ *model.ReservationExpiryPosition, _ int) ([]model.ExpiredReservation, error) {
 	var ids []uuid.UUID
 
 	for id, exp := range r.expiresAt {
@@ -221,7 +256,7 @@ func (r *ttlPredicateRepo) FindExpiredReservations(_ context.Context, now time.T
 		}
 	}
 
-	return ids, nil
+	return legacyExpired(ids...), nil
 }
 
 func (r *ttlPredicateRepo) ReleaseExpired(_ context.Context, reservationID uuid.UUID) error {
@@ -265,7 +300,7 @@ func TestReservationReaperWorker_RunOnce_LongLivedNotSweptBeforeTTL(t *testing.T
 		Return(nil).
 		Times(1)
 
-	worker, err := NewReservationReaperWorker(repo, auditor, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: now}, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(repo, auditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: now}, "", nil)
 	require.NoError(t, err)
 
 	released, err := worker.RunOnce(context.Background())
@@ -282,7 +317,7 @@ func TestReservationReaperWorker_RunOnce_LongLivedNotSweptBeforeTTL(t *testing.T
 		Times(1)
 
 	afterTTL := now.Add(721 * time.Hour)
-	workerAfter, err := NewReservationReaperWorker(repo, auditor, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: afterTTL}, "")
+	workerAfter, err := NewReservationReaperWorkerWithPoolResolver(repo, auditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: afterTTL}, "", nil)
 	require.NoError(t, err)
 
 	released, err = workerAfter.RunOnce(context.Background())
@@ -307,11 +342,11 @@ func TestReservationReaperWorker_RunOnce_FindError(t *testing.T) {
 	testClock := mockClock{fixedTime: now}
 
 	mockRepo.EXPECT().
-		FindExpiredReservations(gomock.Any(), now.UTC()).
+		FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).
 		Return(nil, errors.New("db down")).
 		Times(1)
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, DefaultReservationReaperWorkerConfig(), logger, testClock, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, testClock, "", nil)
 	require.NoError(t, err)
 
 	released, err := worker.RunOnce(context.Background())
@@ -340,8 +375,8 @@ func TestReservationReaperWorker_RunOnce_ReleaseErrorStopsSweep(t *testing.T) {
 	second := testutil.MustDeterministicUUID(2)
 
 	mockRepo.EXPECT().
-		FindExpiredReservations(gomock.Any(), now.UTC()).
-		Return([]uuid.UUID{first, second}, nil).
+		FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).
+		Return(legacyExpired(first, second), nil).
 		Times(1)
 
 	mockRepo.EXPECT().
@@ -351,7 +386,7 @@ func TestReservationReaperWorker_RunOnce_ReleaseErrorStopsSweep(t *testing.T) {
 
 	// second is never reached; no batch audit is written.
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, DefaultReservationReaperWorkerConfig(), logger, testClock, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, testClock, "", nil)
 	require.NoError(t, err)
 
 	released, err := worker.RunOnce(context.Background())
@@ -382,14 +417,14 @@ func TestReservationReaperWorker_Cadence(t *testing.T) {
 	sweeps := make(chan struct{}, 8)
 
 	mockRepo.EXPECT().
-		FindExpiredReservations(gomock.Any(), now.UTC()).
-		DoAndReturn(func(_ context.Context, _ time.Time) ([]uuid.UUID, error) {
+		FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).
+		DoAndReturn(func(_ context.Context, _ time.Time, _ *model.ReservationExpiryPosition, _ int) ([]model.ExpiredReservation, error) {
 			sweeps <- struct{}{}
 			return nil, nil
 		}).
 		MinTimes(3)
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, ReservationReaperWorkerConfig{ReapInterval: time.Hour}, logger, testClock, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, legacyOnlyExpirer{}, ReservationReaperWorkerConfig{ReapInterval: time.Hour, BatchSize: DefaultReservationReaperBatchSize}, logger, testClock, "", nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -440,7 +475,7 @@ func TestReservationReaperWorker_RunWithContext_StopsBeforeInitialCycle(t *testi
 
 	// No repo/auditor calls expected: gomock fails if FindExpiredReservations runs.
 
-	worker, err := NewReservationReaperWorker(mockRepo, mockAuditor, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: fixedReaperTime()}, "")
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, legacyOnlyExpirer{}, DefaultReservationReaperWorkerConfig(), logger, mockClock{fixedTime: fixedReaperTime()}, "", nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -473,6 +508,7 @@ func TestReservationReaperWorker_SkipsCycleOnPoolResolveFailure(t *testing.T) {
 	worker, err := NewReservationReaperWorkerWithPoolResolver(
 		mockRepo,
 		mockAuditor,
+		legacyOnlyExpirer{},
 		DefaultReservationReaperWorkerConfig(),
 		logger,
 		mockClock{fixedTime: fixedReaperTime()},
@@ -484,4 +520,158 @@ func TestReservationReaperWorker_SkipsCycleOnPoolResolveFailure(t *testing.T) {
 	// runReapCycle is unexported; drive it directly via a single cycle. The cycle
 	// must short-circuit at pool resolution before any repo call.
 	worker.runReapCycle(context.Background())
+}
+
+func TestReservationReaperWorker_RunOnce_ExpiresEachDecisionOperationOnce(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockReservationReaperRepository(ctrl)
+	mockAuditor := mocks.NewMockReservationExpiryAuditor(ctrl)
+	mockExpirer := mocks.NewMockReserveOperationExpirer(ctrl)
+
+	now := fixedReaperTime()
+	legacy := testutil.MustDeterministicUUID(11)
+	opA := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(12)}
+	opB := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(13)}
+	// The same transaction under another producer is a different operation.
+	opC := model.ReserveOperationIdentity{IntegrationID: "other-producer", TransactionID: opA.TransactionID}
+
+	mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).Return([]model.ExpiredReservation{
+		{ID: testutil.MustDeterministicUUID(21), Operation: &opA},
+		{ID: legacy},
+		{ID: testutil.MustDeterministicUUID(22), Operation: &opB},
+		{ID: testutil.MustDeterministicUUID(23), Operation: &opA},
+		{ID: testutil.MustDeterministicUUID(24), Operation: &opC},
+	}, nil)
+	mockExpirer.EXPECT().Execute(gomock.Any(), opA, now.UTC()).Return(2, nil).Times(1)
+	mockExpirer.EXPECT().Execute(gomock.Any(), opB, now.UTC()).Return(0, nil).Times(1)
+	mockExpirer.EXPECT().Execute(gomock.Any(), opC, now.UTC()).Return(1, nil).Times(1)
+	mockRepo.EXPECT().ReleaseExpired(gomock.Any(), legacy).Return(nil).Times(1)
+	// The batch row counts legacy releases only; operations audit themselves.
+	mockAuditor.EXPECT().RecordReservationExpiryBatch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, summary command.ReservationExpiryBatchSummary) error {
+			assert.Equal(t, 1, summary.ExpiredCount)
+			return nil
+		}).Times(1)
+
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, mockExpirer, DefaultReservationReaperWorkerConfig(), testutil.NewMockLogger(), mockClock{fixedTime: now}, "", nil)
+	require.NoError(t, err)
+
+	released, err := worker.RunOnce(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 4, released, "one legacy row, two rows of A and one of C; B was already terminal")
+}
+
+func TestReservationReaperWorker_RunOnce_DecisionOnlySweepWritesNoBatchAudit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockReservationReaperRepository(ctrl)
+	mockExpirer := mocks.NewMockReserveOperationExpirer(ctrl)
+
+	now := fixedReaperTime()
+	op := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(31)}
+
+	mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).Return([]model.ExpiredReservation{{ID: testutil.MustDeterministicUUID(32), Operation: &op}}, nil)
+	mockExpirer.EXPECT().Execute(gomock.Any(), op, now.UTC()).Return(3, nil)
+
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mocks.NewMockReservationExpiryAuditor(ctrl), mockExpirer, DefaultReservationReaperWorkerConfig(), testutil.NewMockLogger(), mockClock{fixedTime: now}, "", nil)
+	require.NoError(t, err)
+
+	released, err := worker.RunOnce(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 3, released, "the count is what the expirer moved, including rows the sweep did not read")
+}
+
+func TestReservationReaperWorker_RunOnce_OperationFailureDoesNotStopSweep(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockReservationReaperRepository(ctrl)
+	mockAuditor := mocks.NewMockReservationExpiryAuditor(ctrl)
+	mockExpirer := mocks.NewMockReserveOperationExpirer(ctrl)
+
+	now := fixedReaperTime()
+	failure := errors.New("expire failed")
+	legacy := testutil.MustDeterministicUUID(41)
+	opA := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(42)}
+	opB := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(43)}
+
+	mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), nil, DefaultReservationReaperBatchSize).Return([]model.ExpiredReservation{
+		{ID: testutil.MustDeterministicUUID(44), Operation: &opA},
+		{ID: testutil.MustDeterministicUUID(45), Operation: &opB},
+		{ID: legacy},
+	}, nil)
+	mockExpirer.EXPECT().Execute(gomock.Any(), opA, now.UTC()).Return(0, failure)
+	mockExpirer.EXPECT().Execute(gomock.Any(), opB, now.UTC()).Return(1, nil)
+	mockRepo.EXPECT().ReleaseExpired(gomock.Any(), legacy).Return(nil)
+	mockAuditor.EXPECT().RecordReservationExpiryBatch(gomock.Any(), gomock.Any()).Return(nil)
+
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, mockExpirer, DefaultReservationReaperWorkerConfig(), testutil.NewMockLogger(), mockClock{fixedTime: now}, "", nil)
+	require.NoError(t, err)
+
+	released, err := worker.RunOnce(context.Background())
+	require.ErrorIs(t, err, failure)
+	assert.Equal(t, 2, released)
+}
+
+// TestReservationReaperWorker_RunOnce_ResumesPastAFullPage pins the sweep walk:
+// a full page moves the next sweep past its last row even when an operation on
+// it failed, a short page returns the walk to the oldest expiry, an empty page
+// past the resume position rereads from the oldest expiry in the same sweep, and
+// a failed read keeps the resume position.
+func TestReservationReaperWorker_RunOnce_ResumesPastAFullPage(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockReservationReaperRepository(ctrl)
+	mockAuditor := mocks.NewMockReservationExpiryAuditor(ctrl)
+	mockExpirer := mocks.NewMockReserveOperationExpirer(ctrl)
+
+	now := fixedReaperTime()
+	failing := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(51)}
+	head := []model.ExpiredReservation{
+		{ID: testutil.MustDeterministicUUID(52), ExpiresAt: now.Add(-3 * time.Minute), Operation: &failing},
+		{ID: testutil.MustDeterministicUUID(53), ExpiresAt: now.Add(-3 * time.Minute), Operation: &failing},
+	}
+	legacy := model.ExpiredReservation{ID: testutil.MustDeterministicUUID(54), ExpiresAt: now.Add(-time.Minute)}
+	pastHead := head[1].Position()
+	failure := errors.New("expire failed")
+
+	gomock.InOrder(
+		mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), nil, 2).Return(head, nil),
+		mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), &pastHead, 2).Return(nil, errors.New("read failed")),
+		mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), &pastHead, 2).Return([]model.ExpiredReservation{legacy}, nil),
+		mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), nil, 2).Return(head, nil),
+		mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), &pastHead, 2).Return(nil, nil),
+		mockRepo.EXPECT().FindExpiredReservations(gomock.Any(), now.UTC(), nil, 2).Return(head, nil),
+	)
+	mockExpirer.EXPECT().Execute(gomock.Any(), failing, now.UTC()).Return(0, failure).Times(3)
+	mockRepo.EXPECT().ReleaseExpired(gomock.Any(), legacy.ID).Return(nil)
+	mockAuditor.EXPECT().RecordReservationExpiryBatch(gomock.Any(), gomock.Any()).Return(nil)
+
+	worker, err := NewReservationReaperWorkerWithPoolResolver(mockRepo, mockAuditor, mockExpirer,
+		ReservationReaperWorkerConfig{ReapInterval: time.Second, BatchSize: 2}, testutil.NewMockLogger(), mockClock{fixedTime: now}, "", nil)
+	require.NoError(t, err)
+
+	_, err = worker.RunOnce(context.Background())
+	require.ErrorIs(t, err, failure, "the failing operation fills the first page")
+
+	_, err = worker.RunOnce(context.Background())
+	require.Error(t, err, "the failed read keeps the resume position")
+
+	released, err := worker.RunOnce(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, released, "the row behind the failing operation expires")
+
+	_, err = worker.RunOnce(context.Background())
+	require.ErrorIs(t, err, failure, "the short page returned the walk to the oldest expiry")
+
+	_, err = worker.RunOnce(context.Background())
+	require.ErrorIs(t, err, failure, "an empty page past the head rereads from the oldest expiry")
 }

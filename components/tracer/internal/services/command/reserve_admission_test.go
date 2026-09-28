@@ -52,7 +52,7 @@ func TestReserveAdmissionTransactionFailures(t *testing.T) {
 			beginner := dbmocks.NewMockTxBeginner(ctrl)
 			tx := dbmocks.NewMockTx(ctrl)
 			deps := ReserveAdmissionDependencies{Decisions: decisions, Operations: operations, Capacity: capacity, Limits: limits, Policies: mocks.NewMockReserveAdmissionPolicies(ctrl), Evaluator: mocks.NewMockReserveAdmissionEvaluator(ctrl), Audit: audit, Transactions: beginner}
-			config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: time.Hour}
+			config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: time.Hour, LongLivedLifetime: 720 * time.Hour}
 			c, err := NewReserveAdmissionCommand(deps, clock.NewFixedClock(testutil.FixedTime()), config)
 			require.NoError(t, err)
 			request := admissionUnitRequest()
@@ -147,7 +147,7 @@ func TestReserveAdmissionCandidateCodesFollowTheAssetCodeRule(t *testing.T) {
 			beginner := dbmocks.NewMockTxBeginner(ctrl)
 			tx := dbmocks.NewMockTx(ctrl)
 			deps := ReserveAdmissionDependencies{Decisions: decisions, Operations: operations, Capacity: capacity, Limits: limits, Policies: mocks.NewMockReserveAdmissionPolicies(ctrl), Evaluator: mocks.NewMockReserveAdmissionEvaluator(ctrl), Audit: audit, Transactions: beginner}
-			config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: time.Hour}
+			config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: time.Hour, LongLivedLifetime: 720 * time.Hour}
 			c, err := NewReserveAdmissionCommand(deps, clock.NewFixedClock(testutil.FixedTime()), config)
 			require.NoError(t, err)
 			request := admissionUnitRequest()
@@ -177,6 +177,132 @@ func TestReserveAdmissionCandidateCodesFollowTheAssetCodeRule(t *testing.T) {
 			tx.EXPECT().Commit().Return(nil)
 			got, err := c.Execute(completionAuth(t.Context()), request)
 			require.NoError(t, err)
+			require.Equal(t, tracercontract.DecisionAllow, got.Decision)
+		})
+	}
+}
+
+func TestReserveAdmissionReservationLifetimeFollowsLongLived(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	deps := ReserveAdmissionDependencies{
+		Decisions: mocks.NewMockReserveAdmissionDecisions(ctrl), Operations: mocks.NewMockReserveAdmissionOperations(ctrl), Capacity: mocks.NewMockReserveAdmissionCapacity(ctrl),
+		Limits: mocks.NewMockReserveAdmissionLimits(ctrl), Policies: mocks.NewMockReserveAdmissionPolicies(ctrl), Evaluator: mocks.NewMockReserveAdmissionEvaluator(ctrl),
+		Audit: mocks.NewMockAuditEventRepository(ctrl), Transactions: dbmocks.NewMockTxBeginner(ctrl),
+	}
+	config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: 5 * time.Minute}
+	_, err := NewReserveAdmissionCommand(deps, clock.NewFixedClock(testutil.FixedTime()), config)
+	require.ErrorIs(t, err, constant.ErrInvalidRequestBody, "a long-lived lifetime is required")
+	config.LongLivedLifetime = 720 * time.Hour
+	c, err := NewReserveAdmissionCommand(deps, clock.NewFixedClock(testutil.FixedTime()), config)
+	require.NoError(t, err)
+	direct, pending := false, true
+	request := admissionUnitRequest()
+	request.LongLived = &direct
+	require.Equal(t, 5*time.Minute, c.lifetime(request))
+	request.LongLived = &pending
+	require.Equal(t, 720*time.Hour, c.lifetime(request))
+}
+
+func TestReserveAdmissionReplayConflictsOnceTheOperationExpired(t *testing.T) {
+	t.Parallel()
+	config := ReserveAdmissionConfig{Plan: query.ContextReservationConfig{Facts: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxLimits: 10, MaxScopesPerLimit: 10, MaxReservations: 100}, MaxRules: 10, SingleTenant: true, MaxTimestampAge: 24 * time.Hour, ReservationLifetime: time.Hour, LongLivedLifetime: 720 * time.Hour}
+	request := admissionUnitRequest()
+	key := model.ReserveOperationKey{IntegrationID: "verified-producer", TransactionID: request.TransactionID, RequestID: request.RequestID}
+
+	stored := func(t *testing.T) model.ReserveDecision {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		decisions := mocks.NewMockReserveAdmissionDecisions(ctrl)
+		operations := mocks.NewMockReserveAdmissionOperations(ctrl)
+		capacity := mocks.NewMockReserveAdmissionCapacity(ctrl)
+		limits := mocks.NewMockReserveAdmissionLimits(ctrl)
+		audit := mocks.NewMockAuditEventRepository(ctrl)
+		beginner := dbmocks.NewMockTxBeginner(ctrl)
+		tx := dbmocks.NewMockTx(ctrl)
+		c, err := NewReserveAdmissionCommand(ReserveAdmissionDependencies{Decisions: decisions, Operations: operations, Capacity: capacity, Limits: limits, Policies: mocks.NewMockReserveAdmissionPolicies(ctrl), Evaluator: mocks.NewMockReserveAdmissionEvaluator(ctrl), Audit: audit, Transactions: beginner}, clock.NewFixedClock(testutil.FixedTime()), config)
+		require.NoError(t, err)
+
+		var created model.ReserveDecision
+		decisions.EXPECT().Get(gomock.Any(), key).Return(nil, nil)
+		beginner.EXPECT().BeginTx(gomock.Any(), nil).Return(tx, nil)
+		operations.EXPECT().LockWithTx(gomock.Any(), tx, key.Identity()).Return(&model.ReserveOperationState{Status: model.OperationOpen}, nil)
+		decisions.EXPECT().GetWithTx(gomock.Any(), tx, key).Return(nil, nil)
+		capacity.EXPECT().AcquireReserveScopeLock(gomock.Any(), tx, gomock.Any()).Return(nil)
+		limits.EXPECT().ListCandidatesWithTx(gomock.Any(), tx, gomock.Any(), gomock.Any()).Return([]model.ContextAccountLimit{}, nil)
+		decisions.EXPECT().CreateWithTx(gomock.Any(), tx, gomock.Any()).DoAndReturn(func(_ context.Context, _ pgdb.Tx, d model.ReserveDecision) error {
+			created = d
+			return nil
+		})
+		audit.EXPECT().InsertWithTx(gomock.Any(), tx, gomock.Any()).Return(nil)
+		tx.EXPECT().Commit().Return(nil)
+		_, err = c.Execute(completionAuth(t.Context()), request)
+		require.NoError(t, err)
+
+		return created
+	}
+
+	for _, tc := range []struct {
+		name     string
+		preLock  bool
+		status   model.ReserveOperationStatus
+		wantErr  error
+		mismatch bool
+	}{
+		{name: "pre-lock replay of an open operation returns the decision", preLock: true, status: model.OperationOpen},
+		{name: "pre-lock replay of a confirmed operation returns the decision", preLock: true, status: model.OperationConfirmed},
+		{name: "pre-lock replay of an expired operation conflicts", preLock: true, status: model.OperationExpired, wantErr: constant.ErrReserveOperationConflict},
+		{name: "locked replay of an expired operation conflicts", status: model.OperationExpired, wantErr: constant.ErrReserveOperationConflict},
+		{name: "mismatched pre-lock replay is rejected without the lock", preLock: true, mismatch: true, wantErr: constant.ErrReserveDecisionConflict},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			decision := stored(t)
+			ctrl := gomock.NewController(t)
+			decisions := mocks.NewMockReserveAdmissionDecisions(ctrl)
+			operations := mocks.NewMockReserveAdmissionOperations(ctrl)
+			beginner := dbmocks.NewMockTxBeginner(ctrl)
+			tx := dbmocks.NewMockTx(ctrl)
+			c, err := NewReserveAdmissionCommand(ReserveAdmissionDependencies{Decisions: decisions, Operations: operations, Capacity: mocks.NewMockReserveAdmissionCapacity(ctrl), Limits: mocks.NewMockReserveAdmissionLimits(ctrl), Policies: mocks.NewMockReserveAdmissionPolicies(ctrl), Evaluator: mocks.NewMockReserveAdmissionEvaluator(ctrl), Audit: mocks.NewMockAuditEventRepository(ctrl), Transactions: beginner}, clock.NewFixedClock(testutil.FixedTime()), config)
+			require.NoError(t, err)
+
+			replayed := request
+			if tc.mismatch {
+				replayed.ContextID = "other"
+			}
+
+			if tc.preLock {
+				decisions.EXPECT().Get(gomock.Any(), key).Return(&decision, nil)
+			} else {
+				decisions.EXPECT().Get(gomock.Any(), key).Return(nil, nil)
+			}
+
+			if !tc.mismatch {
+				completedAt := testutil.FixedTime()
+				state := &model.ReserveOperationState{Status: tc.status}
+				if tc.status != model.OperationOpen {
+					state.CompletedAt = &completedAt
+				}
+				beginner.EXPECT().BeginTx(gomock.Any(), nil).Return(tx, nil)
+				operations.EXPECT().LockWithTx(gomock.Any(), tx, key.Identity()).Return(state, nil)
+				decisions.EXPECT().GetWithTx(gomock.Any(), tx, key).Return(&decision, nil)
+				if tc.wantErr == nil {
+					tx.EXPECT().Commit().Return(nil)
+				} else {
+					tx.EXPECT().Rollback().Return(nil)
+				}
+			}
+
+			got, err := c.Execute(completionAuth(t.Context()), replayed)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				require.Nil(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, decision.Result.EvaluationID, got.EvaluationID)
 			require.Equal(t, tracercontract.DecisionAllow, got.Decision)
 		})
 	}

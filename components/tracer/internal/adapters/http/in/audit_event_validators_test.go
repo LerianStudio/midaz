@@ -35,6 +35,8 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		{"operation released", "auditeventtype", string(model.AuditEventOperationReleased), true},
 		{"operation resource", "resourcetype", string(model.ResourceTypeReserveOperation), true},
 		{"operation release action", "auditaction", string(model.AuditActionRelease), true},
+		{"operation expired", "auditeventtype", string(model.AuditEventOperationExpired), true},
+		{"operation expire action", "auditaction", string(model.AuditActionExpire), true},
 		{"eventtype policy published", "auditeventtype", string(model.AuditEventPolicyPublished), true},
 		{"eventtype policy bound", "auditeventtype", string(model.AuditEventPolicyBound), true},
 		{"eventtype valid TRANSACTION_VALIDATED", "auditeventtype", string(model.AuditEventTransactionValidated), true},

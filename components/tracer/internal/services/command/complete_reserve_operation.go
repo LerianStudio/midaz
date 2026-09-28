@@ -27,8 +27,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-// ReserveCompletionConfig holds recovery storage bounds, never current rule or
-// setting limits. They must cover every outstanding decision and its capacity.
+// ReserveCompletionConfig bounds the stored decision a completion or expiry
+// reads back, never current rule or setting limits. The bounds must cover every
+// outstanding decision and its capacity.
 type ReserveCompletionConfig struct {
 	SingleTenant    bool
 	MaxRules        int
@@ -60,16 +61,23 @@ type ReserveCompletionAuditContext struct {
 // CompleteReserveOperationCommand atomically records a known producer outcome,
 // settles its existing capacity and appends one mandatory hash-chained audit
 // event, including when completion precedes a decision. No current settings,
-// policy, request fingerprint or TTL can erase that obligation or infer outcome.
-// Transports must supply verified integration and resolved tenant context.
+// policy or request fingerprint can infer the outcome. An operation the reaper
+// already expired conflicts: its capacity has been returned. Transports must
+// supply verified integration and resolved tenant context.
 type CompleteReserveOperationCommand struct {
+	reserveOperationSettlement
 	operations ReserveOperationCompleter
-	decisions  ReserveOperationDecisionReader
-	capacity   DecisionCapacitySettler
-	audit      AuditEventRepository
 	tx         pgdb.TxBeginner
 	clock      clock.Clock
-	config     ReserveCompletionConfig
+}
+
+// reserveOperationSettlement moves a completed operation's decision-owned
+// capacity and appends its audit event inside the caller's transaction.
+type reserveOperationSettlement struct {
+	decisions ReserveOperationDecisionReader
+	capacity  DecisionCapacitySettler
+	audit     AuditEventRepository
+	config    ReserveCompletionConfig
 }
 
 func NewCompleteReserveOperationCommand(operations ReserveOperationCompleter, decisions ReserveOperationDecisionReader, capacity DecisionCapacitySettler, audit AuditEventRepository, tx pgdb.TxBeginner, clk clock.Clock, config ReserveCompletionConfig) (*CompleteReserveOperationCommand, error) {
@@ -81,7 +89,10 @@ func NewCompleteReserveOperationCommand(operations ReserveOperationCompleter, de
 		return nil, constant.ErrInvalidRequestBody
 	}
 
-	return &CompleteReserveOperationCommand{operations: operations, decisions: decisions, capacity: capacity, audit: audit, tx: tx, clock: clk, config: config}, nil
+	return &CompleteReserveOperationCommand{
+		reserveOperationSettlement: reserveOperationSettlement{decisions: decisions, capacity: capacity, audit: audit, config: config},
+		operations:                 operations, tx: tx, clock: clk,
+	}, nil
 }
 
 // Execute accepts no integration or evaluation ID from the caller. Repeats of a
@@ -171,7 +182,7 @@ func (c *CompleteReserveOperationCommand) execute(ctx context.Context, transacti
 
 func (c *CompleteReserveOperationCommand) completeReport(ctx context.Context, tx pgdb.Tx, key model.ReserveOperationIdentity, state *model.ReserveOperationState, changed bool, report *tracercontract.TransactionCompletionResult) error {
 	if changed {
-		if err := c.settleAndAudit(ctx, tx, key, state, report); err != nil {
+		if _, err := c.settleAndAudit(ctx, tx, key, state, report); err != nil {
 			return err
 		}
 	} else if report != nil {
@@ -192,33 +203,45 @@ func (c *CompleteReserveOperationCommand) completeReport(ctx context.Context, tx
 	return nil
 }
 
-func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx pgdb.Tx, key model.ReserveOperationIdentity, state *model.ReserveOperationState, report *tracercontract.TransactionCompletionResult) error {
+// settleAndAudit returns the number of reservations it moved.
+func (c *reserveOperationSettlement) settleAndAudit(ctx context.Context, tx pgdb.Tx, key model.ReserveOperationIdentity, state *model.ReserveOperationState, report *tracercontract.TransactionCompletionResult) (int, error) {
 	decision, err := c.decisions.GetByOperationWithTx(ctx, tx, key)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	moved := make([]*model.Reservation, 0)
 	status := model.StatusConfirmed
 	eventType, action := model.AuditEventOperationConfirmed, model.AuditActionConfirm
+	// The producer reported confirm and release; the tracer itself expires.
+	actor := model.Actor{ActorType: model.ActorTypeSystem, ID: key.IntegrationID}
 
-	if state.Status == model.OperationReleased {
+	switch state.Status {
+	case model.OperationReleased:
 		status = model.StatusReleased
 		eventType, action = model.AuditEventOperationReleased, model.AuditActionRelease
+	case model.OperationExpired:
+		status = model.StatusExpired
+		eventType, action = model.AuditEventOperationExpired, model.AuditActionExpire
+		actor = resolveActor(ctx, model.ResourceTypeReservation)
+		// Only decision-owned capacity carries a TTL that can expire an operation.
+		if decision == nil {
+			return 0, constant.ErrInternalServer
+		}
 	}
 
 	if decision != nil {
 		if decision.Key.Identity() != key || decision.Validate(c.config.MaxRules, c.config.MaxReservations) != nil {
-			return constant.ErrInternalServer
+			return 0, constant.ErrInternalServer
 		}
 
 		moved, err = c.capacity.SettleDecisionWithTx(ctx, tx, decision.Result.EvaluationID, status)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		if err := validateCompletionCapacity(key, decision, moved); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
@@ -227,15 +250,14 @@ func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx
 		details = append(details, ReserveCompletionReservation{ID: res.ID, LimitID: res.LimitID, ScopeKey: res.ScopeKey, PeriodKey: res.PeriodKey, Amount: res.Amount, Before: res.Status, After: status})
 	}
 
-	event, err := model.NewAuditEvent(eventType, action, model.AuditResultSuccess, key.TransactionID.String(), model.ResourceTypeReserveOperation,
-		model.Actor{ActorType: model.ActorTypeSystem, ID: key.IntegrationID})
+	event, err := model.NewAuditEvent(eventType, action, model.AuditResultSuccess, key.TransactionID.String(), model.ResourceTypeReserveOperation, actor)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if report != nil {
 		if err := c.reportDecision(key, decision, report); err != nil {
-			return err
+			return 0, err
 		}
 
 		report.Flipped = len(moved)
@@ -252,10 +274,10 @@ func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx
 	}
 
 	if err := c.audit.InsertWithTx(ctx, tx, event); err != nil {
-		return fmt.Errorf("audit reserve operation completion: %w", err)
+		return 0, fmt.Errorf("audit reserve operation completion: %w", err)
 	}
 
-	return nil
+	return len(moved), nil
 }
 
 func validateCompletionCapacity(key model.ReserveOperationIdentity, decision *model.ReserveDecision, moved []*model.Reservation) error {
@@ -298,7 +320,7 @@ func recordReserveCompletionError(span trace.Span, err error) {
 	libOtel.HandleSpanError(span, "reserve completion failed", err)
 }
 
-func (c *CompleteReserveOperationCommand) reportDecision(key model.ReserveOperationIdentity, decision *model.ReserveDecision, report *tracercontract.TransactionCompletionResult) error {
+func (c *reserveOperationSettlement) reportDecision(key model.ReserveOperationIdentity, decision *model.ReserveDecision, report *tracercontract.TransactionCompletionResult) error {
 	if decision == nil {
 		return nil
 	}

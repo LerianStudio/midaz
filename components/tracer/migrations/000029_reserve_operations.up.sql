@@ -7,11 +7,11 @@ BEGIN
     CREATE TABLE reserve_operations (
         integration_id TEXT NOT NULL CHECK (octet_length(integration_id) BETWEEN 1 AND 256),
         transaction_id UUID NOT NULL CHECK (transaction_id <> '00000000-0000-0000-0000-000000000000'),
-        status TEXT NOT NULL CHECK (status IN ('OPEN', 'CONFIRMED', 'RELEASED')),
+        status TEXT NOT NULL CHECK (status IN ('OPEN', 'CONFIRMED', 'RELEASED', 'EXPIRED')),
         completed_at TIMESTAMPTZ,
         PRIMARY KEY (integration_id, transaction_id),
         CHECK ((status = 'OPEN' AND completed_at IS NULL)
-            OR (status IN ('CONFIRMED', 'RELEASED') AND completed_at IS NOT NULL))
+            OR (status IN ('CONFIRMED', 'RELEASED', 'EXPIRED') AND completed_at IS NOT NULL))
     );
 
     -- Existing decisions provide no proof of accounting completion. Preserve
@@ -27,7 +27,7 @@ BEGIN
     BEGIN
         IF NEW.integration_id IS DISTINCT FROM OLD.integration_id
             OR NEW.transaction_id IS DISTINCT FROM OLD.transaction_id
-            OR OLD.status <> 'OPEN' OR NEW.status NOT IN ('CONFIRMED', 'RELEASED') THEN
+            OR OLD.status <> 'OPEN' OR NEW.status NOT IN ('CONFIRMED', 'RELEASED', 'EXPIRED') THEN
             RAISE EXCEPTION 'reserve operation transition conflicts with recorded outcome'
                 USING ERRCODE = '23514', CONSTRAINT = 'reserve_operation_transition';
         END IF;

@@ -21539,22 +21539,22 @@
             }
           },
           {
-            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED)",
+            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED, RESERVE_OPERATION_EXPIRED)",
             "explode": false,
             "in": "query",
             "name": "event_type",
             "schema": {
-              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED)",
+              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED, RESERVE_OPERATION_EXPIRED)",
               "type": "string"
             }
           },
           {
-            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE)",
+            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE, EXPIRE)",
             "explode": false,
             "in": "query",
             "name": "action",
             "schema": {
-              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE)",
+              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE, EXPIRE)",
               "type": "string"
             }
           },

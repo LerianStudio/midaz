@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 	time "time"
 
+	model "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -43,18 +44,18 @@ func (m *MockReservationReaperRepository) EXPECT() *MockReservationReaperReposit
 }
 
 // FindExpiredReservations mocks base method.
-func (m *MockReservationReaperRepository) FindExpiredReservations(ctx context.Context, now time.Time) ([]uuid.UUID, error) {
+func (m *MockReservationReaperRepository) FindExpiredReservations(ctx context.Context, now time.Time, after *model.ReservationExpiryPosition, limit int) ([]model.ExpiredReservation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindExpiredReservations", ctx, now)
-	ret0, _ := ret[0].([]uuid.UUID)
+	ret := m.ctrl.Call(m, "FindExpiredReservations", ctx, now, after, limit)
+	ret0, _ := ret[0].([]model.ExpiredReservation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindExpiredReservations indicates an expected call of FindExpiredReservations.
-func (mr *MockReservationReaperRepositoryMockRecorder) FindExpiredReservations(ctx, now any) *gomock.Call {
+func (mr *MockReservationReaperRepositoryMockRecorder) FindExpiredReservations(ctx, now, after, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindExpiredReservations", reflect.TypeOf((*MockReservationReaperRepository)(nil).FindExpiredReservations), ctx, now)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindExpiredReservations", reflect.TypeOf((*MockReservationReaperRepository)(nil).FindExpiredReservations), ctx, now, after, limit)
 }
 
 // ReleaseExpired mocks base method.
@@ -69,4 +70,43 @@ func (m *MockReservationReaperRepository) ReleaseExpired(ctx context.Context, re
 func (mr *MockReservationReaperRepositoryMockRecorder) ReleaseExpired(ctx, reservationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExpired", reflect.TypeOf((*MockReservationReaperRepository)(nil).ReleaseExpired), ctx, reservationID)
+}
+
+// MockReserveOperationExpirer is a mock of ReserveOperationExpirer interface.
+type MockReserveOperationExpirer struct {
+	ctrl     *gomock.Controller
+	recorder *MockReserveOperationExpirerMockRecorder
+	isgomock struct{}
+}
+
+// MockReserveOperationExpirerMockRecorder is the mock recorder for MockReserveOperationExpirer.
+type MockReserveOperationExpirerMockRecorder struct {
+	mock *MockReserveOperationExpirer
+}
+
+// NewMockReserveOperationExpirer creates a new mock instance.
+func NewMockReserveOperationExpirer(ctrl *gomock.Controller) *MockReserveOperationExpirer {
+	mock := &MockReserveOperationExpirer{ctrl: ctrl}
+	mock.recorder = &MockReserveOperationExpirerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockReserveOperationExpirer) EXPECT() *MockReserveOperationExpirerMockRecorder {
+	return m.recorder
+}
+
+// Execute mocks base method.
+func (m *MockReserveOperationExpirer) Execute(ctx context.Context, key model.ReserveOperationIdentity, at time.Time) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Execute", ctx, key, at)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Execute indicates an expected call of Execute.
+func (mr *MockReserveOperationExpirerMockRecorder) Execute(ctx, key, at any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockReserveOperationExpirer)(nil).Execute), ctx, key, at)
 }
