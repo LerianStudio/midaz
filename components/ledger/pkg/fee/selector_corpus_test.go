@@ -244,7 +244,7 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 				carriesEveryPair := true
 
 				for key, want := range k.selector {
-					if got, ok := payment.metadata[key]; !ok || fmt.Sprint(got) != want {
+					if got, ok := payment.metadata[key].(string); !ok || got != want {
 						carriesEveryPair = false
 					}
 				}

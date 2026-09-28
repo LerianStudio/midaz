@@ -2578,7 +2578,7 @@ components:
         metadataSelector:
           additionalProperties:
             type: string
-          description: Metadata pairs a transaction must all carry for this package to apply, values compared by their string form. Each pair counts one toward package specificity. Omit it to apply the package whatever the metadata.
+          description: Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Omit it to apply the package whatever the metadata.
           examples:
             - fee_context: ted_salario
           type: object
@@ -2706,7 +2706,7 @@ components:
         metadataSelector:
           additionalProperties:
             type: string
-          description: Metadata pairs a transaction must all carry for this package to apply, values compared by their string form. Each pair counts one toward package specificity. Absent or empty applies the package whatever the metadata.
+          description: Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Absent or empty applies the package whatever the metadata.
           examples:
             - fee_context: ted_salario
           type: object

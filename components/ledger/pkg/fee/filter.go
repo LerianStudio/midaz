@@ -6,7 +6,6 @@
 package fee
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
@@ -167,30 +166,23 @@ func filterBySegmentID(packages []*pack.Package, segmentID *uuid.UUID) []*pack.P
 }
 
 // filterByMetadataSelector keeps a package carrying no selector, and one carrying
-// a selector only when the transaction metadata holds every declared pair.
+// a selector only when the transaction metadata holds every declared pair as a
+// string equal to the selector value; a number never matches, whatever it prints.
 func filterByMetadataSelector(packages []*pack.Package, metadata map[string]any) []*pack.Package {
 	var filtered []*pack.Package
 
+packages:
 	for _, packValue := range packages {
-		if carriesEveryPair(metadata, packValue.MetadataSelector) {
-			filtered = append(filtered, packValue)
+		for key, want := range packValue.MetadataSelector {
+			if got, ok := metadata[key].(string); !ok || got != want {
+				continue packages
+			}
 		}
+
+		filtered = append(filtered, packValue)
 	}
 
 	return filtered
-}
-
-// carriesEveryPair reports whether metadata holds every selector pair, the
-// metadata value compared by its string form.
-func carriesEveryPair(metadata map[string]any, selector map[string]string) bool {
-	for key, want := range selector {
-		got, ok := metadata[key]
-		if !ok || fmt.Sprint(got) != want {
-			return false
-		}
-	}
-
-	return true
 }
 
 // filterByAmount Filters the packages by amount
