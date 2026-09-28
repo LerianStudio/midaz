@@ -112,8 +112,13 @@ type EventFilter struct {
 	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"CREATED,APPROVED,PENDING,CANCELED,NOTED"`
 }
 
-// Validate checks that EventFilter has a non-blank route and a status that is a
-// transaction status, upper-casing the status because transactions store it so.
+// storedTransactionStatuses are the statuses a stored transaction can hold:
+// CREATED is promoted before every write, so a filter on it would bill zero.
+var storedTransactionStatuses = slices.DeleteFunc(slices.Clone(constant.TransactionStatuses),
+	func(s string) bool { return s == constant.CREATED })
+
+// Validate checks that EventFilter has a non-blank route and a status a stored
+// transaction can hold, upper-casing the status because transactions store it so.
 func (ef *EventFilter) Validate() error {
 	if strings.TrimSpace(ef.TransactionRoute) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.transactionRoute is required")
@@ -124,9 +129,9 @@ func (ef *EventFilter) Validate() error {
 	}
 
 	ef.Status = strings.ToUpper(ef.Status)
-	if !slices.Contains(constant.TransactionStatuses, ef.Status) {
+	if !slices.Contains(storedTransactionStatuses, ef.Status) {
 		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{
-			"eventFilter.status": "must be one of " + strings.Join(constant.TransactionStatuses, ", "),
+			"eventFilter.status": "must be one of " + strings.Join(storedTransactionStatuses, ", "),
 		}, "BillingPackage", map[string]any{})
 	}
 

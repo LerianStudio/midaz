@@ -221,12 +221,15 @@ func TestEventFilter_Validate_Status(t *testing.T) {
 	require.NoError(t, ef.Validate())
 	assert.Equal(t, constant.APPROVED, ef.Status)
 
-	var vErr pkg.ValidationKnownFieldsError
+	// CREATED is never stored, so a filter on it would bill zero forever.
+	for _, status := range []string{"all", "CREATED", "created"} {
+		var vErr pkg.ValidationKnownFieldsError
 
-	err := (&EventFilter{TransactionRoute: "route", Status: "all"}).Validate()
-	require.ErrorAs(t, err, &vErr)
-	assert.Equal(t, constant.ErrBadRequest.Error(), vErr.Code)
-	assert.Contains(t, vErr.Fields, "eventFilter.status")
+		err := (&EventFilter{TransactionRoute: "route", Status: status}).Validate()
+		require.ErrorAs(t, err, &vErr, status)
+		assert.Equal(t, constant.ErrBadRequest.Error(), vErr.Code)
+		assert.Equal(t, "must be one of APPROVED, PENDING, CANCELED, NOTED", vErr.Fields["eventFilter.status"])
+	}
 }
 
 func TestBillingPackage_Validate_InvalidType(t *testing.T) {
