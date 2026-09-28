@@ -109,7 +109,7 @@ func (a *AccountTarget) Validate() error {
 // EventFilter identifies the transaction route and status used to match billing events.
 type EventFilter struct {
 	TransactionRoute string `json:"transactionRoute" bson:"transaction_route" example:"payment_route"`
-	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"CREATED,APPROVED,PENDING,CANCELED,NOTED"`
+	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"APPROVED,PENDING,CANCELED,NOTED"`
 }
 
 // storedTransactionStatuses are the statuses a stored transaction can hold:
@@ -118,7 +118,7 @@ var storedTransactionStatuses = slices.DeleteFunc(slices.Clone(constant.Transact
 	func(s string) bool { return s == constant.CREATED })
 
 // Validate checks that EventFilter has a non-blank route and a status a stored
-// transaction can hold, upper-casing the status because transactions store it so.
+// transaction can hold, in any letter case: the repository mapper upper-cases it.
 func (ef *EventFilter) Validate() error {
 	if strings.TrimSpace(ef.TransactionRoute) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.transactionRoute is required")
@@ -128,8 +128,7 @@ func (ef *EventFilter) Validate() error {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.status is required")
 	}
 
-	ef.Status = strings.ToUpper(ef.Status)
-	if !slices.Contains(storedTransactionStatuses, ef.Status) {
+	if !slices.Contains(storedTransactionStatuses, strings.ToUpper(ef.Status)) {
 		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{
 			"eventFilter.status": "must be one of " + strings.Join(storedTransactionStatuses, ", "),
 		}, "BillingPackage", map[string]any{})

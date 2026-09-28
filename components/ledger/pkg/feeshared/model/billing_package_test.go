@@ -219,7 +219,6 @@ func TestEventFilter_Validate_Status(t *testing.T) {
 
 	ef := &EventFilter{TransactionRoute: "route", Status: "approved"}
 	require.NoError(t, ef.Validate())
-	assert.Equal(t, constant.APPROVED, ef.Status)
 
 	// CREATED is never stored, so a filter on it would bill zero forever.
 	for _, status := range []string{"all", "CREATED", "created"} {

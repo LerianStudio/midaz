@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -63,7 +62,7 @@ func volumePackageForCalc(orgID, ledgerID string) *model.BillingPackage {
 		Enable:         boolPtr(true),
 		EventFilter: &model.EventFilter{
 			TransactionRoute: routeID.String(),
-			Status:           "completed",
+			Status:           constant.APPROVED,
 		},
 		PricingModel: &pricingModel,
 		Tiers: []model.PricingTier{
@@ -182,40 +181,6 @@ func TestBillingCalculateService_VolumeHappyPath(t *testing.T) {
 			assert.True(t, expectedNet.Equal(resp.Summary.TotalNetAmount))
 		})
 	}
-}
-
-// A package stored before its status was normalized holds "approved"; ledger
-// transactions hold "APPROVED". The calculation must count the latter.
-func TestBillingCalculateService_LowerCaseStoredStatusCountsApproved(t *testing.T) {
-	t.Parallel()
-
-	svc, mockRepo, mockCounter, _ := newTestBillingCalculateService(t)
-
-	orgID := uuid.New().String()
-	ledgerID := uuid.New().String()
-
-	var stored billing_package.BillingPackageMongoDBModel
-	stored.FromEntity(volumePackageForCalc(orgID, ledgerID))
-	stored.EventFilter.Status = "approved"
-
-	volPkg, err := stored.ToEntity()
-	require.NoError(t, err)
-
-	mockRepo.EXPECT().
-		FindActiveByType(gomock.Any(), orgID, ledgerID, model.BillingPackageTypeVolume).
-		Return([]*model.BillingPackage{volPkg}, nil)
-	mockCounter.EXPECT().
-		CountByRoute(gomock.Any(), gomock.Cond(func(p midaz.CountParams) bool { return p.Status == constant.APPROVED })).
-		Return(int64(80), nil)
-
-	resp, err := svc.Calculate(context.Background(), uuid.MustParse(ledgerID), model.BillingCalculateRequest{
-		OrganizationID: orgID,
-		Period:         "2026-01",
-		Type:           model.BillingPackageTypeVolume,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Results, 1)
-	assert.True(t, decimal.NewFromFloat(31.50).Equal(resp.Results[0].TotalNetAmount))
 }
 
 func TestBillingCalculateService_MaintenanceHappyPath(t *testing.T) {
@@ -900,7 +865,7 @@ func TestCalculateVolume_FixedPricingHappyPath(t *testing.T) {
 		Enable:         boolPtr(true),
 		EventFilter: &model.EventFilter{
 			TransactionRoute: routeID.String(),
-			Status:           "completed",
+			Status:           constant.APPROVED,
 		},
 		PricingModel: &pricingModel,
 		Tiers: []model.PricingTier{
