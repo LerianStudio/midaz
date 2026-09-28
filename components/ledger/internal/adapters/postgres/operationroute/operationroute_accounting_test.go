@@ -20,7 +20,7 @@ func TestToEntity_AccountingEntries(t *testing.T) {
 		return &OperationRoutePostgreSQLModel{
 			ID:             uuid.New(),
 			OrganizationID: uuid.New(),
-			LedgerID:       uuid.New(),
+			LedgerID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			Title:          "Test Route",
 			OperationType:  "source",
 			CreatedAt:      time.Now(),
@@ -100,7 +100,7 @@ func TestFromEntity_AccountingEntries(t *testing.T) {
 		return &mmodel.OperationRoute{
 			ID:             uuid.New(),
 			OrganizationID: uuid.New(),
-			LedgerID:       uuid.New(),
+			LedgerID:       new(uuid.New()),
 			Title:          "Test Route",
 			OperationType:  "source",
 			CreatedAt:      time.Now(),
@@ -154,7 +154,7 @@ func TestAccountingEntries_RoundTrip(t *testing.T) {
 		original := &mmodel.OperationRoute{
 			ID:             uuid.New(),
 			OrganizationID: uuid.New(),
-			LedgerID:       uuid.New(),
+			LedgerID:       new(uuid.New()),
 			Title:          "Round Trip Route",
 			Description:    "Testing round trip",
 			Code:           "RT-001",
@@ -234,7 +234,7 @@ func TestAccountingEntries_RoundTrip(t *testing.T) {
 		original := &mmodel.OperationRoute{
 			ID:             uuid.New(),
 			OrganizationID: uuid.New(),
-			LedgerID:       uuid.New(),
+			LedgerID:       new(uuid.New()),
 			Title:          "No Accounting",
 			OperationType:  "source",
 			CreatedAt:      time.Now(),

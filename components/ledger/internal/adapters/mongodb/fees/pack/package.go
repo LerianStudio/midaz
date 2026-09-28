@@ -79,7 +79,7 @@ type Package struct {
 	Description      *string              `json:"description" example:"Pacote de taxas administrativas padrão"`
 	SegmentID        *uuid.UUID           `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID         uuid.UUID            `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionRoute *string              `json:"transactionRoute" example:"debitoted"`
+	TransactionRoute *string              `json:"transactionRoute" example:"00000000-0000-0000-0000-000000000000" doc:"Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. An absent or empty value applies the package to every payment."`
 	MinimumAmount    decimal.Decimal      `json:"minimumAmount" example:"100" minimum:"0"`
 	MaximumAmount    decimal.Decimal      `json:"maximumAmount" example:"2" minimum:"0"`
 	WaivedAccounts   *[]string            `json:"waivedAccounts" example:"acc001,acc002"`

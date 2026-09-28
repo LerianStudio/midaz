@@ -589,7 +589,7 @@ func TestUpdateSegment_Success(t *testing.T) {
 
 	segmentRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, segmentID).
 		Return(&mmodel.Segment{ID: segmentID.String(), Name: "Original Segment Name"}, nil).Times(1)
-	segmentRepo.EXPECT().ExistsByName(gomock.Any(), orgID, ledgerID, "Updated Segment Name").Return(false, nil).Times(1)
+	segmentRepo.EXPECT().ExistsByNameExcludingID(gomock.Any(), orgID, ledgerID, "Updated Segment Name", segmentID).Return(false, nil).Times(1)
 	segmentRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, segmentID, gomock.Any()).
 		Return(&mmodel.Segment{
 			ID:             segmentID.String(),

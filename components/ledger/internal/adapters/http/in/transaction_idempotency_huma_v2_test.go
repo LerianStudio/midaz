@@ -89,7 +89,7 @@ func captureSetNXKey(t *testing.T, ctrl *gomock.Controller, gotKey *string, getV
 func canonicalV1IdempotencyHash(t *testing.T, rawBody string) string {
 	t.Helper()
 
-	payload := new(mtransaction.CreateTransactionInput)
+	payload := new(CreateTransactionRequest)
 	_, err := pkgHTTP.DecodeAndValidate([]byte(rawBody), payload)
 	require.NoError(t, err, "v1 body must decode for the canonical-hash reconstruction")
 
@@ -136,7 +136,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	// And it must NOT be the canonical translated-transaction hash the v1 funnel uses.
 	// (The v2 flat body translates to a full canonical Transaction whose serialized form
 	// differs from the raw bytes, so the two hashes are distinct by construction.)
-	payload := new(mtransaction.CreateTransactionV2Input)
+	payload := new(CreateTransactionV2Request)
 	_, derr := pkgHTTP.DecodeAndValidate([]byte(v2DirectBody), payload)
 	require.NoError(t, derr)
 
@@ -219,4 +219,80 @@ func TestHuma_CreateTransactionV1JSON_IdempotencyStillKeyedByCanonicalBody(t *te
 		"v1 idempotency must stay keyed by the canonical built transaction (byte-identical)")
 	assert.NotContains(t, gotKey, libCommons.HashSHA256(v1JSONBody),
 		"v1 must NOT key idempotency off the raw request bytes; the additive v2 seam must not leak onto v1")
+}
+
+// TestHuma_CreateTransactionDirectV2_SlotComparesTheCanonicalV2Fingerprint proves the v2
+// transport hands its canonical body fingerprint to the idempotency claim. A slot stored
+// under the fingerprint of the direct body replays a re-serialized copy of that body, and
+// a slot stored under the hold action's fingerprint for the same bytes conflicts. A
+// transport that passed no fingerprint would fall back to one derived from the translated
+// transaction, which matches neither stored value.
+func TestHuma_CreateTransactionDirectV2_SlotComparesTheCanonicalV2Fingerprint(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	reserializedDirectBody := `{
+		"credits": [{"amount": "100", ` + v2ScopeJSON + `, "alias": "@dst"}],
+		"debits": [{"amount": "100", ` + v2ScopeJSON + `, "alias": "@src"}],
+		"amount": "100",
+		"asset": "BRL",
+		"description": "v2 direct"
+	}`
+
+	fingerprintOf := func(t *testing.T, pending bool) string {
+		t.Helper()
+
+		fingerprint, err := v2IdempotencyFingerprint([]byte(v2DirectBody), pending, "")
+		require.NoError(t, err)
+
+		return fingerprint
+	}
+
+	cases := []struct {
+		name              string
+		storedFingerprint func(t *testing.T) string
+		wantStatus        int
+	}{
+		{
+			name:              "slot created by the same direct request replays",
+			storedFingerprint: func(t *testing.T) string { return fingerprintOf(t, false) },
+			wantStatus:        http.StatusCreated,
+		},
+		{
+			name:              "slot created by a hold with the same bytes conflicts",
+			storedFingerprint: func(t *testing.T) string { return fingerprintOf(t, true) },
+			wantStatus:        http.StatusConflict,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			var gotKey string
+
+			storedID := uuid.New().String()
+			stored := `{"id":"` + storedID + `","idempotencyFingerprint":"` + tc.storedFingerprint(t) + `"}`
+			handler := captureSetNXKey(t, ctrl, &gotKey, stored)
+			app := buildHumaV2DirectApp(t, handler)
+
+			req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(reserializedDirectBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Idempotency", "reused-key")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			body, _ := io.ReadAll(resp.Body)
+
+			require.Equal(t, tc.wantStatus, resp.StatusCode, "body: %s", string(body))
+
+			if tc.wantStatus == http.StatusCreated {
+				assert.Equal(t, "true", resp.Header.Get(libConstants.IdempotencyReplayed))
+				assert.Contains(t, string(body), storedID)
+			} else {
+				assert.Contains(t, string(body), `"code":"0084"`)
+			}
+		})
+	}
 }

@@ -230,6 +230,37 @@ var (
 	// instead skipped (a SKIPPED audit is recorded) and the transaction
 	// proceeds, so this error is the fail-closed path only.
 	ErrTransactionReservationUnavailable = errors.New("0178")
+	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
+	// references a ledger that has not opted in through crossLedger.enabled.
+	ErrCrossLedgerNotEnabled = errors.New("0249")
+	// ErrCrossLedgerAssetMismatch is returned when a cross-ledger request
+	// attempts to move more than one asset in the same atomic group.
+	ErrCrossLedgerAssetMismatch = errors.New("0250")
+	// ErrCrossLedgerRouteValidationUnsupported is returned when a cross-ledger
+	// group spans more than one organization and a participating ledger
+	// validates accounting routes. Routes belong to one organization, so the
+	// request's transaction route cannot classify the parts of another.
+	ErrCrossLedgerRouteValidationUnsupported = errors.New("0251")
+	// ErrCrossLedgerLifecycleRequiresV2 prevents the legacy contract from
+	// transitioning only one member of an atomic cross-ledger group.
+	ErrCrossLedgerLifecycleRequiresV2 = errors.New("0252")
+	// ErrCrossLedgerGroupIncomplete prevents a partial group lookup from
+	// producing a lifecycle operation that would leave the movement unbalanced.
+	ErrCrossLedgerGroupIncomplete = errors.New("0253")
+	// ErrCrossLedgerGroupNotPending rejects a second or conflicting terminal
+	// transition after a cross-ledger hold group has left PENDING.
+	ErrCrossLedgerGroupNotPending = errors.New("0254")
+	// ErrCrossLedgerRouteNotConfigured is returned when a participating ledger
+	// validates accounting routes but the transaction route named by the
+	// request links no operation route with a crossLedger accounting entry, so
+	// the synthetic bridge leg that closes that ledger's part has no route.
+	ErrCrossLedgerRouteNotConfigured = errors.New("0255")
+	// ErrInvalidCrossLedgerRoute is returned when a cross-ledger bridge route
+	// cannot be resolved to exactly one operation route: a crossLedger entry
+	// combined with other accounting entries on the same operation route, or a
+	// transaction route linking more than one operation route with a
+	// crossLedger entry.
+	ErrInvalidCrossLedgerRoute = errors.New("0256")
 	// ErrOverdraftRouteNotConfigured is returned when route validation is
 	// enabled but the accounting route applied to an overdraft companion
 	// operation does not define an overdraft entry carrying the rubric for
@@ -298,6 +329,7 @@ var (
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
 	ErrLedgerScopedQueryParameter           = errors.New("0235")
+	ErrDuplicateFeeKey                      = errors.New("0236")
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).
@@ -473,6 +505,12 @@ var (
 	ErrReadyzRedisPingFailed                  = errors.New("0494")
 	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
 	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// ErrInvalidDashboardWindow is returned when a dashboard read names an
+	// unsupported period, supplies period together with startDate/endDate, or
+	// asks for a range longer than 90 days. The window is what bounds every
+	// dashboard aggregation, so a window the service cannot honor is rejected
+	// rather than widened.
+	ErrInvalidDashboardWindow = errors.New("0498")
 	// 0499 is intentionally skipped: it is the last slot of the reserved Tracer platform block (0328-0499); 0500 starts fresh beyond all documented blocks.
 	ErrInvalidAccountTypeDirection = errors.New("0500")
 	// ErrSchemaMigrationPending is returned when a statement names a column the
@@ -480,6 +518,148 @@ var (
 	// applied migrations. Retryable: the schema is applied out of band, so the
 	// same request succeeds once the migration runner reaches this database.
 	ErrSchemaMigrationPending = errors.New("0501")
+	// ErrAccountBlocked is returned when a transaction involves a balance whose
+	// account is blocked (accounts.blocked = true). The block is bidirectional
+	// (source and destination) and applies to direct creates, holds, commits and
+	// reverts; cancels are exempt. Distinct from
+	// ErrAccountStatusTransactionRestriction (0024), which reflects per-balance
+	// allowSending/allowReceiving permissions.
+	ErrAccountBlocked = errors.New("0502")
+	// ErrAccountBlockExceptionsRequired is returned when the block-exception
+	// create batch is absent or empty. Minting nothing is always a caller
+	// mistake, never a silent success.
+	ErrAccountBlockExceptionsRequired = errors.New("0503")
+	// ErrAccountBlockExceptionsBatchTooLarge is returned when the create batch
+	// exceeds mmodel.AccountBlockExceptionMaxBatchSize. The batch is rejected
+	// whole rather than truncated, so the caller never believes it minted more
+	// grants than it did.
+	ErrAccountBlockExceptionsBatchTooLarge = errors.New("0504")
+	// ErrAccountBlockExceptionInvalidAmount is returned when a batch item's
+	// amount is not a parseable positive decimal. Args: the item's zero-based
+	// index in the batch.
+	ErrAccountBlockExceptionInvalidAmount = errors.New("0505")
+	// ErrAccountBlockExceptionInvalidTTL is returned when a batch item's ttl is
+	// present but outside the accepted range (1..mmodel.AccountBlockExceptionMaxTTLSeconds).
+	// Args: the item's zero-based index in the batch.
+	ErrAccountBlockExceptionInvalidTTL = errors.New("0506")
+	// ErrAccountBlockExceptionAliasNotFound is returned when a batch item names
+	// an alias that does not exist in the organization and ledger of the path.
+	// One unknown alias rejects the WHOLE batch. Args: the item's zero-based
+	// index in the batch, then the offending alias.
+	ErrAccountBlockExceptionAliasNotFound = errors.New("0507")
+	// ErrAccountBlockExceptionInvalid is returned when the
+	// accountBlockExceptionId a transaction presents cannot be consumed: it does
+	// not exist (never minted, already used, or expired by its TTL), or its
+	// authorized alias and amount do not match the transaction's source account
+	// and the amount debited from it. Distinct from ErrAccountBlocked (0502), so
+	// a caller can tell "the account is blocked and you presented no usable
+	// grant" from "the grant you presented is not the one this transaction
+	// needs".
+	ErrAccountBlockExceptionInvalid = errors.New("0508")
+	// ErrAccountBlockExceptionNotSupported is returned when
+	// accountBlockExceptionId is presented on a surface that does not accept it.
+	// The hold (pending create) is the only such surface: a two-phase
+	// transaction would need two grants, so the field is rejected explicitly
+	// rather than ignored silently. Args: the rejecting surface.
+	ErrAccountBlockExceptionNotSupported = errors.New("0509")
+	// ErrBalanceApplyMarkerMissingAliases is returned when a marker-derived
+	// balance atomic result — the Lua script's own replay, or the Go-side
+	// reconciliation read from the apply marker after a lost response — names
+	// an alias the current mapBalances does not resolve. The result's
+	// Before/After sets are then truncated relative to what actually posted,
+	// and a normal (non-replayed) execution can never hit this: its snapshots
+	// are built from the mapBalances that produced the plan in the first
+	// place, so every alias resolves by construction.
+	ErrBalanceApplyMarkerMissingAliases = errors.New("0510")
+	// ErrTransactionAlreadyTransitioned is returned when a commit or a cancel
+	// finds evidence that the transaction already went through the OPPOSITE
+	// terminal transition: the opposite apply marker exists in Redis, the
+	// status CAS matched no PENDING row, or the persisted body was already
+	// nulled by a terminal transition. Distinct from
+	// ErrCommitTransactionNotPending (0099), which reports the status the
+	// caller can read; this one reports a transition that is already in flight
+	// or landed elsewhere, so the requested one must not re-execute.
+	ErrTransactionAlreadyTransitioned = errors.New("0511")
+	// ErrReservedMetadataKey is returned when a request body carries a metadata key the
+	// ledger reserves for itself. The fee mark the ledger writes on every operation its fee
+	// engine created is such a key: a client is told it can name a fee movement from that
+	// mark alone, which is only true while no caller can write it. The request is refused
+	// rather than silently stripped, so a caller learns its key was rejected instead of
+	// believing it was stored.
+	ErrReservedMetadataKey = errors.New("0512")
+	// ErrBalanceSeedRebuildInconsistent is returned when a cache-miss seed finds the
+	// balance row behind the operation trail, but the operation at the high-water mark
+	// carries no state to rebuild from: an after-value is missing, or its overdraft
+	// snapshot is not a decimal. The request is refused rather than served, because
+	// feeding the engine the stale row is how a balance silently forks.
+	ErrBalanceSeedRebuildInconsistent = errors.New("0513")
+	// ErrTransactionBatchCardinality is returned when the atomic direct-v2 batch
+	// has no transactions or exceeds the configured maximum. Args: observed
+	// transaction count, then the effective maximum (1..50).
+	ErrTransactionBatchCardinality = errors.New("0514")
+	// ErrTransactionBatchInputLegsLimitExceeded is returned when the aggregate
+	// input debit and credit leg count exceeds the request-wide limit. Args:
+	// observed input leg count, then the effective maximum.
+	ErrTransactionBatchInputLegsLimitExceeded = errors.New("0515")
+	// ErrTransactionBatchBudgetExceeded is returned when derived preparation work
+	// first crosses a post-expansion budget. Args: budget dimension, zero-based
+	// transaction index, observed value, then the effective maximum.
+	ErrTransactionBatchBudgetExceeded = errors.New("0516")
+	// ErrTransactionBatchStructuralValidation is the batch-only primary error
+	// for aggregated item structural diagnostics. The individual diagnostics
+	// remain field details; this sentinel is never used by singular routes.
+	ErrTransactionBatchStructuralValidation = errors.New("0517")
+	// ErrAccountAlreadyClosed is returned when a close is requested for an account
+	// that already carries a closing instant. Closing is single-shot: the repeat is
+	// refused rather than treated as a no-op success, so a caller cannot read
+	// "closed just now" out of a response that describes a closing someone else
+	// performed. The recorded instant is preserved.
+	ErrAccountAlreadyClosed = errors.New("0521")
+	// ErrAccountClosingInProgress is returned when a closing of the account is
+	// being decided or finalized. Distinct from ErrAccountAlreadyClosed (0521),
+	// which reports a transition that already landed; this one reports a decision
+	// still in flight, so the account may end up either open or closed. Contention
+	// that involves no closing is ErrAccountAdministrativeOperationInProgress (0526).
+	ErrAccountClosingInProgress = errors.New("0522")
+	// ErrAccountBalanceNotZero is returned when a close finds any balance of the
+	// account whose Available, OnHold or OverdraftUsed is not exactly zero. The
+	// three are checked individually and per balance: components are never
+	// compensated against each other, residuals are never rounded away, and an
+	// unused overdraft limit is not a debt.
+	ErrAccountBalanceNotZero = errors.New("0523")
+	// ErrAccountHasPendingTransactions is returned when a close finds a pending
+	// transaction still encumbering the account as source. Distinct from
+	// ErrAccountBalanceNotZero (0523): the monetary components can all read zero
+	// while a two-phase transaction is still able to move them.
+	ErrAccountHasPendingTransactions = errors.New("0524")
+	// ErrAccountClosingPersistencePending is returned when a close cannot prove
+	// that earlier work finished: an execution is still in completion, or the
+	// persisted balances have not caught up with the live ones. The refusal is
+	// temporary and the caller may retry once the existing workers conclude;
+	// nothing is reapplied and no evidence is discarded.
+	ErrAccountClosingPersistencePending = errors.New("0518")
+	// ErrAccountClosed is returned when a monetary movement targets a closed
+	// account. It is independent of ErrAccountBlocked (0502): unblocking, or
+	// presenting a valid block exception, does not reopen a closed account.
+	ErrAccountClosed = errors.New("0519")
+	// ErrAccountClosingProtectionIndeterminate is returned when the account
+	// protection controls cannot be read or a dependency they rely on is
+	// unavailable, so neither admission nor closing can be decided. The absence of
+	// the markers is a normal, distinct state; this code reports that the state
+	// could not be established at all, and the message stays sanitized because the
+	// cause is internal.
+	ErrAccountClosingProtectionIndeterminate = errors.New("0520")
+	// ErrAuthorizationServiceUnavailable is returned when the authorization
+	// service did not decide: unreachable, timed out, breaker open, or an answer
+	// the client reclassifies as undecided. Never a denial, so a retry is valid.
+	ErrAuthorizationServiceUnavailable = errors.New("0525")
+	// ErrAccountAdministrativeOperationInProgress is returned when the account is
+	// held by an operation other than a closing: transactions loading its balances
+	// refuse a closing, a balance creation or a balance deletion, and each of
+	// those exclusive operations refuses the others and the loads. Nothing was
+	// decided about the account, so a retry is valid once the holder concludes. A
+	// closing in progress is ErrAccountClosingInProgress (0522).
+	ErrAccountAdministrativeOperationInProgress = errors.New("0526")
 )
 
 // List of CRM domain errors.
@@ -505,6 +685,8 @@ var (
 	ErrRelatedPartyStartDateRequired       = errors.New("CRM-0028")
 	ErrRelatedPartyEndDateInvalid          = errors.New("CRM-0029")
 	ErrHolderHasAccounts                   = errors.New("CRM-0030")
+	ErrInvalidInstrumentAccountType        = errors.New("CRM-0042")
+	ErrBankAccountAlreadyRegistered        = errors.New("CRM-0043")
 )
 
 // Encryption and keyset management errors (CRM domain, string-namespaced family).

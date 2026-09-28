@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_transaction_organization_ledger_group;

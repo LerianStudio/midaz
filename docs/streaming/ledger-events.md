@@ -28,7 +28,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   version carrier on the wire. Consumers subscribe to the application and dispatch
   on the event key. This pair is the binary's ENTIRE write surface — there is no
   destination outside it.
-- **Posture:** all 35 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+- **Posture:** all 40 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
   post-commit slot. The helper bounds the synchronous `Emitter.Emit` call, records
   build/emit failures on the span, logs a Warn, and **never fails the HTTP request**.
   The library, not the wrapper, resolves the delivery policy and any configured
@@ -79,14 +79,18 @@ which feeds both the Catalog and the manifest:
 - **Kafka topic** = `lerian.streaming.ledger`, derived from `ce-source` via
   `libStreaming.AppTopic` and shared by the whole catalog. One catch-all route
   carries every fact; nothing fans out per event.
-- **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Five exceptions
+- **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Six exceptions
   exist — see [ce-subject](#ce-subject).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
 
 ## Event summary
 
-All 35 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
+All 40 events carry `SchemaVersion = 1.0.0`, except the six accounting-route events
+(`operation_route.*`, `transaction_route.*`), which carry `1.1.0`: accounting routes belong
+to the organization, and `ledgerId` became optional on them (omitted for a route created at
+organization level). The bump is minor: every other field is unchanged, and a route
+created under a ledger still carries `ledgerId`. The `account_type.*` events are
 intentionally NOT registered — the type label flows through `account.*` events
 as a string field.
 
@@ -101,6 +105,7 @@ as a string field.
 | `account.created` | account / created | `studio.lerian.ledger.account.created` | account ID | `CreateAccount` |
 | `account.updated` | account / updated | `studio.lerian.ledger.account.updated` | account ID | `UpdateAccount` |
 | `account.deleted` | account / deleted | `studio.lerian.ledger.account.deleted` | account ID | `DeleteAccountByID` |
+| `account.closed` | account / closed | `studio.lerian.ledger.account.closed` | account ID | `CloseAccount` |
 | `asset.created` | asset / created | `studio.lerian.ledger.asset.created` | asset ID | `CreateAsset` |
 | `asset.updated` | asset / updated | `studio.lerian.ledger.asset.updated` | asset ID | `UpdateAssetByID` |
 | `asset.deleted` | asset / deleted | `studio.lerian.ledger.asset.deleted` | asset ID | `DeleteAssetByID` |
@@ -127,6 +132,10 @@ as a string field.
 | `transaction.committed` | transaction / committed | `studio.lerian.ledger.transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
 | `transaction.canceled` | transaction / canceled | `studio.lerian.ledger.transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
 | `transaction.reverted` | transaction / reverted | `studio.lerian.ledger.transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
+| `transaction_group.posted` | transaction_group / posted | `studio.lerian.ledger.transaction_group.posted` | group ID | `CreateCrossLedgerTransactionV2` (applied, not replayed) |
+| `transaction_group.committed` | transaction_group / committed | `studio.lerian.ledger.transaction_group.committed` | group ID | grouped commit, or the group reconciler — whichever moves the group row to APPROVED |
+| `transaction_group.canceled` | transaction_group / canceled | `studio.lerian.ledger.transaction_group.canceled` | group ID | grouped cancel, or the group reconciler — whichever moves the group row to CANCELED |
+| `transaction_group.reverted` | transaction_group / reverted | `studio.lerian.ledger.transaction_group.reverted` | **new** group ID | grouped revert (applied, not replayed) |
 
 † On `balance.config_changed` the `ce-subject` is the companion overdraft
 balance's ID in the `overdraft_enabled` branch, not the parent's.
@@ -144,7 +153,7 @@ balance's ID in the `overdraft_enabled` branch, not the parent's.
 
 ## ce-subject
 
-Most events carry their own record ID as `ce-subject`. Five exceptions:
+Most events carry their own record ID as `ce-subject`. Six exceptions:
 
 - **`balance.changed`** and the three **`balance.overdraft_*`** events carry the
   composite idempotency key `transactionId:operationId` — NOT the balance ID.
@@ -153,6 +162,8 @@ Most events carry their own record ID as `ce-subject`. Five exceptions:
 - **`transaction.reverted`** carries the **child** (reversal) transaction's UUID
   as `ce-subject`; consumers correlate back to the original transaction via the
   `parentTransactionId` body field.
+- **`transaction_group.reverted`** carries the **new** group's UUID; the group it
+  reverses is the `revertedGroupId` body field.
 
 ## Payload contracts
 
@@ -284,6 +295,21 @@ Source: `pkg/streaming/events/account_deleted.go`.
 > The cascade `DeleteAllBalancesByAccountID` does NOT generate per-balance
 > `balance.deleted` events; the user-visible fact is the account removal.
 
+#### `account.closed` — 4 fields
+
+Source: `pkg/streaming/events/account_closed.go`.
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `id` | string | Account ID. |
+| `organizationId` | string | |
+| `ledgerId` | string | |
+| `closedAt` | string | RFC3339. The instant the database recorded and returned; no producer clock reaches it. |
+
+> Closing writes no transaction and no operation, so the payload carries no
+> transaction reference. It is also the only event a closing publishes — neither
+> `account.updated` nor `balance.deleted` follows from it.
+
 ### Asset
 
 #### `asset.created` / `asset.updated` — 9 / 8 fields
@@ -377,7 +403,7 @@ Source: `pkg/streaming/events/operation_route_created.go`,
 |-----|------|:---------:|:---------:|-------|
 | `id` | string | ✓ | ✓ | UUID stringified. |
 | `organizationId` | string | ✓ | ✓ | |
-| `ledgerId` | string | ✓ | ✓ | |
+| `ledgerId` | string | ✓ | ✓ | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `title` | string | ✓ | ✓ | |
 | `description` | string | ✓ | ✓ | `omitempty` — omitted when empty. |
 | `code` | string | ✓ | ✓ | `omitempty`. Legacy field (`//nolint:staticcheck`); emitted for backward compatibility. |
@@ -389,8 +415,9 @@ Source: `pkg/streaming/events/operation_route_created.go`,
 
 > `operation_route.created` field count is 7 when all optionals are empty/nil,
 > 11 when `description`, `code`, `account`, and `accountingEntries` are all set.
+> Each count is one lower for a route created at organization level (no `ledgerId`).
 
-#### `operation_route.deleted` — 4 fields
+#### `operation_route.deleted` — 4 (or 3) fields
 
 Source: `pkg/streaming/events/operation_route_deleted.go`.
 
@@ -398,7 +425,7 @@ Source: `pkg/streaming/events/operation_route_deleted.go`.
 |-----|------|-------|
 | `id` | string | Operation-route ID. |
 | `organizationId` | string | |
-| `ledgerId` | string | |
+| `ledgerId` | string | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `deletedAt` | string | RFC3339. |
 
 ### Transaction route
@@ -412,7 +439,7 @@ Source: `pkg/streaming/events/transaction_route_created.go`,
 |-----|------|:---------:|:---------:|-------|
 | `id` | string | ✓ | ✓ | UUID stringified. |
 | `organizationId` | string | ✓ | ✓ | |
-| `ledgerId` | string | ✓ | ✓ | |
+| `ledgerId` | string | ✓ | ✓ | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `title` | string | ✓ | ✓ | |
 | `description` | string | ✓ | ✓ | `omitempty` — omitted when empty. |
 | `operationRouteIds` | []string | ✓ | ✓ | `omitempty`. POST-UPDATE list (not a diff) on `updated` — consumers replace their cached join set. Derived from `OperationRoutes[].ID`. |
@@ -422,8 +449,9 @@ Source: `pkg/streaming/events/transaction_route_created.go`,
 > `transaction_route.created` field count is 7 when `description` is empty, 8
 > when set. `operationRouteIds` is always non-nil in practice (create requires
 > ≥1 op route) but `omitempty` guards against a future validation loosening.
+> Each count is one lower for a route created at organization level (no `ledgerId`).
 
-#### `transaction_route.deleted` — 4 fields
+#### `transaction_route.deleted` — 4 (or 3) fields
 
 Source: `pkg/streaming/events/transaction_route_deleted.go`.
 
@@ -431,7 +459,7 @@ Source: `pkg/streaming/events/transaction_route_deleted.go`.
 |-----|------|-------|
 | `id` | string | Transaction-route ID. |
 | `organizationId` | string | |
-| `ledgerId` | string | |
+| `ledgerId` | string | `omitempty` (since `1.1.0`) — the ledger the route was created under; omitted for a route created at organization level. |
 | `deletedAt` | string | RFC3339. |
 
 > The cascade soft-delete of `operation_transaction_route` relations does NOT
@@ -638,6 +666,8 @@ status discriminator selects the Definition:
 |-----|------|-------|
 | `id` | string | Transaction ID. |
 | `parentTransactionId` | string \| null | `omitempty`. Absent on `posted`/`committed`/`canceled`; always present on `reverted` (the child carries the parent's UUID). |
+| `groupId` | string \| null | `omitempty`. Present only on a member of a cross-ledger group; every part of one movement shares it. |
+| `groupRole` | string \| null | `omitempty`. Present only with `groupId`: `origin` (the part sends value out through its ledger's `@external/<asset>` bridge, or nets to zero inside its ledger) or `destination` (the part receives value through its bridge). |
 | `organizationId` | string | |
 | `ledgerId` | string | |
 | `status` | object | `code`, `description` (string\|null, omitted when nil). |
@@ -680,6 +710,39 @@ A consumer classifying accounts should read `accountType` rather than matching
 client-created external account (`type: "external"`, canonicalised in
 `CreateAccount`) has the type and not the prefix, and only the per-asset account
 Midaz creates for itself has both.
+
+### Transaction group
+
+#### `transaction_group.posted` / `transaction_group.committed` / `transaction_group.canceled` / `transaction_group.reverted` — 6 keys (7 with `revertedGroupId`)
+
+Source: `pkg/streaming/events/transaction_group_lifecycle.go`. One fact per
+cross-ledger group operation, published after the grouped accounting execution
+was applied and its completion returned — the point where the movement as a
+whole has closed. The per-part `transaction.*` events still fire, one per ledger
+and carrying `groupId`; this is the event to consume for "the group closed". A
+hold publishes nothing (no balance moved to a destination yet), and a replayed
+request publishes nothing.
+
+`committed` and `canceled` are published by whichever writer moves the durable
+group row out of PENDING: the commit or cancel coordinator, or the recovery-cycle
+group reconciler when the coordinator applied the movement but did not reach the
+status update. The move is a compare-and-swap, so one writer publishes. Delivery
+is best-effort like every other event here.
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `groupId` | string | The group. On `reverted` it is the new group created by the revert. |
+| `revertedGroupId` | string \| null | `omitempty`. Only on `reverted`: the group being reversed. |
+| `status` | string | `APPROVED` on `posted`/`committed`/`reverted`, `CANCELED` on `canceled`. |
+| `assetCode` | string | The single asset of the group. |
+| `ledgerCount` | number | Distinct ledgers among `parts`. |
+| `parts` | array | The transactions the operation materialized, in execution order. A cancel lists only its origins: destinations are never created. |
+| `parts[].transactionId` | string | |
+| `parts[].organizationId` | string | |
+| `parts[].ledgerId` | string | |
+| `parts[].role` | string | `origin` or `destination`, same vocabulary as `groupRole` on the per-part event. On a revert the roles are those of the reversal: the part that debits a former destination is an origin. |
+| `parts[].status` | string | The part's status after the operation. |
+| `occurredAt` | string | RFC3339. |
 
 ## Excluded by design
 

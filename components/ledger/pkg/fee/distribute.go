@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -154,41 +155,156 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 	}
 }
 
-// updatedAmountsFromFee updates the amounts from the fee
-func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
+// updatedAmountsFromFee rebuilds one whole side of the payment from the amounts map. That map
+// holds the movements the fee engine minted and the movements the operator authored together, so
+// the function also marks the engine ones, and only those, with the reserved fee key.
+//
+// What separates them is a field on the movement itself, set by the emit helpers at the moment
+// they mint the leg. Nothing about the map key is consulted. An operator movement enters the map
+// under an alias the caller chose; the create surface accepts an alias carrying the same ->
+// decoration the engine uses; and the two sides are rebuilt from two separate maps whose keys can
+// coincide, so a caller naming its own leg after a key the engine mints on the OTHER side reaches
+// any mark derived from the key. The field is out of reach instead: it is kept off every wire a
+// caller can write, and a movement built from a caller payload carries it false.
+//
+// The -> split below is still read for the alias trim and the route, which are display concerns
+// and behave exactly as they did before; only the mark reads the field.
+//
+// ponytail: that trim is a pre-existing ceiling this function keeps. A leg aliased dst->ops comes
+// back as dst, because trimFeeSuffix cuts at the first -> whoever wrote it. No account can be
+// CREATED with such an alias (the registered charset excludes >), so the money still lands on the
+// account the trimmed alias names, and the mark is no longer affected either way. Closing the
+// truncation needs an alias rule on the transaction leg, which is a different surface from this
+// one.
+func updatedAmountsFromFee(amounts map[string]transaction.Amount, originals []transaction.FromTo) []transaction.FromTo {
+	originalKeys := transaction.AmountMapKeys(originals)
+	originalByKey := make(map[string]transaction.FromTo, len(originals))
+	consumed := make(map[string]bool, len(originals))
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
-	for account, amount := range amounts {
-		parts := strings.Split(account, "->")
-		cleanAccount := trimFeeSuffix(account)
-		metadata := map[string]any{}
+	for i := range originals {
+		key := originalKeys[i]
+		originalByKey[key] = originals[i]
 
-		var route string
-
-		if strings.Contains(account, feeconstant.SuffixFeeSource) {
-			cleanAccount, metadata = processAccount(account)
+		amount, ok := amounts[key]
+		if !ok {
+			continue
 		}
 
-		if len(parts) > 2 && parts[len(parts)-1] != "" {
-			route = parts[len(parts)-1]
-		}
+		leg := originals[i]
+		leg.AccountAlias = trimFeeSuffix(leg.AccountAlias)
+		leg.Amount = &transaction.Amount{Asset: amount.Asset, Value: amount.Value}
+		leg.Share = nil
+		leg.Remaining = ""
+		leg.Metadata = cloneMetadata(leg.Metadata)
 
-		fromTo := transaction.FromTo{
-			AccountAlias: cleanAccount,
-			Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
-		}
-		if len(metadata) > 0 {
-			fromTo.Metadata = metadata
-		}
+		newFromTo = append(newFromTo, leg)
+		consumed[key] = true
+	}
 
-		if route != "" {
-			fromTo.Route = route //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+	generatedKeys := make([]string, 0, len(amounts)-len(consumed))
+	for key := range amounts {
+		if !consumed[key] {
+			generatedKeys = append(generatedKeys, key)
 		}
+	}
 
-		newFromTo = append(newFromTo, fromTo)
+	sort.Strings(generatedKeys)
+
+	for _, key := range generatedKeys {
+		newFromTo = append(newFromTo, generatedFeeLeg(key, amounts[key], originalByKey))
 	}
 
 	return newFromTo
+}
+
+func cloneMetadata(metadata map[string]any) map[string]any {
+	if metadata == nil {
+		return nil
+	}
+
+	cloned := make(map[string]any, len(metadata))
+	for key, value := range metadata {
+		cloned[key] = value
+	}
+
+	return cloned
+}
+
+func generatedFeeLeg(key string, amount transaction.Amount, originalByKey map[string]transaction.FromTo) transaction.FromTo {
+	parts := strings.Split(key, "->")
+
+	metadata := make(map[string]any)
+	if amount.FeeLeg {
+		metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
+	}
+
+	leg := transaction.FromTo{
+		AccountAlias: trimFeeSuffix(key),
+		Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
+	}
+	if len(metadata) > 0 {
+		leg.Metadata = metadata
+	}
+
+	route := ""
+	if len(parts) > 2 {
+		route = parts[len(parts)-1]
+	}
+
+	if strings.Contains(key, feeconstant.SuffixFeeSource) {
+		leg.AccountAlias = parts[0]
+		if len(parts) >= 3 {
+			payerKey := parts[2]
+
+			if leg.Metadata == nil {
+				leg.Metadata = make(map[string]any)
+			}
+
+			leg.Metadata["source"] = sourceAlias(payerKey, originalByKey)
+		}
+	} else if payerKey, ok := feeDebitPayerKey(key); ok {
+		if payer, found := originalByKey[payerKey]; found {
+			leg.AccountAlias = payer.AccountAlias
+			leg.BalanceKey = payer.BalanceKey
+			leg.IsFrom = payer.IsFrom
+
+			if route == "" && payer.RouteID != nil {
+				inherited := *payer.RouteID
+				leg.RouteID = &inherited
+			}
+		}
+	}
+
+	if route != "" {
+		leg.Route = route //nolint:staticcheck // retained for compatibility; RouteID is canonical
+		routeID := route
+		leg.RouteID = &routeID
+	}
+
+	return leg
+}
+
+func feeDebitPayerKey(key string) (string, bool) {
+	index := strings.Index(key, "->fee")
+	if index == -1 || strings.HasPrefix(key[index:], feeconstant.SuffixFeeSource) {
+		return "", false
+	}
+
+	return key[:index], true
+}
+
+func sourceAlias(key string, originalByKey map[string]transaction.FromTo) string {
+	if original, ok := originalByKey[key]; ok {
+		return original.AccountAlias
+	}
+
+	parts := strings.Split(key, transaction.AliasSeparatorString)
+	if len(parts) >= 3 {
+		return parts[1]
+	}
+
+	return trimFeeSuffix(key)
 }
 
 // trimFeeSuffix trims the fee suffix
@@ -198,22 +314,6 @@ func trimFeeSuffix(s string) string {
 	}
 
 	return s
-}
-
-// processAccount processes the account
-func processAccount(account string) (string, map[string]any) {
-	parts := strings.Split(account, "->")
-	metadata := make(map[string]any)
-
-	if len(parts) >= 3 && strings.Contains(parts[1], "fee_source") {
-		cleanAccount := parts[0]
-		sourceAccount := parts[2]
-		metadata["source"] = sourceAccount
-
-		return cleanAccount, metadata
-	}
-
-	return account, metadata
 }
 
 // findMaxAccount Helper to find the account with the maximum value
@@ -371,6 +471,9 @@ func emitDeductibleLeg(
 	target *feeCorrectionTarget,
 ) transaction.Amount {
 	legKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
+	// Minted here, so marked here. The flag rides on the movement rather than on its map key,
+	// which is the caller's own alias for every movement the caller authored.
+	resultAmount.FeeLeg = true
 	updateAmount[legKey] = resultAmount
 	amount.Value = amount.Value.Sub(resultAmount.Value)
 
@@ -403,6 +506,9 @@ func emitNonDeductibleLeg(
 	debitLegKey := feeKey + "->" + feeModel.GetRouteFrom()
 	feeSourceKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 
+	// Both halves of the pair are minted here, so both are marked here, from one flag on the
+	// amount the two writes below copy.
+	resultAmount.FeeLeg = true
 	updateAmount[debitLegKey] = resultAmount
 
 	if updateAmountToStruct == nil {

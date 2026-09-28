@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -388,4 +389,57 @@ func TestUpdateTransactionStatus_RepositoryError(t *testing.T) {
 // ptr is a helper function to create a pointer to a string
 func ptr(s string) *string {
 	return &s
+}
+
+// TestUpdateTransaction_PatchCarriesNoStatus pins the contract the repository's
+// body handling keys off: a field patch hands the repository an entity with NO
+// status, which is what tells the write to leave the body column alone. A patch
+// that carried a status would null the body of a PENDING transaction and leave
+// its commit rejecting the transaction as already transitioned.
+func TestUpdateTransaction_PatchCarriesNoStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	var patched *transaction.Transaction
+
+	mockTransactionRepo.EXPECT().
+		Update(gomock.Any(), organizationID, ledgerID, transactionID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, id uuid.UUID, in *transaction.Transaction) (*transaction.Transaction, error) {
+			patched = in
+
+			return &transaction.Transaction{ID: id.String(), Description: in.Description}, nil
+		}).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		AnyTimes()
+
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	_, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID,
+		&transaction.UpdateTransactionInput{Description: "patched while pending"})
+
+	require.NoError(t, err)
+	require.NotNil(t, patched)
+
+	assert.True(t, patched.Status.IsEmpty(),
+		"a field patch must carry no status, which is what keeps the write off the body column")
+	assert.Equal(t, "patched while pending", patched.Description)
 }

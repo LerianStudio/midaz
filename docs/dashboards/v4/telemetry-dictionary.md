@@ -379,6 +379,151 @@ live_observed: true
 unit: "1"
 ```
 
+### engine_requests_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:98
+description: Accounting adapter invocations by bounded outcome, including replay and preflight rejection.
+labels: [outcome]
+label_values: [success, refused, technical_error, indeterminate]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### engine_postings_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:58
+description: Requested postings in validated invocations, including replay; not applied movements or generated companions.
+labels: [type]
+label_values: [debit, credit, reserve, unreserve, hold, release]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### engine_failures_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:101
+description: Accounting adapter failures by a closed protocol classification vocabulary.
+labels: [code]
+label_values: [context_canceled, invalid_scope, invalid_request, invalid_recovery, connection_unavailable, unsupported_transport, invalid_response, transport, invalid_failure, invalid_technical_failure, invalid_json, invalid_protocol, invalid_balance, balance_identity_mismatch, wrong_key_type, execution_fingerprint_conflict, execution_guard_conflict, version_overflow, invalid_companion, prepared_bytes_exceeded, request_bytes_exceeded, serialization_failed, script_runtime_failed, indeterminate, execution_outcome_unknown, invalid_receipt, unknown_technical_failure, invalid_normalization_failure, normalization_required, script_runtime, normalization_read_failed, normalization_balance_missing, normalization_invalid_balance, normalization_repair_failed, insufficient_funds, overdraft_limit_exceeded, overdraft_not_eligible, overdraft_companion_missing, balance_deleted, onhold_underflow, balance_missing, unknown]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### engine_cas_attempts_total / engine_indeterminate_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/adapter.go:212 / components/ledger/internal/adapters/redis/engine/telemetry.go:105
+description: Accounting script attempts (under the historical CAS metric name) and invocations whose accounting outcome is unknown.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: "1"
+```
+
+### engine_recovery_total
+
+```yaml
+declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:26-29
+description: Bounded completion outcomes for already-applied transaction recovery records.
+labels: [source, outcome]
+label_values:
+  source: [legacy_backup, engine_recover]
+  outcome: [completed, context_canceled, not_configured, finalization_failed, ack_failed, record_changed, invalid_ack]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:91-95
+description: Account closing attempts by bounded outcome. `indeterminate` is the protection that could not be read at all (0520), and is deliberately separate from a refusal the coordination answered on purpose.
+labels: [outcome]
+label_values: [closed, refused, indeterminate, technical_error]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_refusals_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:99-103
+description: Account closing attempts that did not close the account, by the bounded reason that stopped them. Derived from the registry sentinel, never from the error text.
+labels: [reason]
+label_values: [already_closed, closing_in_progress, operation_in_progress, balance_not_zero, pending_transactions, persistence_pending, account_closed, protection_indeterminate, external_account, account_not_found, business_other, technical]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_markers_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:107-111
+description: Closing markers seen by one reconciliation pass, by bounded outcome. `scanned` is the denominator of the pass and is NOT disjoint from the other values.
+labels: [outcome]
+label_values: [scanned, completed, released, retained, unreadable]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_failures_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:115-119
+description: Reconciliation steps that could not complete, by bounded stage. A scan stage firing means the pass never walked the namespace, which is also what withholds the last-success instant below.
+labels: [stage]
+label_values: [scan_markers, scan_ownerships, read_marker, read_account, list_balances, evict_balance, install_closed_marker, release_closed_marker, release_aborted_marker, release_ownership]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### atomic_transaction_batches_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/create_atomic_transaction_batch_telemetry.go:183-204
+description: Atomic transaction batch command events by scope, bounded outcome, and rejection classification.
+labels: [scope, outcome, code, dimension]
+label_values:
+  scope: [single, cross_ledger]
+  outcome: [received, applied, replayed, recovering, rejected]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+`code` is a closed allowlist of batch rejection codes plus `none`, `technical` and
+`other_business`; `dimension` names the budget a rejected batch exceeded. `scope="cross_ledger"`
+is a direct, hold or revert group executed as one batch — the only way to tell a group from
+an ordinary same-ledger batch. `received` counts every call, so exclude it when reading
+outcomes.
+
+### cross_ledger_group_reconcile_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/transaction_group_reconciliation.go:360-375
+description: Cross-ledger transaction groups read by the reconciler, by bounded result.
+labels: [result]
+label_values: [repaired, deleted, inconsistent, skipped, failed]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Emitted once per PENDING group per recovery cycle. `skipped` dominates by design: every hold
+still waiting for its commit is read and left alone each cycle. `inconsistent` is the signal
+to act on — members that agree on no single state are reported and never written.
+
 ---
 
 ## Histograms
@@ -419,13 +564,124 @@ live_observed: true
 unit: ms
 ```
 
+### engine_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:19
+description: Complete accounting adapter invocation duration, including validation and normalization.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: ms
+```
+
+### engine_recovery_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:27-29
+description: Applied-transaction recovery completion duration in milliseconds.
+labels: [source, outcome]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: ms
+```
+
+### engine_request_size_bytes
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:25
+description: Validated accounting Lua JSON payload size, excluding Redis keys and RESP framing.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: By
+```
+
+### engine_pool_balance_count / engine_touched_balance_count
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:31-37
+description: Full snapshot pool size and distinct balance references targeted by validated postings.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:146-151
+description: Duration of one account closing reconciliation pass, both namespace walks included. The duration of a single CLOSING is not declared separately: it rides domain_operation_duration_ms{component="ledger",operation="close_account"}.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: "ms"
+```
+
 Milliseconds rather than seconds throughout: the factory exposes `Int64Histogram`, so
 sub-second latencies would truncate to zero in seconds. Reasoning recorded at
 `pkg/utils/metrics.go:312-314`.
 
+### atomic_transaction_batch_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/services/command/create_atomic_transaction_batch_telemetry.go:69-74
+description: Atomic batch command duration by scope and closed execution phase.
+labels: [scope, phase]
+label_values:
+  scope: [single, cross_ledger]
+  phase: [identity, idempotency, preparation, reservation, accounting, completion, total]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "ms"
+```
+
+### cross_ledger_group_ledgers
+
+```yaml
+declared_at: components/ledger/internal/services/command/create_atomic_transaction_batch_telemetry.go:75-80
+description: Distinct ledgers taking part in one applied cross-ledger group operation.
+labels: [action]
+label_values: [direct, hold, commit, cancel, revert, other]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Recorded once per applied, non-replayed group operation. The ledger count is the observed
+value, never a label, so no group or ledger identity reaches the series. A hold and its later
+commit or cancel each record the same group once, under their own action.
+
 ---
 
 ## Gauges
+
+### account_closing_reconciliation_backlog_ratio
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:125-129
+declared_name: account_closing_reconciliation_backlog
+description: Account protection still installed after a reconciliation pass. An absolute count despite the _ratio suffix. A backlog that stops draining means closing, balance creation and cache-miss admission stay blocked on those accounts while no request is failing.
+instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
+labels: [kind]
+label_values: [ownership, retained]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_last_success_timestamp_seconds
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:139-143
+declared_name: account_closing_reconciliation_last_success_timestamp
+description: Unix instant of the last pass that walked both protection namespaces without a scan failure. The AGE of the reconciliation is `time() - metric`; a pass that aborted on a scan deliberately does not advance it.
+instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
+labels: []
+live_observed: unknown
+unit: "s"
+```
 
 ### redis_backup_queue_depth_ratio
 

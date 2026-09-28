@@ -32,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 )
 
 // buildHumaHolderApp mounts the five holder Huma operations on a /v2 group,
@@ -515,19 +516,21 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
 		Times(1)
 
+	slots := newFakeCRMIdempotencyRepo()
 	handler := &HolderHandler{Service: &services.UseCase{
 		HolderRepo:  repo,
-		Idempotency: newFakeCRMIdempotencyRepo(),
+		Idempotency: slots,
+		Encryptor:   newTestFieldEncryptor(t),
 	}}
 
 	app := buildHumaHolderApp(t, handler, true)
 
 	body := `{"type":"NATURAL_PERSON","name":"John Doe","document":"91315026015"}`
 
+	// No X-Idempotency: the slot key is the organization's keyed hash of the body.
 	doRequest := func() (int, string, []byte) {
 		req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(libConstants.IdempotencyKey, "holder-key-1")
 
 		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
@@ -556,6 +559,11 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 
 	assert.Equal(t, first["id"], second["id"])
 	assert.Equal(t, first["name"], second["name"])
+
+	payload, err := libCommons.StructToJSONString(&mmodel.CreateHolderInput{Type: &holderType, Name: name, Document: document, Metadata: map[string]any{}})
+	require.NoError(t, err)
+	assert.Contains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), testutils.TestLegacySearchToken(payload)),
+		"the default slot key must be the keyed hash of the body, never a plain body hash")
 }
 
 func TestGetHolderByID_IncludeDeleted(t *testing.T) {
@@ -1076,4 +1084,72 @@ func TestGetAccountsByHolder_NoLedgerID_ReaderGetsNil(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 
 	assert.Nil(t, reader.gotLedgerID, "an absent ledger_id must reach the reader as nil, not an empty string")
+}
+
+func TestUpdateHolder_UndeclaredNullKey_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	tests := []struct {
+		name     string
+		body     string
+		location string
+	}{
+		{name: "dotted search token key and creation date", body: `{"search.document": null, "createdAt": null}`, location: "search.document"},
+		{name: "creation date", body: `{"createdAt": null}`, location: "createdAt"},
+		{name: "undeclared nested key", body: `{"contact": {"bogus": null}}`, location: "contact.bogus"},
+		{name: "internal control field", body: `{"NullFields": ["x"]}`, location: "NullFields"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			handler, repo := newHolderHandler(t, ctrl)
+			repo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+			app := buildHumaHolderApp(t, handler, true)
+
+			req := httptest.NewRequest(http.MethodPatch, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String(), bytes.NewReader([]byte(tc.body)))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, _ := io.ReadAll(resp.Body)
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+			assert.Equal(t, []string{tc.location}, problemErrorLocations(t, respBody))
+		})
+	}
+}
+
+// problemErrorLocations decodes a 0053 problem document, checks its status
+// member, and returns the location of each entry in its errors list.
+func problemErrorLocations(t *testing.T, body []byte) []string {
+	t.Helper()
+
+	var got struct {
+		Code   string `json:"code"`
+		Status int    `json:"status"`
+		Errors []struct {
+			Location string `json:"location"`
+			Message  string `json:"message"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(body, &got), "body: %s", string(body))
+	require.Equal(t, constant.ErrUnexpectedFieldsInTheRequest.Error(), got.Code, "body: %s", string(body))
+	assert.Equal(t, http.StatusBadRequest, got.Status, "problem status member")
+
+	locations := make([]string, 0, len(got.Errors))
+	for _, entry := range got.Errors {
+		assert.Equal(t, "unexpected field", entry.Message)
+
+		locations = append(locations, entry.Location)
+	}
+
+	return locations
 }

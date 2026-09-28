@@ -12,8 +12,9 @@ import (
 	"os"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
@@ -51,8 +52,10 @@ type testRouterDeps struct {
 	ReservationService           *mocks.MockReservationService
 	TransactionValidationService *mocks.MockTransactionValidationService
 	AuditEventService            *MockAuditEventService
+	DashboardService             DashboardService
 	guardCfg                     middleware.AuthGuardConfig
 	openAPIDocsEnabled           bool
+	serviceName                  string
 	t                            *testing.T
 }
 
@@ -68,6 +71,7 @@ func newTestRouterDeps(t *testing.T, guardCfg middleware.AuthGuardConfig) *testR
 		ReservationService:           mocks.NewMockReservationService(ctrl),
 		TransactionValidationService: mocks.NewMockTransactionValidationService(ctrl),
 		AuditEventService:            NewMockAuditEventService(ctrl),
+		DashboardService:             &dashboardServiceStub{},
 		guardCfg:                     guardCfg,
 		t:                            t,
 	}
@@ -113,8 +117,10 @@ func (d *testRouterDeps) build() *fiber.App {
 		ReservationService:           reservationService,
 		TransactionValidationService: d.TransactionValidationService,
 		AuditEventService:            d.AuditEventService,
+		DashboardService:             d.DashboardService,
 		Guard:                        guard,
 		Clock:                        clk,
+		ServiceName:                  d.serviceName,
 	})
 	require.NoError(d.t, err)
 	return app
@@ -507,4 +513,57 @@ func TestGetCORSAllowedOrigins(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// TestRoutes_VersionEndpointServesCompiledIdentity locks the /version contract:
+// the route answers with the identity compiled into the binary and nothing
+// else. The body carries exactly the seven identity keys — no
+// dependencyManifest (that lives behind --version, off the API port) and no
+// requestDate (a clock reading is not build identity, and it made every
+// response uncacheable and every golden body unstable).
+//
+// service is the roster identity the binary also reports as the OTel
+// service.name, so one name identifies the process across /version, traces and
+// the streaming manifest.
+func TestRoutes_VersionEndpointServesCompiledIdentity(t *testing.T) {
+	deps := newTestRouterDeps(t, middleware.AuthGuardConfig{})
+	deps.serviceName = "tracer"
+	app := deps.build()
+
+	req := httptest.NewRequest(http.MethodGet, "/version", nil)
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode, "/version should answer 200 unauthenticated")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(body, &got), "/version should answer JSON; body=%s", body)
+
+	want := buildinfo.Get()
+
+	assert.Equal(t, "v1", got["schemaVersion"], "schemaVersion pins the body shape")
+	assert.Equal(t, "tracer", got["service"], "service is the roster identity the routes were built with")
+	assert.Equal(t, want.Version, got["version"], "version comes from the compiled identity, never from env")
+	assert.Equal(t, want.Revision, got["revision"], "revision comes from the compiled identity")
+	assert.Equal(t, want.BuildTime, got["buildTime"], "buildTime comes from the compiled identity")
+	assert.Equal(t, want.Modified, got["modified"], "modified reports the dirty-tree stamp")
+	assert.Equal(t, want.GoVersion, got["goVersion"], "goVersion reports the toolchain")
+
+	keys := make([]string, 0, len(got))
+	for k := range got {
+		keys = append(keys, k)
+	}
+
+	assert.ElementsMatch(t,
+		[]string{"schemaVersion", "service", "version", "revision", "buildTime", "modified", "goVersion"},
+		keys,
+		"/version must carry exactly the seven identity keys: no dependencyManifest, no requestDate")
 }

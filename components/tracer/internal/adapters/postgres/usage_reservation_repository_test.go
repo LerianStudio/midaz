@@ -70,15 +70,15 @@ func newTestReservation(t *testing.T) *model.Reservation {
 }
 
 // reserveInsertSQL is the expected reservation-row INSERT, asserting the 4-tuple
-// ON CONFLICT DO NOTHING idempotency grain.
-const reserveInsertSQL = `
-		INSERT INTO usage_reservations (
-			id, limit_id, scope_key, period_key, amount, status,
-			transaction_id, reservation_expires_at, created_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
-	`
+// ON CONFLICT DO NOTHING idempotency grain and that the owning row's id is read
+// back on both branches.
+const reserveInsertSQL = insertReservationReturningIDSQL
+
+// reserveInsertColumns is the row shape the reserve insert scans: the id of the
+// row that owns the capacity, and whether this call created it.
+func reserveInsertColumns() []string {
+	return []string{"id", "inserted"}
+}
 
 func TestUsageReservationRepository_AcquireReserveScopeLock(t *testing.T) {
 	testutil.SetupTestTracing(t)
@@ -144,10 +144,10 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		res := newTestReservation(t)
 
-		// Reservation row insert (4-tuple ON CONFLICT grain) runs first; 1 row affected
-		// means a new reservation.
-		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnResult(sqlmock.NewResult(0, 1))
+		// Reservation row insert (4-tuple ON CONFLICT grain) runs first; inserted=true
+		// means a new reservation and the returned id is the caller's own.
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true))
 		// A new row was inserted, so the reserve CTE (counter seed) follows and returns
 		// succeeded=true.
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
@@ -162,15 +162,42 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		defer cleanup()
 
 		res := newTestReservation(t)
+		generatedID := res.ID
+		owningID := testutil.MustDeterministicUUID(8009)
 
-		// ON CONFLICT DO NOTHING suppresses the insert (0 rows affected): the 4-tuple
-		// already exists. The counter CTE MUST NOT run, so the replay holds capacity
+		require.NotEqual(t, generatedID, owningID)
+
+		// ON CONFLICT DO NOTHING suppresses the insert (inserted=false): the 4-tuple
+		// already exists, and the query returns the id of the row that already holds
+		// the capacity. The counter CTE MUST NOT run, so the replay holds capacity
 		// exactly once. ExpectationsWereMet on cleanup asserts no stray counter query.
-		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(owningID, false))
 
 		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.NoError(t, err)
+
+		// The handle the caller keeps must address the row that owns the capacity, not
+		// the id it generated for this attempt — otherwise its confirm/release hits
+		// ErrReservationNotFound and the hold is never settled.
+		assert.Equal(t, owningID, res.ID,
+			"a replayed reserve must adopt the existing row's id")
+	})
+
+	t.Run("Replay - no owning row fails closed", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+
+		// Neither branch produced a row. The reserve MUST fail rather than return a
+		// handle that owns nothing.
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()))
+
+		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no owning reservation row")
 	})
 
 	t.Run("Fractional amount is inserted without truncation", func(t *testing.T) {
@@ -197,7 +224,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		// WithArgs guards the changed line: the exact fractional amount (not a
 		// truncated integer) MUST reach both the row insert and the reserve CTE. The row
 		// insert runs first; its $5 amount carries the exact fraction on the row.
-		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WithArgs(
 				res.ID,                             // $1 reservation id
 				res.LimitID,                        // $2 limit id
@@ -209,7 +236,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 				sqlmock.AnyArg(),                   // $8 reservation_expires_at
 				sqlmock.AnyArg(),                   // $9 created_at
 			).
-			WillReturnResult(sqlmock.NewResult(0, 1))
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true))
 		// A new row was inserted, so the reserve CTE follows. It binds the amount three
 		// times ($5 INSERT seed, $7 UPDATE increment, $9 WHERE-guard check) and the cap
 		// once ($10); the counter id, timestamps and expiry are non-deterministic. A
@@ -239,11 +266,11 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 
 		res := newTestReservation(t)
 
-		// A new row inserts first (1 row affected); the reserve CTE then fails its WHERE
+		// A new row inserts first (inserted=true); the reserve CTE then fails its WHERE
 		// guard (succeeded=false) -> ErrUsageCounterExceedsLimit. The caller rolls the
 		// transaction back, which unwinds the row inserted above.
-		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true))
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("1000", false))
 

@@ -36,7 +36,7 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Action-Aware Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -61,6 +61,8 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -109,7 +111,7 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Multi-Action Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
@@ -136,6 +138,8 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	// The ledger-scoped key delete is pinned by its own tests.
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
 	}

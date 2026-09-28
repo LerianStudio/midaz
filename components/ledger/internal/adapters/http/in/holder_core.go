@@ -57,16 +57,21 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 		return nil, false, err
 	}
 
-	hash := libCommons.HashSHA256(body)
+	token, err := handler.Service.CRMIdempotencyToken(ctx, organizationID.String(), body)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to derive holder idempotency token", err)
+
+		return nil, false, err
+	}
 
 	key := clientKey
 	if key == "" {
-		key = hash
+		key = token
 	}
 
 	internalKey := services.HolderIdempotencyKey(organizationID.String(), key)
 
-	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, internalKey, hash, ttl)
+	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, token, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to claim holder idempotency", err)
 
@@ -92,7 +97,7 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 	}
 
 	if value, err := libCommons.StructToJSONString(out); err == nil {
-		handler.Service.SetCRMIdempotencyValue(ctx, internalKey, value, ttl)
+		handler.Service.SetCRMIdempotencyValue(ctx, organizationID.String(), internalKey, value, ttl)
 	} else {
 		logger.Log(ctx, libLog.LevelWarn, "Holder created but idempotency replay value could not be stored; a retry with the same key will conflict", libLog.Err(err))
 	}

@@ -11,7 +11,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -24,8 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// CreateOperationRoute creates a new operation route.
-func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
+// CreateOperationRoute creates an operation route in the organization. ledgerID records the ledger
+// the route was created under; nil creates it at organization level.
+func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, payload *mmodel.CreateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation_route")
@@ -55,8 +55,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create operation route", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create operation route", err)
 
 		return nil, err
 	}
@@ -73,8 +72,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		}
 
 		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityOperationRoute, &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route metadata", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to create operation route metadata", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to create operation route metadata", err)
 
 			return nil, err
 		}

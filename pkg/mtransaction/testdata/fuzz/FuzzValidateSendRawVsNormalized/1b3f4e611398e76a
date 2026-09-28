@@ -1,0 +1,9 @@
+go test fuzz v1
+int64(100)
+string("@account")
+string("@account")
+string("")
+int64(100)
+int64(64)
+byte('\x00')
+byte('\x00')

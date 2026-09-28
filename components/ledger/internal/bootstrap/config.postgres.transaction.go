@@ -15,9 +15,11 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/dashboard"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -28,12 +30,14 @@ type transactionPostgresComponents struct {
 	connection           *libPostgres.Client
 	pgManager            *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
 	transactionRepo      *transaction.TransactionPostgreSQLRepository
+	transactionGroupRepo *transactiongroup.TransactionGroupPostgreSQLRepository
 	operationRepo        *operation.OperationPostgreSQLRepository
 	assetRateRepo        *assetrate.AssetRatePostgreSQLRepository
 	balanceRepo          *balance.BalancePostgreSQLRepository
 	operationRouteRepo   *operationroute.OperationRoutePostgreSQLRepository
 	transactionRouteRepo *transactionroute.TransactionRoutePostgreSQLRepository
 	quarantineRepo       *transactionquarantine.QuarantinePostgreSQLRepository
+	dashboardRepo        *dashboard.DashboardPostgreSQLRepository
 }
 
 // initTransactionPostgres initializes PostgreSQL components for the transaction domain.
@@ -85,13 +89,15 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 	return &transactionPostgresComponents{
 		connection:           conn,
 		pgManager:            pgMgr,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, true),
+		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
+		transactionGroupRepo: transactiongroup.NewTransactionGroupPostgreSQLRepository(conn, true),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn, true),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn, true),
 		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn, true),
+		dashboardRepo:        dashboard.NewDashboardPostgreSQLRepository(conn, true),
 	}, nil
 }
 
@@ -104,13 +110,15 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 
 	return &transactionPostgresComponents{
 		connection:           conn,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
+		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
+		transactionGroupRepo: transactiongroup.NewTransactionGroupPostgreSQLRepository(conn),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn),
 		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn),
+		dashboardRepo:        dashboard.NewDashboardPostgreSQLRepository(conn),
 	}, nil
 }
 
@@ -138,24 +146,40 @@ func defaultTransactionPostgresConnector(cfg *Config, logger libLog.Logger) (*li
 // buildTransactionPostgresConnection creates a PostgresConnection for the transaction domain
 // using DB_TRANSACTION_* env vars.
 func buildTransactionPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
-		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
+	pgCfg, err := newTransactionPostgresConfig(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.TxnPrefixedReplicaDBHost, cfg.TxnPrefixedReplicaDBUser, cfg.TxnPrefixedReplicaDBPassword,
-		cfg.TxnPrefixedReplicaDBName, cfg.TxnPrefixedReplicaDBPort, cfg.TxnPrefixedReplicaDBSSLMode)
-
-	conn, err := libPostgres.New(libPostgres.Config{
-		PrimaryDSN:         postgreSourcePrimary,
-		ReplicaDSN:         postgreSourceReplica,
-		Logger:             logger,
-		MaxOpenConnections: cfg.TxnPrefixedMaxOpenConnections,
-		MaxIdleConnections: cfg.TxnPrefixedMaxIdleConnections,
-	})
+	conn, err := libPostgres.New(pgCfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// newTransactionPostgresConfig translates the transaction DB_TRANSACTION_* settings into the
+// lib-commons postgres config. The replica DSN is optional: absent replica
+// settings yield an empty ReplicaDSN so lib-commons opens a single pool on the
+// primary, while a partially set replica is a configuration error.
+func newTransactionPostgresConfig(cfg *Config, logger libLog.Logger) (libPostgres.Config, error) {
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
+		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
+
+	postgreSourceReplica, err := buildOptionalReplicaDSN(constant.ModuleTransaction,
+		cfg.TxnPrefixedReplicaDBHost, cfg.TxnPrefixedReplicaDBUser, cfg.TxnPrefixedReplicaDBPassword,
+		cfg.TxnPrefixedReplicaDBName, cfg.TxnPrefixedReplicaDBPort, cfg.TxnPrefixedReplicaDBSSLMode)
+	if err != nil {
+		return libPostgres.Config{}, err
+	}
+
+	return libPostgres.Config{
+		PrimaryDSN:         postgreSourcePrimary,
+		ReplicaDSN:         postgreSourceReplica,
+		Logger:             logger,
+		MaxOpenConnections: cfg.TxnPrefixedMaxOpenConnections,
+		MaxIdleConnections: cfg.TxnPrefixedMaxIdleConnections,
+	}, nil
 }

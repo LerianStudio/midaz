@@ -130,10 +130,12 @@ func (randomTransactionRoute) Generate(r *rand.Rand, size int) reflect.Value {
 		routes[i] = route
 	}
 
+	ledgerID := uuid.New()
+
 	tr := &TransactionRoute{
 		ID:              uuid.New(),
 		OrganizationID:  uuid.New(),
-		LedgerID:        uuid.New(),
+		LedgerID:        &ledgerID,
 		Title:           "Property Test",
 		OperationRoutes: routes,
 	}

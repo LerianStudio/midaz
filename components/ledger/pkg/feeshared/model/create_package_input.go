@@ -7,16 +7,19 @@ package model
 import (
 	"strings"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // CreatePackageInput is a struct designed to encapsulate request create payload data.
 type CreatePackageInput struct {
-	FeeGroupLabel    string         `json:"feeGroupLabel" validate:"required" example:"Pacote Padrão"`
-	Description      *string        `json:"description,omitempty" example:"Pacote de taxas administrativas padrão"`
-	SegmentID        *string        `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionRoute *string        `json:"transactionRoute,omitempty" example:"debitoted"`
+	FeeGroupLabel string  `json:"feeGroupLabel" validate:"required" example:"Pacote Padrão"`
+	Description   *string `json:"description,omitempty" example:"Pacote de taxas administrativas padrão"`
+	SegmentID     *string `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
+	// TransactionRoute carries no schema format: the validator accepts the empty string as
+	// "any route" alongside a UUID, and a uuid format would tell a spec-driven client to refuse it.
+	TransactionRoute *string        `json:"transactionRoute,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" doc:"Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment."`
 	MinAmount        string         `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
 	MaxAmount        string         `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`
 	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
@@ -53,12 +56,12 @@ func (cp *CreatePackageInput) ValidateFees() error {
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
 func (cp *CreatePackageInput) ValidateMinAndMaxAmount() error {
-	minRealValue, err := parseAmountDecimal(cp.MinAmount)
+	minRealValue, err := safe.ParseDecimal(cp.MinAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 	}
 
-	maxRealValue, err := parseAmountDecimal(cp.MaxAmount)
+	maxRealValue, err := safe.ParseDecimal(cp.MaxAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 	}

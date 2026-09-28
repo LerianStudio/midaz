@@ -49,7 +49,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 	segmentID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate segment ID", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to generate segment ID", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to generate segment ID", libLog.Err(err))
 
 		return nil, err
@@ -67,16 +67,14 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 	}
 
 	if _, err = uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, cpi.Name); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to check segment name existence", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to check segment name existence", err)
 
 		return nil, err
 	}
 
 	seg, err := uc.SegmentRepo.Create(ctx, segment)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create segment", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create segment", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create segment", err)
 
 		return nil, err
 	}
@@ -85,8 +83,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntitySegment, seg.ID, cpi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create segment metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create segment metadata", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create segment metadata", err)
 
 		return nil, err
 	}

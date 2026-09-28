@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
@@ -32,12 +32,15 @@ func unifiedHumaMountDeps(auth *middleware.AuthClient) HumaMountDeps {
 	return HumaMountDeps{
 		Auth: auth,
 
-		Organization:  &OrganizationHandler{},
-		Ledger:        &LedgerHandler{},
-		Portfolio:     &PortfolioHandler{},
-		Segment:       &SegmentHandler{},
-		Account:       &AccountHandler{},
-		AccountType:   &AccountTypeHandler{},
+		Organization: &OrganizationHandler{},
+		Ledger:       &LedgerHandler{},
+		Portfolio:    &PortfolioHandler{},
+		Segment:      &SegmentHandler{},
+		Account:      &AccountHandler{},
+		AccountType:  &AccountTypeHandler{},
+
+		AccountBlockException: &AccountBlockExceptionHandler{},
+
 		MetadataIndex: &MetadataIndexHandler{},
 		Asset:         &AssetHandler{},
 		AssetRate:     &AssetRateHandler{},
@@ -48,6 +51,8 @@ func unifiedHumaMountDeps(auth *middleware.AuthClient) HumaMountDeps {
 		TransactionRoute: &TransactionRouteHandler{},
 
 		Transaction: &TransactionHandler{},
+
+		Dashboard: &DashboardHandler{},
 
 		Holder:         &HolderHandler{},
 		Instrument:     &InstrumentHandler{},
@@ -285,9 +290,13 @@ func TestContractSpecMatchesRoutes(t *testing.T) {
 // TestUnifiedHumaContractIsSingleDocument locks the shape this harness must mirror
 // from the unified server (unified-server.go mountHumaContracts): ONE Huma document,
 // advertised at the root, whose operation paths carry the version segment. v1 and v2
-// share one component registry, so the union is a single spec — 122 path keys (55
-// under /v1, 67 under /v2), 197 operations — served on the single root server "/".
-// CRM, fees/billing and composition are /v2-only, so their keys and operations count toward /v2 alone.
+// share one component registry, so the union is a single spec — 135 path keys (58
+// under /v1, 77 under /v2), 216 operations — served on the single root server "/".
+// CRM, fees/billing, composition, account-block-exceptions and the organization-level
+// accounting routes are /v2-only, so their keys and operations count toward /v2 alone. The dashboard is the opposite case: three keys
+// and three operations on EACH version, because a new surface published on /v1 alone
+// would be born deprecated (MarkV1OperationsDeprecated) while /v1 is what the console
+// binds to.
 func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 	t.Parallel()
 
@@ -311,10 +320,10 @@ func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 		}
 	}
 
-	require.Len(t, doc.Paths, 122, "single document must enumerate every versioned path key")
-	require.Equal(t, 55, v1, "path keys under /v1")
-	require.Equal(t, 67, v2, "path keys under /v2")
-	require.Equal(t, 197, ops, "operations across both versions")
+	require.Len(t, doc.Paths, 135, "single document must enumerate every versioned path key")
+	require.Equal(t, 58, v1, "path keys under /v1")
+	require.Equal(t, 77, v2, "path keys under /v2")
+	require.Equal(t, 216, ops, "operations across both versions")
 
 	require.Len(t, doc.Servers, 1, "single document advertises exactly one server")
 	require.Equal(t, "/", doc.Servers[0].URL, "the version rides the operation path, so the server is the root")

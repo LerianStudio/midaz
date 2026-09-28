@@ -5,16 +5,20 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libMid "github.com/LerianStudio/lib-observability/v4/middleware"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -27,6 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -90,38 +95,75 @@ func (d *decoderHandler) FiberHandlerFunc(c fiber.Ctx) error {
 // exactly as the pre-refactor FiberHandlerFunc did — order is contract (an
 // unexpected field wins over a missing required one).
 func DecodeAndValidate(bodyBytes []byte, s any) (map[string]any, error) {
+	originalMap, _, err := DecodeAndValidateWithDetails(bodyBytes, s)
+
+	return originalMap, err
+}
+
+// DecodeAndValidateWithDetails runs the same strict pipeline as
+// DecodeAndValidate and additionally returns deterministic field diagnostics.
+// The primary error is byte-for-byte the same error DecodeAndValidate returns;
+// details are an ordered, platform-neutral projection for callers that need to
+// aggregate several request-body failures before rendering them.
+func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pkg.FieldError, error) {
+	if details, err := RefuseOutOfBoundTokens(bodyBytes, s); err != nil {
+		return nil, details, err
+	}
+
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	diffFields := FindUnknownFields(originalMap, marshaledMap)
-	if len(diffFields) > 0 {
-		return nil, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
+
+	unknownDetails := findUnknownFieldDetails(originalMap, marshaledMap)
+	if len(diffFields) > 0 && len(unknownDetails) == 0 {
+		unknownDetails = unknownFieldDetailsFallback(diffFields)
 	}
 
-	if err := ValidateStruct(s); err != nil {
-		return nil, err
+	if len(diffFields) == 0 {
+		nullUnknown, nullDetails, err := findUndeclaredNullFields(bodyBytes, s, originalMap)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if len(nullUnknown) > 0 {
+			diffFields = nullUnknown
+			unknownDetails = nullDetails
+		}
+	}
+
+	validationDetails, validationErr := validateStructWithDetails(s)
+	details := append(unknownDetails, validationDetails...)
+	sortFieldErrors(details)
+
+	if len(diffFields) > 0 {
+		return nil, details, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
+	}
+
+	if validationErr != nil {
+		return nil, details, validationErr
 	}
 
 	parseMetadata(s, originalMap)
 	populateNullFields(s, originalMap)
 
-	return originalMap, nil
+	return originalMap, nil, nil
 }
 
 // WithDecode wraps a handler function, providing it with a struct instance created using the provided constructor function.
@@ -185,25 +227,33 @@ func GetPayloadFromContext(c fiber.Ctx) any {
 // ValidateStruct validates a struct against defined validation rules, using the validator package.
 // Also validates null bytes in string fields for all types (structs and maps).
 func ValidateStruct(s any) error {
+	_, err := validateStructWithDetails(s)
+
+	return err
+}
+
+func validateStructWithDetails(s any) ([]pkg.FieldError, error) {
 	// Generic null-byte validation across all string fields in the payload
 	// This runs for all types including maps and structs
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		details := fieldValidationDetails(violations)
+
 		// Check for JSON structure violations first (return specific business errors)
 		if _, hasDepthViolation := violations["_depth"]; hasDepthViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
+			return details, pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
 		}
 
 		if _, hasKeyCountViolation := violations["_keyCount"]; hasKeyCountViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
+			return details, pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
 		}
 
 		// For other violations (null bytes), return field validation error
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+		return details, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
 	v, trans, err := newValidator()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	k := reflect.ValueOf(s).Kind()
@@ -213,36 +263,180 @@ func ValidateStruct(s any) error {
 
 	// Struct-specific validation using go-playground/validator
 	if k != reflect.Struct {
-		return nil
+		return nil, nil
 	}
 
 	err = v.Struct(s)
 	if err != nil {
-		for _, fieldError := range err.(validator.ValidationErrors) {
-			switch fieldError.Tag() {
-			case "keymax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-			case "valuemax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-			case "nonested":
-				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
-			case "singletransactiontype":
-				return pkg.ValidateTransactionTypeError("", cn.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
-			case "invalidaliascharacters":
-				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "")
-			case "invalidaccounttype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
-			case "accounttypedirection":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeDirection, "", fieldError.Translate(trans))
+		validationErrors := err.(validator.ValidationErrors)
+		details := validatorFieldDetails(validationErrors, trans)
+
+		for _, fieldError := range validationErrors {
+			if businessErr := validatorBusinessError(fieldError, trans); businessErr != nil {
+				return details, businessErr
 			}
 		}
 
-		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
+		errPtr := malformedRequestErr(validationErrors, trans)
 
-		return &errPtr
+		return details, &errPtr
 	}
 
-	return nil
+	return nil, nil
+}
+
+func validatorBusinessError(fieldError validator.FieldError, trans ut.Translator) error {
+	switch fieldError.Tag() {
+	case "keymax":
+		return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+	case "valuemax":
+		return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+	case "nonested":
+		return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+	case "noreservedkey":
+		return pkg.ValidateBusinessError(cn.ErrReservedMetadataKey, "", fieldError.Value())
+	case "singletransactiontype":
+		return pkg.ValidateTransactionTypeError("", cn.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
+	case "invalidaliascharacters":
+		return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "")
+	case "invalidaccounttype":
+		return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+	case "accounttypedirection":
+		return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeDirection, "", fieldError.Translate(trans))
+	default:
+		return nil
+	}
+}
+
+func validatorFieldDetails(validationErrors validator.ValidationErrors, trans ut.Translator) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0, len(validationErrors))
+	for _, fieldError := range validationErrors {
+		details = append(details, pkg.FieldError{
+			Location: formatErrorFieldName(fieldError.Namespace()),
+			Message:  fieldError.Translate(trans),
+		})
+	}
+
+	sortFieldErrors(details)
+
+	return details
+}
+
+func fieldValidationDetails(fields pkg.FieldValidations) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0, len(fields))
+	for field, message := range fields {
+		details = append(details, pkg.FieldError{Location: field, Message: message})
+	}
+
+	sortFieldErrors(details)
+
+	return details
+}
+
+func sortFieldErrors(details []pkg.FieldError) {
+	sort.SliceStable(details, func(i, j int) bool {
+		if details[i].Location == details[j].Location {
+			return details[i].Message < details[j].Message
+		}
+
+		return details[i].Location < details[j].Location
+	})
+}
+
+func unmarshallingFieldDetails(body []byte, err error) []pkg.FieldError {
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) || typeErr.Field == "" {
+		return nil
+	}
+
+	location := normalizeUnmarshalFieldPath(typeErr.Field)
+	if !strings.Contains(location, "[") {
+		if indexed, ok := indexedUnmarshalFieldPath(body, typeErr); ok {
+			location = indexed
+		}
+	}
+
+	return []pkg.FieldError{{
+		Location: location,
+		Message:  fmt.Sprintf("invalid value: expected type '%s', but got '%s'", typeErr.Type, typeErr.Value),
+	}}
+}
+
+func indexedUnmarshalFieldPath(body []byte, typeErr *json.UnmarshalTypeError) (string, bool) {
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "", false
+	}
+
+	return findUnmarshalFieldPath(raw, strings.Split(typeErr.Field, "."), "", typeErr.Value)
+}
+
+func findUnmarshalFieldPath(value any, fields []string, path, valueType string) (string, bool) {
+	if len(fields) == 0 {
+		return path, unmarshalJSONValueType(value) == valueType
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		next, ok := typed[fields[0]]
+		if !ok {
+			return "", false
+		}
+
+		return findUnmarshalFieldPath(next, fields[1:], joinJSONFieldPath(path, fields[0]), valueType)
+	case []any:
+		for index, item := range typed {
+			itemPath := path + "[" + strconv.Itoa(index) + "]"
+			if indexed, ok := findUnmarshalFieldPath(item, fields, itemPath, valueType); ok {
+				return indexed, true
+			}
+		}
+	}
+
+	return "", false
+}
+
+func unmarshalJSONValueType(value any) string {
+	switch value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "bool"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return ""
+	}
+}
+
+func normalizeUnmarshalFieldPath(field string) string {
+	parts := strings.Split(field, ".")
+
+	var normalized strings.Builder
+
+	for index, part := range parts {
+		if _, err := strconv.Atoi(part); err == nil {
+			normalized.WriteString("[")
+			normalized.WriteString(part)
+			normalized.WriteString("]")
+
+			continue
+		}
+
+		if index > 0 {
+			normalized.WriteString(".")
+		}
+
+		normalized.WriteString(part)
+	}
+
+	return normalized.String()
 }
 
 // ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
@@ -299,6 +493,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	})
 
 	_ = v.RegisterValidation("keymax", validateMetadataKeyMaxLength)
+	_ = v.RegisterValidation("noreservedkey", validateMetadataKeyNotReserved)
 	_ = v.RegisterValidation("nonested", validateMetadataNestedValues)
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
 	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
@@ -308,6 +503,9 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("accounttypedirection", validateAccountTypeDirection)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
+	_ = v.RegisterValidation("currencycode", validateCurrencyCode)
+	_ = v.RegisterValidation("isodate", validateISODate)
+	_ = v.RegisterValidation("decimalamount", validateDecimalAmount)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -406,6 +604,30 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("decimalamount", trans, func(ut ut.Translator) error {
+		return ut.Add("decimalamount", "{0} must be a non-negative decimal with at most 20 integer and 10 fraction digits", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("decimalamount", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("currencycode", trans, func(ut ut.Translator) error {
+		return ut.Add("currencycode", "{0} must be an ISO 4217 currency code", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("currencycode", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("isodate", trans, func(ut ut.Translator) error {
+		return ut.Add("isodate", "{0} must be a date in YYYY-MM-DD format", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("isodate", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
 	_ = v.RegisterTranslation("metadatakeyformat", trans, func(ut ut.Translator) error {
 		return ut.Add("metadatakeyformat", "{0} must start with a letter and contain only alphanumeric characters and underscores", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
@@ -417,9 +639,40 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	return v, trans, nil
 }
 
+// decimalAmountPattern is a plain non-negative decimal: at most 20 integer and 10 fraction digits.
+var decimalAmountPattern = regexp.MustCompile(`^[0-9]{1,20}(\.[0-9]{1,10})?$`)
+
+// validateDecimalAmount accepts a non-negative plain decimal string of bounded size.
+func validateDecimalAmount(fl validator.FieldLevel) bool {
+	return decimalAmountPattern.MatchString(fl.Field().String())
+}
+
+// validateCurrencyCode accepts an ISO 4217 code from the list asset creation uses.
+func validateCurrencyCode(fl validator.FieldLevel) bool {
+	return utils.ValidateCurrency(fl.Field().String()) == nil
+}
+
+// validateISODate accepts a calendar date written as YYYY-MM-DD.
+func validateISODate(fl validator.FieldLevel) bool {
+	_, err := time.Parse(time.DateOnly, fl.Field().String())
+
+	return err == nil
+}
+
 // validateMetadataNestedValues checks if there are nested metadata structures
 func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 	return fl.Field().Kind() != reflect.Map
+}
+
+// validateMetadataKeyNotReserved rejects a metadata key the ledger reserves for its own
+// writes. It is a key-level rule, so it belongs between keys and endkeys on a metadata tag.
+//
+// The reserved set is small and closed on purpose: a key only belongs here once the ledger
+// publishes it as its own word about a record, which is what makes a caller-written copy a
+// lie rather than a collision. Refusing beats stripping, because a stripped key looks
+// identical on the wire to a key that was stored.
+func validateMetadataKeyNotReserved(fl validator.FieldLevel) bool {
+	return !cn.IsReservedMetadataKey(fl.Field().String())
 }
 
 // validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
@@ -846,10 +1099,8 @@ func parseMetadata(s any, originalMap map[string]any) {
 // populateNullFields detects fields explicitly sent as null in the JSON request
 // and populates the NullFields slice for downstream processing.
 // This enables RFC 7396 JSON Merge Patch semantics for nullable fields.
-//
-// TODO(review): Consider adding allowlist validation for NullFields to enforce
-// defense-in-depth. Currently, the repository layer provides protection by only
-// processing specific fields (segmentId, entityId, portfolioId). (security-reviewer, 2026-02-11, Low)
+// It assumes every key in originalMap is declared on s; undeclared keys are not
+// filtered here.
 func populateNullFields(s any, originalMap map[string]any) {
 	if s == nil {
 		return
@@ -964,6 +1215,332 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	return diffFields
 }
 
+// findUnknownFieldDetails reports the same unknown-field differences as
+// FindUnknownFields while retaining exact array indexes and deterministic path
+// order. FindUnknownFields remains the authority for whether the singular
+// request is rejected; this projection exists for ordered aggregate responses.
+func findUnknownFieldDetails(original, marshaled map[string]any) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0)
+	collectUnknownFieldDetails(original, marshaled, nil, &details)
+	sortFieldErrors(details)
+
+	return details
+}
+
+// collectUnknownFieldDetails renders path only when it records a detail.
+func collectUnknownFieldDetails(original, marshaled any, path []scanFrame, details *[]pkg.FieldError) {
+	switch originalValue := original.(type) {
+	case map[string]any:
+		marshaledMap, ok := marshaled.(map[string]any)
+		if !ok {
+			appendUnknownFieldDetail(path, details)
+
+			return
+		}
+
+		keys := make([]string, 0, len(originalValue))
+		for key := range originalValue {
+			keys = append(keys, key)
+		}
+
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			value := originalValue[key]
+			fieldPath := append(path, scanFrame{key: key, object: true})
+
+			marshaledValue, exists := marshaledMap[key]
+			if !exists {
+				if ignoreMissingUnknownValue(value) {
+					continue
+				}
+
+				appendUnknownFieldDetail(fieldPath, details)
+
+				continue
+			}
+
+			collectUnknownFieldDetails(value, marshaledValue, fieldPath, details)
+		}
+
+	case []any:
+		marshaledArray, ok := marshaled.([]any)
+		if !ok {
+			appendUnknownFieldDetail(path, details)
+
+			return
+		}
+
+		for index, value := range originalValue {
+			itemPath := append(path, scanFrame{index: index})
+			if index >= len(marshaledArray) {
+				appendUnknownFieldDetail(itemPath, details)
+
+				continue
+			}
+
+			collectUnknownFieldDetails(value, marshaledArray[index], itemPath, details)
+		}
+
+	case string:
+		if unknownStringValuesEqual(originalValue, marshaled) {
+			return
+		}
+
+		appendUnknownFieldDetail(path, details)
+
+	default:
+		if !reflect.DeepEqual(original, marshaled) {
+			appendUnknownFieldDetail(path, details)
+		}
+	}
+}
+
+func ignoreMissingUnknownValue(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	if number, ok := value.(float64); ok && number == 0 {
+		return true
+	}
+
+	if boolean, ok := value.(bool); ok && !boolean {
+		return true
+	}
+
+	return false
+}
+
+func unknownStringValuesEqual(original string, marshaled any) bool {
+	if reflect.DeepEqual(original, marshaled) {
+		return true
+	}
+
+	if isStringNumeric(original) && isDecimalEqual(original, marshaled) {
+		return true
+	}
+
+	marshaledString, ok := marshaled.(string)
+
+	return ok && areDatesEqual(original, marshaledString)
+}
+
+func appendUnknownFieldDetail(frames []scanFrame, details *[]pkg.FieldError) {
+	path := renderPath(frames)
+	if path == "" {
+		return
+	}
+
+	*details = append(*details, pkg.FieldError{Location: path, Message: "unexpected field"})
+}
+
+func joinJSONFieldPath(prefix, field string) string {
+	if prefix == "" {
+		return field
+	}
+
+	return prefix + "." + field
+}
+
+// jsonUnknownFieldPrefix is the text encoding/json puts before the quoted
+// field name when DisallowUnknownFields refuses a key.
+const jsonUnknownFieldPrefix = "json: unknown field "
+
+// nullPath is the rendered location of a null value in a request body.
+// objectKey is false for a null array element, which cannot be a field name.
+type nullPath struct {
+	path      string
+	objectKey bool
+}
+
+// nullKeyProbe reports whether the null key at path is refused by the strict
+// decode on its own. ok is false when the probe could not decide.
+type nullKeyProbe func(path string) (refused, ok bool)
+
+// findUndeclaredNullFields reports the null keys of body that s does not
+// declare. The marshal round-trip cannot see them because a null key leaves no
+// trace in the marshaled struct, so a strict decode into a fresh value of the
+// same type decides it. Bodies without any null skip the strict decode.
+func findUndeclaredNullFields(body []byte, s any, originalMap map[string]any) (pkg.UnknownFields, []pkg.FieldError, error) {
+	nullPaths := collectNullPaths(originalMap)
+	if len(nullPaths) == 0 {
+		return nil, nil, nil
+	}
+
+	err := strictDecode(body, s)
+	if err == nil {
+		return nil, nil, nil
+	}
+
+	leaf, ok := unknownFieldLeaf(err)
+	if !ok {
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
+	}
+
+	probe := func(path string) (bool, bool) {
+		return nullKeyRefused(originalMap, path, s, leaf)
+	}
+
+	fields, details := undeclaredNullFieldDetails(leaf, nullPaths, probe)
+
+	return fields, details, nil
+}
+
+func strictDecode(body []byte, s any) error {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+
+	return dec.Decode(newOfType(s))
+}
+
+// unknownFieldLeaf extracts the field name from an encoding/json unknown-field
+// error. The decoder reports only the leaf name, never its path.
+func unknownFieldLeaf(err error) (string, bool) {
+	quoted, ok := strings.CutPrefix(err.Error(), jsonUnknownFieldPrefix)
+	if !ok {
+		return "", false
+	}
+
+	leaf, unquoteErr := strconv.Unquote(quoted)
+	if unquoteErr != nil {
+		return "", false
+	}
+
+	return leaf, true
+}
+
+// undeclaredNullFieldDetails maps the decoder leaf to the null keys that name
+// it. When several keys share the leaf, each one is probed alone so a declared
+// key with the same name is not reported; an undecided probe reports every
+// candidate. No candidate means the decoder named a key that no null path
+// renders, as a change in the encoding/json error text would cause; the bare
+// leaf is reported so the request is still refused rather than accepted.
+func undeclaredNullFieldDetails(leaf string, nullPaths []nullPath, probe nullKeyProbe) (pkg.UnknownFields, []pkg.FieldError) {
+	candidates := pkg.UnknownFields{}
+
+	for _, null := range nullPaths {
+		if null.objectKey && (null.path == leaf || strings.HasSuffix(null.path, "."+leaf)) {
+			candidates[null.path] = nil
+		}
+	}
+
+	switch len(candidates) {
+	case 0:
+		candidates[leaf] = nil
+	case 1:
+	default:
+		if confirmed, ok := confirmRefusedNullKeys(candidates, probe); ok {
+			candidates = confirmed
+		}
+	}
+
+	return candidates, unknownFieldDetailsFallback(candidates)
+}
+
+func confirmRefusedNullKeys(candidates pkg.UnknownFields, probe nullKeyProbe) (pkg.UnknownFields, bool) {
+	confirmed := pkg.UnknownFields{}
+
+	for path := range candidates {
+		refused, ok := probe(path)
+		if !ok {
+			return nil, false
+		}
+
+		if refused {
+			confirmed[path] = nil
+		}
+	}
+
+	return confirmed, len(confirmed) > 0
+}
+
+// nullKeyRefused decodes originalMap strictly with every null key except keep
+// removed, so no other undeclared null key can be the one the decoder stops at.
+// Null array elements stay in place to keep array indexes stable.
+func nullKeyRefused(originalMap map[string]any, keep string, s any, leaf string) (refused, ok bool) {
+	body, err := json.Marshal(withoutOtherNullKeys(originalMap, nil, keep))
+	if err != nil {
+		return false, false
+	}
+
+	err = strictDecode(body, s)
+	if err == nil {
+		return false, true
+	}
+
+	if got, isUnknown := unknownFieldLeaf(err); isUnknown && got == leaf {
+		return true, true
+	}
+
+	return false, false
+}
+
+func withoutOtherNullKeys(value any, frames []scanFrame, keep string) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+
+		for key, item := range typed {
+			itemFrames := append(slices.Clip(frames), scanFrame{key: key, object: true})
+			if item == nil && renderPath(itemFrames) != keep {
+				continue
+			}
+
+			out[key] = withoutOtherNullKeys(item, itemFrames, keep)
+		}
+
+		return out
+	case []any:
+		out := make([]any, len(typed))
+
+		for index, item := range typed {
+			out[index] = withoutOtherNullKeys(item, append(slices.Clip(frames), scanFrame{index: index}), keep)
+		}
+
+		return out
+	default:
+		return value
+	}
+}
+
+// collectNullPaths returns, sorted by path, every null value in body at any
+// depth, array items included, rendered like the unknown-field details.
+func collectNullPaths(body map[string]any) []nullPath {
+	var paths []nullPath
+
+	appendNullPaths(body, nil, &paths)
+	sort.Slice(paths, func(i, j int) bool { return paths[i].path < paths[j].path })
+
+	return paths
+}
+
+func appendNullPaths(value any, frames []scanFrame, paths *[]nullPath) {
+	switch typed := value.(type) {
+	case nil:
+		*paths = append(*paths, nullPath{path: renderPath(frames), objectKey: len(frames) > 0 && frames[len(frames)-1].object})
+	case map[string]any:
+		for key, item := range typed {
+			appendNullPaths(item, append(slices.Clip(frames), scanFrame{key: key, object: true}), paths)
+		}
+	case []any:
+		for index, item := range typed {
+			appendNullPaths(item, append(slices.Clip(frames), scanFrame{index: index}), paths)
+		}
+	}
+}
+
+func unknownFieldDetailsFallback(fields pkg.UnknownFields) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0, len(fields))
+	for field := range fields {
+		details = append(details, pkg.FieldError{Location: field, Message: "unexpected field"})
+	}
+
+	sortFieldErrors(details)
+
+	return details
+}
+
 func isDecimalEqual(a, b any) bool {
 	if a == nil || b == nil {
 		return a == b
@@ -975,7 +1552,7 @@ func isDecimalEqual(a, b any) bool {
 
 	switch valA := a.(type) {
 	case string:
-		decimalA, err = decimal.NewFromString(valA)
+		decimalA, err = safe.ParseDecimal(valA)
 		if err != nil {
 			return false
 		}
@@ -987,7 +1564,7 @@ func isDecimalEqual(a, b any) bool {
 
 	switch valB := b.(type) {
 	case string:
-		decimalB, err = decimal.NewFromString(valB)
+		decimalB, err = safe.ParseDecimal(valB)
 		if err != nil {
 			return false
 		}
@@ -1001,7 +1578,7 @@ func isDecimalEqual(a, b any) bool {
 }
 
 func isStringNumeric(s string) bool {
-	_, err := decimal.NewFromString(s)
+	_, err := safe.ParseDecimal(s)
 	return err == nil
 }
 

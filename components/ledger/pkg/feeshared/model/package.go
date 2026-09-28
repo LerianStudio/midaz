@@ -5,41 +5,13 @@
 package model
 
 import (
-	"fmt"
-
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )
-
-// maxAmountExponent bounds the exponent magnitude of a parsed monetary amount.
-// shopspring/decimal comparisons (GreaterThan/LessThan) rescale both operands to
-// a common exponent, materializing 10^|exponent| as a big.Int; a crafted
-// exponent such as the string "0E0700000000" would allocate hundreds of millions
-// of digits and exhaust process memory before the comparison ever runs. No
-// legitimate monetary amount approaches this magnitude, so amounts beyond it are
-// rejected as invalid — keeping amount parsing constant-cost.
-const maxAmountExponent = 1000
-
-// parseAmountDecimal converts a user-supplied amount string to a decimal,
-// rejecting values whose exponent magnitude is large enough to weaponize
-// shopspring's rescale-on-compare into a memory-exhaustion DoS. Callers map the
-// returned error to constant.ErrConvertToDecimal, exactly as for a malformed
-// amount.
-func parseAmountDecimal(s string) (decimal.Decimal, error) {
-	d, err := decimal.NewFromString(s)
-	if err != nil {
-		return decimal.Decimal{}, err
-	}
-
-	if exp := d.Exponent(); exp > maxAmountExponent || exp < -maxAmountExponent {
-		return decimal.Decimal{}, fmt.Errorf("amount exponent %d outside safe range [-%d, %d]", exp, maxAmountExponent, maxAmountExponent)
-	}
-
-	return d, nil
-}
 
 const (
 	FlatFee        = "flatFee"
@@ -151,28 +123,35 @@ func validateCalculationRuleAndTypes(model *CalculationModel, feeKey string) err
 
 func validateCalculationValues(model *CalculationModel, minAmount, feeKey string, isDeductible bool) error {
 	for _, calc := range model.Calculations {
-		valueCalc, err := parseAmountDecimal(calc.Value)
+		valueCalc, err := safe.ParseDecimal(calc.Value)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 		}
 
-		if minAmount != "" && isDeductible {
-			if calc.Type == Percentage {
-				oneHundredPercent := decimal.NewFromInt(100)
-				if valueCalc.GreaterThan(oneHundredPercent) {
-					return pkg.ValidateBusinessError(constant.ErrCalculationValuePercentage, "", feeKey)
-				}
+		if !isDeductible {
+			continue
+		}
+
+		// A deductible fee is taken out of the payment it is charged on, so a
+		// percentage above 100 would take more than the payment carries. That holds
+		// whether or not the package declares a minimum, which is why the cap below
+		// does not wait for one. The flat cap does: without a minimum it has no
+		// amount to measure the fee against.
+		if calc.Type == Percentage {
+			oneHundredPercent := decimal.NewFromInt(100)
+			if valueCalc.GreaterThan(oneHundredPercent) {
+				return pkg.ValidateBusinessError(constant.ErrCalculationValuePercentage, "", feeKey)
+			}
+		}
+
+		if calc.Type == Flat && minAmount != "" {
+			minAmountDecimal, errMinAmt := safe.ParseDecimal(minAmount)
+			if errMinAmt != nil {
+				return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
 			}
 
-			if calc.Type == Flat {
-				minAmountDecimal, errMinAmt := parseAmountDecimal(minAmount)
-				if errMinAmt != nil {
-					return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
-				}
-
-				if valueCalc.GreaterThan(minAmountDecimal) {
-					return pkg.ValidateBusinessError(constant.ErrCalculationValueFlatFee, "", minAmount, feeKey)
-				}
+			if valueCalc.GreaterThan(minAmountDecimal) {
+				return pkg.ValidateBusinessError(constant.ErrCalculationValueFlatFee, "", minAmount, feeKey)
 			}
 		}
 	}
@@ -190,7 +169,7 @@ func (f *Fee) ValidateIfFeeIsNil() bool {
 }
 
 func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
-	if err := f.validateRequiredFields(); err != nil {
+	if err := f.validateRequiredFields(feeKey); err != nil {
 		return err
 	}
 
@@ -205,10 +184,25 @@ func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
 	return nil
 }
 
-// validateRequiredFields checks if all required fields are present
-func (f *Fee) validateRequiredFields() error {
-	if f.FeeLabel == "" ||
-		f.CalculationModel.ApplicationRule == "" ||
+// validateRequiredFields checks if all required fields are present.
+//
+// The calculation model is a pointer and every clause of the chain below reads
+// through it, so it is checked on its own beforehand: a fee entry carrying a
+// label but no calculation model used to reach those clauses and dereference
+// nil, crashing the request instead of answering the caller. A fee entry with no
+// label at all never got that far, because the empty label short-circuited the
+// chain before the pointer was read, so the label keeps its own check first and
+// its own answer: that shape was already refused and its refusal does not move.
+func (f *Fee) validateRequiredFields(feeKey string) error {
+	if f.FeeLabel == "" {
+		return pkg.ValidateBusinessError(constant.ErrFeeFieldsRequired, "")
+	}
+
+	if f.CalculationModel == nil {
+		return pkg.ValidateBusinessError(constant.ErrCalculationRequired, "", feeKey)
+	}
+
+	if f.CalculationModel.ApplicationRule == "" ||
 		len(f.CalculationModel.Calculations) == 0 ||
 		f.ReferenceAmount == "" ||
 		f.Priority == 0 ||
@@ -233,7 +227,7 @@ func (f *Fee) validateCalculations(feeKey string, minAmount decimal.Decimal) err
 
 // validateCalculation validates a single calculation
 func (f *Fee) validateCalculation(calc Calculation, feeKey string, minAmount decimal.Decimal) error {
-	calcValueConverted, err := parseAmountDecimal(calc.Value)
+	calcValueConverted, err := safe.ParseDecimal(calc.Value)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 	}

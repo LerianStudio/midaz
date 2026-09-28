@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/shopspring/decimal"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 )
 
 // Balance scope constants for BalanceSettings.BalanceScope.
@@ -69,6 +69,25 @@ func NewDefaultBalanceSettings() *BalanceSettings {
 		OverdraftLimit:        nil,
 	}
 }
+
+// Normalize canonicalizes a parseable overdraft limit without changing other
+// settings. Invalid values are preserved for Validate to reject.
+func (s *BalanceSettings) Normalize() {
+	if s == nil || s.OverdraftLimit == nil {
+		return
+	}
+
+	limit, err := safe.ParseDecimal(*s.OverdraftLimit)
+	if err != nil {
+		return
+	}
+
+	canonical := limit.String()
+	s.OverdraftLimit = &canonical
+}
+
+// errInvalidOverdraftLimit never carries the submitted text, which reaches logs and spans.
+var errInvalidOverdraftLimit = errors.New("overdraftLimit is not a valid decimal")
 
 // Validate enforces the balance settings contract.
 //
@@ -135,19 +154,13 @@ func (s *BalanceSettings) validateOverdraftLimit() error {
 		)
 	}
 
-	limit, err := decimal.NewFromString(*s.OverdraftLimit)
+	limit, err := safe.ParseDecimal(*s.OverdraftLimit)
 	if err != nil {
-		return fmt.Errorf(
-			"overdraftLimit %q is not a valid decimal: %w",
-			*s.OverdraftLimit, err,
-		)
+		return errInvalidOverdraftLimit
 	}
 
 	if !limit.IsPositive() {
-		return fmt.Errorf(
-			"overdraftLimit %q must be strictly greater than zero",
-			*s.OverdraftLimit,
-		)
+		return errors.New("overdraftLimit must be strictly greater than zero")
 	}
 
 	return nil

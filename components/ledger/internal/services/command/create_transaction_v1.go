@@ -1,0 +1,192 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+)
+
+// CreateTransactionV1Input is everything the /v1 create contract carries. There is
+// no idempotency hash override: /v1 keys the slot off the canonical serialized
+// transaction.
+type CreateTransactionV1Input struct {
+	OrganizationID    uuid.UUID
+	LedgerID          uuid.UUID
+	Transaction       mtransaction.Transaction
+	TransactionStatus string
+	IdempotencyKey    string
+	IdempotencyTTL    time.Duration
+}
+
+// CreateTransactionV1 posts a transaction under the /v1 contract, frozen at what
+// /v1 shipped with: no fee engine, no tracer reservation, and no per-call skip
+// controls. A client integrated against it must not acquire fee legs, a tenant
+// fee-DB resolution failure or a reservation rejection from a version upgrade it
+// never asked for, so this pipeline references none of those seams at all.
+//
+// It returns the created transaction and whether the idempotency slot answered with
+// a replay, so the transport sets X-Idempotency-Replayed itself.
+func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransactionV1Input) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_transaction_v1")
+	defer span.End()
+
+	run := &createTransactionRun{
+		organizationID: in.OrganizationID,
+		ledgerID:       in.LedgerID,
+		input:          in.Transaction,
+		status:         in.TransactionStatus,
+		// A header string is a view over the connection's read buffer, which the
+		// server overwrites when the next request arrives on that connection. The
+		// run outlives the response — the idempotency slot is written from a
+		// goroutine — so it must hold a copy rather than the view.
+		idempotencyKey: strings.Clone(in.IdempotencyKey),
+		idempotencyTTL: in.IdempotencyTTL,
+	}
+
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
+		return nil, false, err
+	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
+
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "", "")
+	if err != nil {
+		return nil, false, err
+	}
+
+	if replay != nil {
+		return replay, true, nil
+	}
+
+	// This pass runs over raw aliases, which the ambiguity check inside
+	// ValidateSendSourceAndDistribute cannot key against, so a send with the same
+	// alias on both sides and mismatched totals is answered here as 0073
+	// (ErrTransactionValueMismatch); the pass below, over concatenated aliases, would
+	// instead answer 0090 (ErrTransactionAmbiguous).
+	//
+	// First validate: rejects malformed source/distribute before the legs are
+	// normalized. Its Responses value is superseded by the re-validation below, so
+	// only the error is consumed here.
+	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	// Ledger settings (Redis cache-aside) drive the accounting-route propagation
+	// below and the route validation BuildOperations applies.
+	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	// The /v1 contract runs neither control, so both skip flags are false and
+	// neither control is route-eligible. The two *_route_eligible attributes are
+	// deliberately NOT folded into the matching *_skipped flags: those are
+	// persisted on the transaction row as the audit trail of a skip the CLIENT
+	// asked for, so marking them true on a /v1 create would record a claim never
+	// made. The two reasons a control did not run stay distinguishable.
+	span.SetAttributes(
+		attribute.Bool("app.transaction.fees_skipped", false),
+		attribute.Bool("app.transaction.tracer_skipped", false),
+		attribute.Bool("app.transaction.fees_route_eligible", false),
+		attribute.Bool("app.transaction.tracer_route_eligible", false),
+	)
+
+	normalizeSendLegs(run)
+
+	// Re-run validation on the normalized input. This is a single = reassignment of
+	// the existing validate variable (a *mtransaction.Responses pointer), so the
+	// normalized state by construction reaches every downstream reader of validate
+	// through WriteTransaction. It MUST NOT be a := rebind.
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate normalized send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate normalized send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.validate = validate
+
+	// Build the concat-form fromTo from the normalized send: the legs carry the
+	// "<index>#alias#balanceKey" form that buildBalanceOperations keys the validate
+	// maps by and that the Lua-returned balances carry. The aliases are already
+	// concat'd in place above; this read is idempotent.
+	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+
+	if run.status != constant.PENDING {
+		run.fromTo = append(run.fromTo, to...)
+	}
+
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
+	}
+
+	run.action = mtransaction.StatusToAction(run.status)
+
+	if run.status == constant.NOTED {
+		tran, err := uc.createNotedTransaction(ctx, span, logger, run)
+		return tran, false, err
+	}
+
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+
+	return tran, false, err
+}

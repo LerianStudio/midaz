@@ -16,8 +16,16 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+)
+
+const (
+	// idempotencyReplayField names the stored entity in its ciphertext binding.
+	idempotencyReplayField = "idempotency_replay"
+	// idempotencyBodyField names the request body in its keyed-hash token.
+	idempotencyBodyField = "idempotency_body"
 )
 
 // IdempotencyRepo is the narrow CRM-local port over the shared Redis
@@ -54,18 +62,44 @@ func InstrumentIdempotencyKey(organizationID, holderID, key string) string {
 	return fmt.Sprintf("idempotency:crm:instrument:%s:%s:%s", organizationID, holderID, key)
 }
 
+// CRMIdempotencyToken derives the token that names a request body in its
+// idempotency slot key and conflict message, with the organization's keyed hash so
+// the body's personal data cannot be recovered from it. A nil Idempotency repo
+// returns an empty token.
+func (uc *UseCase) CRMIdempotencyToken(ctx context.Context, organizationID, body string) (string, error) {
+	if uc.Idempotency == nil {
+		return "", nil
+	}
+
+	token, _, err := uc.Encryptor.GenerateSearchToken(ctx, encryption.SearchTokenContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		FieldName:      idempotencyBodyField,
+	}, body)
+	if err != nil {
+		return "", fmt.Errorf("failed to derive idempotency token: %w", err)
+	}
+
+	// An empty token would put every request body of the organization in one slot.
+	if token == "" {
+		return "", errors.New("failed to derive idempotency token: empty keyed hash")
+	}
+
+	return token, nil
+}
+
 // CreateOrCheckCRMIdempotency atomically claims an idempotency slot in Redis
 // under the already-namespaced internalKey.
 //
 // On a fresh claim (SetNX succeeds) the result has a nil Replay and the caller
 // proceeds with the create. On a losing claim the stored value is fetched: a
-// non-empty value is returned as Replay (the cached entity JSON); an empty
-// value means a concurrent request holds the slot in-flight and the call
-// returns ErrIdempotencyKey.
+// non-empty value is decrypted and returned as Replay (the cached entity JSON);
+// an empty value means a concurrent request holds the slot in-flight and the
+// call returns ErrIdempotencyKey.
 //
 // A nil Idempotency repo means the feature is disabled: the call returns a
 // zero result (no claim), mirroring the streaming nil-emitter guard.
-func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, internalKey, hash string, ttl time.Duration) (*CRMIdempotencyResult, error) {
+func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, organizationID, internalKey, token string, ttl time.Duration) (*CRMIdempotencyResult, error) {
 	if uc.Idempotency == nil {
 		return &CRMIdempotencyResult{}, nil
 	}
@@ -100,23 +134,31 @@ func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, internalKey,
 	}
 
 	if !libCommons.IsNilOrEmpty(&value) {
+		entity, err := uc.Encryptor.DecryptField(ctx, replayFieldContext(ctx, organizationID, internalKey), value)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decrypt CRM idempotency value", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to decrypt CRM idempotency value", libLog.Err(err))
+
+			return &CRMIdempotencyResult{}, fmt.Errorf("failed to decrypt idempotency value: %w", err)
+		}
+
 		logger.Log(ctx, libLog.LevelDebug, "Found cached value for CRM idempotency key lookup")
 
-		return &CRMIdempotencyResult{Replay: &value}, nil
+		return &CRMIdempotencyResult{Replay: &entity}, nil
 	}
 
-	businessErr := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckCRMIdempotency", hash)
+	businessErr := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckCRMIdempotency", token)
 	recordSpanError(span, "Idempotency key already in use", businessErr)
 	logger.Log(ctx, libLog.LevelWarn, "Idempotency key already in use", libLog.Err(businessErr))
 
 	return &CRMIdempotencyResult{}, businessErr
 }
 
-// SetCRMIdempotencyValue stores the serialized entity under the claimed slot so
-// a subsequent retry replays it. A nil Idempotency repo is a no-op. Store
-// failures are logged and swallowed: the create already succeeded, so the
-// request must not fail on a cache write.
-func (uc *UseCase) SetCRMIdempotencyValue(ctx context.Context, internalKey, valueJSON string, ttl time.Duration) {
+// SetCRMIdempotencyValue encrypts the serialized entity and stores it under the
+// claimed slot so a subsequent retry replays it. A nil Idempotency repo is a
+// no-op. Encrypt and store failures are logged and swallowed: the create already
+// succeeded, so the request must not fail on a cache write.
+func (uc *UseCase) SetCRMIdempotencyValue(ctx context.Context, organizationID, internalKey, valueJSON string, ttl time.Duration) {
 	if uc.Idempotency == nil {
 		return
 	}
@@ -126,8 +168,27 @@ func (uc *UseCase) SetCRMIdempotencyValue(ctx context.Context, internalKey, valu
 	ctx, span := tracer.Start(ctx, "service.set_crm_idempotency_value")
 	defer span.End()
 
-	if err := uc.Idempotency.Set(ctx, internalKey, valueJSON, ttl); err != nil {
+	sealed, err := uc.Encryptor.EncryptField(ctx, replayFieldContext(ctx, organizationID, internalKey), valueJSON)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to encrypt CRM idempotency value", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to encrypt CRM idempotency value", libLog.Err(err))
+
+		return
+	}
+
+	if err := uc.Idempotency.Set(ctx, internalKey, sealed, ttl); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to store CRM idempotency value in redis", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to store CRM idempotency value in redis", libLog.Err(err))
+	}
+}
+
+// replayFieldContext binds a stored entity's ciphertext to its tenant,
+// organization and idempotency slot.
+func replayFieldContext(ctx context.Context, organizationID, internalKey string) encryption.FieldContext {
+	return encryption.FieldContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       internalKey,
+		FieldName:      idempotencyReplayField,
 	}
 }

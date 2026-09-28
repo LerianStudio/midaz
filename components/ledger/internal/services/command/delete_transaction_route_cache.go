@@ -6,34 +6,33 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
-	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// DeleteTransactionRouteCache deletes the cache for a transaction route.
-func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// DeleteTransactionRouteCache deletes the organization key of a transaction route
+// and, when the route was created under a ledger, its ledger-scoped key. Both
+// deletes are attempted; their failures are joined.
+func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_transaction_route_cache")
 	defer span.End()
 
-	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
-
-	err := uc.TransactionRedisRepo.Del(ctx, internalKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to delete transaction route cache", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache",
-			libLog.String("transaction_route_id", transactionRouteID.String()),
-			libLog.Err(err))
-
-		return err
+	organizationErr := uc.TransactionRedisRepo.Del(ctx, utils.AccountingRoutesInternalKey(route.OrganizationID, route.ID))
+	if organizationErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to delete transaction route cache", organizationErr)
 	}
 
-	return nil
+	legacyErr := uc.deleteLedgerAccountingRouteCache(ctx, route)
+	if legacyErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to delete ledger-scoped transaction route cache", legacyErr)
+	}
+
+	return errors.Join(organizationErr, legacyErr)
 }

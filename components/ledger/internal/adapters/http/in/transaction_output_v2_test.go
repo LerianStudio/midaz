@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // v2TransactionSchemaName is the component name the /v2 response envelope publishes its
@@ -33,6 +36,7 @@ const v2TransactionSchemaName = "TransactionV2"
 func buildCanonicalTransactionFixture() *transaction.Transaction {
 	amount := decimal.NewFromInt(1500)
 	parentID := "11111111-1111-1111-1111-111111111111"
+	groupID := "88888888-8888-8888-8888-888888888888"
 	routeID := "22222222-2222-2222-2222-222222222222"
 	statusDescription := "Active status"
 	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -42,6 +46,7 @@ func buildCanonicalTransactionFixture() *transaction.Transaction {
 	return &transaction.Transaction{
 		ID:                       "33333333-3333-3333-3333-333333333333",
 		ParentTransactionID:      &parentID,
+		GroupID:                  &groupID,
 		Description:              "v2 fixture transaction",
 		Status:                   transaction.Status{Code: "APPROVED", Description: &statusDescription},
 		Amount:                   &amount,
@@ -79,6 +84,7 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 
 	assert.Equal(t, canonical.ID, got.ID)
 	assert.Equal(t, canonical.ParentTransactionID, got.ParentTransactionID)
+	assert.Equal(t, canonical.GroupID, got.GroupID)
 	assert.Equal(t, canonical.Description, got.Description)
 	assert.Equal(t, canonical.Status.Code, got.Status.Code)
 	assert.Equal(t, canonical.Status.Description, got.Status.Description)
@@ -127,6 +133,76 @@ func TestTransactionV2_JSONUsesDebitCreditKeys(t *testing.T) {
 	assert.Contains(t, asMap, "credit", "the v2 wire body must carry the credit key")
 	assert.NotContains(t, asMap, "source", "the v2 wire body must not carry the v1 source key")
 	assert.NotContains(t, asMap, "destination", "the v2 wire body must not carry the v1 destination key")
+}
+
+func TestCreateTransactionV2Response_CrossLedgerEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := "88888888-8888-4888-8888-888888888888"
+	response := &CreateTransactionV2Response{
+		GroupID: &groupID,
+		Transactions: []*AtomicTransactionBatchV2Transaction{
+			{TransactionV2: newTransactionV2(buildCanonicalTransactionFixture()), Order: 1},
+		},
+	}
+
+	raw, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.Equal(t, groupID, body["groupId"])
+	assert.Len(t, body["transactions"], 1)
+	assert.NotContains(t, body, "id", "a group envelope must not masquerade as one transaction")
+}
+
+func TestCreateTransactionV2Response_CrossLedgerRevertEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := "88888888-8888-4888-8888-888888888888"
+	revertedGroupID := "99999999-9999-4999-8999-999999999999"
+	response := &CreateTransactionV2Response{
+		GroupID:         &groupID,
+		RevertedGroupID: &revertedGroupID,
+		Transactions: []*AtomicTransactionBatchV2Transaction{
+			{TransactionV2: newTransactionV2(buildCanonicalTransactionFixture()), Order: 1},
+		},
+	}
+
+	raw, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.Equal(t, groupID, body["groupId"])
+	assert.Equal(t, revertedGroupID, body["revertedGroupId"])
+	assert.Len(t, body["transactions"], 1)
+	assert.NotContains(t, body, "id", "a revert group envelope must not masquerade as one transaction")
+}
+
+func TestNewPendingTransitionV2Response_PreservesSingularOrGroupedShape(t *testing.T) {
+	t.Parallel()
+
+	singular := buildCanonicalTransactionFixture()
+	assert.Equal(t, newTransactionV2(singular), newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Transaction: singular,
+	}).TransactionV2)
+
+	groupID := uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	second := buildCanonicalTransactionFixture()
+	second.ID = "99999999-9999-4999-8999-999999999999"
+	response := newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Group: &command.CreateAtomicTransactionBatchV2Result{
+			BatchID:      groupID,
+			Transactions: []*transaction.Transaction{singular, second},
+		},
+	})
+
+	require.NotNil(t, response.GroupID)
+	assert.Equal(t, groupID.String(), *response.GroupID)
+	require.Len(t, response.Transactions, 2)
+	assert.Equal(t, []int{1, 2}, []int{response.Transactions[0].Order, response.Transactions[1].Order})
+	assert.Nil(t, response.TransactionV2)
 }
 
 // TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction locks the v2 response
@@ -296,4 +372,170 @@ func wireFieldNames(t *testing.T, v any) map[string]struct{} {
 	}
 
 	return names
+}
+
+// TestV2MetadataContractPublishesFeeKeys locks the reserved fee keys into the PUBLISHED
+// contract, not into a Go comment. A reader of the payment contract must be able to learn
+// that the ledger writes feeLeg on every movement its fee engine creates, and that the
+// three transaction-level fee keys exist, without reading ledger source. The assertion runs
+// against the same in-memory document the committed OpenAPI dump is serialized from, so a
+// description that lives only in a Go comment (which the generator does not read) fails here.
+func TestV2MetadataContractPublishesFeeKeys(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	schemas := api.OpenAPI().Components.Schemas.Map()
+
+	cases := []struct {
+		schemaName string
+		wantKeys   []string
+	}{
+		{v2OperationSchemaName, []string{constant.MetadataKeyFeeLeg}},
+		{v2TransactionSchemaName, []string{"feeApplied", "packageAppliedID", "feeExemption"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.schemaName, func(t *testing.T) {
+			t.Parallel()
+
+			schema, ok := schemas[tc.schemaName]
+			require.Truef(t, ok, "the unified document must register the %q component", tc.schemaName)
+			require.NotNilf(t, schema, "%q must resolve to a non-nil schema", tc.schemaName)
+
+			metadata, ok := schema.Properties["metadata"]
+			require.Truef(t, ok, "%q must publish a metadata property", tc.schemaName)
+			require.NotNilf(t, metadata, "%q metadata property must carry a schema", tc.schemaName)
+
+			for _, key := range tc.wantKeys {
+				require.Containsf(t, metadata.Description, key,
+					"the published %q metadata description must name the reserved %q key, "+
+						"so a client reads the contract instead of the ledger source",
+					tc.schemaName, key)
+			}
+		})
+	}
+}
+
+// TestV2ResponseBodyCarriesTheFeeMark is the gate on the read seam the console actually consumes:
+// the mark must survive the mapping from the stored transaction into the /v2 response body. The
+// published description proves a client was TOLD about the key; only this proves the key arrives.
+//
+// Both directions are asserted on one transaction, because a mapper that copies metadata onto
+// every operation and a mapper that drops it are equally wrong: the fee movement must carry the
+// mark, the operator's own movement must not.
+func TestV2ResponseBodyCarriesTheFeeMark(t *testing.T) {
+	t.Parallel()
+
+	stored := &transaction.Transaction{
+		ID: "11111111-1111-1111-1111-111111111111",
+		Operations: []*operation.Operation{
+			{
+				ID:           "22222222-2222-2222-2222-222222222222",
+				AccountAlias: "@payer",
+				Metadata:     map[string]any{"invoice": "INV-12345"},
+			},
+			{
+				ID:           "33333333-3333-3333-3333-333333333333",
+				AccountAlias: "@collector",
+				Metadata: map[string]any{
+					constant.MetadataKeyFeeLeg: constant.MetadataValueFeeLeg,
+					"source":                   "@payer",
+				},
+			},
+		},
+	}
+
+	body := newTransactionV2(stored)
+	require.NotNil(t, body)
+	require.Len(t, body.Operations, 2)
+
+	byAlias := map[string]*OperationV2{}
+	for _, op := range body.Operations {
+		byAlias[op.AccountAlias] = op
+	}
+
+	operatorMovement, ok := byAlias["@payer"]
+	require.True(t, ok, "the operator's own movement must reach the response body")
+	_, marked := operatorMovement.Metadata[constant.MetadataKeyFeeLeg]
+	assert.False(t, marked, "the operator's own movement must reach the client unmarked")
+	assert.Equal(t, "INV-12345", operatorMovement.Metadata["invoice"],
+		"an operator key on an unpriced movement must survive the mapping")
+
+	feeMovement, ok := byAlias["@collector"]
+	require.True(t, ok, "the engine's fee movement must reach the response body")
+	assert.Equal(t, constant.MetadataValueFeeLeg, feeMovement.Metadata[constant.MetadataKeyFeeLeg],
+		"the mark the ledger wrote must reach the client, which is the whole contract")
+}
+
+// TestV2MetadataContractMakesNoFalseClaim pins the two published sentences that were measurably
+// false against the ledger's own behaviour, so a rewrite cannot quietly reintroduce either.
+//
+// A contract a client is told to trust is worse than no contract when it is wrong: an integrator
+// who reads "preserved unchanged" builds reconciliation on a per-movement reference that the fee
+// engine silently replaces, and one who reads "whenever a package was selected" concludes no
+// package is configured for a route that in fact has one.
+func TestV2MetadataContractMakesNoFalseClaim(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	schemas := api.OpenAPI().Components.Schemas.Map()
+
+	cases := []struct {
+		schemaName string
+		// forbidden is a claim the ledger does not keep, with why it does not.
+		forbidden map[string]string
+		// required is a phrase the description must carry to describe what actually happens.
+		required []string
+	}{
+		{
+			schemaName: v2OperationSchemaName,
+			forbidden: map[string]string{
+				"preserved unchanged": "the fee engine rebuilds both sides of a fee-priced " +
+					"payment from a map that carries no per-movement metadata, so a caller key " +
+					"on a leg does not survive",
+				"the fee engine did not price": "the engine rebuilds both sides whenever a " +
+					"package is applied, including an all-exempt payment it prices at zero, so " +
+					"the condition a caller key survives under is no package applied, not no " +
+					"fee charged",
+			},
+			required: []string{"refus"},
+		},
+		{
+			schemaName: v2TransactionSchemaName,
+			forbidden: map[string]string{
+				"whenever a package was selected": "the key is written only when a fee was " +
+					"charged or an exemption was recorded; a package excluded by its amount " +
+					"bounds is selected and writes nothing",
+				"NOT reserved": "IsReservedMetadataKey answers all three transaction-level fee " +
+					"keys, so a request body carrying feeApplied, packageAppliedID or " +
+					"feeExemption is refused; publishing them as unreserved would tell a client " +
+					"a value it reads here might be one it supplied itself",
+			},
+			required: []string{"reserves all three", "refused with 400"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.schemaName, func(t *testing.T) {
+			t.Parallel()
+
+			schema, ok := schemas[tc.schemaName]
+			require.Truef(t, ok, "the unified document must register the %q component", tc.schemaName)
+
+			metadata, ok := schema.Properties["metadata"]
+			require.Truef(t, ok, "%q must publish a metadata property", tc.schemaName)
+
+			for claim, why := range tc.forbidden {
+				assert.NotContainsf(t, metadata.Description, claim,
+					"the published %q metadata description must not claim %q: %s",
+					tc.schemaName, claim, why)
+			}
+
+			for _, phrase := range tc.required {
+				assert.Containsf(t, metadata.Description, phrase,
+					"the published %q metadata description must say what the ledger does instead",
+					tc.schemaName)
+			}
+		})
+	}
 }

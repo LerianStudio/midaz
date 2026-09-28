@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -163,6 +166,56 @@ func TestUpdateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, acc)
+}
+
+// TestUpdateAccount_BlockedPropagationFailureDoesNotEmit verifies the
+// fail-closed ordering: when the blocked-cache propagation gate fails, the
+// account.updated event must NOT be emitted for that attempt.
+func TestUpdateAccount_BlockedPropagationFailureDoesNotEmit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := txRedis.NewMockRedisRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockEmitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		AccountRepo:            mockAccountRepo,
+		BalanceRepo:            mockBalanceRepo,
+		TransactionRedisRepo:   mockRedisRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		Streaming:              mockEmitter,
+	}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	blocked := true
+
+	mockAccountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOffV1).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
+
+	mockAccountRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Name: "acc", Blocked: &blocked}, nil)
+
+	mockBalanceRepo.EXPECT().
+		ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+		Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@acc", Key: "default"}}, nil)
+
+	mockRedisRepo.EXPECT().
+		UpdateBalanceCacheBlocked(gomock.Any(), organizationID, ledgerID, []string{"@acc#default"}, true).
+		Return(errors.New("redis unavailable"))
+
+	input := &mmodel.UpdateAccountInput{Blocked: &blocked}
+
+	acc, err := uc.UpdateAccount(context.Background(), organizationID, ledgerID, nil, accountID, input, mmodel.HolderOffV1)
+	assert.Error(t, err)
+	assert.Nil(t, acc)
+	assert.Empty(t, mockEmitter.Events(), "propagation failure must short-circuit before account.updated is emitted")
 }
 
 // TestUpdateAccount_NilStreamingDoesNotPanic confirms that a UseCase with

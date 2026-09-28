@@ -73,25 +73,37 @@ type ContactMongoDBModel struct {
 }
 
 type NaturalPersonMongoDBModel struct {
-	FavoriteName *string `bson:"favorite_name,omitempty"`
-	SocialName   *string `bson:"social_name,omitempty"`
-	Gender       *string `bson:"gender,omitempty"`
-	BirthDate    *string `bson:"birth_date,omitempty"`
-	CivilStatus  *string `bson:"civil_status,omitempty"`
-	Nationality  *string `bson:"nationality,omitempty"`
-	MotherName   *string `bson:"mother_name,omitempty"`
-	FatherName   *string `bson:"father_name,omitempty"`
-	Status       *string `bson:"status,omitempty"`
+	FavoriteName       *string                     `bson:"favorite_name,omitempty"`
+	SocialName         *string                     `bson:"social_name,omitempty"`
+	Gender             *string                     `bson:"gender,omitempty"`
+	BirthDate          *string                     `bson:"birth_date,omitempty"`
+	CivilStatus        *string                     `bson:"civil_status,omitempty"`
+	Nationality        *string                     `bson:"nationality,omitempty"`
+	MotherName         *string                     `bson:"mother_name,omitempty"`
+	FatherName         *string                     `bson:"father_name,omitempty"`
+	Status             *string                     `bson:"status,omitempty"`
+	MonthlyGrossIncome *MonetaryAmountMongoDBModel `bson:"monthly_gross_income,omitempty"`
 }
 
 type LegalPersonMongoDBModel struct {
-	TradeName      *string                     `bson:"trade_name,omitempty"`
-	Activity       *string                     `bson:"activity,omitempty"`
-	Type           *string                     `bson:"type,omitempty"`
-	FoundingDate   *time.Time                  `bson:"founding_date,omitempty"`
-	Size           *string                     `bson:"size,omitempty"`
-	Status         *string                     `bson:"status,omitempty"`
-	Representative *RepresentativeMongoDBModel `bson:"representative,omitempty"`
+	TradeName          *string                     `bson:"trade_name,omitempty"`
+	Activity           *string                     `bson:"activity,omitempty"`
+	Type               *string                     `bson:"type,omitempty"`
+	FoundingDate       *time.Time                  `bson:"founding_date,omitempty"`
+	Size               *string                     `bson:"size,omitempty"`
+	Status             *string                     `bson:"status,omitempty"`
+	Representative     *RepresentativeMongoDBModel `bson:"representative,omitempty"`
+	AnnualGrossRevenue *MonetaryAmountMongoDBModel `bson:"annual_gross_revenue,omitempty"`
+	TotalAssets        *MonetaryAmountMongoDBModel `bson:"total_assets,omitempty"`
+}
+
+// MonetaryAmountMongoDBModel stores a holder financial figure. Value is the decimal
+// string, or its ciphertext when the figure is natural-person PII. Its fields match
+// mmodel.MonetaryAmount so the two convert directly.
+type MonetaryAmountMongoDBModel struct {
+	Value         string `bson:"value"`
+	Currency      string `bson:"currency"`
+	ReferenceDate string `bson:"reference_date"`
 }
 
 type RepresentativeMongoDBModel struct {
@@ -308,6 +320,19 @@ func mapNaturalPersonFromEntity(ctx context.Context, fe encryption.FieldEncrypto
 		result.FatherName = &encrypted
 	}
 
+	if np.MonthlyGrossIncome != nil {
+		income := MonetaryAmountMongoDBModel(*np.MonthlyGrossIncome)
+		fieldCtx.FieldName = monthlyGrossIncomeValueField
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, income.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		income.Value = encrypted
+		result.MonthlyGrossIncome = &income
+	}
+
 	return result, nil
 }
 
@@ -325,12 +350,14 @@ func mapLegalPersonFromEntity(ctx context.Context, fe encryption.FieldEncryptor,
 	}
 
 	mongoLP := &LegalPersonMongoDBModel{
-		TradeName:    lp.TradeName,
-		Activity:     lp.Activity,
-		Type:         lp.Type,
-		FoundingDate: parsedFoundingDate,
-		Status:       lp.Status,
-		Size:         lp.Size,
+		TradeName:          lp.TradeName,
+		Activity:           lp.Activity,
+		Type:               lp.Type,
+		FoundingDate:       parsedFoundingDate,
+		Status:             lp.Status,
+		Size:               lp.Size,
+		AnnualGrossRevenue: (*MonetaryAmountMongoDBModel)(lp.AnnualGrossRevenue),
+		TotalAssets:        (*MonetaryAmountMongoDBModel)(lp.TotalAssets),
 	}
 
 	if lp.Representative != nil {
@@ -382,6 +409,9 @@ func mapLegalPersonFromEntity(ctx context.Context, fe encryption.FieldEncryptor,
 
 	return mongoLP, nil
 }
+
+// monthlyGrossIncomeValueField names the encrypted income value in the ciphertext AAD.
+const monthlyGrossIncomeValueField = "natural_person.monthly_gross_income.value"
 
 // mapAddressFromEntity maps an address entity to MongoDB model
 func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
@@ -581,6 +611,19 @@ func mapNaturalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor,
 		result.FatherName = &decrypted
 	}
 
+	if np.MonthlyGrossIncome != nil {
+		income := mmodel.MonetaryAmount(*np.MonthlyGrossIncome)
+		fieldCtx.FieldName = monthlyGrossIncomeValueField
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, income.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		income.Value = decrypted
+		result.MonthlyGrossIncome = &income
+	}
+
 	return result, nil
 }
 
@@ -594,12 +637,14 @@ func mapLegalPersonToEntity(ctx context.Context, fe encryption.FieldEncryptor, e
 	}
 
 	legalPerson := &mmodel.LegalPerson{
-		TradeName:    lp.TradeName,
-		Activity:     lp.Activity,
-		Type:         lp.Type,
-		FoundingDate: foundingDate,
-		Status:       lp.Status,
-		Size:         lp.Size,
+		TradeName:          lp.TradeName,
+		Activity:           lp.Activity,
+		Type:               lp.Type,
+		FoundingDate:       foundingDate,
+		Status:             lp.Status,
+		Size:               lp.Size,
+		AnnualGrossRevenue: (*mmodel.MonetaryAmount)(lp.AnnualGrossRevenue),
+		TotalAssets:        (*mmodel.MonetaryAmount)(lp.TotalAssets),
 	}
 
 	if lp.Representative != nil {

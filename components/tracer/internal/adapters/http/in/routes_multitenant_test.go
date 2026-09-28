@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"

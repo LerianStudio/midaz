@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
+
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 
@@ -22,7 +24,15 @@ import (
 	_ "go.uber.org/automaxprocs"
 )
 
+// Filled at build time with -ldflags "-X main.version=... -X main.revision=...
+// -X main.buildTime=...". Empty in a local build, where buildinfo falls back to
+// the Go VCS stamp and then to dev/unknown.
+var version, revision, buildTime string
+
 func main() {
+	buildinfo.Set(buildinfo.Build{Version: version, Revision: revision, BuildTime: buildTime})
+	buildinfo.HandleFlag() // "--version" prints the identity as JSON and exits 0
+
 	if err := run(); err != nil {
 		// Print to stderr — logger may not be wired yet at this point.
 		fmt.Fprintf(os.Stderr, "tracer: fatal: %v\n", err)

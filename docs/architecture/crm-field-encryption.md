@@ -66,13 +66,21 @@ wraps the richer `EncryptionService` (`encryption.go`) and exposes four methods:
 
 **What is encrypted.** The holder repository (`adapters/mongodb/holder/holder.go`) encrypts the
 holder `Name` and `Document`; contact `PrimaryEmail` / `SecondaryEmail` / `MobilePhone` / `OtherPhone`;
-natural-person `MotherName` / `FatherName`; and legal-person representative `Name` / `Document` /
-`Email`. The instrument repository (`adapters/mongodb/instrument/instrument.go`) encrypts the
+natural-person `MotherName` / `FatherName` and the `Value` of its `MonthlyGrossIncome` (its currency
+and reference date stay plaintext); and legal-person representative `Name` / `Document` / `Email`.
+Company figures (`AnnualGrossRevenue`, `TotalAssets`) stay plaintext like the other legal-person
+fields. The instrument repository (`adapters/mongodb/instrument/instrument.go`) encrypts the
 instrument `document`, `banking_details.account`, `banking_details.iban`,
 `regulatory_fields.participant_document`, and each `related_parties.{id}.document`. Only a subset is
 **searchable** (has a deterministic token alongside the ciphertext): holder `document`; instrument
 `document`, `banking_details.account`, `banking_details.iban`,
 `regulatory_fields.participant_document`, and `related_parties.document`.
+
+**Idempotency slots.** A holder or instrument create caches its full response for replay in Valkey.
+That response is encrypted as one field (`RecordID` = the slot key, `FieldName` =
+`idempotency_replay`) and decrypted on replay, so the cached response holds no personal data in
+clear. The slot key embeds the caller's `X-Idempotency` value as sent; without one, it embeds the
+search-token keyed hash of the request body (`GenerateSearchToken`, field `idempotency_body`).
 
 ---
 

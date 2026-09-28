@@ -42,6 +42,8 @@ func TestCRMErrorSentinelWireCodes(t *testing.T) {
 		{"ErrRelatedPartyNameRequired", ErrRelatedPartyNameRequired, "CRM-0027"},
 		{"ErrRelatedPartyStartDateRequired", ErrRelatedPartyStartDateRequired, "CRM-0028"},
 		{"ErrRelatedPartyEndDateInvalid", ErrRelatedPartyEndDateInvalid, "CRM-0029"},
+		{"ErrInvalidInstrumentAccountType", ErrInvalidInstrumentAccountType, "CRM-0042"},
+		{"ErrBankAccountAlreadyRegistered", ErrBankAccountAlreadyRegistered, "CRM-0043"},
 	}
 
 	seen := make(map[string]string, len(cases))

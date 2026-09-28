@@ -30,7 +30,7 @@ func IsSchemaDrift(err error) bool {
 
 // ValidatePGError validates pgError and returns the appropriate business error.
 // It handles constraint violations from both onboarding and transaction entities.
-func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) error {
+func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 	// A named column the database does not have means the binary is ahead of the
 	// applied migrations. It carries no constraint name, so it has to be matched
 	// on SQLSTATE before the constraint switch.

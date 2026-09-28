@@ -43,7 +43,11 @@ type Service struct {
 	grpcServer    *GRPCServer
 	postgresConn  *libPostgres.Client
 	cleanupWorker *workers.UsageCleanupWorker
-	syncWorker    *workers.RuleSyncWorker
+	// reaperWorker sweeps reservations whose TTL elapsed without a confirm or
+	// release and returns their held capacity. Nil when the reaper is disabled,
+	// and always nil in multi-tenant mode (the supervisor spawns one per tenant).
+	reaperWorker *workers.ReservationReaperWorker
+	syncWorker   *workers.RuleSyncWorker
 
 	// Multi-tenant components (nil in single-tenant mode).
 	pgManager     *tmpostgres.Manager
@@ -166,6 +170,10 @@ func (app *Service) Run() {
 	// Single-tenant: register singleton workers with the Launcher.
 	if app.cleanupWorker != nil {
 		opts = append(opts, libCommons.RunApp("Usage Cleanup Worker", app.cleanupWorker))
+	}
+
+	if app.reaperWorker != nil {
+		opts = append(opts, libCommons.RunApp("Reservation Reaper Worker", app.reaperWorker))
 	}
 
 	if app.syncWorker != nil {

@@ -32,6 +32,8 @@ func TestUpdateSegmentByID(t *testing.T) {
 		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 
+	caseOnlySegmentID := uuid.New()
+
 	tests := []struct {
 		name           string
 		organizationID uuid.UUID
@@ -56,7 +58,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Updated Segment").
+					ExistsByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), "Updated Segment", gomock.Any()).
 					Return(false, nil)
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -94,6 +96,57 @@ func TestUpdateSegmentByID(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name:           "Success - Case-only rename excludes itself from the duplicate lookup",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			segmentID:      caseOnlySegmentID,
+			input: &mmodel.UpdateSegmentInput{
+				Name:     "RETAIL",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockSegmentRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), caseOnlySegmentID).
+					Return(&mmodel.Segment{ID: "123", Name: "Retail"}, nil)
+				mockSegmentRepo.EXPECT().
+					ExistsByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), "RETAIL", caseOnlySegmentID).
+					Return(false, nil)
+				mockSegmentRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Cond(func(s *mmodel.Segment) bool {
+						return s != nil && s.Name == "RETAIL"
+					})).
+					Return(&mmodel.Segment{ID: "123", Name: "RETAIL", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil)
+			},
+			expectErr: false,
+		},
+		{
+			name:           "Error - Case-only rename collides with another segment",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			segmentID:      caseOnlySegmentID,
+			input: &mmodel.UpdateSegmentInput{
+				Name:     "RETAIL",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockSegmentRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), caseOnlySegmentID).
+					Return(&mmodel.Segment{ID: "123", Name: "Retail"}, nil)
+				mockSegmentRepo.EXPECT().
+					ExistsByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), "RETAIL", caseOnlySegmentID).
+					Return(true, pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, constant.EntitySegment))
+				mockSegmentRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			},
+			expectErr: true,
+		},
+		{
 			name:           "Error - Segment not found",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
@@ -125,7 +178,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Existing Segment").
+					ExistsByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), "Existing Segment", gomock.Any()).
 					Return(true, pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, constant.EntitySegment, "Existing Segment", uuid.New()))
 			},
 			expectErr: true,
@@ -145,7 +198,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Segment with Metadata Error").
+					ExistsByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), "Segment with Metadata Error", gomock.Any()).
 					Return(false, nil)
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -174,7 +227,7 @@ func TestUpdateSegmentByID(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Original Segment"}, nil)
 				mockSegmentRepo.EXPECT().
-					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), "Update Failure Segment").
+					ExistsByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), "Update Failure Segment", gomock.Any()).
 					Return(false, nil)
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).

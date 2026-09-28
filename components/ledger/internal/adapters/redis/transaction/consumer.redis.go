@@ -26,14 +26,19 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 //go:embed scripts/balance_atomic_operation.lua
-var balanceAtomicOperationLua string
+var balanceAtomicOperationLuaSource string
+
+var balanceAtomicOperationLua = cachepolicy.LuaSource(balanceAtomicOperationLuaSource)
 
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
@@ -41,27 +46,73 @@ var claimBalanceSyncKeysLua string
 //go:embed scripts/update_balance_settings.lua
 var updateBalanceSettingsLua string
 
-// balanceAtomicScript, claimBalanceSyncScript, and updateBalanceSettingsScript
-// are built once at package init. redis.NewScript computes the source SHA1
-// eagerly, so hoisting these out of the per-call hot paths (runBalanceAtomicScript,
-// GetBalanceSyncKeys, GetBalanceSyncKeysLegacy, UpdateBalanceCacheSettings) avoids
-// re-hashing on every invocation. *redis.Script is safe for concurrent use.
+//go:embed scripts/update_balance_blocked.lua
+var updateBalanceBlockedLua string
+
+//go:embed scripts/update_balance_allow_flags.lua
+var updateBalanceAllowFlagsLua string
+
+//go:embed scripts/delete_if_value.lua
+var deleteIfValueLua string
+
+//go:embed scripts/expire_if_value.lua
+var expireIfValueLua string
+
+//go:embed scripts/mark_account_closing_write.lua
+var markAccountClosingWriteLua string
+
+//go:embed scripts/delete_account_closing_attempt.lua
+var deleteAccountClosingAttemptLua string
+
+//go:embed scripts/normalize_balance_limit.lua
+var normalizeBalanceLimitLua string
+
+//go:embed scripts/compare_delete_recovery.lua
+var compareDeleteRecoveryLua string
+
+//go:embed scripts/acknowledge_engine_recovery.lua
+var acknowledgeEngineRecoveryLua string
+
+// balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript,
+// updateBalanceBlockedScript, updateBalanceAllowFlagsScript, deleteIfValueScript,
+// expireIfValueScript, normalizeBalanceLimitScript, compareDeleteRecoveryScript,
+// and acknowledgeEngineRecoveryScript are built once at package init.
+// redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
+// per-call hot paths avoids re-hashing on every invocation. *redis.Script is
+// safe for concurrent use.
 var (
-	balanceAtomicScript         = redis.NewScript(balanceAtomicOperationLua)
-	claimBalanceSyncScript      = redis.NewScript(claimBalanceSyncKeysLua)
-	updateBalanceSettingsScript = redis.NewScript(updateBalanceSettingsLua)
+	balanceAtomicScript             = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript          = redis.NewScript(claimBalanceSyncKeysLua)
+	updateBalanceSettingsScript     = redis.NewScript(updateBalanceSettingsLua)
+	updateBalanceBlockedScript      = redis.NewScript(updateBalanceBlockedLua)
+	updateBalanceAllowFlagsScript   = redis.NewScript(updateBalanceAllowFlagsLua)
+	deleteIfValueScript             = redis.NewScript(deleteIfValueLua)
+	expireIfValueScript             = redis.NewScript(expireIfValueLua)
+	markAccountClosingWriteScript   = redis.NewScript(markAccountClosingWriteLua)
+	deleteAccountClosingScript      = redis.NewScript(deleteAccountClosingAttemptLua)
+	normalizeBalanceLimitScript     = redis.NewScript(normalizeBalanceLimitLua)
+	compareDeleteRecoveryScript     = redis.NewScript(compareDeleteRecoveryLua)
+	acknowledgeEngineRecoveryScript = redis.NewScript(acknowledgeEngineRecoveryLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
 
-const TransactionBackupQueue = "backup_queue:{transactions}"
+const TransactionBackupQueue = "backup_queue:" + cachepolicy.HashTag
 
 // TransactionBackupAttemptsQueue is the parallel hash tracking how many consumer
 // cycles have failed to replay each backup record. Field keys match those of
-// TransactionBackupQueue. The shared {transactions} hash tag co-locates both
-// keys in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
+// TransactionBackupQueue. The shared transaction hash tag co-locates both keys
+// in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
 const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
+
+const (
+	RecoveryAckMissing              int64 = 0
+	RecoveryAckDeleted              int64 = 1
+	RecoveryAckReplaced             int64 = 2
+	RecoveryAckFinalizationRequired int64 = 3
+	RecoveryAckReceiptChanged       int64 = 4
+)
 
 // maxRedisBatchSize limits the number of items sent in a single Redis operation
 // to prevent oversized payloads. Operations with more items are split into chunks.
@@ -85,6 +136,10 @@ type SyncKey struct {
 
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
+	// AccountProtectionRepository carries the account-scoped closing markers and the
+	// administrative ownership. They live on the same cache the balances do, so the
+	// services that admit or delete balances reach them through this same handle.
+	AccountProtectionRepository
 	// Set stores a key-value pair with a TTL.
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	// SetNX stores a key-value pair only if the key does not already exist (atomic).
@@ -98,13 +153,31 @@ type RedisRepository interface {
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	// Del removes a key from Redis.
 	Del(ctx context.Context, key string) error
+	// DeleteIfValue atomically removes a key only when its current value equals value.
+	// It returns true when the key was removed and false when it was missing or owned by
+	// another caller.
+	DeleteIfValue(ctx context.Context, key, value string) (bool, error)
+	// ExpireIfValue atomically shortens a key's TTL only when its current value equals value.
+	// It returns true when the owned key's expiry was updated and false when it was missing or
+	// owned by another caller. ttl is expressed as a whole-second count, matching SetNX.
+	ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	// Incr atomically increments a key's integer value and returns the new value.
 	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
-	// ProcessBalanceAtomicOperation executes the Lua balance mutation script.
+	// ProcessBalanceAtomicOperation exposes the pre-engine Lua balance writer for
+	// isolated compatibility and rollback verification. Executable command,
+	// backup-consumer, and engine-recovery flows do not call it.
 	// Atomically updates balances, records backup, and schedules sync in a single round-trip.
 	// Returns before/after balance snapshots for event emission.
-	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error)
+	//
+	// binding is the single-use account-block exception the request presented,
+	// already tied to the balances of the one logical debit it authorizes, or nil
+	// when it presented none. When non-nil the script additionally validates the
+	// cached grant against the transaction's source alias and debited amount,
+	// bypasses the account block on exactly the bound balances, and DELETES the
+	// identifier — all inside the same atomic step, so a presented grant is
+	// consumed by any batch that completes and survives every batch that aborts.
+	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error)
 	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	// GetBytes retrieves binary data by key.
@@ -115,6 +188,12 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	// ReadAllMessagesFromQueue reads all messages from the backup queue.
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
+	// ScanRecoveryMessages reads one bounded page of one recovery hash with HSCAN,
+	// so a caller can walk the existing records without HGETALL and without
+	// changing their format, their acknowledgment or their retention. The cursor
+	// belongs to the caller and to ONE hash: the two recovery origins are walked
+	// with independent cursors and are never merged by field.
+	ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	// IncrementBackupAttempt atomically increments the failure counter for a backup
@@ -133,13 +212,21 @@ type RedisRepository interface {
 	// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
 	// Used by the legacy drainer to process entries written by v3.5.x (seconds) or v3.6.0 (microseconds).
 	GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error)
-	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
-	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
-	// Uses NX mode: only adds new members, does not update scores of existing ones.
-	// This preserves the earliest scheduled sync time for each balance key.
-	ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
+	// RefreshBalanceSyncKeyTTLs re-applies ttl to every balance key still scheduled
+	// for sync, across the current and the legacy ZSET. A scheduled key carries a
+	// delta that PostgreSQL has not received yet, so letting it expire loses money
+	// silently; EXPIRE on a balance key is harmless by construction, since every
+	// mutation already refreshes it.
+	//
+	// Returns the number of keys whose expiry was actually reset and the smallest
+	// score (the oldest due time) still present in either schedule — 0 when both
+	// are empty. Members whose key no longer exists are counted as neither.
+	RefreshBalanceSyncKeyTTLs(ctx context.Context, ttl time.Duration) (refreshed int64, oldestScore float64, err error)
 	// ListBalanceByKey retrieves a single balance from Redis by its internal key
 	// and converts it from the cache format (BalanceRedis) to the domain model (Balance).
+	// An empty cached OverdraftUsed reads as zero (pre-overdraft snapshot shape), while a
+	// non-empty value that does not parse as a decimal returns an error so callers guarding
+	// money never read unreadable debt as zero.
 	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 	// GetBalancesByKeys retrieves multiple balance values by their Redis keys using MGET.
 	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
@@ -156,7 +243,7 @@ type RedisRepository interface {
 	// UpdateBalanceCacheSettings performs an in-place, settings-only update of a
 	// cached balance entry. It GETs the current JSON blob, mutates ONLY the
 	// overdraft/scope settings fields, and SETs it back with the Lua script's
-	// canonical 1-hour TTL.
+	// canonical balanceCacheSettingsTTL.
 	//
 	// Transactional fields (Available, OnHold, Version, OverdraftUsed) are
 	// deliberately NOT touched: the Redis copy is the authoritative live state
@@ -167,6 +254,51 @@ type RedisRepository interface {
 	// A cache miss (key absent) is a no-op: the next transaction will load the
 	// freshly-updated settings directly from PostgreSQL on its first SETNX.
 	UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error
+	// UpdateBalanceCacheBlocked rewrites the account-level Blocked flag in
+	// place on every cached balance blob of an account in a single atomic Lua
+	// EVAL (all balance keys share the {transactions} hash slot). Cache keys
+	// are "alias#key" pairs; absent keys are skipped — the on-demand hydration
+	// covers them with the freshly persisted value on the next miss. Live
+	// transactional state (Available, OnHold, Version, OverdraftUsed) is
+	// preserved; the key is never deleted.
+	UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error
+	// UpdateBalanceCacheAllowFlags rewrites the AllowSending/AllowReceiving
+	// flags in place on the cached blob of one balance ("alias#key") in a
+	// single atomic Lua EVAL. Each flag is applied only when its pointer is
+	// non-nil, so a PATCH carrying one flag leaves the other as cached. Live
+	// transactional state (Available, OnHold, Version, OverdraftUsed) is
+	// preserved; the key is never deleted.
+	//
+	// Both pointers nil is a no-op that never reaches Redis. An absent key is
+	// a no-op too — the on-demand hydration covers it with the freshly
+	// persisted value on the next miss. A blob the script cannot decode is
+	// reported but not an error: the atomic script cannot decode it either, so
+	// it approves no transaction.
+	UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error
+	// CreateAccountBlockExceptions writes a batch of single-use account-block
+	// exceptions, one key per exception with its own native Redis expiry. The
+	// cache is the exception's COMPLETE storage: there is no table, no sweeper
+	// and no re-hydration, so a flush drops every outstanding grant and the
+	// account simply stays blocked. Keys share the {transactions} hash slot with
+	// the balance keys, so a grant can be validated and consumed inside the same
+	// multi-key EVAL that mutates the balances — and so the batch can be written
+	// in ONE transaction. It is NEVER PARTIALLY APPLIED: a caller is never handed
+	// identifiers of which only some exist. An error does NOT mean the batch was
+	// not applied, only that it was not applied in part — a connection lost after
+	// EXEC executed leaves the outcome UNKNOWN, and the caller must treat it as a
+	// failure rather than assume either way.
+	CreateAccountBlockExceptions(ctx context.Context, organizationID, ledgerID uuid.UUID, exceptions []AccountBlockException) error
+	// GetAccountBlockException reads one single-use account-block exception.
+	//
+	// Returns (nil, nil) when the identifier has no live key — never minted,
+	// already consumed, or expired by its native TTL are indistinguishable and
+	// all mean the same thing to a caller: there is no grant to present. A
+	// non-nil error is an infrastructure failure, not a missing grant.
+	//
+	// This is a READ ONLY. The grant is consumed inside the balance-mutation
+	// EVAL, never here, so a request that dies after this read leaves the grant
+	// intact for a retry.
+	GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -363,6 +495,87 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }
 
+// DeleteIfValue atomically removes key only when its current value matches value.
+// This prevents an expired marker owner's late rollback from deleting a newer owner's
+// marker that was acquired under the same key.
+func (rr *RedisConsumerRepository) DeleteIfValue(ctx context.Context, key, value string) (bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.delete_if_value")
+	defer span.End()
+
+	key, err := tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return false, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
+
+		return false, err
+	}
+
+	result, err := deleteIfValueScript.Run(ctx, rds, []string{key}, value).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to delete key by value on redis", err)
+
+		return false, err
+	}
+
+	deleted, ok := result.(int64)
+	if !ok {
+		err = fmt.Errorf("unexpected result type from delete-if-value script: %T", result)
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
+
+		return false, err
+	}
+
+	return deleted == 1, nil
+}
+
+// ExpireIfValue atomically shortens key's TTL only when its current value matches value.
+// This keeps the successful-delete marker barrier in place without a release/reacquire gap.
+func (rr *RedisConsumerRepository) ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.expire_if_value")
+	defer span.End()
+
+	key, err := tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return false, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
+
+		return false, err
+	}
+
+	result, err := expireIfValueScript.Run(ctx, rds, []string{key}, value, strconv.FormatInt(int64(ttl), 10)).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to expire key by value on redis", err)
+
+		return false, err
+	}
+
+	expired, ok := result.(int64)
+	if !ok {
+		err = fmt.Errorf("unexpected result type from expire-if-value script: %T", result)
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
+
+		return false, err
+	}
+
+	return expired == 1, nil
+}
+
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -398,8 +611,12 @@ func boolToInt(b bool) int {
 // Note: cjson in Redis/Valkey may encode empty arrays as {} (object) instead of [] (array).
 // The custom UnmarshalJSON handles this edge case by treating empty objects as empty slices.
 type balanceAtomicResponse struct {
-	Before balanceRedisList `json:"before"`
-	After  balanceRedisList `json:"after"`
+	// Replayed marks a response the script re-reported from its idempotency
+	// marker instead of computing: the same identity had already executed. It is
+	// absent from a first execution's payload, which decodes to false.
+	Replayed bool             `json:"replayed"`
+	Before   balanceRedisList `json:"before"`
+	After    balanceRedisList `json:"after"`
 }
 
 type balanceAtomicOperationPlan struct {
@@ -415,9 +632,184 @@ type balanceAtomicOperationPlan struct {
 //   - A single-element result may arrive as a bare object instead of a 1-element array.
 //
 // The implementation uses json.RawMessage to keep each element's raw bytes and
-// unmarshal directly into BalanceRedis, avoiding the double marshal/unmarshal
-// round-trip of parsing into any and re-serializing.
+// routes it through the response decoder. That decoder understands legacy,
+// dual, and new-only fields without imposing cache-entry identity validation on
+// the script response; unresolved aliases are reported by reconciliation.
 type balanceRedisList []mmodel.BalanceRedis
+
+func balanceResponseString(fields map[string]json.RawMessage, uppercase, lowerCamel string) (string, bool, error) {
+	raw, exists := fields[uppercase]
+	if !exists {
+		raw, exists = fields[lowerCamel]
+	}
+
+	if !exists {
+		return "", false, nil
+	}
+
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", false, fmt.Errorf("invalid balance response field %s: %w", uppercase, err)
+	}
+
+	return value, true, nil
+}
+
+func qualifiedBalanceReadKeyAllowed(fields map[string]json.RawMessage) bool {
+	_, hasLegacyKey := fields["Key"]
+	_, hasSchemaVersion := fields["SchemaVersion"]
+
+	return hasLegacyKey || !hasSchemaVersion
+}
+
+func normalizeQualifiedBalanceReadKey(raw []byte) (decodeRaw []byte, originalAlias, originalKey string, qualified bool, err error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, "", "", false, fmt.Errorf("decode cached balance object: %w", err)
+	}
+
+	if fields == nil {
+		return nil, "", "", false, errors.New("cached balance entry must be an object")
+	}
+
+	originalKey, hasKey, err := balanceResponseString(fields, "Key", "key")
+	if err != nil {
+		return nil, "", "", false, err
+	}
+
+	originalAlias, hasAlias, err := balanceResponseString(fields, "Alias", "alias")
+	if err != nil {
+		return nil, "", "", false, err
+	}
+
+	keyParts := strings.Split(originalKey, "#")
+	if !hasKey || len(keyParts) == 1 {
+		return raw, originalAlias, originalKey, false, nil
+	}
+
+	if len(keyParts) != 2 || keyParts[0] == "" || keyParts[1] == "" {
+		return nil, "", "", false, errors.New("invalid qualified cached balance key")
+	}
+
+	if !qualifiedBalanceReadKeyAllowed(fields) {
+		return nil, "", "", false, errors.New("qualified key is not permitted in new-only cached balance")
+	}
+
+	if hasAlias && originalAlias != keyParts[0] && originalAlias != originalKey {
+		return nil, "", "", false, errors.New("cached balance alias does not match qualified key")
+	}
+
+	domainKey, err := json.Marshal(keyParts[1])
+	if err != nil {
+		return nil, "", "", false, fmt.Errorf("encode cached balance domain key: %w", err)
+	}
+
+	if _, exists := fields["Key"]; exists {
+		fields["Key"] = domainKey
+	}
+
+	if _, exists := fields["key"]; exists {
+		fields["key"] = domainKey
+	}
+
+	decodeRaw, err = json.Marshal(fields)
+	if err != nil {
+		return nil, "", "", false, fmt.Errorf("encode normalized cached balance: %w", err)
+	}
+
+	return decodeRaw, originalAlias, originalKey, true, nil
+}
+
+func decodeBalanceRedisResponseEntry(raw json.RawMessage) (mmodel.BalanceRedis, error) {
+	decodeRaw, originalAlias, originalKey, qualifiedKey, err := normalizeQualifiedBalanceReadKey(raw)
+	if err != nil {
+		return mmodel.BalanceRedis{}, fmt.Errorf("decode balance response entry: %w", err)
+	}
+
+	var balance mmodel.BalanceRedis
+	if err := json.Unmarshal(decodeRaw, &balance); err != nil {
+		return mmodel.BalanceRedis{}, fmt.Errorf("decode balance response entry: %w", err)
+	}
+
+	if qualifiedKey {
+		balance.Key = originalKey
+	}
+
+	if originalAlias != "" {
+		balance.Alias = originalAlias
+	}
+
+	return balance, nil
+}
+
+func decodeBalanceResponseArray(trimmed []byte) (balanceRedisList, error) {
+	var items []json.RawMessage
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return nil, fmt.Errorf("decode balance response array: %w", err)
+	}
+
+	result := make(balanceRedisList, 0, len(items))
+	for i, raw := range items {
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			continue
+		}
+
+		balance, err := decodeBalanceRedisResponseEntry(raw)
+		if err != nil {
+			return nil, fmt.Errorf("decode balance response array item %d: %w", i, err)
+		}
+
+		result = append(result, balance)
+	}
+
+	return result, nil
+}
+
+func decodeBalanceResponseObject(trimmed []byte) (balanceRedisList, error) {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &object); err != nil {
+		return nil, fmt.Errorf("decode balance response object: %w", err)
+	}
+
+	if len(object) == 0 {
+		return nil, nil
+	}
+
+	numericWrapper := true
+
+	for key := range object {
+		index, err := strconv.ParseUint(key, 10, 64)
+		if err != nil || index == 0 {
+			numericWrapper = false
+			break
+		}
+	}
+
+	if !numericWrapper {
+		single, err := decodeBalanceRedisResponseEntry(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("decode single balance response: %w", err)
+		}
+
+		return balanceRedisList{single}, nil
+	}
+
+	result := make(balanceRedisList, 0, len(object))
+	for key, raw := range object {
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			continue
+		}
+
+		balance, err := decodeBalanceRedisResponseEntry(raw)
+		if err != nil {
+			return nil, fmt.Errorf("decode balance response wrapper item %s: %w", key, err)
+		}
+
+		result = append(result, balance)
+	}
+
+	return result, nil
+}
 
 func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 	trimmed := bytes.TrimSpace(data)
@@ -427,123 +819,32 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	// Fast path: standard JSON array — try direct unmarshal first.
-	if trimmed[0] == '[' {
-		var items []json.RawMessage
-		if err := json.Unmarshal(trimmed, &items); err != nil {
-			return err
-		}
+	var err error
 
-		result := make([]mmodel.BalanceRedis, 0, len(items))
-
-		for _, raw := range items {
-			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-				continue
-			}
-
-			var b mmodel.BalanceRedis
-			if err := json.Unmarshal(raw, &b); err != nil {
-				continue
-			}
-
-			result = append(result, b)
-		}
-
-		*l = result
-
-		return nil
+	switch trimmed[0] {
+	case '[':
+		*l, err = decodeBalanceResponseArray(trimmed)
+	case '{':
+		*l, err = decodeBalanceResponseObject(trimmed)
+	default:
+		return fmt.Errorf("balanceRedisList: unexpected JSON token %q", trimmed[0])
 	}
 
-	// Slow path: cjson returned an object instead of an array.
-	// Empty object {} means empty array — return early.
-	if trimmed[0] == '{' {
-		if bytes.Equal(trimmed, []byte("{}")) {
-			*l = nil
-			return nil
-		}
-
-		// Try as a single BalanceRedis object.
-		var single mmodel.BalanceRedis
-		if err := json.Unmarshal(trimmed, &single); err == nil && single.ID != "" {
-			*l = balanceRedisList{single}
-			return nil
-		}
-
-		// Fallback: object with numeric keys wrapping nested balance objects.
-		// cjson may encode a Lua array-table as {"1":{...},"2":{...}}.
-		var nested map[string]json.RawMessage
-		if err := json.Unmarshal(trimmed, &nested); err != nil {
-			return err
-		}
-
-		result := make([]mmodel.BalanceRedis, 0, len(nested))
-
-		for _, raw := range nested {
-			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-				continue
-			}
-
-			var b mmodel.BalanceRedis
-			if err := json.Unmarshal(raw, &b); err != nil {
-				continue
-			}
-
-			result = append(result, b)
-		}
-
-		*l = result
-
-		return nil
-	}
-
-	return fmt.Errorf("balanceRedisList: unexpected JSON token %q", trimmed[0])
+	return err
 }
 
 // UnmarshalJSON handles cjson's empty-array-as-object encoding quirk.
 // When no balance changes occurred, cjson may return {"before":{},"after":{}} instead
 // of {"before":[],"after":[]}. This method normalizes both forms.
 func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
-	// Try standard unmarshal first (works when cjson returns proper arrays)
 	type Alias balanceAtomicResponse
 
 	var alias Alias
-	if err := json.Unmarshal(data, &alias); err == nil {
-		*r = balanceAtomicResponse(alias)
-		return nil
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return fmt.Errorf("decode balance atomic response: %w", err)
 	}
 
-	// Fallback: handle cjson empty-object-as-array quirk
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	unmarshalField := func(field json.RawMessage) ([]mmodel.BalanceRedis, error) {
-		trimmed := string(field)
-		if trimmed == "{}" {
-			return []mmodel.BalanceRedis{}, nil
-		}
-
-		var result []mmodel.BalanceRedis
-		if err := json.Unmarshal(field, &result); err != nil {
-			return nil, err
-		}
-
-		return result, nil
-	}
-
-	var err error
-	if beforeData, ok := raw["before"]; ok {
-		if r.Before, err = unmarshalField(beforeData); err != nil {
-			return fmt.Errorf("unmarshal before: %w", err)
-		}
-	}
-
-	if afterData, ok := raw["after"]; ok {
-		if r.After, err = unmarshalField(afterData); err != nil {
-			return fmt.Errorf("unmarshal after: %w", err)
-		}
-	}
+	*r = balanceAtomicResponse(alias)
 
 	return nil
 }
@@ -614,6 +915,7 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 		AccountType:    b.AccountType,
 		AllowSending:   mapBalance.AllowSending,
 		AllowReceiving: mapBalance.AllowReceiving,
+		Blocked:        b.Blocked == 1,
 		AssetCode:      mapBalance.AssetCode,
 		OrganizationID: mapBalance.OrganizationID,
 		LedgerID:       mapBalance.LedgerID,
@@ -627,12 +929,48 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 
 // luaArgsPerOperation is the number of ARGV entries appended per balance
 // operation. It must match the stride used in the Lua script's parsing loop
-// (balance_atomic_operation.lua: `for i = 1, #ARGV, groupSize do`).
+// (balance_atomic_operation.lua: `for i = argvHeader + 1, #ARGV, groupSize do`,
+// where argvHeader is the leading header the script derives from ARGV[3]).
 //
-// Layout: 17 base fields + 7 overdraft fields = 24 total.
-const luaArgsPerOperation = 24
+// Layout: 17 base fields + 7 overdraft fields + 1 account-block field = 25 total.
+const luaArgsPerOperation = 25
 
-func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
+// luaArgsHeaderFixedSize is the number of ARGV entries that ALWAYS precede the
+// first balance operation group: the expected grant alias, the expected debited
+// amount, the count of bypassed balance keys that follow, the idempotency marker
+// key of this execution, and the marker key of the OPPOSITE terminal status.
+//
+// All five slots are unconditional — empty strings and a "0" count when no
+// account-block exception was presented, an empty opposite-marker slot for every
+// status that has no opposite — so the script reads its header from fixed
+// positions and derives its own stride from the count without ever branching on
+// whether a grant exists. The bypassed balance keys follow the fifth slot.
+//
+// Both marker keys ride in ARGV rather than KEYS for the same reason: they are
+// built by Go under the {transactions} hash tag the balance keys already carry,
+// so they resolve to the slot this EVAL is already pinned to, and a fixed ARGV
+// position keeps them unambiguous next to the ONE genuinely optional KEY the
+// script takes (the account-block exception at KEYS[4]).
+//
+// It must match `argvHeaderFixed` in balance_atomic_operation.lua.
+//
+// The match is per BINARY, not per cluster: the script is compiled into the
+// binary, so a pod only ever evaluates the script it shipped with and the two
+// sides of this contract cannot drift apart at runtime. That is what makes the
+// header width, and the marker format that rides in it, safe to change under a
+// mixed-version fleet — each script version hashes to its own EVALSHA, so pods
+// of different versions execute different scripts against the same Redis. A pod
+// reads only markers written by its own format, and a marker it does not
+// recognize is an unread key with a TTL. No cross-version bridge is required
+// here, unlike the delete marker, whose namespace is read by the command layer
+// of one pod and written by the Lua of another.
+const luaArgsHeaderFixedSize = 5
+
+// buildBalanceAtomicOperationPlan assembles the ARGV payload. headerWidth leading
+// slots are RESERVED (left as nil) for the caller to fill in place, so the header
+// costs neither an allocation nor a copy — on the no-grant path especially, which
+// is every transaction that presents no exception.
+func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, headerWidth int) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.build_balance_atomic_operation_plan")
@@ -649,7 +987,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 	}
 
 	plan := &balanceAtomicOperationPlan{
-		args:          make([]any, 0, len(balancesOperation)*luaArgsPerOperation),
+		args:          make([]any, headerWidth, headerWidth+len(balancesOperation)*luaArgsPerOperation),
 		mapBalances:   make(map[string]*mmodel.Balance, len(balancesOperation)),
 		notedBalances: make([]*mmodel.Balance, 0, len(balancesOperation)),
 	}
@@ -666,30 +1004,12 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 		// Flatten optional per-balance settings into primitive ARGV values.
 		// When Settings is nil (legacy balances), defaults are used:
 		// overdraft disabled, limit disabled, zero limit, transactional scope.
-		allowOverdraft := 0
-		overdraftLimitEnabled := 0
-		overdraftLimit := "0"
-		balanceScope := mmodel.BalanceScopeTransactional
-
-		if blcs.Balance.Settings != nil {
-			if blcs.Balance.Settings.AllowOverdraft {
-				allowOverdraft = 1
-			}
-
-			if blcs.Balance.Settings.OverdraftLimitEnabled {
-				overdraftLimitEnabled = 1
-			}
-
-			if blcs.Balance.Settings.OverdraftLimit != nil {
-				overdraftLimit = *blcs.Balance.Settings.OverdraftLimit
-			}
-
-			if blcs.Balance.Settings.BalanceScope != "" {
-				balanceScope = blcs.Balance.Settings.BalanceScope
-			}
+		allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(blcs.Balance.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("serialize balance settings: %w", err)
 		}
 
-		// Each group of luaArgsPerOperation (24) values maps to one iteration
+		// Each group of luaArgsPerOperation (25) values maps to one iteration
 		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
 		// See: scripts/balance_atomic_operation.lua.
 		plan.args = append(
@@ -718,6 +1038,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			overdraftLimit,                              // ARGV[i+21] → balance.OverdraftLimit
 			balanceScope,                                // ARGV[i+22] → balance.BalanceScope
 			blcs.Amount.OverdraftAmount.String(),        // ARGV[i+23] → overdraft reversal amount
+			boolToInt(blcs.Balance.Blocked),             // ARGV[i+24] → balance.Blocked (0/1)
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
@@ -737,62 +1058,74 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 
 // mapBalanceAtomicScriptError translates raw Lua script errors into typed Go errors.
 //
-// Redis Lua scripts signal errors via redis.error_reply(code), which arrives on
-// the Go side as a plain string inside the redis.Error message (e.g. "0018").
-// Since there is no structured error channel across the Go↔Redis↔Lua boundary,
-// we rely on string matching against the known error codes.
-//
-// If the Lua error format changes (e.g. from bare codes to prefixed messages),
-// this mapping must be updated accordingly.
+// Redis Lua scripts signal errors via redis.error_reply(code). Redis may add
+// one "ERR " protocol prefix to a bare code; no other framing is accepted.
 //
 // Lua error codes emitted by balance_atomic_operation.lua:
 //   - "0018" → ErrInsufficientFunds (negative available on non-external credit-direction balance without overdraft fall-through)
 //   - "0019" → ErrAccountIneligibility (balance carries a live deletion marker; rejected before any mutation)
-//   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
 //   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
 //   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
 //   - "0174" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
+//   - "0502" → ErrAccountBlocked (a balance in the batch belongs to a blocked account; rejected before any mutation)
+//   - "0508" → ErrAccountBlockExceptionInvalid (the presented exception is absent/expired or does not match the transaction; rejected before any mutation and WITHOUT consuming it)
+//   - "0511" → ErrTransactionAlreadyTransitioned (the opposite terminal transition of this transaction is already stamped; rejected before any mutation)
 //
-// Ordering note: more specific codes ("0167", "0174") are matched before the
-// generic "0018" insufficient-funds branch so that a single error string like
-// "0167" is not misclassified by loose substring matching.
+// Only exact replies are business codes. Runtime and transport errors may
+// contain the same digits and must remain technical errors.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
-	if strings.Contains(err.Error(), constant.ErrOverdraftLimitExceeded.Error()) {
+	code := strings.TrimPrefix(err.Error(), "ERR ")
+
+	if code == constant.ErrTransactionAlreadyTransitioned.Error() {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Opposite terminal transition already applied: batch rejected before any mutation", mappedErr)
+
+		return mappedErr
+	}
+
+	if code == constant.ErrOverdraftLimitExceeded.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit exceeded", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrStaleBalanceVersion.Error()) {
+	if code == constant.ErrStaleBalanceVersion.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrStaleBalanceVersion, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Stale balance version detected", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
+	if code == constant.ErrAccountBlockExceptionInvalid.Error() {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account block exception invalid: batch rejected without consuming the identifier", mappedErr)
+
+		return mappedErr
+	}
+
+	if code == constant.ErrAccountBlocked.Error() {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountBlocked, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account blocked: batch rejected before any mutation", mappedErr)
+
+		return mappedErr
+	}
+
+	if code == constant.ErrInsufficientFunds.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()) {
+	if code == constant.ErrAccountIneligibility.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account ineligible: balance carries a deletion marker", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-		mappedErr := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
-
-		return mappedErr
-	}
-
-	if strings.Contains(err.Error(), constant.ErrTransactionBackupCacheRetrievalFailed.Error()) {
+	if code == constant.ErrTransactionBackupCacheRetrievalFailed.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance")
 		libOpentelemetry.HandleSpanError(span, "Failed run lua script on redis", mappedErr)
 
@@ -804,20 +1137,178 @@ func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 	return err
 }
 
-func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, rds redis.UniversalClient, keys []string, finalArgs []any) (any, error) {
+func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, rds redis.UniversalClient, keys []string, finalArgs []any, operationOffset int) (any, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
 	defer span.End()
 
-	result, err := balanceAtomicScript.Run(ctx, rds, keys, finalArgs...).Result()
-	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
-
-		return nil, mapBalanceAtomicScriptError(span, err)
+	if operationOffset < 0 || operationOffset > len(finalArgs) ||
+		(len(finalArgs)-operationOffset)%luaArgsPerOperation != 0 {
+		return nil, errors.New("invalid balance operation argument offset")
 	}
 
-	return result, nil
+	operationArgs := finalArgs[operationOffset:]
+
+	for repairPass := 0; ; repairPass++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		result, err := balanceAtomicScript.Run(ctx, rds, keys, finalArgs...).Result()
+		if err == nil {
+			return result, nil
+		}
+
+		repairKeys, repairRequired, decodeErr := decodeBalanceLimitRepairKeys(err, operationArgs)
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+
+		if !repairRequired {
+			logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
+
+			return nil, mapBalanceAtomicScriptError(span, err)
+		}
+
+		if repairPass >= maxBalanceLimitRepairPasses {
+			return nil, fmt.Errorf("balance limit normalization did not converge after %d passes", maxBalanceLimitRepairPasses)
+		}
+
+		if err := repairBalanceLimits(ctx, rds, repairKeys, operationArgs); err != nil {
+			return nil, err
+		}
+	}
+}
+
+const (
+	balanceLimitRepairPrefix    = "BALANCE_LIMIT_NORMALIZATION_REQUIRED:"
+	maxBalanceLimitRepairPasses = 3
+)
+
+// decodeBalanceLimitRepairKeys accepts only the read-only preflight reply for
+// keys in this execution. Runtime and transport errors never trigger replay.
+func decodeBalanceLimitRepairKeys(err error, args []any) ([]string, bool, error) {
+	var redisErr redis.Error
+	if !errors.As(err, &redisErr) {
+		return nil, false, nil
+	}
+
+	reply := strings.TrimPrefix(redisErr.Error(), "ERR ")
+
+	payload, found := strings.CutPrefix(reply, balanceLimitRepairPrefix)
+	if !found {
+		return nil, false, nil
+	}
+
+	var reported []string
+	if err := json.Unmarshal([]byte(payload), &reported); err != nil || len(reported) == 0 {
+		return nil, false, errors.New("invalid balance limit normalization response")
+	}
+
+	allowed := make(map[string]bool, len(args)/luaArgsPerOperation)
+	for i := 0; i < len(args); i += luaArgsPerOperation {
+		key, ok := args[i].(string)
+		if !ok {
+			return nil, false, errors.New("invalid balance key argument")
+		}
+
+		allowed[key] = true
+	}
+
+	seen := make(map[string]bool, len(reported))
+
+	keys := make([]string, 0, len(reported))
+	for _, key := range reported {
+		if !allowed[key] {
+			return nil, false, errors.New("balance limit normalization response contains an unrelated key")
+		}
+
+		if !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, true, nil
+}
+
+func repairBalanceLimits(ctx context.Context, rds redis.UniversalClient, keys []string, args []any) error {
+	type preparedRepair struct {
+		key         string
+		original    string
+		replacement string
+	}
+
+	if len(args)%luaArgsPerOperation != 0 {
+		return errors.New("invalid balance operation arguments during limit normalization")
+	}
+
+	aliases := make(map[string]string, len(args)/luaArgsPerOperation)
+	for i := 0; i < len(args); i += luaArgsPerOperation {
+		key, keyOK := args[i].(string)
+		alias, aliasOK := args[i+5].(string)
+
+		if !keyOK || !aliasOK {
+			return errors.New("invalid balance identity arguments during limit normalization")
+		}
+
+		if _, exists := aliases[key]; !exists {
+			aliases[key] = alias
+		}
+	}
+
+	// Validate every observed value before repairing any of them. A malformed
+	// later key must not cause an earlier valid key to be partially repaired.
+	repairs := make([]preparedRepair, 0, len(keys))
+	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		raw, err := rds.Get(ctx, key).Result()
+		if errors.Is(err, redis.Nil) {
+			continue
+		}
+
+		if err != nil {
+			return fmt.Errorf("read balance limit for normalization: %w", err)
+		}
+
+		replacement, err := balancecache.NormalizeLimitDual([]byte(raw), aliases[key])
+		if err != nil {
+			return fmt.Errorf("prepare cached balance limit normalization: %w", err)
+		}
+
+		if bytes.Equal(replacement, []byte(raw)) {
+			continue
+		}
+
+		repairs = append(repairs, preparedRepair{key: key, original: raw, replacement: string(replacement)})
+	}
+
+	// Each replacement requires the entire observed blob to remain unchanged.
+	// Writes are conditional per key, not an atomic batch commit.
+	for _, repair := range repairs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		status, err := normalizeBalanceLimitScript.Run(ctx, rds, []string{repair.key}, repair.original, repair.replacement).Int64()
+		if err != nil {
+			return fmt.Errorf("normalize cached balance limit: %w", err)
+		}
+
+		switch status {
+		case 0, 1, 2:
+			// Missing keys are not created. Any concurrent blob change is
+			// re-read only if the next whole-batch preflight requests repair.
+		default:
+			return fmt.Errorf("unexpected balance limit normalization status: %d", status)
+		}
+	}
+
+	return nil
 }
 
 func normalizeBalanceAtomicResult(result any) ([]byte, error) {
@@ -831,10 +1322,19 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 	}
 }
 
-func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) []*mmodel.Balance {
+// collectBalanceSnapshots resolves each entry through mapBalances and reports,
+// alongside the resolved snapshots, the aliases that mapBalances could not
+// resolve. The Warn log fires for every drop regardless of caller: whether a
+// miss is tolerable is a decision only the caller can make (see
+// decodeBalanceAtomicResult), because only the caller knows whether the
+// payload is marker-derived.
+func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) ([]*mmodel.Balance, []string) {
 	logger := libObservability.NewLoggerFromContext(ctx)
 
 	collected := make([]*mmodel.Balance, 0, len(balances))
+
+	var missingAliases []string
+
 	for _, balanceRedis := range balances {
 		balance := balanceRedisToBalance(balanceRedis, mapBalances)
 		if balance == nil {
@@ -845,16 +1345,36 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 				libLog.String("balance_id", balanceRedis.ID),
 			)
 
+			missingAliases = append(missingAliases, balanceRedis.Alias)
+
 			continue
 		}
 
 		collected = append(collected, balance)
 	}
 
-	return collected
+	return collected, missingAliases
 }
 
-func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, error) {
+// decodeBalanceAtomicResult turns the script's single JSON string into the
+// domain result. The second return is the script's replay flag: true when the
+// response was re-reported from the idempotency marker instead of computed. It
+// stays here, out of mmodel.BalanceAtomicResult, because it describes how the
+// adapter obtained the answer, not the posting itself.
+//
+// The third return is every alias collectBalanceSnapshots could not resolve
+// against mapBalances, across both Before and After. Decoding itself never
+// fails on a miss — only the caller knows whether this payload is
+// marker-derived (the Lua script's own replay, or a Go-side reconciliation
+// read from the apply marker) and therefore whether a miss is tolerable:
+//   - A normal (non-replayed) execution decodes the SAME mapBalances that
+//     produced the plan the script just ran, so a miss there is impossible by
+//     construction and stays a Warn.
+//   - A marker-derived decode can name an alias from an EARLIER execution's
+//     plan against the CURRENT mapBalances, which can legitimately differ
+//     (see ErrBalanceApplyMarkerMissingAliases). The caller MUST treat any
+//     reported alias there as a hard failure rather than a truncated success.
+func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, bool, []string, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
@@ -864,7 +1384,7 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Unexpected result type from Lua script", libLog.Err(err))
 
-		return nil, err
+		return nil, false, nil, err
 	}
 
 	var atomicResp balanceAtomicResponse
@@ -872,17 +1392,27 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 		libOpentelemetry.HandleSpanError(span, "Failed to deserialize Lua script response", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to deserialize Lua script response", libLog.Err(err))
 
-		return nil, err
+		return nil, false, nil, err
 	}
 
+	before, missingBefore := collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before")
+	after, missingAfter := collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after")
+
+	missingAliases := make([]string, 0, len(missingBefore)+len(missingAfter))
+	missingAliases = append(missingAliases, missingBefore...)
+	missingAliases = append(missingAliases, missingAfter...)
+
 	return &mmodel.BalanceAtomicResult{
-		Before: collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before"),
-		After:  collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after"),
-	}, nil
+		Before: before,
+		After:  after,
+	}, atomicResp.Replayed, missingAliases, nil
 }
 
-func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// ProcessBalanceAtomicOperation runs the isolated pre-engine writer retained for
+// compatibility and rollback verification. Production command and recovery
+// orchestration must use the accounting engine or projection-only consumers.
+func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
+	logger, tracer, _, metricsFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
 	defer span.End()
@@ -904,7 +1434,19 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	plan, err := rr.buildBalanceAtomicOperationPlan(ctx, transactionStatus, pending, balancesOperation)
+	// Namespace the resolved binding first: its width decides how many ARGV slots
+	// the plan has to reserve up front, which is what lets the header be written in
+	// place instead of prepended to a freshly allocated slice.
+	exceptionEval, err := resolveAccountBlockExceptionEval(ctx, organizationID, ledgerID, binding)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace account block exception keys", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace account block exception keys", libLog.Err(err))
+
+		return nil, err
+	}
+
+	plan, err := rr.buildBalanceAtomicOperationPlan(ctx, transactionStatus, pending, balancesOperation,
+		exceptionEval.headerWidth())
 	if err != nil {
 		return nil, err
 	}
@@ -920,10 +1462,72 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
+	// The idempotency identity of this execution. transactionStatus is the SAME
+	// value the plan writes into every operation group's status slot, so the
+	// marker and the batch it guards can never describe different postings.
+	applyMarkerKey, err := tenantKeyFromContextOrError(ctx,
+		utils.TransactionApplyMarkerKey(organizationID, ledgerID, transactionID.String(), transactionStatus))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace transaction apply marker key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace transaction apply marker key", libLog.Err(err))
+
+		return nil, err
+	}
+
+	// The marker of the OPPOSITE terminal transition. A commit reads the cancel's
+	// marker and a cancel reads the commit's, so a transition that finds the
+	// other one already stamped refuses to move money instead of re-applying the
+	// batch on top of a transaction that is already terminal. Every status with
+	// no opposite — PENDING, CREATED, NOTED — yields an empty key, which the
+	// script reads as "gate off" and answers with no extra EXISTS.
+	oppositeApplyMarkerKey := ""
+
+	if rawOppositeKey := utils.TransactionApplyMarkerOppositeKey(
+		organizationID, ledgerID, transactionID.String(), transactionStatus,
+	); rawOppositeKey != "" {
+		oppositeApplyMarkerKey, err = tenantKeyFromContextOrError(ctx, rawOppositeKey)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to namespace opposite transaction apply marker key", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to namespace opposite transaction apply marker key", libLog.Err(err))
+
+			return nil, err
+		}
+	}
+
+	span.SetAttributes(attribute.Bool("app.transition_cross_gate_armed", oppositeApplyMarkerKey != ""))
+
+	// The exception key is appended as KEYS[4] ONLY when a grant was presented,
+	// which is how the script tells "validate and consume a grant" from "there is
+	// none" — the header's five fixed ARGV slots are always there, the key is not.
+	if exceptionEval != nil {
+		prefixedKeys = append(prefixedKeys, exceptionEval.key)
+	}
+
+	span.SetAttributes(
+		attribute.Bool("app.account_block_exception_presented", exceptionEval != nil),
+		attribute.Int("app.account_block_exception_bypassed_balances", exceptionEval.bypassedCount()),
+	)
+
+	// The header occupies slots the plan builder already reserved, and nothing reads
+	// plan.args after this point, so writing in place is safe and keeps the no-grant
+	// path free of any extra allocation or copy.
+	exceptionEval.writeHeader(plan.args, applyMarkerKey, oppositeApplyMarkerKey)
+
 	finalArgs := plan.args
 
-	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
+	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs, exceptionEval.headerWidth())
 	if err != nil {
+		// A lost response is not proof the script did not run. The marker is the
+		// only thing that can tell the two apart, and when it proves the
+		// application the caller must not roll back a posting that happened.
+		if isResponseLostError(err) {
+			if reconciled, ok := rr.reconcileFromApplyMarker(
+				ctx, span, rds, applyMarkerKey, transactionID.String(), plan.mapBalances,
+			); ok {
+				return reconciled, nil
+			}
+		}
+
 		return nil, err
 	}
 
@@ -933,7 +1537,43 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		libLog.String("transaction_key", prefixedKeys[1]),
 	)
 
-	return decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
+	atomicResult, replayed, missingAliases, err := decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
+	if err != nil {
+		return nil, err
+	}
+
+	// A dropped alias is impossible on a non-replayed decode: mapBalances here
+	// is the very map that produced the plan the script just ran. On a
+	// replayed decode it is a marker-derived response, so a dropped alias
+	// means the Before/After sets are truncated relative to what actually
+	// posted — a truncated success would persist a transaction missing an
+	// Operation record for a balance mutation that DID happen.
+	if replayed && len(missingAliases) > 0 {
+		markerErr := newBalanceApplyMarkerMissingAliasesError(transactionID.String(), missingAliases)
+		libOpentelemetry.HandleSpanError(span, "Balance apply marker response missing balance aliases", markerErr)
+		logger.Log(
+			ctx, libLog.LevelError, "Balance apply marker response missing balance aliases",
+			libLog.String("transaction_id", transactionID.String()),
+			libLog.Any("missing_aliases", missingAliases),
+		)
+
+		return nil, markerErr
+	}
+
+	if replayed {
+		recordBalanceScriptReplay(ctx, span, logger, metricsFactory, transactionID.String())
+	}
+
+	return atomicResult, nil
+}
+
+// newBalanceApplyMarkerMissingAliasesError reports that a marker-derived
+// balance atomic result (a Lua replay, or a Go-side reconciliation from the
+// apply marker) named aliases the current mapBalances could not resolve. See
+// ErrBalanceApplyMarkerMissingAliases and decodeBalanceAtomicResult.
+func newBalanceApplyMarkerMissingAliasesError(transactionID string, missingAliases []string) error {
+	return fmt.Errorf("%w: transaction %s: aliases %v absent from the current balance map",
+		constant.ErrBalanceApplyMarkerMissingAliases, transactionID, missingAliases)
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
@@ -1075,12 +1715,24 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 
 // ReadAllMessagesFromQueue read all messages from redis queue
 func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error) {
+	return rr.ReadAllRecoveryMessages(ctx, RecoveryQueueSourceLegacyBackup)
+}
+
+// ReadAllRecoveryMessages reads one recovery hash selected by a closed source.
+// Callers must retain the source alongside every record; fields are unique only
+// within one hash and must never be merged across origins.
+func (rr *RedisConsumerRepository) ReadAllRecoveryMessages(ctx context.Context, source RecoveryQueueSource) (map[string]string, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
+	ctx, span := tracer.Start(ctx, "redis.read_all_recovery_messages")
 	defer span.End()
 
-	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return nil, err
+	}
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, queueKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1094,12 +1746,57 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 
 	data, err := rds.HGetAll(ctx, prefixedQueue).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to read all messages from queue", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to read recovery messages", libLog.String("source", string(source)), libLog.Err(err))
 
 		return nil, err
 	}
 
 	return data, nil
+}
+
+// ReadRecoveryMessage reads the exact raw recovery envelope from one closed
+// origin. A missing field returns an empty string without an error so an
+// acknowledgment that raced with another owner remains idempotent.
+func (rr *RedisConsumerRepository) ReadRecoveryMessage(ctx context.Context, source RecoveryQueueSource, field string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.read_recovery_message")
+	defer span.End()
+
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return "", err
+	}
+
+	if err := validateRecoveryAcknowledgmentID(field); err != nil {
+		return "", err
+	}
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, queueKey)
+	if err != nil {
+		return "", err
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get recovery message client: %w", err)
+	}
+
+	raw, err := client.HGet(ctx, prefixedQueue, field).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", nil
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read recovery message", err)
+		return "", fmt.Errorf("read recovery message: %w", err)
+	}
+
+	return raw, nil
 }
 
 // RemoveMessageFromQueue remove message from redis queue
@@ -1135,6 +1832,308 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
 
 	return nil
+}
+
+// CompareAndDeleteRecovery acknowledges only the exact version-2 envelope read
+// by the caller. Its raw UUID:UUID field is not a physical Redis key. Matching
+// deletion also clears the legacy-namespaced attempt field in the same script;
+// absent or replaced records leave counters, receipts, and guards untouched.
+// Results are RecoveryAckMissing, RecoveryAckDeleted, or RecoveryAckReplaced.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecovery(ctx context.Context, field, expectedPayload string) (int64, error) {
+	return rr.CompareAndDeleteRecoveryFrom(ctx, RecoveryQueueSourceLegacyBackup, field, expectedPayload)
+}
+
+// CompareAndDeleteRecoveryFrom acknowledges only the exact envelope in the
+// selected origin. A matching field in the other recovery hash is untouched.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Context, source RecoveryQueueSource, field, expectedPayload string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.compare_delete_recovery")
+	defer span.End()
+
+	if expectedPayload == "" {
+		return 0, fmt.Errorf("invalid recovery acknowledgement identity or payload")
+	}
+
+	if err := validateRecoveryAcknowledgmentID(field); err != nil {
+		return 0, err
+	}
+
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{queueKey, attemptsKey})
+	if err != nil {
+		return 0, fmt.Errorf("resolve recovery acknowledgement keys: %w", err)
+	}
+
+	counterField, err := tenantKeyFromContextOrError(ctx, field)
+	if err != nil {
+		return 0, fmt.Errorf("resolve recovery attempt field: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get recovery acknowledgement client: %w", err)
+	}
+
+	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expectedPayload, counterField, "1").Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acknowledge recovery", err)
+		return 0, fmt.Errorf("compare and delete recovery: %w", err)
+	}
+
+	if result != RecoveryAckMissing && result != RecoveryAckDeleted && result != RecoveryAckReplaced {
+		return 0, fmt.Errorf("invalid recovery acknowledgement result")
+	}
+
+	return result, nil
+}
+
+func validateRecoveryAcknowledgmentID(field string) error {
+	transactionRaw, executionRaw, ok := strings.Cut(field, ":")
+	if !ok {
+		return fmt.Errorf("invalid recovery acknowledgement identity")
+	}
+
+	transactionID, transactionErr := uuid.Parse(transactionRaw)
+
+	executionID, executionErr := uuid.Parse(executionRaw)
+	if transactionErr != nil || executionErr != nil || transactionID == uuid.Nil || executionID == uuid.Nil ||
+		transactionID.String() != transactionRaw || executionID.String() != executionRaw {
+		return fmt.Errorf("invalid canonical recovery acknowledgement identity")
+	}
+
+	return nil
+}
+
+// CompareAndDeleteRecoveryWithProtection acknowledges a durably finalized
+// engine recovery member and atomically records the completion deadline needed
+// by future finite receipt/guard cleanup. Shared hashes and Valkey 8.1 cannot
+// safely provide independent field expiry, so this prerequisite never deletes
+// protection fields. Legacy receipts without equivalent proof metadata are
+// acknowledged but never gain retroactive cleanup eligibility.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	terminal bool,
+	completedAt time.Time,
+) (int64, error) {
+	return rr.CompareAndDeleteRecoveryWithProtectionFrom(
+		ctx, RecoveryQueueSourceLegacyBackup, organizationID, ledgerID,
+		field, expectedPayload, terminal, completedAt,
+	)
+}
+
+// CompareAndDeleteRecoveryWithProtectionFrom acknowledges a durably finalized
+// record only in its owning origin while preserving the shared receipt, guard,
+// protection coordinator, and cleanup protocol.
+//
+//nolint:gocyclo // protected ACK validates source, transaction index, receipt scope, and coordinator keys together
+func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
+	ctx context.Context,
+	source RecoveryQueueSource,
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	terminal bool,
+	completedAt time.Time,
+) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	transactionRaw, executionRaw, err := protectedRecoveryIDs(
+		organizationID, ledgerID, field, expectedPayload, completedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	scope := organizationID.String() + ":" + ledgerID.String()
+
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{
+		queueKey,
+		attemptsKey,
+		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
+		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
+		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		EngineRecoveryCleanupSchedule,
+		"engine:" + cachepolicy.HashTag + ":evidence:" + scope,
+		"engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("resolve protected recovery acknowledgement keys: %w", err)
+	}
+
+	counterField, err := tenantKeyFromContextOrError(ctx, field)
+	if err != nil {
+		return 0, fmt.Errorf("resolve protected recovery attempt field: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get protected recovery acknowledgement client: %w", err)
+	}
+
+	indexRaw, indexErr := client.HGet(ctx, keys[7], transactionRaw).Bytes()
+	if indexErr == nil {
+		var index struct {
+			OrganizationID        uuid.UUID `json:"organizationId"`
+			LedgerID              uuid.UUID `json:"ledgerId"`
+			TransactionID         uuid.UUID `json:"transactionId"`
+			ReceiptOrganizationID uuid.UUID `json:"receiptOrganizationId"`
+			ReceiptLedgerID       uuid.UUID `json:"receiptLedgerId"`
+		}
+		if err := json.Unmarshal(indexRaw, &index); err != nil {
+			return 0, fmt.Errorf("decode protected recovery receipt scope: %w", err)
+		}
+
+		if index.OrganizationID != organizationID || index.LedgerID != ledgerID || index.TransactionID.String() != transactionRaw {
+			return 0, errors.New("protected recovery transaction index scope differs")
+		}
+
+		if index.ReceiptOrganizationID != uuid.Nil && index.ReceiptLedgerID != uuid.Nil {
+			receiptScope := index.ReceiptOrganizationID.String() + ":" + index.ReceiptLedgerID.String()
+
+			keys[2], err = tenantKeyFromContextOrError(ctx, "engine:"+cachepolicy.HashTag+":receipts:"+receiptScope)
+			if err != nil {
+				return 0, fmt.Errorf("resolve protected recovery receipt key: %w", err)
+			}
+		}
+	} else if !errors.Is(indexErr, redis.Nil) {
+		return 0, fmt.Errorf("read protected recovery transaction index: %w", indexErr)
+	}
+
+	keys, err = appendRecoveryReceiptProtectionKeys(ctx, client, keys, 2, executionRaw)
+	if err != nil {
+		return 0, err
+	}
+
+	terminalFlag := "0"
+	if terminal {
+		terminalFlag = "1"
+	}
+
+	legacySource := "0"
+	if source.clearsLegacyAttempts() {
+		legacySource = "1"
+	}
+
+	result, err := acknowledgeEngineRecoveryScript.Run(ctx, client, keys,
+		field, expectedPayload, counterField, transactionRaw, executionRaw, terminalFlag, completedAt.UnixMilli(), legacySource).Int64()
+	if err != nil {
+		return 0, fmt.Errorf("acknowledge protected recovery: %w", err)
+	}
+
+	if result != RecoveryAckMissing && result != RecoveryAckDeleted && result != RecoveryAckReplaced {
+		return 0, fmt.Errorf("invalid protected recovery acknowledgement result")
+	}
+
+	return result, nil
+}
+
+// appendRecoveryReceiptProtectionKeys keeps the original key layout for
+// single-scope receipts. Cross-ledger receipts carry each part's scope, so the
+// acknowledgment can publish a ready deadline to every part coordinator.
+func appendRecoveryReceiptProtectionKeys(
+	ctx context.Context,
+	client redis.UniversalClient,
+	keys []string,
+	receiptKeyIndex int,
+	executionID string,
+) ([]string, error) {
+	raw, err := client.HGet(ctx, keys[receiptKeyIndex], executionID).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return keys, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("read protected recovery receipt scopes: %w", err)
+	}
+
+	var receipt struct {
+		Protection struct {
+			Transactions []uuid.UUID `json:"transactions"`
+			Scopes       []struct {
+				OrganizationID uuid.UUID `json:"organizationId"`
+				LedgerID       uuid.UUID `json:"ledgerId"`
+			} `json:"scopes"`
+		} `json:"protection"`
+	}
+	if err := json.Unmarshal(raw, &receipt); err != nil {
+		return nil, fmt.Errorf("decode protected recovery receipt scopes: %w", err)
+	}
+
+	if len(receipt.Protection.Scopes) == 0 {
+		return keys, nil
+	}
+
+	if len(receipt.Protection.Scopes) != len(receipt.Protection.Transactions) {
+		return nil, errors.New("protected recovery receipt scopes differ from transactions")
+	}
+
+	for _, part := range receipt.Protection.Scopes {
+		if part.OrganizationID == uuid.Nil || part.LedgerID == uuid.Nil {
+			return nil, errors.New("invalid protected recovery receipt scope")
+		}
+
+		key, err := tenantKeyFromContextOrError(ctx,
+			"engine:"+cachepolicy.HashTag+":protection:"+part.OrganizationID.String()+":"+part.LedgerID.String())
+		if err != nil {
+			return nil, fmt.Errorf("resolve protected recovery part coordinator: %w", err)
+		}
+
+		keys = append(keys, key)
+	}
+
+	return keys, nil
+}
+
+func protectedRecoveryIDs(
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	completedAt time.Time,
+) (string, string, error) {
+	if expectedPayload == "" || organizationID == uuid.Nil || ledgerID == uuid.Nil || completedAt.IsZero() {
+		return "", "", fmt.Errorf("invalid protected recovery acknowledgement")
+	}
+
+	transactionRaw, executionRaw, ok := strings.Cut(field, ":")
+	if !ok {
+		return "", "", fmt.Errorf("invalid protected recovery acknowledgement")
+	}
+
+	transactionID, transactionErr := uuid.Parse(transactionRaw)
+	executionID, executionErr := uuid.Parse(executionRaw)
+
+	if transactionErr != nil || executionErr != nil || transactionID == uuid.Nil || executionID == uuid.Nil ||
+		transactionID.String() != transactionRaw || executionID.String() != executionRaw {
+		return "", "", fmt.Errorf("invalid protected recovery acknowledgement")
+	}
+
+	return transactionRaw, executionRaw, nil
 }
 
 // IncrementBackupAttempt atomically increments the per-record failure counter in
@@ -1218,6 +2217,42 @@ func (rr *RedisConsumerRepository) ClearBackupAttempt(ctx context.Context, key s
 	logger.Log(ctx, libLog.LevelDebug, "Backup attempt counter cleared", libLog.String("key", key))
 
 	return nil
+}
+
+// IncrementRecoveryAttempt increments the failure counter owned by one recovery
+// origin. Engine recovery deliberately uses a separate hash from both the
+// immutable evidence hash and the legacy backup attempts hash.
+func (rr *RedisConsumerRepository) IncrementRecoveryAttempt(ctx context.Context, source RecoveryQueueSource, field string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
+	prefixedAttempts, err := tenantKeyFromContextOrError(ctx, attemptsKey)
+	if err != nil {
+		return 0, fmt.Errorf("namespace recovery attempts queue: %w", err)
+	}
+
+	counterField, err := tenantKeyFromContextOrError(ctx, field)
+	if err != nil {
+		return 0, fmt.Errorf("namespace recovery attempt field: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get recovery attempts client: %w", err)
+	}
+
+	count, err := client.HIncrBy(ctx, prefixedAttempts, counterField, 1).Result()
+	if err != nil {
+		return 0, fmt.Errorf("increment recovery attempt: %w", err)
+	}
+
+	return count, nil
 }
 
 // GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.
@@ -1354,6 +2389,133 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	return out, nil
 }
 
+func (rr *RedisConsumerRepository) RefreshBalanceSyncKeyTTLs(ctx context.Context, ttl time.Duration) (int64, float64, error) {
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	if ttl <= 0 {
+		return 0, 0, fmt.Errorf("balance sync TTL keepalive requires a positive ttl, got %s", ttl)
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	scheduleKeys, err := tenantKeysFromContext(ctx, []string{utils.BalanceSyncScheduleKey, utils.BalanceSyncScheduleKeyLegacy})
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var (
+		totalRefreshed int64
+		oldestScore    float64
+		haveOldest     bool
+	)
+
+	for _, scheduleKey := range scheduleKeys {
+		refreshed, oldest, found, refreshErr := refreshScheduleKeyTTLs(ctx, rds, scheduleKey, ttl)
+
+		totalRefreshed += refreshed
+
+		if found && (!haveOldest || oldest < oldestScore) {
+			oldestScore = oldest
+			haveOldest = true
+		}
+
+		if refreshErr != nil {
+			return totalRefreshed, oldestScore, refreshErr
+		}
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Refreshed TTL of scheduled balance keys",
+		libLog.Int("refreshed", int(totalRefreshed)))
+
+	return totalRefreshed, oldestScore, nil
+}
+
+// refreshScheduleKeyTTLs walks one schedule ZSET by index, in pages of
+// maxRedisBatchSize, and pipelines an EXPIRE for every member. It reports how many
+// keys had their expiry reset and the score of the first member of the first page,
+// which is the oldest due time in that schedule (the ZSET is score-ordered).
+//
+// Paging by index tolerates concurrent ZADD/ZREM: a member that shifts across a page
+// boundary is skipped or seen twice, and both outcomes are harmless for a best-effort
+// keepalive that runs again on the next tick.
+func refreshScheduleKeyTTLs(
+	ctx context.Context,
+	rds redis.UniversalClient,
+	scheduleKey string,
+	ttl time.Duration,
+) (refreshed int64, oldestScore float64, found bool, err error) {
+	for start := int64(0); ; start += maxRedisBatchSize {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return refreshed, oldestScore, found, ctxErr
+		}
+
+		members, rangeErr := rds.ZRangeWithScores(ctx, scheduleKey, start, start+maxRedisBatchSize-1).Result()
+		if rangeErr != nil {
+			return refreshed, oldestScore, found, rangeErr
+		}
+
+		if len(members) == 0 {
+			return refreshed, oldestScore, found, nil
+		}
+
+		if !found {
+			oldestScore = members[0].Score
+			found = true
+		}
+
+		pageRefreshed, expireErr := expireScheduleMembers(ctx, rds, members, ttl)
+		if expireErr != nil {
+			return refreshed, oldestScore, found, expireErr
+		}
+
+		refreshed += pageRefreshed
+
+		if int64(len(members)) < maxRedisBatchSize {
+			return refreshed, oldestScore, found, nil
+		}
+	}
+}
+
+// expireScheduleMembers pipelines an EXPIRE for every string member in one page
+// and reports how many keys had their expiry reset.
+func expireScheduleMembers(ctx context.Context, rds redis.UniversalClient, members []redis.Z, ttl time.Duration) (int64, error) {
+	pipe := rds.Pipeline()
+	cmds := make([]*redis.BoolCmd, 0, len(members))
+
+	for _, member := range members {
+		key, ok := member.Member.(string)
+		if !ok || key == "" {
+			continue
+		}
+
+		cmds = append(cmds, pipe.Expire(ctx, key, ttl))
+	}
+
+	if len(cmds) == 0 {
+		return 0, nil
+	}
+
+	// A member whose key expired between the ZRANGE and the EXPIRE reports
+	// false, not an error, so redis.Nil never reaches here; anything else is
+	// a transport failure worth reporting.
+	if _, execErr := pipe.Exec(ctx); execErr != nil && !errors.Is(execErr, redis.Nil) {
+		return 0, execErr
+	}
+
+	var refreshed int64
+
+	for _, cmd := range cmds {
+		if cmd.Err() == nil && cmd.Val() {
+			refreshed++
+		}
+	}
+
+	return refreshed, nil
+}
+
 // parseSyncKeysFromLuaResult converts the raw Lua script result (alternating
 // [member, score, member, score, ...]) into a typed []SyncKey slice.
 //
@@ -1403,88 +2565,6 @@ func parseSyncKeysFromLuaResult(res any, logger libLog.Logger, ctx context.Conte
 	return out, nil
 }
 
-// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using batch ZADD NX.
-// The score determines when the balance should be synced (Unix timestamp).
-// Uses NX mode: only adds new members, does not update scores of existing ones.
-// This preserves the earliest scheduled sync time for each balance key.
-// Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
-func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
-	if len(members) == 0 {
-		return nil
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.schedule_balance_sync_batch")
-	defer span.End()
-
-	tenantID := tmcore.GetTenantIDContext(ctx)
-	span.SetAttributes(attribute.String("app.tenant_id", tenantID))
-
-	client, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client",
-			libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-		return err
-	}
-
-	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key",
-			libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-		return err
-	}
-
-	// De-duplicate members, keeping the minimum score for each unique member.
-	// This ensures the earliest scheduled sync time is preserved when duplicates exist.
-	minScores := make(map[string]float64, len(members))
-
-	for _, m := range members {
-		key := fmt.Sprintf("%v", m.Member)
-
-		if existing, found := minScores[key]; !found || m.Score < existing {
-			minScores[key] = m.Score
-		}
-	}
-
-	// Rebuild members slice from de-duplicated map
-	deduped := make([]redis.Z, 0, len(minScores))
-	for member, score := range minScores {
-		deduped = append(deduped, redis.Z{Score: score, Member: member})
-	}
-
-	var totalAdded int64
-
-	// Process in chunks to prevent oversized payloads
-	for start := 0; start < len(deduped); start += maxRedisBatchSize {
-		end := min(start+maxRedisBatchSize, len(deduped))
-		chunk := deduped[start:end]
-
-		// Use ZADD with NX to only add new members (do not update existing scores)
-		// This ensures we do not overwrite a newer schedule with an older one
-		cmd := client.ZAddNX(ctx, prefixedScheduleKey, chunk...)
-		if err := cmd.Err(); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to batch schedule balance sync", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to batch schedule balance sync",
-				libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-			return err
-		}
-
-		totalAdded += cmd.Val()
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, "Scheduled balance keys for sync", libLog.Int("input", len(members)), libLog.Int("unique", len(deduped)), libLog.Any("added", totalAdded))
-
-	return nil
-}
-
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1519,14 +2599,34 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		return nil, err
 	}
 
-	var balanceRedis mmodel.BalanceRedis
-
-	if err := json.Unmarshal([]byte(value), &balanceRedis); err != nil {
+	balanceRedis, err := decodeBalanceRedisForRead([]byte(value))
+	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal balance on redis", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to unmarshal balance from Redis", libLog.Err(err))
 
 		return nil, err
+	}
+
+	// OverdraftUsed is stored as a decimal string in Redis. An empty value is the
+	// pre-overdraft snapshot shape and reads as zero; a non-empty malformed value is
+	// unreadable debt, so it is reported as an error instead of being flattened to zero
+	// and letting a funds guard clear a balance that still owes money.
+	overdraftUsed := decimal.Zero
+
+	if balanceRedis.OverdraftUsed != "" {
+		parsed, parseErr := decimal.NewFromString(balanceRedis.OverdraftUsed)
+		if parseErr != nil {
+			wrappedErr := fmt.Errorf("failed to parse overdraft used from balance cache: %w", parseErr)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to parse overdraft used from balance cache", wrappedErr)
+
+			logger.Log(ctx, libLog.LevelError, "Failed to parse overdraft used from balance cache", libLog.Err(wrappedErr))
+
+			return nil, wrappedErr
+		}
+
+		overdraftUsed = parsed
 	}
 
 	balance := &mmodel.Balance{
@@ -1540,20 +2640,76 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		AccountType:    balanceRedis.AccountType,
 		AllowSending:   balanceRedis.AllowSending == 1,
 		AllowReceiving: balanceRedis.AllowReceiving == 1,
+		Blocked:        balanceRedis.Blocked == 1,
 		Key:            balanceRedis.Key,
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
+		OverdraftUsed:  overdraftUsed,
 	}
 
 	return balance, nil
 }
 
-// balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
-// to each cached balance key (`local ttl = 86400 -- 1 day` in
-// scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
-// a settings-only rewrite does not silently extend or shrink the lifetime of
-// an entry relative to the transactional refreshes driven by Lua.
-const balanceCacheSettingsTTL = 86400 * time.Second
+func decodeBalanceRedisForRead(raw []byte) (*mmodel.BalanceRedis, error) {
+	decodeRaw, originalAlias, originalKey, qualifiedKey, err := normalizeQualifiedBalanceReadKey(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshot, err := balancecache.DecodeForRead(decodeRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	balance := &mmodel.BalanceRedis{
+		ID:                    snapshot.ID.String(),
+		Alias:                 snapshot.Alias,
+		Key:                   snapshot.Key,
+		AccountID:             snapshot.AccountID.String(),
+		AssetCode:             snapshot.AssetCode,
+		AccountType:           snapshot.AccountType,
+		Direction:             snapshot.Direction,
+		Available:             snapshot.Available,
+		OnHold:                snapshot.OnHold,
+		Version:               snapshot.Version,
+		AllowSending:          boolToRedisFlag(snapshot.AllowSending),
+		AllowReceiving:        boolToRedisFlag(snapshot.AllowReceiving),
+		Blocked:               boolToRedisFlag(snapshot.Blocked),
+		AllowOverdraft:        boolToRedisFlag(snapshot.AllowOverdraft),
+		OverdraftLimitEnabled: boolToRedisFlag(snapshot.OverdraftLimitEnabled),
+		OverdraftUsed:         snapshot.OverdraftUsed.String(),
+		OverdraftLimit:        snapshot.OverdraftLimit.String(),
+		BalanceScope:          snapshot.BalanceScope,
+	}
+	if qualifiedKey {
+		balance.Key = originalKey
+	}
+
+	if originalAlias != "" {
+		balance.Alias = originalAlias
+	}
+
+	return balance, nil
+}
+
+func boolToRedisFlag(value bool) int {
+	if value {
+		return 1
+	}
+
+	return 0
+}
+
+// balanceCacheSettingsTTL uses the canonical balance cache lifetime shared by
+// the balance atomic Lua script and settings-only updates. Keeping both paths on
+// the same policy prevents configuration edits from changing cache lifecycle
+// semantics relative to ordinary transaction mutations.
+const balanceCacheSettingsTTL = cachepolicy.BalanceTTL
+
+// maxBalanceSettingsCASAttempts bounds retries caused by confirmed concurrent
+// cache mutations. Redis transport errors are returned immediately because an
+// EVAL error may be commit-ambiguous and the client controls transport retries.
+const maxBalanceSettingsCASAttempts = 3
 
 // resolveBalanceSettingsArgs normalizes a settings payload into the four
 // primitive values scripts/update_balance_settings.lua assigns verbatim onto
@@ -1563,14 +2719,20 @@ const balanceCacheSettingsTTL = 86400 * time.Second
 // resolves to the same zero-state buildBalanceAtomicOperationPlan uses for
 // balances without Settings. All business logic for the PATCH lives here;
 // the Lua script only assigns these values onto the decoded balance.
-func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraft, overdraftLimitEnabled int, overdraftLimit, balanceScope string) {
+func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraft, overdraftLimitEnabled int, overdraftLimit, balanceScope string, err error) {
 	if settings == nil {
-		return 0, 0, "0", mmodel.BalanceScopeTransactional
+		return 0, 0, "0", mmodel.BalanceScopeTransactional, nil
 	}
 
 	overdraftLimit = "0"
+
 	if settings.OverdraftLimit != nil {
-		overdraftLimit = *settings.OverdraftLimit
+		limit, parseErr := decimal.NewFromString(*settings.OverdraftLimit)
+		if parseErr != nil {
+			return 0, 0, "", "", fmt.Errorf("parse overdraft limit: %w", parseErr)
+		}
+
+		overdraftLimit = limit.String()
 	}
 
 	balanceScope = mmodel.BalanceScopeTransactional
@@ -1578,31 +2740,19 @@ func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraf
 		balanceScope = settings.BalanceScope
 	}
 
-	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope
+	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope, nil
 }
 
-// UpdateBalanceCacheSettings applies a settings-only PATCH to a cached
-// balance JSON blob in a single atomic Lua EVAL, preserving the live
-// transactional state (Available, OnHold, Version, OverdraftUsed) that the
-// balance atomic script may have mutated but not yet flushed to PostgreSQL.
-//
-// The mutation runs inside scripts/update_balance_settings.lua rather than
-// in Go: Redis serializes EVAL execution, so this write and any concurrent
-// balance_atomic_operation.lua debit/credit on the same key can never
-// interleave. The script decodes the cached blob, overwrites only the
-// settings-derived fields (dropping any legacy camelCase alias a pre-fix
-// writer left behind), and re-encodes it in one server-side step, using the
-// same cjson.decode/cjson.encode round trip the atomic script already
-// performs on every transaction.
+// UpdateBalanceCacheSettings applies a settings-only PATCH to a cached balance
+// while preserving exact live monetary and version state. Go prepares a
+// precision-safe dual-format replacement and Lua commits it only if the cache
+// bytes still match the observation used to prepare it.
 //
 // Flow:
-//  1. Resolve the settings payload into the four primitive ARGV values
-//     (resolveBalanceSettingsArgs).
-//  2. EVAL the script against the tenant-prefixed internal key.
-//  3. Result 1 commits; 0 is a cache miss (key absent) and a no-op — the
-//     next transaction's SETNX will load the just-persisted settings from
-//     PostgreSQL; -2 means the cached value was not valid JSON, a technical
-//     error.
+//  1. Resolve the settings payload and GET the current blob.
+//  2. Convert legacy, dual, or new-only fields through balancecache.
+//  3. EVAL an exact-byte CAS. A confirmed mismatch is retried from a fresh GET
+//     up to maxBalanceSettingsCASAttempts total observations.
 //
 // Errors are surfaced to the caller so the command layer can decide whether to
 // log (best-effort) or escalate; this method does not swallow them internally.
@@ -1635,43 +2785,316 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 		return err
 	}
 
-	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope := resolveBalanceSettingsArgs(settings)
+	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(settings)
+	if err != nil {
+		return fmt.Errorf("serialize balance cache settings: %w", err)
+	}
+
+	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
+	patch := balancecache.SettingsPatch{
+		AllowOverdraft:        allowOverdraft == 1,
+		OverdraftLimitEnabled: overdraftLimitEnabled == 1,
+		OverdraftLimit:        overdraftLimit,
+		BalanceScope:          balanceScope,
+	}
+
+	for attempt := 0; attempt < maxBalanceSettingsCASAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		observed, err := rds.Get(ctx, prefixedKey).Bytes()
+		if errors.Is(err, redis.Nil) {
+			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("read balance cache for settings update: %w", err)
+		}
+
+		replacement, err := balancecache.PatchSettingsDual(observed, patch)
+		if err != nil {
+			invalidJSONErr := fmt.Errorf("invalid cached balance JSON: %w", err)
+			libOpentelemetry.HandleSpanError(span, "Cached balance is not valid JSON", invalidJSONErr)
+			logger.Log(ctx, libLog.LevelError, "Cached balance is not valid JSON", libLog.Err(invalidJSONErr))
+
+			return invalidJSONErr
+		}
+
+		_, _, _, _, err = normalizeQualifiedBalanceReadKey(replacement)
+		if err != nil {
+			invalidKeyErr := fmt.Errorf("normalize cached balance key for settings update: %w", err)
+			libOpentelemetry.HandleSpanError(span, "Cached balance key is invalid", invalidKeyErr)
+			logger.Log(ctx, libLog.LevelError, "Cached balance key is invalid", libLog.Err(invalidKeyErr))
+
+			return invalidKeyErr
+		}
+
+		scriptResult, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},
+			observed, replacement, ttlSeconds).Int64()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to run settings update script on redis", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to run settings update script on Redis", libLog.Err(err))
+
+			return fmt.Errorf("update balance cache settings: %w", err)
+		}
+
+		switch scriptResult {
+		case 1:
+			logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
+			return nil
+		case 0:
+			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+			return nil
+		case 2:
+			continue
+		default:
+			unexpectedErr := fmt.Errorf("unexpected update balance settings result: %d", scriptResult)
+			libOpentelemetry.HandleSpanError(span, "Unexpected settings update script result", unexpectedErr)
+
+			return unexpectedErr
+		}
+	}
+
+	conflictErr := fmt.Errorf("balance cache settings update conflicted after %d attempts", maxBalanceSettingsCASAttempts)
+	libOpentelemetry.HandleSpanError(span, "Balance cache settings update conflict", conflictErr)
+
+	return conflictErr
+}
+
+// UpdateBalanceCacheBlocked applies the account-level Blocked flag to every
+// cached balance blob of an account in a single atomic Lua EVAL per chunk.
+//
+// The mutation runs inside scripts/update_balance_blocked.lua for the same
+// reason the settings rewrite does: Redis serializes EVAL execution, so this
+// write and any concurrent balance_atomic_operation.lua debit/credit on the
+// same keys can never interleave, and live transactional state pending
+// write-behind sync is preserved (no DEL). All balance keys share the
+// {transactions} hash slot, so the multi-key EVAL is legal in cluster mode.
+//
+// Errors are surfaced to the caller so the command layer can decide whether to
+// log (best-effort) or escalate; this method does not swallow them internally.
+func (rr *RedisConsumerRepository) UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error {
+	if len(cacheKeys) == 0 {
+		return nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_blocked")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Bool("app.request.blocked", blocked),
+		attribute.Int("app.request.balance_keys_count", len(cacheKeys)),
+	)
+
+	internalKeys := make([]string, 0, len(cacheKeys))
+	for _, cacheKey := range cacheKeys {
+		internalKeys = append(internalKeys, utils.BalanceInternalKey(organizationID, ledgerID, cacheKey))
+	}
+
+	prefixedKeys, err := tenantKeysFromContext(ctx, internalKeys)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache keys", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache keys", libLog.Err(err))
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	blockedArg := boolToInt(blocked)
 	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
 
-	result, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},
-		allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, ttlSeconds).Result()
+	var totalWritten, totalCorrupt int64
+
+	// Every chunk is attempted even when an earlier one fails: each
+	// transaction renews the 24h TTL of its blob (SET ... EX in the atomic
+	// script), so a hot blob left behind by an aborted pass could carry a
+	// stale Blocked flag indefinitely. Failures are accumulated and returned
+	// as an aggregate after the sweep completes.
+	var chunkErrs []error
+
+	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(prefixedKeys))
+
+		result, err := updateBalanceBlockedScript.Run(ctx, rds, prefixedKeys[start:end], blockedArg, ttlSeconds).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to run blocked update script on redis", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to run blocked update script on Redis", libLog.Err(err))
+
+			chunkErrs = append(chunkErrs, err)
+
+			continue
+		}
+
+		written, corrupt, err := parseBlockedUpdateResult(result)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Unexpected result from blocked update script", err)
+			logger.Log(ctx, libLog.LevelError, "Unexpected result from blocked update script", libLog.Err(err))
+
+			chunkErrs = append(chunkErrs, err)
+
+			continue
+		}
+
+		totalWritten += written
+		totalCorrupt += corrupt
+	}
+
+	span.SetAttributes(
+		attribute.Int64("db.balances_rewritten", totalWritten),
+		attribute.Int64("db.balances_corrupt", totalCorrupt),
+	)
+
+	if totalCorrupt > 0 {
+		logger.Log(ctx, libLog.LevelWarn, "Corrupt cached balance blobs skipped on blocked update",
+			libLog.Int("corrupt", int(totalCorrupt)))
+	}
+
+	if len(chunkErrs) > 0 {
+		return errors.Join(chunkErrs...)
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Balance cache blocked flag updated in place",
+		libLog.Int("written", int(totalWritten)))
+
+	return nil
+}
+
+// parseBlockedUpdateResult decodes the { written, corrupt } array reply of
+// scripts/update_balance_blocked.lua.
+func parseBlockedUpdateResult(result any) (written, corrupt int64, err error) {
+	values, ok := result.([]any)
+	if !ok || len(values) != 2 {
+		return 0, 0, fmt.Errorf("unexpected result shape from blocked update script: %T", result)
+	}
+
+	written, ok = values[0].(int64)
+	if !ok {
+		return 0, 0, fmt.Errorf("unexpected written counter type from blocked update script: %T", values[0])
+	}
+
+	corrupt, ok = values[1].(int64)
+	if !ok {
+		return 0, 0, fmt.Errorf("unexpected corrupt counter type from blocked update script: %T", values[1])
+	}
+
+	return written, corrupt, nil
+}
+
+// resolveAllowFlagArg maps an optional allow flag onto the tri-state ARGV value
+// scripts/update_balance_allow_flags.lua expects: -1 keeps the cached value
+// (the flag was not part of the PATCH), 0 writes false, 1 writes true.
+func resolveAllowFlagArg(flag *bool) int {
+	if flag == nil {
+		return -1
+	}
+
+	return boolToInt(*flag)
+}
+
+// UpdateBalanceCacheAllowFlags applies an allow-flags PATCH to the cached
+// balance JSON blob in a single atomic Lua EVAL, preserving the live
+// transactional state (Available, OnHold, Version, OverdraftUsed) that the
+// balance atomic script may have mutated but not yet flushed to PostgreSQL.
+//
+// The mutation runs inside scripts/update_balance_allow_flags.lua for the same
+// reason the settings and blocked rewrites do: Redis serializes EVAL
+// execution, so this write and any concurrent balance_atomic_operation.lua
+// debit/credit on the same key can never interleave.
+//
+// Flow:
+//  1. Resolve each flag pointer into its tri-state ARGV value
+//     (resolveAllowFlagArg); both nil short-circuits without touching Redis.
+//  2. EVAL the script against the tenant-prefixed internal key.
+//  3. Result 1 committed; 0 is a cache miss (key absent) and a no-op — the
+//     next transaction's SETNX loads the just-persisted flags from
+//     PostgreSQL; -2 means the cached value was not valid JSON.
+//
+// A corrupt blob is reported at Warn and NOT returned as an error: the
+// transaction path decodes the same blob with cjson and fails on it, so a blob
+// this script cannot rewrite cannot approve a transaction either — failing the
+// PATCH would block the operator without buying any enforcement. Every other
+// failure (tenant key, client, EVAL, cast) is returned so the fail-closed
+// caller can reject the PATCH.
+func (rr *RedisConsumerRepository) UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error {
+	if allowSending == nil && allowReceiving == nil {
+		return nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_allow_flags")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Bool("app.request.has_allow_sending", allowSending != nil),
+		attribute.Bool("app.request.has_allow_receiving", allowReceiving != nil),
+	)
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, cacheKey)
+
+	prefixedKey, err := tenantKeyFromContextOrError(ctx, internalKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to run settings update script on redis", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to run settings update script on Redis", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache key", libLog.Err(err))
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
+
+	result, err := updateBalanceAllowFlagsScript.Run(ctx, rds, []string{prefixedKey},
+		resolveAllowFlagArg(allowSending), resolveAllowFlagArg(allowReceiving), ttlSeconds).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to run allow flags update script on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to run allow flags update script on Redis", libLog.Err(err))
 
 		return err
 	}
 
 	scriptResult, ok := result.(int64)
 	if !ok {
-		castErr := fmt.Errorf("unexpected result type from settings update script: %T", result)
-		libOpentelemetry.HandleSpanError(span, "Unexpected result type from settings update script", castErr)
-		logger.Log(ctx, libLog.LevelError, "Unexpected result type from settings update script", libLog.Err(castErr))
+		castErr := fmt.Errorf("unexpected result type from allow flags update script: %T", result)
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type from allow flags update script", castErr)
+		logger.Log(ctx, libLog.LevelError, "Unexpected result type from allow flags update script", libLog.Err(castErr))
 
 		return castErr
 	}
 
 	switch scriptResult {
 	case 1:
-		logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
-
-		return nil
+		logger.Log(ctx, libLog.LevelDebug, "Balance cache allow flags updated in place")
 	case 0:
-		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
-
-		return nil
+		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on allow flags update (no-op)")
 	default:
-		corruptErr := fmt.Errorf("corrupt cached balance: settings update script returned %d", scriptResult)
-		libOpentelemetry.HandleSpanError(span, "Corrupt cached balance blob on settings update", corruptErr)
-		logger.Log(ctx, libLog.LevelError, "Corrupt cached balance blob on settings update", libLog.Err(corruptErr))
-
-		return corruptErr
+		span.SetAttributes(attribute.Bool("db.balance_blob_corrupt", true))
+		logger.Log(ctx, libLog.LevelWarn, "Corrupt cached balance blob skipped on allow flags update",
+			libLog.Int("script_result", int(scriptResult)))
 	}
+
+	return nil
 }
 
 // GetBalancesByKeys retrieves multiple balance values using MGET.
@@ -1731,25 +3154,25 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 			case []byte:
 				strVal = string(v)
 			default:
-				logger.Log(ctx, libLog.LevelWarn, "Unexpected value type for balance key",
-					libLog.String("key", key))
+				decodeErr := fmt.Errorf("decode cached balance %q: unexpected Redis value type %T", key, v)
+				libOpentelemetry.HandleSpanError(span, "Unexpected value type for balance key", decodeErr)
+				logger.Log(ctx, libLog.LevelError, "Unexpected value type for balance key",
+					libLog.String("key", key), libLog.Err(decodeErr))
 
-				result[key] = nil
-
-				continue
+				return nil, decodeErr
 			}
 
-			var balance mmodel.BalanceRedis
-			if err := json.Unmarshal([]byte(strVal), &balance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance",
-					libLog.String("key", key), libLog.Err(err))
+			balance, err := decodeBalanceRedisForRead([]byte(strVal))
+			if err != nil {
+				decodeErr := fmt.Errorf("decode cached balance %q: %w", key, err)
+				libOpentelemetry.HandleSpanError(span, "Failed to decode balance", decodeErr)
+				logger.Log(ctx, libLog.LevelError, "Failed to decode balance",
+					libLog.String("key", key), libLog.Err(decodeErr))
 
-				result[key] = nil
-
-				continue
+				return nil, decodeErr
 			}
 
-			result[key] = &balance
+			result[key] = balance
 		}
 	}
 

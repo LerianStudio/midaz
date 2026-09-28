@@ -12,11 +12,13 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
 	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
@@ -38,6 +40,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	dashboardCache "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/dashboard"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
@@ -51,6 +54,31 @@ import (
 
 const ApplicationName = "ledger"
 
+// telemetryConfig builds the OTel resource identity for the ledger. The service
+// version and revision come from the identity linked into the binary
+// (-ldflags "-X main.version=... -X main.revision=..."), never from env, so a
+// span in Tempo names the exact image that produced it.
+func telemetryConfig(cfg *Config, logger libLog.Logger) libOpentelemetry.TelemetryConfig {
+	build := buildinfo.Get()
+
+	return libOpentelemetry.TelemetryConfig{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            build.Version,
+		ServiceRevision:           build.Revision,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		EnableTelemetry:           cfg.EnableTelemetry,
+		Logger:                    logger,
+	}
+}
+
+const (
+	defaultTransactionBatchMaxSize = 10
+	minTransactionBatchMaxSize     = 1
+	maxTransactionBatchMaxSize     = 50
+)
+
 // Config is the unified configuration struct for the ledger component.
 // It merges all fields previously spread across onboarding, transaction, and ledger configs.
 // Prefixed fields (Onb*/Txn*) map to domain-specific env vars; shared fields use common env vars.
@@ -59,7 +87,6 @@ type Config struct {
 	ApplicationName string `env:"APPLICATION_NAME"`
 	EnvName         string `env:"ENV_NAME"`
 	LogLevel        string `env:"LOG_LEVEL"`
-	Version         string `env:"VERSION"`
 	DeploymentMode  string `env:"DEPLOYMENT_MODE"`
 
 	// Server configuration - unified port for all APIs
@@ -68,7 +95,6 @@ type Config struct {
 	// OpenTelemetry configuration
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
@@ -79,10 +105,11 @@ type Config struct {
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
 	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
-	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
-	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
-	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
-	// MUST NOT be logged, span-attached, or serialized.
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is optional: an unset or invalid
+	// IDP_DECLARATION_ENABLED decodes to false. When explicitly enabled, an empty IDP_HOST,
+	// IDP_M2M_CLIENT_ID, or IDP_M2M_CLIENT_SECRET fails closed and aborts startup. Runtime
+	// publication failures remain fail-open. IDPM2MClientSecret MUST NOT be logged,
+	// span-attached, or serialized.
 	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
 	IDPHost            string `env:"IDP_HOST"`
 	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
@@ -163,6 +190,10 @@ type Config struct {
 
 	RouteTransactionalReadsToPrimary bool `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
 
+	// Atomic transaction batch admission. Operators may lower the effective
+	// cardinality but cannot raise it above the public contract ceiling.
+	TransactionBatchMaxSize int `env:"TRANSACTION_BATCH_MAX_SIZE"`
+
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
 	OnbPrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
@@ -230,20 +261,22 @@ type Config struct {
 	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
 
 	// --- RabbitMQ (transaction domain only) ---
-	RabbitURI                                string `env:"RABBITMQ_URI"`
-	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP                         string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                             string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                             string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser                     string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass                     string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQVHost                            string `env:"RABBITMQ_VHOST"`
-	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	RabbitMQTLS                              bool   `env:"RABBITMQ_TLS"`
-	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+	RabbitURI                                   string `env:"RABBITMQ_URI"`
+	RabbitMQHost                                string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost                            string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP                            string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser                                string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass                                string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser                        string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass                        string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                               string `env:"RABBITMQ_VHOST"`
+	RabbitMQNumbersOfWorkers                    int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch                   int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL                      string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQTLS                                 bool   `env:"RABBITMQ_TLS"`
+	RabbitMQTransactionBalanceOperationExchange string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"`
+	RabbitMQTransactionBalanceOperationKey      string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"`
+	RabbitMQTransactionBalanceOperationQueue    string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
 
 	// Circuit Breaker configuration for RabbitMQ
 	RabbitMQCircuitBreakerConsecutiveFailures int    `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES"`
@@ -268,6 +301,10 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+	// BalanceSyncTTLKeepaliveIntervalMs is how often the TTL of every scheduled
+	// balance key is re-applied. Absent, invalid and out-of-range values are
+	// resolved by the worker, which never fails to start on this knob.
+	BalanceSyncTTLKeepaliveIntervalMs int `env:"BALANCE_SYNC_TTL_KEEPALIVE_INTERVAL_MS"`
 
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
@@ -381,6 +418,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	applyConfigDefaults(cfg)
 
+	if err := validateTransactionBatchConfig(cfg); err != nil {
+		return nil, err
+	}
+
 	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
 	}
@@ -410,22 +451,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("startup_id", startupID),
 	)
 
+	build := buildinfo.Get()
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Starting unified ledger component",
-		libLog.String("version", cfg.Version),
+		libLog.String("version", build.Version),
+		libLog.String("revision", build.Revision),
 		libLog.String("env", cfg.EnvName),
 	)
 
 	// Telemetry
-	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
-		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    baseLogger,
-	})
+	telemetry, err := libOpentelemetry.NewTelemetry(telemetryConfig(cfg, baseLogger))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
@@ -634,6 +670,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if rmq != nil && rmq.producerRepo != nil {
 		addCleanup(func() { _ = rmq.producerRepo.Close() })
+	}
+
+	if rmq != nil && rmq.writeBehindConnection != nil {
+		addCleanup(func() { _ = rmq.writeBehindConnection.Close() })
 	}
 
 	// Pass PG and Mongo managers to RabbitMQ components for per-message tenant resolution
@@ -854,15 +894,22 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OnboardingMetadataRepo: onbMgo.metadataRepo,
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
-		TransactionRepo:         txnPG.transactionRepo,
-		OperationRepo:           txnPG.operationRepo,
-		AssetRateRepo:           txnPG.assetRateRepo,
-		BalanceRepo:             txnPG.balanceRepo,
-		OperationRouteRepo:      txnPG.operationRouteRepo,
-		TransactionRouteRepo:    txnPG.transactionRouteRepo,
-		TransactionMetadataRepo: txnMgo.metadataRepo,
-		RabbitMQRepo:            rmq.producerRepo,
-		TransactionRedisRepo:    txnRedisRepo,
+		TransactionRepo:                       txnPG.transactionRepo,
+		TransactionGroupRepo:                  txnPG.transactionGroupRepo,
+		OperationRepo:                         txnPG.operationRepo,
+		AssetRateRepo:                         txnPG.assetRateRepo,
+		BalanceRepo:                           txnPG.balanceRepo,
+		OperationRouteRepo:                    txnPG.operationRouteRepo,
+		TransactionRouteRepo:                  txnPG.transactionRouteRepo,
+		TransactionMetadataRepo:               txnMgo.metadataRepo,
+		RabbitMQRepo:                          rmq.producerRepo,
+		TransactionRedisRepo:                  txnRedisRepo,
+		AtomicTransactionBatchIdempotencyRepo: txnRedisRepo,
+		UUIDv7Generator:                       libCommons.GenerateUUIDv7,
+		Clock:                                 time.Now,
+		TransactionWriteBehindDispatcher:      rmq.writeBehindDispatcher,
+		TransactionWriteBehindAsync:           cfg.RabbitMQTransactionAsync,
+		TransactionEvidenceResolver:           rabbitEngineEvidenceResolver{repository: txnRedisRepo},
 		// Streaming
 		Streaming: streamingEmitter,
 		// Observability (D6)
@@ -890,6 +937,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Dashboard: the postgres repository behind its Valkey read-through
+		// cache. The decorator implements the same port, so nothing downstream
+		// learns whether an answer was computed or served; with no Valkey it
+		// passes straight through and the dashboard is slower, never wrong.
+		DashboardRepo:          dashboardCache.NewDashboardCache(txnPG.dashboardRepo, redisConnection, 0, logger),
+		EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{},
 		// Observability (D6)
 		MetricsFactory: metricsFactory,
 	}
@@ -901,6 +954,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// directly by the query UseCase (signatures match).
 	commandUseCase.HolderReader = newHolderReaderAdapter(crmMgo.holderHandler.Service, crmMgo.mongoManager)
 	commandUseCase.SettingsReader = queryUseCase
+
+	// === Transaction create seam reads (F1) ===
+	// The transaction create path reads settings, balances and accounting rules
+	// through the narrow TransactionReader port, satisfied directly by the query
+	// UseCase (signatures match), so command never imports the query package.
+	commandUseCase.TransactionReader = queryUseCase
+	commandUseCase.AtomicTransactionBatchProjectionReader = queryUseCase
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,
@@ -946,12 +1006,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// ledger with no fee packages skips the Mongo lookup; invalidated on package CUD.
 	fees.useCase.PackageCache = txnRedisRepo
 
-	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
-	if err := rmq.wireConsumer(commandUseCase); err != nil {
-		doCleanup()
-		return nil, err
-	}
-
 	// === Handlers ===
 
 	// Onboarding handlers
@@ -962,6 +1016,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	organizationHandler := &httpin.OrganizationHandler{Command: commandUseCase, Query: queryUseCase}
 	segmentHandler := &httpin.SegmentHandler{Command: commandUseCase, Query: queryUseCase}
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
+	accountBlockExceptionHandler := &httpin.AccountBlockExceptionHandler{Command: commandUseCase}
 
 	// === Tracer reservation client ===
 	// Built before the handler so the reserver is available for injection.
@@ -989,18 +1044,25 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = tracerClose() })
 	}
 
+	// === Transaction create seam ports ===
+	// The fee engine, the tracer reservation client and the MT fee-DB resolver are
+	// consumed by the transaction create use case, so they are wired onto the
+	// command UseCase rather than the HTTP handler.
+	commandUseCase.FeeApplier = fees.useCase
+	commandUseCase.TracerReserver = tracerReserver
+	commandUseCase.FeesMongoManager = feeMgo.mongoManager
+	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
+
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{
-		Command:            commandUseCase,
-		Query:              queryUseCase,
-		FeeApplier:         fees.useCase,
-		TracerReserver:     tracerReserver,
-		FeesMongoManager:   feeMgo.mongoManager,
-		MultiTenantEnabled: cfg.MultiTenantEnabled,
+		Command:                 commandUseCase,
+		Query:                   queryUseCase,
+		TransactionBatchMaxSize: cfg.TransactionBatchMaxSize,
 	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
+	dashboardHandler := &httpin.DashboardHandler{Query: queryUseCase}
 	operationRouteHandler := &httpin.OperationRouteHandler{Command: commandUseCase, Query: queryUseCase}
 	transactionRouteHandler := &httpin.TransactionRouteHandler{Command: commandUseCase, Query: queryUseCase}
 
@@ -1083,9 +1145,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// by NAME so the CRM↔Fees tenant-option pairing cannot silently swap.
 	humaMountDeps := buildHumaMountDeps(
 		auth,
-		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, metadataIndexHandler, assetHandler, assetRateHandler,
+		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, accountBlockExceptionHandler, metadataIndexHandler, assetHandler, assetRateHandler,
 		balanceHandler, operationHandler, operationRouteHandler, transactionRouteHandler,
 		transactionHandler,
+		dashboardHandler,
 		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
 		feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler,
 		compositionHandler,
@@ -1123,7 +1186,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
-		cfg.Version,
+		cfg.OtelServiceName,
 		logger,
 		telemetry,
 		readyzHandler,
@@ -1134,13 +1197,41 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Workers ===
 
-	// RedisQueueConsumer: multi-tenant or single-tenant
+	// Redis recovery runner: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, commandUseCase, queryUseCase, true, tenantCache, txnPG.pgManager)
 	} else {
-		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
+		redisConsumer = NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
 	}
+
+	var recoveryMongo recoveryMongoResolver
+	if txnMgo.mongoManager != nil {
+		recoveryMongo = txnMgo.mongoManager
+	}
+
+	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo, cfg.BulkRecorderMaxRowsPerInsert); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure engine finalization: %w", err)
+	}
+
+	if err := configureEngine(commandUseCase, redisConnection); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure engine: %w", err)
+	}
+
+	// Register RabbitMQ handlers only after every completion dependency has been
+	// configured. The dispatcher snapshots these ports and must never rely on a
+	// later lazy lookup to become ready.
+	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure transaction consumer: %w", err)
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Engine configured as the default accounting path")
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.
@@ -1172,9 +1263,27 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to validate RI declaration IdP TLS: %w", err)
 	}
 
+	// Fail-closed on a bad RI declaration configuration: with the flag on, an
+	// empty IDP_* or a rejected embedded manifest is an operator/build defect,
+	// not a transient IdP problem, and must not reach a ready pod. Runtime
+	// publish failures stay fail-open inside the publisher.
+	//
+	// Placed BEFORE the success log for the same reason as the TLS gate above: a
+	// boot that is about to abort must not first claim it started. doCleanup()
+	// runs first so the abort does not strand the pools this function opened
+	// (onboarding/transaction Postgres, the Mongo clients, Redis, the RabbitMQ
+	// producer, the streaming closer, the tracer gRPC ClientConn); publishers
+	// that did start are drained inside buildDeclarationPublishers.
+	declarationStops, err := buildDeclarationPublishers(cfg, auth, logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to wire RI declaration publishers: %w", err)
+	}
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
-		libLog.String("version", cfg.Version),
+		libLog.String("version", build.Version),
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
 	)
@@ -1195,7 +1304,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
-		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
+		DeclarationStops:         declarationStops,
 		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
@@ -1361,9 +1470,10 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, e
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
 func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
 	syncCfg := BalanceSyncConfig{
-		BatchSize:      cfg.BalanceSyncBatchSize,
-		FlushTimeoutMs: cfg.BalanceSyncFlushTimeoutMs,
-		PollIntervalMs: cfg.BalanceSyncPollIntervalMs,
+		BatchSize:              cfg.BalanceSyncBatchSize,
+		FlushTimeoutMs:         cfg.BalanceSyncFlushTimeoutMs,
+		PollIntervalMs:         cfg.BalanceSyncPollIntervalMs,
+		TTLKeepaliveIntervalMs: cfg.BalanceSyncTTLKeepaliveIntervalMs,
 	}
 
 	var balanceSyncWorker *BalanceSyncWorker
@@ -1381,6 +1491,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		libLog.Int("batch_size", effectiveCfg.BatchSize),
 		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
+		libLog.Int("ttl_keepalive_interval_ms", effectiveCfg.TTLKeepaliveIntervalMs),
 	)
 
 	return balanceSyncWorker
@@ -1785,6 +1896,7 @@ func buildHumaMountDeps(
 	segmentHandler *httpin.SegmentHandler,
 	accountHandler *httpin.AccountHandler,
 	accountTypeHandler *httpin.AccountTypeHandler,
+	accountBlockExceptionHandler *httpin.AccountBlockExceptionHandler,
 	metadataIndexHandler *httpin.MetadataIndexHandler,
 	assetHandler *httpin.AssetHandler,
 	assetRateHandler *httpin.AssetRateHandler,
@@ -1793,6 +1905,7 @@ func buildHumaMountDeps(
 	operationRouteHandler *httpin.OperationRouteHandler,
 	transactionRouteHandler *httpin.TransactionRouteHandler,
 	transactionHandler *httpin.TransactionHandler,
+	dashboardHandler *httpin.DashboardHandler,
 	holderHandler *httpin.HolderHandler,
 	instrumentHandler *httpin.InstrumentHandler,
 	holderAccountsHandler *httpin.HolderAccountsHandler,
@@ -1808,12 +1921,15 @@ func buildHumaMountDeps(
 	return httpin.HumaMountDeps{
 		Auth: auth,
 
-		Organization:  organizationHandler,
-		Ledger:        ledgerHandler,
-		Portfolio:     portfolioHandler,
-		Segment:       segmentHandler,
-		Account:       accountHandler,
-		AccountType:   accountTypeHandler,
+		Organization: organizationHandler,
+		Ledger:       ledgerHandler,
+		Portfolio:    portfolioHandler,
+		Segment:      segmentHandler,
+		Account:      accountHandler,
+		AccountType:  accountTypeHandler,
+
+		AccountBlockException: accountBlockExceptionHandler,
+
 		MetadataIndex: metadataIndexHandler,
 		Asset:         assetHandler,
 		AssetRate:     assetRateHandler,
@@ -1824,6 +1940,8 @@ func buildHumaMountDeps(
 		TransactionRoute: transactionRouteHandler,
 
 		Transaction: transactionHandler,
+
+		Dashboard: dashboardHandler,
 
 		Holder:         holderHandler,
 		Instrument:     instrumentHandler,
@@ -1923,6 +2041,13 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
 
+	// TransactionBatchMaxSize defaults to the operational limit when the
+	// environment variable is absent or blank. An explicit zero must survive to
+	// startup validation and fail closed instead of silently becoming 10.
+	if strings.TrimSpace(os.Getenv("TRANSACTION_BATCH_MAX_SIZE")) == "" {
+		cfg.TransactionBatchMaxSize = defaultTransactionBatchMaxSize
+	}
+
 	// Bulk Recorder defaults
 	// BulkRecorderEnabled defaults to true when the env var is not set or empty.
 	// This treats both unset and empty string as "use default" for safer behavior.
@@ -1953,10 +2078,40 @@ func applyConfigDefaults(cfg *Config) {
 		cfg.BulkRecorderSize = workers * prefetch
 	}
 
+	// RouteTransactionalReadsToPrimary defaults to true: transactional-flow reads
+	// carry read-your-own-write intent, and serving them from a lagging replica
+	// returns wrong state (e.g. a revert 404 on a transaction that exists only on
+	// the primary). Explicit "false" opts out; unset, empty, and invalid values
+	// resolve to the default.
+	if _, err := strconv.ParseBool(os.Getenv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY")); err != nil {
+		cfg.RouteTransactionalReadsToPrimary = true
+	}
+
 	// Balance Sync Worker defaults (dual-trigger)
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
+	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+
+	// OtelServiceName defaults to the roster name so /version, the OTel resource
+	// and the streaming manifest name the same process even with no OTEL_* env.
+	if cfg.OtelServiceName == "" {
+		cfg.OtelServiceName = streamingServiceName
+	}
+}
+
+func validateTransactionBatchConfig(cfg *Config) error {
+	if cfg.TransactionBatchMaxSize < minTransactionBatchMaxSize ||
+		cfg.TransactionBatchMaxSize > maxTransactionBatchMaxSize {
+		return fmt.Errorf(
+			"TRANSACTION_BATCH_MAX_SIZE must be between %d and %d, got %d",
+			minTransactionBatchMaxSize,
+			maxTransactionBatchMaxSize,
+			cfg.TransactionBatchMaxSize,
+		)
+	}
+
+	return nil
 }
 
 // buildTracerReserver constructs the tracer reservation HTTP client when the
@@ -1967,7 +2122,7 @@ func applyConfigDefaults(cfg *Config) {
 //
 // This is pure DI: it wires the transport, not behavior. The per-ledger
 // advisory/enforce gate and the fail-posture branch live at the reserve anchor.
-func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+func buildTracerReserver(cfg *Config, logger libLog.Logger) (command.TracerReserver, error) {
 	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
 	if baseURL == "" {
 		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
@@ -2013,7 +2168,7 @@ const (
 // non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the
 // REST seam presents the ledger's client cert and verifies the tracer's server
 // cert; a nil config (mesh/empty mode) leaves the default plaintext transport.
-func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (command.TracerReserver, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
 		libLog.String("transport", tracerTransportREST))
 
@@ -2041,7 +2196,7 @@ func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config,
 // client's default insecure transport for a sidecar to secure. The target is the
 // same TRACER_BASE_URL value, stripped of any scheme so grpc.NewClient receives
 // a host:port authority.
-func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (command.TracerReserver, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
 		libLog.String("transport", tracerTransportGRPC))
 

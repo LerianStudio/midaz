@@ -32,6 +32,7 @@ type CountFilter struct {
 type TransactionPostgreSQLModel struct {
 	ID                       string                    // Unique identifier (UUID format)
 	ParentTransactionID      *string                   // Parent transaction ID (for reversals or child transactions)
+	GroupID                  *string                   // Atomic cross-ledger group identifier
 	Description              string                    // Human-readable description
 	Status                   string                    // Status code (e.g., "ACTIVE", "PENDING")
 	StatusDescription        *string                   // Status description
@@ -93,9 +94,11 @@ type UpdateTransactionInput struct {
 	// maxLength: 256
 	Description string `json:"description" validate:"max=256" example:"Transaction description" maxLength:"256"`
 
-	// Additional custom attributes
+	// Additional custom attributes. The ledger reserves its own fee statements on transaction
+	// metadata and refuses a body that carries one, so an operator cannot record a fee charge
+	// the ledger never made on a transaction it had already written.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 }
 
 // Transaction is a struct designed to encapsulate response payload data.
@@ -109,6 +112,11 @@ type Transaction struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	ParentTransactionID *string `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Atomic cross-ledger group identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	GroupID *string `json:"groupId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Human-readable description of the transaction
 	// example: Transaction description
@@ -212,6 +220,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	transaction := &Transaction{
 		ID:                       t.ID,
 		ParentTransactionID:      t.ParentTransactionID,
+		GroupID:                  t.GroupID,
 		Description:              t.Description,
 		Status:                   status,
 		Amount:                   t.Amount,
@@ -255,6 +264,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	*t = TransactionPostgreSQLModel{
 		ID:                       ID,
 		ParentTransactionID:      transaction.ParentTransactionID,
+		GroupID:                  transaction.GroupID,
 		Description:              transaction.Description,
 		Status:                   transaction.Status.Code,
 		StatusDescription:        transaction.Status.Description,

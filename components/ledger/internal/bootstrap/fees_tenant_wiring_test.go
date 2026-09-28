@@ -24,7 +24,7 @@ import (
 // those injections returns the 500 "tenant postgres connection missing from context" this test
 // exists to prevent.
 //
-// The TenantMiddleware fields are unexported in lib-commons v6, so the module maps are read via
+// The TenantMiddleware fields are unexported in lib-commons v7, so the module maps are read via
 // reflect. A module-keyed WithPG/WithMB lands in pgModules/mongoModules; a no-module WithMB
 // (the generic fees MB) lands in the single-manager mongo field, not the map. Both are asserted.
 func TestFeesTenantMiddlewareWiring(t *testing.T) {
@@ -76,7 +76,7 @@ func TestFeesTenantMiddlewareWiring(t *testing.T) {
 }
 
 // mapKeys reads the string keys of an unexported map[string]* field on the reflected middleware.
-// The fields are unexported in lib-commons v6; reflect can enumerate a map's keys and read string
+// The fields are unexported in lib-commons v7; reflect can enumerate a map's keys and read string
 // values without the unexported-access restriction that blocks Interface(). A renamed field yields
 // an invalid Value, which fails loud so a lib-commons bump does not silently pass this test.
 func mapKeys(t *testing.T, v reflect.Value, field string) []string {

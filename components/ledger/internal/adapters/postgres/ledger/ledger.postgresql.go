@@ -69,7 +69,15 @@ type Repository interface {
 	// in the organization. Returns (true, ErrLedgerNameConflict) when found,
 	// (false, nil) when not found. The boolean answers "does it exist?" — true
 	// is the conflict signal callers use to short-circuit creation.
+	// Comparison is case-insensitive equality: % and _ are literal characters.
+	// Uniqueness is enforced by this lookup at request time; concurrent creates of the same name are not serialized.
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
+
+	// FindByNameExcludingID is FindByName with one row ignored — the ledger
+	// being renamed — so that re-sending a ledger's own name is not a conflict
+	// with itself. Returns (true, ErrLedgerNameConflict) when another active
+	// ledger in the organization already holds the name, (false, nil) otherwise.
+	FindByNameExcludingID(ctx context.Context, organizationID uuid.UUID, name string, excludeID uuid.UUID) (bool, error)
 
 	// ListByIDs returns active Ledgers in the organization whose IDs are in
 	// the provided slice, ordered by created_at DESC. Returns an empty slice
@@ -228,12 +236,12 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		if errors.As(err, &pgErr) && pgErr != nil {
 			err := services.ValidatePGError(pgErr, constant.EntityLedger)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute insert query", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute insert query", err)
 
 		return nil, err
 	}
@@ -399,9 +407,20 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 }
 
 func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error) {
+	return r.findActiveByName(ctx, "postgres.find_ledger_by_name", organizationID, name, nil)
+}
+
+func (r *LedgerPostgreSQLRepository) FindByNameExcludingID(ctx context.Context, organizationID uuid.UUID, name string, excludeID uuid.UUID) (bool, error) {
+	return r.findActiveByName(ctx, "postgres.find_ledger_by_name_excluding_id", organizationID, name, &excludeID)
+}
+
+// findActiveByName backs FindByName and FindByNameExcludingID. Matching is
+// case-insensitive equality rather than LIKE, so % and _ in a requested name are
+// literal characters. A non-nil excludeID drops that row from the candidate set.
+func (r *LedgerPostgreSQLRepository) findActiveByName(ctx context.Context, spanName string, organizationID uuid.UUID, name string, excludeID *uuid.UUID) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_ledger_by_name")
+	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
 	db, err := r.getDB(ctx)
@@ -411,13 +430,19 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 		return false, err
 	}
 
-	query, args, err := squirrel.Select(ledgerColumnList...).
-		From("ledger").
+	builder := squirrel.Select("1").
+		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Expr("LOWER(name) LIKE LOWER(?)", name)).
+		Where(squirrel.Expr("LOWER(name) = LOWER(?)", name)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
+		Limit(1).
+		PlaceholderFormat(squirrel.Dollar)
+
+	if excludeID != nil {
+		builder = builder.Where(squirrel.NotEq{"id": *excludeID})
+	}
+
+	query, args, err := builder.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
@@ -438,6 +463,12 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger name conflict", err)
 
 		return true, err
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
+
+		return false, err
 	}
 
 	return false, nil

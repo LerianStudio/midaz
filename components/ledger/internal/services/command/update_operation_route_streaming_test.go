@@ -32,19 +32,19 @@ import (
 // persisted UpdatedAt. This mirrors the contract of the refactored
 // squirrel + RETURNING repo method — the use case trusts the repo's
 // return value directly without merging against a pre-update fetch.
-func newUpdateOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, fixedUpdatedAt time.Time, canonicalTitle, canonicalOperationType string) *UseCase {
+func newUpdateOperationRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, routeLedgerID uuid.UUID, fixedUpdatedAt time.Time, canonicalTitle, canonicalOperationType string) *UseCase {
 	t.Helper()
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockOperationRouteRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, id uuid.UUID, in *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orgID uuid.UUID, id uuid.UUID, in *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			out := &mmodel.OperationRoute{
 				ID:                id,
 				OrganizationID:    orgID,
-				LedgerID:          ledgerID,
+				LedgerID:          &routeLedgerID,
 				Title:             canonicalTitle,
 				Description:       in.Description,
 				Code:              in.Code,
@@ -89,11 +89,11 @@ func TestUpdateOperationRoute_EmitsOperationRouteUpdatedEvent(t *testing.T) {
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, mockEmitter, fixedUpdatedAt, "Canonical Title", "source")
+	ledgerID := uuid.New()
+	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, mockEmitter, ledgerID, fixedUpdatedAt, "Canonical Title", "source")
 
 	ctx := context.Background()
 	orgID := uuid.New()
-	ledgerID := uuid.New()
 	operationRouteID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
@@ -101,7 +101,7 @@ func TestUpdateOperationRoute_EmitsOperationRouteUpdatedEvent(t *testing.T) {
 		Description: "Updated description",
 	}
 
-	o, err := uc.UpdateOperationRoute(ctx, orgID, ledgerID, operationRouteID, input)
+	o, err := uc.UpdateOperationRoute(ctx, orgID, operationRouteID, input)
 	require.NoError(t, err)
 	require.NotNil(t, o)
 
@@ -136,11 +136,11 @@ func TestUpdateOperationRoute_NoopEmitterDoesNotPanic(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter(), fixedUpdatedAt, "Canonical Title", "source")
+	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter(), uuid.New(), fixedUpdatedAt, "Canonical Title", "source")
 
 	input := &mmodel.UpdateOperationRouteInput{Title: "Noop Updated Operation Route"}
 
-	o, err := uc.UpdateOperationRoute(context.Background(), uuid.New(), uuid.New(), uuid.New(), input)
+	o, err := uc.UpdateOperationRoute(context.Background(), uuid.New(), uuid.New(), input)
 	require.NoError(t, err)
 	require.NotNil(t, o)
 }
@@ -155,11 +155,11 @@ func TestUpdateOperationRoute_EmitFailureDoesNotFailRequest(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{}, fixedUpdatedAt, "Canonical Title", "source")
+	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{}, uuid.New(), fixedUpdatedAt, "Canonical Title", "source")
 
 	input := &mmodel.UpdateOperationRouteInput{Title: "Emit Fail Updated Operation Route"}
 
-	o, err := uc.UpdateOperationRoute(context.Background(), uuid.New(), uuid.New(), uuid.New(), input)
+	o, err := uc.UpdateOperationRoute(context.Background(), uuid.New(), uuid.New(), input)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, o)
 }
@@ -172,11 +172,11 @@ func TestUpdateOperationRoute_NilStreamingDoesNotPanic(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, nil, fixedUpdatedAt, "Canonical Title", "source")
+	uc := newUpdateOperationRouteStreamingTestUseCase(t, ctrl, nil, uuid.New(), fixedUpdatedAt, "Canonical Title", "source")
 
 	input := &mmodel.UpdateOperationRouteInput{Title: "Nil Streaming Updated Operation Route"}
 
-	o, err := uc.UpdateOperationRoute(context.Background(), uuid.New(), uuid.New(), uuid.New(), input)
+	o, err := uc.UpdateOperationRoute(context.Background(), uuid.New(), uuid.New(), input)
 	require.NoError(t, err)
 	require.NotNil(t, o)
 }

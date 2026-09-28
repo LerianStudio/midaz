@@ -466,6 +466,8 @@ func TestUpdateAsset_Success(t *testing.T) {
 	assetRepo := asset.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
+	assetRepo.EXPECT().FindByNameExcludingID(gomock.Any(), orgID, ledgerID, "Updated Asset Name", assetID).
+		Return(false, nil).Times(1)
 	assetRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
 		Return(&mmodel.Asset{
 			ID:             assetID.String(),
@@ -511,6 +513,8 @@ func TestUpdateAsset_NotFound_Canonical404(t *testing.T) {
 	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRepo := asset.NewMockRepository(ctrl)
+	assetRepo.EXPECT().FindByNameExcludingID(gomock.Any(), orgID, ledgerID, "Updated Asset Name", assetID).
+		Return(false, nil).Times(1)
 	assetRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset)).Times(1)
 

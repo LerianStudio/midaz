@@ -13,8 +13,9 @@ import (
 	"strings"
 	"time"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -23,6 +24,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -31,6 +33,7 @@ import (
 	httpMiddleware "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	tracerRedis "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
@@ -45,6 +48,24 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/resilience"
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
+
+// telemetryConfig builds the OTel resource for the tracer. service.version and
+// vcs.ref.head.revision come from the identity linked into the binary, never
+// from an env var: the image and the telemetry it emits cannot disagree.
+func telemetryConfig(cfg *Config, logger libLog.Logger) libOtel.TelemetryConfig {
+	build := buildinfo.Get()
+
+	return libOtel.TelemetryConfig{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            build.Version,
+		ServiceRevision:           build.Revision,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		EnableTelemetry:           cfg.EnableTelemetry,
+		Logger:                    logger,
+	}
+}
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
@@ -76,7 +97,6 @@ type Config struct {
 	LogLevel                string `env:"LOG_LEVEL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
@@ -201,8 +221,11 @@ type Config struct {
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
 
 	// Reservation Reaper Worker
-	// ReservationReaperEnabled enables/disables the background reservation reaper (default: false).
-	// Set RESERVATION_REAPER_ENABLED=true to release expired two-phase reservations.
+	// ReservationReaperEnabled enables/disables the background reservation reaper
+	// (default: true, applied by ApplyReservationReaperDefaults because
+	// SetConfigFromEnvVars cannot tell "unset" from "false"). The reaper is the
+	// only path that returns capacity held past a reservation's stated expiry.
+	// Set RESERVATION_REAPER_ENABLED=false to turn it off explicitly.
 	ReservationReaperEnabled bool `env:"RESERVATION_REAPER_ENABLED"`
 	// ReservationReaperIntervalSeconds is the sub-minute interval between reaper sweeps in seconds (default: 30).
 	ReservationReaperIntervalSeconds string `env:"RESERVATION_REAPER_INTERVAL_SECONDS"`
@@ -599,9 +622,34 @@ func LoadCleanupWorkerConfig(ctx context.Context, cfg *Config, logger libLog.Log
 	}, nil
 }
 
+// ApplyReservationReaperDefaults turns the expired-reservation sweep ON unless
+// the operator explicitly disabled it.
+//
+// Every reservation is written with an expiry that the API returns to the
+// client, and the sweep is the ONLY path that returns capacity when that expiry
+// passes: confirm and release both require the ledger to come back, and the
+// ledger deliberately swallows a lost confirm or release because the sweep is
+// its stated backstop. Off by default, an expiry is a number the product reports
+// and never acts on, and a ledger transaction that crashed mid-flight holds a
+// slice of the customer's cap until the counter's period rolls — never, for a
+// custom period.
+//
+// lib-commons SetConfigFromEnvVars cannot distinguish "unset" from "false", so
+// probe the raw variable, mirroring the MULTI_TENANT_REDIS_TLS default.
+// RESERVATION_REAPER_ENABLED=false still disables the sweep.
+func ApplyReservationReaperDefaults(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	if _, present := os.LookupEnv("RESERVATION_REAPER_ENABLED"); !present {
+		cfg.ReservationReaperEnabled = true
+	}
+}
+
 // LoadReservationReaperConfig creates a ReservationReaperWorkerConfig from
-// environment configuration. Returns a nil config (no error) when the reaper is
-// disabled (RESERVATION_REAPER_ENABLED=false, the default) so the caller can
+// environment configuration. Returns a nil config (no error) when the operator
+// disabled the reaper (RESERVATION_REAPER_ENABLED=false) so the caller can
 // propagate the "disabled" signal end-to-end exactly like LoadCleanupWorkerConfig.
 // Returns an error if config or logger is nil, or if the interval is invalid.
 func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog.Logger) (*workers.ReservationReaperWorkerConfig, error) {
@@ -984,6 +1032,14 @@ type limitServiceDeps struct {
 	service          *services.LimitService
 	usageCounterRepo *postgres.UsageCounterRepository
 	limitRepo        *postgres.LimitRepository
+	// reservationRepo backs the two-phase reservation lifecycle. It lives here
+	// rather than inside the HTTP wiring because the TTL reaper needs the same
+	// instance, and the multi-tenant supervisor is assembled before the HTTP
+	// server.
+	reservationRepo *postgres.UsageReservationRepository
+	// reaperRepo is the narrow sweep surface the reservation reaper consumes:
+	// find the RESERVED rows past their TTL and release each as EXPIRED.
+	reaperRepo *postgres.ReservationReaperRepository
 }
 
 // initLimitService creates the limit service with all its dependencies.
@@ -1047,10 +1103,18 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 
 	service := services.NewLimitService(createLimitCmd, updateLimitCmd, activateLimitCmd, deactivateLimitCmd, draftLimitCmd, deleteLimitCmd, getLimitQuery, listLimitsQuery, usageCounterRepo)
 
+	// The reservation repository and the reaper's sweep surface over it are built
+	// once here so the HTTP reserve/confirm/release seam and the TTL reaper share
+	// one instance in both boot modes.
+	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(usageCounterRepo)
+	reaperRepo := postgres.NewReservationReaperRepository(pgConn, txBeginner, reservationRepo)
+
 	return &limitServiceDeps{
 		service:          service,
 		usageCounterRepo: usageCounterRepo,
 		limitRepo:        limitRepo,
+		reservationRepo:  reservationRepo,
+		reaperRepo:       reaperRepo,
 	}, nil
 }
 
@@ -1082,6 +1146,22 @@ func initHTTPServer(
 	authHost string,
 ) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
+
+	// Init the dashboard read stack: bounded postgres aggregations behind a
+	// Valkey read-through cache. The cache reuses the tenant-manager Pub/Sub
+	// client — the service's ONLY Valkey connection — rather than opening a
+	// second one. In single-tenant mode there is no such client, so the
+	// decorator degrades to a straight pass-through to postgres: the dashboard
+	// is slower without a cache, never wrong.
+	dashboardService := query.NewGetDashboardQuery(
+		tracerRedis.NewDashboardCache(
+			postgres.NewDashboardRepository(pgConn, clk),
+			dashboardCacheClient(mtComponents),
+			tracerRedis.DefaultTTL,
+			logger,
+		),
+	)
+
 	// Init Transaction Validation repository and queries
 	transactionValidationRepo := postgres.NewTransactionValidationRepositoryWithConnection(pgConn)
 	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
@@ -1124,7 +1204,7 @@ func initHTTPServer(
 	// checker as the limit resolver and the shared audit writer / txBeginner so
 	// the reserve/confirm/release counter moves commit atomically with their
 	// audit rows — the same atomicity discipline as the validate path.
-	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+	reservationRepo := limitDeps.reservationRepo
 
 	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
 	if err != nil {
@@ -1218,12 +1298,14 @@ func initHTTPServer(
 		ReservationService:           reservationService,
 		TransactionValidationService: transactionValidationService,
 		AuditEventService:            auditEventService,
+		DashboardService:             dashboardService,
 		Guard:                        authGuard,
 		Clock:                        clk,
 		MultiTenantEnabled:           cfg.MultiTenantEnabled,
 		PgManager:                    pgManager,
 		Supervisor:                   workerSupervisor,
 		StreamingManifestHandler:     streamingManifestHandler,
+		ServiceName:                  cfg.OtelServiceName,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
@@ -1243,6 +1325,18 @@ func initHTTPServer(
 	}
 
 	return httpServer, reservationService, nil
+}
+
+// dashboardCacheClient returns the Valkey client the dashboard cache should
+// use, or nil in single-tenant mode where the tenant-manager Pub/Sub client
+// (the service's only Valkey connection) is never built. Extracted so the nil
+// check reads once and cannot drift from the nil-tolerance the cache promises.
+func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
+	if mtComponents == nil {
+		return nil
+	}
+
+	return mtComponents.redisClient
 }
 
 // initGRPCServer builds the opt-in reservation gRPC server. It returns nil (no
@@ -1319,6 +1413,42 @@ func initCleanupWorker(ctx context.Context, cfg *Config, usageCounterRepo *postg
 	return cleanupWorker, nil
 }
 
+// initReaperWorker creates the single-tenant reservation reaper if enabled. The
+// reaper is the only path that returns capacity held by a reservation the ledger
+// never confirmed or released, so without it a crashed transaction's hold is
+// permanent and later transactions are denied against a limit whose real usage is
+// lower.
+func initReaperWorker(
+	ctx context.Context,
+	cfg *Config,
+	reaperRepo *postgres.ReservationReaperRepository,
+	auditor *command.RecordAuditEventCommand,
+	logger libLog.Logger,
+	clk clock.Clock,
+) (*workers.ReservationReaperWorker, error) {
+	reaperConfig, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("invalid reservation reaper configuration: %w", err)
+	}
+
+	if reaperConfig == nil {
+		return nil, nil
+	}
+
+	// tenantID is empty in single-tenant mode; the supervisor passes the real tenantID in MT mode.
+	reaperWorker, err := workers.NewReservationReaperWorker(reaperRepo, auditor, *reaperConfig, logger, clk, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reservation reaper worker: %w", err)
+	}
+
+	logger.With(
+		libLog.String("component", "reservation_reaper_worker"),
+		libLog.String("reap_interval", reaperConfig.ReapInterval.String()),
+	).Log(ctx, libLog.LevelInfo, "Reservation reaper worker initialized")
+
+	return reaperWorker, nil
+}
+
 // buildMultiTenantStack assembles the multi-tenant metrics sink and the
 // multi-tenant components in a single call. In single-tenant mode the metrics
 // sink is a zero-cost no-op and mtComponents stays nil; both modes share the
@@ -1332,6 +1462,7 @@ func buildMultiTenantStack(
 	ruleCache *cache.RuleCache,
 	ruleSyncRepo *postgres.RuleSyncRepository,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 ) (*componentsMT, metrics.MultiTenantMetrics, error) {
@@ -1348,7 +1479,7 @@ func buildMultiTenantStack(
 	// (rare fallback path that should never fire in production).
 	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger)
 
-	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
+	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk, mtMetrics)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1372,6 +1503,7 @@ func initMultiTenant(
 	ruleCache *cache.RuleCache,
 	ruleSyncRepo *postgres.RuleSyncRepository,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 	mtMetrics metrics.MultiTenantMetrics,
@@ -1401,6 +1533,22 @@ func initMultiTenant(
 
 	if cleanupEnabled {
 		resolvedCleanup = *cleanupCfg
+	}
+
+	// The reservation reaper mirrors the cleanup worker's disabled-signal
+	// propagation: LoadReservationReaperConfig returns nil when the reaper is
+	// off, and nil means the supervisor must not spawn per-tenant reapers.
+	reaperCfg, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	var resolvedReaper workers.ReservationReaperWorkerConfig
+
+	reaperEnabled := reaperCfg != nil
+
+	if reaperEnabled {
+		resolvedReaper = *reaperCfg
 	}
 
 	syncCBConfig := workers.DefaultSyncCircuitBreakerConfig()
@@ -1438,6 +1586,12 @@ func initMultiTenant(
 			MaxTenants: cfg.MultiTenantMaxTenantPools,
 			Service:    cfg.ApplicationName,
 			Metrics:    mtMetrics,
+			// Per-tenant reservation reaper. buildSupervisorDeps only overwrites
+			// the fields it names, so these survive onto the supervisor.
+			ReaperRepo:          limitDeps.reaperRepo,
+			ReaperAuditor:       auditWriter,
+			ReaperConfig:        resolvedReaper,
+			ReaperWorkerEnabled: reaperEnabled,
 		},
 	)
 	if err != nil {
@@ -1487,6 +1641,7 @@ func initWorkers(
 	ctx context.Context,
 	cfg *Config,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	grpcServer *GRPCServer,
@@ -1524,7 +1679,13 @@ func initWorkers(
 		return nil, err
 	}
 
+	reaperWorker, err := initReaperWorker(ctx, cfg, limitDeps.reaperRepo, auditWriter, logger, clk)
+	if err != nil {
+		return nil, err
+	}
+
 	svc.cleanupWorker = cleanupWorker
+	svc.reaperWorker = reaperWorker
 	svc.syncWorker = syncWorker
 
 	return svc, nil
@@ -1694,15 +1855,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
-	telemetry, err := libOtel.NewTelemetry(libOtel.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
-		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    logger,
-	})
+	telemetry, err := libOtel.NewTelemetry(telemetryConfig(cfg, logger))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
@@ -1774,6 +1927,10 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// Required because lib-commons v4 SetConfigFromEnvVars does not honor
 	// `envDefault` struct tags; this is the single source of truth for defaults.
 	ApplyMultiTenantDefaults(cfg)
+
+	// The expired-reservation sweep is on unless explicitly disabled: it is the
+	// only path that returns capacity held past a reservation's stated expiry.
+	ApplyReservationReaperDefaults(cfg)
 
 	// initCoreInfra also builds the streaming emitter once logger + telemetry
 	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close
@@ -1901,7 +2058,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 		return nil, err
 	}
 
-	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
+	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -1948,7 +2105,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)
 	if err != nil {
 		return nil, err
 	}
@@ -1959,8 +2116,6 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDiscoveryEnabled = sd.enabled
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
-
-	svc.DeclarationStops = wireDeclarationPublisher(cfg, sd.authHost, logger)
 
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.
@@ -2114,6 +2269,7 @@ func finalizeStartup(
 	ctx context.Context,
 	cfg *Config,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	reservationService *services.ReservationService,
@@ -2125,6 +2281,7 @@ func finalizeStartup(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
+	authHost string,
 ) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
@@ -2136,13 +2293,23 @@ func finalizeStartup(
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := initWorkers(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := executeStartupSelfProbe(ctx, cfg, healthChecker, logger); err != nil {
 		return nil, err
+	}
+
+	// Fail-closed on a bad RI declaration configuration: with the flag on, an
+	// empty IDP_* or a rejected embedded manifest is an operator/build defect,
+	// not a transient IdP problem, and must not reach a ready pod. Runtime
+	// publish failures stay fail-open inside the publisher. Wired here, where
+	// the Service is assembled, so InitServers keeps its branch count.
+	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, authHost, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wire the RI declaration publisher: %w", err)
 	}
 
 	return svc, nil
@@ -2199,7 +2366,7 @@ func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observabili
 // Extracting this out of InitServers keeps the main bootstrap flow under
 // the gocyclo budget while making the readyz wiring testable in isolation.
 func buildHealthChecker(cfg *Config, postgresConn *libPostgres.Client) *in.HealthChecker {
-	hc := in.NewHealthChecker(postgresConn, cfg.OtelServiceVersion, resolveDeploymentMode(cfg))
+	hc := in.NewHealthChecker(postgresConn, resolveDeploymentMode(cfg))
 
 	// Wire TLS posture sources for the postgres /readyz probe. The DSN is
 	// the same one handed to lib-commons; the detector parses sslmode without

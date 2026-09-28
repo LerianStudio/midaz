@@ -8,7 +8,6 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
 	constant "github.com/LerianStudio/lib-commons/v7/commons/constants"
@@ -21,41 +20,20 @@ import (
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// CheckTransactionDate validates the transactionDate field and returns the
-// effective timestamp to use for CreatedAt. Rules:
+// ValidateBalancesRules function with some validates in accounts operations.
 //
-//   - If transactionDate is nil or zero, the current time is returned (server-assigned).
-//   - If transactionDate is in the future, it is rejected (error 0121).
-//   - If the transaction is pending, a custom transactionDate is rejected (error 0122)
-//     because pending transactions are committed later with their own timestamp.
-func CheckTransactionDate(ctx context.Context, transactionInput Transaction, transactionStatus string) (time.Time, error) {
-	now := time.Now()
-
-	if transactionInput.TransactionDate == nil || transactionInput.TransactionDate.IsZero() {
-		return now, nil
-	}
-
-	logger := libObservability.NewLoggerFromContext(ctx)
-
-	if transactionInput.TransactionDate.After(now) {
-		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
-		logger.Log(ctx, libLog.LevelWarn, "Transaction date cannot be a future date", libLog.Err(err))
-
-		return time.Time{}, err
-	}
-
-	if transactionStatus == constant.PENDING {
-		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidPendingFutureTransactionDate, pkgConstant.EntityTransaction)
-		logger.Log(ctx, libLog.LevelWarn, "Pending transaction cannot have a custom transaction date", libLog.Err(err))
-
-		return time.Time{}, err
-	}
-
-	return transactionInput.TransactionDate.Time(), nil
-}
-
-// ValidateBalancesRules function with some validates in accounts operations
-func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
+// binding is the single-use account-block exception the request presented, tied
+// to the balances of the one logical debit it authorizes, or nil when the request
+// presented none. It relaxes exactly two barriers on THOSE balances — the account
+// block and the per-balance sending/receiving deny — and nothing else: asset
+// match, eligibility and the pending/external rule stay in force for every
+// balance, granted or not.
+//
+// The relief is keyed on the balance's full identity, alias AND balance key, so a
+// grant minted for one balance's debit cannot release a sibling balance of the
+// same account. The binding is never consumed here; see
+// AccountBlockExceptionBinding.
+func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance, binding *AccountBlockExceptionBinding) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, spanValidateBalances := tracer.Start(ctx, "transaction.validate_balances_rules")
@@ -69,14 +47,23 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 	}
 
 	for _, balance := range balances {
-		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
+		granted := binding.Authorizes(balance.Alias, balance.Key)
+
+		if err := validateBlockedBalance(balance, granted); err != nil {
+			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Rejected transaction involving blocked account", err)
+			logger.Log(ctx, libLog.LevelWarn, "Rejected transaction involving blocked account", libLog.Err(err))
+
+			return err
+		}
+
+		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending, granted); err != nil {
 			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate source balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate source balance", libLog.Err(err))
 
 			return err
 		}
 
-		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
+		if err := validateToBalances(balance, validate.To, validate.Asset, granted); err != nil {
 			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate destination balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate destination balance", libLog.Err(err))
 
@@ -87,7 +74,30 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 	return nil
 }
 
-func validateFromBalances(balance *Balance, from map[string]Amount, asset string, pending bool) error {
+// validateBlockedBalance is the fast-fail half of the account-block guard:
+// it rejects any balance whose account is blocked, source or destination,
+// BEFORE the per-balance permission checks so the caller gets the specific
+// 0502 error rather than a balance-permission one. It runs only on the flows
+// that validate balance rules (creates and reverts); commits are enforced by
+// the Lua guard alone and cancels are exempt by design (RF-4C). The Lua
+// script remains the final authority — this check only saves the round-trip.
+//
+// Account-block exceptions (single-use grants) plug in here: a grant bound to
+// THIS balance — not merely to its alias — suppresses this fast-fail and defers
+// the decision to the Lua consume step, which alone knows whether the grant's
+// amount matches the debit and whether the key still exists.
+func validateBlockedBalance(balance *Balance, granted bool) error {
+	if balance.Blocked && !granted {
+		return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlocked, "validateBalance")
+	}
+
+	return nil
+}
+
+// validateFromBalances runs the source-side barriers for one balance. granted
+// waives ONLY the allowSending deny (RF-06): the asset match and the
+// pending/external rule are structural and hold for a granted balance too.
+func validateFromBalances(balance *Balance, from map[string]Amount, asset string, pending, granted bool) error {
 	for key := range from {
 		balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
@@ -95,7 +105,7 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
-			if !balance.AllowSending {
+			if !balance.AllowSending && !granted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
@@ -108,7 +118,10 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 	return nil
 }
 
-func validateToBalances(balance *Balance, to map[string]Amount, asset string) error {
+// validateToBalances runs the destination-side barriers for one balance. granted
+// waives ONLY the allowReceiving deny, for the same reason and with the same
+// narrowness as validateFromBalances.
+func validateToBalances(balance *Balance, to map[string]Amount, asset string, granted bool) error {
 	balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 	for key := range to {
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
@@ -116,7 +129,7 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
-			if !balance.AllowReceiving {
+			if !balance.AllowReceiving && !granted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 		}
@@ -432,6 +445,7 @@ func StatusToAction(statusCode string) string {
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string, t chan decimal.Decimal, ft chan map[string]Amount, sd chan []string, or chan map[string]string) {
 	fmto := make(map[string]Amount)
 	scdt := make([]string, 0, len(fromTos))
+	amountKeys := AmountMapKeys(fromTos)
 
 	total := decimal.NewFromInt(0)
 
@@ -444,8 +458,11 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	operationRoute := make(map[string]string)
 
 	for i := range fromTos {
+		amountKey := amountKeys[i]
+		operationRoute[amountKey] = ""
+
 		if fromTos[i].RouteID != nil {
-			operationRoute[fromTos[i].AccountAlias] = *fromTos[i].RouteID
+			operationRoute[amountKey] = *fromTos[i].RouteID
 		}
 
 		operation, direction := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
@@ -464,7 +481,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			secondPart := percentageOfPercentage.Div(oneHundred)
 			shareValue := transaction.Send.Value.Mul(firstPart).Mul(secondPart)
 
-			fmto[fromTos[i].AccountAlias] = Amount{
+			fmto[amountKey] = Amount{
 				Asset:           transaction.Send.Asset,
 				Value:           shareValue,
 				Operation:       operation,
@@ -476,7 +493,11 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			remaining.Value = remaining.Value.Sub(shareValue)
 		}
 
-		if fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
+		// A remaining entry's Amount is only ever the remainder a previous call wrote back
+		// below; counting it here would subtract that remainder before resolving it again.
+		isRemaining := !commons.IsNilOrEmpty(&fromTos[i].Remaining)
+
+		if !isRemaining && fromTos[i].Amount != nil && fromTos[i].Amount.Value.IsPositive() {
 			amount := Amount{
 				Asset:           fromTos[i].Amount.Asset,
 				Value:           fromTos[i].Amount.Value,
@@ -485,19 +506,19 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Direction:       direction,
 			}
 
-			fmto[fromTos[i].AccountAlias] = amount
+			fmto[amountKey] = amount
 			total = total.Add(amount.Value)
 
 			remaining.Value = remaining.Value.Sub(amount.Value)
 		}
 
-		if !commons.IsNilOrEmpty(&fromTos[i].Remaining) {
+		if isRemaining {
 			total = total.Add(remaining.Value)
 
 			remaining.Operation = operation
 			remaining.Direction = direction
 
-			fmto[fromTos[i].AccountAlias] = remaining
+			fmto[amountKey] = remaining
 			fromTos[i].Amount = &remaining
 		}
 
@@ -511,6 +532,24 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	sd <- scdt
 
 	or <- operationRoute
+}
+
+// hasNonPositiveRemainder reports whether any remaining entry in fromTos resolved, in
+// the amounts CalculateTotal returned for that side, to zero or less.
+func hasNonPositiveRemainder(fromTos []FromTo, resolved map[string]Amount) bool {
+	amountKeys := AmountMapKeys(fromTos)
+
+	for i := range fromTos {
+		if commons.IsNilOrEmpty(&fromTos[i].Remaining) {
+			continue
+		}
+
+		if !resolved[amountKeys[i]].Value.IsPositive() {
+			return true
+		}
+	}
+
+	return false
 }
 
 // AppendIfNotExist Append if not exist
@@ -539,8 +578,12 @@ func AppendIfNotExist(slice []string, s []string) []string {
 //     and destination within the same positional index. This prevents
 //     self-transfer loops that would be no-ops.
 //
-//  3. Balance check: sourcesTotal == destinationsTotal == transaction.Send.Value.
+//  3. Remainder check: a "remaining" entry must resolve to a positive amount.
+//
+//  4. Balance check: sourcesTotal == destinationsTotal == transaction.Send.Value.
 //     If any mismatch is found, the transaction is rejected.
+//
+// Checks 3 and 4 both answer ErrTransactionValueMismatch.
 //
 // The returned Responses struct carries the resolved per-account amounts, the
 // alias lists (for balance lookups), and route information (for accounting
@@ -618,6 +661,15 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
+	}
+
+	// A remaining entry that resolves to zero or less still lets the totals close (an
+	// over-allocated 120 plus a remainder of -20 is 100), so it is refused on its own.
+	if hasNonPositiveRemainder(transaction.Send.Source.From, response.From) ||
+		hasNonPositiveRemainder(transaction.Send.Distribute.To, response.To) {
+		logger.Log(ctx, libLog.LevelWarn, "Remaining entry resolves to a non-positive amount")
+
+		return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 
 	// Balance check: all three totals must agree.

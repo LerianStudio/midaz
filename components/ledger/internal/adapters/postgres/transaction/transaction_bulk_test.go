@@ -532,7 +532,7 @@ func TestInsertTransactionChunk_ColumnCount(t *testing.T) {
 
 	// Verify that transactionColumnList has expected number of columns
 	// This ensures the bulk insert won't have column/value mismatch
-	expectedColumns := 18 // Based on transactionColumnList definition
+	expectedColumns := 19 // Based on transactionColumnList definition
 	assert.Equal(t, expectedColumns, len(transactionColumnList),
 		"transactionColumnList should have %d columns", expectedColumns)
 }

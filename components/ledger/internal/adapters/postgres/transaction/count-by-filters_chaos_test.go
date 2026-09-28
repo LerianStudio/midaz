@@ -81,7 +81,7 @@ func setupCountByFiltersChaosInfra(t *testing.T) *countByFiltersChaosInfra {
 
 	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())

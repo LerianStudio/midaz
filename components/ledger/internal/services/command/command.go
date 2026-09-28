@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
@@ -27,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
@@ -64,6 +66,17 @@ type UseCase struct {
 
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
+
+	// TransactionGroupRepo persists normalized cross-ledger hold intent and its
+	// PENDING-to-terminal lifecycle state.
+	TransactionGroupRepo transactiongroup.Repository
+
+	// TransactionGroupReconcileMinAge is how long a PENDING group, and the latest
+	// change to any of its members, must be at rest before the reconciler reads
+	// it. TransactionGroupOrphanMinAge is how old a group with no member at all
+	// must be before its intent is deleted. Zero selects the defaults.
+	TransactionGroupReconcileMinAge time.Duration
+	TransactionGroupOrphanMinAge    time.Duration
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository
@@ -126,6 +139,89 @@ type UseCase struct {
 	// settings (RequireHolder false), preserving permissive behaviour.
 	SettingsReader SettingsReader
 
+	// --- Transaction create seam (wired at bootstrap) ---
+
+	// TransactionReader serves the reads the transaction create path needs
+	// (ledger settings, balances, accounting rules) through a narrow port, so
+	// command never imports the query package. Satisfied directly by the query
+	// UseCase (signatures match).
+	TransactionReader TransactionReader
+
+	// UUIDv7Generator and Clock freeze the identities and timestamps of one
+	// atomic transaction batch before any state-dependent item preparation.
+	// Bootstrap always supplies production implementations; tests inject fixed
+	// values so ordering and replay-sensitive context remain deterministic.
+	UUIDv7Generator UUIDv7Generator
+	Clock           Clock
+
+	// createAtomicTransactionBatchV2 is a focused orchestration seam for tests.
+	// Production leaves it nil and calls CreateAtomicTransactionBatchV2.
+	createAtomicTransactionBatchV2 func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error)
+
+	// transitionCrossLedgerGroupV2Fn isolates grouped lifecycle dispatch in
+	// focused unit tests. Production leaves it nil and uses the coordinator.
+	transitionCrossLedgerGroupV2Fn func(context.Context, PendingTransitionInput, *transaction.Transaction, string) (*CreateAtomicTransactionBatchV2Result, error)
+
+	// AtomicTransactionBatchIdempotencyRepo owns the batch-only claim,
+	// execution handoff, refusal cleanup, and terminal state machine. It is
+	// separate from the singular transaction cache contract so neither
+	// namespace can be used accidentally.
+	AtomicTransactionBatchIdempotencyRepo AtomicTransactionBatchIdempotencyRepository
+
+	// AtomicTransactionBatchProjectionReader rebuilds complete, metadata-enriched
+	// public transaction representations in one bounded primary SQL read plus
+	// bounded metadata reads when recovery seals a batch response.
+	AtomicTransactionBatchProjectionReader AtomicTransactionBatchProjectionReader
+
+	// atomicTransactionBatchBudgetLimitOverride is a test seam for exact boundary
+	// characterization. Production leaves it nil and uses the reviewed hard
+	// limits compiled into the command.
+	atomicTransactionBatchBudgetLimitOverride *atomicTransactionBatchBudgetLimits
+
+	// Engine applies balance changes through the execution port.
+	// A nil value leaves the existing transaction execution path unchanged.
+	Engine Engine
+
+	// AppliedTransactionCompleter confirms the SQL and MongoDB projections of an
+	// applied engine result. It is required when Engine is set.
+	AppliedTransactionCompleter AppliedTransactionCompleter
+
+	// TransactionWriteBehindDispatcher is enabled only for the configured async
+	// create mode. Confirmed publish returns the immutable response immediately;
+	// failed or uncertain publish falls back to AppliedTransactionCompleter.
+	TransactionWriteBehindDispatcher TransactionWriteBehindDispatcher
+	TransactionWriteBehindAsync      bool
+	TransactionEvidenceResolver      TransactionEvidenceResolver
+
+	// EngineRecoveryAcknowledger removes the exact recovery record after
+	// AppliedTransactionCompleter confirms durable SQL and MongoDB projections.
+	// Failures are non-fatal because the asynchronous recovery consumer owns the
+	// fallback retry.
+	EngineRecoveryAcknowledger EngineRecoveryAcknowledger
+
+	// FeeApplier drives the in-process fee engine inside the create seam. It is
+	// injected at bootstrap from the fee use case; a nil applier disables fee
+	// application (the create path stays unchanged).
+	FeeApplier FeeApplier
+
+	// TracerReserver drives the tracer two-phase reservation lifecycle from the
+	// create seam. It is injected at bootstrap from the tracer client; a nil
+	// reserver means the tracer integration is disabled (the create path stays
+	// unchanged). The per-ledger tracer.mode gate lives at the call site.
+	TracerReserver TracerReserver
+
+	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
+	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
+	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware
+	// only sets on FEE routes — never on the transaction route — so the seam
+	// must resolve and inject it onto a derived ctx itself. Nil in single-tenant
+	// mode (and in tests that do not exercise the seam).
+	FeesMongoManager TenantMongoResolver
+
+	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
+	// static fee connection is correct and resolveFeesTenantContext is a no-op.
+	MultiTenantEnabled bool
+
 	// --- Observability (D6) ---
 
 	// MetricsFactory emits the bounded domain_operations_total /
@@ -138,14 +234,17 @@ type UseCase struct {
 // recordCommandError records err on span and logs it with the helper and level that
 // match its class: business/4xx keeps the span green and logs at Warn (T5, T7); technical/5xx
 // flips the span red and logs at Error so it feeds error-rate SLOs and pages an operator.
-func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
+// fields are appended to the log call after the mandatory libLog.Err(err).
+func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error, fields ...libLog.Field) {
+	fields = append(fields, libLog.Err(err))
+
 	if pkg.IsBusinessError(err) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
-		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, message, fields)
 
 		return
 	}
 
 	libOpentelemetry.HandleSpanError(span, message, err)
-	logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
+	logger.Log(ctx, libLog.LevelError, message, fields)
 }

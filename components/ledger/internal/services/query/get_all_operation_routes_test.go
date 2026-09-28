@@ -41,7 +41,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 		{
 			ID:             uuid.New(),
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Debit Route",
 			Description:    "Test Debit Description",
 			Code:           "DEBIT-001",
@@ -50,7 +50,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 		{
 			ID:             uuid.New(),
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Credit Route",
 			Description:    "Test Credit Description",
 			Code:           "CREDIT-001",
@@ -73,7 +73,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 
 	// Mock the OperationRouteRepo.FindAll call
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -100,7 +100,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 		Return(expectedMetadata, nil).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)
@@ -133,11 +133,11 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(nil, libHTTP.CursorPagination{}, expectedError).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
@@ -167,11 +167,11 @@ func TestGetAllOperationRoutesNotFound(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -204,7 +204,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -218,7 +218,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
@@ -244,7 +244,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 		{
 			ID:             uuid.New(),
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Test Route",
 			Description:    "Test Description",
 			Code:           "TEST-001",
@@ -266,7 +266,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -280,7 +280,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 		Return(nil, metadataError).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -306,7 +306,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 		{
 			ID:             uuid.New(),
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Operation Route 1",
 			Description:    "Description 1",
 			Code:           "OP-001",
@@ -328,7 +328,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -342,7 +342,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
@@ -372,7 +372,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 		{
 			ID:             uuid.New(),
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Filtered Route",
 			Description:    "Filtered Description",
 			Code:           "FILTER-001",
@@ -394,7 +394,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -408,7 +408,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
@@ -435,7 +435,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 		{
 			ID:             operationRouteID,
 			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
+			LedgerID:       &ledgerID,
 			Title:          "Payment Route",
 			Description:    "Payment Description",
 			Code:           "PAY-001",
@@ -457,7 +457,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		FindAll(gomock.Any(), organizationID, &ledgerID, filter.ToCursorPagination()).
 		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
@@ -474,7 +474,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 		Return(expectedMetadata, nil).
 		Times(1)
 
-	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)

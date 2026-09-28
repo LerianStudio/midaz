@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -162,11 +163,19 @@ type RoutesDeps struct {
 	ReservationService           ReservationService
 	TransactionValidationService TransactionValidationService
 	AuditEventService            AuditEventService
+	DashboardService             DashboardService
 	Guard                        *middleware.AuthGuard
 	Clock                        clock.Clock
 	MultiTenantEnabled           bool
 	PgManager                    *tmpostgres.Manager
 	Supervisor                   WorkerEnsurer
+
+	// ServiceName is the roster identity this process reports as its OTel
+	// service.name; GET /version echoes it so one name identifies the process
+	// across /version, traces and the streaming manifest. Zero value serves an
+	// empty "service" — a build that has not wired it still answers the
+	// identity compiled into the binary.
+	ServiceName string
 
 	// StreamingManifestHandler is the catalog-only lib-streaming manifest
 	// handler built degraded-safe in bootstrap (BuildStreamingManifestHandler).
@@ -195,6 +204,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	reservationService := deps.ReservationService
 	transactionValidationService := deps.TransactionValidationService
 	auditEventService := deps.AuditEventService
+	dashboardService := deps.DashboardService
 	guard := deps.Guard
 	clk := deps.Clock
 	multiTenantEnabled := deps.MultiTenantEnabled
@@ -276,7 +286,10 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// /metrics MUST be mounted BEFORE the /v1 group so Prometheus scrapes
 	// (typically unauthenticated, mesh-internal) are not blocked by AuthGuard.
 	f.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
-	f.Get("/version", Version)
+	// The handler reads the identity linked into the binary, so the body cannot
+	// disagree with what --version prints. deps.ServiceName is the same roster
+	// name the process reports as its OTel service.name.
+	f.Get("/version", buildinfo.Handler(deps.ServiceName))
 
 	// Protected API group (uses /v1/ prefix per API Design v1.3.0)
 	// Auth is handled per-endpoint by AuthGuard based on configuration flags.
@@ -366,7 +379,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 	humaAPI := openapi.New(f, api, openapi.Config{
 		Title:   "Midaz Tracer API",
-		Version: os.Getenv("VERSION"),
+		Version: buildinfo.Get().Version,
 		Servers: []string{"/v1"},
 	})
 
@@ -439,6 +452,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Reservation:           reservationHandler,
 		ResTenantMW:           resTenantMW,
 		AuditEvent:            NewAuditEventHandler(auditEventService),
+		Dashboard:             newDashboardHandlerOrNil(dashboardService, clk),
 	})
 
 	// Streaming manifest route (catalog-only lib-streaming manifest). Mounted
@@ -487,9 +501,15 @@ type tracerHumaHandlers struct {
 	Reservation           *ReservationHandler
 	ResTenantMW           fiber.Handler
 	AuditEvent            *AuditEventHandler
+
+	// Dashboard is the operator dashboard read handler. If nil, the
+	// /v1/dashboard routes are not mounted — the surface is additive, so a
+	// build that has not wired the dashboard service simply does not expose
+	// it, exactly as the reservation surface behaves.
+	Dashboard *DashboardHandler
 }
 
-// registerTracerHumaRoutes mounts all 28 tracer Huma operations on the given
+// registerTracerHumaRoutes mounts all 32 tracer Huma operations on the given
 // Huma API, attaching each op's pre-Huma Fiber auth chain to the SAME /v1 group
 // first. It is the single registration seam shared by production (NewRoutes) and
 // the http/in tests, so the mounted surface is identical without a running
@@ -588,4 +608,30 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 	api.Get("/audit-events/:id", guard.With("audit-events", "get", false))
 	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false))
 	RegisterAuditEventRoutes(humaAPI, h.AuditEvent)
+
+	// Dashboard endpoints (read-only aggregates over the validation trail) —
+	// Huma. Same pattern as every group above: guard.With is a pre-Huma Fiber
+	// middleware on the exact method+path, then c.Next() advances into the Huma
+	// handler. "dashboard" is the tracer's own authz resource, declared in
+	// permissions.yaml and granted to the tiers that already read validations.
+	// Mounted only when the service is wired (see tracerHumaHandlers.Dashboard).
+	if h.Dashboard != nil {
+		api.Get("/dashboard/metrics", guard.With("dashboard", "get", false))
+		api.Get("/dashboard/volume", guard.With("dashboard", "get", false))
+		api.Get("/dashboard/fraud-types", guard.With("dashboard", "get", false))
+		api.Get("/dashboard/top-rules", guard.With("dashboard", "get", false))
+		RegisterDashboardRoutes(humaAPI, h.Dashboard)
+	}
+}
+
+// newDashboardHandlerOrNil builds the dashboard handler, or returns nil when
+// no dashboard service is wired so registerTracerHumaRoutes leaves the routes
+// unmounted. A typed nil would mount routes that panic on the first request,
+// which is why the nil check lives here rather than at the struct literal.
+func newDashboardHandlerOrNil(service DashboardService, clk clock.Clock) *DashboardHandler {
+	if service == nil {
+		return nil
+	}
+
+	return NewDashboardHandler(service, clk)
 }

@@ -29,8 +29,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -39,7 +41,7 @@ import (
 
 // createBulkChunkSize and updateBulkChunkSize bound how many rows one bulk statement
 // carries, so the parameter count stays under PostgreSQL's 65,535 ceiling. CreateBulk
-// writes every column in transactionColumnList (18 of them, so 18,000 parameters per
+// writes every column in transactionColumnList (19 of them, so 19,000 parameters per
 // chunk); UpdateBulk writes six (id, organization_id, ledger_id, status,
 // status_description, updated_at), so its larger headroom is spent on shorter
 // row-locking windows instead. Declared here rather than inside the two methods so the
@@ -52,6 +54,7 @@ const (
 var transactionColumnList = []string{
 	"id",
 	"parent_transaction_id",
+	"group_id",
 	"description",
 	"status",
 	"status_description",
@@ -73,6 +76,7 @@ var transactionColumnList = []string{
 var transactionColumnListPrefixed = []string{
 	"t.id",
 	"t.parent_transaction_id",
+	"t.group_id",
 	"t.description",
 	"t.status",
 	"t.status_description",
@@ -104,7 +108,7 @@ var operationColumnListPrefixed = []string{
 	"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
 	"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
 	"o.direction", "o.route_id", "o.route_code", "o.route_description",
-	"o.snapshot",
+	"o.snapshot", "o.recorded_at",
 }
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -120,13 +124,35 @@ type Repository interface {
 	BeginTx(ctx context.Context) (repository.DBTransaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
+	// UpdateStatusFromPending writes the same status columns Update does, but only
+	// onto a row that is still PENDING. It is the durable backstop of the
+	// commit/cancel transition: the compare-and-set is what stops a second
+	// transition from flipping a transaction that another one already settled.
+	//
+	// The boolean reports whether the row was still PENDING and therefore
+	// transitioned. Zero rows is NOT an error, and it carries two meanings the
+	// repository cannot tell apart: a race lost to another transition, or a row
+	// the asynchronous create has not inserted yet — a transition loaded from the
+	// write-behind cache runs before its own row exists. The caller does that
+	// triage. The backup consumer treats zero rows as already-applied and carries
+	// on.
+	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	CountByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error)
+	// HasPendingByAccount reports whether a PENDING transaction still
+	// encumbers the account as source, reading that participation from the
+	// operation rows of the same scope.
+	//
+	// It answers what PostgreSQL can see: a pending execution whose rows are not
+	// projected yet is invisible to it, so a false answer is not proof on its own
+	// that the account has no pending work.
+	HasPendingByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (bool, error)
 }
 
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
@@ -134,16 +160,18 @@ var transactionColumns = strings.Join(transactionColumnList, ", ")
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
-	connection    *libPostgres.Client
-	tableName     string
-	requireTenant bool
+	connection            *libPostgres.Client
+	tableName             string
+	requireTenant         bool
+	routeTxReadsToPrimary bool
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
-func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *TransactionPostgreSQLRepository {
+func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, routeTxReadsToPrimary bool, requireTenant ...bool) *TransactionPostgreSQLRepository {
 	c := &TransactionPostgreSQLRepository{
-		connection: pc,
-		tableName:  "transaction",
+		connection:            pc,
+		tableName:             "transaction",
+		routeTxReadsToPrimary: routeTxReadsToPrimary,
 	}
 	if len(requireTenant) > 0 {
 		c.requireTenant = requireTenant[0]
@@ -175,6 +203,35 @@ func (r *TransactionPostgreSQLRepository) getDB(ctx context.Context) (dbresolver
 	}
 
 	return r.connection.Resolver(ctx)
+}
+
+// acquireRead resolves the read handle for the current request and a release
+// func that MUST be deferred by the caller. The routing decision (direct replica
+// read vs. read-only transaction pinned to the primary) lives in the readseam
+// package; this method only supplies the resolved connection and the flag.
+func (r *TransactionPostgreSQLRepository) acquireRead(ctx context.Context) (repository.DBReader, func() error, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// The read-source signal is emitted inside the seam; transaction keeps its
+	// 3-return so the read call sites stay untouched.
+	reader, release, _, err := readseam.AcquireReadFrom(ctx, db, r.routeTxReadsToPrimary)
+
+	return reader, release, err
+}
+
+// releaseRead runs the acquire-seam release func and records any finalize error
+// on the span. Read methods defer this so a read-only tx is always finalized.
+func releaseRead(span trace.Span, release func() error) {
+	if release == nil {
+		return
+	}
+
+	if err := release(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release read", err)
+	}
 }
 
 // BeginTx starts a new database transaction for atomic multi-table operations.
@@ -214,7 +271,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -222,6 +279,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		ctx, insertQuery,
 		record.ID,
 		record.ParentTransactionID,
+		record.GroupID,
 		record.Description,
 		record.Status,
 		record.StatusDescription,
@@ -422,6 +480,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 		builder = builder.Values(
 			record.ID,
 			record.ParentTransactionID,
+			record.GroupID,
 			record.Description,
 			record.Status,
 			record.StatusDescription,
@@ -717,6 +776,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		PlaceholderFormat(squirrel.Dollar)
 
 	findAll = applyCreatedAtRange(findAll, filter)
+	findAll = applyGroupIDFilter(findAll, filter)
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -748,6 +808,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
+			&transaction.GroupID,
 			&transaction.Description,
 			&transaction.Status,
 			&transaction.StatusDescription,
@@ -854,6 +915,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
+			&transaction.GroupID,
 			&transaction.Description,
 			&transaction.Status,
 			&transaction.StatusDescription,
@@ -897,6 +959,98 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	return transactions, nil
 }
 
+// FindByGroupID retrieves every live transaction in a cross-ledger group for
+// the tenant-bound database connection. Organization and ledger are deliberately
+// not predicates: a group is the boundary that authorizes the cross-scope read.
+func (r *TransactionPostgreSQLRepository) FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transactions_by_group_id")
+	defer span.End()
+
+	db, release, err := r.acquireRead(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+	defer releaseRead(span, release)
+
+	findAll := squirrel.Select(transactionColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("group_id = ?", groupID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at ASC", "id ASC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	transactions := make([]*Transaction, 0)
+
+	for rows.Next() {
+		var record TransactionPostgreSQLModel
+
+		var body *string
+
+		if err := rows.Scan(
+			&record.ID,
+			&record.ParentTransactionID,
+			&record.GroupID,
+			&record.Description,
+			&record.Status,
+			&record.StatusDescription,
+			&record.Amount,
+			&record.AssetCode,
+			&record.ChartOfAccountsGroupName,
+			&record.LedgerID,
+			&record.OrganizationID,
+			&body,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+			&record.DeletedAt,
+			&record.Route,
+			&record.RouteID,
+			&record.FeesSkipped,
+			&record.TracerSkipped,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			return nil, err
+		}
+
+		if !libCommons.IsNilOrEmpty(body) {
+			if err := json.Unmarshal([]byte(*body), &record.Body); err != nil {
+				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
+
+				return nil, err
+			}
+		}
+
+		transactions = append(transactions, record.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
+
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
 // Find retrieves a Transaction entity from the database using the provided ID.
 func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -904,12 +1058,13 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -935,6 +1090,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
+		&transaction.GroupID,
 		&transaction.Description,
 		&transaction.Status,
 		&transaction.StatusDescription,
@@ -984,12 +1140,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -1015,6 +1172,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
+		&transaction.GroupID,
 		&transaction.Description,
 		&transaction.Status,
 		&transaction.StatusDescription,
@@ -1056,6 +1214,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 }
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
+//
+// The body is nulled only by an update that also CARRIES a status. Nulling the
+// body is the terminal transition's doing — a settled transaction replays
+// nothing — so an update that names no status is a field patch and must leave
+// the body alone. Without that condition a description or metadata patch on a
+// PENDING transaction destroys the body its commit replays, and the commit then
+// rejects the transaction as already transitioned while its funds stay held.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1076,7 +1241,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	var args []any
 
-	if transaction.Body.IsEmpty() {
+	if !transaction.Status.IsEmpty() && transaction.Body.IsEmpty() {
 		updates = append(updates, "body = $"+strconv.Itoa(len(args)+1))
 		args = append(args, nil)
 	}
@@ -1178,12 +1343,13 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 
@@ -1226,6 +1392,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		if err := rows.Scan(
 			&tran.ID,
 			&tran.ParentTransactionID,
+			&tran.GroupID,
 			&tran.Description,
 			&tran.Status,
 			&tran.StatusDescription,
@@ -1273,6 +1440,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.RouteCode,
 			&op.RouteDescription,
 			&op.Snapshot,
+			&op.RecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1342,6 +1510,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		PlaceholderFormat(squirrel.Dollar)
 
 	subQuery = applyCreatedAtRange(subQuery, filter)
+	subQuery = applyGroupIDFilter(subQuery, filter)
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
@@ -1403,11 +1572,13 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opVersionBalance, opVersionBalanceAfter                      *int64
 			opDirection, opRouteID, opRouteCode, opRouteDescription      *string
 			opSnapshot                                                   *json.RawMessage
+			opRecordedAt                                                 sql.NullTime
 		)
 
 		if err := rows.Scan(
 			&tran.ID,
 			&tran.ParentTransactionID,
+			&tran.GroupID,
 			&tran.Description,
 			&tran.Status,
 			&tran.StatusDescription,
@@ -1455,6 +1626,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opRouteCode,
 			&opRouteDescription,
 			&opSnapshot,
+			&opRecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1511,6 +1683,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				RouteID:               opRouteID,
 				RouteCode:             opRouteCode,
 				RouteDescription:      opRouteDescription,
+				RecordedAt:            opRecordedAt,
 			}
 
 			if opSnapshot != nil {
@@ -1620,6 +1793,14 @@ func applyCreatedAtRange(builder squirrel.SelectBuilder, pagination http.Paginat
 	return builder.
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
+}
+
+func applyGroupIDFilter(builder squirrel.SelectBuilder, pagination http.Pagination) squirrel.SelectBuilder {
+	if pagination.GroupID == nil {
+		return builder
+	}
+
+	return builder.Where(squirrel.Expr("group_id = ?", *pagination.GroupID))
 }
 
 // derefString safely dereferences a *string, returning "" if nil.

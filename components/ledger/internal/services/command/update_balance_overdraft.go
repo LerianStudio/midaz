@@ -30,6 +30,8 @@ import (
 // internal scope is reserved for system-managed balances (auto-created
 // overdraft balances) and MUST NOT be settable through the public API.
 func validateUpdateSettings(ctx context.Context, logger libLog.Logger, span trace.Span, settings *mmodel.BalanceSettings) error {
+	settings.Normalize()
+
 	if err := settings.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings payload", err)
 		logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance settings", libLog.Err(err))
@@ -163,8 +165,8 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	if current.AccountID != "" {
 		parsed, perr := uuid.Parse(current.AccountID)
 		if perr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id on current balance", perr)
-			logger.Log(ctx, libLog.LevelError, "Failed to parse account ID", libLog.String("accountID", current.AccountID), libLog.Err(perr))
+			libOpentelemetry.HandleSpanError(span, "Invalid account id on current balance", perr)
+			logger.Log(ctx, libLog.LevelError, "Invalid account id on current balance", libLog.String("accountID", current.AccountID), libLog.Err(perr))
 
 			return nil, perr
 		}
@@ -182,8 +184,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		// is the expected trigger for the auto-creation path below.
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(ferr, &notFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check for existing overdraft balance", ferr)
-			logger.Log(ctx, libLog.LevelError, "Failed to check existing overdraft balance", libLog.Err(ferr))
+			recordCommandError(ctx, span, logger, "Failed to check for existing overdraft balance", ferr)
 
 			return nil, ferr
 		}
@@ -257,8 +258,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 			// did not come from our target tuple.
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to auto-create overdraft balance", cerr)
-		logger.Log(ctx, libLog.LevelError, "Failed to auto-create overdraft balance", libLog.Err(cerr))
+		recordCommandError(ctx, span, logger, "Failed to auto-create overdraft balance", cerr)
 
 		return nil, cerr
 	}

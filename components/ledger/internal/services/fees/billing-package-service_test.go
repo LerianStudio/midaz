@@ -58,7 +58,7 @@ func validVolumeBillingPackage() *model.BillingPackage {
 		Type:           model.BillingPackageTypeVolume,
 		EventFilter: &model.EventFilter{
 			TransactionRoute: routeID.String(),
-			Status:           "completed",
+			Status:           "APPROVED",
 		},
 		PricingModel: &pricingModel,
 		Tiers: []model.PricingTier{

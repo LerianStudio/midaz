@@ -30,8 +30,10 @@ MIDAZ
  |   |   |   |   |---   mongodb    # metadata + fees repositories
  |   |   |   |   |---   postgres   # onboarding + transaction repositories
  |   |   |   |   |---   rabbitmq
- |   |   |   |   |---   redis
+ |   |   |   |   |---   redis       # caches, recovery queues, and the default accounting engine adapter
  |   |   |   |---   bootstrap      # composition root (initCRM, fee wiring)
+ |   |   |   |---   domain
+ |   |   |   |   |---   accounting # storage-independent engine contract and monetary results
  |   |   |   |---   services
  |   |   |   |   |---   command
  |   |   |   |   |---   query
@@ -52,6 +54,7 @@ MIDAZ
  |   |   |   |---   app
  |   |   |---   internal
  |   |   |---   migrations
+ |   api                            # consolidated OpenAPI spec (midaz.openapi.{yaml,json})
  |   image
  |   pkg                           # shared libraries (root, non-exhaustive)
  |   |---   constant
@@ -66,7 +69,6 @@ MIDAZ
  |   |---   shell
  |   |---   streaming
  |   |---   utils
- |   postman
  |   scripts
  |   tests                         # shared test trees (root)
  |   |---   chaos
@@ -91,16 +93,18 @@ The unified ledger binary folds four domains into one process:
 
 * **Onboarding + Transaction**: the original midaz ledger (organizations, ledgers, assets,
   portfolios, segments, accounts, transactions, operations, balances; routing via
-  account-types / operation-routes / transaction-routes).
+  account-types / operation-routes / transaction-routes). Executable transaction flows use
+  the private Redis/Lua accounting engine by default; see `docs/architecture/engine.md`.
 * **CRM (folded)**: holder/instrument routes registered from the `components/ledger/internal/crm` package tree.
   See below.
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
   Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
   `components/ledger/internal/adapters/http/in/{fee_package,fee_estimate,billing_package,billing_calculate}_routes.go`. The fee seam runs inside the
-  `transaction_create.go` HTTP handler (not the command layer) after
+  `create_transaction_v2.go` command use case after
   `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, mutating the send legs
-  before the post-fee re-validation; `applyFees` itself lives in `transaction_fee_application.go`.
+  before the post-fee re-validation; `applyFees` itself lives in
+  `components/ledger/internal/services/command/transaction_fee_application.go`.
 
 Composition root: `components/ledger/internal/bootstrap/config.go` (wires onboarding,
 transaction, `initCRM`, and fees).
@@ -139,7 +143,7 @@ hash-chained audit log. Ships its own migrations under `./components/tracer/migr
 #### Shared Packages (`./pkg`)
 
 Cross-component Go libraries (root module; non-exhaustive — additional packages such as
-`buildinfo`, `proto`, and `rabbitmq` also live here):
+`proto` and `rabbitmq` also live here):
 
 | Package | Purpose |
 |---------|---------|
@@ -157,12 +161,13 @@ Cross-component Go libraries (root module; non-exhaustive — additional package
 
 > Logging, telemetry, tracing, panic recovery, HTTP toolkit, and tenant-manager symbols
 > (`libLog`, `libHTTP`, etc.) come from the external libraries
-> `github.com/LerianStudio/lib-commons/v6` (v6.2.0) and
-> `github.com/LerianStudio/lib-observability/v4` (v4.0.0-beta.1) — they are **not** subpackages of `./pkg`.
+> `github.com/LerianStudio/lib-commons/v7` (v7.1.0) and
+> `github.com/LerianStudio/lib-observability/v4` (v4.0.4) — they are **not** subpackages of `./pkg`.
 
 #### Miscellaneous
 
+* **API** (`./api`): consolidated OpenAPI spec (`midaz.openapi.{yaml,json}`), joined from the
+  per-component Huma dumps under `components/<c>/api`; see `make generate-docs` / `make check-docs`.
 * **Images** (`./image`): project images and README assets.
-* **Postman** (`./postman`): API collections for manual testing.
 * **Scripts** (`./scripts`): coverage, docs generation, environment checks.
 * **Makefile includes** (`./mk`): coverage, tests, quality targets.

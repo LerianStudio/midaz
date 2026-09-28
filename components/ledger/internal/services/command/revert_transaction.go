@@ -1,0 +1,727 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"fmt"
+	"sort"
+
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+)
+
+// RevertIdempotencyReplayedLogMessage is the Warn message the revert use case records
+// when the idempotency slot answers with a cached reverse instead of a new one.
+const RevertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
+
+// RevertTransactionInput names the transaction to reverse. Revert sends no idempotency
+// headers, so the use case keys the slot on the reversal hash and applies the default
+// TTL.
+type RevertTransactionInput struct {
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
+	TransactionID  uuid.UUID
+
+	// AccountBlockExceptionID is the single-use account-block exception the
+	// request presented, or nil when it presented none. Only the /v2 revert
+	// carries a body that can name one, and only createRevertV2 resolves it.
+	AccountBlockExceptionID *uuid.UUID
+}
+
+// KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
+//
+// Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
+// key = HashSHA256(preimage), and with no override the create use case serialises the
+// reversal payload. TransactionRevert() copies only the origin's economic content
+// (description, asset, amount, legs, route, metadata) and NEVER the origin id, so two
+// economically-identical origins in the same ledger derive the SAME key and share ONE slot:
+// the second revert loses the SetNX, is handed the FIRST origin's cached reverse, and answers
+// 201 while its own origin is never reverted. Silently — no error, no distinguishable status.
+//
+// The fix is an origin-scoped preimage. It is deliberately NOT applied here: v1 revert is
+// released, and changing the preimage changes the Redis key shape, so a revert retried across
+// a rolling-deploy boundary would land on a different slot and could double-revert. It re-lands
+// together with the idempotency keyspace separation, which re-shapes the key anyway, behind a
+// dual-write/dual-read migration — one coordinated deploy window instead of two.
+//
+// Until then the ONLY control is detection: the replayed flag below, its Warn, and the
+// X-Idempotency-Replayed header the transports project. Do not treat that as a fix.
+// The integration reproduction re-lands together with the fix in the money-path layer
+// (the fail-closed integration gate forbids carrying it here as a permanent skip).
+//
+// RevertTransactionV1 reverses a transaction under the /v1 contract: the full revert
+// eligibility gate, then the /v1 create pipeline with the revert action. The reversal
+// links back to its origin through the parent transaction id, and the idempotency TTL
+// defaults to ParseIdempotencyTTL("") == 300s (an absent X-TTL resolves to 300, never 0;
+// a hardcoded 0 would make the Redis idempotency slot permanent). It returns the
+// idempotency `replayed` flag alongside the reverse transaction so the transport sets
+// X-Idempotency-Replayed itself.
+func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransactionInput) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.revert_transaction_v1")
+	defer span.End()
+
+	transactionReverted, target, err := uc.prepareRevertTransaction(ctx, span, in)
+	if target != nil && target.GroupID != nil {
+		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerLifecycleRequiresV2, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger revert requires v2", err)
+
+		return nil, false, err
+	}
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	run := uc.newRevertRun(in, transactionReverted)
+	if err := uc.attachRevertOriginDependency(ctx, run, in.TransactionID); err != nil {
+		return nil, false, err
+	}
+
+	tranReverted, replayed, err := uc.createRevertV1(ctx, span, logger, run)
+	if err != nil {
+		return nil, false, err
+	}
+
+	recordRevertReplay(ctx, span, logger, in.TransactionID, replayed)
+
+	return tranReverted, replayed, nil
+}
+
+// RevertTransactionV2Result is singular for ordinary transactions and grouped
+// for cross-ledger origins. The anonymous singular branch preserves field
+// access for internal callers while the HTTP boundary selects the wire shape.
+type RevertTransactionV2Result struct {
+	*transaction.Transaction
+	Group           *CreateAtomicTransactionBatchV2Result
+	RevertedGroupID *uuid.UUID
+}
+
+// RevertTransactionV2 reverses a transaction under the /v2 contract: the same eligibility
+// gate, then the /v2 create pipeline with the revert action — per-call skip controls and
+// the tracer reservation apply, the fee engine does not. The origin-scoping defect
+// documented on RevertTransactionV1 applies here too.
+func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransactionInput) (*RevertTransactionV2Result, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.revert_transaction_v2")
+	defer span.End()
+
+	transactionReverted, target, err := uc.prepareRevertTransaction(ctx, span, in)
+	if err != nil {
+		if target != nil && target.GroupID != nil {
+			err = uc.withCrossLedgerRevertMemberError(ctx, in, target, err)
+		}
+
+		return nil, false, err
+	}
+
+	if target != nil && target.GroupID != nil {
+		revertedGroupID, parseErr := uuid.Parse(*target.GroupID)
+		if parseErr != nil {
+			return nil, false, fmt.Errorf("parse cross-ledger transaction group id: %w", parseErr)
+		}
+
+		group, err := uc.revertCrossLedgerGroupV2(ctx, in, revertedGroupID)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return &RevertTransactionV2Result{
+			Group:           group,
+			RevertedGroupID: &revertedGroupID,
+		}, group.Replayed, nil
+	}
+
+	run := uc.newRevertRun(in, transactionReverted)
+	if err := uc.attachRevertOriginDependency(ctx, run, in.TransactionID); err != nil {
+		return nil, false, err
+	}
+
+	tranReverted, replayed, err := uc.createRevertV2(ctx, span, logger, run)
+	if err != nil {
+		return nil, false, err
+	}
+
+	recordRevertReplay(ctx, span, logger, in.TransactionID, replayed)
+
+	return &RevertTransactionV2Result{Transaction: tranReverted}, replayed, nil
+}
+
+// prepareRevertTransaction runs the revert eligibility gate — no parent, not already a
+// revert, APPROVED status, non-empty reversal, every routed operation bidirectional — and
+// returns the reversal payload TransactionRevert reconstructs from every operation of the
+// origin, across all of its executions.
+func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span, in RevertTransactionInput) (mtransaction.Transaction, *transaction.Transaction, error) {
+	// Route ONLY the transaction and parent reads of the eligibility gate to the primary
+	// via a dedicated ctx: a revert issued right after its create must read its own
+	// write, and on a primary+replica deploy a lagging replica answers not-found for a
+	// transaction that exists — a 0007 for a revert the caller is entitled to. The
+	// unmarked ctx flows to everything else (the operation-route lookup, which is not a
+	// read of the create) so those keep their default routing.
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	parent, err := uc.TransactionReader.GetParentByTransactionID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
+
+		return mtransaction.Transaction{}, nil, err
+	}
+
+	if parent != nil {
+		return uc.rejectAlreadyRevertedTransaction(readCtx, span, in, parent)
+	}
+
+	loaded, err := uc.loadLifecycleResolution(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
+
+		return mtransaction.Transaction{}, nil, err
+	}
+
+	tran := loaded.Transaction
+
+	if tran.ParentTransactionID != nil {
+		err = pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
+	if tran.Status.Code != constant.APPROVED {
+		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
+	if err := uc.completeRevertOriginOperations(readCtx, in, loaded); err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to complete the operations of the transaction to revert", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
+	transactionReverted := tran.TransactionRevert()
+	if transactionReverted.IsEmpty() {
+		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
+	// Validate bidirectional routes: operations with a route_id require
+	// the referenced OperationRoute to have OperationType "bidirectional".
+	for _, op := range tran.Operations {
+		if op.RouteID == nil || *op.RouteID == "" {
+			continue
+		}
+
+		routeUUID, parseErr := uuid.Parse(*op.RouteID)
+		if parseErr != nil {
+			parseValidationErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "RevertTransaction", "routeId")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
+
+			return mtransaction.Transaction{}, tran, parseValidationErr
+		}
+
+		operationRoute, routeErr := uc.TransactionReader.GetOperationRouteByID(ctx, in.OrganizationID, routeUUID)
+		if routeErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
+
+			return mtransaction.Transaction{}, tran, routeErr
+		}
+
+		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
+			err = pkg.ValidateBusinessError(constant.ErrRouteNotBidirectional, "RevertTransaction")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
+
+			return mtransaction.Transaction{}, tran, err
+		}
+	}
+
+	return transactionReverted, tran, nil
+}
+
+func (uc *UseCase) rejectAlreadyRevertedTransaction(
+	ctx context.Context,
+	span trace.Span,
+	in RevertTransactionInput,
+	parent *transaction.Transaction,
+) (mtransaction.Transaction, *transaction.Transaction, error) {
+	err := pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
+
+	if parent.GroupID != nil {
+		tran, lookupErr := uc.TransactionReader.GetTransactionByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+		if lookupErr == nil {
+			return mtransaction.Transaction{}, tran, err
+		}
+	}
+
+	return mtransaction.Transaction{}, nil, err
+}
+
+// completeRevertOriginOperations adds to the loaded origin the operations its engine
+// view leaves out. That view carries only the latest execution, so for a committed hold
+// it has the commit's rows and not the hold's. Under route validation the hold wrote the
+// source DEBIT, which is the leg the reversal credits back. Once the indexed execution
+// is durable the primary holds both phases, because completion persists a predecessor
+// before its successor. While it is still pending, the earlier phase is in the
+// predecessor's evidence, which cleanup keeps for as long as its successor is pending.
+func (uc *UseCase) completeRevertOriginOperations(ctx context.Context, in RevertTransactionInput, loaded *TransactionProjectionResolution) error {
+	switch {
+	case loaded.ExecutionID == uuid.Nil:
+		// The primary or the legacy entry answered, and both hold every row.
+		return nil
+	case loaded.Pending:
+		return uc.mergeRevertOriginPredecessor(ctx, in, loaded.ExecutionID, loaded.Transaction)
+	default:
+		return uc.mergePersistedRevertOrigin(ctx, in, loaded.Transaction)
+	}
+}
+
+// mergeRevertOriginPredecessor merges the operations of the execution the pending one
+// succeeded. An execution that names no predecessor followed one whose index entry was
+// already reaped, so the earlier phase is durable and the primary answers it. A named
+// predecessor whose evidence cannot be read fails the revert instead of reversing a
+// partial set.
+func (uc *UseCase) mergeRevertOriginPredecessor(ctx context.Context, in RevertTransactionInput, executionID uuid.UUID, origin *transaction.Transaction) error {
+	if uc.TransactionEvidenceResolver == nil {
+		return uc.mergePersistedRevertOrigin(ctx, in, origin)
+	}
+
+	current, err := uc.resolveRevertOriginEvidence(ctx, in, executionID)
+	if err != nil {
+		return err
+	}
+
+	var predecessor *TransactionEvidenceReference
+
+	for index := range current.Dependencies {
+		if current.Dependencies[index].Kind == TransactionDependencyPredecessor {
+			predecessor = &current.Dependencies[index]
+
+			break
+		}
+	}
+
+	if predecessor == nil {
+		return uc.mergePersistedRevertOrigin(ctx, in, origin)
+	}
+
+	earlier, err := uc.resolveRevertOriginEvidence(ctx, in, predecessor.ExecutionID)
+	if err != nil {
+		return err
+	}
+
+	views, err := BuildTransactionEvidenceViews(earlier.Record)
+	if err != nil {
+		return err
+	}
+
+	mergeOperationsByID(origin, views.Lookup)
+
+	return nil
+}
+
+// resolveRevertOriginEvidence reads the evidence of one execution of the origin and
+// checks it describes exactly that execution in the caller's scope.
+func (uc *UseCase) resolveRevertOriginEvidence(ctx context.Context, in RevertTransactionInput, executionID uuid.UUID) (*TransactionWriteBehindEnvelope, error) {
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
+	envelope, err := uc.TransactionEvidenceResolver.ResolveTransactionEvidence(ctx, TransactionEvidenceReference{
+		Kind: TransactionDependencyOrigin, TenantID: tenantID,
+		OrganizationID: in.OrganizationID, LedgerID: in.LedgerID,
+		TransactionID: in.TransactionID, ExecutionID: executionID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("resolve revert origin evidence: %w", err)
+	}
+
+	if envelope == nil {
+		return nil, invalidTransactionCompletionRecord("revert origin evidence is missing")
+	}
+
+	record := envelope.Record
+	if record.TenantID != tenantID || record.OrganizationID != in.OrganizationID || record.LedgerID != in.LedgerID ||
+		record.TransactionID != in.TransactionID || record.ExecutionID != executionID {
+		return nil, invalidTransactionCompletionRecord("revert origin evidence scope mismatch")
+	}
+
+	return envelope, nil
+}
+
+func (uc *UseCase) mergePersistedRevertOrigin(ctx context.Context, in RevertTransactionInput, origin *transaction.Transaction) error {
+	persisted, err := uc.TransactionReader.GetTransactionWithOperationsByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	if err != nil {
+		return err
+	}
+
+	mergeOperationsByID(origin, persisted)
+
+	return nil
+}
+
+// mergeOperationsByID appends to origin the operations of source it does not already
+// carry. Engine operation IDs are deterministic, so one row read from two sources has one
+// ID. The origin's own rows keep their order, which leaves the reversal of an origin that
+// was already complete unchanged. The appended rows must not depend on where they were
+// read from, because the revert idempotency key is a hash of the reversal: the primary
+// loads no operation metadata and imposes no order, so an appended row drops its metadata
+// and the rows are appended in ID order.
+func mergeOperationsByID(origin, source *transaction.Transaction) {
+	if source == nil {
+		return
+	}
+
+	known := make(map[string]struct{}, len(origin.Operations)+len(source.Operations))
+	for _, op := range origin.Operations {
+		if op != nil {
+			known[op.ID] = struct{}{}
+		}
+	}
+
+	missing := make([]*operation.Operation, 0, len(source.Operations))
+
+	for _, op := range source.Operations {
+		if op == nil {
+			continue
+		}
+
+		if _, exists := known[op.ID]; exists {
+			continue
+		}
+
+		known[op.ID] = struct{}{}
+
+		appended := *op
+		appended.Metadata = nil
+		missing = append(missing, &appended)
+	}
+
+	sort.Slice(missing, func(i, j int) bool { return missing[i].ID < missing[j].ID })
+
+	origin.Operations = append(origin.Operations, missing...)
+}
+
+func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *createTransactionRun, originID uuid.UUID) error {
+	if uc.TransactionEvidenceResolver == nil {
+		return nil
+	}
+
+	resolution, err := resolveTransactionProjection(ctx, uc.TransactionReader, run.organizationID, run.ledgerID, originID)
+	if err != nil {
+		return err
+	}
+
+	if resolution.ExecutionID == uuid.Nil {
+		return nil
+	}
+
+	run.dependencies = []TransactionEvidenceReference{{
+		Kind: TransactionDependencyOrigin, TenantID: tmcore.GetTenantIDContext(ctx),
+		OrganizationID: run.organizationID, LedgerID: run.ledgerID,
+		TransactionID: originID, ExecutionID: resolution.ExecutionID,
+	}}
+
+	return nil
+}
+
+// newRevertRun builds the run state a reversal posts under: the action is forced to
+// "revert" so accounting route lookups use the revert rubrics instead of the
+// status-derived action, the parent transaction id links the reversal to its origin, and
+// the idempotency key is empty so the slot is keyed on the reversal hash.
+func (uc *UseCase) newRevertRun(in RevertTransactionInput, transactionReverted mtransaction.Transaction) *createTransactionRun {
+	return &createTransactionRun{
+		organizationID:      in.OrganizationID,
+		ledgerID:            in.LedgerID,
+		parentTransactionID: in.TransactionID,
+		input:               transactionReverted,
+		status:              constant.CREATED,
+		action:              constant.ActionRevert,
+		idempotencyTTL:      pkgHTTP.ParseIdempotencyTTL(""),
+
+		accountBlockExceptionID: in.AccountBlockExceptionID,
+	}
+}
+
+// recordRevertReplay marks a replayed reversal on the span and logs it.
+func recordRevertReplay(ctx context.Context, span trace.Span, logger libLog.Logger, transactionID uuid.UUID, replayed bool) {
+	if !replayed {
+		return
+	}
+
+	// A replay is an outcome this span observed, not an input, so it belongs outside the
+	// app.request.* namespace (T4). It is also not an error: the span stays green.
+	span.SetAttributes(attribute.Bool("app.response.idempotency_replayed", true))
+
+	// Warn — deliberately louder than the create paths, which treat a replay as routine.
+	// A create replay is what the caller asked for: they sent X-Idempotency, so a cached
+	// answer is the contract. Revert carries no caller key, so nobody asked for this one;
+	// it means the caller's revert did NOT happen and the 201 alone cannot tell them so.
+	// While the origin-agnostic key above stands, the cached reverse may not
+	// even belong to this origin, so this is the only operator-visible trace of the
+	// defect — Debug, typically not collected in production, could not carry it.
+	logger.Log(ctx, libLog.LevelWarn, RevertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
+}
+
+// createRevertV1 posts a reversal under the /v1 contract: no fee engine, no tracer
+// reservation, no per-call skip controls.
+func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (*transaction.Transaction, bool, error) {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
+		return nil, false, err
+	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
+
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "", "")
+	if err != nil {
+		return nil, false, err
+	}
+
+	if replay != nil {
+		return replay, true, nil
+	}
+
+	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
+	// raw aliases, where the ambiguity check cannot key against them, so it is the
+	// one that answers 0073 (ErrTransactionValueMismatch) instead of 0090
+	// (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send.
+	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	span.SetAttributes(
+		attribute.Bool("app.transaction.fees_skipped", false),
+		attribute.Bool("app.transaction.tracer_skipped", false),
+		attribute.Bool("app.transaction.fees_route_eligible", false),
+		attribute.Bool("app.transaction.tracer_route_eligible", false),
+	)
+
+	normalizeSendLegs(run)
+
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate normalized send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate normalized send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.validate = validate
+
+	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+
+	if run.status != constant.PENDING {
+		run.fromTo = append(run.fromTo, to...)
+	}
+
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
+	}
+
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+
+	return tran, false, err
+}
+
+// createRevertV2 posts a reversal under the /v2 contract: the per-call skip controls
+// and the tracer reservation lifecycle apply, the fee engine does not.
+func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (*transaction.Transaction, bool, error) {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
+		return nil, false, err
+	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
+
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "", "")
+	if err != nil {
+		return nil, false, err
+	}
+
+	if replay != nil {
+		return replay, true, nil
+	}
+
+	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
+	// raw aliases, where the ambiguity check cannot key against them, so it is the
+	// one that answers 0073 (ErrTransactionValueMismatch) instead of 0090
+	// (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send.
+	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	honoredFeeSkip, honoredTracerSkip, skipRejectLabel, err := resolveTransactionSkips(run.input, run.ledgerSettings)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, skipRejectLabel, err)
+		logger.Log(ctx, libLog.LevelWarn, skipRejectLabel, libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.honoredFeeSkip = honoredFeeSkip
+	run.honoredTracerSkip = honoredTracerSkip
+
+	span.SetAttributes(
+		attribute.Bool("app.transaction.fees_skipped", run.honoredFeeSkip),
+		attribute.Bool("app.transaction.tracer_skipped", run.honoredTracerSkip),
+		attribute.Bool("app.transaction.fees_route_eligible", true),
+		attribute.Bool("app.transaction.tracer_route_eligible", true),
+	)
+
+	normalizeSendLegs(run)
+
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate normalized send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate normalized send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.validate = validate
+
+	prepareRevertV2Aliases(ctx, run)
+
+	// Account-block exception: the /v2 revert accepts a grant, so resolve the
+	// presented identifier before balances are staged. createRevertV1 names this
+	// resolver nowhere, which is what keeps the /v1 revert free of the field.
+	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
+		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
+	if err != nil {
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
+
+	return tran, false, err
+}
+
+func prepareRevertV2Aliases(ctx context.Context, run *createTransactionRun) {
+	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+
+	if run.status != constant.PENDING {
+		run.fromTo = append(run.fromTo, to...)
+	}
+
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
+	}
+}

@@ -32,7 +32,7 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 	expectedTransactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Transaction Route",
 		Description:    "Test Description",
 		OperationRoutes: []mmodel.OperationRoute{
@@ -59,7 +59,7 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
@@ -68,7 +68,7 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 		Return(expectedMetadata, nil).
 		Times(1)
 
-	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -89,7 +89,7 @@ func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	expectedTransactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Transaction Route",
 		Description:    "Test Description",
 	}
@@ -103,7 +103,7 @@ func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
@@ -112,7 +112,7 @@ func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
-	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -128,7 +128,6 @@ func TestGetTransactionRouteByIDErrorTransactionRouteRepo(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	expectedError := errors.New("database error")
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -140,11 +139,11 @@ func TestGetTransactionRouteByIDErrorTransactionRouteRepo(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, expectedError).
 		Times(1)
 
-	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
@@ -158,7 +157,6 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -169,11 +167,11 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 
@@ -196,7 +194,7 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 	expectedTransactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Transaction Route",
 		Description:    "Test Description",
 	}
@@ -210,7 +208,7 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
@@ -219,7 +217,7 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 		Return(nil, metadataError).
 		Times(1)
 
-	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, metadataError, err)
@@ -233,7 +231,6 @@ func TestGetTransactionRouteByIDNilTransactionRoute(t *testing.T) {
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -244,13 +241,13 @@ func TestGetTransactionRouteByIDNilTransactionRoute(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
 		Return(nil, nil).
 		Times(1)
 
 	// Metadata should not be called when transaction route is nil
 
-	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
+	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, transactionRouteID)
 
 	assert.NoError(t, err)
 	assert.Nil(t, result)

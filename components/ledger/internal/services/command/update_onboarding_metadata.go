@@ -9,7 +9,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 )
 
@@ -24,9 +23,7 @@ func (uc *UseCase) UpdateOnboardingMetadata(ctx context.Context, entityName, ent
 	if metadataToUpdate != nil {
 		existingMetadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, entityName, entityID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error getting metadata on mongodb")
+			recordCommandError(ctx, span, logger, "Failed to get metadata on mongodb", err)
 
 			return nil, err
 		}

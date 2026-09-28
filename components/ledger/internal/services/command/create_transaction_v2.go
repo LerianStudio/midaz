@@ -1,0 +1,263 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+)
+
+// CreateTransactionV2Input is everything the /v2 create contract carries.
+type CreateTransactionV2Input struct {
+	OrganizationID    uuid.UUID
+	LedgerID          uuid.UUID
+	Transaction       mtransaction.Transaction
+	TransactionStatus string
+	IdempotencyKey    string
+	IdempotencyTTL    time.Duration
+
+	// IdempotencyHashSource keys the idempotency slot off the raw body as
+	// submitted, with the action discriminator folded in. Empty falls back to the
+	// canonical serialized transaction.
+	IdempotencyHashSource string
+
+	// IdempotencyFingerprint identifies the request for the replay check: a slot
+	// created by a request with another fingerprint answers ErrIdempotencyKey
+	// instead of replaying. Empty falls back to a fingerprint derived from the
+	// canonical serialized transaction and its status.
+	IdempotencyFingerprint string
+
+	// AccountBlockExceptionID is the single-use account-block exception the body
+	// presented, or nil when it presented none. The direct action accepts it; the
+	// hold rejects it at decode (a two-phase transaction would need two grants),
+	// so a pending create never reaches here carrying one.
+	AccountBlockExceptionID *uuid.UUID
+}
+
+// CreateTransactionV2 posts a transaction under the /v2 contract: the fee engine,
+// the tracer reservation lifecycle and the per-call skip controls all apply.
+//
+// The seam order is the contract. The single ledger-settings read carries the skip
+// opt-ins, so the skips resolve off it with no extra I/O; an honored fee skip then
+// bypasses the fee engine before its package lookup, and an honored tracer skip
+// bypasses the reserve anchor before any request is built. The fee seam mutates the
+// send, so the validate is re-run over the fee-inclusive legs and the reserve
+// observes fee-inclusive amounts.
+//
+// It returns the created transaction and whether the idempotency slot answered with
+// a replay, so the transport sets X-Idempotency-Replayed itself.
+func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransactionV2Input) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_transaction_v2")
+	defer span.End()
+
+	run := &createTransactionRun{
+		organizationID: in.OrganizationID,
+		ledgerID:       in.LedgerID,
+		input:          in.Transaction,
+		status:         in.TransactionStatus,
+		// A header string is a view over the connection's read buffer, which the
+		// server overwrites when the next request arrives on that connection. The
+		// run outlives the response — the idempotency slot is written from a
+		// goroutine — so it must hold a copy rather than the view.
+		idempotencyKey: strings.Clone(in.IdempotencyKey),
+		idempotencyTTL: in.IdempotencyTTL,
+	}
+
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
+		return nil, false, err
+	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
+
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, in.IdempotencyHashSource, in.IdempotencyFingerprint)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if replay != nil {
+		return replay, true, nil
+	}
+
+	// First validate: rejects malformed source/distribute on the RAW input
+	// before fees are computed. Its Responses value is intentionally superseded
+	// by the post-fee re-validation below (the fee engine mutates the send), so
+	// only the error is consumed here. The binding is kept (not `_, err`) to
+	// preserve the single-`:=`/single-`=` seam shape the structural gate
+	// (create_transaction_seam_structure_test.go) enforces.
+	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the post-fee re-validation; only its error gates malformed input before fees run.
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	// Ledger settings (Redis cache-aside) are read once here, above the fee seam.
+	// They carry the per-call skip opt-ins (Overrides), so resolving the skips
+	// off this single read keeps the gate free of extra I/O and lets an honored
+	// fee skip bypass the engine entirely — before any package lookup.
+	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	// Resolve the two per-call skips (fees, tracer) once, off the settings just
+	// read — no extra I/O. An honored fee skip short-circuits applyFees below
+	// before the fee package lookup; an honored tracer skip short-circuits the
+	// reserve anchor. A skip requested without the per-ledger opt-in is a 422:
+	// release the idempotency key and reject.
+	honoredFeeSkip, honoredTracerSkip, skipRejectLabel, err := resolveTransactionSkips(run.input, run.ledgerSettings)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, skipRejectLabel, err)
+		logger.Log(ctx, libLog.LevelWarn, skipRejectLabel, libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.honoredFeeSkip = honoredFeeSkip
+	run.honoredTracerSkip = honoredTracerSkip
+
+	// Record the resolved skips as system observations (not request inputs): they
+	// reflect what the two-key gate actually honored, and they are persisted to the
+	// transaction row below for the durable audit trail.
+	// The two *_route_eligible attributes are deliberately NOT folded into the matching
+	// *_skipped flags: those are persisted on the transaction row as the audit trail of a
+	// skip the CLIENT asked for, so marking them true on every create would record a
+	// claim never made. The two reasons a control did not run stay distinguishable.
+	span.SetAttributes(
+		attribute.Bool("app.transaction.fees_skipped", run.honoredFeeSkip),
+		attribute.Bool("app.transaction.tracer_skipped", run.honoredTracerSkip),
+		attribute.Bool("app.transaction.fees_route_eligible", true),
+		attribute.Bool("app.transaction.tracer_route_eligible", true),
+	)
+
+	// Fee seam: drive the in-process fee engine over the validated transaction,
+	// mutating run.input.Send.* (fee legs + moved Send.Value on deductible fees).
+	// The settings read + skip resolution above precede this seam; the seam still
+	// runs before the single validate reassignment below, which is upstream of
+	// PropagateRouteValidation — that mutator decorates the post-fee validate, and
+	// every downstream consumer reads the same pointer. applyFees resolves the
+	// tenant's fee DB internally, only once it has decided fees actually apply, so
+	// the MT tenant resolution rides inside the same gate as the fee computation.
+	if err = uc.applyFees(ctx, &run.input, run.organizationID, run.ledgerID, run.status == constant.NOTED, run.honoredFeeSkip); err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to apply fees", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	normalizeSendLegs(run)
+
+	// Re-run validation on the fee-mutated input. This is a single = reassignment
+	// of the existing validate variable (a *mtransaction.Responses pointer), so
+	// the fee-inclusive state by construction reaches every downstream reader of
+	// validate through WriteTransaction. It MUST NOT be a := rebind.
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate fee-inclusive send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate fee-inclusive send source and distribute", libLog.Err(err))
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
+
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	run.validate = validate
+
+	// Build the concat-form fromTo from the FEE-INCLUSIVE, normalized send. This
+	// runs after applyFees + the second validate so the slice carries the fee
+	// legs in the same "<index>#alias#balanceKey" form that buildBalanceOperations
+	// keys the validate maps by and that the Lua-returned balances carry — without
+	// it the `balances × fromTo` match loop in BuildOperations never emits the fee
+	// Operation rows. The aliases are already concat'd in place above; this read
+	// is idempotent.
+	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+
+	if run.status != constant.PENDING {
+		run.fromTo = append(run.fromTo, to...)
+	}
+
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
+	}
+
+	run.action = mtransaction.StatusToAction(run.status)
+
+	// Account-block exception: read the presented grant before accounting
+	// preparation. Go uses it only for static posting binding; the engine re-reads
+	// the live key and authoritatively validates and consumes it with the monetary
+	// mutation. An identifier with no live key rejects before either balance path.
+	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
+		run.organizationID, run.ledgerID, in.AccountBlockExceptionID)
+	if err != nil {
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
+	// NOTED remains on its non-monetary path. Every executable v2 create uses
+	// the accounting engine, including a request that presents a grant.
+	if run.status == constant.NOTED {
+		tran, err := uc.createNotedTransaction(ctx, span, logger, run)
+		return tran, false, err
+	}
+
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
+
+	return tran, false, err
+}

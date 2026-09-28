@@ -314,8 +314,9 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 	}
 }
 
-func startContainerWithRetry(t *testing.T, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string, args ...any) testcontainers.Container {
-	t.Helper()
+func startContainerWithRetry(tb testing.TB, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string, args ...any) testcontainers.Container {
+	tb.Helper()
+	t := tb
 
 	var (
 		ctr testcontainers.Container
@@ -344,8 +345,8 @@ func startContainerWithRetry(t *testing.T, ctx context.Context, req testcontaine
 }
 
 // SetupExchange declares an exchange on the RabbitMQ container.
-func SetupExchange(t *testing.T, ch *amqp.Channel, name, kind string) {
-	t.Helper()
+func SetupExchange(tb testing.TB, ch *amqp.Channel, name, kind string) {
+	tb.Helper()
 
 	err := ch.ExchangeDeclare(
 		name,  // name
@@ -356,12 +357,12 @@ func SetupExchange(t *testing.T, ch *amqp.Channel, name, kind string) {
 		false, // no-wait
 		nil,   // arguments
 	)
-	require.NoError(t, err, "failed to declare exchange %s", name)
+	require.NoError(tb, err, "failed to declare exchange %s", name)
 }
 
 // SetupQueue declares a queue and binds it to an exchange.
-func SetupQueue(t *testing.T, ch *amqp.Channel, queueName, exchangeName, routingKey string) {
-	t.Helper()
+func SetupQueue(tb testing.TB, ch *amqp.Channel, queueName, exchangeName, routingKey string) {
+	tb.Helper()
 
 	q, err := ch.QueueDeclare(
 		queueName, // name
@@ -371,7 +372,7 @@ func SetupQueue(t *testing.T, ch *amqp.Channel, queueName, exchangeName, routing
 		false,     // no-wait
 		nil,       // arguments
 	)
-	require.NoError(t, err, "failed to declare queue %s", queueName)
+	require.NoError(tb, err, "failed to declare queue %s", queueName)
 
 	err = ch.QueueBind(
 		q.Name,       // queue name
@@ -380,7 +381,7 @@ func SetupQueue(t *testing.T, ch *amqp.Channel, queueName, exchangeName, routing
 		false,        // no-wait
 		nil,          // arguments
 	)
-	require.NoError(t, err, "failed to bind queue %s to exchange %s", queueName, exchangeName)
+	require.NoError(tb, err, "failed to bind queue %s to exchange %s", queueName, exchangeName)
 }
 
 // GetQueueMessageCount returns the current message count in a queue.

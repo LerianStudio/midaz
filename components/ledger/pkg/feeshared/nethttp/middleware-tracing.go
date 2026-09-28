@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // bodyParsingHandler holds the struct source for body parsing without coupling to a handler.
@@ -21,7 +22,7 @@ type bodyParsingHandler struct {
 }
 
 // DecodeValidateBody is the transport-agnostic decode + unknown-field +
-// sanitize + validate + metadata sequence for a fee-package body. It is the SINGLE
+// validate + metadata sequence for a fee-package body. It is the SINGLE
 // source of that sequence, shared by the Fiber body-parsing handler (parseBody) and
 // the Huma handler cores, so both transports decode+validate identically with no
 // drift. It decodes into the caller-provided struct pointer and returns the parsed
@@ -29,14 +30,25 @@ type bodyParsingHandler struct {
 // Validation* for unknown/missing/invalid fields) WITHOUT writing a response — the
 // caller renders it (Fiber: BadRequest flat envelope; Huma: HumaProblem problem+json).
 //
+// It does NOT rewrite the body. A fee body reaches validation, and then the service,
+// spelled exactly as the caller sent it, so every rejection is about what was
+// submitted rather than about what decoding turned it into. A character a field may
+// not carry is answered by a rule that refuses the request, never by silently
+// deleting the character: this path used to strip everything outside its own
+// allow-list, which priced an estimate for acc:01 against the account acc01.
+//
 // The fee package keeps its OWN validator (this package's ValidateStruct, registered
-// separately from pkg/net/http's) and its OWN unknown-field/sanitize/metadata
+// separately from pkg/net/http's) and its OWN unknown-field/metadata
 // helpers, so this must NOT be swapped for pkgHTTP.DecodeAndValidate — the two are
 // distinct validator instances with different registered rules.
 //
 // NOTE: findUnknownFields short-circuits BEFORE ValidateStruct, exactly as the
 // pre-refactor parseBody did — an unexpected field wins over a missing required one.
 func DecodeValidateBody(bodyBytes []byte, s any) (map[string]any, error) {
+	if _, err := pkgHTTP.RefuseOutOfBoundTokens(bodyBytes, s); err != nil {
+		return nil, err
+	}
+
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
 		return nil, pkg.ValidateUnmarshallingError(err)
 	}
@@ -60,8 +72,6 @@ func DecodeValidateBody(bodyBytes []byte, s any) (map[string]any, error) {
 	if len(diffFields) > 0 {
 		return nil, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
 	}
-
-	sanitizeStruct(s)
 
 	if err := ValidateStruct(s); err != nil {
 		return nil, err

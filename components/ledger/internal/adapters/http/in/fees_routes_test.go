@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"

@@ -11,8 +11,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -63,16 +61,14 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account type", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create account type", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create account type", err)
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccountType, createdAccountType.ID.String(), payload.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create account type metadata", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create metadata", err)
 
 		return nil, err
 	}

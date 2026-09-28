@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +31,7 @@ import (
 // on any drift.
 //
 // The name is deliberately NOT the conventional `-update`: the docs generator
-// (postman/generator/generate-docs.sh) passes a package-scoped `-update` to the
+// (scripts/openapi/generate-docs.sh) passes a package-scoped `-update` to the
 // http/in package, and a shared spelling would make an unrelated docs regeneration
 // rewrite this golden as a side effect the moment either invocation widened its
 // package scope.
@@ -128,9 +128,8 @@ var fullSurfaceMarkerRan atomic.Bool
 //
 // It MUST stay a bare passthrough. A post-auth handler that answered 401 itself — the production
 // one, pkgHTTP.MarkTrustedAuthAssertion, does — would leave the marker false on a route whose
-// authorizer had gone missing, because the refusal would never reach past it. That class is
-// caught instead by the envelope assertion in TestFullSurfaceRoutes_RejectTokenlessRequests, and
-// only for substitutes whose 401 renders through the app ErrorHandler.
+// authorizer had gone missing, because the refusal would never reach past it. Nothing else catches
+// that class: since lib-auth v5 every 401 producer here renders the same envelope.
 func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
 	marker := func(c fiber.Ctx) error {
 		fullSurfaceMarkerRan.Store(true)
@@ -227,9 +226,9 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 		httpin.RegisterStreamingManifestRouteToApp(router, auth, routeOptions, manifestHandler)
 	}
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, readyzHandler,
 		humaDeps.MountV1, humaDeps.MountV2, streamingManifestRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
@@ -379,9 +378,9 @@ func assertRouteTableInvariants(t *testing.T, rows []routeRow) {
 	// It is the only shape invariant here. The two that were scoped to groups of more than one row
 	// are covered by the behavioural sweep in route_guard_test.go instead, and THAT subsumption
 	// rests on no terminal ever answering 401. The 401 producers on this surface are lib-auth's
-	// authorizer at chain position 0 and pkgHTTP.MarkTrustedAuthAssertion behind it, and the only
-	// site rendering constant.ErrInvalidToken is CanonicalFiberErrorHandler's 401 arm. Should a
-	// terminal ever answer 401, those two become load-bearing again.
+	// authorizer at chain position 0 and pkgHTTP.MarkTrustedAuthAssertion behind it; since
+	// lib-auth v5 both RETURN their refusal, so both render through CanonicalFiberErrorHandler's
+	// 401 arm. Should a terminal ever answer 401, those two become load-bearing again.
 	for _, group := range groupRouteRows(rows) {
 		if len(group.rows) != 1 || group.rows[0].handlers >= 2 {
 			continue

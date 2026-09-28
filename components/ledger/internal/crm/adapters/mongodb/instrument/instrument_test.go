@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // setupTestFieldEncryptor creates a FieldEncryptorAdapter wrapping an EncryptionService
@@ -786,4 +787,88 @@ func TestRelatedPartyAAD_DifferentIDsProduceDifferentCiphertexts(t *testing.T) {
 	// because AAD includes the related party ID
 	assert.NotEqual(t, *encryptedModels[0].Document, *encryptedModels[1].Document,
 		"same plaintext with different IDs should produce different ciphertexts due to ID-based AAD")
+}
+
+func TestMongoDBModel_RoundTrip_RegulatoryAccountType(t *testing.T) {
+	t.Parallel()
+
+	fe := setupTestFieldEncryptor(t)
+
+	testCases := []struct {
+		name                string
+		participantDocument *string
+		accountType         *string
+	}{
+		{
+			name:                "account-type-plaintext-participant-document-encrypted",
+			participantDocument: testutils.Ptr("12345678912345"),
+			accountType:         testutils.Ptr("SAVINGS"),
+		},
+		{
+			name:        "account type without participant document",
+			accountType: testutils.Ptr("PAYMENT"),
+		},
+		{
+			name:                "nil account type round-trips as nil",
+			participantDocument: testutils.Ptr("12345678912345"),
+			accountType:         nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			instrumentID := uuid.New()
+			holderID := uuid.New()
+
+			entity := &mmodel.Instrument{
+				ID:        &instrumentID,
+				Document:  testutils.Ptr("12312312399"),
+				LedgerID:  testutils.Ptr("ledger-account-type"),
+				AccountID: testutils.Ptr("account-account-type"),
+				HolderID:  &holderID,
+				RegulatoryFields: &mmodel.RegulatoryFields{
+					ParticipantDocument: tc.participantDocument,
+					AccountType:         tc.accountType,
+				},
+				CreatedAt: fixedTestTime,
+				UpdatedAt: fixedTestTime,
+			}
+
+			encryptionCtx := testEncryptionContext(instrumentID)
+
+			var model MongoDBModel
+			require.NoError(t, model.FromEntity(ctx, entity, fe, encryptionCtx))
+			require.NotNil(t, model.RegulatoryFields)
+
+			raw, err := bson.Marshal(model.RegulatoryFields)
+			require.NoError(t, err)
+
+			storedAccountType, hasAccountType := bson.Raw(raw).Lookup("account_type").StringValueOK()
+
+			if tc.accountType == nil {
+				assert.Nil(t, model.RegulatoryFields.AccountType)
+				assert.False(t, hasAccountType, "a nil account type must not be written to the document")
+			} else {
+				require.True(t, hasAccountType, "account_type must be stored as a BSON string")
+				assert.Equal(t, *tc.accountType, storedAccountType, "account_type must be stored in plaintext")
+			}
+
+			if tc.participantDocument != nil {
+				require.NotNil(t, model.RegulatoryFields.ParticipantDocument)
+				assert.NotEqual(t, *tc.participantDocument, *model.RegulatoryFields.ParticipantDocument,
+					"participant_document must be stored encrypted")
+				assert.NotNil(t, model.Search.RegulatoryFieldsParticipantDocument,
+					"participant_document search token must still be generated")
+			}
+
+			result, err := model.ToEntity(ctx, fe, encryptionCtx)
+			require.NoError(t, err)
+			require.NotNil(t, result.RegulatoryFields)
+			assert.Equal(t, tc.accountType, result.RegulatoryFields.AccountType)
+			assert.Equal(t, tc.participantDocument, result.RegulatoryFields.ParticipantDocument)
+		})
+	}
 }

@@ -51,7 +51,7 @@ alongside CRM:
 
 | Namespace | Owner / code | Resources | Source |
 |-----------|--------------|-----------|--------|
-| `midaz` | ledger — `midazName` const; CRM (collapsed package) via `protectedMidaz` → shared `midazName` const; fees (embedded) via `protectedMidaz` → shared `midazName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`), which the per-resource registrars call: `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go` for `packages`, `fee_estimate_routes.go` for `estimates`, `billing_package_routes.go` for `billing-packages` and `billing_calculate_routes.go` for `billing-calculate`, each calling `protectedMidaz` with the shared `midazName` const from `routes.go` — there is no `feeshared` authz const. The fee surface is served on `/v2` only |
+| `midaz` | ledger — `midazName` const; CRM (collapsed package) via `protectedMidaz` → shared `midazName` const; fees (embedded) via `protectedMidaz` → shared `midazName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `account-block-exceptions`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`), which the per-resource registrars call: `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go` for `packages`, `fee_estimate_routes.go` for `estimates`, `billing_package_routes.go` for `billing-packages` and `billing_calculate_routes.go` for `billing-calculate`, each calling `protectedMidaz` with the shared `midazName` const from `routes.go` — there is no `feeshared` authz const. The fee surface is served on `/v2` only |
 
 > **Mongo module ≠ authz slug.** The fee tenant-manager MODULE name is a SEPARATE literal
 > (`pkg/constant.ModuleFees = "fees-api"`) and carries no authz meaning — it did NOT move when the
@@ -65,7 +65,16 @@ alongside CRM:
 
 The `account-types`, `operation-routes`, and `transaction-routes` resources authorize under the
 `midaz` namespace (helper `protectedMidaz`), parity with `main` — there is no separate `routing`
-namespace in the ledger binary. The tenant-manager grant re-key for any environment that still holds
+namespace in the ledger binary.
+
+`account-block-exceptions` (`account_block_exception_routes.go`, `/v2` only) is a DEDICATED resource
+under the same `midaz` namespace rather than a verb on `accounts`. Creating an exception authorizes a
+debit out of a blocked account, so the grant must be separable from account CRUD and from the
+permission to transact; the embedded manifest (`components/ledger/permissions.yaml`) declares it for
+the `editor` tier only. It is the one route-backed pair the central Access-Manager seed
+(`caradhras deploy/pam-seed/init_data.json`) does not yet carry — a cross-repo follow-up. Until it
+does, an environment provisioned purely from the seed answers 403 on the route, which is the
+fail-closed direction. The tenant-manager grant re-key for any environment that still holds
 `routing:*` grants remains gated to X1 (below).
 
 The `(<action>)` dimension is the HTTP verb mapped to `get` / `post` / `patch` / `delete`. The CRM
@@ -146,7 +155,7 @@ next edit to the file, and four of the eight that used to sit in this table had 
 
 | Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
 |-----------|-------------|----------------------|------------------------|
-| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go`, `fee_estimate_routes.go`, `billing_package_routes.go` and `billing_calculate_routes.go` (each calling `protectedMidaz` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate` — there is no dedicated fees authz const; the fee surface is served on `/v2` only |
+| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `account-block-exceptions`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go`, `fee_estimate_routes.go`, `billing_package_routes.go` and `billing_calculate_routes.go` (each calling `protectedMidaz` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate` — there is no dedicated fees authz const; the fee surface is served on `/v2` only |
 | `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
 > **Audit-ref check:** every symbol above resolves in the tree as written — `midazName` and

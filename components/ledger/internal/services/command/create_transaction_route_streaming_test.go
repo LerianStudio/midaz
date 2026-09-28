@@ -40,8 +40,8 @@ func newCreateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 	// FindByIDs returns one source + one destination route so
 	// validateOperationRouteTypes passes.
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
+		FindByIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
 			routes := make([]*mmodel.OperationRoute, 0, len(ids))
 			for i, id := range ids {
 				opType := "source"
@@ -58,7 +58,7 @@ func newCreateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 
 	mockTransactionRouteRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, in *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, in *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
 			out := *in
 			out.ID = uuid.New()
 			return &out, nil
@@ -97,7 +97,7 @@ func TestCreateTransactionRoute_EmitsTransactionRouteCreatedEvent(t *testing.T) 
 		OperationRoutes: []uuid.UUID{opRouteSourceID, opRouteDestinationID},
 	}
 
-	tr, err := uc.CreateTransactionRoute(ctx, orgID, ledgerID, input)
+	tr, err := uc.CreateTransactionRoute(ctx, orgID, &ledgerID, input)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 
@@ -142,7 +142,7 @@ func TestCreateTransactionRoute_NoopEmitterDoesNotPanic(t *testing.T) {
 		OperationRoutes: []uuid.UUID{uuid.New(), uuid.New()},
 	}
 
-	tr, err := uc.CreateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
+	tr, err := uc.CreateTransactionRoute(context.Background(), uuid.New(), new(uuid.New()), input)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 }
@@ -160,7 +160,7 @@ func TestCreateTransactionRoute_EmitFailureDoesNotFailRequest(t *testing.T) {
 		OperationRoutes: []uuid.UUID{uuid.New(), uuid.New()},
 	}
 
-	tr, err := uc.CreateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
+	tr, err := uc.CreateTransactionRoute(context.Background(), uuid.New(), new(uuid.New()), input)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, tr)
 }
@@ -178,7 +178,7 @@ func TestCreateTransactionRoute_NilStreamingDoesNotPanic(t *testing.T) {
 		OperationRoutes: []uuid.UUID{uuid.New(), uuid.New()},
 	}
 
-	tr, err := uc.CreateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
+	tr, err := uc.CreateTransactionRoute(context.Background(), uuid.New(), new(uuid.New()), input)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 }

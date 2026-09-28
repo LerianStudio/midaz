@@ -8,10 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -298,7 +300,29 @@ func TestClassifyOverdraftOperation(t *testing.T) {
 	}
 }
 
+// sentinelEventVersion is a version string no real build can produce, so an
+// assertion that sees it proves the compiled identity reached the event.
+const sentinelEventVersion = "9.9.9-rvi"
+
 func TestSendOverdraftEvents(t *testing.T) {
+	// Inject a build identity no real build can produce, so the envelope
+	// version assertion below proves the value travelled from the link-time
+	// injection point into the published event. Comparing against
+	// buildinfo.Get() instead would compare the handler's answer to the same
+	// process global it read — green even if the producer hardcoded a literal
+	// (under `make test-unit`, GOFLAGS=-buildvcs=false, both sides are "dev").
+	//
+	// Safe without locking: this test never calls t.Parallel(), and Go runs
+	// every top-level sequential test to completion (cleanups included) before
+	// releasing the package's parallel tests.
+	buildinfo.Set(buildinfo.Build{Version: sentinelEventVersion})
+
+	t.Cleanup(func() {
+		// An empty Build clears the injection: buildinfo only overrides a
+		// field when the injected value is non-empty.
+		buildinfo.Set(buildinfo.Build{})
+	})
+
 	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	t.Run("events disabled does not publish", func(t *testing.T) {
@@ -323,10 +347,8 @@ func TestSendOverdraftEvents(t *testing.T) {
 	t.Run("events enabled by default when env unset", func(t *testing.T) {
 		os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE", "test-overdraft-exchange")
-		os.Setenv("VERSION", "1.0.0")
 		defer func() {
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
 		}()
 
 		ctrl := gomock.NewController(t)
@@ -351,11 +373,9 @@ func TestSendOverdraftEvents(t *testing.T) {
 	t.Run("drawn event publishes correct routing key", func(t *testing.T) {
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED", "true")
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE", "test-overdraft-exchange")
-		os.Setenv("VERSION", "1.0.0")
 		defer func() {
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
 		}()
 
 		ctrl := gomock.NewController(t)
@@ -378,6 +398,8 @@ func TestSendOverdraftEvents(t *testing.T) {
 				require.NoError(t, json.Unmarshal(message, &evt))
 				assert.Contains(t, string(evt["action"]), "overdraft.drawn")
 				assert.Contains(t, string(evt["eventType"]), "balance")
+				assert.JSONEq(t, strconv.Quote(sentinelEventVersion), string(evt["version"]),
+					"envelope version comes from the compiled build identity, not the VERSION env")
 
 				// Verify payload does not contain overdraftLimit.
 				var payload map[string]json.RawMessage
@@ -394,11 +416,9 @@ func TestSendOverdraftEvents(t *testing.T) {
 	t.Run("cleared event publishes correct routing key", func(t *testing.T) {
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED", "true")
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE", "test-overdraft-exchange")
-		os.Setenv("VERSION", "1.0.0")
 		defer func() {
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
 		}()
 
 		ctrl := gomock.NewController(t)
@@ -423,11 +443,9 @@ func TestSendOverdraftEvents(t *testing.T) {
 	t.Run("repaid event publishes correct routing key", func(t *testing.T) {
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED", "true")
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE", "test-overdraft-exchange")
-		os.Setenv("VERSION", "1.0.0")
 		defer func() {
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
 		}()
 
 		ctrl := gomock.NewController(t)
@@ -474,11 +492,9 @@ func TestSendOverdraftEvents(t *testing.T) {
 	t.Run("multiple overdraft ops produce multiple publish calls", func(t *testing.T) {
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED", "true")
 		os.Setenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE", "test-overdraft-exchange")
-		os.Setenv("VERSION", "1.0.0")
 		defer func() {
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")
 			os.Unsetenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
 		}()
 
 		ctrl := gomock.NewController(t)

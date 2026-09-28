@@ -122,7 +122,7 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 // bareTransactionHandler is a handler with no wired repos. It is enough to prove the
 // transport boundary (path-param validation, body decode/validate, auth) rejects BEFORE
 // any service call — the deep money-path behavior is covered by the mock-backed tests
-// over the cores (transaction_test.go, transaction_state_handlers_test.go et al.).
+// over the cores (transaction_test.go, transaction_update_core.go tests et al.).
 func bareTransactionHandler() *TransactionHandler {
 	return &TransactionHandler{}
 }

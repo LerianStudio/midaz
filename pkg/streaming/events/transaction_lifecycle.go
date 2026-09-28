@@ -45,11 +45,13 @@ var TransactionPostedDefinition = Definition{
 // transaction.committed.
 //
 // Emission anchor: same as TransactionPostedDefinition. Fires when a
-// PENDING transaction transitions PENDING → APPROVED via the
-// unique-violation idempotency branch of CreateOrUpdateTransaction
-// (UpdateTransactionStatus call at L198). Discriminated from
-// transaction.posted by the lifecycle phase tracked through
-// CreateOrUpdateTransaction's return value: phase=="updated" + status
+// PENDING transaction transitions PENDING → APPROVED, emitted by
+// whichever writer won the status compare-and-set: the commit request
+// path when it flips the row itself, otherwise the backup consumer's
+// unique-violation idempotency branch. A writer whose compare-and-set
+// matched no PENDING row reports the no-op phase and emits nothing, so
+// the fact reaches the wire exactly once. Discriminated from
+// transaction.posted by the lifecycle phase: phase=="updated" + status
 // APPROVED → committed; phase=="created" + status APPROVED → posted.
 //
 // Same delivery policy as TransactionPostedDefinition.
@@ -63,10 +65,9 @@ var TransactionCommittedDefinition = Definition{
 // transaction.canceled.
 //
 // Emission anchor: same as TransactionCommittedDefinition. Fires when a
-// PENDING transaction transitions PENDING → CANCELED via the
-// unique-violation idempotency branch's UpdateTransactionStatus call.
-// Same anchor as transaction.committed but distinguished by the
-// terminal status code.
+// PENDING transaction transitions PENDING → CANCELED, emitted by the
+// writer that won the status compare-and-set. Same anchor as
+// transaction.committed but distinguished by the terminal status code.
 //
 // Same delivery policy as TransactionPostedDefinition.
 var TransactionCanceledDefinition = Definition{
@@ -82,7 +83,7 @@ var TransactionCanceledDefinition = Definition{
 // revert flow creates a child transaction. Distinguished from
 // transaction.posted by tran.ParentTransactionID != nil (the child
 // carries the parent's UUID). The revert HTTP handler at
-// transaction_state_handlers.go:166-289 (RevertTransaction) flows
+// the revert use case flows
 // through the standard write path and lands at the same
 // SendTransactionEvents anchor.
 //
@@ -122,12 +123,19 @@ var TransactionRevertedDefinition = Definition{
 // will all omit this field; transaction.reverted will always populate
 // it.
 //
+// GroupID and GroupRole are set only on a member of a cross-ledger group.
+// GroupRole is one of TransactionGroupRoleOrigin / TransactionGroupRoleDestination,
+// so a consumer can tell the receiving part apart without waiting for the
+// transaction_group event.
+//
 // Amount is `*decimal.Decimal` because the underlying Transaction.Amount
 // is also a pointer (some PENDING transactions can have unset amount
 // until the operations resolve). omitempty drops the field when nil.
 type TransactionPayload struct {
 	ID                       string            `json:"id"`
 	ParentTransactionID      *string           `json:"parentTransactionId,omitempty"`
+	GroupID                  *string           `json:"groupId,omitempty"`
+	GroupRole                *string           `json:"groupRole,omitempty"`
 	OrganizationID           string            `json:"organizationId"`
 	LedgerID                 string            `json:"ledgerId"`
 	Status                   mmodel.Status     `json:"status"`
@@ -160,6 +168,8 @@ type TransactionPayload struct {
 type TransactionSource struct {
 	ID                       string
 	ParentTransactionID      *string
+	GroupID                  *string
+	GroupRole                *string
 	OrganizationID           string
 	LedgerID                 string
 	Status                   mmodel.Status
@@ -191,6 +201,8 @@ func newTransactionPayload(src TransactionSource) TransactionPayload {
 	return TransactionPayload{
 		ID:                       src.ID,
 		ParentTransactionID:      src.ParentTransactionID,
+		GroupID:                  src.GroupID,
+		GroupRole:                src.GroupRole,
 		OrganizationID:           src.OrganizationID,
 		LedgerID:                 src.LedgerID,
 		Status:                   src.Status,

@@ -29,6 +29,13 @@ type Balance struct {
 	AccountType    string          `json:"accountType" example:"creditCard"`
 	AllowSending   bool            `json:"allowSending" example:"true"`
 	AllowReceiving bool            `json:"allowReceiving" example:"true"`
+	// Blocked mirrors the owning account's blocked flag (accounts.blocked in
+	// PostgreSQL). Account-level, not per-balance: every balance of a blocked
+	// account carries true. Enforced bidirectionally for direct, hold, commit
+	// and revert; cancel is exempt. Excluded from JSON like
+	// mmodel.Balance.Blocked — the account resource is the public surface for
+	// the flag.
+	Blocked bool `json:"-"`
 	// Direction is the accounting direction of the balance ("credit" or
 	// "debit"). Empty string denotes a legacy balance that predates the
 	// overdraft feature and is treated as "credit" by the engine.
@@ -45,7 +52,7 @@ type Balance struct {
 	// Only meaningful when OverdraftLimitEnabled is true.
 	//
 	// Type asymmetry note: this field is decimal.Decimal for runtime
-	// arithmetic (comparison, subtraction in ValidateOverdraftLimit). The
+	// arithmetic (comparison against cumulative overdraft usage). The
 	// corresponding BalanceSettings.OverdraftLimit is *string to preserve
 	// JSON precision across marshal/unmarshal cycles. ToTransactionBalance()
 	// in pkg/mmodel/balance.go bridges the two: it parses the *string into
@@ -94,6 +101,13 @@ type Amount struct {
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount,omitempty" swaggerignore:"true"`
+	// FeeLeg records that the fee engine minted this movement. The engine sets it at the moment
+	// it mints the leg and nothing else sets it, and the rebuild that turns these amounts back
+	// into movements reads it to write the reserved fee mark. That is what makes the mark the
+	// word of the ledger rather than a shape a caller can imitate: the JSON tag keeps the field
+	// off every wire a caller can write, and a movement built from a caller payload carries it
+	// false.
+	FeeLeg bool `json:"-" swaggerignore:"true"`
 }
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -130,6 +144,11 @@ func (r Rate) IsEmpty() bool {
 }
 
 // FromTo structure for marshaling/unmarshalling JSON.
+//
+// Metadata carries midaz custom go-playground rules (keymax, noreservedkey, nonested, valuemax).
+// A validator instance PANICS on a tag it does not know rather than failing the field, so any
+// instance that validates this struct must register all four. Both instances inside this
+// repository do; a service adopting this type brings the same obligation with it.
 type FromTo struct {
 	AccountAlias    string         `json:"accountAlias,omitempty" example:"@person1"`
 	BalanceKey      string         `json:"balanceKey,omitempty" example:"asset-freeze"`
@@ -139,7 +158,7 @@ type FromTo struct {
 	Rate            *Rate          `json:"rate,omitempty"`
 	Description     string         `json:"description,omitempty" example:"description"`
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
-	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
 	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -183,6 +202,25 @@ func SplitAliasWithKey(alias string) string {
 	}
 
 	return alias
+}
+
+// BareAlias returns the account alias from any form a persisted entry's AccountAlias can hold:
+// the bare alias, "alias#balanceKey", or the "index#alias#balanceKey" entry key. A client alias
+// never carries the separator, so the separator count identifies the form: none is the bare
+// alias, one is "alias#balanceKey", and two or more is the entry key whose alias is the second
+// segment. Counting, rather than reading a leading digit run as the index, is what keeps a
+// digits-only alias in "alias#balanceKey" form from being mistaken for an index.
+func BareAlias(alias string) string {
+	head, rest, found := strings.Cut(alias, AliasSeparatorString)
+	if !found {
+		return alias
+	}
+
+	if second, _, isEntryKey := strings.Cut(rest, AliasSeparatorString); isEntryKey {
+		return second
+	}
+
+	return head
 }
 
 // ConcatAlias builds a composite key from the entry's index, alias, and balance key.
@@ -238,6 +276,28 @@ func MutateConcatAliases(entries []FromTo) []FromTo {
 	return result
 }
 
+// AmountMapKeys returns the keys used to keep calculated movements distinct in
+// Responses.From/To. A unique alias keeps the historical key. Repeated raw
+// aliases use the same index/alias/balance-key identity that the transaction
+// pipeline uses after normalization, so two balances belonging to one account
+// cannot overwrite one another before fees are applied.
+func AmountMapKeys(entries []FromTo) []string {
+	counts := make(map[string]int, len(entries))
+	for i := range entries {
+		counts[entries[i].AccountAlias]++
+	}
+
+	keys := make([]string, len(entries))
+	for i := range entries {
+		keys[i] = entries[i].AccountAlias
+		if counts[entries[i].AccountAlias] > 1 && !isConcatedAlias(entries[i].AccountAlias) {
+			keys[i] = entries[i].ConcatAlias(i)
+		}
+	}
+
+	return keys
+}
+
 // MutateSplitAliases restores clean aliases IN-PLACE by stripping the index
 // prefix added by MutateConcatAliases. Entries that are not concat'd are left
 // untouched (idempotent). Called after ValidateSendSourceAndDistribute has
@@ -274,11 +334,14 @@ type Distribute struct {
 
 // Transaction structure for marshaling/unmarshalling JSON.
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
-	Description              string         `json:"description,omitempty" example:"Description"`
-	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Pending                  bool           `json:"pending,omitempty" example:"false"`
-	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
+	Description              string `json:"description,omitempty" example:"Description"`
+	Code                     string `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Pending                  bool   `json:"pending,omitempty" example:"false"`
+	// Metadata carries the same reserved-key rule as the transaction leg. This struct is the
+	// request body of the fee estimate, which reads the fee statements back off the map it was
+	// handed, so a caller-written one changes the answer the estimate gives.
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,noreservedkey,endkeys,nonested,valuemax=2000"`
 	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the transaction route. Primary field replacing the deprecated Route string.

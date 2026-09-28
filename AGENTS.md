@@ -1,5 +1,31 @@
 # AGENTS.md — Midaz Quick-Start for AI Agents
 
+All `AGENTS.md` files must be written and maintained in English.
+
+## Context and Sources
+
+Read the guide for the area being changed before applying its local conventions:
+
+| Context | Guide |
+| --- | --- |
+| Ledger transaction persistence, including sync/async, replay, and recovery | [Ledger persistence guide](components/ledger/internal/AGENTS.md) |
+| Tracer service | [Tracer guide](components/tracer/AGENTS.md) |
+| API versions, organization scoping, and auth | [Scoping](docs/api/SCOPING.md) and [RBAC namespaces](docs/auth/RBAC-NAMESPACES.md) |
+| CRM encryption | [Encryption architecture](docs/architecture/crm-field-encryption.md) |
+
+Apply local instructions only within their stated context. The ledger persistence
+guide does not govern unrelated CRM or fee administration work. Preserve separate
+v1/v2 and ST/MT contracts rather than generalizing one path to every caller.
+
+Use `go.mod` for dependency versions and the relevant component configuration for
+runtime settings. Binding standards and approved specs define intended behavior;
+code and contract tests establish what currently executes. Historical examples in
+`CLAUDE.md`, `llms*.txt`, or `docs/PROJECT_RULES.md` may lag behind those contracts.
+If they disagree, report the conflict and verify the affected implementation and
+tests before changing behavior. Do not silently change a wire contract to match
+a stale example. Resolve OpenSpec's configured root/store instead of assuming
+planning artifacts live in this checkout.
+
 ## What Is This?
 
 Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships three deploy surfaces: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, and the Infra backing stack. Licensed under the Elastic License 2.0 (source-available, not open-source).
@@ -14,14 +40,15 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 | Architecture | Hexagonal + CQRS |
 | HTTP Framework | Huma v2 (OAS 3.1) over Fiber v3 — Fiber is the runtime router/auth chain; Huma generates the API contract and validates requests |
 | Databases | PostgreSQL 17, MongoDB (also holds CRM keysets/registry in envelope mode), RabbitMQ 4.1, Valkey |
-| lib-commons | `github.com/LerianStudio/lib-commons/v6` v6.5.1 (+ `lib-observability/v2` v2.1.1) |
-| KMS / crypto | `danielgtaylor/huma/v2` v2.38.0, `hashicorp/vault/api` (CRM envelope KEK), `tink-crypto/tink-go/v2` (per-org DEKs) |
+| Shared libraries | `github.com/LerianStudio/lib-commons/v7`, `lib-observability/v4`; resolve exact versions from `go.mod` |
+| API contract library | `github.com/danielgtaylor/huma/v2`; resolve its version from `go.mod` |
+| KMS / crypto | `hashicorp/vault/api` (CRM envelope KEK), `tink-crypto/tink-go/v2` (per-org DEKs) |
 | Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Infra (Docker Compose) |
 
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/ledger/internal/crm`, imported by
 > the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
-> `transaction_create.go`). Tracer is a separate co-located Go service.
+> `internal/services/command/create_transaction_v2.go`). Tracer is a separate co-located Go service.
 
 ## Get Running
 
@@ -39,9 +66,10 @@ components/ledger/internal/
   adapters/http/in/   → HTTP handlers (one per entity)
   adapters/postgres/  → PostgreSQL repositories
   adapters/mongodb/   → MongoDB metadata repos
-  adapters/redis/     → Cache repos
+  adapters/redis/     → Cache repos + the default accounting engine adapter
   adapters/rabbitmq/  → Message queue adapters
   bootstrap/          → Config, DI, server lifecycle
+  domain/accounting/  → Storage-independent engine contract and monetary results
   services/command/   → Write use cases (one file per operation)
   services/query/     → Read use cases (one file per operation)
 
@@ -61,13 +89,13 @@ components/ledger/internal/crm/         → CRM package tree (holders/instrument
 pkg/crypto/            → CRM crypto primitives: kms/vault/ (Vault Transit KEK), tink/ (Tink DEKs), mode + resolver
 
 components/ledger/pkg/  → Embedded fees: fee/ (engine), feeshared/ (plugin-fees types)
-  (fee use cases at components/ledger/internal/services/fees; fee seam in transaction_create.go)
+  (fee use cases at components/ledger/internal/services/fees; fee seam in internal/services/command/create_transaction_v2.go)
 
 components/tracer/     → Separate Go service deploy unit
 
 pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)
-  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 28 CRM-00xx (CRM-0006..CRM-0041))
+  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 30 CRM-00xx (CRM-0006..CRM-0043))
   errors.go           → Typed error structs
   mtransaction/       → Transaction processing utilities (formerly pkg/transaction)
   net/http/           → Middleware, pagination, route helpers
@@ -81,8 +109,13 @@ pkg/
 4. **File naming**: `snake_case.go`, one handler or operation per file
 5. **Imports**: stdlib → external → internal (blank-line separated)
 6. **Context**: Always first param; check `ctx.Err()` before expensive work
-7. **IDs**: `uuid.UUID` type, not strings
+7. **IDs**: Prefer `uuid.UUID` in new internal contracts. Preserve existing string/pointer representations in DTOs, persisted models, and versioned envelopes; convert and validate at boundaries rather than changing their wire format as cleanup.
 8. **HTTP methods**: Use `http.MethodGet` constants, never string literals
+9. **Engine boundary**: Go composes postings and completion context; live balance
+   approval, overdraft arithmetic, and versions stay inside the atomic Lua execution.
+   Never retry accounting after a timeout/unknown outcome. Recovery completes
+   already-applied projections and must not invoke the engine.
+10. **Consumer failures**: Classify errors; use bounded retry/backoff for transient failures and DLQ/quarantine for permanent or exhausted failures. Historical `nack+requeue on error` examples are not permission for unbounded requeue. Follow the persistence guide for engine evidence retention and distinct broker/recovery ACKs.
 
 ## Per-Call Control Skips
 
@@ -93,13 +126,15 @@ unauthorized skip returns **HTTP 422** (`ErrSkipNotPermitted`, `0490`). Resolver
 `pkg/skip.ResolveSkipFor`. Controls: `fees`/`tracer` on transaction create, `holder` on
 account create. Honored skips persist to audit columns (`transaction.fees_skipped`,
 `transaction.tracer_skipped`, `account.holder_check_skipped`). Invariant: an honored skip
-adds **zero** downstream work (short-circuits before the control's lookup); reverts always
-re-run the tracer; idempotency replay returns the first outcome.
+adds **zero** downstream work (short-circuits before the control's lookup).
+Reverts follow version-specific policy: v1 has no Tracer reservation; eligible v2
+reverts use the v2 Tracer controls and must not inherit the origin's skip as a
+permanent bypass. Idempotency replay returns the first outcome.
 
-Both seams the skips gate are **`/v2` contracts**: a `/v1` transaction create never reaches
+The transaction and holder skip seams are **`/v2` contracts**: a `/v1` transaction create never reaches
 the fee engine and a `/v1` account create never reaches the holder seam, so a `skip` object
 in a `/v1` body is inert and can never raise the 422. A `/v1` account create links no holder
-(`holder_id` stays NULL) and its response withholds `holderId` + `holderCheckSkipped`. The
+(`holder_id` stays NULL) and its response withholds `holderId` + `holderCheckSkipped`.
 Outside the seam on both contracts: organization create (neither contract writes a CRM
 self-holder — the idempotent backfill runner is the only provisioning path), the
 asset-created external account (bypasses `CreateAccount`, no holder) and account update
@@ -112,7 +147,8 @@ CRM encrypts holder/instrument PII at rest. Mode is chosen by `KMS_VENDOR`: unse
 Tink DEKs). The seam is the `FieldEncryptor` interface (`internal/crm/services/encryption`), which the
 holder/instrument Mongo adapters call to encrypt/decrypt fields and mint deterministic HMAC search tokens
 for equality lookups over ciphertext. One **shared, mode-derived** Transit engine (`transit-st`/`transit-mt`)
-holds all KEKs — tenant isolation lives in the key **name** (`{tenant}_org-{id}`), not per-tenant mounts.
+holds all KEKs — scope lives in the key **name** (`{tenant}_org-{id}` in MT,
+`org-{id}` in ST), not per-tenant mounts.
 Envelope routes (provision/status/audit) exist only in envelope mode. Key rotation is scaffolded, not yet
 active. New env: `KMS_VENDOR`, `KMS_VAULT_ADDR`, `KMS_VAULT_ROLE_ID`, `KMS_VAULT_SECRET_ID`,
 `KMS_VAULT_AUTH_METHOD` (`approle`|`token`), `DEPLOYMENT_MODE` (gates the dev root token to `local`). Full
@@ -122,12 +158,13 @@ design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-
 
 | File | Why |
 |------|-----|
-| `components/ledger/internal/bootstrap/config.go` | Composition root, all env vars, init sequence |
-| `components/ledger/internal/adapters/http/in/routes.go` | All API routes registered here |
+| `components/ledger/internal/bootstrap/config.go` | Ledger composition root, configuration, init sequence, and `buildHumaMountDeps` |
+| `components/ledger/internal/adapters/http/in/*_routes.go` | Entity-specific Huma registrations and Fiber auth chains; `routes.go` provides shared helpers |
+| `docs/architecture/engine.md` | Accounting engine boundary, execution, recovery, compatibility, and rollout invariants |
 | `pkg/mmodel/account.go` | Account model (representative of all models) |
 | `pkg/constant/errors.go` | All error codes |
 | `pkg/errors.go` | Error types + ValidateBusinessError factory |
-| `components/ledger/.env.example` | All environment variables |
+| `components/ledger/.env.example` | Ledger environment settings; consult each other component's own configuration when working there |
 | `docs/PROJECT_RULES.md` | Coding standards (DO NOT overwrite) |
 
 ## What NOT To Do
@@ -135,7 +172,7 @@ design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-
 - Do NOT overwrite `docs/PROJECT_RULES.md`
 - Do NOT use `interface{}` — use `any`
 - Do NOT panic — return errors
-- Do NOT put domain logic in handlers or repositories
+- Do NOT put use-case policy in HTTP handlers or CRUD repositories. The Redis accounting engine adapter implements the domain accounting contract: live balance decisions must remain inside its atomic Lua execution, not be extracted into Go services as an architectural cleanup.
 - Do NOT nest metadata values
 - Do NOT use `time.Now()` in tests
 
@@ -150,3 +187,4 @@ design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-
 - **[docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)** — The three authz namespaces in the unified binary (R9)
 - **[docs/api/SCOPING.md](docs/api/SCOPING.md)** — Path vs `X-Organization-Id` header scoping (R22)
 - **[docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-encryption.md)** — CRM PII field encryption + Vault/Tink KMS subsystem (legacy vs envelope modes, key management, provisioning)
+- **[docs/architecture/engine.md](docs/architecture/engine.md)** — Default accounting engine, live-state Lua boundary, receipts, completion, recovery, and rollout compatibility

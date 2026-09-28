@@ -15,7 +15,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -139,12 +139,13 @@ func TestRouteOptionsBinding(t *testing.T) {
 
 // buildHumaMountDepsWithNilHandlers exercises the mapper with the setup under test and nil
 // handlers: the binding this test pins is the option pairing, not the handler wiring, and nil
-// pointers make the call site read as one argument list of options rather than 24 of noise.
+// pointers make the call site read as one argument list of options rather than 25 of noise.
 func buildHumaMountDepsWithNilHandlers(setup *unifiedRouteSetup) httpin.HumaMountDeps {
 	return buildHumaMountDeps(
 		&middleware.AuthClient{},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil,
+		nil,
 		nil,
 		nil, nil, nil, nil, nil,
 		nil, nil, nil, nil,
@@ -330,12 +331,12 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 	// mounts through the SAME mapper production uses.
 	humaDeps := fullSurfaceHumaDeps(auth, setup)
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
 	// The role map is scoped to the versioned Huma groups, so no RouteRegistrar is passed here.
 	// The app-root streaming manifest route does carry onboardingRouteOptions in production,
 	// so this harness leaves that binding unpinned.
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, readyzHandler,
 		humaDeps.MountV1, humaDeps.MountV2)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")

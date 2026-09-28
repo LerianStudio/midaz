@@ -8,6 +8,7 @@ import (
 	"fmt"
 	nethttp "net/http"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
@@ -71,10 +72,13 @@ func NewManifestHandler(serviceName, source string, defs []events.Definition) (n
 		return nil, fmt.Errorf("failed to build streaming manifest catalog: %w", err)
 	}
 
+	// AppVersion is the identity linked into the running binary, so the hub reads
+	// the same version /version reports instead of a separately configured string.
 	descriptor := libStreaming.PublisherDescriptor{
 		ServiceName: serviceName,
 		Source:      source,
 		RoutePath:   ManifestRoutePath,
+		AppVersion:  buildinfo.Get().Version,
 	}
 
 	handler, err := libStreaming.NewStreamingHandler(descriptor, catalog)

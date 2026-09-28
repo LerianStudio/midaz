@@ -38,6 +38,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		timestamp := time.Now().Add(-time.Hour)
 		balanceCreatedAt := time.Now().Add(-24 * time.Hour)
 		operationCreatedAt := timestamp.Add(-30 * time.Minute)
+		operationRecordedAt := timestamp.Add(-15 * time.Minute)
 
 		available := decimal.NewFromInt(5000)
 		onHold := decimal.NewFromInt(500)
@@ -65,7 +66,8 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 				OnHold:    &onHold,
 				Version:   &version,
 			},
-			CreatedAt: operationCreatedAt,
+			CreatedAt:  operationCreatedAt,
+			RecordedAt: &operationRecordedAt,
 		}
 
 		balanceRepo := balance.NewMockRepository(ctrl)
@@ -91,8 +93,8 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		assert.Equal(t, version, result.Version)
 		// Key assertion: CreatedAt should come from currentBalance, not operation
 		assert.Equal(t, balanceCreatedAt, result.CreatedAt, "CreatedAt should match currentBalance.CreatedAt")
-		// UpdatedAt should be the operation timestamp
-		assert.Equal(t, operationCreatedAt, result.UpdatedAt, "UpdatedAt should match operation.CreatedAt")
+		// UpdatedAt follows the server-side recording axis, not the client date.
+		assert.Equal(t, operationRecordedAt, result.UpdatedAt, "UpdatedAt should match operation.RecordedAt")
 	})
 
 	t.Run("future_timestamp_returns_error", func(t *testing.T) {

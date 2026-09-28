@@ -7,6 +7,7 @@ package mmodel
 import (
 	"fmt"
 	"maps"
+	"math"
 	"sort"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -33,6 +34,9 @@ import (
 //	    "allowFeeSkip": false,
 //	    "allowTracerSkip": false,
 //	    "allowHolderSkip": false
+//	  },
+//	  "crossLedger": {
+//	    "enabled": false
 //	  }
 //	}
 type LedgerSettings struct {
@@ -45,6 +49,9 @@ type LedgerSettings struct {
 	// Overrides contains the per-ledger opt-ins that permit callers to skip
 	// individual controls (fees, tracer, holder) on a per-request basis.
 	Overrides OverridePolicy `json:"overrides"`
+
+	// CrossLedger contains the per-ledger opt-in for cross-ledger transactions.
+	CrossLedger CrossLedgerSettings `json:"crossLedger"`
 }
 
 // AccountingValidation represents the accounting-related validation settings.
@@ -100,6 +107,21 @@ var defaultOverridePolicy = OverridePolicy{
 	AllowHolderSkip: false,
 }
 
+// CrossLedgerSettings controls whether a ledger may participate in a cross-ledger transaction.
+// The struct holds only comparable scalar fields so LedgerSettings stays
+// ==-comparable (relied on by LedgerSettingsIsDefault).
+type CrossLedgerSettings struct {
+	// Enabled permits this ledger to participate in cross-ledger transactions.
+	// Default: false.
+	Enabled bool `json:"enabled" example:"false"`
+}
+
+// defaultCrossLedgerSettings is the canonical source of the cross-ledger defaults.
+// Cross-ledger transactions require an explicit per-ledger operator opt-in.
+var defaultCrossLedgerSettings = CrossLedgerSettings{
+	Enabled: false,
+}
+
 // TracerSettings represents the per-ledger tracer-integration settings.
 // These control whether and how transaction processing reserves against the
 // external tracer service before committing balances.
@@ -118,7 +140,7 @@ type TracerSettings struct {
 	FailPosture string `json:"failPosture" example:"open"`
 
 	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
-	// Default: 250.
+	// Accepted range: 1..30000. Default: 250.
 	TimeoutMs int `json:"timeoutMs" example:"250"`
 }
 
@@ -137,6 +159,17 @@ const (
 
 // defaultTracerTimeoutMs is the canonical default per-call tracer reserve timeout.
 const defaultTracerTimeoutMs = 250
+
+// Accepted range for TracerSettings.TimeoutMs, checked at write time.
+// The ceiling matches the tracer REST client's 30s global HTTP timeout: a
+// per-call timeout above that safety net could never take effect.
+const (
+	TracerTimeoutMsMin = 1
+	TracerTimeoutMsMax = 30000
+)
+
+// tracerTimeoutMsAllowedRange is the range as reported to the caller in the 0176 message.
+const tracerTimeoutMsAllowedRange = "1..30000"
 
 // defaultTracerSettings is the canonical source of default tracer settings.
 // Tracer integration is off by default for backwards compatibility.
@@ -163,32 +196,10 @@ var allowedTracerFailPostures = map[string]struct{}{
 // All validation flags are false by default for backwards compatibility.
 func DefaultLedgerSettings() LedgerSettings {
 	return LedgerSettings{
-		Accounting: defaultAccountingValidation,
-		Tracer:     defaultTracerSettings,
-		Overrides:  defaultOverridePolicy,
-	}
-}
-
-// DefaultLedgerSettingsMap returns the default ledger settings as a map[string]any.
-// This is useful for API responses where the typed struct needs to be serialized.
-// Uses the same canonical defaults as DefaultLedgerSettings.
-func DefaultLedgerSettingsMap() map[string]any {
-	return map[string]any{
-		"accounting": map[string]any{
-			"validateAccountType": defaultAccountingValidation.ValidateAccountType,
-			"validateRoutes":      defaultAccountingValidation.ValidateRoutes,
-			"requireHolder":       defaultAccountingValidation.RequireHolder,
-		},
-		"tracer": map[string]any{
-			"mode":        defaultTracerSettings.Mode,
-			"failPosture": defaultTracerSettings.FailPosture,
-			"timeoutMs":   defaultTracerSettings.TimeoutMs,
-		},
-		"overrides": map[string]any{
-			"allowFeeSkip":    defaultOverridePolicy.AllowFeeSkip,
-			"allowTracerSkip": defaultOverridePolicy.AllowTracerSkip,
-			"allowHolderSkip": defaultOverridePolicy.AllowHolderSkip,
-		},
+		Accounting:  defaultAccountingValidation,
+		Tracer:      defaultTracerSettings,
+		Overrides:   defaultOverridePolicy,
+		CrossLedger: defaultCrossLedgerSettings,
 	}
 }
 
@@ -210,6 +221,9 @@ func LedgerSettingsToMap(s LedgerSettings) map[string]any {
 			"allowFeeSkip":    s.Overrides.AllowFeeSkip,
 			"allowTracerSkip": s.Overrides.AllowTracerSkip,
 			"allowHolderSkip": s.Overrides.AllowHolderSkip,
+		},
+		"crossLedger": map[string]any{
+			"enabled": s.CrossLedger.Enabled,
 		},
 	}
 }
@@ -277,6 +291,12 @@ func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 		}
 	}
 
+	if crossLedgerMap, ok := settings["crossLedger"].(map[string]any); ok {
+		if enabled, ok := crossLedgerMap["enabled"].(bool); ok {
+			result.CrossLedger.Enabled = enabled
+		}
+	}
+
 	return result
 }
 
@@ -297,13 +317,30 @@ func parseSettingsNumber(value any) (int, bool) {
 	}
 }
 
+// settingsNumberValue coerces a JSON-unmarshaled numeric value into a float64,
+// preserving the fractional part so range checks run on the value as sent rather
+// than on the truncated int parseSettingsNumber produces. Returns false for any
+// non-numeric value.
+func settingsNumberValue(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	default:
+		return 0, false
+	}
+}
+
 // settingsSchema defines the allowed structure for ledger settings.
 // This schema is used for strict validation - only these paths are allowed.
 //
 // To add new settings:
 //  1. Add the field to LedgerSettings struct
 //  2. Add the corresponding entry here with the appropriate type ("bool", "string", "number")
-//  3. Update DefaultLedgerSettings() and DefaultLedgerSettingsMap()
+//  3. Update DefaultLedgerSettings(), LedgerSettingsToMap() and ParseLedgerSettings()
 //  4. Add the matching pointer field to the *Input mirror in ledger_settings_input.go and
 //     emit it from ToSparseMap; without both, the field is PATCH-able but rejected on POST
 //     as an unknown field. TestSettingsSchema_HasMatchingInputField and
@@ -324,6 +361,9 @@ var settingsSchema = map[string]map[string]string{
 		"allowFeeSkip":    "bool",
 		"allowTracerSkip": "bool",
 		"allowHolderSkip": "bool",
+	},
+	"crossLedger": {
+		"enabled": "bool",
 	},
 }
 
@@ -444,11 +484,11 @@ func validateSettingsFieldType(value any, expectedType, fieldPath string) error 
 	return nil
 }
 
-// validateSettingsFieldValue enforces enum membership for fields whose value
-// space is narrower than their primitive type. The type-only check in
-// validateSettingsFieldType cannot reject a well-typed but out-of-set value
-// (e.g. tracer.mode = "enfroce"); this is where that is caught at write time.
-// Fields without an enum constraint pass through unchanged.
+// validateSettingsFieldValue enforces enum membership and numeric ranges for
+// fields whose value space is narrower than their primitive type. The type-only
+// check in validateSettingsFieldType cannot reject a well-typed but out-of-space
+// value (e.g. tracer.mode = "enfroce", tracer.timeoutMs = 0); this is where that
+// is caught at write time. Fields without such a constraint pass through unchanged.
 func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPath string) error {
 	if parentKey != "tracer" {
 		return nil
@@ -472,6 +512,13 @@ func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPat
 
 		if _, ok := allowedTracerFailPostures[str]; !ok {
 			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "open, closed")
+		}
+	case "timeoutMs":
+		num, ok := settingsNumberValue(value)
+		// NaN compares false against both bounds, so it has to be named
+		// explicitly or it would reach the int conversion, which is undefined.
+		if !ok || math.IsNaN(num) || num < TracerTimeoutMsMin || num > TracerTimeoutMsMax {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, tracerTimeoutMsAllowedRange)
 		}
 	}
 

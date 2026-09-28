@@ -120,3 +120,7 @@
 - name: "released on @develop"
   color: "c2e0c6"
   description: Published in a develop pre-release (set by semantic-release)
+
+- name: review-ready
+  color: "0e8a16"
+  description: Checks passed -- CodeRabbit review requested by the gate

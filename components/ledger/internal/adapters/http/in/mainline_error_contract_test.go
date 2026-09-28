@@ -348,11 +348,86 @@ func TestMainlineErrorContract_TransactionLifecycleCodes(t *testing.T) {
 	runErrorContractCases(t, tests)
 }
 
+// TestMainlineErrorContract_AtomicTransactionBatchCodes is the E14 lock for the
+// request-wide admission errors introduced by the atomic direct-v2 batch. It
+// exercises the production WithError boundary so the RFC 9457 media type and
+// the complete code -> status -> title -> detail mapping cannot drift.
+func TestMainlineErrorContract_AtomicTransactionBatchCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		expectedStatus int
+		expectedCode   string
+		expectedTitle  string
+		expectedDetail string
+	}{
+		{
+			name:           "0514 invalid batch cardinality is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchCardinality, constant.EntityTransaction, 51, 50),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0514",
+			expectedTitle:  "Invalid Transaction Batch Cardinality",
+			expectedDetail: "The transaction batch contains 51 items, but it must contain between 1 and 50 items. Please adjust the 'transactions' array and try again.",
+		},
+		{
+			name:           "0515 aggregate input leg limit is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchInputLegsLimitExceeded, constant.EntityTransaction, 1001, 1000),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0515",
+			expectedTitle:  "Transaction Batch Input Leg Limit Exceeded",
+			expectedDetail: "The transaction batch contains 1001 input debit and credit legs, exceeding the maximum of 1000. Please reduce the number of legs and try again.",
+		},
+		{
+			name:           "0516 derived batch budget is 422",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchBudgetExceeded, constant.EntityTransaction, "expandedPostings", 12, 201, 200),
+			expectedStatus: fiber.StatusUnprocessableEntity,
+			expectedCode:   "0516",
+			expectedTitle:  "Transaction Batch Budget Exceeded",
+			expectedDetail: "The transaction batch exceeds the expandedPostings budget at transaction index 12: observed 201, maximum 200. Please reduce the batch work and try again.",
+		},
+		{
+			name:           "0517 structural validation is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchStructuralValidation, constant.EntityTransaction),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0517",
+			expectedTitle:  "Invalid Transaction Batch",
+			expectedDetail: "One or more transactions in the batch failed structural validation. Check errors for details.",
+		},
+	}
+
+	require.Len(t, tests, 4, "the atomic transaction batch lock set is exactly codes 0514 through 0517")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			capturedErr := tt.err
+			app := fiber.New()
+			app.Get("/probe", func(c fiber.Ctx) error {
+				return http.WithError(c, capturedErr)
+			})
+
+			resp, err := app.Test(httptest.NewRequest("GET", "/probe", nil))
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			require.NoError(t, json.Unmarshal(body, &errResp))
+			assert.Equal(t, float64(tt.expectedStatus), errResp["status"])
+			assert.Equal(t, tt.expectedCode, errResp["code"])
+			assert.Equal(t, tt.expectedTitle, errResp["title"])
+			assert.Equal(t, tt.expectedDetail, errResp["detail"])
+		})
+	}
+}
+
 // v2SideSpellingError runs the v2 request through the production Translate and returns
 // the error it rejected with. Building the error through the real entry point rather
 // than by hand-calling ValidateBusinessError keeps the lock honest: it pins what a
 // client actually receives, not what a test-local call to the error factory renders.
-func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input) error {
+func v2SideSpellingError(t *testing.T, in CreateTransactionV2Request) error {
 	t.Helper()
 
 	_, _, err := in.Translate(false)
@@ -365,7 +440,7 @@ func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input)
 // required-side rule answers with: 0009 ValidationError -> 400, for a side left empty (nil or
 // an explicit `[]`).
 func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
-	legs := []mtransaction.V2LegInput{v2ValueLeg("@a", "100")}
+	legs := []TransactionV2LegRequest{v2ValueLeg("@a", "100")}
 
 	tests := []struct {
 		name           string
@@ -376,7 +451,7 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 	}{
 		{
 			name: "0009 an empty debits side is 400",
-			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
+			err: v2SideSpellingError(t, CreateTransactionV2Request{
 				Asset: "USD", Amount: "100", Credits: legs,
 			}),
 			expectedStatus: fiber.StatusBadRequest,
@@ -385,7 +460,7 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 		},
 		{
 			name: "0009 an empty credits side is 400",
-			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
+			err: v2SideSpellingError(t, CreateTransactionV2Request{
 				Asset: "USD", Amount: "100", Debits: legs,
 			}),
 			expectedStatus: fiber.StatusBadRequest,
@@ -430,7 +505,7 @@ func v1SingleTransactionTypeError(t *testing.T) error {
 
 // v2LegValueExpressionError produces the v2 rendering of 0072: a leg on the named side
 // filling NEITHER value expression, rejected by Translate.
-func v2LegValueExpressionError(t *testing.T, in mtransaction.CreateTransactionV2Input) error {
+func v2LegValueExpressionError(t *testing.T, in CreateTransactionV2Request) error {
 	t.Helper()
 
 	_, _, err := in.Translate(false)
@@ -441,14 +516,14 @@ func v2LegValueExpressionError(t *testing.T, in mtransaction.CreateTransactionV2
 
 // v2ValueLeg is a leg carrying a valid explicit amount, used to pad an array so the
 // offending leg can be placed at a chosen index.
-func v2ValueLeg(alias, amount string) mtransaction.V2LegInput {
-	return mtransaction.V2LegInput{Alias: alias, Amount: amount, OrganizationID: v2ScopeOrgID, LedgerID: v2ScopeLedgerID}
+func v2ValueLeg(alias, amount string) TransactionV2LegRequest {
+	return TransactionV2LegRequest{Alias: alias, Amount: amount, OrganizationID: v2ScopeOrgID, LedgerID: v2ScopeLedgerID}
 }
 
 // v2NoValueLeg is a fully scoped leg that fills NEITHER value expression, so the rejection it
 // draws is attributable to the value-expression rule and to nothing else the leg leaves out.
-func v2NoValueLeg(alias string) mtransaction.V2LegInput {
-	return mtransaction.V2LegInput{Alias: alias, OrganizationID: v2ScopeOrgID, LedgerID: v2ScopeLedgerID}
+func v2NoValueLeg(alias string) TransactionV2LegRequest {
+	return TransactionV2LegRequest{Alias: alias, OrganizationID: v2ScopeOrgID, LedgerID: v2ScopeLedgerID}
 }
 
 // TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface locks the MESSAGE of
@@ -486,20 +561,20 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 		},
 		{
 			name: "v2 debits leg names the two v2 expressions and the offending index",
-			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+			err: v2LegValueExpressionError(t, CreateTransactionV2Request{
 				Asset: "USD", Amount: "100",
-				Debits:  []mtransaction.V2LegInput{v2NoValueLeg("@a")},
-				Credits: []mtransaction.V2LegInput{v2ValueLeg("@b", "100")},
+				Debits:  []TransactionV2LegRequest{v2NoValueLeg("@a")},
+				Credits: []TransactionV2LegRequest{v2ValueLeg("@b", "100")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'debits[0]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining},
 		},
 		{
 			name: "v2 credits leg names the two v2 expressions and the offending index",
-			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+			err: v2LegValueExpressionError(t, CreateTransactionV2Request{
 				Asset: "USD", Amount: "100",
-				Debits:  []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
-				Credits: []mtransaction.V2LegInput{v2NoValueLeg("@b")},
+				Debits:  []TransactionV2LegRequest{v2ValueLeg("@a", "100")},
+				Credits: []TransactionV2LegRequest{v2NoValueLeg("@b")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'credits[0]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining},
@@ -508,20 +583,20 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 			// The offending leg is the SECOND one, so a field name that hardcoded index 0
 			// would fail here. This is what makes the index a real part of the contract.
 			name: "v2 debits leg at index one names its own index",
-			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+			err: v2LegValueExpressionError(t, CreateTransactionV2Request{
 				Asset: "USD", Amount: "100",
-				Debits:  []mtransaction.V2LegInput{v2ValueLeg("@a", "60"), v2NoValueLeg("@b")},
-				Credits: []mtransaction.V2LegInput{v2ValueLeg("@c", "100")},
+				Debits:  []TransactionV2LegRequest{v2ValueLeg("@a", "60"), v2NoValueLeg("@b")},
+				Credits: []TransactionV2LegRequest{v2ValueLeg("@c", "100")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'debits[1]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining, "debits[0]"},
 		},
 		{
 			name: "v2 credits leg at index one names its own index",
-			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
+			err: v2LegValueExpressionError(t, CreateTransactionV2Request{
 				Asset: "USD", Amount: "100",
-				Debits:  []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
-				Credits: []mtransaction.V2LegInput{v2ValueLeg("@b", "60"), v2NoValueLeg("@c")},
+				Debits:  []TransactionV2LegRequest{v2ValueLeg("@a", "100")},
+				Credits: []TransactionV2LegRequest{v2ValueLeg("@b", "60"), v2NoValueLeg("@c")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'credits[1]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining, "credits[0]"},

@@ -32,7 +32,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
 		Code:           "TEST-001",
@@ -48,7 +48,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
@@ -63,13 +63,13 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 		Return(expectedMetadata, nil).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, operationRouteID, result.ID)
 	assert.Equal(t, organizationID, result.OrganizationID)
-	assert.Equal(t, ledgerID, result.LedgerID)
+	assert.Equal(t, &ledgerID, result.LedgerID)
 	assert.Equal(t, "Test Route", result.Title)
 	assert.Equal(t, "Test Description", result.Description)
 	assert.Equal(t, "TEST-001", result.Code)
@@ -89,7 +89,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
 		Code:           "TEST-002",
@@ -105,7 +105,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
@@ -114,13 +114,13 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, operationRouteID, result.ID)
 	assert.Equal(t, organizationID, result.OrganizationID)
-	assert.Equal(t, ledgerID, result.LedgerID)
+	assert.Equal(t, &ledgerID, result.LedgerID)
 	assert.Equal(t, "Test Route", result.Title)
 	assert.Equal(t, "Test Description", result.Description)
 	assert.Equal(t, "TEST-002", result.Code)
@@ -135,7 +135,6 @@ func TestGetOperationRouteByIDError(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	expectedError := errors.New("database error")
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -147,11 +146,11 @@ func TestGetOperationRouteByIDError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
 		Return(nil, expectedError).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
@@ -165,7 +164,6 @@ func TestGetOperationRouteByIDNotFound(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -176,11 +174,11 @@ func TestGetOperationRouteByIDNotFound(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -200,7 +198,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
 		Code:           "TEST-003",
@@ -216,7 +214,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
@@ -225,7 +223,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 		Return(nil, metadataError).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, metadataError, err)
@@ -240,12 +238,11 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	portfolioID := uuid.New()
 
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
+		LedgerID:       &ledgerID,
 		Title:          "Portfolio Route",
 		Description:    "Portfolio Description",
 		Code:           "PORTFOLIO-001",
@@ -261,7 +258,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
@@ -276,7 +273,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 		Return(expectedMetadata, nil).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, &portfolioID, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

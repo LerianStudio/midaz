@@ -625,11 +625,11 @@ all-components:
 
 .PHONY: generate-docs
 generate-docs:
-	@./postman/generator/generate-docs.sh
+	@./scripts/openapi/generate-docs.sh
 
 .PHONY: check-docs
 check-docs:
-	@./postman/generator/check-docs.sh
+	@./scripts/openapi/check-docs.sh
 
 #-------------------------------------------------------
 # Developer Helper Commands
@@ -729,4 +729,3 @@ dashboards-verify: dashboards
 	$(call print_title,Verifying dashboards against telemetry dictionary)
 	@./scripts/verify-dashboard-primitives.sh
 	@echo "[ok] Every referenced metric is documented"
-

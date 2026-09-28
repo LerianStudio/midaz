@@ -15,7 +15,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -44,7 +43,10 @@ type OperationRouteHandler struct {
 // rawBody is the unparsed request body, needed only for the accountingEntries
 // unknown-key probe: Go's json.Unmarshal silently drops unknown keys, so the typed
 // payload alone cannot tell an unknown key from an omitted one.
-func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+//
+// ledgerID is the ledger the route is created under, nil for a route created at
+// organization level.
+func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
 	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
@@ -89,11 +91,7 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 		return nil, err
 	}
 
-	if err := metricFactory.RecordOperationRouteCreated(
-		ctx,
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-	); err != nil {
+	if err := metricFactory.RecordOperationRouteCreated(ctx, routeScopeAttributes(organizationID, ledgerID)...); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to record operation route created metric", err)
 	}
 
@@ -101,13 +99,13 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 }
 
 // getOperationRouteByID owns the span + service call for GET-by-id.
-func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
 	defer span.End()
 
-	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, id)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve operation route on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
@@ -124,8 +122,8 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 // AccountingEntries, so the core re-derives payload.AccountingEntriesRaw from these
 // bytes. Feed anything but the unparsed request body and the PATCH breaks silently.
 // Also reproduces the accountingEntries unknown-key probe.
-func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
@@ -162,7 +160,7 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 	// We need to fetch the existing route to get operation type and merge entries
 	// Validation runs when accountingEntries is present (even if removing entries via explicit null)
 	if payload.AccountingEntries != nil || len(payload.AccountingEntriesRaw) > 0 {
-		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, id)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
 			return nil, err
@@ -189,31 +187,24 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 
 	recordSafePayloadAttributes(span, payload)
 
-	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
+	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, id, payload)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to update Operation Route on command", err)
 
 		return nil, err
 	}
 
-	if payload.Account != nil {
-		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to reload operation route cache", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to reload operation route cache", libLog.Err(err), libLog.String("operation_route_id", id.String()))
-		}
-	}
-
 	return operationRoute, nil
 }
 
 // deleteOperationRouteByID owns the span + service call for DELETE.
-func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
 	defer span.End()
 
-	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
+	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, id); err != nil {
 		handleSpanByErrorClass(span, "Failed to delete operation route on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 
@@ -225,8 +216,9 @@ func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Conte
 
 // getAllOperationRoutes binds the query map imperatively via http.ValidateParameters
 // so a bad query yields the canonical 400, then returns the assembled pagination
-// envelope.
-func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+// envelope. Routes belong to the organization, so the listing covers every route of
+// the organization whichever path served it.
+func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
@@ -250,7 +242,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 	}
 
 	if headerParams.Metadata != nil {
-		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, nil, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
@@ -266,7 +258,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 
 	headerParams.Metadata = &bson.M{}
 
-	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, nil, *headerParams)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all operation routes on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))
@@ -387,6 +379,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
 		{constant.ActionBlock, entries.Block, constant.ErrAccountingEntryFieldRequired},
 		{constant.ActionUnblock, entries.Unblock, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionCrossLedger, entries.CrossLedger, constant.ErrAccountingEntryFieldRequired},
 	}
 
 	for _, action := range actions {
@@ -458,14 +451,15 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 // validAccountingEntryKeys defines the allowed top-level keys inside accountingEntries.
 var validAccountingEntryKeys = map[string]struct{}{
-	constant.ActionDirect:    {},
-	constant.ActionHold:      {},
-	constant.ActionCommit:    {},
-	constant.ActionCancel:    {},
-	constant.ActionRevert:    {},
-	constant.ActionOverdraft: {},
-	constant.ActionBlock:     {},
-	constant.ActionUnblock:   {},
+	constant.ActionDirect:      {},
+	constant.ActionHold:        {},
+	constant.ActionCommit:      {},
+	constant.ActionCancel:      {},
+	constant.ActionRevert:      {},
+	constant.ActionOverdraft:   {},
+	constant.ActionBlock:       {},
+	constant.ActionUnblock:     {},
+	constant.ActionCrossLedger: {},
 }
 
 // findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
@@ -517,6 +511,13 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 	// harder to accidentally loosen via future edits to the source/destination
 	// switches.
 	if scenario == constant.ActionOverdraft {
+		return fieldRequirement{debitRequired: true, creditRequired: true}
+	}
+
+	// The cross-ledger bridge route is credited in the part that sends value
+	// out and debited in the part that receives it, so both rubrics are always
+	// needed.
+	if scenario == constant.ActionCrossLedger {
 		return fieldRequirement{debitRequired: true, creditRequired: true}
 	}
 
@@ -588,6 +589,10 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 
 	// Check direction × scenario matrix (which scenarios are allowed)
 	if err := handler.validateDirectionScenarioMatrix(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	if err := handler.validateCrossLedgerEntry(ctx, operationType, entries, entityName); err != nil {
 		return err
 	}
 
@@ -767,7 +772,8 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	// Overdraft is a supplementary accounting scenario that still requires
 	// direct as a base. Without this, a payload setting only overdraft
 	// would bypass the direct-mandatory check and yield an incomplete
-	// accounting description.
+	// accounting description. crossLedger is deliberately absent: the bridge
+	// route stands alone (validateCrossLedgerEntry).
 	hasOtherScenarios := entries.Hold != nil || entries.Commit != nil ||
 		entries.Cancel != nil || entries.Revert != nil ||
 		entries.Overdraft != nil
@@ -782,6 +788,55 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direct scenario required", err)
 		logger.Log(ctx, libLog.LevelWarn, "Direct scenario is required when other scenarios are present")
+
+		return err
+	}
+
+	return nil
+}
+
+// validateCrossLedgerEntry enforces the shape of a cross-ledger bridge route. The
+// route is bidirectional because each group part posts it on the opposite side
+// (credited where value leaves a ledger, debited where it arrives) and a group
+// revert needs every routed operation to be reversible. It carries no other
+// entry, so the route ID alone identifies a bridge leg wherever the leg is
+// read back (the persisted transaction body, the hold intent, the operations)
+// and the route never counts in an action's template.
+func (handler *OperationRouteHandler) validateCrossLedgerEntry(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	if entries.CrossLedger == nil {
+		return nil
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_cross_ledger_entry")
+	defer span.End()
+
+	if operationType != constant.OperationRouteTypeBidirectional {
+		err := pkg.ValidateBusinessError(
+			constant.ErrScenarioNotAllowedForDirection,
+			entityName,
+			fmt.Sprintf("%s scenario is only allowed for bidirectional operation routes", constant.ActionCrossLedger),
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "crossLedger not allowed for a non-bidirectional route", err)
+
+		return err
+	}
+
+	if actions := entries.Actions(); len(actions) > 1 {
+		err := pkg.ValidateBusinessError(
+			constant.ErrInvalidCrossLedgerRoute,
+			entityName,
+			"An operation route with a crossLedger entry cannot carry other accounting entries.",
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "crossLedger combined with other accounting entries", err)
 
 		return err
 	}
@@ -821,6 +876,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 		{constant.ActionOverdraft, entries.Overdraft},
 		{constant.ActionBlock, entries.Block},
 		{constant.ActionUnblock, entries.Unblock},
+		{constant.ActionCrossLedger, entries.CrossLedger},
 	}
 
 	for _, action := range actions {
@@ -860,6 +916,23 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	logger.Log(ctx, libLog.LevelDebug, "Entry field requirements validation passed")
 
 	return nil
+}
+
+// accountingEntryFields lists every per-action entry of AccountingEntries with
+// its JSON key, so merges treat all of them alike and none is silently dropped.
+var accountingEntryFields = []struct {
+	key   string
+	entry func(*mmodel.AccountingEntries) **mmodel.AccountingEntry
+}{
+	{constant.ActionDirect, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Direct }},
+	{constant.ActionHold, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Hold }},
+	{constant.ActionCommit, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Commit }},
+	{constant.ActionCancel, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Cancel }},
+	{constant.ActionRevert, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Revert }},
+	{constant.ActionOverdraft, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Overdraft }},
+	{constant.ActionBlock, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Block }},
+	{constant.ActionUnblock, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.Unblock }},
+	{constant.ActionCrossLedger, func(e *mmodel.AccountingEntries) **mmodel.AccountingEntry { return &e.CrossLedger }},
 }
 
 // mergeAccountingEntries creates a merged view of existing and incoming accounting entries.
@@ -918,31 +991,32 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 		return existingEntry
 	}
 
-	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert, incomingOverdraft *mmodel.AccountingEntry
-	if incoming != nil {
-		incomingDirect = incoming.Direct
-		incomingHold = incoming.Hold
-		incomingCommit = incoming.Commit
-		incomingCancel = incoming.Cancel
-		incomingRevert = incoming.Revert
-		incomingOverdraft = incoming.Overdraft
+	for _, field := range accountingEntryFields {
+		var incomingEntry *mmodel.AccountingEntry
+		if incoming != nil {
+			incomingEntry = *field.entry(incoming)
+		}
+
+		*field.entry(merged) = applyMerge(field.key, *field.entry(existing), incomingEntry)
 	}
 
-	merged.Direct = applyMerge(constant.ActionDirect, existing.Direct, incomingDirect)
-	merged.Hold = applyMerge(constant.ActionHold, existing.Hold, incomingHold)
-	merged.Commit = applyMerge(constant.ActionCommit, existing.Commit, incomingCommit)
-	merged.Cancel = applyMerge(constant.ActionCancel, existing.Cancel, incomingCancel)
-	merged.Revert = applyMerge(constant.ActionRevert, existing.Revert, incomingRevert)
-	merged.Overdraft = applyMerge(constant.ActionOverdraft, existing.Overdraft, incomingOverdraft)
-
 	// Check if all entries are nil - return nil instead of empty struct
-	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
-		merged.Cancel == nil && merged.Revert == nil &&
-		merged.Overdraft == nil {
+	if accountingEntriesEmpty(merged) {
 		return nil
 	}
 
 	return merged
+}
+
+// accountingEntriesEmpty reports whether no action carries an entry.
+func accountingEntriesEmpty(entries *mmodel.AccountingEntries) bool {
+	for _, field := range accountingEntryFields {
+		if *field.entry(entries) != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 // mergeAccountingEntriesSimple performs a simple merge where incoming non-nil values win.
@@ -954,40 +1028,12 @@ func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) 
 
 	merged := &mmodel.AccountingEntries{}
 
-	if incoming.Direct != nil {
-		merged.Direct = incoming.Direct
-	} else if existing != nil {
-		merged.Direct = existing.Direct
-	}
-
-	if incoming.Hold != nil {
-		merged.Hold = incoming.Hold
-	} else if existing != nil {
-		merged.Hold = existing.Hold
-	}
-
-	if incoming.Commit != nil {
-		merged.Commit = incoming.Commit
-	} else if existing != nil {
-		merged.Commit = existing.Commit
-	}
-
-	if incoming.Cancel != nil {
-		merged.Cancel = incoming.Cancel
-	} else if existing != nil {
-		merged.Cancel = existing.Cancel
-	}
-
-	if incoming.Revert != nil {
-		merged.Revert = incoming.Revert
-	} else if existing != nil {
-		merged.Revert = existing.Revert
-	}
-
-	if incoming.Overdraft != nil {
-		merged.Overdraft = incoming.Overdraft
-	} else if existing != nil {
-		merged.Overdraft = existing.Overdraft
+	for _, field := range accountingEntryFields {
+		if entry := *field.entry(incoming); entry != nil {
+			*field.entry(merged) = entry
+		} else if existing != nil {
+			*field.entry(merged) = *field.entry(existing)
+		}
 	}
 
 	return merged

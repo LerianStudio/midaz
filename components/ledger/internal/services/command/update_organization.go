@@ -82,8 +82,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Failed to update organization", libLog.Err(err))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization", err)
+		recordCommandError(ctx, span, logger, "Failed to update organization", err)
 
 		return nil, err
 	}
@@ -92,8 +91,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityOrganization, id.String(), uoi.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to update organization metadata", libLog.Err(err))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization metadata", err)
+		recordCommandError(ctx, span, logger, "Failed to update organization metadata", err)
 
 		return nil, err
 	}

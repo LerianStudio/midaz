@@ -111,6 +111,11 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		version = *operation.BalanceAfter.Version
 	}
 
+	updatedAt := operation.CreatedAt
+	if operation.RecordedAt != nil {
+		updatedAt = *operation.RecordedAt
+	}
+
 	return &mmodel.Balance{
 		ID:             currentBalance.ID,
 		OrganizationID: currentBalance.OrganizationID,
@@ -124,6 +129,6 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		Version:        version,
 		AccountType:    currentBalance.AccountType,
 		CreatedAt:      currentBalance.CreatedAt,
-		UpdatedAt:      operation.CreatedAt,
+		UpdatedAt:      updatedAt,
 	}, nil
 }

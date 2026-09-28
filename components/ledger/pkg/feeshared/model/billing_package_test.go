@@ -7,10 +7,12 @@ package model
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newValidEventFilter() *EventFilter {
@@ -209,6 +211,23 @@ func TestBillingPackage_Validate_EventFilterContent(t *testing.T) {
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErrCode)
 		})
+	}
+}
+
+func TestEventFilter_Validate_Status(t *testing.T) {
+	t.Parallel()
+
+	ef := &EventFilter{TransactionRoute: "route", Status: "approved"}
+	require.NoError(t, ef.Validate())
+
+	// CREATED is never stored, so a filter on it would bill zero forever.
+	for _, status := range []string{"all", "CREATED", "created"} {
+		var vErr pkg.ValidationKnownFieldsError
+
+		err := (&EventFilter{TransactionRoute: "route", Status: status}).Validate()
+		require.ErrorAs(t, err, &vErr, status)
+		assert.Equal(t, constant.ErrBadRequest.Error(), vErr.Code)
+		assert.Equal(t, "must be one of APPROVED, PENDING, CANCELED, NOTED", vErr.Fields["eventFilter.status"])
 	}
 }
 

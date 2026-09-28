@@ -5,6 +5,7 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -187,41 +188,74 @@ func TestIdempotencyInternalKey(t *testing.T) {
 	}
 }
 
-func TestAccountingRoutesInternalKey(t *testing.T) {
+func TestAtomicTransactionBatchIdempotencyInternalKey(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		organizationID uuid.UUID
-		ledgerID       uuid.UUID
-		key            uuid.UUID
-		expected       string
-	}{
-		{
-			name:           "standard accounting routes key",
-			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
-			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-			key:            uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8"),
-			expected:       "accounting_routes:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:6ba7b811-9dad-11d1-80b4-00c04fd430c8}",
-		},
-		{
-			name:           "nil UUID (zero value)",
-			organizationID: uuid.Nil,
-			ledgerID:       uuid.Nil,
-			key:            uuid.Nil,
-			expected:       "accounting_routes:{00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000}",
-		},
-	}
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	clientKey := "customer-visible-secret"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	result := AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, clientKey)
 
-			result := AccountingRoutesInternalKey(tt.organizationID, tt.ledgerID, tt.key)
+	assert.Equal(
+		t,
+		"idempotency_atomic_batch:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:"+
+			"dc591983169a0714d6c0a565682e558a5819d4a2eb946005a0d8a29eb8c4d3d4",
+		result,
+	)
+	assert.NotContains(t, result, clientKey)
+	assert.NotEqual(t, IdempotencyInternalKey(organizationID, ledgerID, clientKey), result)
+	assert.Equal(
+		t,
+		"idempotency_atomic_batch:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:",
+		AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID),
+	)
+}
 
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+func TestAtomicTransactionBatchExecutionIndexInternalKey(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	executionID := uuid.MustParse("7ba7b810-9dad-11d1-80b4-00c04fd430c9")
+
+	result := AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID)
+
+	assert.Equal(
+		t,
+		"idempotency_atomic_batch_execution:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:7ba7b810-9dad-11d1-80b4-00c04fd430c9",
+		result,
+	)
+	assert.Contains(t, result, "{transactions}")
+	assert.Contains(t, result, organizationID.String()+":"+ledgerID.String())
+}
+
+func TestAccountingRoutesInternalKey_IsScopedByOrganizationOnly(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	transactionRouteID := uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+	assert.Equal(t,
+		"accounting_routes:{550e8400-e29b-41d4-a716-446655440000:6ba7b811-9dad-11d1-80b4-00c04fd430c8}",
+		AccountingRoutesInternalKey(organizationID, transactionRouteID))
+}
+
+func TestLedgerAccountingRoutesInternalKey_KeepsTheLedgerScopedFormat(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	transactionRouteID := uuid.MustParse("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+	legacy := LedgerAccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	// Pods of versions that scoped routes to a ledger read exactly this string;
+	// any drift would make the new code delete a key nobody reads.
+	assert.Equal(t,
+		"accounting_routes:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:6ba7b811-9dad-11d1-80b4-00c04fd430c8}",
+		legacy)
+	assert.NotEqual(t, AccountingRoutesInternalKey(organizationID, transactionRouteID), legacy)
 }
 
 func TestPendingTransactionLockKey(t *testing.T) {
@@ -360,4 +394,246 @@ func TestCacheKeyConstants(t *testing.T) {
 
 		assert.Equal(t, "lock:{transactions}:balance-sync:", BalanceSyncLockPrefix)
 	})
+}
+
+func TestAccountBlockExceptionInternalKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		exceptionID    uuid.UUID
+		expected       string
+	}{
+		{
+			name:           "standard exception key",
+			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			exceptionID:    uuid.MustParse("018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f"),
+			expected:       "account_block_exception:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f",
+		},
+		{
+			name:           "nil UUIDs (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			exceptionID:    uuid.Nil,
+			expected:       "account_block_exception:{transactions}:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected,
+				AccountBlockExceptionInternalKey(tt.organizationID, tt.ledgerID, tt.exceptionID))
+		})
+	}
+}
+
+// TestAccountBlockExceptionInternalKey_SharesBalanceHashSlot locks the
+// co-location invariant the transaction EVAL depends on: an exception key and
+// the balance keys of the same ledger carry the IDENTICAL hash tag, so a
+// multi-key EVAL over both is legal in Redis Cluster. A key builder that
+// dropped or renamed the tag would route the exception to another slot and make
+// the consumption script fail at runtime, in cluster mode only.
+func TestAccountBlockExceptionInternalKey_SharesBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	exceptionKey := AccountBlockExceptionInternalKey(orgID, ledgerID, uuid.New())
+	balanceKey := BalanceInternalKey(orgID, ledgerID, "@fraud_account#default")
+
+	assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, exceptionKey),
+		"the exception key must share the balance keys' hash slot")
+}
+
+func TestTransactionApplyMarkerKey(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		transactionID  string
+		status         string
+		expected       string
+	}{
+		{
+			name:           "approved marker",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "0198c2a1-0000-7000-8000-000000000001",
+			status:         "APPROVED",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:0198c2a1-0000-7000-8000-000000000001:APPROVED",
+		},
+		{
+			name:           "pending and approved of the same transaction are distinct identities",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "0198c2a1-0000-7000-8000-000000000001",
+			status:         "PENDING",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:0198c2a1-0000-7000-8000-000000000001:PENDING",
+		},
+		{
+			name:           "lowercase status is normalized to uppercase",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "tx-1",
+			status:         "canceled",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:tx-1:CANCELED",
+		},
+		{
+			name:           "nil UUID (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			transactionID:  "tx-2",
+			status:         "CREATED",
+			expected: "transaction_apply_marker:{transactions}:00000000-0000-0000-0000-000000000000:" +
+				"00000000-0000-0000-0000-000000000000:tx-2:CREATED",
+		},
+		{
+			name:           "empty status still yields a well-formed key",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "tx-3",
+			status:         "",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:tx-3:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected,
+				TransactionApplyMarkerKey(tt.organizationID, tt.ledgerID, tt.transactionID, tt.status))
+		})
+	}
+}
+
+// TestTransactionApplyMarkerKey_SharesBalanceHashSlot locks the co-location the
+// balance EVAL depends on: the marker is read and written inside the same
+// multi-key script that mutates the balances, so it must key to their slot.
+func TestTransactionApplyMarkerKey_SharesBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	markerKey := TransactionApplyMarkerKey(orgID, ledgerID, "tx-1", "APPROVED")
+	balanceKey := BalanceInternalKey(orgID, ledgerID, "@holder#default")
+
+	assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, markerKey),
+		"the apply marker key must share the balance keys' hash slot")
+}
+
+// hashTagOf extracts the "{...}" hash tag Redis Cluster keys a slot on.
+func hashTagOf(t *testing.T, key string) string {
+	t.Helper()
+
+	start := strings.Index(key, "{")
+	end := strings.Index(key, "}")
+
+	if start < 0 || end < start {
+		t.Fatalf("key %q carries no hash tag", key)
+	}
+
+	return key[start : end+1]
+}
+
+// TestAccountProtectionKeys locks the shape of the three account-scoped
+// protection keys. Each is addressed by the complete scope — organization,
+// ledger and account — so a key can never be resolved from the account alone,
+// and each lives in a namespace of its own so it can never be mistaken for a
+// balance blob.
+func TestAccountProtectionKeys(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	accountID := uuid.MustParse("018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f")
+	scope := "550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f"
+
+	tests := []struct {
+		name     string
+		got      string
+		expected string
+	}{
+		{
+			name:     "closing marker",
+			got:      AccountClosingMarkerKey(orgID, ledgerID, accountID),
+			expected: "account-closing:{transactions}:" + scope,
+		},
+		{
+			name:     "closed marker",
+			got:      AccountClosedMarkerKey(orgID, ledgerID, accountID),
+			expected: "account-closed:{transactions}:" + scope,
+		},
+		{
+			name:     "administrative ownership",
+			got:      AccountAdminOwnershipKey(orgID, ledgerID, accountID),
+			expected: "account-admin-ownership:{transactions}:" + scope,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.got)
+		})
+	}
+}
+
+// TestAccountProtectionKeys_ShareBalanceHashSlot locks the co-location the
+// protection keys need: they sit in the slot the account's balance keys already
+// occupy, so a future multi-key EVAL over a marker and a balance stays legal in
+// Redis Cluster.
+func TestAccountProtectionKeys_ShareBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	accountID := uuid.New()
+
+	balanceKey := BalanceInternalKey(orgID, ledgerID, "@closing_account#default")
+
+	for _, key := range []string{
+		AccountClosingMarkerKey(orgID, ledgerID, accountID),
+		AccountClosedMarkerKey(orgID, ledgerID, accountID),
+		AccountAdminOwnershipKey(orgID, ledgerID, accountID),
+	} {
+		assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, key),
+			"a protection key must share the balance keys' hash slot")
+	}
+}
+
+// TestAccountProtectionKeys_AreDistinctPerScope proves the scope isolation the
+// markers promise: changing any one of organization, ledger or account yields a
+// different key, so a closing can never leak across scopes.
+func TestAccountProtectionKeys_AreDistinctPerScope(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	base := AccountClosingMarkerKey(orgID, ledgerID, accountID)
+
+	assert.NotEqual(t, base, AccountClosingMarkerKey(uuid.New(), ledgerID, accountID))
+	assert.NotEqual(t, base, AccountClosingMarkerKey(orgID, uuid.New(), accountID))
+	assert.NotEqual(t, base, AccountClosingMarkerKey(orgID, ledgerID, uuid.New()))
+	assert.NotEqual(t, base, AccountClosedMarkerKey(orgID, ledgerID, accountID))
+	assert.NotEqual(t, base, AccountAdminOwnershipKey(orgID, ledgerID, accountID))
 }

@@ -9,8 +9,6 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 )
@@ -38,8 +36,7 @@ func (uc *UseCase) CreateOnboardingMetadata(ctx context.Context, entityName, ent
 	}
 
 	if err := uc.OnboardingMetadataRepo.Create(ctx, entityName, &meta); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create metadata", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create metadata", err)
 
 		return nil, err
 	}

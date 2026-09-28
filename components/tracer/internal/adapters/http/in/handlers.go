@@ -5,12 +5,8 @@
 package in
 
 import (
-	"os"
-
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/gofiber/fiber/v3"
-
-	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 )
 
 // SelfProbeGate is the contract LivenessHandler depends on to decide whether
@@ -65,13 +61,4 @@ func (h *HealthChecker) LivenessHandler() fiber.Handler {
 
 		return libHTTP.Ping(c)
 	}
-}
-
-// versionHandler is built once from the VERSION env var, preserving the
-// lib-commons Version source semantics (it read VERSION directly), and adds
-// the buildinfo provenance fields (commit/buildTime/dirty) to the wire shape.
-var versionHandler = buildinfo.VersionHandler(os.Getenv("VERSION"))
-
-func Version(c fiber.Ctx) error {
-	return versionHandler(c)
 }

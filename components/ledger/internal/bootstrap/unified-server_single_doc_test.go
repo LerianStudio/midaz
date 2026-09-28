@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
@@ -37,7 +37,7 @@ func newSingleDocServer(t *testing.T) *UnifiedServer {
 		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, &httpin.TransactionHandler{}, nil)
 	}
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, v1Mount, v2Mount)
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, nil, v1Mount, v2Mount)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 

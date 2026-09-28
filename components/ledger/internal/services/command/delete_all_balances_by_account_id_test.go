@@ -20,30 +20,50 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	midazpkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// expectDeleteMarkerPlant expects the delete marker SetNX write that precedes the funds guard.
+// expectDeleteMarkerPlant expects the current and legacy marker writes that precede the funds guard.
 func expectDeleteMarkerPlant(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
-	return m.EXPECT().
-		SetNX(gomock.Any(), deleteMarkerKeyFor(org, ledger, b), deleteMarkerValue, time.Duration(balanceDeleteMarkerTTLSeconds)).
+	current := m.EXPECT().
+		SetNX(gomock.Any(), deleteMarkerKeyFor(org, ledger, b), gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
 		Return(true, nil)
+	m.EXPECT().
+		SetNX(gomock.Any(), legacyDeleteMarkerKeyFor(org, ledger, b), gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+		Return(true, nil)
+	return current
 }
 
 // expectCacheEvict expects the cache-key Del that follows a committed soft-delete.
 func expectCacheEvict(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
-	return m.EXPECT().
+	del := m.EXPECT().
 		Del(gomock.Any(), balanceCacheKeyFor(org, ledger, b)).
 		Return(nil)
+	expectMarkerShorten(m, org, ledger, b)
+	return del
 }
 
-// expectDeleteMarkerRelease expects the delete marker-key Del that runs only when the delete fails.
+func expectMarkerShorten(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) {
+	m.EXPECT().
+		ExpireIfValue(gomock.Any(), deleteMarkerKeyFor(org, ledger, b), gomock.Any(), time.Duration(balanceDeleteMarkerShortTTLSeconds)).
+		Return(true, nil)
+	m.EXPECT().
+		ExpireIfValue(gomock.Any(), legacyDeleteMarkerKeyFor(org, ledger, b), gomock.Any(), time.Duration(balanceDeleteMarkerShortTTLSeconds)).
+		Return(true, nil)
+}
+
+// expectDeleteMarkerRelease expects the ownership-checked marker release that runs only when the delete fails.
 func expectDeleteMarkerRelease(m *redis.MockRedisRepository, org, ledger uuid.UUID, b *mmodel.Balance) *gomock.Call {
-	return m.EXPECT().
-		Del(gomock.Any(), deleteMarkerKeyFor(org, ledger, b)).
-		Return(nil)
+	current := m.EXPECT().
+		DeleteIfValue(gomock.Any(), deleteMarkerKeyFor(org, ledger, b), gomock.Any()).
+		Return(true, nil)
+	m.EXPECT().
+		DeleteIfValue(gomock.Any(), legacyDeleteMarkerKeyFor(org, ledger, b), gomock.Any()).
+		Return(true, nil)
+	return current
 }
 
 func TestDeleteAllBalancesByAccountID(t *testing.T) {
@@ -74,6 +94,111 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 		assert.NoError(t, err)
+	})
+
+	t.Run("already-owned marker aborts before cache guard", func(t *testing.T) {
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+		markerKey := deleteMarkerKeyFor(organizationID, ledgerID, balanceItem)
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), markerKey, gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(false, nil)
+		mockRedisRepo.EXPECT().
+			DeleteIfValue(gomock.Any(), markerKey, gomock.Any()).
+			Times(0)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+
+		var conflictErr midazpkg.EntityConflictError
+		assert.Error(t, err)
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
+	})
+
+	t.Run("marker redis error aborts before cache guard", func(t *testing.T) {
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+		markerKey := deleteMarkerKeyFor(organizationID, ledgerID, balanceItem)
+		expectedErr := errors.New("marker redis unavailable")
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), markerKey, gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(false, expectedErr)
+		mockRedisRepo.EXPECT().
+			DeleteIfValue(gomock.Any(), markerKey, gomock.Any()).
+			Times(0)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.ErrorIs(t, err, expectedErr)
+	})
+
+	t.Run("partial marker acquisition rolls back only owned marker", func(t *testing.T) {
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		first := newTestBalanceWithIdentity(decimal.Zero, decimal.Zero, "first", "default")
+		second := newTestBalanceWithIdentity(decimal.Zero, decimal.Zero, "second", "default")
+		firstMarker := deleteMarkerKeyFor(organizationID, ledgerID, first)
+		secondMarker := deleteMarkerKeyFor(organizationID, ledgerID, second)
+		expectedErr := errors.New("marker redis unavailable")
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{first, second}, nil)
+		firstSet := mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), firstMarker, gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(true, nil)
+		firstLegacySet := mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), legacyDeleteMarkerKeyFor(organizationID, ledgerID, first), gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(true, nil)
+		secondSet := mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), secondMarker, gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(false, expectedErr)
+		rollback := mockRedisRepo.EXPECT().
+			DeleteIfValue(gomock.Any(), firstMarker, gomock.Any()).
+			Return(true, nil)
+		legacyRollback := mockRedisRepo.EXPECT().
+			DeleteIfValue(gomock.Any(), legacyDeleteMarkerKeyFor(organizationID, ledgerID, first), gomock.Any()).
+			Return(true, nil)
+		gomock.InOrder(firstSet, firstLegacySet, secondSet, rollback, legacyRollback)
+		mockRedisRepo.EXPECT().
+			DeleteIfValue(gomock.Any(), secondMarker, gomock.Any()).
+			Times(0)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+		mockBalanceRepo.EXPECT().
+			UpdateAllByAccountID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+		mockBalanceRepo.EXPECT().
+			DeleteAllByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+		assert.ErrorIs(t, err, expectedErr)
 	})
 
 	t.Run("redis lookup error", func(t *testing.T) {
@@ -120,6 +245,27 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	t.Run("balances with funds remaining prevent deletion", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
 		balanceItem := newTestBalance(decimal.NewFromInt(10), decimal.Zero)
+
+		mockBalanceRepo.EXPECT().
+			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+			Return([]*mmodel.Balance{balanceItem}, nil)
+		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+			Return(nil, nil)
+		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
+
+		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+
+		var conflictErr midazpkg.EntityConflictError
+		assert.Error(t, err)
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
+	})
+
+	t.Run("overdraft debt prevents deletion", func(t *testing.T) {
+		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+		balanceItem := newTestBalanceWithOverdraft(decimal.Zero, decimal.Zero, decimal.NewFromInt(25))
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
@@ -245,6 +391,30 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	})
 }
 
+func TestDeleteAllBalancesByAccountID_InitialReadUsesPrimaryIntent(t *testing.T) {
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)
+	var observedCtx context.Context
+
+	mockBalanceRepo.EXPECT().
+		ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+		DoAndReturn(func(ctx context.Context, _, _, _ uuid.UUID) ([]*mmodel.Balance, error) {
+			observedCtx = ctx
+
+			return nil, nil
+		})
+
+	err := uc.DeleteAllBalancesByAccountID(context.Background(), organizationID, ledgerID, accountID, requestID.String())
+
+	assert.NoError(t, err)
+	assert.True(t, readrouting.IsPrimaryRead(observedCtx),
+		"the initial balance read must carry the primary-read intent")
+}
+
 // TestDeleteAllBalancesByAccountIDBlockThenEvict locks the block-then-evict ordering: the
 // delete marker is planted BEFORE the funds guard reads, the cache is evicted AFTER the soft
 // delete commits, the delete marker is released ONLY when the delete fails, and a failed eviction
@@ -269,7 +439,10 @@ func TestDeleteAllBalancesByAccountIDBlockThenEvict(t *testing.T) {
 			Return([]*mmodel.Balance{balanceItem}, nil)
 
 		plant := mockRedisRepo.EXPECT().
-			SetNX(gomock.Any(), deleteMarkerKeyFor(organizationID, ledgerID, balanceItem), deleteMarkerValue, time.Duration(balanceDeleteMarkerTTLSeconds)).
+			SetNX(gomock.Any(), deleteMarkerKeyFor(organizationID, ledgerID, balanceItem), gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
+			Return(true, nil)
+		legacyPlant := mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), legacyDeleteMarkerKeyFor(organizationID, ledgerID, balanceItem), gomock.Any(), time.Duration(balanceDeleteMarkerTTLSeconds)).
 			Return(true, nil)
 		guard := mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
@@ -283,9 +456,10 @@ func TestDeleteAllBalancesByAccountIDBlockThenEvict(t *testing.T) {
 		evict := mockRedisRepo.EXPECT().
 			Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, balanceItem)).
 			Return(nil)
+		expectMarkerShorten(mockRedisRepo, organizationID, ledgerID, balanceItem)
 
 		// delete marker-before-guard and evict-after-soft-delete.
-		gomock.InOrder(plant, guard)
+		gomock.InOrder(plant, legacyPlant, guard)
 		gomock.InOrder(del, evict)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
@@ -414,6 +588,13 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 			expectProceed: false,
 		},
 		{
+			name:          "cached overdraft debt prevents deletion",
+			balance:       newTestBalance(decimal.Zero, decimal.Zero),
+			cacheBalance:  newTestBalanceWithOverdraft(decimal.Zero, decimal.Zero, decimal.NewFromInt(25)),
+			cacheErr:      nil,
+			expectProceed: false,
+		},
+		{
 			name:          "cached zero-funds but postgres funds prevents deletion",
 			balance:       newTestBalance(decimal.NewFromInt(3), decimal.Zero),
 			cacheBalance:  &mmodel.Balance{},
@@ -473,8 +654,8 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
 
-		zeroFundsBalance := newTestBalance(decimal.Zero, decimal.Zero)
-		onHoldFundsBalance := newTestBalance(decimal.Zero, decimal.NewFromInt(5))
+		zeroFundsBalance := newTestBalanceWithIdentity(decimal.Zero, decimal.Zero, "zero", "default")
+		onHoldFundsBalance := newTestBalanceWithIdentity(decimal.Zero, decimal.NewFromInt(5), "on-hold", "default")
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
@@ -532,6 +713,21 @@ func newTestBalance(available, onHold decimal.Decimal) *mmodel.Balance {
 		Available: available,
 		OnHold:    onHold,
 	}
+}
+
+func newTestBalanceWithOverdraft(available, onHold, overdraftUsed decimal.Decimal) *mmodel.Balance {
+	balance := newTestBalance(available, onHold)
+	balance.OverdraftUsed = overdraftUsed
+
+	return balance
+}
+
+func newTestBalanceWithIdentity(available, onHold decimal.Decimal, alias, key string) *mmodel.Balance {
+	balance := newTestBalance(available, onHold)
+	balance.Alias = alias
+	balance.Key = key
+
+	return balance
 }
 
 func balanceRedisKey(b *mmodel.Balance) string {
@@ -628,4 +824,94 @@ func TestUpdateBalanceTransferPermissions(t *testing.T) {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+// TestDeleteAllBalancesByAccountIDShortensOnlyEvictedMarkers locks the per-balance alignment
+// between an eviction and its marker lease: the balance whose cache key survived a failed Del
+// keeps its long marker, while the balance that was evicted has both of its markers shortened.
+func TestDeleteAllBalancesByAccountIDShortensOnlyEvictedMarkers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+
+	first := newTestBalanceWithIdentity(decimal.Zero, decimal.Zero, "evict-fails", "default")
+	second := newTestBalanceWithIdentity(decimal.Zero, decimal.Zero, "evict-succeeds", "default")
+
+	mockBalanceRepo.EXPECT().
+		ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+		Return([]*mmodel.Balance{first, second}, nil)
+	expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, first)
+	expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, second)
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(first)).
+		Return(nil, goredis.Nil)
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(second)).
+		Return(nil, goredis.Nil)
+	mockBalanceRepo.EXPECT().
+		UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
+		Return(nil)
+	mockBalanceRepo.EXPECT().
+		DeleteAllByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(nil)
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, first)).
+		Return(errors.New("evict failed"))
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, second)).
+		Return(nil)
+
+	// A surviving cache snapshot must keep its long marker, so the failed eviction shortens nothing.
+	mockRedisRepo.EXPECT().
+		ExpireIfValue(gomock.Any(), deleteMarkerKeyFor(organizationID, ledgerID, first), gomock.Any(), gomock.Any()).
+		Times(0)
+	mockRedisRepo.EXPECT().
+		ExpireIfValue(gomock.Any(), legacyDeleteMarkerKeyFor(organizationID, ledgerID, first), gomock.Any(), gomock.Any()).
+		Times(0)
+	expectMarkerShorten(mockRedisRepo, organizationID, ledgerID, second)
+
+	err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+	assert.NoError(t, err)
+}
+
+// TestDeleteAllBalancesByAccountIDMalformedCachedOverdraftFailsClosed locks the cascade half of
+// the shared rule: an unreadable cached OverdraftUsed is reported by ListBalanceByKey and must
+// abort the delete with the markers released, never be flattened to zero debt.
+func TestDeleteAllBalancesByAccountIDMalformedCachedOverdraftFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
+	balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
+	expectedErr := errors.New("failed to parse overdraft used from balance cache: can't convert not-a-decimal to decimal")
+
+	mockBalanceRepo.EXPECT().
+		ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+		Return([]*mmodel.Balance{balanceItem}, nil)
+	expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, balanceItem)
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, balanceRedisKey(balanceItem)).
+		Return(nil, expectedErr)
+	expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, balanceItem)
+	mockBalanceRepo.EXPECT().
+		UpdateAllByAccountID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	mockBalanceRepo.EXPECT().
+		DeleteAllByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
+	assert.ErrorIs(t, err, expectedErr)
 }

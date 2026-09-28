@@ -12,6 +12,7 @@ package account
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -41,6 +42,21 @@ func NewMockRepository(ctrl *gomock.Controller) *MockRepository {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
+}
+
+// CloseAccount mocks base method.
+func (m *MockRepository) CloseAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseAccount", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseAccount indicates an expected call of CloseAccount.
+func (mr *MockRepositoryMockRecorder) CloseAccount(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAccount", reflect.TypeOf((*MockRepository)(nil).CloseAccount), ctx, organizationID, ledgerID, id)
 }
 
 // Count mocks base method.
@@ -250,6 +266,21 @@ func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID
 func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, portfolioID, segmentID, ids, holderPolicy any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, portfolioID, segmentID, ids, holderPolicy)
+}
+
+// ListClosedAtByIDs mocks base method.
+func (m *MockRepository) ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListClosedAtByIDs", ctx, organizationID, ledgerID, ids)
+	ret0, _ := ret[0].(map[uuid.UUID]*time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListClosedAtByIDs indicates an expected call of ListClosedAtByIDs.
+func (mr *MockRepositoryMockRecorder) ListClosedAtByIDs(ctx, organizationID, ledgerID, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClosedAtByIDs", reflect.TypeOf((*MockRepository)(nil).ListClosedAtByIDs), ctx, organizationID, ledgerID, ids)
 }
 
 // ListExternalAccountsByAssetCode mocks base method.

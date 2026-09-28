@@ -27,7 +27,7 @@ import (
 var TransactionRouteCreatedDefinition = Definition{
 	ResourceType:  "transaction_route",
 	EventType:     "created",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // TransactionRouteCreatedPayload is the wire payload for transaction_route.created.
@@ -42,9 +42,11 @@ var TransactionRouteCreatedDefinition = Definition{
 //
 // Description is optional and omitted from the wire when empty.
 type TransactionRouteCreatedPayload struct {
-	ID                string   `json:"id"`
-	OrganizationID    string   `json:"organizationId"`
-	LedgerID          string   `json:"ledgerId"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organizationId"`
+	// LedgerID is the ledger the route was created under, absent for a route
+	// created at organization level.
+	LedgerID          string   `json:"ledgerId,omitempty"`
 	Title             string   `json:"title"`
 	Description       string   `json:"description,omitempty"`
 	OperationRouteIDs []string `json:"operationRouteIds,omitempty"`
@@ -69,7 +71,7 @@ func NewTransactionRouteCreated(tr *mmodel.TransactionRoute) TransactionRouteCre
 	return TransactionRouteCreatedPayload{
 		ID:                tr.ID.String(),
 		OrganizationID:    tr.OrganizationID.String(),
-		LedgerID:          tr.LedgerID.String(),
+		LedgerID:          derefUUIDString(tr.LedgerID),
 		Title:             tr.Title,
 		Description:       tr.Description,
 		OperationRouteIDs: operationRouteIDs,

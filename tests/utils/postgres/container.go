@@ -67,9 +67,9 @@ type ContainerResult struct {
 
 // SetupContainer starts a PostgreSQL container for integration testing.
 // Returns raw sql.DB for direct inserts and connection info for lib-commons.
-func SetupContainer(t *testing.T) *ContainerResult {
-	t.Helper()
-	return SetupContainerWithConfig(t, DefaultContainerConfig())
+func SetupContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
+	return SetupContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupContainerWithFixedPort starts PostgreSQL on a host port that remains
@@ -86,14 +86,15 @@ func SetupContainerWithFixedPort(t *testing.T) *ContainerResult {
 }
 
 // SetupContainerWithConfig starts a PostgreSQL container with custom configuration.
-func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
 
-	return setupContainerWithConfig(t, cfg, "")
+	return setupContainerWithConfig(tb, cfg, "")
 }
 
-func setupContainerWithConfig(t *testing.T, cfg ContainerConfig, fixedHostPort string) *ContainerResult {
-	t.Helper()
+func setupContainerWithConfig(tb testing.TB, cfg ContainerConfig, fixedHostPort string) *ContainerResult {
+	tb.Helper()
+	t := tb
 
 	ctx := context.Background()
 

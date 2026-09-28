@@ -102,7 +102,7 @@ midaz/
 │       └── grafana/         # OTEL collector config
 ├── pkg/                     # Shared packages (root)
 │   ├── mmodel/              # Domain models (incl. Holder, Instrument)
-│   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 28 CRM-00xx: CRM-0006..CRM-0041), action/module constants
+│   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 30 CRM-00xx: CRM-0006..CRM-0043), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
 │   ├── net/http/            # Middleware, pagination, protected routes
 │   ├── mtransaction/        # Transaction processing utilities (renamed from the old transaction pkg)
@@ -164,6 +164,9 @@ All models live in `pkg/mmodel/`. Key entities:
 ### 3.7 Operation Route / Transaction Route
 - Operation routes define per-operation rules (source/destination/bidirectional)
 - Transaction routes compose multiple operation routes for accounting validation
+- Routes belong to the organization: lookups, updates and deletes resolve by `(organization, id)`, and a transaction route may link operation routes created under different ledgers of the organization. `ledgerId` is provenance only — the ledger the route was created under, omitted for a route created at organization level (`/v2/organizations/{organization_id}/{operation,transaction}-routes`, served on `/v2` only). The ledger paths (`/v1` and `/v2`) record the path ledger on create and reach every route of the organization on list, get, patch and delete. Both paths authorize with the same `("midaz","operation-routes"|"transaction-routes",verb)` tuples
+- `accountingEntries` keys: `direct`, `hold`, `commit`, `cancel`, `revert` (transaction-route actions) plus the entry-only `overdraft`, `block`, `unblock` and `crossLedger`
+- `crossLedger` marks the cross-ledger bridge route: debit rubric = arriving from another ledger, credit rubric = leaving to another ledger, both required; the operation route must be `bidirectional` (`0162` otherwise) and carry no other entry (`0256`); it needs no `direct` entry and never counts in an action's template. A transaction route links at most one (`0256` on transaction-route create/update, and on operation-route update when a linked transaction route already has one)
 - Account rules: alias-based or account-type-based validation
 
 ### 3.8 Account Type
@@ -200,6 +203,56 @@ The ledger serves both the `/v1` and `/v2` path prefixes on the single root cont
 no single base path. The onboarding resources below sit under `/v1`. The fee resources are
 ledger-scoped under `/v2` (see section 4.3), the CRM resources are under `/v2`, and the v2
 transaction surface (for example `POST /v2/transactions/direct`) is exposed under `/v2`.
+
+`POST /v2/transactions/batch` accepts an ordered wrapper of direct and hold
+transactions and applies all monetary effects in one all-or-none accounting execution.
+It has no path or query parameters; each item must name one organization and ledger through
+its legs, while distinct direct items may use different enabled ledgers. A batch containing
+hold items remains single-ledger. The success wrapper contains transactions in logical order.
+Batch idempotency uses the smallest participating organization/ledger scope; changing
+which ledger appears first does not create another claim for the same key.
+See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
+
+`POST /v2/transactions/direct` also accepts mixed-ledger legs when every participant enables
+`settings.crossLedger.enabled`. It decomposes the request into one balanced transaction per
+ledger, executes all parts atomically, and returns their shared persisted `groupId` with an
+ordered `transactions` array. See [the cross-ledger contract](docs/api/cross-ledger-transactions.md).
+
+`POST /v2/transactions/hold` accepts the same mixed-ledger shape but creates only PENDING
+origin transactions; destinations remain absent until commit. V2 commit approves every origin
+and creates every destination in one engine execution, while v2 cancel releases the origins and
+creates no destination. Both lifecycle responses are singular for ordinary transactions and a
+`groupId` plus ordered `transactions` for cross-ledger groups. `/v1` rejects grouped lifecycle
+operations with `0252`; a second terminal action returns `0254`.
+
+Cross-ledger groups work on ledgers that enable `accounting.validateRoutes` when every part
+belongs to one organization: the request's organization-wide `routeId` covers every part, the
+bridge legs of validating parts take the transaction route's `crossLedger` operation route, each
+validating part is checked leg by leg, and the client legs of all parts of a phase together must
+use exactly that phase's template (`0116`/`0117`/`0151`; legs naming a route count even in
+non-validating parts). A group spanning organizations with a validating participant returns
+`0251`. See the "Accounting routes" section of the cross-ledger contract.
+
+`POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert`
+reverses the complete cross-ledger group when the selected transaction has a `groupId`. It
+validates every member, executes all reversals atomically in reverse part order, and returns
+the new `groupId`, the original `revertedGroupId`, and one parent-linked transaction per part.
+The equivalent `/v1` request rejects a group member with `0252`.
+Concurrent v2 reverts through different group members share one idempotency claim;
+duplicates return `0084` (HTTP 409) or replay the original reversal group. A
+completed second revert returns `0087` (HTTP 409).
+
+Each cross-ledger group operation publishes one `transaction_group.{posted,committed,canceled,reverted}`
+event (ce-subject = group ID, payload lists every materialized part with ledger, `role`
+`origin|destination`, and status) on top of the per-part `transaction.*` events, which carry
+`groupId` and `groupRole`. A hold or a replayed request publishes no group event. The
+coordinators emit D6 operations `create_cross_ledger_transaction`, `create_cross_ledger_hold`,
+`commit_cross_ledger_group`, `cancel_cross_ledger_group`, and `revert_cross_ledger_group`;
+`atomic_transaction_batches_total` and `atomic_transaction_batch_duration_ms` carry
+`scope=single|cross_ledger`; `cross_ledger_group_ledgers` observes ledgers per applied group.
+Once per recovery cycle the runner aligns PENDING `transaction_group` rows with their settled
+members (never moving balances), deletes member-less intents older than a day, and reports
+disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"}`.
 
 #### Onboarding Resources
 
@@ -259,6 +312,7 @@ transaction surface (for example `POST /v2/transactions/direct`) is exposed unde
 | POST | .../transactions/inflow | Create inflow transaction |
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
+| POST | /v2/transactions/batch | Create an ordered atomic batch of direct and hold transactions |
 | POST | .../transactions/:tid/commit | Commit pending transaction |
 | POST | .../transactions/:tid/cancel | Cancel pending transaction |
 | POST | .../transactions/:tid/revert | Revert transaction |
@@ -274,11 +328,11 @@ transaction surface (for example `POST /v2/transactions/direct`) is exposed unde
 | GET | .../asset-rates/from/:asset_code | List asset rates by code |
 | GET | .../balances | List balances |
 | GET | .../balances/:bid | Get balance |
-| GET | .../balances/:bid/history | Get balance at timestamp |
+| GET | .../balances/:bid/history | Get balance as recorded by the ledger at timestamp |
 | PATCH | .../balances/:bid | Update balance |
 | DELETE | .../balances/:bid | Delete balance |
 | GET | .../accounts/:aid/balances | List balances by account |
-| GET | .../accounts/:aid/balances/history | Account balances at timestamp |
+| GET | .../accounts/:aid/balances/history | Account balances as recorded by the ledger at timestamp |
 | GET | .../accounts/alias/:alias/balances | Balances by alias |
 | GET | .../accounts/external/:code/balances | Balances by external code |
 | POST | .../accounts/:aid/balances | Create additional balance |
@@ -292,6 +346,16 @@ transaction surface (for example `POST /v2/transactions/direct`) is exposed unde
 | GET | .../transaction-routes/:trid | Get transaction route |
 | PATCH | .../transaction-routes/:trid | Update transaction route |
 | DELETE | .../transaction-routes/:trid | Delete transaction route |
+| POST | /v2/organizations/:org_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:org_id/operation-routes | List every operation route of the organization |
+| GET | /v2/organizations/:org_id/operation-routes/:orid | Get operation route |
+| PATCH | /v2/organizations/:org_id/operation-routes/:orid | Update operation route |
+| DELETE | /v2/organizations/:org_id/operation-routes/:orid | Delete operation route |
+| POST | /v2/organizations/:org_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:org_id/transaction-routes | List every transaction route of the organization |
+| GET | /v2/organizations/:org_id/transaction-routes/:trid | Get transaction route |
+| PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
+| DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
 
 #### Settings / Metadata
 
@@ -363,7 +427,7 @@ is the one CRM-path route carrying its own `holder-accounts` route options. The 
 always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
-legacy `CRM-00xx` transform shim was removed. The 28 CRM domain sentinels (section 5.1)
+legacy `CRM-00xx` transform shim was removed. The 30 CRM domain sentinels (section 5.1)
 are still emitted on their own paths.
 
 ### 4.3 Fees API (served by the ledger binary on port 3002)
@@ -479,8 +543,8 @@ only when the reservation service is wired (non-nil); they are live in the defau
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 28 CRM domain codes prefixed
-with `CRM-` (CRM-0006..CRM-0041, non-contiguous). The registry is numeric-only for the core; the
+Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 30 CRM domain codes prefixed
+with `CRM-` (CRM-0006..CRM-0043, non-contiguous). The registry is numeric-only for the core; the
 `FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are emitted
 in the envelope the route version serves (§4) — RFC 9457 `application/problem+json` on `>= /v2`, the
 midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on both.
@@ -504,8 +568,12 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0159` ErrTenantServiceSuspended — tenant service suspended
 - `0160` ErrTenantNotFound — tenant does not exist
 - `0161` ErrTenantServiceUnavailable — tenant resolution failed
+- `0514` ErrTransactionBatchCardinality — batch item count is outside the configured 1–50 bound (HTTP 400)
+- `0515` ErrTransactionBatchInputLegsLimitExceeded — aggregate debit/credit legs exceed 1,000 (HTTP 400)
+- `0516` ErrTransactionBatchBudgetExceeded — derived post-fee work or serialized state exceeds a fixed batch budget (HTTP 422)
+- `0517` ErrTransactionBatchStructuralValidation — one or more batch items fail structural validation (HTTP 400)
 
-#### Overdraft Feature Error Codes (0167–0176)
+#### Overdraft Feature Error Codes (0167–0175, 0492)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
 - `0168` ErrDirectOperationOnInternalBalance — user operation targets internal-scope balance
 - `0169` ErrDeletionOfInternalBalance — delete targets internal-scope balance
@@ -515,14 +583,22 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0173` ErrOverdraftLimitBelowUsage — cannot reduce limit below current usage
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
-- `0176` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
+- `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178)
-- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation
+#### Settings / Reservation Error Codes (0176–0178, 0249–0256)
+- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
+- `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
+- `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
+- `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)
+- `0252` ErrCrossLedgerLifecycleRequiresV2 — `/v1` attempted to commit, cancel, or revert a member of a cross-ledger group (HTTP 422)
+- `0253` ErrCrossLedgerGroupIncomplete — the requested cross-ledger group is missing or has inconsistent intent or members (HTTP 422)
+- `0254` ErrCrossLedgerGroupNotPending — grouped commit/cancel targeted a group whose current status is not PENDING (HTTP 422)
+- `0255` ErrCrossLedgerRouteNotConfigured — a participant validates routes but the request's transaction route links no operation route with a `crossLedger` entry for the bridge leg (HTTP 422)
+- `0256` ErrInvalidCrossLedgerRoute — the bridge route does not resolve to exactly one operation route: a `crossLedger` entry combined with other entries, or more than one `crossLedger` operation route in a transaction route (HTTP 422)
 
-#### CRM Error Codes (all 28)
+#### CRM Error Codes (all 30)
 - `CRM-0006` ErrHolderNotFound — holder not found
 - `CRM-0008` ErrInstrumentNotFound — instrument not found
 - `CRM-0010` ErrDocumentAssociationError — document association error
@@ -540,6 +616,8 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `CRM-0028` ErrRelatedPartyStartDateRequired — start date required
 - `CRM-0029` ErrRelatedPartyEndDateInvalid — end date before start date
 - `CRM-0030` ErrHolderHasAccounts — holder has accounts (cannot delete)
+- `CRM-0042` ErrInvalidInstrumentAccountType — invalid instrument regulatory account type
+- `CRM-0043` ErrBankAccountAlreadyRegistered — bank account (bankId and account, same branch, leading zeros ignored when both are numeric, or one of them without a branch) already registered to another live instrument of the organization (409)
 
 Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/crm-field-encryption.md`):
 - `CRM-0031` ErrKeysetNotFound — org encryption keyset not found
@@ -596,7 +674,6 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | APPLICATION_NAME | — | Application identity (tenant-manager service name) |
 | ENV_NAME | development | Environment: development, staging, uat, production, local |
-| VERSION | v4.0.0 | Application version |
 | SERVER_ADDRESS | :3002 | Listen address (single port for all APIs) |
 | LOG_LEVEL | debug | Log level |
 | DEPLOYMENT_MODE | local | Deployment mode (local toggles relaxed TLS posture; also gates the CRM KMS dev root token to `local` only) |
@@ -641,6 +718,11 @@ are set programmatically by `applyConfigDefaults()`.
 | DB_TRANSACTION_PORT | 5701 | Port |
 | DB_TRANSACTION_SSLMODE | disable | SSL mode |
 
+#### Transaction API limits
+| Variable | Default | Description |
+|----------|---------|-------------|
+| TRANSACTION_BATCH_MAX_SIZE | 10 | Maximum ordered transactions accepted by the atomic batch by default; configurable from 1 to the absolute maximum of 50, startup fails outside that range, and it cannot raise the fixed posting, balance, or byte budgets |
+
 #### PostgreSQL — Transaction (Replica)
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -652,6 +734,7 @@ are set programmatically by `applyConfigDefaults()`.
 | DB_TRANSACTION_REPLICA_SSLMODE | disable | Replica SSL mode |
 | DB_TRANSACTION_MAX_OPEN_CONNS | 3000 | Max open connections (shared) |
 | DB_TRANSACTION_MAX_IDLE_CONNS | 3000 | Max idle connections (shared) |
+| DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY | true | Route transactional-flow reads (read-your-own-write paths) to the primary; false opts out |
 
 #### MongoDB — Onboarding
 | Variable | Default | Description |
@@ -754,10 +837,11 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | OTEL_RESOURCE_SERVICE_NAME | ledger | Service name in traces |
 | OTEL_LIBRARY_NAME | — | Instrumentation library name |
-| OTEL_RESOURCE_SERVICE_VERSION | — | Service version in traces |
 | OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment in traces |
 | OTEL_EXPORTER_OTLP_ENDPOINT | http://midaz-otel-lgtm:4317 | OTLP collector endpoint (includes scheme) |
 | ENABLE_TELEMETRY | false | Enable telemetry export |
+
+**There is no version env var.** The release links the identity into each binary (`-X main.version/revision/buildTime`, fed by the CI build args `VERSION`, `REVISION` and `BUILD_TIME`), and that single source feeds `GET /version`, the `version`/`revision`/`buildTime` fields of `/readyz`, the OTel `service.version` and `vcs.ref.head.revision`, the streaming manifest `appVersion` and the overdraft event version. `docker run <image> --version` prints the identity plus the dependency manifest; `GET /version` returns the identity alone. A build without those args reports `dev`/`unknown`.
 
 #### Multi-Tenant
 | Variable | Default | Description |
@@ -1030,7 +1114,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 | github.com/gofiber/fiber/v3 | v3.4.0 | HTTP framework (runtime router / middleware) |
 | github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |
 | github.com/tink-crypto/tink-go/v2 | v2.7.0 | Tink AEAD/PRF keysets — per-org CRM DEKs (envelope mode) |
-| github.com/jackc/pgx/v5 | v5.10.0 | PostgreSQL driver |
+| github.com/jackc/pgx/v5 | v5.11.0 | PostgreSQL driver |
 | go.mongodb.org/mongo-driver/v2 | v2.6.0 | MongoDB driver (v2 line) |
 | github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
 | github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
@@ -1072,14 +1156,16 @@ The resolver is `pkg/skip.ResolveSkipFor(control, requested, allowed)`.
 
 | Control | Surface | Request flag | Ledger opt-in | Audit column |
 |---|---|---|---|---|
-| Fees | `/v2` transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
-| Tracer | `/v2` transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
+| Fees | `/v2` transaction create (direct/hold/block/unblock) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
+| Tracer | `/v2` transaction create (direct/hold/block/unblock) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
 | Holder | `/v2` account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
 
-The surface column is the route CONTRACT, not just the path: both seams the skips gate are
-`/v2` only. A `/v1` transaction create never reaches the fee engine, and a `/v1` account
-create never reaches the holder seam — so a `skip` object in a `/v1` body is inert and can
-never raise the 422. See § Account Holder Seam and `docs/api/SCOPING.md`.
+The surface column is the route CONTRACT, not just the path: every seam the skips gate is
+`/v2` only. The two transaction flags live on `CreateTransactionV2Input` and nowhere else,
+so a `/v1` transaction body naming `skip` is an UNKNOWN field and is rejected with
+**HTTP 400** by the decoder — never 422, and `fees_skipped` / `tracer_skipped` can never be
+true on a row created through `/v1`. `skip.holder` differs: it is still a known field on the
+`/v1` account body, where it is inert. See § Account Holder Seam and `docs/api/SCOPING.md`.
 
 Honored skips are persisted to audit columns (domain fields
 `mtransaction.Transaction.FeesSkipped` / `.TracerSkipped`, `mmodel.Account.HolderCheckSkipped`)
@@ -1088,7 +1174,8 @@ and surface on the `transaction.*` and `account.created` streaming payloads.
 **Non-goals / invariants:**
 - A **revert always re-runs the tracer**; the reverse transaction does NOT inherit the
   parent's tracer skip.
-- **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
+- **Idempotency replay returns the first outcome only for the same request**: a replayer
+  whose body differs (a skip included) under the same key answers `0084` (HTTP 409) and posts nothing.
 - An **honored skip adds zero downstream work** — it short-circuits before the control's
   package lookup; it never replaces the control with a more expensive code path.
 

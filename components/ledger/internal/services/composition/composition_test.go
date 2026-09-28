@@ -187,6 +187,60 @@ func TestCreateHolderAccount_InstrumentError(t *testing.T) {
 	assert.Equal(t, constant.ErrHolderNotFound.Error(), resp.InstrumentError.Reason, "reason is the stable business code, not raw error text")
 }
 
+// TestCreateHolderAccount_InvalidAccountType covers
+// composition-create-holder-account-with-invalid-account-type: the instrument
+// use case rejects the regulatory account type, the account stays persisted, and
+// the partial-failure block carries the dedicated CRM-0042 reason.
+func TestCreateHolderAccount_InvalidAccountType(t *testing.T) {
+	acc := &stubAccountCreator{account: &mmodel.Account{ID: uuid.NewString()}}
+	inst := &stubInstrumentCreator{err: pkg.ValidateBusinessError(constant.ErrInvalidInstrumentAccountType, constant.EntityInstrument)}
+	svc := NewService(acc, inst)
+
+	in := &mmodel.CreateHolderAccountInput{
+		Name:             "Acc",
+		AssetCode:        "USD",
+		Type:             "deposit",
+		RegulatoryFields: &mmodel.RegulatoryFields{AccountType: ptr("INVALID")},
+	}
+
+	resp, err := svc.CreateHolderAccount(context.Background(), uuid.New(), uuid.New(), uuid.New(), in, "token")
+
+	require.NoError(t, err, "instrument error must NOT fail the request")
+	require.NotNil(t, resp)
+	assert.Same(t, acc.account, resp.Account, "account must remain in the response (persisted, no rollback)")
+	assert.Nil(t, resp.Instrument, "no instrument is created for the account")
+	require.NotNil(t, resp.InstrumentError)
+	assert.Equal(t, instrumentFailureStatus, resp.InstrumentError.Status)
+	assert.Equal(t, constant.ErrInvalidInstrumentAccountType.Error(), resp.InstrumentError.Reason)
+}
+
+// TestCreateHolderAccount_ForwardsAccountTypeUntouched proves the composition
+// forwards regulatory fields as received: normalization and validation belong to
+// the instrument use case, so the raw value must reach it unchanged.
+func TestCreateHolderAccount_ForwardsAccountTypeUntouched(t *testing.T) {
+	acc := &stubAccountCreator{account: &mmodel.Account{ID: uuid.NewString()}}
+	inst := &stubInstrumentCreator{instrument: &mmodel.Instrument{}}
+	svc := NewService(acc, inst)
+
+	regulatory := &mmodel.RegulatoryFields{AccountType: ptr(" non_resident ")}
+	in := &mmodel.CreateHolderAccountInput{
+		Name:             "Acc",
+		AssetCode:        "USD",
+		Type:             "deposit",
+		RegulatoryFields: regulatory,
+	}
+
+	resp, err := svc.CreateHolderAccount(context.Background(), uuid.New(), uuid.New(), uuid.New(), in, "token")
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Nil(t, resp.InstrumentError)
+	require.True(t, inst.called)
+	assert.Same(t, regulatory, inst.gotInput.RegulatoryFields, "regulatory fields are forwarded onto the instrument input")
+	require.NotNil(t, inst.gotInput.RegulatoryFields.AccountType)
+	assert.Equal(t, " non_resident ", *inst.gotInput.RegulatoryFields.AccountType, "the composition must not normalize the account type")
+}
+
 // TestHasInstrumentFields documents the D-8 explicit-only gate contract,
 // including the F4-local 2 edge: an empty-but-present BankingDetails{} (a
 // non-nil pointer to a zero value) DOES trigger an instrument, because the
