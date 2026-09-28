@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // bodyParsingHandler holds the struct source for body parsing without coupling to a handler.
@@ -44,6 +45,10 @@ type bodyParsingHandler struct {
 // NOTE: findUnknownFields short-circuits BEFORE ValidateStruct, exactly as the
 // pre-refactor parseBody did — an unexpected field wins over a missing required one.
 func DecodeValidateBody(bodyBytes []byte, s any) (map[string]any, error) {
+	if _, err := pkgHTTP.RefuseOutOfBoundTokens(bodyBytes, s); err != nil {
+		return nil, err
+	}
+
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
 		return nil, pkg.ValidateUnmarshallingError(err)
 	}

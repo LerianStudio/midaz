@@ -9,11 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -146,8 +146,8 @@ func normalizeAccountBlockExceptions(items []mmodel.CreateAccountBlockExceptionI
 	entries := make([]accountBlockExceptionEntry, 0, len(items))
 
 	for i, item := range items {
-		amount, err := decimal.NewFromString(item.Amount)
-		if err != nil || amount.LessThanOrEqual(decimal.Zero) {
+		amount, err := safe.ParseDecimal(item.Amount)
+		if err != nil || !amount.IsPositive() {
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionInvalidAmount,
 				constant.EntityAccountBlockException, i)
 		}
