@@ -660,10 +660,9 @@ var (
 	// decided about the account, so a retry is valid once the holder concludes. A
 	// closing in progress is ErrAccountClosingInProgress (0522).
 	ErrAccountAdministrativeOperationInProgress = errors.New("0526")
-	// ErrBalanceHasOpenFeeDebt is returned when a delete targets a balance, or an
-	// account holding a balance, that still owes a deferred fee. The debt is keyed
-	// by the balance alias, so deleting it would let a new account reusing the
-	// alias pay the previous holder's fee.
+	// ErrBalanceHasOpenFeeDebt refuses deleting or closing what still owes a
+	// deferred fee: the debt is keyed by the balance alias, so a new account
+	// reusing the alias would pay the previous holder's fee.
 	ErrBalanceHasOpenFeeDebt = errors.New("0527")
 )
 
