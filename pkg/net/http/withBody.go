@@ -5,11 +5,13 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -132,6 +134,18 @@ func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pk
 	unknownDetails := findUnknownFieldDetails(originalMap, marshaledMap)
 	if len(diffFields) > 0 && len(unknownDetails) == 0 {
 		unknownDetails = unknownFieldDetailsFallback(diffFields)
+	}
+
+	if len(diffFields) == 0 {
+		nullUnknown, nullDetails, err := findUndeclaredNullFields(bodyBytes, s, originalMap)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if len(nullUnknown) > 0 {
+			diffFields = nullUnknown
+			unknownDetails = nullDetails
+		}
 	}
 
 	validationDetails, validationErr := validateStructWithDetails(s)
@@ -1329,6 +1343,98 @@ func joinJSONFieldPath(prefix, field string) string {
 	}
 
 	return prefix + "." + field
+}
+
+// jsonUnknownFieldPrefix is the text encoding/json puts before the quoted
+// field name when DisallowUnknownFields refuses a key.
+const jsonUnknownFieldPrefix = "json: unknown field "
+
+// findUndeclaredNullFields reports the null keys of body that s does not
+// declare. The marshal round-trip cannot see them because a null key leaves no
+// trace in the marshaled struct, so a strict decode into a fresh value of the
+// same type decides it. Bodies without any null skip the strict decode.
+func findUndeclaredNullFields(body []byte, s any, originalMap map[string]any) (pkg.UnknownFields, []pkg.FieldError, error) {
+	nullPaths := collectNullPaths(originalMap)
+	if len(nullPaths) == 0 {
+		return nil, nil, nil
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+
+	err := dec.Decode(newOfType(s))
+	if err == nil {
+		return nil, nil, nil
+	}
+
+	leaf, ok := unknownFieldLeaf(err)
+	if !ok {
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
+	}
+
+	fields, details := undeclaredNullFieldDetails(leaf, nullPaths)
+
+	return fields, details, nil
+}
+
+// unknownFieldLeaf extracts the field name from an encoding/json unknown-field
+// error. The decoder reports only the leaf name, never its path.
+func unknownFieldLeaf(err error) (string, bool) {
+	quoted, ok := strings.CutPrefix(err.Error(), jsonUnknownFieldPrefix)
+	if !ok {
+		return "", false
+	}
+
+	leaf, unquoteErr := strconv.Unquote(quoted)
+	if unquoteErr != nil {
+		return "", false
+	}
+
+	return leaf, true
+}
+
+// undeclaredNullFieldDetails maps the decoder leaf to every null path that
+// names it, falling back to the bare leaf when no path does.
+func undeclaredNullFieldDetails(leaf string, nullPaths []string) (pkg.UnknownFields, []pkg.FieldError) {
+	fields := pkg.UnknownFields{}
+
+	for _, path := range nullPaths {
+		if path == leaf || strings.HasSuffix(path, "."+leaf) {
+			fields[path] = nil
+		}
+	}
+
+	if len(fields) == 0 {
+		fields[leaf] = nil
+	}
+
+	return fields, unknownFieldDetailsFallback(fields)
+}
+
+// collectNullPaths returns, sorted, the path of every null value in body at
+// any depth, array items included, rendered like the unknown-field details.
+func collectNullPaths(body map[string]any) []string {
+	var paths []string
+
+	appendNullPaths(body, nil, &paths)
+	sort.Strings(paths)
+
+	return paths
+}
+
+func appendNullPaths(value any, frames []scanFrame, paths *[]string) {
+	switch typed := value.(type) {
+	case nil:
+		*paths = append(*paths, renderPath(frames))
+	case map[string]any:
+		for key, item := range typed {
+			appendNullPaths(item, append(slices.Clip(frames), scanFrame{key: key, object: true}), paths)
+		}
+	case []any:
+		for index, item := range typed {
+			appendNullPaths(item, append(slices.Clip(frames), scanFrame{index: index}), paths)
+		}
+	}
 }
 
 func unknownFieldDetailsFallback(fields pkg.UnknownFields) []pkg.FieldError {
