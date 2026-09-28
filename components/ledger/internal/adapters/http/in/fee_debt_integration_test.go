@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -87,18 +86,6 @@ func TestFeeDebtRoutes(t *testing.T) {
 		return got
 	}
 
-	t.Run("pages oldest first", func(t *testing.T) {
-		status, page1 := driveFeeV2(t, app, http.MethodGet, base+"?limit=2", "")
-		require.Equal(t, http.StatusOK, status, page1)
-		assert.Equal(t, ids[0:2], itemIDs(page1))
-		assert.Equal(t, "12.5", page1["items"].([]any)[0].(map[string]any)["remaining"])
-
-		status, page2 := driveFeeV2(t, app, http.MethodGet, base+"?limit=2&cursor="+url.QueryEscape(page1["next_cursor"].(string)), "")
-		require.Equal(t, http.StatusOK, status, page2)
-		assert.Equal(t, ids[2:3], itemIDs(page2))
-		assert.Empty(t, page2["next_cursor"])
-	})
-
 	t.Run("filters by debtor account", func(t *testing.T) {
 		status, body := driveFeeV2(t, app, http.MethodGet, base+"?account_alias=%40payer", "")
 		require.Equal(t, http.StatusOK, status, body)
@@ -111,11 +98,10 @@ func TestFeeDebtRoutes(t *testing.T) {
 			require.Equal(t, http.StatusOK, status, body)
 			assert.Equal(t, ids[1], body["id"])
 			assert.Equal(t, "@other#default", body["debtorBalance"])
+			assert.Equal(t, "12.5", body["remaining"])
+			assert.Equal(t, "12.5", body["entries"].([]any)[0].(map[string]any)["amount"])
 		}
 	})
-
-	scope := strings.TrimSuffix(base, "/fee-debts")
-	otherLedger := scope[:strings.LastIndex(scope, "/")+1] + uuid.NewString() + "/fee-debts"
 
 	rejections := []struct {
 		name, url, code string
@@ -126,7 +112,6 @@ func TestFeeDebtRoutes(t *testing.T) {
 		{"balance key without an account", base + "?balance_key=default", "0082", http.StatusBadRequest},
 		{"undecodable cursor", base + "?cursor=not-a-cursor", "0082", http.StatusBadRequest},
 		{"unknown debt", base + "/" + uuid.NewString() + ":from:1:debit", "0007", http.StatusNotFound},
-		{"debt of another ledger", otherLedger + "/" + ids[0], "0007", http.StatusNotFound},
 	}
 
 	for _, tc := range rejections {

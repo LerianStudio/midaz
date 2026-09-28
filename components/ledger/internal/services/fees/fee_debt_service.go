@@ -9,11 +9,8 @@ import (
 	"errors"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -29,60 +26,21 @@ type FeeDebtService struct {
 
 // GetFeeDebt returns the ledger's debt with id; a debt of another ledger is not found.
 func (s *FeeDebtService) GetFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, id string) (*model.FeeDebt, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.fee_debt.get")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.fee_debt_id", id),
-	)
-
 	debt, err := s.Repo.FindByID(ctx, organizationID, ledgerID, id)
 	if errors.Is(err, mongo.ErrNoDocuments) {
-		notFound := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityFeeDebt)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Fee debt not found", notFound)
-
-		return nil, notFound
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityFeeDebt)
 	}
 
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get fee debt", err)
-
-		return nil, err
-	}
-
-	return debt, nil
+	return debt, err
 }
 
-// ListFeeDebts pages the ledger's debts oldest first; an undecodable cursor is an
-// invalid query parameter.
+// ListFeeDebts pages the ledger's debts oldest first; a cursor that does not decode,
+// or that another listing issued, is an invalid query parameter.
 func (s *FeeDebtService) ListFeeDebts(ctx context.Context, organizationID, ledgerID uuid.UUID, query fee_debt.ListQuery) ([]*model.FeeDebt, libHTTP.CursorPagination, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.fee_debt.list")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
 	debts, pagination, err := s.Repo.FindAll(ctx, organizationID, ledgerID, query)
 	if errors.Is(err, libHTTP.ErrInvalidCursor) || errors.Is(err, libHTTP.ErrInvalidCursorDirection) {
-		invalid := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityFeeDebt, "cursor")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid fee debt cursor", invalid)
-
-		return nil, libHTTP.CursorPagination{}, invalid
+		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityFeeDebt, "cursor")
 	}
 
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to list fee debts", err)
-
-		return nil, libHTTP.CursorPagination{}, err
-	}
-
-	return debts, pagination, nil
+	return debts, pagination, err
 }

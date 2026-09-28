@@ -158,9 +158,14 @@ func newFeeDebtView(debt *model.FeeDebt) (*FeeDebtView, error) {
 	}
 
 	for i, entry := range debt.Entries {
+		amount, err := decimal.NewFromString(entry.Amount)
+		if err != nil {
+			return nil, err
+		}
+
 		view.Entries[i] = FeeDebtEntryView{
 			Kind: entry.Kind, TransactionID: entry.TransactionID, PostingRef: entry.PostingRef,
-			Amount: entry.Amount, AppliedAt: entry.AppliedAt,
+			Amount: amount, AppliedAt: entry.AppliedAt,
 		}
 	}
 

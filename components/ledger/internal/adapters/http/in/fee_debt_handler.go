@@ -14,8 +14,9 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// FeeDebtView is one fee debt as Fees recorded it. Remaining can read negative for a
-// moment when a settlement is recorded before the opening it settles.
+// FeeDebtView is one fee debt as Fees recorded it. Remaining is opened - settled - canceled
+// + reopened over the changes recorded so far: a reopen recorded before the settlement it undoes
+// briefly lifts it past opened, a settlement before the reopen it depends on takes it below zero.
 type FeeDebtView struct {
 	ID                  string             `json:"id" doc:"Origin transaction id and the fee debit posting the debt opened in" example:"01920000-0000-7000-8000-000000000001:from:1:debit"`
 	OrganizationID      string             `json:"organizationId" example:"01920000-0000-7000-8000-00000000000a"`
@@ -36,11 +37,11 @@ type FeeDebtView struct {
 
 // FeeDebtEntryView is one recorded change of a debt.
 type FeeDebtEntryView struct {
-	Kind          string    `json:"kind" enum:"opened,settled,canceled,reopened,refunded" example:"settled"`
-	TransactionID string    `json:"transactionId" example:"01920000-0000-7000-8000-000000000002"`
-	PostingRef    string    `json:"postingRef,omitempty" example:"to:0:credit:collect"`
-	Amount        string    `json:"amount" example:"30"`
-	AppliedAt     time.Time `json:"appliedAt"`
+	Kind          string          `json:"kind" enum:"opened,settled,canceled,reopened,refunded" example:"settled"`
+	TransactionID string          `json:"transactionId" example:"01920000-0000-7000-8000-000000000002"`
+	PostingRef    string          `json:"postingRef,omitempty" example:"to:0:credit:collect"`
+	Amount        decimal.Decimal `json:"amount" example:"30"`
+	AppliedAt     time.Time       `json:"appliedAt"`
 }
 
 // FeeDebtListBody is the cursor-paginated fee debt listing, oldest first.
