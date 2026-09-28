@@ -30,6 +30,7 @@ type atomicBatchClaimEvalClient struct {
 	err          error
 	getValues    map[string]string
 	getErrors    map[string]error
+	hashValues   map[string]map[string]string
 	capturedLua  string
 	capturedKeys []string
 	capturedArgs []any
@@ -40,6 +41,17 @@ func (client *atomicBatchClaimEvalClient) Get(ctx context.Context, key string) *
 	if err, found := client.getErrors[key]; found {
 		cmd.SetErr(err)
 	} else if value, found := client.getValues[key]; found {
+		cmd.SetVal(value)
+	} else {
+		cmd.SetErr(redisclient.Nil)
+	}
+
+	return cmd
+}
+
+func (client *atomicBatchClaimEvalClient) HGet(ctx context.Context, key, field string) *redisclient.StringCmd {
+	cmd := redisclient.NewStringCmd(ctx)
+	if value, found := client.hashValues[key][field]; found {
 		cmd.SetVal(value)
 	} else {
 		cmd.SetErr(redisclient.Nil)
