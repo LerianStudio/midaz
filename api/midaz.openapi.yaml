@@ -4826,13 +4826,15 @@ paths:
             type: string
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -4901,13 +4903,15 @@ paths:
             type: string
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -4976,13 +4980,15 @@ paths:
             type: string
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -5051,13 +5057,15 @@ paths:
             type: string
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -5198,13 +5206,15 @@ paths:
             type: string
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -5273,13 +5283,15 @@ paths:
             type: string
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -13393,13 +13405,15 @@ paths:
       parameters:
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -13453,13 +13467,15 @@ paths:
       parameters:
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -13515,13 +13531,15 @@ paths:
       parameters:
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
@@ -13577,13 +13595,15 @@ paths:
       parameters:
         - description: >-
             Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
+            returns the original transaction, a different request under the same
+            key answers 409 (0084)
           in: header
           name: X-Idempotency
           schema:
             description: >-
               Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
+              returns the original transaction, a different request under the
+              same key answers 409 (0084)
             type: string
         - description: Idempotency slot TTL in seconds (default 300)
           in: header
