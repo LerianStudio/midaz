@@ -44,15 +44,9 @@ type BalanceState struct {
 	Version       int64           `json:"version"`
 }
 
-// FeeDebtItem is one open debt of a debtor balance as read before execution. It
-// is a seed only: the engine re-reads the live list. Seq ascends along the list
-// and is never reused for the debtor.
+// FeeDebtItem is one open debt of a debtor balance as read before execution: the
+// two fields Go reads of a live item. It is a seed only; the engine re-reads the list.
 type FeeDebtItem struct {
-	ID                  string          `json:"id"`
-	CreditRef           string          `json:"creditRef"`
-	Remaining           decimal.Decimal `json:"remaining"`
-	Opened              decimal.Decimal `json:"opened"`
-	OriginTransactionID uuid.UUID       `json:"originTransactionId"`
-	Seq                 int64           `json:"seq,string"`
-	AssetCode           string          `json:"assetCode"`
+	ID        string `json:"id"`
+	CreditRef string `json:"creditRef"`
 }

@@ -48,13 +48,12 @@ type Transaction struct {
 // that the reverted transaction paid to CreditRef. DebtID is unique in the
 // transaction; a posting of the same transaction must debit CreditRef.
 type FeeDebtReopen struct {
-	DebtID              string          `json:"debtId"`
-	OriginTransactionID uuid.UUID       `json:"originTransactionId"`
-	DebtorRef           string          `json:"debtorRef"`
-	CreditRef           string          `json:"creditRef"`
-	Amount              decimal.Decimal `json:"amount"`
-	Opened              decimal.Decimal `json:"opened"`
-	Seq                 int64           `json:"seq,string"`
+	DebtID    string          `json:"debtId"`
+	DebtorRef string          `json:"debtorRef"`
+	CreditRef string          `json:"creditRef"`
+	Amount    decimal.Decimal `json:"amount"`
+	Opened    decimal.Decimal `json:"opened"`
+	Seq       int64           `json:"seq,string"`
 }
 
 // Execution is one ordered accounting operation whose organization and ledger

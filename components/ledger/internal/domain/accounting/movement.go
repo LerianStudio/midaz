@@ -38,8 +38,8 @@ const (
 )
 
 // FeeDebtChange is one applied change to one debt, in the debtor's (transaction) scope.
-// Amount is positive; remaining = opened - settled - canceled + reopened, and refunded
-// only returns money. Canceled and reopened changes carry no PostingRef.
+// 0 < Amount <= Opened, the debt's opened amount; remaining = opened - settled - canceled
+// + reopened, and refunded only returns money. Canceled and reopened carry no PostingRef.
 type FeeDebtChange struct {
 	TransactionID       uuid.UUID         `json:"transactionId"`
 	PostingRef          string            `json:"postingRef"`
@@ -51,6 +51,7 @@ type FeeDebtChange struct {
 	Seq                 int64             `json:"seq,string"`
 	AssetCode           string            `json:"assetCode"`
 	Amount              decimal.Decimal   `json:"amount"`
+	Opened              decimal.Decimal   `json:"opened"`
 }
 
 // Movement records a real change in available, on-hold or overdraft-used funds.
