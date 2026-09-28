@@ -1114,7 +1114,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 | github.com/gofiber/fiber/v3 | v3.4.0 | HTTP framework (runtime router / middleware) |
 | github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |
 | github.com/tink-crypto/tink-go/v2 | v2.7.0 | Tink AEAD/PRF keysets — per-org CRM DEKs (envelope mode) |
-| github.com/jackc/pgx/v5 | v5.10.0 | PostgreSQL driver |
+| github.com/jackc/pgx/v5 | v5.11.0 | PostgreSQL driver |
 | go.mongodb.org/mongo-driver/v2 | v2.6.0 | MongoDB driver (v2 line) |
 | github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
 | github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
