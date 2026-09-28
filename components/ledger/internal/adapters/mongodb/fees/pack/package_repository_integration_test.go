@@ -577,6 +577,7 @@ func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	pkgEntity := newTestPackage(ledgerID)
+	pkgEntity.MetadataSelector = map[string]string{"fee_context": "ted_salario"}
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
@@ -588,6 +589,7 @@ func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID(t *testing.T) {
 	assert.True(t, data.MaxAmount.Equal(decimal.RequireFromString("2000")))
 	require.Contains(t, data.Fees, "adminFee")
 	assert.Equal(t, "Taxa Administrativa", data.Fees["adminFee"].FeeLabel)
+	assert.Equal(t, pkgEntity.MetadataSelector, data.MetadataSelector, "a band update re-reads the stored selector")
 }
 
 func TestIntegration_PackRepo_FindFeesAndAmountDataByPackageID_NotFound(t *testing.T) {

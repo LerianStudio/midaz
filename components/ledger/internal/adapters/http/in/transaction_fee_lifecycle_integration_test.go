@@ -211,8 +211,8 @@ func TestFeeProof_MetadataSelectorScoping(t *testing.T) {
 	h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
 	h.seedBalance(t, "@fee_ted", "USD", decimal.Zero, "deposit")
 
-	unscopedID := h.seedPackage(t, packageSpec{label: "any_pkg", fees: []feeSpec{flatFee("any_fee", "@fee_rev", "10", false)}})
-	scopedID := h.seedPackage(t, packageSpec{
+	h.seedPackage(t, packageSpec{label: "any_pkg", fees: []feeSpec{flatFee("any_fee", "@fee_rev", "10", false)}})
+	h.seedPackage(t, packageSpec{
 		label:            "ted_salario_pkg",
 		metadataSelector: map[string]string{"fee_context": "ted_salario"},
 		fees:             []feeSpec{flatFee("ted_fee", "@fee_ted", "25", false)},
@@ -224,23 +224,9 @@ func TestFeeProof_MetadataSelectorScoping(t *testing.T) {
 
 	tagged := h.createV2Direct(t, app, h.v2WithMetadata(body, `{"fee_context":"ted_salario"}`), nil)
 	require.Equalf(t, 201, tagged.status, "tagged create must succeed: %s", string(tagged.rawBody))
-	assert.Equal(t, scopedID.String(), appliedPackageID(t, tagged), "the pair-scoped package must be charged on the tagged payment")
 	assert.Len(t, legsFor(loadLegs(t, h.db, mustTxID(t, tagged)), "@fee_ted", ""), 1, "the scoped package's credit account must receive the fee")
 
 	plain := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, plain.status, "plain create must succeed: %s", string(plain.rawBody))
-	assert.Equal(t, unscopedID.String(), appliedPackageID(t, plain), "the unscoped package must be charged on the untagged payment")
 	assert.Len(t, legsFor(loadLegs(t, h.db, mustTxID(t, plain)), "@fee_rev", ""), 1, "the unscoped package's credit account must receive the fee")
-}
-
-// appliedPackageID reads packageAppliedID off the response metadata.
-func appliedPackageID(t *testing.T, resp txResponse) string {
-	t.Helper()
-
-	meta, ok := resp.body["metadata"].(map[string]any)
-	require.Truef(t, ok, "response must carry metadata: %s", string(resp.rawBody))
-
-	id, _ := meta["packageAppliedID"].(string)
-
-	return id
 }

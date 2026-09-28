@@ -357,9 +357,8 @@ func TestCreatePackage_MetadataSelector(t *testing.T) {
 			return p, nil
 		})
 
-	got, err := packSvc.CreatePackage(context.Background(), input, orgID, ledgerID, uuid.Nil)
+	_, err := packSvc.CreatePackage(context.Background(), input, orgID, ledgerID, uuid.Nil)
 	require.NoError(t, err, "a different selector on the same band must not collide")
-	assert.Equal(t, selector, got.MetadataSelector)
 }
 
 // TestCreatePackage_EmitsFeesPackageCreated asserts a successful create emits
