@@ -9,8 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -102,29 +100,5 @@ func TestTracerActivationVerifier(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestLegacyReserveCannotDowngradeCombinedControls(t *testing.T) {
-	for _, tc := range []struct {
-		name, mode, posture string
-		skip                bool
-		rejected            bool
-	}{
-		{"enforce closed", "enforce", "closed", false, true},
-		{"enforce open", "enforce", "open", false, true},
-		{"advisory", "advisory", "closed", false, true},
-		{"off", "off", "closed", false, false},
-		{"authorized skip", "enforce", "closed", true, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx, span, logger := anchorDeps()
-			defer span.End()
-			uc := &UseCase{}
-			settings := mmodel.TracerSettings{Mode: tc.mode, FailPosture: tc.posture, ValidationMode: "rules-and-limits"}
-			result := uc.reserveTransaction(ctx, span, logger, settings, uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), decimal.NewFromInt(10), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, tc.skip)
-			require.Equal(t, tc.rejected, result.Kind == reservationReject)
-			require.Empty(t, result.Handle.ReservationIDs)
-		})
 	}
 }

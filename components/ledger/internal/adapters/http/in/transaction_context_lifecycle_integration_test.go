@@ -124,11 +124,10 @@ func attachContextLifecycle(t *testing.T, h *feeHarness) *mountedContextLifecycl
 	require.NoError(t, err)
 	loader, err := tracer.NewOfficialContextLoader(facts, bounds)
 	require.NoError(t, err)
-	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: maxBodyBytes, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
+	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: maxBodyBytes, MaxReservations: 100}, fixedIntegrationToken{}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
 	h.handler.Command.ContextTracer, err = command.NewContextTracerCoordinator(client, loader, command.ContextTracerConfig{Bounds: bounds, MaxReservations: 100, AdmissionTimeout: 5 * time.Second}, func() time.Time { return fixture.instant })
 	require.NoError(t, err)
-	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 	return fixture
 }
 

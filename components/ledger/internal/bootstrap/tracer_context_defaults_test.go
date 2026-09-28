@@ -22,7 +22,6 @@ func TestTracerContextDefaultsPreserveExplicitZero(t *testing.T) {
 	applyTracerContextDefaults(cfg)
 	require.Equal(t, "128", cfg.TracerContextMaxFractionDigits)
 	require.Equal(t, tracercontract.DefaultResourceProfile().Facts.MaxAccounts, cfg.TracerContextMaxAccounts)
-	require.False(t, cfg.TracerContextEnabled)
 	t.Setenv("TRACER_CONTEXT_MAX_FRACTION_DIGITS", "0")
 	t.Setenv("TRACER_CONTEXT_MAX_ACCOUNTS", "0")
 	cfg = &Config{TracerContextMaxFractionDigits: "0"}

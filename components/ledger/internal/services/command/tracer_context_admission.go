@@ -41,8 +41,8 @@ type ContextTracerInput struct {
 
 // ContextTracerAttempt carries the admission decision and the settings its
 // completion is bounded by. A skipped attempt has nothing to complete.
-// Dispatched means Reserve was sent, so Tracer may hold capacity even when
-// no valid result came back. Unavailable means the dispatched Reserve failed
+// Dispatched means Reserve was sent and not refused before evaluation, so
+// Tracer may hold capacity even when no valid result came back. Unavailable means the dispatched Reserve failed
 // for availability, so its completion is not attempted on the request path.
 type ContextTracerAttempt struct {
 	Skipped     bool
@@ -90,6 +90,9 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 	result, err := c.client.Reserve(ctx, request)
 	if err != nil {
 		attempt.Unavailable = tracerAdmissionUnavailable(err)
+		// A refusal before evaluation holds nothing, so there is nothing to
+		// release or leave to the TTL.
+		attempt.Dispatched = !errors.Is(err, traceradapter.ErrTracerRequestRejected)
 
 		return attempt, fmt.Errorf("reserve tracer context: %w", err)
 	}

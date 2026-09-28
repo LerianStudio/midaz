@@ -31,6 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 type pendingLifecycleReader struct {
@@ -258,38 +259,81 @@ func (f *pendingLifecycleFinalizer) Complete(_ context.Context, envelope *comman
 	}, nil
 }
 
+// pendingLifecycleTracer is an in-memory contextual Tracer: it serves facts
+// built from the prepared entries, allows every admission, and records every
+// reserve and completion.
 type pendingLifecycleTracer struct {
-	reserveRequests []tracer.ReserveRequest
-	confirmedIDs    []uuid.UUID
-	releasedIDs     []uuid.UUID
+	mu              sync.Mutex
+	reserveRequests []tracercontract.ReserveRequest
 	confirmedTxns   []uuid.UUID
 	releasedTxns    []uuid.UUID
-	reservationID   uuid.UUID
 }
 
-func (s *pendingLifecycleTracer) Reserve(_ context.Context, request tracer.ReserveRequest) (*tracer.ReserveResult, error) {
+// pendingLifecycleTracerSettings enables the tracer on the ledger under test.
+func pendingLifecycleTracerSettings() mmodel.TracerSettings {
+	return mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, ValidationMode: string(tracercontract.ValidationLimits), TimeoutMs: 250}
+}
+
+func (s *pendingLifecycleTracer) coordinator(t *testing.T) *command.ContextTracerCoordinator {
+	t.Helper()
+
+	coordinator, err := command.NewContextTracerCoordinator(s, s, command.ContextTracerConfig{
+		Bounds:           tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128},
+		MaxReservations:  100,
+		AdmissionTimeout: time.Second,
+	}, time.Now)
+	require.NoError(t, err)
+
+	return coordinator
+}
+
+func (s *pendingLifecycleTracer) EvaluationContext(_ context.Context, _, _ uuid.UUID, entries []tracer.PreparedEntry) (tracercontract.Context, error) {
+	facts := tracercontract.Context{Accounts: []tracercontract.Account{}, Entries: []tracercontract.Entry{}}
+	seen := map[uuid.UUID]bool{}
+
+	for _, entry := range entries {
+		if !entry.External && !seen[entry.AccountID] {
+			seen[entry.AccountID] = true
+			blocked := false
+			facts.Accounts = append(facts.Accounts, tracercontract.Account{ID: entry.AccountID, Type: "deposit", Status: "ACTIVE", Blocked: &blocked, Asset: entry.AssetCode})
+		}
+
+		facts.Entries = append(facts.Entries, tracercontract.Entry{AccountID: entry.AccountID, External: entry.External, Direction: entry.Direction, Amount: tracercontract.Amount(entry.Amount.String()), Asset: entry.AssetCode})
+	}
+
+	return facts, nil
+}
+
+func (s *pendingLifecycleTracer) Reserve(_ context.Context, request tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.reserveRequests = append(s.reserveRequests, request)
-	return &tracer.ReserveResult{TransactionID: request.TransactionID, ReservationIDs: []uuid.UUID{s.reservationID}}, nil
+
+	return &tracercontract.ReserveResult{
+		ContractRevision: request.ContractRevision, TransactionID: request.TransactionID,
+		EvaluationID: uuid.MustParse("487458bf-78f8-4f83-84f4-3eb35b66db83"), Decision: tracercontract.DecisionAllow,
+		Controls:       tracercontract.ReserveControls{Rules: tracercontract.RulesNotRequested, Limits: tracercontract.LimitsEvaluated},
+		ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied},
+	}, nil
 }
 
-func (s *pendingLifecycleTracer) Confirm(_ context.Context, reservationID uuid.UUID) error {
-	s.confirmedIDs = append(s.confirmedIDs, reservationID)
-	return nil
-}
+func (s *pendingLifecycleTracer) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-func (s *pendingLifecycleTracer) Release(_ context.Context, reservationID uuid.UUID) error {
-	s.releasedIDs = append(s.releasedIDs, reservationID)
-	return nil
-}
-
-func (s *pendingLifecycleTracer) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) error {
 	s.confirmedTxns = append(s.confirmedTxns, transactionID)
-	return nil
+
+	return &tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: "CONFIRMED"}, nil
 }
 
-func (s *pendingLifecycleTracer) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) error {
+func (s *pendingLifecycleTracer) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.releasedTxns = append(s.releasedTxns, transactionID)
-	return nil
+
+	return &tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: "RELEASED"}, nil
 }
 
 func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) {
@@ -346,7 +390,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
 			reader := &pendingLifecycleReader{
 				client:   client,
-				settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
+				settings: mmodel.LedgerSettings{Tracer: pendingLifecycleTracerSettings()},
 				balances: []*mmodel.Balance{
 					adapterCreateBalance(organizationID, ledgerID, "93333333-3333-4333-8333-333333333333", "94444444-4444-4444-8444-444444444444", "@source", 100, 7),
 					adapterCreateBalance(organizationID, ledgerID, "95555555-5555-4555-8555-555555555555", "96666666-6666-4666-8666-666666666666", "@target", 20, 3),
@@ -366,8 +410,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			require.NoError(t, err)
 			executor := &pendingLifecycleAdapter{delegate: realAdapter}
 			finalizer := &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}}
-			reservationID := uuid.MustParse("97777777-7777-4777-8777-777777777777")
-			tracerControl := &pendingLifecycleTracer{reservationID: reservationID}
+			tracerControl := &pendingLifecycleTracer{}
 			uc := &command.UseCase{
 				TransactionRedisRepo:        redisRepository,
 				TransactionReader:           reader,
@@ -379,7 +422,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 						return append([]command.EngineExecution(nil), executor.executions...)
 					},
 				},
-				TracerReserver: tracerControl,
+				ContextTracer: tracerControl.coordinator(t),
 			}
 
 			amount := decimal.NewFromInt(30)
@@ -414,10 +457,8 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			require.Len(t, executor.executions, 1)
 			require.Equal(t, []core.PostingType{core.PostingHold}, pendingLifecyclePostingTypes(executor.executions[0]))
 			require.Len(t, tracerControl.reserveRequests, 1)
-			require.True(t, tracerControl.reserveRequests[0].LongLived)
+			require.True(t, *tracerControl.reserveRequests[0].LongLived)
 			require.Equal(t, pending.ID, tracerControl.reserveRequests[0].TransactionID.String())
-			require.Empty(t, tracerControl.confirmedIDs)
-			require.Empty(t, tracerControl.releasedIDs)
 
 			select {
 			case <-stored:
@@ -486,8 +527,6 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 				require.Empty(t, tracerControl.confirmedTxns)
 				require.Equal(t, []uuid.UUID{uuid.MustParse(pending.ID)}, tracerControl.releasedTxns)
 			}
-			require.Empty(t, tracerControl.confirmedIDs)
-			require.Empty(t, tracerControl.releasedIDs)
 		})
 	}
 }
@@ -501,7 +540,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	ledgerID := uuid.MustParse("a2222222-2222-4222-8222-222222222222")
 	reader := &pendingLifecycleReader{
 		client:   client,
-		settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
+		settings: mmodel.LedgerSettings{Tracer: pendingLifecycleTracerSettings()},
 		balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "a3333333-3333-4333-8333-333333333333", "a4444444-4444-4444-8444-444444444444", "@source", 100, 7),
 			adapterCreateBalance(organizationID, ledgerID, "a5555555-5555-4555-8555-555555555555", "a6666666-6666-4666-8666-666666666666", "@target", 20, 3),
@@ -526,7 +565,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 		release:  make(chan struct{}),
 	}
 	finalizer := &pendingRaceFinalizer{}
-	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("a7777777-7777-4777-8777-777777777777")}
+	tracerControl := &pendingLifecycleTracer{}
 	uc := &command.UseCase{
 		TransactionRedisRepo:        redisRepository,
 		TransactionReader:           reader,
@@ -539,7 +578,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 				return executions
 			},
 		},
-		TracerReserver: tracerControl,
+		ContextTracer: tracerControl.coordinator(t),
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -687,8 +726,6 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 		})
 	}
 	require.Len(t, tracerControl.reserveRequests, 1)
-	require.Empty(t, tracerControl.confirmedIDs)
-	require.Empty(t, tracerControl.releasedIDs)
 }
 
 func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *testing.T) {
@@ -902,5 +939,6 @@ var (
 	_ command.AppliedTransactionCompleter = (*pendingLifecycleFinalizer)(nil)
 	_ command.AppliedTransactionCompleter = (*pendingRaceFinalizer)(nil)
 	_ command.AppliedTransactionCompleter = (*pendingLockExpiryFinalizer)(nil)
-	_ command.TracerReserver              = (*pendingLifecycleTracer)(nil)
+	_ command.ContextTracerClient         = (*pendingLifecycleTracer)(nil)
+	_ command.TracerFactsLoader           = (*pendingLifecycleTracer)(nil)
 )

@@ -80,12 +80,12 @@ func TestContextTracerDeadlineStillFollowsPosture(t *testing.T) {
 	}
 }
 
-func newCompletionTestCoordinator(t *testing.T) (*ContextTracerCoordinator, *MockContextTracerReserver) {
+func newCompletionTestCoordinator(t *testing.T) (*ContextTracerCoordinator, *MockContextTracerClient) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
-	client := NewMockContextTracerReserver(ctrl)
-	coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+	client := NewMockContextTracerClient(ctrl)
+	coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 	require.NoError(t, err)
 
 	return coordinator, client
@@ -95,14 +95,14 @@ func TestCompleteContextReservationTerminalFailuresAreNotRetried(t *testing.T) {
 	transactionID := uuid.MustParse("77777777-7777-4777-8777-777777777777")
 	settings := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, TimeoutMs: 250}
 
-	for name, respond := range map[string]func(*MockContextTracerReserver){
-		"operation conflict": func(client *MockContextTracerReserver) {
+	for name, respond := range map[string]func(*MockContextTracerClient){
+		"operation conflict": func(client *MockContextTracerClient) {
 			client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(nil, fmt.Errorf("complete: %w", constant.ErrReserveOperationConflict)).Times(1)
 		},
-		"echo mismatch": func(client *MockContextTracerReserver) {
+		"echo mismatch": func(client *MockContextTracerClient) {
 			client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(completionResult(transactionID, "RELEASED"), nil).Times(1)
 		},
-		"invalid request": func(client *MockContextTracerReserver) {
+		"invalid request": func(client *MockContextTracerClient) {
 			client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(nil, constant.ErrInvalidRequestBody).Times(1)
 		},
 	} {
@@ -182,27 +182,27 @@ func TestContextRetryTransportStopsOnTerminalFailure(t *testing.T) {
 
 	for name, scenario := range map[string]struct {
 		action     string
-		respond    func(*MockContextTracerReserver)
+		respond    func(*MockContextTracerClient)
 		errorLines int
 		infoLines  int
 	}{
 		"confirm conflict is a loss": {
 			action: reservationActionConfirm,
-			respond: func(client *MockContextTracerReserver) {
+			respond: func(client *MockContextTracerClient) {
 				client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(nil, constant.ErrReserveOperationConflict).Times(1)
 			},
 			errorLines: 1,
 		},
 		"release conflict is settled": {
 			action: reservationActionRelease,
-			respond: func(client *MockContextTracerReserver) {
+			respond: func(client *MockContextTracerClient) {
 				client.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(nil, constant.ErrReserveOperationConflict).Times(1)
 			},
 			infoLines: 1,
 		},
 		"echo mismatch is a loss": {
 			action: reservationActionRelease,
-			respond: func(client *MockContextTracerReserver) {
+			respond: func(client *MockContextTracerClient) {
 				client.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(completionResult(transactionID, "CONFIRMED"), nil).Times(1)
 			},
 			errorLines: 1,
@@ -244,13 +244,4 @@ func TestContextRetryTransportRetriesTransientFailure(t *testing.T) {
 	warnings := logger.atLevelOrMoreSevere(libLog.LevelWarn)
 	require.Len(t, warnings, 1)
 	require.Contains(t, warnings[0].Msg, "delivered on retry")
-}
-
-func TestContextRetryTransportRejectsReservationIDOperations(t *testing.T) {
-	transport := contextTracerRetryTransport{}
-
-	_, err := transport.Reserve(t.Context(), traceradapter.ReserveRequest{})
-	require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
-	require.ErrorIs(t, transport.Confirm(t.Context(), uuid.Nil), constant.ErrTracerContractUnavailable)
-	require.ErrorIs(t, transport.Release(t.Context(), uuid.Nil), constant.ErrTracerContractUnavailable)
 }

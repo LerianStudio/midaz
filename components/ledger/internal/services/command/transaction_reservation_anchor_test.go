@@ -7,14 +7,15 @@ package command
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -24,17 +25,50 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-// fixedReserveTimestamp is a deterministic timestamp the anchor tests pass for
-// transactionTimestamp so no test calls time.Now().
-var fixedReserveTimestamp = time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+// anchorDeps returns the ctx, noop span, and a nop logger used by the anchor
+// unit tests. The span is a real otel noop span so SetAttributes /
+// HandleSpanError are valid no-ops.
+func anchorDeps() (context.Context, trace.Span, libLog.Logger) {
+	ctx := context.Background()
+	_, span := noop.NewTracerProvider().Tracer("t").Start(ctx, "test")
 
-const fixedReserveAccountID = "acc-source-1"
+	return ctx, span, &libLog.NopLogger{}
+}
 
-// byTxnIdentity builds the identity the by-transaction confirm/release is
-// addressed and reported with: a handle carrying no reservation ids, because
-// the create-time handle does not survive into /commit or /cancel.
+// recordingSpan returns a ctx, a real SDK span that retains attributes, and an
+// `ended` closure that ends the span and returns the recorded spans.
+func recordingSpan(t *testing.T) (context.Context, trace.Span, func() []sdktrace.ReadOnlySpan) {
+	t.Helper()
+
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	ctx, span := tp.Tracer("anchor-test").Start(context.Background(), "reserve")
+
+	return ctx, span, func() []sdktrace.ReadOnlySpan {
+		span.End()
+		return recorder.Ended()
+	}
+}
+
+func spanBoolAttribute(spans []sdktrace.ReadOnlySpan, key string) (bool, bool) {
+	for _, s := range spans {
+		for _, kv := range s.Attributes() {
+			if kv.Key == attribute.Key(key) {
+				return kv.Value.AsBool(), true
+			}
+		}
+	}
+
+	return false, false
+}
+
+// byTxnIdentity builds the identity a by-transaction completion is addressed
+// and reported with.
 func byTxnIdentity(transactionID uuid.UUID) reservationHandle {
 	return reservationHandle{
 		TransactionID: transactionID,
@@ -43,382 +77,195 @@ func byTxnIdentity(transactionID uuid.UUID) reservationHandle {
 	}
 }
 
-// stubReserver is a scripted TracerReserver: it records calls and returns the
-// configured reserve result/error and per-action transition errors so each
-// branch of the anchor and the post-commit transport can be asserted without a
-// live tracer.
-type stubReserver struct {
-	// mu guards the recorded calls. A transition the tracer refuses is now
-	// retried on a background goroutine, so the stub is written from there
-	// while the test body reads it.
-	mu sync.Mutex
-
-	reserveCalls int
-	confirmedIDs []uuid.UUID
-	releasedIDs  []uuid.UUID
-
-	confirmedTxns []uuid.UUID
-	releasedTxns  []uuid.UUID
-
-	result     *tracer.ReserveResult
-	reserveErr error
-
-	confirmErr error
-	releaseErr error
-
-	confirmByTxnErr error
-	releaseByTxnErr error
-}
-
-func (s *stubReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.reserveCalls++
-
-	if s.reserveErr != nil {
-		return nil, s.reserveErr
+// anchorPrepared is a prepared @payer -> @payee transfer the anchor can project
+// into tracer entries.
+func anchorPrepared() (mtransaction.Transaction, *mtransaction.Responses, []*mmodel.Balance) {
+	payer := uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338")
+	payee := uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10")
+	transaction := mtransaction.Transaction{Send: mtransaction.Send{
+		Asset:      "BRL",
+		Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@payer#default"}}},
+		Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "0#@payee#default"}}},
+	}}
+	validated := &mtransaction.Responses{
+		From: map[string]mtransaction.Amount{"0#@payer#default": {Value: decimal.NewFromInt(1000)}},
+		To:   map[string]mtransaction.Amount{"0#@payee#default": {Value: decimal.NewFromInt(1000)}},
+	}
+	balances := []*mmodel.Balance{
+		{Alias: "@payer", Key: "default", AccountID: payer.String(), AssetCode: "BRL", AccountType: "deposit"},
+		{Alias: "@payee", Key: "default", AccountID: payee.String(), AssetCode: "BRL", AccountType: "deposit"},
 	}
 
-	return s.result, nil
+	return transaction, validated, balances
 }
 
-func (s *stubReserver) Confirm(_ context.Context, id uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.confirmedIDs = append(s.confirmedIDs, id)
-
-	return s.confirmErr
+func anchorInput(settings mmodel.TracerSettings, honoredSkip bool) ContextTracerInput {
+	return ContextTracerInput{
+		Key: ContextTracerKey{
+			OrganizationID: uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+			LedgerID:       uuid.MustParse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+			TransactionID:  uuid.MustParse("44444444-4444-4444-8444-444444444444"),
+		},
+		Settings:    settings,
+		Amount:      decimal.NewFromInt(1000),
+		AssetCode:   "BRL",
+		HonoredSkip: honoredSkip,
+	}
 }
 
-func (s *stubReserver) Release(_ context.Context, id uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.releasedIDs = append(s.releasedIDs, id)
-
-	return s.releaseErr
+func enforceSettings(posture string) mmodel.TracerSettings {
+	return mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: posture, ValidationMode: string(tracercontract.ValidationLimits), TimeoutMs: stubContextTracerTimeoutMs}
 }
 
-func (s *stubReserver) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func TestReservePreparedTransaction_NilContextTracerProceeds(t *testing.T) {
+	ctx, span, logger := anchorDeps()
+	uc := &UseCase{}
 
-	s.confirmedTxns = append(s.confirmedTxns, transactionID)
+	out := uc.reservePreparedTransaction(ctx, span, logger, anchorInput(enforceSettings(mmodel.TracerFailPostureClosed), false), mtransaction.Transaction{}, nil, nil)
 
-	return s.confirmByTxnErr
+	assert.Equal(t, reservationProceed, out.Kind, "no tracer integration means no gate")
+	assert.NoError(t, out.Err)
+	assert.Nil(t, out.Handle.ContextAttempt, "nothing to complete when the tracer was never consulted")
 }
 
-func (s *stubReserver) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.releasedTxns = append(s.releasedTxns, transactionID)
-
-	return s.releaseByTxnErr
-}
-
-// The recorded-call accessors below return copies under the lock. Tests read
-// through them rather than touching the slices directly.
-
-func (s *stubReserver) reserves() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.reserveCalls
-}
-
-func (s *stubReserver) confirmed() []uuid.UUID {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return append([]uuid.UUID(nil), s.confirmedIDs...)
-}
-
-func (s *stubReserver) released() []uuid.UUID {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return append([]uuid.UUID(nil), s.releasedIDs...)
-}
-
-func (s *stubReserver) confirmedTransactions() []uuid.UUID {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return append([]uuid.UUID(nil), s.confirmedTxns...)
-}
-
-func (s *stubReserver) releasedTransactions() []uuid.UUID {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return append([]uuid.UUID(nil), s.releasedTxns...)
-}
-
-// anchorDeps returns the ctx, noop span, and a nil logger used by every anchor
-// unit test. The span is a real otel noop span so SetAttributes /
-// HandleSpanError are valid no-ops; the logger is the lib-observability
-// NopLogger so structured-log calls do not write.
-func anchorDeps() (context.Context, trace.Span, libLog.Logger) {
-	ctx := context.Background()
-	_, span := noop.NewTracerProvider().Tracer("t").Start(ctx, "test")
-
-	return ctx, span, &libLog.NopLogger{}
-}
-
-func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	t.Run("nil reserver", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: nil}
-
-		out := uc.reserveTransaction(tracerCtx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-		assert.Equal(t, reservationProceed, out.Kind)
-		assert.Empty(t, out.Handle.ReservationIDs)
-	})
-
-	t.Run("mode off", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		out := uc.reserveTransaction(tracerCtx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-		assert.Equal(t, reservationProceed, out.Kind)
-		assert.Equal(t, 0, reserver.reserves(), "mode=off must not call the tracer")
-	})
-
-	t.Run("empty mode treated as off", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		out := uc.reserveTransaction(tracerCtx, sp, logger,
-			mmodel.TracerSettings{}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-		assert.Equal(t, reservationProceed, out.Kind)
-		assert.Equal(t, 0, reserver.reserves())
-	})
-}
-
-// TestReserveTransaction_HonoredSkip_Proceeds proves the per-call tracer skip:
-// an honored skip short-circuits the reserve anchor — zero gRPC Reserve, outcome
-// proceed, empty handle — even under enforce/advisory, where the reserve would
-// otherwise fire. The skip wins over the mode because the operator opted in.
-func TestReserveTransaction_HonoredSkip_Proceeds(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	cases := []struct {
-		name     string
-		settings mmodel.TracerSettings
+func TestReservePreparedTransaction_OffOrSkippedNeverReserves(t *testing.T) {
+	for name, scenario := range map[string]struct {
+		settings    mmodel.TracerSettings
+		honoredSkip bool
 	}{
-		{"enforce", mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed}},
-		{"advisory", mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name+" honored skip makes zero Reserve", func(t *testing.T) {
-			reserver := &stubReserver{result: &tracer.ReserveResult{Denied: true}}
-			uc := &UseCase{TracerReserver: reserver}
-
-			out := uc.reserveTransaction(tracerCtx, sp, logger, tc.settings, uuid.New(),
-				decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, true)
-
-			assert.Equal(t, reservationProceed, out.Kind, "honored skip must proceed without gating")
-			assert.Equal(t, 0, reserver.reserves(), "honored skip must NOT call the tracer Reserve")
-			assert.Empty(t, out.Handle.ReservationIDs, "an honored skip holds no reservation")
-		})
-	}
-
-	t.Run("absent skip still reserves under enforce", func(t *testing.T) {
-		reserver := &stubReserver{result: &tracer.ReserveResult{Denied: false, ReservationIDs: []uuid.UUID{uuid.New()}}}
-		uc := &UseCase{TracerReserver: reserver}
-
-		out := uc.reserveTransaction(tracerCtx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-		assert.Equal(t, reservationProceed, out.Kind)
-		assert.Equal(t, 1, reserver.reserves(), "without a skip the reserve fires exactly once, as today")
-	})
-}
-
-func TestReserveTransaction_EnforceAllow_Proceeds(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	ids := []uuid.UUID{uuid.New(), uuid.New()}
-	reserver := &stubReserver{result: &tracer.ReserveResult{Denied: false, ReservationIDs: ids}}
-	uc := &UseCase{TracerReserver: reserver}
-
-	out := uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-	assert.Equal(t, reservationProceed, out.Kind)
-	assert.Equal(t, 1, reserver.reserves())
-	assert.Equal(t, ids, out.Handle.ReservationIDs, "the handle carries the reservation ids for post-commit confirm")
-}
-
-func TestReserveTransaction_EnforceDeny_Rejects(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	reserver := &stubReserver{result: &tracer.ReserveResult{Denied: true}}
-	uc := &UseCase{TracerReserver: reserver}
-
-	out := uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-	require.Equal(t, reservationReject, out.Kind)
-	require.Error(t, out.Err)
-
-	var unprocessable pkg.UnprocessableOperationError
-	require.ErrorAs(t, out.Err, &unprocessable)
-	assert.Equal(t, constant.ErrTransactionReservationDenied.Error(), unprocessable.Code)
-}
-
-func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	t.Run("advisory + deny proceeds", func(t *testing.T) {
-		reserver := &stubReserver{result: &tracer.ReserveResult{Denied: true}}
-		uc := &UseCase{TracerReserver: reserver}
-
-		out := uc.reserveTransaction(tracerCtx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-		assert.Equal(t, reservationProceed, out.Kind, "advisory must never block, even on deny")
-		assert.Equal(t, 1, reserver.reserves(), "advisory still calls the tracer")
-	})
-
-	t.Run("advisory + unavailable proceeds", func(t *testing.T) {
-		reserver := &stubReserver{reserveErr: fmt.Errorf("boom: %w", tracer.ErrTracerUnavailable)}
-		uc := &UseCase{TracerReserver: reserver}
-
-		out := uc.reserveTransaction(tracerCtx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-		assert.Equal(t, reservationProceed, out.Kind, "advisory ignores availability failures")
-	})
-}
-
-func TestReserveTransaction_DeterministicFailure_AlwaysRejects(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	for _, settings := range []mmodel.TracerSettings{
-		{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureOpen},
-		{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+		"mode off":                 {settings: mmodel.TracerSettings{Mode: mmodel.TracerModeOff}},
+		"empty mode":               {settings: mmodel.TracerSettings{}},
+		"honored skip on enforce":  {settings: enforceSettings(mmodel.TracerFailPostureClosed), honoredSkip: true},
+		"honored skip on advisory": {settings: mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, TimeoutMs: stubContextTracerTimeoutMs}, honoredSkip: true},
 	} {
-		t.Run(string(settings.Mode), func(t *testing.T) {
-			reserver := &stubReserver{reserveErr: constant.ErrInvalidRequestBody}
-			uc := &UseCase{TracerReserver: reserver}
+		t.Run(name, func(t *testing.T) {
+			ctx, span, logger := anchorDeps()
+			stub := &stubContextTracer{decision: tracercontract.DecisionDeny}
+			uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
 
-			out := uc.reserveTransaction(tracerCtx, sp, logger, settings,
-				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			out := uc.reservePreparedTransaction(ctx, span, logger, anchorInput(scenario.settings, scenario.honoredSkip), mtransaction.Transaction{}, nil, nil)
 
-			require.Equal(t, reservationReject, out.Kind)
-
-			var contractErr pkg.ServiceUnavailableError
-			require.ErrorAs(t, out.Err, &contractErr)
-			assert.Equal(t, constant.ErrTracerContractUnavailable.Error(), contractErr.Code)
+			assert.Equal(t, reservationProceed, out.Kind)
+			require.NotNil(t, out.Handle.ContextAttempt)
+			assert.True(t, out.Handle.ContextAttempt.Skipped)
+			assert.Empty(t, stub.reserves(), "an off or skipped admission must not call the tracer")
 		})
 	}
 }
 
-func TestReserveTransaction_FailOpen_SkipsAndProceeds(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
+func TestReservePreparedTransaction_Decisions(t *testing.T) {
+	for name, scenario := range map[string]struct {
+		mode        string
+		decision    tracercontract.Decision
+		wantKind    reservationOutcomeKind
+		wantCode    string
+		wantRelease bool
+	}{
+		"enforce allow":  {mode: mmodel.TracerModeEnforce, decision: tracercontract.DecisionAllow, wantKind: reservationProceed},
+		"enforce deny":   {mode: mmodel.TracerModeEnforce, decision: tracercontract.DecisionDeny, wantKind: reservationReject, wantCode: constant.ErrTransactionReservationDenied.Error(), wantRelease: true},
+		"advisory deny":  {mode: mmodel.TracerModeAdvisory, decision: tracercontract.DecisionDeny, wantKind: reservationProceed},
+		"advisory allow": {mode: mmodel.TracerModeAdvisory, decision: tracercontract.DecisionAllow, wantKind: reservationProceed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFastSharedRetrier(t)
 
-	reserver := &stubReserver{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
-	uc := &UseCase{TracerReserver: reserver}
+			ctx, span, logger := anchorDeps()
+			stub := &stubContextTracer{decision: scenario.decision}
+			uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
+			settings := enforceSettings(mmodel.TracerFailPostureClosed)
+			settings.Mode = scenario.mode
+			transaction, validated, balances := anchorPrepared()
+			input := anchorInput(settings, false)
 
-	out := uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			out := uc.reservePreparedTransaction(ctx, span, logger, input, transaction, validated, balances)
+			sharedReservationRetrier.wait()
 
-	assert.Equal(t, reservationProceed, out.Kind, "fail-open must proceed when the tracer is unavailable")
-	assert.Empty(t, out.Handle.ReservationIDs)
+			require.Equal(t, scenario.wantKind, out.Kind)
+			require.Len(t, stub.reserves(), 1)
+			require.Equal(t, input.Key.TransactionID, stub.reserves()[0].TransactionID)
+			require.Equal(t, reservationRequestID(input.Key.TransactionID), stub.reserves()[0].RequestID)
+			require.NotNil(t, out.Handle.ContextAttempt)
+			assert.True(t, out.Handle.ContextAttempt.Dispatched)
+
+			if scenario.wantCode != "" {
+				var rejected pkg.UnprocessableOperationError
+				require.ErrorAs(t, out.Err, &rejected)
+				assert.Equal(t, scenario.wantCode, rejected.Code)
+			} else {
+				assert.NoError(t, out.Err)
+			}
+
+			if scenario.wantRelease {
+				assert.Equal(t, []uuid.UUID{input.Key.TransactionID}, stub.releasedTransactions(), "a rejected dispatched admission is released")
+			} else {
+				assert.Empty(t, stub.releasedTransactions())
+			}
+		})
+	}
 }
 
-func TestReserveTransaction_FailClosed_Rejects(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
+// TestReservePreparedTransaction_FailPosture pins the enforce + unavailable
+// tracer branch: fail-open proceeds and marks the reservation skipped on the
+// span; fail-closed rejects with 0178 and does not mark it skipped; advisory
+// proceeds whatever the posture.
+func TestReservePreparedTransaction_FailPosture(t *testing.T) {
+	for name, scenario := range map[string]struct {
+		mode, posture string
+		wantKind      reservationOutcomeKind
+	}{
+		"enforce fail-open":   {mode: mmodel.TracerModeEnforce, posture: mmodel.TracerFailPostureOpen, wantKind: reservationProceed},
+		"enforce fail-closed": {mode: mmodel.TracerModeEnforce, posture: mmodel.TracerFailPostureClosed, wantKind: reservationReject},
+		"advisory closed":     {mode: mmodel.TracerModeAdvisory, posture: mmodel.TracerFailPostureClosed, wantKind: reservationProceed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFastSharedRetrier(t)
 
-	reserver := &stubReserver{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
-	uc := &UseCase{TracerReserver: reserver}
+			ctx, span, ended := recordingSpan(t)
+			stub := &stubContextTracer{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
+			uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
+			settings := enforceSettings(scenario.posture)
+			settings.Mode = scenario.mode
+			transaction, validated, balances := anchorPrepared()
 
-	out := uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			out := uc.reservePreparedTransaction(ctx, span, &libLog.NopLogger{}, anchorInput(settings, false), transaction, validated, balances)
+			sharedReservationRetrier.wait()
 
-	require.Equal(t, reservationReject, out.Kind, "fail-closed must reject when the tracer is unavailable")
-	require.Error(t, out.Err)
+			require.Equal(t, scenario.wantKind, out.Kind)
 
-	var unavailable pkg.ServiceUnavailableError
-	require.ErrorAs(t, out.Err, &unavailable)
-	assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unavailable.Code)
+			skipped, recorded := spanBoolAttribute(ended(), "app.response.tracer.reservation_skipped")
+			require.True(t, recorded, "an unavailable admission always records whether the reservation was skipped")
+			assert.Equal(t, scenario.wantKind == reservationProceed, skipped)
+
+			if scenario.wantKind == reservationReject {
+				var unavailable pkg.ServiceUnavailableError
+				require.ErrorAs(t, out.Err, &unavailable)
+				assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unavailable.Code)
+			}
+		})
+	}
 }
 
-func TestReserveTransaction_LongLivedHint_OnPending(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
+func TestReservePreparedTransaction_DeterministicFailureRejectsInEveryPosture(t *testing.T) {
+	for _, mode := range []string{mmodel.TracerModeAdvisory, mmodel.TracerModeEnforce} {
+		for _, posture := range []string{mmodel.TracerFailPostureOpen, mmodel.TracerFailPostureClosed} {
+			t.Run(mode+"/"+posture, func(t *testing.T) {
+				withFastSharedRetrier(t)
 
-	// Capture the request the anchor builds to assert the long-lived hint.
-	capturing := &capturingReserver{result: &tracer.ReserveResult{}}
-	uc := &UseCase{TracerReserver: capturing}
+				ctx, span, logger := anchorDeps()
+				stub := &stubContextTracer{reserveErr: constant.ErrContextPolicyUnavailable}
+				uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
+				settings := enforceSettings(posture)
+				settings.Mode = mode
+				transaction, validated, balances := anchorPrepared()
 
-	uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLLongLived, false)
+				out := uc.reservePreparedTransaction(ctx, span, logger, anchorInput(settings, false), transaction, validated, balances)
+				sharedReservationRetrier.wait()
 
-	assert.True(t, capturing.lastReq.LongLived,
-		"PENDING reservations must carry the long-lived TTL hint")
-	assert.Empty(t, capturing.lastReq.TransactionType,
-		"the long-lived hint must NOT be smuggled through transactionType (it broke the tracer reserve enum)")
-
-	// Default TTL must NOT carry the hint.
-	uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-	assert.False(t, capturing.lastReq.LongLived, "direct transactions must not carry the long-lived hint")
-}
-
-func TestReserveTransaction_BuildsFaithfulTracerRequest(t *testing.T) {
-	tracerCtx, sp, logger := anchorDeps()
-
-	capturing := &capturingReserver{result: &tracer.ReserveResult{}}
-	uc := &UseCase{TracerReserver: capturing}
-
-	txID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
-
-	uc.reserveTransaction(tracerCtx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		txID, decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-	req := capturing.lastReq
-	assert.Equal(t, txID, req.TransactionID)
-	assert.Equal(t, "1000", req.Amount)
-	assert.Equal(t, "BRL", req.Asset)
-	assert.Equal(t, fixedReserveAccountID, req.Account.AccountID, "account scope must be the structured account, not a bare string")
-	assert.NotEmpty(t, req.RequestID, "the tracer reserve contract requires a non-nil requestId")
-	assert.Equal(t, fixedReserveTimestamp.Format(time.RFC3339Nano), req.TransactionTimestamp)
-
-	// Current baseline: the anchor does not enrich these optional scopes. The
-	// transport characterization separately exercises them when populated.
-	assert.Empty(t, req.SegmentID)
-	assert.Empty(t, req.PortfolioID)
-	assert.Empty(t, req.MerchantID)
-	assert.Empty(t, req.TransactionType)
-
-	// RequestID is deterministic: same transactionID derives the same requestId
-	// so retries dedup.
-	assert.Equal(t, reservationRequestID(txID).String(), req.RequestID)
+				require.Equal(t, reservationReject, out.Kind, "a deterministic failure never authorizes accounting")
+				require.Error(t, out.Err)
+			})
+		}
+	}
 }
 
 func TestReservationRequestID_Deterministic(t *testing.T) {
@@ -433,286 +280,74 @@ func TestReservationRequestID_Deterministic(t *testing.T) {
 		"distinct transactionIDs must derive distinct requestIds")
 }
 
-func TestFirstSourceAccountID(t *testing.T) {
-	balances := []*mmodel.Balance{
-		{Alias: "@alice", Key: "default", AccountID: "acc-alice"},
-		{Alias: "@bob", Key: "default", AccountID: "acc-bob"},
-		{Alias: "@alice", Key: constant.OverdraftBalanceKey, AccountID: "acc-alice-overdraft"},
+func TestConfirmAndReleaseReservations(t *testing.T) {
+	transactionID := uuid.MustParse("66666666-6666-4666-8666-666666666666")
+	enforce := enforceSettings(mmodel.TracerFailPostureOpen)
+
+	for name, scenario := range map[string]struct {
+		attempt   *ContextTracerAttempt
+		wantCalls int
+	}{
+		"no admission":      {},
+		"skipped admission": {attempt: &ContextTracerAttempt{Skipped: true, Settings: enforce}},
+		"admitted":          {attempt: &ContextTracerAttempt{Dispatched: true, Settings: enforce}, wantCalls: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFastSharedRetrier(t)
+
+			ctx, span, logger := anchorDeps()
+			stub := &stubContextTracer{}
+			uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
+			handle := byTxnIdentity(transactionID)
+			handle.ContextAttempt = scenario.attempt
+
+			uc.confirmReservations(ctx, span, logger, handle)
+			uc.releaseReservations(ctx, span, logger, handle)
+			sharedReservationRetrier.wait()
+
+			assert.Len(t, stub.confirmedTransactions(), scenario.wantCalls)
+			assert.Len(t, stub.releasedTransactions(), scenario.wantCalls)
+
+			for _, id := range append(stub.confirmedTransactions(), stub.releasedTransactions()...) {
+				assert.Equal(t, transactionID, id, "completion is addressed by transaction")
+			}
+		})
 	}
-
-	t.Run("resolves the first internal source account", func(t *testing.T) {
-		got := firstSourceAccountID([]string{"@alice#default", "@bob#default"}, balances)
-		assert.Equal(t, "acc-alice", got)
-	})
-
-	t.Run("skips the overdraft companion alias", func(t *testing.T) {
-		got := firstSourceAccountID([]string{"@alice#overdraft", "@bob#default"}, balances)
-		assert.Equal(t, "acc-bob", got, "companion sources must not be chosen as the account scope")
-	})
-
-	t.Run("returns empty when no internal source resolves", func(t *testing.T) {
-		got := firstSourceAccountID([]string{"@external/BRL#default"}, balances)
-		assert.Empty(t, got, "an external-only source has no internal account scope")
-	})
-
-	t.Run("empty inputs return empty", func(t *testing.T) {
-		assert.Empty(t, firstSourceAccountID(nil, balances))
-		assert.Empty(t, firstSourceAccountID([]string{"@alice#default"}, nil))
-	})
 }
 
-func TestConfirmReservations(t *testing.T) {
-	withFastSharedRetrier(t)
-
-	ctx, sp, logger := anchorDeps()
-
-	t.Run("confirms every id", func(t *testing.T) {
-		ids := []uuid.UUID{uuid.New(), uuid.New()}
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservations(ctx, sp, logger, reservationHandle{ReservationIDs: ids})
-
-		assert.Equal(t, ids, reserver.confirmed())
-	})
-
-	t.Run("nil reserver is a no-op", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: nil}
-		uc.confirmReservations(ctx, sp, logger, reservationHandle{ReservationIDs: []uuid.UUID{uuid.New()}})
-		// no panic, nothing to assert beyond not crashing
-	})
-
-	t.Run("transport failure does not propagate, and is retried", func(t *testing.T) {
-		ids := []uuid.UUID{uuid.New(), uuid.New()}
-		reserver := &stubReserver{confirmErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
-		uc := &UseCase{TracerReserver: reserver}
-
-		// confirmReservations returns nothing; the contract is that it must not
-		// panic and must attempt every id despite the error.
-		uc.confirmReservations(ctx, sp, logger, reservationHandle{ReservationIDs: ids})
-
-		sharedReservationRetrier.wait()
-
-		attempted := reserver.confirmed()
-		assert.Subset(t, attempted, ids, "every id is attempted inline even when transport fails")
-		assert.Greater(t, len(attempted), len(ids),
-			"a refused confirm is retried off the request path, not dropped after one attempt")
-	})
-}
-
-func TestReleaseReservations(t *testing.T) {
-	withFastSharedRetrier(t)
-
-	ctx, sp, logger := anchorDeps()
-
-	ids := []uuid.UUID{uuid.New(), uuid.New()}
-	reserver := &stubReserver{releaseErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
-	uc := &UseCase{TracerReserver: reserver}
-
-	uc.releaseReservations(ctx, sp, logger, reservationHandle{ReservationIDs: ids})
-
-	sharedReservationRetrier.wait()
-
-	attempted := reserver.released()
-	assert.Subset(t, attempted, ids, "release is attempted for every id despite transport failure")
-	assert.Greater(t, len(attempted), len(ids),
-		"a refused release is retried too: capacity a customer is not spending must come back")
-}
-
-func TestConfirmReservationsByTransaction(t *testing.T) {
-	withFastSharedRetrier(t)
-
-	ctx, sp, logger := anchorDeps()
-
-	enforce := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen}
-
-	t.Run("commit confirms by transaction id", func(t *testing.T) {
-		txID := uuid.New()
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(txID), false)
-
-		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTransactions())
-		assert.Empty(t, reserver.releasedTransactions())
-	})
-
-	t.Run("advisory still confirms (lifecycle observed, never blocks)", func(t *testing.T) {
-		txID := uuid.New()
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}, byTxnIdentity(txID), false)
-
-		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTransactions())
-	})
-
-	t.Run("mode off does not call the tracer", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, byTxnIdentity(uuid.New()), false)
-
-		assert.Empty(t, reserver.confirmedTransactions(), "mode=off must not confirm")
-	})
-
-	t.Run("empty mode does not call the tracer", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, sp, logger, mmodel.TracerSettings{}, byTxnIdentity(uuid.New()), false)
-
-		assert.Empty(t, reserver.confirmedTransactions())
-	})
-
-	t.Run("nil reserver is a no-op", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: nil}
-		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(uuid.New()), false)
-		// no panic, nothing to assert beyond not crashing
-	})
-
-	t.Run("transport failure does not propagate", func(t *testing.T) {
-		txID := uuid.New()
-		reserver := &stubReserver{confirmByTxnErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
-		uc := &UseCase{TracerReserver: reserver}
-
-		// The contract is that the request still succeeds: the helper returns
-		// nothing, swallows the error, and the caller proceeds.
-		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(txID), false)
-
-		sharedReservationRetrier.wait()
-
-		attempted := reserver.confirmedTransactions()
-		assert.Contains(t, attempted, txID, "the transition is attempted despite transport failure")
-		assert.Greater(t, len(attempted), 1, "and it is retried rather than dropped after one attempt")
-	})
-
-	t.Run("honored skip does not confirm even under enforce", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(uuid.New()), true)
-
-		assert.Empty(t, reserver.confirmedTransactions(), "an honored tracer skip must make zero ConfirmByTransaction")
-	})
-}
-
-func TestReleaseReservationsByTransaction(t *testing.T) {
-	withFastSharedRetrier(t)
-
-	ctx, sp, logger := anchorDeps()
-
-	enforce := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen}
-
-	t.Run("cancel releases by transaction id", func(t *testing.T) {
-		txID := uuid.New()
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(txID), false)
-
-		assert.Equal(t, []uuid.UUID{txID}, reserver.releasedTransactions())
-		assert.Empty(t, reserver.confirmedTransactions())
-	})
-
-	t.Run("mode off does not call the tracer", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.releaseReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, byTxnIdentity(uuid.New()), false)
-
-		assert.Empty(t, reserver.releasedTransactions())
-	})
-
-	t.Run("nil reserver is a no-op", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: nil}
-		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(uuid.New()), false)
-	})
-
-	t.Run("transport failure does not propagate", func(t *testing.T) {
-		txID := uuid.New()
-		reserver := &stubReserver{releaseByTxnErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(txID), false)
-
-		sharedReservationRetrier.wait()
-
-		attempted := reserver.releasedTransactions()
-		assert.Contains(t, attempted, txID, "the transition is attempted despite transport failure")
-		assert.Greater(t, len(attempted), 1, "and it is retried rather than dropped after one attempt")
-	})
-
-	t.Run("honored skip does not release even under enforce", func(t *testing.T) {
-		reserver := &stubReserver{}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, byTxnIdentity(uuid.New()), true)
-
-		assert.Empty(t, reserver.releasedTransactions(), "an honored tracer skip must make zero ReleaseByTransaction")
-	})
-}
-
-// capturingReserver records the last reserve request so the long-lived TTL hint
-// can be asserted.
-type capturingReserver struct {
-	lastReq tracer.ReserveRequest
-	result  *tracer.ReserveResult
-}
-
-func (c *capturingReserver) Reserve(_ context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error) {
-	c.lastReq = req
-	return c.result, nil
-}
-
-func (c *capturingReserver) Confirm(_ context.Context, _ uuid.UUID) error { return nil }
-func (c *capturingReserver) Release(_ context.Context, _ uuid.UUID) error { return nil }
-
-func (c *capturingReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
-
-func (c *capturingReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
-
-// forbiddenReserver fails the test on ANY call. It is the direct proof a pipeline never
-// reaches the tracer: asserting a zero call count only shows the stub was not invoked,
-// while this shows no transport could have been reached at all.
-type forbiddenReserver struct {
-	t *testing.T
-}
-
-func (f *forbiddenReserver) fail(method string) {
-	f.t.Helper()
-	f.t.Fatalf("a /v1 pipeline reached the tracer via %s — the /v1 contract names no reservation seam", method)
-}
-
-func (f *forbiddenReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
-	f.fail("Reserve")
-
-	return nil, nil
-}
-
-func (f *forbiddenReserver) Confirm(_ context.Context, _ uuid.UUID) error {
-	f.fail("Confirm")
-
-	return nil
-}
-
-func (f *forbiddenReserver) Release(_ context.Context, _ uuid.UUID) error {
-	f.fail("Release")
-
-	return nil
-}
-
-func (f *forbiddenReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
-	f.fail("ConfirmByTransaction")
-
-	return nil
-}
-
-func (f *forbiddenReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {
-	f.fail("ReleaseByTransaction")
-
-	return nil
+func TestReservationsByTransactionGates(t *testing.T) {
+	transactionID := uuid.MustParse("77777777-7777-4777-8777-777777777771")
+
+	for name, scenario := range map[string]struct {
+		withTracer  bool
+		settings    mmodel.TracerSettings
+		honoredSkip bool
+		wantCalls   int
+	}{
+		"integration off": {settings: enforceSettings(mmodel.TracerFailPostureOpen)},
+		"mode off":        {withTracer: true, settings: mmodel.TracerSettings{Mode: mmodel.TracerModeOff}},
+		"empty mode":      {withTracer: true},
+		"honored skip":    {withTracer: true, settings: enforceSettings(mmodel.TracerFailPostureOpen), honoredSkip: true},
+		"advisory":        {withTracer: true, settings: mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, TimeoutMs: stubContextTracerTimeoutMs}, wantCalls: 1},
+		"enforce":         {withTracer: true, settings: enforceSettings(mmodel.TracerFailPostureClosed), wantCalls: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFastSharedRetrier(t)
+
+			ctx, span, logger := anchorDeps()
+			stub := &stubContextTracer{}
+
+			uc := &UseCase{}
+			if scenario.withTracer {
+				uc.ContextTracer = stub.coordinatorFor(t)
+			}
+
+			uc.confirmReservationsByTransaction(ctx, span, logger, scenario.settings, byTxnIdentity(transactionID), scenario.honoredSkip)
+			uc.releaseReservationsByTransaction(ctx, span, logger, scenario.settings, byTxnIdentity(transactionID), scenario.honoredSkip)
+			sharedReservationRetrier.wait()
+
+			assert.Len(t, stub.confirmedTransactions(), scenario.wantCalls)
+			assert.Len(t, stub.releasedTransactions(), scenario.wantCalls)
+		})
+	}
 }

@@ -5,13 +5,14 @@
 package bootstrap
 
 import (
-	"errors"
+	"context"
+	"crypto/tls"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -21,17 +22,27 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
+// tracerTokenPrewarmTimeout bounds the boot-time wait for the first M2M token.
+const tracerTokenPrewarmTimeout = 5 * time.Second
+
 type contextTracerRuntime struct {
 	coordinator *command.ContextTracerCoordinator
 	close       func() error
 }
 
-func buildContextTracer(cfg *Config, onboarding *libPostgres.Client) (_ *contextTracerRuntime, retErr error) {
+// buildContextTracer wires the tracer reservation runtime when TRACER_BASE_URL
+// is set and returns nil when it is not. With the integration on, any
+// configuration it cannot honor refuses boot. minter, dialing plugin-auth at
+// authHost, issues the M2M token the REST transport presents; the gRPC
+// transport uses neither.
+func buildContextTracer(cfg *Config, onboarding *libPostgres.Client, minter tracerclient.TokenMinter, authHost string, logger libLog.Logger) (_ *contextTracerRuntime, retErr error) {
 	if cfg == nil {
 		return nil, constant.ErrTracerContractUnavailable
 	}
 
-	if !cfg.TracerContextEnabled {
+	if strings.TrimSpace(cfg.TracerBaseURL) == "" {
+		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
+
 		return nil, nil
 	}
 
@@ -54,7 +65,7 @@ func buildContextTracer(cfg *Config, onboarding *libPostgres.Client) (_ *context
 		return nil, err
 	}
 
-	client, closeClient, err := buildContextTracerClient(cfg, parsed)
+	client, closeClient, tokens, err := buildContextTracerClient(cfg, parsed, minter, authHost)
 	if err != nil {
 		return nil, err
 	}
@@ -70,66 +81,137 @@ func buildContextTracer(cfg *Config, onboarding *libPostgres.Client) (_ *context
 		return nil, err
 	}
 
+	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
+		libLog.String("transport", parsed.transport),
+		libLog.String("integration_id", parsed.integrationID))
+
+	if tokens != nil {
+		prewarmTracerToken(logger, tokens)
+	}
+
 	return &contextTracerRuntime{coordinator: coordinator, close: closeClient}, nil
 }
 
-func buildContextTracerClient(cfg *Config, parsed contextTracerRuntimeConfig) (command.ContextTracerReserver, func() error, error) {
+// buildContextTracerClient builds the transport parsed selected. The token
+// source is returned only for REST, so the caller can pre-warm it.
+func buildContextTracerClient(cfg *Config, parsed contextTracerRuntimeConfig, minter tracerclient.TokenMinter, authHost string) (command.ContextTracerClient, func() error, tracerclient.TokenSource, error) {
 	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
 
-	tlsConfig, err := buildSeamClientTLSConfig(cfg, seamServerName(baseURL))
-	if err != nil {
-		return nil, nil, err
-	}
+	switch parsed.transport {
+	case tracerTransportGRPC:
+		tlsConfig, err := buildSeamClientTLSConfig(cfg, seamServerName(baseURL))
+		if err != nil {
+			return nil, nil, nil, err
+		}
 
-	if tlsConfig == nil {
-		return nil, nil, constant.ErrTracerContractUnavailable
-	}
+		if tlsConfig == nil {
+			return nil, nil, nil, fmt.Errorf("TRACER_TRANSPORT=grpc requires TRACER_TLS_MODE=mtls: %w", constant.ErrTracerContractUnavailable)
+		}
 
-	transport := strings.ToLower(strings.TrimSpace(cfg.TracerTransport))
-	switch transport {
-	case "", tracerTransportGRPC:
 		client, err := tracerclient.NewContextGRPCClient(stripURLScheme(baseURL), parsed.client, tracerclient.WithGRPCOperationTimeout(parsed.operationTimeout), tracerclient.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
-		return client, client.Close, nil
+		return client, client.Close, nil, nil
 	case tracerTransportREST:
-		endpoint, err := url.Parse(baseURL)
-		if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" {
-			return nil, nil, fmt.Errorf("context REST tracer requires https: %w", constant.ErrTracerContractUnavailable)
+		tlsConfig, err := buildRESTTracerTLSConfig(cfg, parsed.tlsMode, seamServerName(baseURL))
+		if err != nil {
+			return nil, nil, nil, err
 		}
 
-		client, err := tracerclient.NewContextHTTPClient(baseURL, parsed.client, tracerclient.WithOperationTimeout(parsed.operationTimeout), tracerclient.WithTLSConfig(tlsConfig))
+		tokens, err := buildTracerTokenSource(cfg, minter, authHost, parsed.tlsMode)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 
-		return client, nil, err
+		client, err := tracerclient.NewContextHTTPClient(baseURL, parsed.client, tokens, tracerclient.WithOperationTimeout(parsed.operationTimeout), tracerclient.WithTLSConfig(tlsConfig))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		return client, nil, tokens, nil
 	default:
-		return nil, nil, fmt.Errorf("unsupported context tracer transport: %w", constant.ErrTracerContractUnavailable)
+		return nil, nil, nil, fmt.Errorf("unsupported tracer transport %q: %w", parsed.transport, constant.ErrTracerContractUnavailable)
 	}
 }
 
-func combineTracerClosers(closers ...func() error) func() error {
-	var active []func() error
-
-	for _, closeClient := range closers {
-		if closeClient != nil {
-			active = append(active, closeClient)
-		}
+// buildRESTTracerTLSConfig returns nil (plaintext) outside mtls. Under mtls it
+// verifies the tracer's server certificate against TRACER_TLS_CA_FILE and
+// presents the ledger's client certificate only when TRACER_TLS_CERT_FILE or
+// TRACER_TLS_KEY_FILE is set: REST identity is the bearer token.
+func buildRESTTracerTLSConfig(cfg *Config, mode, serverName string) (*tls.Config, error) {
+	if mode != tlsModeMTLS {
+		return nil, nil
 	}
 
-	if len(active) == 0 {
-		return nil
+	if strings.TrimSpace(cfg.TracerTLSCertFile) != "" || strings.TrimSpace(cfg.TracerTLSKeyFile) != "" {
+		return buildClientMTLSConfig(cfg, serverName)
 	}
 
-	return func() error {
-		var failures []error
+	if strings.TrimSpace(cfg.TracerTLSCAFile) == "" {
+		return nil, fmt.Errorf("TRACER_TLS_MODE=mtls requires TRACER_TLS_CA_FILE to verify the tracer: %w", constant.ErrTracerContractUnavailable)
+	}
 
-		for _, closeClient := range active {
-			if err := closeClient(); err != nil {
-				failures = append(failures, err)
-			}
-		}
+	rootCAs, err := loadCertPool(cfg.TracerTLSCAFile)
+	if err != nil {
+		return nil, fmt.Errorf("load tracer server CA (TRACER_TLS_CA_FILE): %w", err)
+	}
 
-		return errors.Join(failures...)
+	return &tls.Config{MinVersion: tls.VersionTLS12, ServerName: serverName, RootCAs: rootCAs}, nil
+}
+
+// buildTracerTokenSource refuses boot when the REST transport cannot mint an
+// M2M token: plugin auth disabled or without a host (the minter would return an
+// empty token), empty client credentials, or, under DEPLOYMENT_MODE=saas, a
+// cleartext plugin-auth address outside an explicit mesh. authHost is the
+// plugin-auth address after service discovery. Only variable names are
+// reported, never a value.
+func buildTracerTokenSource(cfg *Config, minter tracerclient.TokenMinter, authHost, tlsMode string) (tracerclient.TokenSource, error) {
+	if !cfg.AuthEnabled {
+		return nil, fmt.Errorf("TRACER_TRANSPORT=rest authenticates to Tracer with an M2M token minted by plugin-auth, but PLUGIN_AUTH_ENABLED=false; enable plugin auth or use TRACER_TRANSPORT=grpc with TRACER_TLS_MODE=mtls: %w", constant.ErrTracerContractUnavailable)
+	}
+
+	if strings.TrimSpace(authHost) == "" {
+		return nil, fmt.Errorf("TRACER_TRANSPORT=rest authenticates to Tracer with an M2M token minted by plugin-auth, but PLUGIN_AUTH_HOST is empty and service discovery resolved no plugin-auth address: %w", constant.ErrTracerContractUnavailable)
+	}
+
+	if err := ValidateSaaSTracerAuthTLS(cfg.DeploymentMode, authHost, tlsMode); err != nil {
+		return nil, err
+	}
+
+	var missing []string
+
+	if strings.TrimSpace(cfg.IDPM2MClientID) == "" {
+		missing = append(missing, "IDP_M2M_CLIENT_ID")
+	}
+
+	if cfg.IDPM2MClientSecret == "" {
+		missing = append(missing, "IDP_M2M_CLIENT_SECRET")
+	}
+
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("TRACER_TRANSPORT=rest authenticates to Tracer with an M2M token, but %s is empty: %w", strings.Join(missing, " and "), constant.ErrTracerContractUnavailable)
+	}
+
+	if minter == nil {
+		return nil, fmt.Errorf("TRACER_TRANSPORT=rest requires the auth client to mint M2M tokens: %w", constant.ErrTracerContractUnavailable)
+	}
+
+	return tracerclient.NewM2MTokenSource(minter, cfg.IDPM2MClientID, cfg.IDPM2MClientSecret, time.Now)
+}
+
+// prewarmTracerToken mints the first M2M token at boot so the first
+// transaction does not pay for it. It is best-effort: an identity provider that
+// is not reachable yet must not keep the ledger from starting. A failed mint
+// starts the token source's 5s mint pause; requests during it fail fast with
+// 0536, which the fail posture handles, and the first request after it
+// retries the mint.
+func prewarmTracerToken(logger libLog.Logger, tokens tracerclient.TokenSource) {
+	ctx, cancel := context.WithTimeout(context.Background(), tracerTokenPrewarmTimeout)
+	defer cancel()
+
+	if _, err := tokens.Token(ctx); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Tracer M2M token could not be minted at boot; a reservation after the mint pause will retry", libLog.Err(err))
 	}
 }

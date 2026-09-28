@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // detectPostgresTLS returns true if the PostgreSQL DSN has TLS enabled.
@@ -277,6 +279,47 @@ func ValidateSaaSStreamingTLS(deploymentMode string, streamingTLSEnabled bool) e
 		TLSEnabled: streamingTLSEnabled,
 	}}); err != nil {
 		return fmt.Errorf("%w (set STREAMING_TLS_ENABLED=true)", err)
+	}
+
+	return nil
+}
+
+// ValidateSaaSTracerTLS extends the SaaS TLS gate to the REST tracer seam,
+// which carries the M2M bearer token. An http:// TRACER_BASE_URL is cleartext
+// unless a mesh sidecar originates TLS, so under DEPLOYMENT_MODE=saas it boots
+// only with TRACER_TLS_MODE=mesh set explicitly: an empty mode is not a claim
+// that a mesh exists. tlsMode must already be normalized.
+func ValidateSaaSTracerTLS(deploymentMode, baseURL, tlsMode string) error {
+	if !idpSchemeIsCleartext(baseURL) || tlsMode == tlsModeMesh {
+		return nil
+	}
+
+	if err := ValidateSaaSTLS(deploymentMode, []TLSValidationResult{{
+		Name:       "tracer",
+		TLSEnabled: false,
+	}}); err != nil {
+		return fmt.Errorf("%w (set TRACER_BASE_URL to an https:// URL, or TRACER_TLS_MODE=mesh behind a TLS-originating mesh): %w", err, constant.ErrTracerContractUnavailable)
+	}
+
+	return nil
+}
+
+// ValidateSaaSTracerAuthTLS extends the SaaS TLS gate to the client-credentials
+// hop the REST tracer seam depends on: the M2M client secret and the token it
+// yields travel to plugin-auth at authHost, the address after service
+// discovery. An http:// authHost under DEPLOYMENT_MODE=saas boots only with
+// TRACER_TLS_MODE=mesh set explicitly, the same escape ValidateSaaSTracerTLS
+// accepts. tlsMode must already be normalized. The host is never reported.
+func ValidateSaaSTracerAuthTLS(deploymentMode, authHost, tlsMode string) error {
+	if !idpSchemeIsCleartext(authHost) || tlsMode == tlsModeMesh {
+		return nil
+	}
+
+	if err := ValidateSaaSTLS(deploymentMode, []TLSValidationResult{{
+		Name:       "tracer_m2m_auth",
+		TLSEnabled: false,
+	}}); err != nil {
+		return fmt.Errorf("%w (set PLUGIN_AUTH_HOST, or the plugin-auth address service discovery resolves, to an https:// URL, or TRACER_TLS_MODE=mesh behind a TLS-originating mesh): %w", err, constant.ErrTracerContractUnavailable)
 	}
 
 	return nil

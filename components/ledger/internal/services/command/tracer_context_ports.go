@@ -15,10 +15,10 @@ import (
 
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=tracer_context_ports.go -destination=mock_tracer_context_ports_test.go -package=command
 
-// ContextTracerReserver exposes only the complete shared contract. Completion
+// ContextTracerClient exposes only the complete shared contract. Completion
 // is addressed by transaction, so it also settles an admission whose response
 // was lost. The client cannot execute accounting.
-type ContextTracerReserver interface {
+type ContextTracerClient interface {
 	Reserve(context.Context, tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error)
 	ConfirmByTransaction(context.Context, uuid.UUID) (*tracercontract.TransactionCompletionResult, error)
 	ReleaseByTransaction(context.Context, uuid.UUID) (*tracercontract.TransactionCompletionResult, error)

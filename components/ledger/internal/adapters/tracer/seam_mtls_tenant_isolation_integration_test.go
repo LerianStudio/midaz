@@ -13,7 +13,7 @@ package tracer
 //
 // The flow under test:
 //
-//   - The REAL ledger *TracerGRPCClient drives a Reserve under tenant A's
+//   - The REAL ledger *ContextGRPCClient drives a Reserve under tenant A's
 //     trusted x-tenant-id over a REAL mutual-TLS handshake (the same
 //     credentials.NewTLS seam the composition root wires in mtls mode). The
 //     tenant rides the client's production propagation path: it is read from the
@@ -159,7 +159,9 @@ func TestSeamMTLSTenantIsolation(t *testing.T) {
 		// this transaction. The handler signals "not found for this tenant" as a
 		// codes.NotFound — proving B's view excludes A's reservation rather than
 		// silently confirming A's state under B's key.
-		err := client.ConfirmByTransaction(ctxB, fixedTransactionID)
+		_, config := contextClientFixture(t)
+		coordinated := &ContextGRPCClient{transport: client, config: config}
+		_, err := coordinated.ConfirmByTransaction(ctxB, fixedTransactionID)
 		require.Error(t, err, "tenant B must not be able to confirm tenant A's transaction")
 		require.Equal(t, codes.NotFound, status.Code(err),
 			"the seam must report B's view as empty, not confirm A's reservation")

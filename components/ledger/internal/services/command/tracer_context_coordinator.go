@@ -31,13 +31,13 @@ type ContextTracerConfig struct {
 // known accounting outcome by transaction. It keeps no state between the two:
 // a completion that is never delivered is released by the Tracer TTL.
 type ContextTracerCoordinator struct {
-	client ContextTracerReserver
+	client ContextTracerClient
 	facts  TracerFactsLoader
 	config ContextTracerConfig
 	now    Clock
 }
 
-func NewContextTracerCoordinator(client ContextTracerReserver, facts TracerFactsLoader, cfg ContextTracerConfig, now Clock) (*ContextTracerCoordinator, error) {
+func NewContextTracerCoordinator(client ContextTracerClient, facts TracerFactsLoader, cfg ContextTracerConfig, now Clock) (*ContextTracerCoordinator, error) {
 	if client == nil || facts == nil || now == nil || cfg.MaxReservations <= 0 || cfg.AdmissionTimeout <= 0 {
 		return nil, constant.ErrTracerContractUnavailable
 	}
@@ -95,9 +95,10 @@ func (c *ContextTracerCoordinator) Complete(ctx context.Context, transactionID u
 
 // contextCompletionTerminal reports failures a redelivery cannot change: an
 // operation conflict (for example a confirm after the Tracer TTL expired the
-// reservation) or a response that contradicts the request.
+// reservation), a response that contradicts the request, or a refusal before
+// evaluation such as an unauthorized producer or a missing tenant.
 func contextCompletionTerminal(err error) bool {
-	return errors.Is(err, constant.ErrReserveOperationConflict) || errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrTracerContractUnavailable)
+	return errors.Is(err, constant.ErrReserveOperationConflict) || errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrTracerContractUnavailable) || errors.Is(err, traceradapter.ErrTracerRequestRejected)
 }
 
 // contextReleaseSettled reports a release answered with an operation conflict:
@@ -131,28 +132,14 @@ func concludeContextCompletion(ctx context.Context, span trace.Span, logger libL
 }
 
 // contextTracerRetryTransport lets the in-memory reservation retrier redeliver
-// a context completion. It satisfies the retrier's full TracerReserver
-// interface, but the context contract addresses completion only by
-// transaction, so the reservation-id and reserve operations are unsupported.
-// A failure no redelivery can change is reported here and answered with
-// errReservationRetryStop, which ends the sequence without a further log.
+// a context completion. A failure no redelivery can change is reported here and
+// answered with errReservationRetryStop, which ends the sequence without a
+// further log.
 type contextTracerRetryTransport struct {
 	coordinator *ContextTracerCoordinator
 	logger      libLog.Logger
 	timeout     time.Duration
 	transition  reservationTransition
-}
-
-func (t contextTracerRetryTransport) Reserve(context.Context, traceradapter.ReserveRequest) (*traceradapter.ReserveResult, error) {
-	return nil, constant.ErrTracerContractUnavailable
-}
-
-func (t contextTracerRetryTransport) Confirm(context.Context, uuid.UUID) error {
-	return constant.ErrTracerContractUnavailable
-}
-
-func (t contextTracerRetryTransport) Release(context.Context, uuid.UUID) error {
-	return constant.ErrTracerContractUnavailable
 }
 
 func (t contextTracerRetryTransport) ConfirmByTransaction(ctx context.Context, _ uuid.UUID) error {

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ func (h *feeHarness) seedEnforceClosedTracer(t *testing.T) {
 
 	_, err := h.db.Exec(
 		`UPDATE ledger SET settings = $1::jsonb WHERE organization_id = $2 AND id = $3`,
-		`{"tracer":{"mode":"enforce","failPosture":"closed"}}`, h.orgID, h.ledgerID,
+		`{"tracer":{"mode":"enforce","failPosture":"closed","validationMode":"limits","timeoutMs":5000}}`, h.orgID, h.ledgerID,
 	)
 	require.NoError(t, err, "seed tracer settings")
 
@@ -58,7 +57,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	t.Run("create modes and revert", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		h.enableAccountingEngine(t)
-		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
+		(&forbiddenReserver{t: t}).attach(t, h.handler.Command)
 		h.seedEnforceClosedTracer(t)
 
 		app := h.newApp()
@@ -82,7 +81,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	t.Run("pending commit", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		h.enableAccountingEngine(t)
-		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
+		(&forbiddenReserver{t: t}).attach(t, h.handler.Command)
 		h.seedEnforceClosedTracer(t)
 
 		app := h.newApp()
@@ -103,7 +102,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	t.Run("pending cancel", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		h.enableAccountingEngine(t)
-		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
+		(&forbiddenReserver{t: t}).attach(t, h.handler.Command)
 		h.seedEnforceClosedTracer(t)
 
 		app := h.newApp()
@@ -129,7 +128,7 @@ func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
 	h := setupFeeHarness(t)
 	h.enableAccountingEngine(t)
 	reserver := unavailableReserver()
-	h.handler.Command.TracerReserver = reserver
+	reserver.attach(t, h.handler.Command)
 	h.seedEnforceClosedTracer(t)
 
 	app := h.newV2App()
@@ -154,20 +153,17 @@ func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
 // A by-transaction confirm/release cannot tell whether the transaction holds
 // reservations, so the /v1 gate drops it unconditionally. A PENDING created on /v2 —
 // which DID reserve — and committed through /v1 therefore never receives its confirm:
-// the reservation stays RESERVED until the TTL reaper releases it, and the committed
-// amount is never counted against the usage limit.
+// the reservation is expired by the Tracer TTL, and the committed amount is never
+// counted against the usage limit.
 //
 // This is a decided contract, not a defect: mixing mounts across one transaction
-// lifecycle is unsupported (docs/api/SCOPING.md). Closing it needs create-time
-// reservation state persisted on the transaction row for the gate to read instead of the
-// route version — at which point this test should be inverted, deliberately.
+// lifecycle is unsupported (docs/api/SCOPING.md).
 func TestTracerRouteGate_V2CreateCommittedOnV1_SkipsConfirm(t *testing.T) {
 	h := setupFeeHarness(t)
 	h.enableAccountingEngine(t)
 
-	reservationID := uuid.New()
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
-	h.handler.Command.TracerReserver = reserver
+	reserver := &stubReserver{}
+	reserver.attach(t, h.handler.Command)
 	h.seedEnforceClosedTracer(t)
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
@@ -188,6 +184,6 @@ func TestTracerRouteGate_V2CreateCommittedOnV1_SkipsConfirm(t *testing.T) {
 	require.Equalf(t, 201, committed.status, "the /v1 commit must still succeed: %s", string(committed.rawBody))
 
 	assert.Empty(t, reserver.confirmedTxns,
-		"ACCEPTED GAP: a /v1 commit sends no confirm even for a /v2-created reservation — the reaper releases it at TTL")
+		"ACCEPTED GAP: a /v1 commit sends no confirm even for a /v2-created reservation — the Tracer TTL expires it")
 	assert.Empty(t, reserver.releasedTxns, "and nothing is released either; the reservation simply expires")
 }

@@ -5,9 +5,7 @@
 package command
 
 import (
-	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,87 +24,21 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-type atomicTransactionBatchTracerFake struct {
-	mu sync.Mutex
-
-	results   []*tracer.ReserveResult
-	requests  []tracer.ReserveRequest
-	confirmed []uuid.UUID
-	released  []uuid.UUID
-}
-
-func (fake *atomicTransactionBatchTracerFake) Reserve(
-	_ context.Context,
-	request tracer.ReserveRequest,
-) (*tracer.ReserveResult, error) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-
-	fake.requests = append(fake.requests, request)
-	index := len(fake.requests) - 1
-	if index >= len(fake.results) {
-		return &tracer.ReserveResult{}, nil
-	}
-
-	return fake.results[index], nil
-}
-
-func (fake *atomicTransactionBatchTracerFake) Confirm(_ context.Context, reservationID uuid.UUID) error {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-
-	fake.confirmed = append(fake.confirmed, reservationID)
-
-	return nil
-}
-
-func (fake *atomicTransactionBatchTracerFake) Release(_ context.Context, reservationID uuid.UUID) error {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-
-	fake.released = append(fake.released, reservationID)
-
-	return nil
-}
-
-func (fake *atomicTransactionBatchTracerFake) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-
-func (fake *atomicTransactionBatchTracerFake) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-
-func (fake *atomicTransactionBatchTracerFake) snapshot() (
-	[]tracer.ReserveRequest,
-	[]uuid.UUID,
-	[]uuid.UUID,
-) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-
-	return append([]tracer.ReserveRequest(nil), fake.requests...),
-		append([]uuid.UUID(nil), fake.confirmed...),
-		append([]uuid.UUID(nil), fake.released...)
-}
+// atomicTransactionBatchTracerFake is the contextual Tracer the batch tests
+// script, one decision per Reserve call in request order.
+type atomicTransactionBatchTracerFake = stubContextTracer
 
 func TestReserveAtomicTransactionBatch_DenialReleasesPriorReservationsInOrder(t *testing.T) {
-	firstReservationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000091")
-	secondReservationIDs := []uuid.UUID{
-		uuid.MustParse("01994f13-29b7-7000-8000-000000000092"),
-		uuid.MustParse("01994f13-29b7-7000-8000-000000000093"),
-	}
-	fake := &atomicTransactionBatchTracerFake{results: []*tracer.ReserveResult{
-		{ReservationIDs: []uuid.UUID{firstReservationID}},
-		{ReservationIDs: secondReservationIDs},
-		{Denied: true},
-	}}
+	withFastSharedRetrier(t)
+
+	fake := &atomicTransactionBatchTracerFake{decisions: []tracercontract.Decision{tracercontract.DecisionAllow, tracercontract.DecisionAllow, tracercontract.DecisionDeny}}
 	run := atomicTransactionBatchTracerTestRun(4)
-	uc := &UseCase{TracerReserver: fake}
+	uc := &UseCase{ContextTracer: fake.coordinatorFor(t)}
 	ctx, span, logger := anchorDeps()
 
 	err := uc.reserveAtomicTransactionBatch(ctx, span, logger, run)
 	require.Error(t, err)
+	sharedReservationRetrier.wait()
 
 	var business pkg.UnprocessableOperationError
 	require.True(t, errors.As(err, &business))
@@ -126,24 +58,21 @@ func TestReserveAtomicTransactionBatch_DenialReleasesPriorReservationsInOrder(t 
 	}, atomicTransactionBatchTracerRequestIDs(requests))
 	assert.Empty(t, confirmed)
 	assert.Equal(t, []uuid.UUID{
-		firstReservationID,
-		secondReservationIDs[0],
-		secondReservationIDs[1],
-	}, released)
-	assert.Empty(t, run.items[2].tracerReservation.ReservationIDs)
-	assert.Empty(t, run.items[3].tracerReservation.ReservationIDs)
+		run.items[2].transactionID,
+		run.items[0].transactionID,
+		run.items[1].transactionID,
+	}, released, "the denied admission is released first, then every earlier admission in request order")
+	assert.Nil(t, run.items[2].tracerReservation.ContextAttempt)
+	assert.Nil(t, run.items[3].tracerReservation.ContextAttempt)
 }
 
 func TestAtomicTransactionBatchReservations_SkipUnknownAndSuccess(t *testing.T) {
-	firstReservationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000a1")
-	secondReservationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000a2")
-	fake := &atomicTransactionBatchTracerFake{results: []*tracer.ReserveResult{
-		{ReservationIDs: []uuid.UUID{firstReservationID}},
-		{ReservationIDs: []uuid.UUID{secondReservationID}},
-	}}
+	withFastSharedRetrier(t)
+
+	fake := &atomicTransactionBatchTracerFake{}
 	run := atomicTransactionBatchTracerTestRun(3)
 	run.items[0].honoredTracerSkip = true
-	uc := &UseCase{TracerReserver: fake}
+	uc := &UseCase{ContextTracer: fake.coordinatorFor(t)}
 	ctx, span, logger := anchorDeps()
 
 	require.NoError(t, uc.reserveAtomicTransactionBatch(ctx, span, logger, run))
@@ -152,7 +81,8 @@ func TestAtomicTransactionBatchReservations_SkipUnknownAndSuccess(t *testing.T) 
 		run.items[1].transactionID,
 		run.items[2].transactionID,
 	}, atomicTransactionBatchTracerRequestIDs(requests))
-	assert.Empty(t, run.items[0].tracerReservation.ReservationIDs)
+	require.NotNil(t, run.items[0].tracerReservation.ContextAttempt)
+	assert.True(t, run.items[0].tracerReservation.ContextAttempt.Skipped)
 	assert.Empty(t, confirmed)
 	assert.Empty(t, released)
 
@@ -174,20 +104,26 @@ func TestAtomicTransactionBatchReservations_SkipUnknownAndSuccess(t *testing.T) 
 		run,
 		atomicTransactionBatchReservationKnownSuccess,
 	)
+	sharedReservationRetrier.wait()
 	_, confirmed, released = fake.snapshot()
-	assert.Equal(t, []uuid.UUID{firstReservationID, secondReservationID}, confirmed)
+	assert.Equal(t, []uuid.UUID{run.items[1].transactionID, run.items[2].transactionID}, confirmed, "a skipped member is not completed")
 	assert.Empty(t, released)
 }
 
 func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *testing.T) {
 	withFastSharedRetrier(t)
 
-	reserver := &scriptedReserver{confirm: failNTimes(1)}
-	uc := &UseCase{TracerReserver: reserver}
 	run := atomicTransactionBatchTracerTestRun(1)
+	transactionID := run.items[0].transactionID
+	coordinator, client := newCompletionTestCoordinator(t)
+	gomock.InOrder(
+		client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(nil, tracer.ErrTracerUnavailable),
+		client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(completionResult(transactionID, "CONFIRMED"), nil),
+	)
+	uc := &UseCase{ContextTracer: coordinator}
 	run.items[0].tracerReservation = reservationHandle{
-		ReservationIDs: []uuid.UUID{uuid.MustParse("01994f13-29b7-7000-8000-0000000000b1")},
-		TransactionID:  run.items[0].transactionID,
+		ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: run.ledgerSettings.Tracer},
+		TransactionID:  transactionID,
 		Amount:         run.items[0].input.Send.Value,
 		Asset:          run.items[0].input.Send.Asset,
 	}
@@ -201,18 +137,14 @@ func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *
 		atomicTransactionBatchReservationKnownSuccess,
 	)
 	sharedReservationRetrier.wait()
-
-	attempts, delivered := reserver.attempts()
-	assert.True(t, delivered)
-	assert.Equal(t, 2, attempts, "the first failed confirm must be redelivered by the bounded retrier")
 }
 
 func TestAtomicContextBatchPreservesHoldUntilTerminalOutcome(t *testing.T) {
 	for _, action := range []string{reservationActionConfirm, reservationActionRelease} {
 		t.Run(action, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			client := NewMockContextTracerReserver(ctrl)
-			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+			client := NewMockContextTracerClient(ctrl)
+			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 			require.NoError(t, err)
 			uc := &UseCase{ContextTracer: coordinator}
 			run := atomicTransactionBatchTracerTestRun(2)
@@ -240,7 +172,7 @@ func TestAtomicContextBatchPreservesHoldUntilTerminalOutcome(t *testing.T) {
 
 func TestAtomicContextBatchUnknownOutcomeLeavesReservations(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	coordinator, err := NewContextTracerCoordinator(NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+	coordinator, err := NewContextTracerCoordinator(NewMockContextTracerClient(ctrl), NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 	require.NoError(t, err)
 	uc := &UseCase{ContextTracer: coordinator}
 	run := atomicTransactionBatchTracerTestRun(1)
@@ -264,10 +196,14 @@ func TestAtomicTransactionBatchFailureSettlementReleasesWhenEngineNeverRan(t *te
 
 func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchRun {
 	run := &atomicTransactionBatchRun{
+		organizationID: uuid.MustParse("01994f13-29b7-7000-8000-0000000000c1"),
+		ledgerID:       uuid.MustParse("01994f13-29b7-7000-8000-0000000000c2"),
 		ledgerSettings: mmodel.LedgerSettings{
 			Tracer: mmodel.TracerSettings{
-				Mode:        mmodel.TracerModeEnforce,
-				FailPosture: mmodel.TracerFailPostureClosed,
+				Mode:           mmodel.TracerModeEnforce,
+				FailPosture:    mmodel.TracerFailPostureClosed,
+				ValidationMode: string(tracercontract.ValidationLimits),
+				TimeoutMs:      stubContextTracerTimeoutMs,
 			},
 		},
 		items: make([]atomicTransactionBatchItemRun, itemCount),
@@ -277,7 +213,10 @@ func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchR
 			uuid.MustParse("01994f13-29b7-7000-8000-0000000000d0"),
 			[]byte{byte(index)},
 		)
-		alias := "@source-" + decimal.NewFromInt(int64(index)).String()
+		suffix := decimal.NewFromInt(int64(index)).String()
+		source, destination := "@source-"+suffix, "@destination-"+suffix
+		sourceLeg, destinationLeg := "0#"+source+"#"+constant.DefaultBalanceKey, "0#"+destination+"#"+constant.DefaultBalanceKey
+		value := decimal.NewFromInt(int64(index + 1))
 		run.items[index] = atomicTransactionBatchItemRun{
 			index:         index,
 			transactionID: transactionID,
@@ -293,22 +232,27 @@ func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchR
 			),
 			status: constant.CREATED,
 			input: mtransaction.Transaction{Send: mtransaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(int64(index + 1)),
+				Asset:      "BRL",
+				Value:      value,
+				Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: sourceLeg}}},
+				Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: destinationLeg}}},
 			}},
-			validate: &mtransaction.Responses{Sources: []string{alias + "#" + constant.DefaultBalanceKey}},
-			prepared: enginePreparedTransaction{pool: EngineSnapshotPool{ExplicitBalances: []*mmodel.Balance{{
-				Alias:     alias,
-				Key:       constant.DefaultBalanceKey,
-				AccountID: "account-" + decimal.NewFromInt(int64(index)).String(),
-			}}}},
+			validate: &mtransaction.Responses{
+				Sources: []string{source + "#" + constant.DefaultBalanceKey},
+				From:    map[string]mtransaction.Amount{sourceLeg: {Value: value}},
+				To:      map[string]mtransaction.Amount{destinationLeg: {Value: value}},
+			},
+			prepared: enginePreparedTransaction{pool: EngineSnapshotPool{ExplicitBalances: []*mmodel.Balance{
+				{Alias: source, Key: constant.DefaultBalanceKey, AccountID: uuid.NewSHA1(transactionID, []byte("source")).String(), AssetCode: "BRL", AccountType: "deposit"},
+				{Alias: destination, Key: constant.DefaultBalanceKey, AccountID: uuid.NewSHA1(transactionID, []byte("destination")).String(), AssetCode: "BRL", AccountType: "deposit"},
+			}}},
 		}
 	}
 
 	return run
 }
 
-func atomicTransactionBatchTracerRequestIDs(requests []tracer.ReserveRequest) []uuid.UUID {
+func atomicTransactionBatchTracerRequestIDs(requests []tracercontract.ReserveRequest) []uuid.UUID {
 	transactionIDs := make([]uuid.UUID, len(requests))
 	for index := range requests {
 		transactionIDs[index] = requests[index].TransactionID

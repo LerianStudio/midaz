@@ -37,8 +37,8 @@ func (c ContextClientConfig) Validate() error {
 	return c.Bounds.Validate()
 }
 
-// ContextGRPCClient transports the complete shared contract. Legacy lifecycle
-// operations stay on TracerGRPCClient and cannot silently complete new records.
+// ContextGRPCClient transports the complete shared contract over the mTLS
+// gRPC seam; the client certificate is its identity, so no token is sent.
 type ContextGRPCClient struct {
 	transport *TracerGRPCClient
 	config    ContextClientConfig

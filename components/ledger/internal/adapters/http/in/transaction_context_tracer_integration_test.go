@@ -144,12 +144,11 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 	require.NoError(t, err)
 	loader, err := tracer.NewOfficialContextLoader(facts, bounds)
 	require.NoError(t, err)
-	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: maxBodyBytes, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
+	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: maxBodyBytes, MaxReservations: 100}, fixedIntegrationToken{}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
 	coordinator, err := command.NewContextTracerCoordinator(client, loader, command.ContextTracerConfig{Bounds: bounds, MaxReservations: 100, AdmissionTimeout: 5 * time.Second}, func() time.Time { return instant })
 	require.NoError(t, err)
 	h.handler.Command.ContextTracer = coordinator
-	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 	response := h.createV2Direct(t, h.newV2App(), h.v2Body("context integration", "BTC", "10.125", []string{h.v2Leg("@payer", "10.125")}, []string{h.v2Leg("@receiver", "10.125")}), nil)
 	if allowed {
 		require.Equal(t, http.StatusCreated, response.status, string(response.rawBody))
@@ -207,10 +206,15 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 			return len(recorded) >= 2
 		}, 10*time.Second, 20*time.Millisecond)
 	}
-	require.Equal(t, []tracerCall{
-		{op: tracerCallReserve, transactionID: transactionID},
-		{op: completionOp, transactionID: transactionID},
-	}, recorded, "the known accounting outcome is delivered by transaction")
+	if peerError == constant.ErrContextPolicyUnavailable {
+		// A missing policy is a refusal before evaluation: the Tracer holds nothing to release.
+		require.Equal(t, []tracerCall{{op: tracerCallReserve, transactionID: transactionID}}, recorded, "a refusal before evaluation is not released")
+	} else {
+		require.Equal(t, []tracerCall{
+			{op: tracerCallReserve, transactionID: transactionID},
+			{op: completionOp, transactionID: transactionID},
+		}, recorded, "the known accounting outcome is delivered by transaction")
+	}
 	assertBalances := func() {
 		t.Helper()
 		expectedBalances := map[string]string{"@payer": "89.875", "@receiver": "10.125"}

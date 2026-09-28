@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -36,14 +35,11 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	dashboardCache "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/dashboard"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
@@ -327,25 +323,21 @@ type Config struct {
 
 	// --- Tracer reservation client ---
 	// TRACER_BASE_URL is the escape hatch for the tracer integration as a
-	// whole: empty (the default) injects a nil TracerReserver so the
-	// transaction create path stays unchanged. When set, the reservation HTTP
-	// client is constructed and injected. The per-ledger advisory/enforce gate
+	// whole: empty (the default) injects no tracer coordinator so the
+	// transaction create path stays unchanged. When set, the contextual
+	// reservation runtime is constructed and injected, or boot is refused. The per-ledger advisory/enforce gate
 	// is a tracer.mode setting read at the call site, not a global flag.
 	// TracerTimeoutMs bounds each reservation call so a slow tracer cannot hold
 	// the transaction create path open; it mirrors the tracer.timeoutMs setting
 	// default (250ms) and is overridden per-ledger by the call site.
 	// TracerTransport selects the reservation transport: "grpc" (default) or
-	// "rest". gRPC is the seam's production transport; REST is retained as a
-	// fallback, selectable by setting TRACER_TRANSPORT=rest. A deploy that wires
-	// the tracer (TRACER_BASE_URL set) without overriding this now speaks gRPC,
-	// so the tracer must expose its gRPC seam (TRACER_GRPC_PORT) and, under
-	// TRACER_TLS_MODE=mtls, both ends need cert material.
-	// TracerTLSMode secures the reservation seam: "mtls" presents a client
-	// certificate and verifies the tracer's server certificate against the CA
-	// (mutual TLS is the seam's identity — no shared secret); "mesh" (and the
-	// empty default) speaks plaintext to a local service-mesh sidecar that
-	// terminates mTLS. Under "mtls" the cert/key/CA paths are required when the
-	// integration is on, enforced by buildTracerReserver.
+	// "rest". gRPC identifies the ledger by its client certificate and requires
+	// TRACER_TLS_MODE=mtls with cert/key/CA. REST identifies the ledger by an M2M
+	// bearer token and accepts any TracerTLSMode.
+	// TracerTLSMode secures the reservation seam: "mtls" verifies the tracer's
+	// server certificate against the CA and presents the ledger's client
+	// certificate (mandatory on gRPC, optional on REST); "mesh" (and the empty
+	// default) speaks plaintext to a local service-mesh sidecar.
 	TracerBaseURL     string `env:"TRACER_BASE_URL"`
 	TracerTimeoutMs   int    `env:"TRACER_TIMEOUT_MS"`
 	TracerTransport   string `env:"TRACER_TRANSPORT"`
@@ -354,8 +346,7 @@ type Config struct {
 	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
 	TracerTLSCAFile   string `env:"TRACER_TLS_CA_FILE"`
 
-	// Context activation requires explicit work bounds.
-	TracerContextEnabled           bool   `env:"TRACER_CONTEXT_ENABLED"`
+	// Context reservation work bounds.
 	TracerContextMaxBodyBytes      int    `env:"TRACER_CONTEXT_MAX_BODY_BYTES"`
 	TracerContextMaxAccounts       int    `env:"TRACER_CONTEXT_MAX_ACCOUNTS"`
 	TracerContextMaxEntries        int    `env:"TRACER_CONTEXT_MAX_ENTRIES"`
@@ -1029,58 +1020,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
 	accountBlockExceptionHandler := &httpin.AccountBlockExceptionHandler{Command: commandUseCase}
 
-	// === Tracer reservation client ===
-	// Built before the handler so the reserver is available for injection.
-	// When TRACER_BASE_URL is empty (the documented default) the helper returns
-	// a nil TracerReserver and the create path stays unchanged, mirroring the
-	// streaming NoopEmitter escape hatch.
-	tracerReserver, err := buildTracerReserver(cfg, logger)
-	if err != nil {
-		doCleanup()
-
-		return nil, fmt.Errorf("failed to initialize tracer reservation client: %w", err)
-	}
-
-	// Resolve the optional SIGTERM teardown hook for the tracer transport.
-	// The gRPC client holds a persistent grpc.ClientConn and exposes
-	// Close() error; the REST client does not implement the interface, so
-	// tracerClose stays nil and Run() registers no teardown app for it.
-	var tracerClose func() error
-	if closer, ok := tracerReserver.(interface{ Close() error }); ok {
-		tracerClose = closer.Close
-
-		// Register the transport teardown in the startup cleanup stack so the
-		// gRPC ClientConn is closed if a later startup step (route setup, readyz
-		// handler) fails — not only on the happy SIGTERM path via Run().
-		addCleanup(func() { _ = tracerClose() })
-	}
-
 	// === Transaction create seam ports ===
-	// The fee engine, the tracer reservation client and the MT fee-DB resolver are
-	// consumed by the transaction create use case, so they are wired onto the
-	// command UseCase rather than the HTTP handler.
+	// The fee engine and the MT fee-DB resolver are consumed by the transaction
+	// create use case, so they are wired onto the command UseCase rather than
+	// the HTTP handler. The tracer coordinator is wired below, once the auth
+	// client that mints its M2M token exists.
 	commandUseCase.FeeApplier = fees.useCase
-	commandUseCase.TracerReserver = tracerReserver
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
-
-	contextTracer, err := buildContextTracer(cfg, onbPG.connection)
-	if err != nil {
-		doCleanup()
-		return nil, fmt.Errorf("initialize context tracer coordination: %w", err)
-	}
-
-	var contextTracerClose func() error
-
-	if contextTracer != nil {
-		commandUseCase.ContextTracer = contextTracer.coordinator
-		commandUseCase.TracerActivation = contextTracer.coordinator
-
-		contextTracerClose = contextTracer.close
-		if contextTracerClose != nil {
-			addCleanup(func() { _ = contextTracerClose() })
-		}
-	}
 
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{
@@ -1124,6 +1071,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	defer sdBootCloser.CloseOnBootFailure()
 
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
+
+	contextTracer, err := buildContextTracer(cfg, onbPG.connection, auth, sd.authHost, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("initialize context tracer coordination: %w", err)
+	}
+
+	// tracerClose is the optional SIGTERM teardown for the tracer transport: the
+	// gRPC client holds a persistent grpc.ClientConn, the REST client has none.
+	// It is also registered in the startup cleanup stack so the connection is
+	// closed if a later startup step fails.
+	var tracerClose func() error
+
+	if contextTracer != nil {
+		commandUseCase.ContextTracer = contextTracer.coordinator
+		commandUseCase.TracerActivation = contextTracer.coordinator
+
+		tracerClose = contextTracer.close
+		if tracerClose != nil {
+			addCleanup(func() { _ = tracerClose() })
+		}
+	}
 
 	// === Multi-tenant middleware ===
 
@@ -1335,7 +1304,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
 		DeclarationStops:         declarationStops,
-		TracerClose:              combineTracerClosers(tracerClose, contextTracerClose),
+		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
 		ServiceDescriptor:        sd.descriptor,
@@ -2148,114 +2117,11 @@ func validateTransactionBatchConfig(cfg *Config) error {
 	return nil
 }
 
-// buildTracerReserver constructs the tracer reservation HTTP client when the
-// integration is configured (TRACER_BASE_URL set), or returns a nil
-// TracerReserver when it is not. Returning the interface type (rather than the
-// concrete *tracerclient.TracerClient) keeps the disabled case a genuine nil
-// interface so the call-site nil guard short-circuits correctly.
-//
-// This is pure DI: it wires the transport, not behavior. The per-ledger
-// advisory/enforce gate and the fail-posture branch live at the reserve anchor.
-func buildTracerReserver(cfg *Config, logger libLog.Logger) (command.TracerReserver, error) {
-	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
-	if baseURL == "" {
-		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
-
-		return nil, nil
-	}
-
-	// Fail-fast guard: identity on the reservation seam is mutual TLS (the
-	// verified peer IS the credential — no shared secret). The discriminator is
-	// the transport's security, NOT tenancy: with the integration on and
-	// TRACER_TLS_MODE=mtls, the cert/key/CA material is mandatory, so a
-	// misconfigured deploy fails at boot rather than dialing an unverified seam.
-	// "mesh" trusts a local sidecar to originate mTLS (no app cert material).
-	// buildSeamClientTLSConfig names the failing knob; in mesh/empty mode it
-	// returns a nil config and both transports dial plaintext.
-	tlsConfig, err := buildSeamClientTLSConfig(cfg, seamServerName(baseURL))
-	if err != nil {
-		return nil, err
-	}
-
-	transport := strings.ToLower(strings.TrimSpace(cfg.TracerTransport))
-	if transport == "" {
-		transport = tracerTransportGRPC
-	}
-
-	switch transport {
-	case tracerTransportGRPC:
-		if !cfg.TracerContextEnabled {
-			return nil, fmt.Errorf("gRPC Reserve requires TRACER_CONTEXT_ENABLED=true; use TRACER_TRANSPORT=rest with a compatible legacy Tracer until coordinated activation: %w", constant.ErrTracerContractUnavailable)
-		}
-
-		return buildTracerGRPCReserver(cfg, baseURL, tlsConfig, logger)
-	case tracerTransportREST:
-		return buildTracerRESTReserver(cfg, baseURL, tlsConfig, logger)
-	default:
-		return nil, fmt.Errorf("invalid TRACER_TRANSPORT %q: expected %q or %q", cfg.TracerTransport, tracerTransportGRPC, tracerTransportREST)
-	}
-}
-
 // Tracer reservation transports selected by TRACER_TRANSPORT.
 const (
 	tracerTransportGRPC = "grpc"
 	tracerTransportREST = "rest"
 )
-
-// buildTracerRESTReserver wires the HTTP reservation client. When tlsConfig is
-// non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the
-// REST seam presents the ledger's client cert and verifies the tracer's server
-// cert; a nil config (mesh/empty mode) leaves the default plaintext transport.
-func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (command.TracerReserver, error) {
-	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
-		libLog.String("transport", tracerTransportREST))
-
-	opts := []tracerclient.TracerClientOption{}
-	if cfg.TracerTimeoutMs > 0 {
-		opts = append(opts, tracerclient.WithOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
-	}
-
-	if tlsConfig != nil {
-		opts = append(opts, tracerclient.WithTLSConfig(tlsConfig))
-	}
-
-	client, err := tracerclient.NewTracerClient(baseURL, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
-
-// buildTracerGRPCReserver wires the gRPC reservation client. When tlsConfig is
-// non-nil (TRACER_TLS_MODE=mtls) it is injected as transport credentials
-// (credentials.NewTLS) so the gRPC seam presents the ledger's client cert and
-// verifies the tracer's server cert; a nil config (mesh/empty mode) leaves the
-// client's default insecure transport for a sidecar to secure. The target is the
-// same TRACER_BASE_URL value, stripped of any scheme so grpc.NewClient receives
-// a host:port authority.
-func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (command.TracerReserver, error) {
-	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
-		libLog.String("transport", tracerTransportGRPC))
-
-	target := stripURLScheme(baseURL)
-
-	opts := []tracerclient.TracerGRPCClientOption{}
-	if cfg.TracerTimeoutMs > 0 {
-		opts = append(opts, tracerclient.WithGRPCOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
-	}
-
-	if tlsConfig != nil {
-		opts = append(opts, tracerclient.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))))
-	}
-
-	client, err := tracerclient.NewTracerGRPCClient(target, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
 
 // stripURLScheme removes an http:// or https:// scheme from a tracer endpoint so
 // the same TRACER_BASE_URL value feeds both the REST client (full URL) and the

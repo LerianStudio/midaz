@@ -150,7 +150,7 @@ func callHasArgIdent(call *ast.CallExpr, name string) bool {
 // that CreateTransactionV2 resolves the tracer skip AFTER the settings read
 // and BEFORE the reserve anchor, that the 422 (unauthorized skip) branch releases
 // the idempotency key and returns before the reserve, and that the resolved
-// honoredTracerSkip boolean is threaded into reserveTransaction.
+// honoredTracerSkip boolean is threaded into reservePreparedTransaction.
 func TestCreateTransactionV2_TracerSkip(t *testing.T) {
 	src := readSeamSource(t) // create_transaction_v2.go
 	engineSrc := readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine")

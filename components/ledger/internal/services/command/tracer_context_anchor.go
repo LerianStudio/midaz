@@ -22,9 +22,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
+// reservePreparedTransaction reserves limit capacity for FEE-INCLUSIVE
+// amounts before accounting runs; it belongs to the /v2 contract only. A nil
+// ContextTracer (TRACER_BASE_URL unset) proceeds without a tracer call;
+// otherwise mode, honored skip and fail posture decide the outcome. It never
+// mutates Send.Value or any balance state.
 func (uc *UseCase) reservePreparedTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, input ContextTracerInput, transaction mtransaction.Transaction, validated *mtransaction.Responses, balances []*mmodel.Balance) reservationOutcome {
 	if uc.ContextTracer == nil {
-		return uc.reserveTransaction(ctx, span, logger, input.Settings, input.Key.TransactionID, input.Amount, input.AssetCode, firstSourceAccountID(validated.Sources, balances), input.Timestamp, reservationTTLPolicy(input.LongLived), input.HonoredSkip)
+		return reservationOutcome{Kind: reservationProceed}
 	}
 
 	started := time.Now()
@@ -39,6 +44,7 @@ func (uc *UseCase) reservePreparedTransaction(ctx context.Context, span trace.Sp
 
 	if err != nil {
 		recordTracerCoordinationError(span, err)
+		recordTracerFailureCause(span, err)
 		span.SetAttributes(attribute.Bool("app.response.tracer.reservation_skipped", outcome.Kind == reservationProceed))
 	}
 
@@ -155,20 +161,60 @@ func warnContextReservationOutcomeUnknown(ctx context.Context, logger libLog.Log
 		libLog.String("transaction_id", handle.TransactionID.String()))
 }
 
+// tracerFailureCauseTokenUnavailable marks a failure the ledger caused by
+// holding no token the Tracer accepts. It shares the unavailable response code
+// with an outage, so the span attribute is what tells them apart.
+const tracerFailureCauseTokenUnavailable = "token_unavailable"
+
+// recordTracerFailureCause names on span a tracer failure cause the response
+// code does not distinguish.
+func recordTracerFailureCause(span trace.Span, err error) {
+	if errors.Is(err, constant.ErrTracerTokenUnavailable) {
+		span.SetAttributes(attribute.String("app.tracer.failure_cause", tracerFailureCauseTokenUnavailable))
+	}
+}
+
+// tracerBusinessCauses are the canonical causes of a coordination failure the
+// request itself provoked: a coded refusal before evaluation (0043, 0487,
+// 0527), an unusable contract (0534), and the caller-bound expression cost,
+// payload size and operation conflict (0342, 0143, 0530). Every other cause is
+// technical.
+var tracerBusinessCauses = []error{
+	constant.ErrInsufficientPrivileges,
+	constant.ErrReservationTenantRequired,
+	constant.ErrContextPolicyUnavailable,
+	constant.ErrTracerContractUnavailable,
+	constant.ErrExpressionCostExceeded,
+	constant.ErrPayloadTooLarge,
+	constant.ErrReserveOperationConflict,
+}
+
+// recordTracerCoordinationError records err on span: a business cause keeps
+// the span green, anything else flips it red. An availability failure is
+// technical whatever cause it wraps.
 func recordTracerCoordinationError(span trace.Span, err error) {
 	if err == nil {
 		return
 	}
 
-	classified := err
-	for errors.Unwrap(classified) != nil {
-		classified = errors.Unwrap(classified)
-	}
-
-	if pkg.IsBusinessError(pkg.ValidateBusinessError(classified, "TracerCoordination")) {
+	if tracerBusinessCoordinationError(err) {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Tracer coordination rejected", err)
 		return
 	}
 
 	libOtel.HandleSpanError(span, "Tracer coordination incomplete", err)
+}
+
+func tracerBusinessCoordinationError(err error) bool {
+	if tracerAdmissionUnavailable(err) {
+		return false
+	}
+
+	for _, cause := range tracerBusinessCauses {
+		if errors.Is(err, cause) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -6,30 +6,30 @@
 
 package tracer
 
-// End-to-end proof that the single-tenant reservation seam works over mutual
-// TLS on BOTH transports the ledger speaks: gRPC (TRACER_TRANSPORT=grpc) and
-// REST (TRACER_TRANSPORT=rest). It is the Task 1.3.3 capstone for Epic 1.3
-// (Phase 1): with a CA-signed client cert the ledger client drives
-// reserve->confirm to success; without one the connection is rejected at the
-// TLS layer and the RPC never reaches the service.
+// End-to-end proof that the single-tenant reservation seam works over TLS on
+// BOTH transports the ledger speaks. gRPC (TRACER_TRANSPORT=grpc) identifies the
+// ledger by its client certificate: with a CA-signed cert the client drives
+// reserve->confirm to success, without one the connection is rejected at the
+// TLS layer. REST (TRACER_TRANSPORT=rest) identifies the ledger by its M2M
+// bearer token: the client certificate is optional and the server ignores it.
 //
 // What is REAL on each side:
 //
-//   - LEDGER (the side under test): the production *TracerGRPCClient and
-//     *TracerClient, constructed through their real transport-credential seams
+//   - LEDGER (the side under test): the production *ContextGRPCClient and
+//     *ContextHTTPClient, constructed through their real transport-credential seams
 //     (WithGRPCDialOptions(credentials.NewTLS(...)) and WithTLSConfig(...)) with
 //     the same client *tls.Config the composition root's buildSeamClientTLSConfig
 //     produces in mtls mode — client cert presented, tracer server cert verified
 //     against the CA, ServerName pinned. So the real ledger mTLS dial path runs.
 //   - TRACER (reconstructed): a grpc.NewServer with
-//     grpc.Creds(credentials.NewTLS(serverTLS)) and an http.Server with the same
-//     ClientAuth=RequireAndVerifyClientCert posture Task 1.3.1 wires on the
-//     tracer. Go's internal/ rule walls components/tracer/internal/... (the real
-//     gRPC server adapter, REST handler, and testutil mTLS fixture) off from this
-//     ledger test package, exactly as documented in contract_test.go — so the
-//     server side and the cert fixture are reconstructed here from importable
-//     pieces. The load-bearing half of THIS test is the transport security, which
-//     is real on both ends: a real TLS handshake over a real loopback socket.
+//     grpc.Creds(credentials.NewTLS(serverTLS)) requiring a verified client
+//     cert, and an http.Server that requests no client cert and requires a
+//     bearer token. Go's internal/ rule walls components/tracer/internal/...
+//     (the real gRPC server adapter, REST handler, and testutil mTLS fixture)
+//     off from this ledger test package, so the server side and the cert
+//     fixture are reconstructed here from importable pieces. The load-bearing
+//     half of THIS test is the transport security, which is real on both ends:
+//     a real TLS handshake over a real loopback socket.
 //
 // No Docker is required: loopback sockets plus a deterministic cert fixture
 // (fixed 2020->2100 validity window, no time.Now) make the test hermetic. It is
@@ -46,9 +46,11 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -58,14 +60,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-// The deterministic ids the reconstructed tracer returns and the ledger client
-// round-trips are the package-shared fixedTransactionID / fixedReservationID
-// (client_test.go) — fixed literals, no uuid.New / time.Now — so the assertions
-// stay exact and there is one source of truth for the seam's test ids.
+// fixedReservationID is the deterministic id the reconstructed tracer returns,
+// so the round-trip assertions stay exact.
+var fixedReservationID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+// seamBearerToken is the M2M token the REST subtests present.
+const seamBearerToken = "seam-token"
 
 // TestSeamMTLS drives the real ledger reservation clients over a real mutual-TLS
 // handshake against a reconstructed tracer, on both transports, and proves an
@@ -99,8 +104,9 @@ func TestSeamMTLS(t *testing.T) {
 		require.Equal(t, fixedTransactionID, result.TransactionID)
 		require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
 
-		require.NoError(t, client.Confirm(ctx, fixedReservationID),
-			"confirm over the secured seam must succeed")
+		completion, err := coordinated.ConfirmByTransaction(ctx, fixedTransactionID)
+		require.NoError(t, err, "confirm over the secured seam must succeed")
+		require.Equal(t, "CONFIRMED", completion.Status)
 	})
 
 	t.Run("gRPC reserve is rejected without a valid client cert", func(t *testing.T) {
@@ -125,50 +131,89 @@ func TestSeamMTLS(t *testing.T) {
 		require.Error(t, err, "client without a verified cert must be rejected at the TLS layer")
 	})
 
-	t.Run("REST reserve->confirm succeeds over mTLS", func(t *testing.T) {
-		baseURL := startRESTSeamServer(t, serverTLS)
+	for name, restTLS := range map[string]*tls.Config{
+		"with a client cert":    clientTLS,
+		"without a client cert": serverOnlyTLSConfig(fixture),
+	} {
+		t.Run("REST reserve->confirm succeeds over TLS "+name, func(t *testing.T) {
+			request, config := contextClientFixture(t)
+			request.TransactionID = fixedTransactionID
+			baseURL := startRESTSeamServer(t, fixture, config)
 
-		client, err := NewTracerClient(baseURL, WithTLSConfig(clientTLS))
+			client, err := NewContextHTTPClient(baseURL, config, staticTokens(seamBearerToken), WithOperationTimeout(5*time.Second), WithTLSConfig(restTLS))
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			result, err := client.Reserve(ctx, request)
+			require.NoError(t, err, "the bearer-authenticated client must complete the reserve POST")
+			require.Equal(t, tracercontract.DecisionAllow, result.Decision)
+			require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
+
+			completion, err := client.ConfirmByTransaction(ctx, fixedTransactionID)
+			require.NoError(t, err, "confirm over the REST seam must succeed")
+			require.Equal(t, "CONFIRMED", completion.Status)
+		})
+	}
+
+	t.Run("REST reserve with a rejected bearer token is a token unavailability", func(t *testing.T) {
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		baseURL := startRESTSeamServer(t, fixture, config)
+
+		client, err := NewContextHTTPClient(baseURL, config, staticTokens("wrong-token"), WithOperationTimeout(5*time.Second), WithTLSConfig(clientTLS))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		result, err := client.Reserve(ctx, ReserveRequest{
-			TransactionID:        fixedTransactionID,
-			RequestID:            fixedReservationID.String(),
-			Amount:               "100",
-			Asset:                "USD",
-			Account:              ReserveAccount{AccountID: fixedReservationID.String()},
-			TransactionTimestamp: "2020-01-02T00:00:00Z",
-		})
-		require.NoError(t, err, "CA-signed client must complete the reserve POST over mTLS")
-		require.NotNil(t, result)
-		require.False(t, result.Denied)
-		require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
-
-		require.NoError(t, client.Confirm(ctx, fixedReservationID),
-			"confirm over the secured REST seam must succeed")
+		_, err = client.Reserve(ctx, request)
+		require.ErrorIs(t, err, ErrTracerUnavailable, "a 401 falls under the ledger's fail posture")
+		require.ErrorIs(t, err, constant.ErrTracerTokenUnavailable)
 	})
 
-	t.Run("REST reserve is rejected without a valid client cert", func(t *testing.T) {
-		baseURL := startRESTSeamServer(t, serverTLS)
+	t.Run("gRPC reserve->release succeeds with a CA-signed client cert", func(t *testing.T) {
+		addr := startGRPCSeamServer(t, serverTLS)
 
-		client, err := NewTracerClient(baseURL, WithTLSConfig(serverOnlyTLSConfig(fixture)))
+		client, err := NewTracerGRPCClient(addr,
+			WithGRPCOperationTimeout(5*time.Second),
+			WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(clientTLS))))
+		require.NoError(t, err)
+
+		t.Cleanup(func() { _ = client.Close() })
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		coordinated := &ContextGRPCClient{transport: client, config: config}
+		_, err = coordinated.Reserve(ctx, request)
+		require.NoError(t, err)
+
+		completion, err := coordinated.ReleaseByTransaction(ctx, fixedTransactionID)
+		require.NoError(t, err, "release over the secured seam must succeed")
+		require.Equal(t, "RELEASED", completion.Status)
+	})
+
+	t.Run("REST reserve->release succeeds over TLS", func(t *testing.T) {
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		baseURL := startRESTSeamServer(t, fixture, config)
+
+		client, err := NewContextHTTPClient(baseURL, config, staticTokens(seamBearerToken), WithOperationTimeout(5*time.Second), WithTLSConfig(clientTLS))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = client.Reserve(ctx, ReserveRequest{
-			TransactionID:        fixedTransactionID,
-			RequestID:            fixedReservationID.String(),
-			Amount:               "100",
-			Asset:                "USD",
-			Account:              ReserveAccount{AccountID: fixedReservationID.String()},
-			TransactionTimestamp: "2020-01-02T00:00:00Z",
-		})
-		require.Error(t, err, "client without a cert must be rejected by the mTLS REST seam")
+		_, err = client.Reserve(ctx, request)
+		require.NoError(t, err)
+
+		completion, err := client.ReleaseByTransaction(ctx, fixedTransactionID)
+		require.NoError(t, err, "release over the REST seam must succeed")
+		require.Equal(t, "RELEASED", completion.Status)
 	})
 }
 
@@ -189,8 +234,22 @@ func (reserveSeamServer) Reserve(_ context.Context, req *reservationv1.ReserveRe
 	}, nil
 }
 
-func (reserveSeamServer) ConfirmById(_ context.Context, _ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
-	return &reservationv1.ConfirmByIdResponse{}, nil
+func (reserveSeamServer) ConfirmByTransaction(_ context.Context, req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+	evaluation := "33333333-3333-4333-8333-333333333333"
+
+	return &reservationv1.ConfirmByTransactionResponse{
+		ContractRevision: tracercontract.ReserveContractRevision, TransactionId: req.GetTransactionId(),
+		Status: "CONFIRMED", Flipped: 1, EvaluationId: &evaluation,
+	}, nil
+}
+
+func (reserveSeamServer) ReleaseByTransaction(_ context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+	evaluation := "33333333-3333-4333-8333-333333333333"
+
+	return &reservationv1.ReleaseByTransactionResponse{
+		ContractRevision: tracercontract.ReserveContractRevision, TransactionId: req.GetTransactionId(),
+		Status: "RELEASED", Flipped: 1, EvaluationId: &evaluation,
+	}, nil
 }
 
 // startGRPCSeamServer stands up a gRPC server secured by serverTLS
@@ -212,53 +271,64 @@ func startGRPCSeamServer(t *testing.T, serverTLS *tls.Config) string {
 	return listener.Addr().String()
 }
 
-// startRESTSeamServer runs an http.Server with the same mTLS posture the tracer
-// enforces (RequireAndVerifyClientCert) serving the reservation REST routes the
-// ledger client calls (POST /v1/reservations and the per-id confirm path). It
-// returns the https base URL. Stopped on cleanup.
-func startRESTSeamServer(t *testing.T, serverTLS *tls.Config) string {
+// startRESTSeamServer runs an https server that requests no client cert and
+// requires the bearer token, serving the contextual reserve and by-transaction
+// confirm and release routes. It returns the https base URL. Stopped on cleanup.
+func startRESTSeamServer(t *testing.T, fixture seamMTLSFixture, config ContextClientConfig) string {
 	t.Helper()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/reservations", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(ReserveResult{
-			TransactionID:  fixedTransactionID,
-			Denied:         false,
-			ReservationIDs: []uuid.UUID{fixedReservationID},
-		})
-	})
-	// The per-id confirm path: any /v1/reservations/{id}/confirm returns 200,
-	// matching the tracer's idempotent confirm contract.
-	mux.HandleFunc("/v1/reservations/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/confirm") || strings.HasSuffix(r.URL.Path, "/release") {
-			w.WriteHeader(http.StatusOK)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(AuthorizationHeader) != "Bearer "+seamBearerToken {
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		w.WriteHeader(http.StatusNotFound)
-	})
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-	srv := &http.Server{
-		Handler:           mux,
-		TLSConfig:         serverTLS,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+		w.Header().Set("Content-Type", "application/json")
 
-	tlsListener := tls.NewListener(listener, serverTLS)
-	go func() { _ = srv.Serve(tlsListener) }()
+		switch {
+		case r.URL.Path == "/v1/reservations":
+			request, err := tracercontract.DecodeReserveJSON(r.Context(), raw, config.MaxBodyBytes, config.Bounds)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-	t.Cleanup(func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	})
+			result := contextResultFixture(request)
+			result.ReservationIDs = []uuid.UUID{fixedReservationID}
 
-	return "https://" + listener.Addr().String()
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(result)
+		case strings.HasSuffix(r.URL.Path, "/confirm"), strings.HasSuffix(r.URL.Path, "/release"):
+			evaluation := uuid.MustParse("33333333-3333-4333-8333-333333333333")
+
+			status := "CONFIRMED"
+			if strings.HasSuffix(r.URL.Path, "/release") {
+				status = "RELEASED"
+			}
+
+			_ = json.NewEncoder(w).Encode(tracercontract.TransactionCompletionResult{
+				ContractRevision: tracercontract.ReserveContractRevision, TransactionID: fixedTransactionID,
+				Status: status, Flipped: 1, EvaluationID: &evaluation,
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	serverCert, err := tls.X509KeyPair(fixture.serverCertPEM, fixture.serverKeyPEM)
+	require.NoError(t, err)
+
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{serverCert}, ClientAuth: tls.NoClientCert}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	return server.URL
 }
 
 // serverMTLSConfig builds the tracer-side server *tls.Config: presents the

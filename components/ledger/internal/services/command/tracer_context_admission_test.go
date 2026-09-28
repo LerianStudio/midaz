@@ -27,7 +27,7 @@ func TestContextAdmissionReservesWithBoundedFacts(t *testing.T) {
 	for _, scenario := range []string{"allow", "backdated", "deny", "review", "off", "skip", "facts unavailable", "facts timeout", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			client := NewMockContextTracerReserver(ctrl)
+			client := NewMockContextTracerClient(ctrl)
 			loader := NewMockTracerFactsLoader(ctrl)
 			instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
@@ -147,14 +147,14 @@ func TestContextAdmissionReservesWithBoundedFacts(t *testing.T) {
 func TestNewContextTracerCoordinatorRequiresDependencies(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	cfg := ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}
-	client, loader := NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl)
+	client, loader := NewMockContextTracerClient(ctrl), NewMockTracerFactsLoader(ctrl)
 
 	for name, build := range map[string]func() (*ContextTracerCoordinator, error){
 		"client": func() (*ContextTracerCoordinator, error) {
-			return NewContextTracerCoordinator(nil, loader, cfg, time.Now)
+			return NewContextTracerCoordinator(nil, loader, cfg, fixedTracerClock)
 		},
 		"facts": func() (*ContextTracerCoordinator, error) {
-			return NewContextTracerCoordinator(client, nil, cfg, time.Now)
+			return NewContextTracerCoordinator(client, nil, cfg, fixedTracerClock)
 		},
 		"clock": func() (*ContextTracerCoordinator, error) {
 			return NewContextTracerCoordinator(client, loader, cfg, nil)
@@ -162,12 +162,12 @@ func TestNewContextTracerCoordinatorRequiresDependencies(t *testing.T) {
 		"timeout": func() (*ContextTracerCoordinator, error) {
 			bad := cfg
 			bad.AdmissionTimeout = 0
-			return NewContextTracerCoordinator(client, loader, bad, time.Now)
+			return NewContextTracerCoordinator(client, loader, bad, fixedTracerClock)
 		},
 		"bounds": func() (*ContextTracerCoordinator, error) {
 			bad := cfg
 			bad.Bounds = tracercontract.Limits{}
-			return NewContextTracerCoordinator(client, loader, bad, time.Now)
+			return NewContextTracerCoordinator(client, loader, bad, fixedTracerClock)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -204,21 +204,15 @@ type UseCase struct {
 	// application (the create path stays unchanged).
 	FeeApplier FeeApplier
 
-	// TracerReserver drives the tracer two-phase reservation lifecycle from the
-	// create seam. It is injected at bootstrap from the tracer client; a nil
-	// reserver means the tracer integration is disabled (the create path stays
-	// unchanged). The per-ledger tracer.mode gate lives at the call site.
-	TracerReserver TracerReserver
-
 	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
 	// from it, and balance deletion and account closing read the debts owed to a balance.
 	FeeDebts FeeDebtRecorder
 
-	// ContextTracer owns the replacement contract and durable coordination.
-	// Bootstrap installs it only together with its independent recovery worker.
-
-	// ContextTracer owns the replacement contract: admission before accounting
-	// and by-transaction completion after it.
+	// ContextTracer drives the tracer reservation lifecycle: admission before
+	// accounting and by-transaction completion after it. It is injected at
+	// bootstrap when TRACER_BASE_URL is set; nil means the tracer integration is
+	// disabled (the create path stays unchanged). The per-ledger tracer.mode
+	// gate lives at the call site.
 	ContextTracer *ContextTracerCoordinator
 
 	// TracerActivation is installed only by the complete context integration.

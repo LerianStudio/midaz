@@ -5,131 +5,24 @@
 package command
 
 import (
-	"context"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/attribute"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// F3-T19 — fail-posture PROOFS (Gates 4 and 5). These complement the
-// branch-Kind assertions in transaction_reservation_anchor_test.go with the two
-// behaviors the spec names explicitly:
-//
-//	Gate 4 (fail-open):  enforce + unavailable tracer COMMITS and the SKIPPED
-//	                     decision is recorded. On a timeout the tracer never
-//	                     received the call, so no tracer-side audit row can
-//	                     exist; the ledger's own record of the skip IS the
-//	                     `app.tracer.reservation_skipped=true` span attribute set
-//	                     by handleReserveError. This test captures it with a real
-//	                     recording span (the noop span used elsewhere discards
-//	                     attributes) and proves fail-closed does NOT set it.
-//	Gate 5 (fail-closed): enforce + unavailable tracer REJECTS, and the create
-//	                     seam releases the idempotency key + removes the
-//	                     Redis-queue seed BEFORE — and instead of —
-//	                     ProcessBalanceOperations, so no balance is mutated. The
-//	                     reject-Kind is proven at the helper level; the call-site
-//	                     mechanics (idempotency release + no balance commit) are a
-//	                     structural guarantee asserted directly over the live
-//	                     executeCreateTransaction source AST, mirroring the
-//	                     fee-seam structural gate. A "bites" fixture proves the
-//	                     gate fails if the release is dropped or the reject falls
-//	                     through to the balance commit.
-
-// recordingSpan returns a ctx, the real SDK span the helper writes into, and an
-// `ended` closure that ends the span and returns the recorded spans. Unlike
-// anchorDeps's noop span, the SDK span retains SetAttributes calls so the
-// SKIPPED marker can be asserted.
-func recordingSpan(t *testing.T) (context.Context, trace.Span, func() []sdktrace.ReadOnlySpan) {
-	t.Helper()
-
-	recorder := tracetest.NewSpanRecorder()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-
-	ctx, span := tp.Tracer("failposture-test").Start(context.Background(), "reserve")
-
-	ended := func() []sdktrace.ReadOnlySpan {
-		span.End()
-		return recorder.Ended()
-	}
-
-	return ctx, span, ended
-}
-
-// spanHasSkippedMarker reports whether any ended span carries
-// app.tracer.reservation_skipped=true.
-func spanHasSkippedMarker(spans []sdktrace.ReadOnlySpan) bool {
-	for _, s := range spans {
-		for _, kv := range s.Attributes() {
-			if kv.Key == attribute.Key("app.tracer.reservation_skipped") && kv.Value.AsBool() {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// TestTracerFailOpenSkipped — Gate 4. enforce + unavailable tracer proceeds
-// (COMMITS) and records the SKIPPED decision on the span.
-func TestTracerFailOpenSkipped(t *testing.T) {
-	ctx, span, ended := recordingSpan(t)
-
-	logger := &libLog.NopLogger{}
-	reserver := &stubReserver{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
-	uc := &UseCase{TracerReserver: reserver}
-
-	out := uc.reserveTransaction(ctx, span, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-	assert.Equal(t, reservationProceed, out.Kind, "fail-open must COMMIT (proceed) when the tracer is unavailable")
-	assert.Empty(t, out.Handle.ReservationIDs, "no reservation is held when the reserve call never succeeded")
-
-	require.True(t, spanHasSkippedMarker(ended()),
-		"fail-open must record the SKIPPED decision via app.tracer.reservation_skipped=true")
-}
-
-// TestTracerFailClosedDoesNotMarkSkipped is the discriminator: fail-closed
-// rejects rather than skips, so it must NOT set the SKIPPED marker — otherwise
-// the Gate-4 assertion above would pass vacuously.
-func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
-	ctx, span, ended := recordingSpan(t)
-
-	logger := &libLog.NopLogger{}
-	reserver := &stubReserver{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
-	uc := &UseCase{TracerReserver: reserver}
-
-	out := uc.reserveTransaction(ctx, span, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
-
-	require.Equal(t, reservationReject, out.Kind)
-
-	var unavailable pkg.ServiceUnavailableError
-	require.ErrorAs(t, out.Err, &unavailable)
-	assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unavailable.Code)
-
-	assert.False(t, spanHasSkippedMarker(ended()),
-		"fail-closed rejects; it must NOT record the SKIPPED marker")
-}
+// Fail-closed call-site proof. The branch outcomes of the reserve anchor
+// (fail-open proceeds and marks the reservation skipped, fail-closed rejects
+// with 0178) are asserted in transaction_reservation_anchor_test.go. What is
+// proven here is the create seam's handling of a reject: it releases the
+// idempotency key and removes the Redis-queue seed BEFORE — and instead of —
+// the balance commit, so no balance is mutated. It is a structural guarantee
+// asserted directly over the live executeCreateEngine source AST, mirroring the
+// fee-seam structural gate. A "bites" fixture proves the gate fails if the
+// release is dropped or the reject falls through to the balance commit.
 
 // ---- Gate 5 (fail-closed): structural proof of the call-site mechanics --------
 

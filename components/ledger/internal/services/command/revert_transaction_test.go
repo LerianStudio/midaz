@@ -18,7 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -152,12 +151,13 @@ func TestRevertTransaction_EligibilityGateIsShared(t *testing.T) {
 }
 
 // TestRevertTransactionV1_NeverDialsTheTracer proves the /v1 revert reaches the balance
-// read with a reserver that fails the test on any call: the /v1 pipeline never asks the
+// read with a tracer that fails the test on any call: the /v1 pipeline never asks the
 // tracer anything.
 func TestRevertTransactionV1_NeverDialsTheTracer(t *testing.T) {
 	reader := &revertReader{origin: revertibleOrigin()}
 	uc := newRevertUseCase(t, reader)
-	uc.TracerReserver = &forbiddenReserver{t: t}
+	// No expectation is registered, so any tracer call fails the test.
+	uc.ContextTracer, _ = newCompletionTestCoordinator(t)
 
 	_, _, err := uc.RevertTransactionV1(context.Background(), revertInput())
 
@@ -194,24 +194,24 @@ func TestRevertTransactionV1_GroupRequiresV2(t *testing.T) {
 // TestRevertV2_NeverAppliesFees.
 func TestRevertTransactionV2_NeverTouchesOriginReservation(t *testing.T) {
 	reader := &revertReader{origin: revertibleOrigin()}
-	reader.settings.Tracer = mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen}
+	reader.settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{uuid.New()}}}
+	reserver := &stubContextTracer{}
 
 	uc := newRevertUseCase(t, reader)
 	engine := &scriptedEngine{}
 	uc.Engine = engine
 	uc.AppliedTransactionCompleter = &createAppliedTransactionCompleter{}
-	uc.TracerReserver = reserver
+	uc.ContextTracer = reserver.coordinatorFor(t)
 
 	_, _, err := uc.RevertTransactionV2(context.Background(), revertInput())
 
 	require.ErrorIs(t, err, errBalancesUnavailable, "the /v2 revert must reach the balance read")
-	assert.Equal(t, 0, reserver.reserveCalls, "the reserve anchor sits after the balance staging, which failed here")
+	assert.Empty(t, reserver.reserves(), "the reserve anchor sits after the balance staging, which failed here")
 	assert.Empty(t, engine.requests, "the failed balance read must stop before engine execution")
 
-	assert.Empty(t, reserver.releasedIDs, "a revert must never release the origin's reservation")
-	assert.Empty(t, reserver.confirmedIDs, "a revert must never confirm the origin's reservation")
+	assert.Empty(t, reserver.releasedTransactions(), "a revert must never release the origin's reservation")
+	assert.Empty(t, reserver.confirmedTransactions(), "a revert must never confirm the origin's reservation")
 }
 
 // TestRevertTransaction_MissingTransactionIsNotFound proves the gate reports not-found

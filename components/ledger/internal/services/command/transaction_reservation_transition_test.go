@@ -94,48 +94,38 @@ func TestLostConfirmIsReportedWithTheTransactionAndAmount(t *testing.T) {
 	_, span := noop.NewTracerProvider().Tracer("t").Start(ctx, "test")
 
 	transactionID := uuid.New()
-	reservationID := uuid.New()
 	amount := decimal.RequireFromString("1234.56")
+	settings := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, TimeoutMs: stubContextTracerTimeoutMs}
 
-	t.Run("by reservation id", func(t *testing.T) {
-		logger := &capturingLogger{}
-		reserver := &stubReserver{confirmErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
-		uc := &UseCase{TracerReserver: reserver}
+	for name, confirm := range map[string]func(uc *UseCase, logger libLog.Logger){
+		"after a direct create": func(uc *UseCase, logger libLog.Logger) {
+			uc.confirmReservations(ctx, span, logger, reservationHandle{
+				ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: settings},
+				TransactionID:  transactionID,
+				Amount:         amount,
+				Asset:          "BRL",
+			})
+		},
+		"at commit": func(uc *UseCase, logger libLog.Logger) {
+			uc.confirmReservationsByTransaction(ctx, span, logger, settings,
+				reservationHandle{TransactionID: transactionID, Amount: amount, Asset: "BRL"}, false)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			logger := &capturingLogger{}
+			stub := &stubContextTracer{completeErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
+			uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
 
-		uc.confirmReservations(ctx, span, logger, reservationHandle{
-			ReservationIDs: []uuid.UUID{reservationID},
-			TransactionID:  transactionID,
-			Amount:         amount,
-			Asset:          "BRL",
+			confirm(uc, logger)
+
+			reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelWarn))
+			require.NotEmpty(t, reported, "a lost confirm must be reported at Warn or a more severe level")
+
+			assert.Contains(t, reported, transactionID.String(), "the report must name the transaction whose spend went uncounted")
+			assert.Contains(t, reported, "1234.56", "the report must name how much spending went uncounted")
+			assert.Contains(t, reported, "BRL", "the report must name the asset the amount is denominated in")
 		})
-
-		reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelWarn))
-		require.NotEmpty(t, reported, "a lost confirm must be reported at Warn or a more severe level")
-
-		assert.Contains(t, reported, transactionID.String(), "the report must name the transaction whose spend went uncounted")
-		assert.Contains(t, reported, reservationID.String(), "the report must name the reservation that still holds capacity")
-		assert.Contains(t, reported, "1234.56", "the report must name how much spending went uncounted")
-		assert.Contains(t, reported, "BRL", "the report must name the asset the amount is denominated in")
-	})
-
-	t.Run("by transaction id", func(t *testing.T) {
-		logger := &capturingLogger{}
-		reserver := &stubReserver{confirmByTxnErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, span, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce},
-			reservationHandle{TransactionID: transactionID, Amount: amount, Asset: "BRL"}, false)
-
-		reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelWarn))
-		require.NotEmpty(t, reported, "a lost by-transaction confirm must be reported at Warn or a more severe level")
-
-		assert.Contains(t, reported, transactionID.String())
-		assert.Contains(t, reported, "1234.56")
-		assert.Contains(t, reported, "BRL")
-		assert.NotContains(t, reported, uuid.Nil.String(),
-			"the by-transaction form holds no reservation id and must not log a nil uuid that reads like a real handle")
-	})
+	}
 }
 
 // TestReserveHandleCarriesTheIdentityItWillNeedToReport proves the identity is
@@ -144,24 +134,20 @@ func TestLostConfirmIsReportedWithTheTransactionAndAmount(t *testing.T) {
 func TestReserveHandleCarriesTheIdentityItWillNeedToReport(t *testing.T) {
 	ctx, span, logger := anchorDeps()
 
-	transactionID := uuid.New()
-	ids := []uuid.UUID{uuid.New()}
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: ids}}
-	uc := &UseCase{TracerReserver: reserver}
+	stub := &stubContextTracer{}
+	uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
+	transaction, validated, balances := anchorPrepared()
+	input := anchorInput(enforceSettings(mmodel.TracerFailPostureOpen), false)
+	input.Amount = decimal.RequireFromString("42.50")
 
-	out := uc.reserveTransaction(ctx, span, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		transactionID, decimal.RequireFromString("42.50"), "USD", fixedReserveAccountID,
-		fixedReserveTimestamp, reservationTTLDefault, false)
+	out := uc.reservePreparedTransaction(ctx, span, logger, input, transaction, validated, balances)
 
 	require.Equal(t, reservationProceed, out.Kind)
-	assert.Equal(t, transactionID, out.Handle.TransactionID)
+	assert.Equal(t, input.Key.TransactionID, out.Handle.TransactionID)
 	assert.True(t, decimal.RequireFromString("42.50").Equal(out.Handle.Amount))
-	assert.Equal(t, "USD", out.Handle.Asset)
+	assert.Equal(t, "BRL", out.Handle.Asset)
 
-	transitions := out.Handle.transitions(reservationActionConfirm)
-	require.Len(t, transitions, 1)
-	assert.Equal(t, reservationActionConfirm, transitions[0].Action)
-	assert.Equal(t, ids[0], transitions[0].ReservationID)
-	assert.False(t, transitions[0].byTransaction())
+	transition := out.Handle.transitionByTransaction(reservationActionConfirm)
+	assert.Equal(t, reservationActionConfirm, transition.Action)
+	assert.Equal(t, input.Key.TransactionID, transition.TransactionID)
 }

@@ -7,9 +7,11 @@ package tracer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -20,16 +22,26 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-// ContextHTTPClient uses the existing reservation URLs with the shared contract.
-// Legacy completion calls remain explicit on TracerClient.
+// ContextHTTPClient uses the reservation URLs with the shared contract and
+// authenticates every call with an M2M bearer token.
 type ContextHTTPClient struct {
 	transport *TracerClient
 	config    ContextClientConfig
+	tokens    TokenSource
 }
 
-func NewContextHTTPClient(baseURL string, config ContextClientConfig, options ...TracerClientOption) (*ContextHTTPClient, error) {
+// AuthorizationHeader carries the M2M bearer token on the REST seam.
+const AuthorizationHeader = "Authorization"
+
+const bearerPrefix = "Bearer "
+
+func NewContextHTTPClient(baseURL string, config ContextClientConfig, tokens TokenSource, options ...TracerClientOption) (*ContextHTTPClient, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
+	}
+
+	if tokens == nil {
+		return nil, errors.New("context REST tracer requires a token source")
 	}
 
 	transport, err := NewTracerClient(baseURL, options...)
@@ -37,7 +49,9 @@ func NewContextHTTPClient(baseURL string, config ContextClientConfig, options ..
 		return nil, err
 	}
 
-	return &ContextHTTPClient{transport: transport, config: config}, nil
+	transport.headerHook = bearerHeaderHook(tokens)
+
+	return &ContextHTTPClient{transport: transport, config: config, tokens: tokens}, nil
 }
 
 func (c *ContextHTTPClient) Reserve(ctx context.Context, request tracercontract.ReserveRequest) (_ *tracercontract.ReserveResult, retErr error) {
@@ -137,55 +151,122 @@ func (c *ContextHTTPClient) complete(ctx context.Context, transactionID uuid.UUI
 	return result, nil
 }
 
+// exchange posts body and returns the response when it carries
+// expectedStatus. A 401 reports the rejected token and, when the token source
+// can offer a different one, retries once within the same operation deadline:
+// the Tracer rejected the request before evaluating it, so a retry cannot
+// apply it twice. A retry that fails in transport keeps the 401 in its chain.
 func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []byte, expectedStatus int) ([]byte, error) {
 	if len(body) > c.config.MaxBodyBytes {
 		return nil, constant.ErrPayloadTooLarge
 	}
 
+	invalidator, canRenew := c.tokens.(TokenInvalidator)
+
+	var rejection error
+
+	for {
+		status, raw, sentToken, err := c.post(ctx, path, body)
+		if err != nil {
+			if rejection != nil {
+				return nil, fmt.Errorf("%w; after %w", err, rejection)
+			}
+
+			return nil, err
+		}
+
+		if status == expectedStatus {
+			return raw, nil
+		}
+
+		responseErr := contextHTTPResponseError(status, raw)
+
+		if status == http.StatusUnauthorized && rejection == nil && canRenew && invalidator.Invalidate(sentToken) {
+			rejection = responseErr
+
+			continue
+		}
+
+		return nil, responseErr
+	}
+}
+
+// post performs one bounded round trip and returns the status, the body and
+// the bearer token the request presented.
+func (c *ContextHTTPClient) post(ctx context.Context, path string, body []byte) (int, []byte, string, error) {
 	response, err := c.transport.post(ctx, path, body)
 	if err != nil {
-		return nil, err
+		return 0, nil, "", err
 	}
 
 	defer func() { _ = response.Body.Close() }()
 
 	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(c.config.MaxBodyBytes)+1))
 	if err != nil {
-		return nil, fmt.Errorf("%w: read response: %w", ErrTracerUnavailable, err)
+		return 0, nil, "", fmt.Errorf("%w: read response: %w", ErrTracerUnavailable, err)
 	}
 
 	if len(raw) > c.config.MaxBodyBytes {
-		return nil, fmt.Errorf("%w: response exceeds configured limit", ErrTracerUnavailable)
+		return 0, nil, "", fmt.Errorf("%w: response exceeds configured limit", ErrTracerUnavailable)
 	}
 
-	if response.StatusCode != expectedStatus {
-		return nil, contextHTTPResponseError(response.StatusCode, raw)
+	var sentToken string
+	if response.Request != nil {
+		sentToken = strings.TrimPrefix(response.Request.Header.Get(AuthorizationHeader), bearerPrefix)
 	}
 
-	return raw, nil
+	return response.StatusCode, raw, sentToken, nil
 }
 
+// contextHTTPResponseError classifies a non-success status. Only a canonical
+// code the seam recognizes makes a response deterministic: a refusal before
+// evaluation (0043, 0487, 0527) wraps ErrTracerRequestRejected, and the other
+// recognized codes keep their own meaning. Any other status of 300 or above is
+// ErrTracerUnavailable whatever its value: a bare 4xx or a redirect comes from
+// something other than a Tracer that evaluated the request (a mesh denial, an
+// ingress default backend, a pod without the route during a rollout), so the
+// fail posture and the retrier decide. A 401 additionally names the token the
+// Tracer no longer accepts so the caller can renew it, and a 429 is saturation
+// whatever code it carries.
 func contextHTTPResponseError(status int, body []byte) error {
+	if status == http.StatusUnauthorized {
+		return fmt.Errorf("%w: %w: HTTP %d", ErrTracerUnavailable, constant.ErrTracerTokenUnavailable, status)
+	}
+
 	if status == http.StatusTooManyRequests {
 		return fmt.Errorf("%w: HTTP %d", ErrTracerUnavailable, status)
 	}
 
-	// Canonical codes distinguish unusable policy/configuration from a service
-	// outage even when both use HTTP 503. Never copy remote error text.
+	// Never copy remote error text.
 	var envelope struct {
 		Code string `json:"code"`
 	}
 	if json.Unmarshal(body, &envelope) == nil {
-		for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrContextLimitsUnavailable, constant.ErrExpressionCostExceeded, constant.ErrExpressionEvaluation, constant.ErrInvalidRequestBody, constant.ErrPayloadTooLarge, constant.ErrReserveOperationConflict} {
-			if envelope.Code == cause.Error() {
-				return cause
-			}
+		if cause := seamCause(envelope.Code); cause != nil {
+			return cause
 		}
 	}
 
-	if status >= http.StatusInternalServerError || status == http.StatusRequestTimeout {
+	if status >= http.StatusMultipleChoices {
 		return fmt.Errorf("%w: HTTP %d", ErrTracerUnavailable, status)
 	}
 
 	return fmt.Errorf("tracer contract returned HTTP %d", status)
+}
+
+func bearerHeaderHook(tokens TokenSource) func(context.Context, http.Header) error {
+	return func(ctx context.Context, header http.Header) error {
+		token, err := tokens.Token(ctx)
+		if err != nil {
+			return err
+		}
+
+		if token == "" {
+			return constant.ErrTracerTokenUnavailable
+		}
+
+		header.Set(AuthorizationHeader, bearerPrefix+token)
+
+		return nil
+	}
 }

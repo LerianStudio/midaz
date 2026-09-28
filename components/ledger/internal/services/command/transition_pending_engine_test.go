@@ -274,8 +274,8 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, test.status)
 			acknowledger := uc.EngineRecoveryAcknowledger.(*recordingEngineRecoveryAcknowledger)
 			reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
-			reserver := &stubReserver{}
-			uc.TracerReserver = reserver
+			reserver := &stubContextTracer{}
+			uc.ContextTracer = reserver.coordinatorFor(t)
 			ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-transition")
 			ctx = libObservability.ContextWithHeaderID(ctx, "request-transition")
 
@@ -306,14 +306,14 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 				assert.Equal(t, uuid.Version(5), uuid.MustParse(row.ID).Version())
 			}
 			if !test.version2 {
-				assert.Empty(t, reserver.confirmedTxns)
-				assert.Empty(t, reserver.releasedTxns)
+				assert.Empty(t, reserver.confirmedTransactions())
+				assert.Empty(t, reserver.releasedTransactions())
 			} else if test.status == constant.APPROVED {
-				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
-				assert.Empty(t, reserver.releasedTxns)
+				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTransactions())
+				assert.Empty(t, reserver.releasedTransactions())
 			} else {
-				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.releasedTxns)
-				assert.Empty(t, reserver.confirmedTxns)
+				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.releasedTransactions())
+				assert.Empty(t, reserver.confirmedTransactions())
 			}
 		})
 	}
@@ -329,8 +329,8 @@ func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10.000"}, nil).
 		Times(1)
 	reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
-	reserver := &stubReserver{}
-	uc.TracerReserver = reserver
+	reserver := &stubContextTracer{}
+	uc.ContextTracer = reserver.coordinatorFor(t)
 
 	got, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-single-execution"), in)
 	require.NoError(t, err)
@@ -344,8 +344,8 @@ func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	}, *executor.requests[0].Execution.Transactions[0].AccountBlockException)
 	payload := mustCreateEngineRecovery(t, executor.requests[0])
 	assert.Equal(t, fixedPendingCreatedAt, payload.TransactionCreatedAt)
-	assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
-	assert.Empty(t, reserver.releasedTxns)
+	assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTransactions())
+	assert.Empty(t, reserver.releasedTransactions())
 	assert.Len(t, finalizer.envelopes, 1)
 }
 
@@ -437,8 +437,8 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 				Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10"}, nil).
 				Times(1)
 			reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
-			reserver := &stubReserver{}
-			uc.TracerReserver = reserver
+			reserver := &stubContextTracer{}
+			uc.ContextTracer = reserver.coordinatorFor(t)
 			if test.executorErr != nil {
 				executor.before = func(EngineExecution) error { return test.executorErr }
 			}
@@ -454,11 +454,11 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, tran)
 				assert.Len(t, finalizer.envelopes, 1)
-				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
+				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTransactions())
 			} else {
 				require.Error(t, err)
 				assert.Empty(t, finalizer.envelopes)
-				assert.Empty(t, reserver.confirmedTxns)
+				assert.Empty(t, reserver.confirmedTransactions())
 			}
 		})
 	}

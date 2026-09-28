@@ -274,7 +274,7 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	tran *transaction.Transaction,
 	status string,
 ) {
-	if tran == nil || tran.TracerSkipped || (uc.TracerReserver == nil && uc.ContextTracer == nil) {
+	if tran == nil || tran.TracerSkipped || uc.ContextTracer == nil {
 		return
 	}
 
@@ -301,25 +301,7 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 		action = reservationActionRelease
 	}
 
-	if uc.ContextTracer != nil {
-		uc.completeContextReservation(ctx, span, logger, mmodel.TracerSettings{}, identity, action)
-		return
-	}
-
-	settle := uc.TracerReserver.ConfirmByTransaction
-	if action == reservationActionRelease {
-		settle = uc.TracerReserver.ReleaseByTransaction
-	}
-
-	if err := settle(ctx, transactionID); err != nil {
-		uc.recordReservationByTransactionFailure(
-			ctx,
-			span,
-			logger,
-			identity.transitionByTransaction(action),
-			err,
-		)
-	}
+	uc.completeContextReservation(ctx, span, logger, mmodel.TracerSettings{}, identity, action)
 }
 
 func atomicTransactionBatchRecoveryResponses(

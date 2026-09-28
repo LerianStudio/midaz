@@ -21,7 +21,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -184,7 +183,7 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 		Times(1)
 	origin := revertEngineOrigin(organizationID, ledgerID, originID)
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 	reader := &revertEngineReader{
 		revertReader: &revertReader{origin: origin, versionReader: versionReader{settings: settings}},
 		balances: []*mmodel.Balance{
@@ -195,11 +194,10 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	executor := &revertLiteralEngine{t: t}
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	acknowledger := &recordingEngineRecoveryAcknowledger{}
-	reservationID := uuid.MustParse("66666666-6666-4666-8666-666666666666")
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	reserver := &stubContextTracer{}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: finalizer, ContextTracer: reserver.coordinatorFor(t),
 		EngineRecoveryAcknowledger: acknowledger,
 	}
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-revert")
@@ -245,9 +243,10 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	assert.Equal(t, "revert-request", payload.HeaderID)
 	assert.Equal(t, "tenant-revert", payload.TenantID)
 
-	assert.Equal(t, 1, reserver.reserveCalls)
-	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
-	assert.Empty(t, reserver.releasedIDs)
+	require.Len(t, reserver.reserves(), 1)
+	assert.Equal(t, []uuid.UUID{reserver.reserves()[0].TransactionID}, reserver.confirmedTransactions())
+	assert.NotContains(t, reserver.confirmedTransactions(), originID, "the revert confirms its own admission, never the origin's")
+	assert.Empty(t, reserver.releasedTransactions())
 	select {
 	case <-idempotencySet:
 	case <-time.After(time.Second):
@@ -271,7 +270,7 @@ func TestRevertTransactionV2GrantRefusalReleasesClaimAndReservation(t *testing.T
 		Times(1)
 
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 	reader := &revertEngineReader{
 		revertReader: &revertReader{
 			origin:        revertEngineOrigin(organizationID, ledgerID, originID),
@@ -286,12 +285,11 @@ func TestRevertTransactionV2GrantRefusalReleasesClaimAndReservation(t *testing.T
 		Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: 0,
 		BalanceRef: "@payee#default",
 	}}
-	reservationID := uuid.MustParse("87777777-7777-4777-8777-777777777777")
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	reserver := &stubContextTracer{}
 	finalizer := &createAppliedTransactionCompleter{}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: finalizer, ContextTracer: reserver.coordinatorFor(t),
 	}
 
 	got, replayed, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
@@ -304,8 +302,9 @@ func TestRevertTransactionV2GrantRefusalReleasesClaimAndReservation(t *testing.T
 	assert.False(t, replayed)
 	require.Len(t, executor.requests, 1)
 	require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
-	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
-	assert.Empty(t, reserver.confirmedIDs)
+	require.Len(t, reserver.reserves(), 1)
+	assert.Equal(t, []uuid.UUID{reserver.reserves()[0].TransactionID}, reserver.releasedTransactions())
+	assert.Empty(t, reserver.confirmedTransactions())
 	assert.Empty(t, finalizer.envelopes)
 }
 

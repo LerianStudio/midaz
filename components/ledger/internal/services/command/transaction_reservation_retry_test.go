@@ -6,10 +6,13 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,9 +24,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // fastRetryPolicy is the shipped policy compressed so a test finishes in
@@ -63,46 +68,17 @@ func withFastSharedRetrier(t *testing.T) {
 	})
 }
 
-// scriptedReserver is a TracerReserver whose confirm behaviour a test scripts.
-// It records every call so the number of attempts is assertable.
+// scriptedReserver is a completion transport whose confirm behaviour a test
+// scripts. It records every call so the number of attempts is assertable.
 type scriptedReserver struct {
 	mu sync.Mutex
 
-	confirmCalls     int
 	confirmByTxn     int
-	releaseCalls     int
 	releaseByTxn     int
 	confirmDelivered bool
 
 	// confirm returns the error for attempt n (1-indexed); nil means accept.
 	confirm func(attempt int) error
-}
-
-func (s *scriptedReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
-	return &tracer.ReserveResult{}, nil
-}
-
-func (s *scriptedReserver) Confirm(_ context.Context, _ uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.confirmCalls++
-
-	err := s.confirm(s.confirmCalls)
-	if err == nil {
-		s.confirmDelivered = true
-	}
-
-	return err
-}
-
-func (s *scriptedReserver) Release(_ context.Context, _ uuid.UUID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.releaseCalls++
-
-	return nil
 }
 
 func (s *scriptedReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
@@ -132,7 +108,52 @@ func (s *scriptedReserver) attempts() (int, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.confirmCalls + s.confirmByTxn, s.confirmDelivered
+	return s.confirmByTxn, s.confirmDelivered
+}
+
+// fixedTestToken is the bearer token the REST retry tests present.
+type fixedTestToken struct{}
+
+func (fixedTestToken) Token(context.Context) (string, error) { return "test-token", nil }
+
+// contextHTTPRetryTransport redelivers a transition through the real
+// contextual REST client, so a test exercises its own timeouts and error
+// classification.
+func contextHTTPRetryTransport(t *testing.T, baseURL string, logger libLog.Logger, transition reservationTransition) reservationCompletionTransport {
+	t.Helper()
+
+	bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
+	client, err := tracer.NewContextHTTPClient(baseURL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, fixedTestToken{})
+	require.NoError(t, err)
+
+	coordinator, err := NewContextTracerCoordinator(client, &stubContextTracer{}, ContextTracerConfig{Bounds: bounds, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
+	require.NoError(t, err)
+
+	return contextTracerRetryTransport{coordinator: coordinator, logger: logger, transition: transition}
+}
+
+// writeCompletion answers a by-transaction completion with the echo the
+// contextual client validates.
+func writeCompletion(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(parts) != 5 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	transactionID, err := uuid.Parse(parts[3])
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	status := "CONFIRMED"
+	if parts[4] == reservationActionRelease {
+		status = "RELEASED"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(completionResult(transactionID, status))
 }
 
 // failNTimes accepts only after n refusals.
@@ -154,7 +175,6 @@ func retryTransition() reservationTransition {
 	return reservationTransition{
 		Action:        reservationActionConfirm,
 		TransactionID: uuid.New(),
-		ReservationID: uuid.New(),
 		Amount:        decimal.RequireFromString("1234.56"),
 		Asset:         "BRL",
 	}
@@ -197,25 +217,25 @@ func TestRetryDeliversAConfirmThatTimedOut(t *testing.T) {
 		mu.Unlock()
 
 		if stall {
-			// Hold the request open until the client's deadline cancels it.
+			// Drain the body so the server can observe the client hanging up,
+			// then hold the request open until the client's deadline cancels it.
+			_, _ = io.Copy(io.Discard, r.Body)
 			<-r.Context().Done()
 
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
+		writeCompletion(w, r)
 	}))
 	defer server.Close()
 
-	client, err := tracer.NewTracerClient(server.URL)
-	require.NoError(t, err)
-
 	logger := &capturingLogger{}
+	transition := retryTransition()
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	started := time.Now()
-	retrier.schedule(context.Background(), client, logger,
-		retryTransition(), fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+	retrier.schedule(context.Background(), contextHTTPRetryTransport(t, server.URL, logger, transition), logger,
+		transition, fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
 	mu.Lock()
@@ -314,7 +334,7 @@ func TestShippedRetryBudgetOutlastsTheDirectHold(t *testing.T) {
 
 // TestRetryReportsATransitionItCannotDeliver is the visibility floor. When every
 // attempt fails there IS a lost spend, and it must be legible: severity at least
-// Warn, naming the transaction, the reservation and the amount.
+// Warn, naming the transaction and the amount.
 func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	// A closed port: the dial is refused immediately, so the sequence exhausts
 	// its attempts without waiting on any timeout.
@@ -324,14 +344,11 @@ func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	closedAddr := listener.Addr().String()
 	require.NoError(t, listener.Close())
 
-	client, err := tracer.NewTracerClient("http://" + closedAddr)
-	require.NoError(t, err)
-
 	logger := &capturingLogger{}
 	transition := retryTransition()
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), client, logger, transition,
+	retrier.schedule(context.Background(), contextHTTPRetryTransport(t, "http://"+closedAddr, logger, transition), logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -341,7 +358,6 @@ func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	assert.Contains(t, reported, "could not be delivered")
 	assert.Contains(t, reported, "will not be counted against the limit")
 	assert.Contains(t, reported, transition.TransactionID.String())
-	assert.Contains(t, reported, transition.ReservationID.String())
 	assert.Contains(t, reported, "1234.56")
 	assert.Contains(t, reported, "BRL")
 
@@ -362,16 +378,13 @@ func TestRetryReportsALostReleaseAsHeldCapacity(t *testing.T) {
 	closedAddr := listener.Addr().String()
 	require.NoError(t, listener.Close())
 
-	client, err := tracer.NewTracerClient("http://" + closedAddr)
-	require.NoError(t, err)
-
 	logger := &capturingLogger{}
 
 	transition := retryTransition()
 	transition.Action = reservationActionRelease
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), client, logger, transition,
+	retrier.schedule(context.Background(), contextHTTPRetryTransport(t, "http://"+closedAddr, logger, transition), logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -509,11 +522,7 @@ type tenantSpy struct {
 	calls int
 }
 
-func (s *tenantSpy) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
-	return &tracer.ReserveResult{}, nil
-}
-
-func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
+func (s *tenantSpy) ConfirmByTransaction(ctx context.Context, _ uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -527,8 +536,6 @@ func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (s *tenantSpy) Release(_ context.Context, _ uuid.UUID) error              { return nil }
-func (s *tenantSpy) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
 func (s *tenantSpy) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
 
 func (s *tenantSpy) tenants() []string {
@@ -609,7 +616,6 @@ func TestShutdownNamesTheTransitionsItAbandons(t *testing.T) {
 
 	assert.Contains(t, reported, "abandoned at shutdown")
 	assert.Contains(t, reported, stranded.TransactionID.String())
-	assert.Contains(t, reported, stranded.ReservationID.String())
 	assert.Contains(t, reported, "1234.56")
 	assert.Contains(t, reported, "the spend will not be counted against the limit")
 }
@@ -634,53 +640,46 @@ func TestShutdownIsSilentWhenNothingIsOwed(t *testing.T) {
 // the seams the transaction pipelines call must route a failure into the shared
 // retrier rather than swallowing it.
 func TestAnchorHandsAFailedTransitionToTheRetrier(t *testing.T) {
-	withFastSharedRetrier(t)
-
 	ctx := context.Background()
 	_, span := noop.NewTracerProvider().Tracer("t").Start(ctx, "test")
+	settings := mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, TimeoutMs: stubContextTracerTimeoutMs}
 
-	t.Run("direct create, by reservation id", func(t *testing.T) {
-		reserver := &scriptedReserver{confirm: failNTimes(1)}
-		uc := &UseCase{TracerReserver: reserver}
+	for name, confirm := range map[string]func(uc *UseCase, transactionID uuid.UUID){
+		"direct create": func(uc *UseCase, transactionID uuid.UUID) {
+			uc.confirmReservations(ctx, span, &capturingLogger{}, reservationHandle{
+				ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: settings},
+				TransactionID:  transactionID,
+				Amount:         decimal.RequireFromString("400.00"),
+				Asset:          "BRL",
+			})
+		},
+		"pending commit": func(uc *UseCase, transactionID uuid.UUID) {
+			uc.confirmReservationsByTransaction(ctx, span, &capturingLogger{}, settings,
+				reservationHandle{TransactionID: transactionID, Amount: decimal.RequireFromString("250.00"), Asset: "BRL"}, false)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFastSharedRetrier(t)
 
-		uc.confirmReservations(ctx, span, &capturingLogger{}, reservationHandle{
-			ReservationIDs: []uuid.UUID{uuid.New()},
-			TransactionID:  uuid.New(),
-			Amount:         decimal.RequireFromString("400.00"),
-			Asset:          "BRL",
+			transactionID := uuid.New()
+			coordinator, client := newCompletionTestCoordinator(t)
+			gomock.InOrder(
+				client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(nil, tracer.ErrTracerUnavailable),
+				client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(completionResult(transactionID, "CONFIRMED"), nil),
+			)
+
+			confirm(&UseCase{ContextTracer: coordinator}, transactionID)
+			sharedReservationRetrier.wait()
 		})
-
-		sharedReservationRetrier.wait()
-
-		attempts, delivered := reserver.attempts()
-		assert.True(t, delivered, "the spend reaches the tracer on the retry")
-		assert.Equal(t, 2, attempts, "one inline attempt plus one retry")
-	})
-
-	t.Run("pending commit, by transaction id", func(t *testing.T) {
-		reserver := &scriptedReserver{confirm: failNTimes(1)}
-		uc := &UseCase{TracerReserver: reserver}
-
-		uc.confirmReservationsByTransaction(ctx, span, &capturingLogger{},
-			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce},
-			reservationHandle{
-				TransactionID: uuid.New(),
-				Amount:        decimal.RequireFromString("250.00"),
-				Asset:         "BRL",
-			}, false)
-
-		sharedReservationRetrier.wait()
-
-		attempts, delivered := reserver.attempts()
-		assert.True(t, delivered)
-		assert.Equal(t, 2, attempts)
-	})
+	}
 
 	t.Run("a tracer that is off schedules nothing", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: nil}
+		withFastSharedRetrier(t)
+
+		uc := &UseCase{}
 
 		uc.confirmReservations(ctx, span, &capturingLogger{}, reservationHandle{
-			ReservationIDs: []uuid.UUID{uuid.New()},
+			ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: settings},
 			TransactionID:  uuid.New(),
 		})
 

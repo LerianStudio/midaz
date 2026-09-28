@@ -19,32 +19,32 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockContextTracerReserver is a mock of ContextTracerReserver interface.
-type MockContextTracerReserver struct {
+// MockContextTracerClient is a mock of ContextTracerClient interface.
+type MockContextTracerClient struct {
 	ctrl     *gomock.Controller
-	recorder *MockContextTracerReserverMockRecorder
+	recorder *MockContextTracerClientMockRecorder
 	isgomock struct{}
 }
 
-// MockContextTracerReserverMockRecorder is the mock recorder for MockContextTracerReserver.
-type MockContextTracerReserverMockRecorder struct {
-	mock *MockContextTracerReserver
+// MockContextTracerClientMockRecorder is the mock recorder for MockContextTracerClient.
+type MockContextTracerClientMockRecorder struct {
+	mock *MockContextTracerClient
 }
 
-// NewMockContextTracerReserver creates a new mock instance.
-func NewMockContextTracerReserver(ctrl *gomock.Controller) *MockContextTracerReserver {
-	mock := &MockContextTracerReserver{ctrl: ctrl}
-	mock.recorder = &MockContextTracerReserverMockRecorder{mock}
+// NewMockContextTracerClient creates a new mock instance.
+func NewMockContextTracerClient(ctrl *gomock.Controller) *MockContextTracerClient {
+	mock := &MockContextTracerClient{ctrl: ctrl}
+	mock.recorder = &MockContextTracerClientMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockContextTracerReserver) EXPECT() *MockContextTracerReserverMockRecorder {
+func (m *MockContextTracerClient) EXPECT() *MockContextTracerClientMockRecorder {
 	return m.recorder
 }
 
 // ConfirmByTransaction mocks base method.
-func (m *MockContextTracerReserver) ConfirmByTransaction(arg0 context.Context, arg1 uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
+func (m *MockContextTracerClient) ConfirmByTransaction(arg0 context.Context, arg1 uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConfirmByTransaction", arg0, arg1)
 	ret0, _ := ret[0].(*tracercontract.TransactionCompletionResult)
@@ -53,13 +53,13 @@ func (m *MockContextTracerReserver) ConfirmByTransaction(arg0 context.Context, a
 }
 
 // ConfirmByTransaction indicates an expected call of ConfirmByTransaction.
-func (mr *MockContextTracerReserverMockRecorder) ConfirmByTransaction(arg0, arg1 any) *gomock.Call {
+func (mr *MockContextTracerClientMockRecorder) ConfirmByTransaction(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmByTransaction", reflect.TypeOf((*MockContextTracerReserver)(nil).ConfirmByTransaction), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmByTransaction", reflect.TypeOf((*MockContextTracerClient)(nil).ConfirmByTransaction), arg0, arg1)
 }
 
 // ReleaseByTransaction mocks base method.
-func (m *MockContextTracerReserver) ReleaseByTransaction(arg0 context.Context, arg1 uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
+func (m *MockContextTracerClient) ReleaseByTransaction(arg0 context.Context, arg1 uuid.UUID) (*tracercontract.TransactionCompletionResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReleaseByTransaction", arg0, arg1)
 	ret0, _ := ret[0].(*tracercontract.TransactionCompletionResult)
@@ -68,13 +68,13 @@ func (m *MockContextTracerReserver) ReleaseByTransaction(arg0 context.Context, a
 }
 
 // ReleaseByTransaction indicates an expected call of ReleaseByTransaction.
-func (mr *MockContextTracerReserverMockRecorder) ReleaseByTransaction(arg0, arg1 any) *gomock.Call {
+func (mr *MockContextTracerClientMockRecorder) ReleaseByTransaction(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseByTransaction", reflect.TypeOf((*MockContextTracerReserver)(nil).ReleaseByTransaction), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseByTransaction", reflect.TypeOf((*MockContextTracerClient)(nil).ReleaseByTransaction), arg0, arg1)
 }
 
 // Reserve mocks base method.
-func (m *MockContextTracerReserver) Reserve(arg0 context.Context, arg1 tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+func (m *MockContextTracerClient) Reserve(arg0 context.Context, arg1 tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reserve", arg0, arg1)
 	ret0, _ := ret[0].(*tracercontract.ReserveResult)
@@ -83,9 +83,9 @@ func (m *MockContextTracerReserver) Reserve(arg0 context.Context, arg1 tracercon
 }
 
 // Reserve indicates an expected call of Reserve.
-func (mr *MockContextTracerReserverMockRecorder) Reserve(arg0, arg1 any) *gomock.Call {
+func (mr *MockContextTracerClientMockRecorder) Reserve(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reserve", reflect.TypeOf((*MockContextTracerReserver)(nil).Reserve), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reserve", reflect.TypeOf((*MockContextTracerClient)(nil).Reserve), arg0, arg1)
 }
 
 // MockTracerFactsLoader is a mock of TracerFactsLoader interface.

@@ -45,7 +45,7 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	ledgerID := uuid.MustParse("b2222222-2222-4222-8222-222222222222")
 	reader := &pendingLifecycleReader{
 		client:   inspector,
-		settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
+		settings: mmodel.LedgerSettings{Tracer: pendingLifecycleTracerSettings()},
 		balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "b3333333-3333-4333-8333-333333333333", "b4444444-4444-4444-8444-444444444444", "@source", 100, 7),
 			adapterCreateBalance(organizationID, ledgerID, "b5555555-5555-4555-8555-555555555555", "b6666666-6666-4666-8666-666666666666", "@target", 20, 3),
@@ -65,13 +65,13 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	require.NoError(t, err)
 	executor := &recordingCreateAdapter{delegate: realAdapter}
 	finalizer := &adapterCreateFinalizer{}
-	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("b7777777-7777-4777-8777-777777777777")}
+	tracerControl := &pendingLifecycleTracer{}
 	uc := &command.UseCase{
 		TransactionRedisRepo:        idempotency,
 		TransactionReader:           reader,
 		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
-		TracerReserver:              tracerControl,
+		ContextTracer:               tracerControl.coordinator(t),
 	}
 
 	date := time.Date(2026, time.September, 8, 18, 0, 0, 0, time.UTC)
@@ -112,8 +112,6 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	require.Len(t, executor.inputs, 1)
 	require.Nil(t, finalizer.envelope)
 	require.Len(t, tracerControl.reserveRequests, 1)
-	require.Empty(t, tracerControl.confirmedIDs)
-	require.Empty(t, tracerControl.releasedIDs)
 	require.Empty(t, tracerControl.confirmedTxns)
 	require.Empty(t, tracerControl.releasedTxns)
 	require.Equal(t, 1, proxy.count("EVALSHA"))

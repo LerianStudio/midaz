@@ -36,38 +36,36 @@ type stubReservationServer struct {
 	reservationv1.UnimplementedReservationServiceServer
 
 	reserveFn              func(*reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error)
-	confirmByIDFn          func(*reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error)
-	releaseByIDFn          func(*reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error)
 	confirmByTransactionFn func(*reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error)
 	releaseByTransactionFn func(*reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error)
 
-	// captureMetadata, when set, receives the incoming metadata the Reserve RPC
-	// arrived with so a test can assert on tenant propagation.
+	// captureMetadata, when set, receives the incoming metadata every RPC
+	// arrived with so a test can assert on tenant and credential propagation.
 	captureMetadata func(metadata.MD)
 }
 
-func (s *stubReservationServer) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+func (s *stubReservationServer) capture(ctx context.Context) {
 	if s.captureMetadata != nil {
 		md, _ := metadata.FromIncomingContext(ctx)
 		s.captureMetadata(md)
 	}
+}
+
+func (s *stubReservationServer) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+	s.capture(ctx)
 
 	return s.reserveFn(req)
 }
 
-func (s *stubReservationServer) ConfirmById(_ context.Context, req *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
-	return s.confirmByIDFn(req)
-}
+func (s *stubReservationServer) ConfirmByTransaction(ctx context.Context, req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+	s.capture(ctx)
 
-func (s *stubReservationServer) ReleaseById(_ context.Context, req *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
-	return s.releaseByIDFn(req)
-}
-
-func (s *stubReservationServer) ConfirmByTransaction(_ context.Context, req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
 	return s.confirmByTransactionFn(req)
 }
 
-func (s *stubReservationServer) ReleaseByTransaction(_ context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+func (s *stubReservationServer) ReleaseByTransaction(ctx context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+	s.capture(ctx)
+
 	return s.releaseByTransactionFn(req)
 }
 
@@ -117,24 +115,15 @@ func TestNewTracerGRPCClient_EmptyTarget(t *testing.T) {
 	assert.Nil(t, client)
 }
 
-func TestNewTracerGRPCClient_ImplementsTracerReserver(t *testing.T) {
+func TestNewTracerGRPCClient_IsLazy(t *testing.T) {
 	t.Parallel()
 
 	// grpc.NewClient is lazy (no dial at construction), so this never blocks on
-	// reachability. The assignment proves the concrete type satisfies the port.
+	// reachability.
 	client, err := NewTracerGRPCClient("passthrough:///tracer:4020")
 	require.NoError(t, err)
 	require.NotNil(t, client)
-
-	t.Cleanup(func() { _ = client.Close() })
-
-	var _ interface {
-		Reserve(context.Context, ReserveRequest) (*ReserveResult, error)
-		Confirm(context.Context, uuid.UUID) error
-		Release(context.Context, uuid.UUID) error
-		ConfirmByTransaction(context.Context, uuid.UUID) error
-		ReleaseByTransaction(context.Context, uuid.UUID) error
-	} = client
+	require.NoError(t, client.Close())
 }
 
 func contextClientFixture(t *testing.T) (tracercontract.ReserveRequest, ContextClientConfig) {
@@ -211,151 +200,6 @@ func TestContextGRPCClientReserve(t *testing.T) {
 	}
 }
 
-func TestLegacyGRPCReserveCannotInventContext(t *testing.T) {
-	client := newTestGRPCClient(t, &stubReservationServer{})
-	result, err := client.Reserve(t.Context(), ReserveRequest{})
-	require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
-	require.Nil(t, result)
-}
-
-func TestTracerGRPCClient_Confirm(t *testing.T) {
-	t.Parallel()
-
-	reservationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
-
-	t.Run("success passes reservation id", func(t *testing.T) {
-		t.Parallel()
-
-		var captured *reservationv1.ConfirmByIdRequest
-
-		stub := &stubReservationServer{
-			confirmByIDFn: func(req *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
-				captured = req
-
-				return &reservationv1.ConfirmByIdResponse{}, nil
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		require.NoError(t, client.Confirm(context.Background(), reservationID))
-		require.NotNil(t, captured)
-		assert.Equal(t, reservationID.String(), captured.GetReservationId())
-	})
-
-	t.Run("unavailable maps to ErrTracerUnavailable", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			confirmByIDFn: func(_ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
-				return nil, status.Error(codes.Unavailable, "down")
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		err := client.Confirm(context.Background(), reservationID)
-		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrTracerUnavailable)
-	})
-
-	t.Run("not found surfaces verbatim", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			confirmByIDFn: func(_ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
-				return nil, status.Error(codes.NotFound, "no reservation")
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		err := client.Confirm(context.Background(), reservationID)
-		require.Error(t, err)
-		assert.NotErrorIs(t, err, ErrTracerUnavailable)
-		assert.Equal(t, codes.NotFound, status.Code(err))
-	})
-}
-
-func TestTracerGRPCClient_Release(t *testing.T) {
-	t.Parallel()
-
-	reservationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
-
-	var captured *reservationv1.ReleaseByIdRequest
-
-	stub := &stubReservationServer{
-		releaseByIDFn: func(req *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
-			captured = req
-
-			return &reservationv1.ReleaseByIdResponse{}, nil
-		},
-	}
-	client := newTestGRPCClient(t, stub)
-
-	require.NoError(t, client.Release(context.Background(), reservationID))
-	require.NotNil(t, captured)
-	assert.Equal(t, reservationID.String(), captured.GetReservationId())
-}
-
-func TestTracerGRPCClient_ConfirmByTransaction(t *testing.T) {
-	t.Parallel()
-
-	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-
-	t.Run("success passes transaction id", func(t *testing.T) {
-		t.Parallel()
-
-		var captured *reservationv1.ConfirmByTransactionRequest
-
-		stub := &stubReservationServer{
-			confirmByTransactionFn: func(req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
-				captured = req
-
-				return &reservationv1.ConfirmByTransactionResponse{}, nil
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		require.NoError(t, client.ConfirmByTransaction(context.Background(), transactionID))
-		require.NotNil(t, captured)
-		assert.Equal(t, transactionID.String(), captured.GetTransactionId())
-	})
-
-	t.Run("unavailable maps to ErrTracerUnavailable", func(t *testing.T) {
-		t.Parallel()
-
-		stub := &stubReservationServer{
-			confirmByTransactionFn: func(_ *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
-				return nil, status.Error(codes.Unavailable, "down")
-			},
-		}
-		client := newTestGRPCClient(t, stub)
-
-		err := client.ConfirmByTransaction(context.Background(), transactionID)
-		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrTracerUnavailable)
-	})
-}
-
-func TestTracerGRPCClient_ReleaseByTransaction(t *testing.T) {
-	t.Parallel()
-
-	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-
-	var captured *reservationv1.ReleaseByTransactionRequest
-
-	stub := &stubReservationServer{
-		releaseByTransactionFn: func(req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
-			captured = req
-
-			return &reservationv1.ReleaseByTransactionResponse{}, nil
-		},
-	}
-	client := newTestGRPCClient(t, stub)
-
-	require.NoError(t, client.ReleaseByTransaction(context.Background(), transactionID))
-	require.NotNil(t, captured)
-	assert.Equal(t, transactionID.String(), captured.GetTransactionId())
-}
-
 // TestTracerGRPCClient_PropagatesTenantMetadata pins trusted tenant propagation
 // on the gRPC transport: when the request context carries a tenant, the client
 // appends it to the outgoing metadata under the lower-cased TenantHeader key,
@@ -427,12 +271,17 @@ func TestMapGRPCError(t *testing.T) {
 		{"canceled", status.Error(codes.Canceled, "x"), true},
 		{"context deadline", context.DeadlineExceeded, true},
 		{"context canceled", context.Canceled, true},
-		{"not found", status.Error(codes.NotFound, "x"), false},
+		{"not found", status.Error(codes.NotFound, "x"), true},
 		{"internal", status.Error(codes.Internal, "x"), true},
 		{"unknown", status.Error(codes.Unknown, "x"), true},
 		{"resource exhausted", status.Error(codes.ResourceExhausted, "x"), true},
 		{"deterministic resource exhausted", status.Error(codes.ResourceExhausted, constant.ErrInvalidRequestBody.Error()), false},
-		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false},
+		{"invalid argument", status.Error(codes.InvalidArgument, "x"), true},
+		{"permission denied", status.Error(codes.PermissionDenied, "x"), true},
+		{"failed precondition", status.Error(codes.FailedPrecondition, "x"), true},
+		{"already exists", status.Error(codes.AlreadyExists, "x"), true},
+		{"unauthenticated", status.Error(codes.Unauthenticated, "x"), true},
+		{"unimplemented", status.Error(codes.Unimplemented, "x"), true},
 		{"plain error", errors.New("x"), true},
 	}
 
@@ -459,6 +308,48 @@ func TestMapGRPCErrorPreservesCanonicalCause(t *testing.T) {
 	err = mapGRPCError(status.Error(codes.FailedPrecondition, constant.ErrReserveOperationConflict.Error()))
 	require.ErrorIs(t, err, constant.ErrReserveOperationConflict)
 	require.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
+// TestMapGRPCErrorClassifiesPreEvaluationRejections pins the gRPC side of the
+// seam classification the REST client shares: only a refusal named by a
+// recognized code wraps ErrTracerRequestRejected and the canonical cause; any
+// status without one is unavailable.
+func TestMapGRPCErrorClassifiesPreEvaluationRejections(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		err         error
+		rejected    bool
+		unavailable bool
+		cause       error
+	}{
+		{name: "unauthorized producer", err: status.Error(codes.PermissionDenied, constant.ErrInsufficientPrivileges.Error()), rejected: true, cause: constant.ErrInsufficientPrivileges},
+		{name: "permission denied without code", err: status.Error(codes.PermissionDenied, "denied"), unavailable: true},
+		{name: "missing tenant", err: status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error()), rejected: true, cause: constant.ErrReservationTenantRequired},
+		{name: "missing policy", err: status.Error(codes.FailedPrecondition, constant.ErrContextPolicyUnavailable.Error()), rejected: true, cause: constant.ErrContextPolicyUnavailable},
+		{name: "invalid argument without code", err: status.Error(codes.InvalidArgument, "x"), unavailable: true},
+		{name: "not found without code", err: status.Error(codes.NotFound, "x"), unavailable: true},
+		{name: "failed precondition without code", err: status.Error(codes.FailedPrecondition, "x"), unavailable: true},
+		{name: "already exists without code", err: status.Error(codes.AlreadyExists, "x"), unavailable: true},
+		{name: "invalid request body", err: status.Error(codes.InvalidArgument, constant.ErrInvalidRequestBody.Error()), cause: constant.ErrInvalidRequestBody},
+		{name: "tenant service unavailable", err: status.Error(codes.Unavailable, constant.ErrTenantServiceUnavailable.Error()), unavailable: true},
+		{name: "unauthenticated", err: status.Error(codes.Unauthenticated, "x"), unavailable: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := mapGRPCError(tt.err)
+			require.Equal(t, tt.rejected, errors.Is(got, ErrTracerRequestRejected))
+			require.Equal(t, tt.unavailable, errors.Is(got, ErrTracerUnavailable))
+
+			if tt.cause != nil {
+				require.ErrorIs(t, got, tt.cause)
+			}
+		})
+	}
 }
 
 func TestContextGRPCClientCompletion(t *testing.T) {

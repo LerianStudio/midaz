@@ -27,7 +27,6 @@ import (
 var versionedSeams = []string{
 	"resolveTransactionSkips",
 	"applyFees",
-	"reserveTransaction",
 	"reservePreparedTransaction",
 	"confirmReservations",
 	"releaseReservations",

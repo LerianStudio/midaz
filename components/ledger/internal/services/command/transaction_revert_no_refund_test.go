@@ -10,11 +10,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -31,33 +29,27 @@ import (
 func TestRevertNoReservationRefund(t *testing.T) {
 	ctx, sp, logger := anchorDeps()
 
-	// The "original" transaction's reservation — the one a buggy refund would
-	// release/confirm. We assert it is never referenced.
-	originalReservationID := uuid.New()
+	// The "original" transaction — the one a buggy refund would release or
+	// confirm. We assert it is never addressed.
+	originalTransactionID := uuid.New()
 
-	// The revert path delegates to executeCreateTransaction, whose reserve
-	// anchor issues a NEW reserve for the reverse transaction. Model that the
-	// reverse transaction reserves on its own and capture which ids the ledger
-	// later confirms/releases.
-	reverseReservationID := uuid.New()
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reverseReservationID}}}
-	uc := &UseCase{TracerReserver: reserver}
+	// The revert path admits the reverse transaction on its own, then confirms
+	// that admission after its commit.
+	stub := &stubContextTracer{}
+	uc := &UseCase{ContextTracer: stub.coordinatorFor(t)}
+	transaction, validated, balances := anchorPrepared()
+	input := anchorInput(enforceSettings(mmodel.TracerFailPostureOpen), false)
 
-	// Reserve for the reverse transaction (what the revert's executeCreateTransaction does).
-	out := uc.reserveTransaction(ctx, sp, logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+	out := uc.reservePreparedTransaction(ctx, sp, logger, input, transaction, validated, balances)
 	require.Equal(t, reservationProceed, out.Kind)
 
-	// On a successful reverse-transaction commit the ledger confirms the
-	// REVERSE reservation — never the original.
 	uc.confirmReservations(ctx, sp, logger, out.Handle)
 
-	require.Equal(t, []uuid.UUID{reverseReservationID}, reserver.confirmedIDs,
+	require.Equal(t, []uuid.UUID{input.Key.TransactionID}, stub.confirmedTransactions(),
 		"a revert confirms its own reverse-transaction reservation")
-	assert.NotContains(t, reserver.confirmedIDs, originalReservationID,
+	assert.NotContains(t, stub.confirmedTransactions(), originalTransactionID,
 		"a revert must NEVER confirm the original transaction's reservation")
-	assert.NotContains(t, reserver.releasedIDs, originalReservationID,
+	assert.NotContains(t, stub.releasedTransactions(), originalTransactionID,
 		"a revert must NEVER release the original transaction's reservation (Q9 no-refund)")
 }
 
@@ -71,9 +63,9 @@ func TestRevertNoReservationRefund_StructuralGuard(t *testing.T) {
 
 	fn := findFuncDecl(t, src, "prepareRevertTransaction")
 
-	// Every TracerReserver refund method: the single-reservation pair the direct
-	// create path holds inline, and the by-transaction pair the PENDING lifecycle
-	// uses. A revert may call none of them against the original reservation.
+	// Every completion method, including the by-transaction pair the PENDING
+	// lifecycle uses. A revert may call none of them against the original
+	// reservation.
 	refunds := []string{"Release", "Confirm", "ReleaseByTransaction", "ConfirmByTransaction"}
 
 	ast.Inspect(fn, func(n ast.Node) bool {

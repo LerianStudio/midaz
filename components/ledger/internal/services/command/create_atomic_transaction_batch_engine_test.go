@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 type refusingAtomicTransactionBatchEngine struct {
@@ -97,7 +97,7 @@ func TestCreateAtomicTransactionBatchV2_ExecutesOneOrderedEngineRequest(t *testi
 
 	requests, confirmed, released := reserver.snapshot()
 	assert.Equal(t, transactionIDs, atomicTransactionBatchTracerRequestIDs(requests))
-	assert.Equal(t, atomicTransactionBatchExecutionReservationIDs(), confirmed)
+	assert.Equal(t, transactionIDs, confirmed)
 	assert.Empty(t, released)
 	assert.True(t, engine.sawAdmissionSink)
 	require.NotEmpty(t, engine.admissionTokens)
@@ -146,7 +146,7 @@ func TestCreateAtomicTransactionBatchV2_ConfirmedRefusalAbortsAndCorrelatesFirst
 	assert.Zero(t, repository.deletes)
 	_, confirmed, released := reserver.snapshot()
 	assert.Empty(t, confirmed)
-	assert.Equal(t, atomicTransactionBatchExecutionReservationIDs(), released)
+	assert.Equal(t, transactionIDs, released)
 	assert.Zero(t, atomicTransactionBatchProtectionStore(t, uc).ownedAccounts())
 }
 
@@ -168,7 +168,7 @@ func TestCreateAtomicTransactionBatchV2_PrecommitTechnicalRefusalReleasesClaim(t
 	assert.Equal(t, transactionIDs, repository.abortTransactionIDs)
 	_, confirmed, released := reserver.snapshot()
 	assert.Empty(t, confirmed)
-	assert.Equal(t, atomicTransactionBatchExecutionReservationIDs(), released)
+	assert.Equal(t, transactionIDs, released)
 }
 
 func TestCreateAtomicTransactionBatchV2_ProtectedRefusalRetainsIdentityAndReservations(t *testing.T) {
@@ -235,21 +235,28 @@ func TestCreateAtomicTransactionBatchV2_IndeterminateOutcomeRetainsProtectionWit
 }
 
 func TestExecuteAtomicTransactionBatch_EngineNeverCalledReleasesReservations(t *testing.T) {
+	withFastSharedRetrier(t)
+
 	reserver := &atomicTransactionBatchTracerFake{}
-	uc := &UseCase{TracerReserver: reserver}
+	uc := &UseCase{ContextTracer: reserver.coordinatorFor(t)}
 	run := atomicTransactionBatchTracerTestRun(2)
-	reservationIDs := atomicTransactionBatchExecutionReservationIDs()
+	transactionIDs := make([]uuid.UUID, 0, len(run.items))
 	for index := range run.items {
-		run.items[index].tracerReservation = reservationHandle{ReservationIDs: []uuid.UUID{reservationIDs[index]}, TransactionID: run.items[index].transactionID}
+		run.items[index].tracerReservation = reservationHandle{
+			ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: run.ledgerSettings.Tracer},
+			TransactionID:  run.items[index].transactionID,
+		}
+		transactionIDs = append(transactionIDs, run.items[index].transactionID)
 	}
 	ctx, span, logger := anchorDeps()
 
 	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, PreparedEngineExecution{}, nil)
 	require.Error(t, err)
 	require.False(t, outcome.Executed)
+	sharedReservationRetrier.wait()
 	_, confirmed, released := reserver.snapshot()
 	assert.Empty(t, confirmed)
-	assert.Equal(t, reservationIDs, released, "an engine that never ran moved no money")
+	assert.Equal(t, transactionIDs, released, "an engine that never ran moved no money")
 }
 
 func atomicTransactionBatchExecutionFixture(
@@ -270,8 +277,10 @@ func atomicTransactionBatchExecutionFixture(
 	executionID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000e6")
 	settings := mmodel.LedgerSettings{}
 	settings.Tracer = mmodel.TracerSettings{
-		Mode:        mmodel.TracerModeEnforce,
-		FailPosture: mmodel.TracerFailPostureClosed,
+		Mode:           mmodel.TracerModeEnforce,
+		FailPosture:    mmodel.TracerFailPostureClosed,
+		ValidationMode: string(tracercontract.ValidationLimits),
+		TimeoutMs:      stubContextTracerTimeoutMs,
 	}
 	reader := &atomicTransactionBatchSettingsReader{
 		settings:        settings,
@@ -291,7 +300,7 @@ func atomicTransactionBatchExecutionFixture(
 			outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
 		},
 		EngineRecoveryAcknowledger: &recordingEngineRecoveryAcknowledger{},
-		TracerReserver:             reserver,
+		ContextTracer:              reserver.coordinatorFor(t),
 		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
 			t,
 			batchID,
@@ -327,19 +336,7 @@ func atomicTransactionBatchProtectionStore(t *testing.T, uc *UseCase) *accountCl
 }
 
 func atomicTransactionBatchExecutionReserver() *atomicTransactionBatchTracerFake {
-	reservationIDs := atomicTransactionBatchExecutionReservationIDs()
-
-	return &atomicTransactionBatchTracerFake{results: []*tracer.ReserveResult{
-		{ReservationIDs: []uuid.UUID{reservationIDs[0]}},
-		{ReservationIDs: []uuid.UUID{reservationIDs[1]}},
-	}}
-}
-
-func atomicTransactionBatchExecutionReservationIDs() []uuid.UUID {
-	return []uuid.UUID{
-		uuid.MustParse("01994f13-29b7-7000-8000-0000000000eb"),
-		uuid.MustParse("01994f13-29b7-7000-8000-0000000000ec"),
-	}
+	return &atomicTransactionBatchTracerFake{}
 }
 
 func atomicTransactionBatchEngineTransactionIDs(execution EngineExecution) []uuid.UUID {

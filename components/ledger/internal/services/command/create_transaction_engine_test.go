@@ -20,7 +20,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -386,17 +385,16 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	source := translationBalance(organizationID, ledgerID, "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "@source", constant.DefaultBalanceKey)
 	target := translationBalance(organizationID, ledgerID, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "@target", constant.DefaultBalanceKey)
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	feeApplier := &fakeFeeApplier{}
-	reservationID := uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	reserver := &stubContextTracer{}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer,
-		FeeApplier: feeApplier, TracerReserver: reserver,
+		FeeApplier: feeApplier, ContextTracer: reserver.coordinatorFor(t),
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 13, 45, 0, 0, time.UTC)
@@ -411,9 +409,9 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	assert.False(t, replayed)
 	require.NotNil(t, got)
 	assert.Equal(t, 1, feeApplier.calls)
-	assert.Equal(t, 1, reserver.reserveCalls)
-	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
-	assert.Empty(t, reserver.releasedIDs)
+	require.Len(t, reserver.reserves(), 1)
+	assert.Equal(t, []uuid.UUID{reserver.reserves()[0].TransactionID}, reserver.confirmedTransactions())
+	assert.Empty(t, reserver.releasedTransactions())
 	require.Len(t, executor.requests, 1)
 	assert.Equal(t, int64(1), executor.requests[0].Execution.Balances[0].Version)
 	require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
@@ -447,7 +445,7 @@ func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *test
 	organizationID := uuid.MustParse("12121212-1212-4212-8212-121212121212")
 	ledgerID := uuid.MustParse("34343434-3434-4434-8434-343434343434")
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{
 		translationBalance(organizationID, ledgerID, "56565656-5656-4656-8656-565656565656", "@source", constant.DefaultBalanceKey),
 		translationBalance(organizationID, ledgerID, "78787878-7878-4878-8878-787878787878", "@target", constant.DefaultBalanceKey),
@@ -455,11 +453,10 @@ func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *test
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.PENDING}}
 	acknowledger := &recordingEngineRecoveryAcknowledger{}
-	reservationID := uuid.MustParse("90909090-9090-4090-8090-909090909090")
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	reserver := &stubContextTracer{}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: finalizer, ContextTracer: reserver.coordinatorFor(t),
 		EngineRecoveryAcknowledger: acknowledger,
 	}
 
@@ -478,9 +475,10 @@ func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *test
 	require.NotNil(t, got)
 	assert.Equal(t, constant.PENDING, got.Status.Code)
 	assert.Equal(t, input.Send.Value, got.Body.Send.Value)
-	assert.Equal(t, 1, reserver.reserveCalls)
-	assert.Empty(t, reserver.confirmedIDs)
-	assert.Empty(t, reserver.releasedIDs)
+	require.Len(t, reserver.reserves(), 1)
+	assert.True(t, *reserver.reserves()[0].LongLived, "a pending admission asks for the long-lived hold")
+	assert.Empty(t, reserver.confirmedTransactions())
+	assert.Empty(t, reserver.releasedTransactions())
 	require.Len(t, executor.requests, 1)
 	require.Len(t, acknowledger.completions, 1)
 	assert.Equal(t, constant.PENDING, acknowledger.completions[0].Outcome.TransactionStatus)
@@ -623,17 +621,16 @@ func TestCreateTransactionV2GrantFailureCleanupBoundary(t *testing.T) {
 				Times(1)
 
 			settings := mmodel.LedgerSettings{}
-			settings.Tracer.Mode = mmodel.TracerModeEnforce
+			settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 			reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{
 				translationBalance(organizationID, ledgerID, "94444444-4444-4444-8444-444444444444", "@source", constant.DefaultBalanceKey),
 				translationBalance(organizationID, ledgerID, "95555555-5555-4555-8555-555555555555", "@target", constant.DefaultBalanceKey),
 			}}
 			executor := &createEngineErrorExecutor{err: test.executeErr}
-			reservationID := uuid.MustParse("96666666-6666-4666-8666-666666666666")
-			reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+			reserver := &stubContextTracer{}
 			uc := &UseCase{
 				TransactionRedisRepo: redisRepo, TransactionReader: reader,
-				Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{}, TracerReserver: reserver,
+				Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{}, ContextTracer: reserver.coordinatorFor(t),
 			}
 
 			_, replayed, err := uc.CreateTransactionV2(
@@ -655,11 +652,12 @@ func TestCreateTransactionV2GrantFailureCleanupBoundary(t *testing.T) {
 				assert.ErrorIs(t, err, technicalFailure)
 			}
 			if test.wantRelease {
-				assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
+				require.Len(t, reserver.reserves(), 1)
+				assert.Equal(t, []uuid.UUID{reserver.reserves()[0].TransactionID}, reserver.releasedTransactions())
 			} else {
-				assert.Empty(t, reserver.releasedIDs)
+				assert.Empty(t, reserver.releasedTransactions())
 			}
-			assert.Empty(t, reserver.confirmedIDs)
+			assert.Empty(t, reserver.confirmedTransactions())
 		})
 	}
 }

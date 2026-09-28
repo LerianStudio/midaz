@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
@@ -21,8 +22,9 @@ import (
 	operationPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 type atomicTransactionBatchRecoveryRepositoryFake struct {
@@ -78,7 +80,7 @@ func (repository *atomicTransactionBatchRecoveryRepositoryFake) CaptureAtomicTra
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesDirectWithoutProjectionRead(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
 	fixture.repository.candidate.Candidate = false
 
@@ -94,7 +96,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesDirectWitho
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesPendingHoldWithoutProjectionRead(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
 	fixture.repository.candidate.Candidate = false
 	pending := constant.PENDING
@@ -113,7 +115,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesPendingHold
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesCanceledGroupMember(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
 	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateApplied
 	fixture.repository.candidate.Candidate = false
@@ -135,7 +137,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesCanceledGro
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCanceledStatusDrift(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
 	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateApplied
 	fixture.completion.Outcome.TransactionStatus = constant.CANCELED
@@ -190,7 +192,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsStatusOutsideT
 		{name: "cancel approved a member", lifecycle: txRedis.AtomicTransactionBatchLifecycleCancel, status: constant.APPROVED},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := atomicTransactionBatchRecoveryFixture(false)
+			fixture := atomicTransactionBatchRecoveryFixture(t, false)
 			fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
 			fixture.repository.candidate.Record.LifecycleAction = test.lifecycle
 			fixture.completion.Outcome.TransactionStatus = test.status
@@ -205,7 +207,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsStatusOutsideT
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCommittedStatusDrift(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
 	fixture.repository.candidate.Record.LifecycleAction = txRedis.AtomicTransactionBatchLifecycleCommit
 	pending := constant.PENDING
@@ -318,39 +320,40 @@ type atomicTransactionBatchRecoveryTracerFake struct {
 
 func (*atomicTransactionBatchRecoveryTracerFake) Reserve(
 	context.Context,
-	tracer.ReserveRequest,
-) (*tracer.ReserveResult, error) {
+	tracercontract.ReserveRequest,
+) (*tracercontract.ReserveResult, error) {
 	return nil, errors.New("unexpected recovery reservation")
 }
 
-func (*atomicTransactionBatchRecoveryTracerFake) Confirm(context.Context, uuid.UUID) error {
-	return errors.New("unexpected recovery confirmation by reservation")
-}
-
-func (*atomicTransactionBatchRecoveryTracerFake) Release(context.Context, uuid.UUID) error {
-	return errors.New("unexpected recovery release")
+func (*atomicTransactionBatchRecoveryTracerFake) EvaluationContext(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	[]traceradapter.PreparedEntry,
+) (tracercontract.Context, error) {
+	return tracercontract.Context{}, errors.New("unexpected recovery facts read")
 }
 
 func (fake *atomicTransactionBatchRecoveryTracerFake) ConfirmByTransaction(
 	_ context.Context,
 	transactionID uuid.UUID,
-) error {
+) (*tracercontract.TransactionCompletionResult, error) {
 	fake.confirmed = append(fake.confirmed, transactionID)
 
-	return nil
+	return completionResult(transactionID, "CONFIRMED"), nil
 }
 
 func (fake *atomicTransactionBatchRecoveryTracerFake) ReleaseByTransaction(
 	_ context.Context,
 	transactionID uuid.UUID,
-) error {
+) (*tracercontract.TransactionCompletionResult, error) {
 	fake.released = append(fake.released, transactionID)
 
-	return nil
+	return completionResult(transactionID, "RELEASED"), nil
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_NonBatchPreservesLegacyAck(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate = nil
 
 	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
@@ -366,7 +369,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_NonBatchPreservesLega
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_UsesRecordedCoordinationScope(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate = nil
 	coordinationLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000100")
 	raw, err := json.Marshal(fixture.record)
@@ -385,7 +388,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_UsesRecordedCoordinat
 	require.Equal(t, [4]uuid.UUID{fixture.organizationID, coordinationLedgerID, fixture.executionID, fixture.transactionIDs[0]}, fixture.repository.identity)
 
 	// Records written before this fix continue to resolve through their own scope.
-	legacy := atomicTransactionBatchRecoveryFixture(false)
+	legacy := atomicTransactionBatchRecoveryFixture(t, false)
 	legacy.repository.candidate = nil
 	prepared, err = legacy.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), legacy.record, legacy.completion)
 	require.NoError(t, err)
@@ -394,7 +397,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_UsesRecordedCoordinat
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_IntermediateMemberAvoidsFullRead(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Candidate = false
 
 	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
@@ -417,7 +420,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_IntermediateMemberAvo
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_LastMemberReadsOnceAndRestoresCreated(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Candidate = true
 	fixture.repository.candidate.ReceiptToken = `{"executionId":"receipt-token"}`
 	fixture.reader.transactions = []*transactionPostgres.Transaction{
@@ -460,7 +463,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_LastMemberReadsOnceAn
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_DuplicateCompleteSkipsReadAndTracerSkipDoesNoWork(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(true)
+	fixture := atomicTransactionBatchRecoveryFixture(t, true)
 	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateComplete
 
 	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
@@ -476,7 +479,7 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_DuplicateCompleteSkip
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsProjectionOutsideScope(t *testing.T) {
-	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture := atomicTransactionBatchRecoveryFixture(t, false)
 	fixture.repository.candidate.Candidate = true
 	fixture.repository.candidate.ReceiptToken = "receipt"
 	fixture.reader.transactions = []*transactionPostgres.Transaction{
@@ -506,7 +509,9 @@ type atomicTransactionBatchRecoveryTestFixture struct {
 	transactionIDs []uuid.UUID
 }
 
-func atomicTransactionBatchRecoveryFixture(tracerSkipped bool) atomicTransactionBatchRecoveryTestFixture {
+func atomicTransactionBatchRecoveryFixture(t *testing.T, tracerSkipped bool) atomicTransactionBatchRecoveryTestFixture {
+	t.Helper()
+
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000101")
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000102")
 	executionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000103")
@@ -532,6 +537,8 @@ func atomicTransactionBatchRecoveryFixture(tracerSkipped bool) atomicTransaction
 	}
 	reader := &atomicTransactionBatchProjectionReaderFake{}
 	tracerFake := &atomicTransactionBatchRecoveryTracerFake{}
+	coordinator, err := NewContextTracerCoordinator(tracerFake, tracerFake, ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
+	require.NoError(t, err)
 	current := atomicTransactionBatchRecoveredProjection(
 		organizationID,
 		ledgerID,
@@ -555,7 +562,7 @@ func atomicTransactionBatchRecoveryFixture(tracerSkipped bool) atomicTransaction
 		useCase: &UseCase{
 			AtomicTransactionBatchIdempotencyRepo:  repository,
 			AtomicTransactionBatchProjectionReader: reader,
-			TracerReserver:                         tracerFake,
+			ContextTracer:                          coordinator,
 		},
 		repository:     repository,
 		reader:         reader,

@@ -11,34 +11,23 @@ import (
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
-// TracerGRPCClient is the ledger-side gRPC client for the tracer reservation
-// service. It implements the same TracerReserver port the REST client does, so
-// the reserve anchor stays transport-agnostic; buildTracerReserver selects which
-// concrete implementation to wire from cfg.TracerTransport. The connection is
-// persistent (one grpc.ClientConn for the client's lifetime) and instrumented
-// with the otelgrpc client stats handler so the ledger transaction-create trace
-// continues across the seam.
+// TracerGRPCClient is the gRPC transport under ContextGRPCClient. The
+// connection is persistent (one grpc.ClientConn for the client's lifetime) and
+// instrumented with the otelgrpc client stats handler so the ledger
+// transaction-create trace continues across the seam.
 //
-// Transport / availability failures (a dial error, an Unavailable / DeadlineExceeded
-// status, a cancelled context) are mapped to ErrTracerUnavailable so the reserve
-// anchor can apply tracer.failPosture, identically to the REST client. A business
-// DENIED decision is a successful Reserve return (ReserveResult.Denied=true), not
-// an error.
+// Every failure without a recognized canonical code (a dial error, any status,
+// a cancelled context) is mapped to ErrTracerUnavailable by mapGRPCError so the
+// reserve anchor can apply tracer.failPosture, identically to the REST client.
 type TracerGRPCClient struct {
 	conn             *grpc.ClientConn
 	client           reservationv1.ReservationServiceClient
@@ -129,109 +118,6 @@ func (c *TracerGRPCClient) Close() error {
 	return c.conn.Close()
 }
 
-// Reserve holds limit capacity for a transaction (phase one). A DENIED decision
-// comes back as a successful ReserveResult with Denied=true (not an error); only
-// transport / availability failures return ErrTracerUnavailable.
-func (c *TracerGRPCClient) Reserve(_ context.Context, _ ReserveRequest) (*ReserveResult, error) {
-	// A legacy envelope has no authenticated producer identity or complete facts.
-	// Never manufacture a context or send it under the replacement wire contract.
-	return nil, constant.ErrInvalidRequestBody
-}
-
-// Confirm commits a held reservation by id (phase two — commit).
-func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "tracer.grpc_client.confirm")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	_, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
-	if err != nil {
-		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation confirm transport failed", mapped)
-
-		return mapped
-	}
-
-	return nil
-}
-
-// Release returns a held reservation's capacity by id (phase two — abort).
-func (c *TracerGRPCClient) Release(ctx context.Context, reservationID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "tracer.grpc_client.release")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	_, err := c.client.ReleaseById(ctx, &reservationv1.ReleaseByIdRequest{ReservationId: reservationID.String()})
-	if err != nil {
-		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation release transport failed", mapped)
-
-		return mapped
-	}
-
-	return nil
-}
-
-// ConfirmByTransaction commits every reservation a transaction holds (phase two
-// — commit by transaction).
-func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "tracer.grpc_client.confirm_by_transaction")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	_, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
-	if err != nil {
-		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation confirm-by-transaction transport failed", mapped)
-
-		return mapped
-	}
-
-	return nil
-}
-
-// ReleaseByTransaction returns every reservation a transaction holds (phase two
-// — abort by transaction).
-func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "tracer.grpc_client.release_by_transaction")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	_, err := c.client.ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
-	if err != nil {
-		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation release-by-transaction transport failed", mapped)
-
-		return mapped
-	}
-
-	return nil
-}
-
 // tenantUnaryInterceptor propagates the request's tenant to the tracer as the
 // trusted x-tenant-id outgoing metadata on every RPC, mirroring the REST
 // client's TenantHeader injection. The value is resolved from context via
@@ -255,12 +141,13 @@ func tenantUnaryInterceptor(
 }
 
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
-// Availability-class status codes and
-// a context deadline / cancellation are folded into ErrTracerUnavailable so the
-// reserve anchor's fail-posture branch handles them, matching the REST client's
-// transport-failure normalisation. A ResourceExhausted response carrying a
-// canonical request error remains deterministic; otherwise server saturation
-// and opaque Internal/Unknown responses are availability failures.
+// Only a status whose message is a canonical code the seam recognizes is
+// deterministic, whatever its status code: a refusal before evaluation (0043,
+// 0487, 0527) wraps ErrTracerRequestRejected, as on the REST transport. Every
+// other failure, including PermissionDenied, InvalidArgument or NotFound
+// without a recognized code, is ErrTracerUnavailable: the answer did not come
+// from a Tracer that evaluated the request, so the fail posture and the
+// retrier decide.
 func mapGRPCError(err error) error {
 	if err == nil {
 		return nil
@@ -270,36 +157,11 @@ func mapGRPCError(err error) error {
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	}
 
-	grpcStatus, ok := status.FromError(err)
-	if ok {
-		if cause := grpcDeterministicCause(grpcStatus.Message()); cause != nil {
+	if grpcStatus, ok := status.FromError(err); ok {
+		if cause := seamCause(grpcStatus.Message()); cause != nil {
 			return cause
 		}
 	}
 
-	switch status.Code(err) {
-	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled, codes.Internal, codes.Unknown, codes.ResourceExhausted:
-		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
-	default:
-		return err
-	}
-}
-
-func grpcDeterministicCause(message string) error {
-	for _, cause := range []error{
-		constant.ErrContextPolicyUnavailable,
-		constant.ErrContextLimitsUnavailable,
-		constant.ErrExpressionCostExceeded,
-		constant.ErrExpressionEvaluation,
-		constant.ErrInvalidRequestBody,
-		constant.ErrPayloadTooLarge,
-		constant.ErrReserveOperationConflict,
-		constant.ErrTracerContractUnavailable,
-	} {
-		if message == cause.Error() {
-			return cause
-		}
-	}
-
-	return nil
+	return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 }

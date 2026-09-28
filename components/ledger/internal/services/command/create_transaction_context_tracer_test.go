@@ -37,7 +37,7 @@ func TestCreateContextTracerCompletesAfterAccounting(t *testing.T) {
 			t.Setenv("AUDIT_LOG_ENABLED", "false")
 			withFastSharedRetrier(t)
 			ctrl := gomock.NewController(t)
-			client, loader := NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl)
+			client, loader := NewMockContextTracerClient(ctrl), NewMockTracerFactsLoader(ctrl)
 			redisRepo := txRedis.NewMockRedisRepository(ctrl)
 			organizationID := uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 			ledgerID := uuid.MustParse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")

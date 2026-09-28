@@ -115,7 +115,7 @@ func atomicTransactionBatchFailureSettlement(outcome EngineExecutionOutcome) ato
 func atomicTransactionBatchHoldsReservations(run *atomicTransactionBatchRun) bool {
 	for index := range run.items {
 		handle := run.items[index].tracerReservation
-		if len(handle.ReservationIDs) > 0 || (handle.ContextAttempt != nil && handle.ContextAttempt.Dispatched) {
+		if handle.ContextAttempt != nil && handle.ContextAttempt.Dispatched {
 			return true
 		}
 	}

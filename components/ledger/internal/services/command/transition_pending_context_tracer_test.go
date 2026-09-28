@@ -42,11 +42,9 @@ func TestPendingContextCompletionDeliversByTransaction(t *testing.T) {
 				reader.persisted.Body.Skip = &mtransaction.TransactionSkip{Tracer: true}
 				reader.loaded.Body.Skip = &mtransaction.TransactionSkip{Tracer: true}
 			}
-			legacy := &stubReserver{}
-			uc.TracerReserver = legacy
 			ctrl := gomock.NewController(t)
-			client := NewMockContextTracerReserver(ctrl)
-			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+			client := NewMockContextTracerClient(ctrl)
+			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 			require.NoError(t, err)
 			uc.ContextTracer = coordinator
 			evaluated := func(transactionID uuid.UUID, status string) *tracercontract.TransactionCompletionResult {
@@ -90,8 +88,6 @@ func TestPendingContextCompletionDeliversByTransaction(t *testing.T) {
 			require.NoError(t, err, "a completion failure never fails a transaction whose accounting has run")
 			sharedReservationRetrier.wait()
 			require.Len(t, engine.requests, 1)
-			require.Empty(t, legacy.confirmedTxns, "the context client owns by-transaction completion")
-			require.Empty(t, legacy.releasedTxns)
 		})
 	}
 }
@@ -106,8 +102,8 @@ func TestContextTracerCompleteRejectsMismatchedEcho(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			client := NewMockContextTracerReserver(ctrl)
-			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+			client := NewMockContextTracerClient(ctrl)
+			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 			require.NoError(t, err)
 			client.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(result, nil)
 			err = coordinator.Complete(t.Context(), transactionID, reservationActionConfirm, 0)
@@ -117,8 +113,8 @@ func TestContextTracerCompleteRejectsMismatchedEcho(t *testing.T) {
 
 	t.Run("unknown action", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		client := NewMockContextTracerReserver(ctrl)
-		coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+		client := NewMockContextTracerClient(ctrl)
+		coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 		require.NoError(t, err)
 		err = coordinator.Complete(t.Context(), transactionID, "revert", 0)
 		require.ErrorIs(t, err, constant.ErrTracerContractUnavailable, "an unknown action is rejected, never sent as a confirm")
@@ -127,8 +123,8 @@ func TestContextTracerCompleteRejectsMismatchedEcho(t *testing.T) {
 
 	t.Run("transport error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		client := NewMockContextTracerReserver(ctrl)
-		coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+		client := NewMockContextTracerClient(ctrl)
+		coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 		require.NoError(t, err)
 		cause := errors.New("connection reset")
 		client.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(nil, cause)

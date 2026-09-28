@@ -30,7 +30,7 @@ func TestCreateAtomicContextTracerCompletesAllMembers(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			withFastSharedRetrier(t)
 			ctrl := gomock.NewController(t)
-			client, loader := NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl)
+			client, loader := NewMockContextTracerClient(ctrl), NewMockTracerFactsLoader(ctrl)
 			engine := &applyingAtomicTransactionBatchEngine{t: t}
 			refusing := &refusingAtomicTransactionBatchEngine{transactionIndex: 1}
 			unknown := &scriptedEngine{responses: []engineResponse{{err: &indeterminateAtomicTransactionBatchError{cause: errors.New("response lost")}}}}
@@ -122,7 +122,7 @@ func TestCreateAtomicContextTracerCompletesAllMembers(t *testing.T) {
 
 func TestReserveAtomicContextBatchUsesEachLedgerScope(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	client, loader := NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl)
+	client, loader := NewMockContextTracerClient(ctrl), NewMockTracerFactsLoader(ctrl)
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000f1")
 	ledgerIDs := []uuid.UUID{
 		uuid.MustParse("01994f13-29b7-7000-8000-0000000000f2"),
@@ -141,6 +141,7 @@ func TestReserveAtomicContextBatchUsesEachLedgerScope(t *testing.T) {
 		balance.AccountType = "deposit"
 		entryAlias := "0#" + balance.Alias + "#" + balance.Key
 		item.input.Send.Source.From = []mtransaction.FromTo{{AccountAlias: entryAlias}}
+		item.input.Send.Distribute = mtransaction.Distribute{}
 		item.validate = &mtransaction.Responses{From: map[string]mtransaction.Amount{
 			entryAlias: {Value: item.input.Send.Value, Asset: item.input.Send.Asset},
 		}}
@@ -206,12 +207,11 @@ func TestAtomicContextBatchRecoveredMemberCompletesThroughContextClient(t *testi
 	for status, action := range map[string]string{constant.APPROVED: reservationActionConfirm, constant.CANCELED: reservationActionRelease} {
 		t.Run(status, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			client := NewMockContextTracerReserver(ctrl)
-			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+			client := NewMockContextTracerClient(ctrl)
+			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, fixedTracerClock)
 			require.NoError(t, err)
 
-			legacy := &stubReserver{}
-			uc := &UseCase{ContextTracer: coordinator, TracerReserver: legacy}
+			uc := &UseCase{ContextTracer: coordinator}
 			transactionID := uuid.New()
 
 			if action == reservationActionConfirm {
@@ -221,9 +221,6 @@ func TestAtomicContextBatchRecoveredMemberCompletesThroughContextClient(t *testi
 			}
 
 			uc.reconcileAtomicTransactionBatchRecoveredMember(context.Background(), &transaction.Transaction{ID: transactionID.String(), AssetCode: "BRL"}, status)
-
-			require.Empty(t, legacy.confirmedTxns, "a recovered context member must not settle through the legacy contract")
-			require.Empty(t, legacy.releasedTxns)
 		})
 	}
 }
