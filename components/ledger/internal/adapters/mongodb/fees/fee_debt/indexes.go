@@ -44,6 +44,23 @@ func EnsureIndexes(ctx context.Context, mc *mmongoDB.MongoConnection) error {
 			},
 			Options: options.Index().SetName("idx_fd_org_ledger_debtor_seq"),
 		},
+		{
+			Keys: bson.D{
+				{Key: "organization_id", Value: 1},
+				{Key: "ledger_id", Value: 1},
+				{Key: "debtor_balance_ref", Value: 1},
+				{Key: "remaining", Value: 1},
+			},
+			Options: options.Index().SetName("idx_fd_org_ledger_debtor_remaining"),
+		},
+		{
+			Keys: bson.D{
+				{Key: "organization_id", Value: 1},
+				{Key: "ledger_id", Value: 1},
+				{Key: "remaining", Value: 1},
+			},
+			Options: options.Index().SetName("idx_fd_org_ledger_remaining"),
+		},
 	})
 
 	return err

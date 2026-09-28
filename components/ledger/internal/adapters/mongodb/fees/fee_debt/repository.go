@@ -36,9 +36,20 @@ import (
 type ListQuery struct {
 	// DebtorBalanceRef ("alias#key") narrows the listing to one debtor; empty lists all.
 	DebtorBalanceRef string
+	Status           Status
 	Limit            int
 	Cursor           string
 }
+
+// Status narrows a listing to open debts, remaining above zero, or settled ones, the
+// rest; empty lists both. A change recorded before one it depends on can leave
+// remaining briefly below zero, and such a debt lists as settled.
+type Status string
+
+const (
+	StatusOpen    Status = "open"
+	StatusSettled Status = "settled"
+)
 
 // Repository is the Fees record of fee debts, one document per debt, and the
 // command.FeeDebtRecorder completion calls with each applied result's changes.
@@ -177,19 +188,11 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.Bool("app.request.filter_debtor", query.DebtorBalanceRef != ""),
+		attribute.String("app.request.status", string(query.Status)),
 		attribute.Int("app.request.limit", query.Limit),
 	)
 
-	filter := bson.D{
-		{Key: "organization_id", Value: organizationID.String()},
-		{Key: "ledger_id", Value: ledgerID.String()},
-	}
-	key := "_id"
-
-	if query.DebtorBalanceRef != "" {
-		filter = append(filter, bson.E{Key: "debtor_balance_ref", Value: query.DebtorBalanceRef})
-		key = "seq"
-	}
+	filter, key := listFilter(organizationID, ledgerID, query)
 
 	isFirstPage, direction, sortOrder := query.Cursor == "", libHTTP.CursorDirectionNext, 1
 
@@ -246,6 +249,81 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 	span.SetAttributes(attribute.Int("db.rows_returned", len(debts)))
 
 	return debts, pagination, nil
+}
+
+// OpenTotal sums the remaining of the debtor's open debts, over every page of its listing.
+func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uuid.UUID, debtorBalanceRef string) (decimal.Decimal, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.fee_debt.open_total")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	coll, err := r.collection(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve fee debt database", err)
+
+		return decimal.Zero, err
+	}
+
+	_, spanAggregate := tracer.Start(ctx, "repository.fee_debt.open_total.aggregate")
+	defer spanAggregate.End()
+
+	match, _ := listFilter(organizationID, ledgerID, ListQuery{DebtorBalanceRef: debtorBalanceRef, Status: StatusOpen})
+
+	cur, err := coll.Aggregate(ctx, mongo.Pipeline{
+		{{Key: "$match", Value: match}},
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: nil}, {Key: "total", Value: bson.D{{Key: "$sum", Value: "$remaining"}}}}}},
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanAggregate, "Failed to sum open fee debts", err)
+
+		return decimal.Zero, err
+	}
+
+	var totals []struct {
+		Total bson.Decimal128 `bson:"total"`
+	}
+
+	if err := cur.All(ctx, &totals); err != nil {
+		libOpentelemetry.HandleSpanError(spanAggregate, "Failed to decode the open fee debt total", err)
+
+		return decimal.Zero, err
+	}
+
+	if len(totals) == 0 {
+		return decimal.Zero, nil
+	}
+
+	return decimal.NewFromString(totals[0].Total.String())
+}
+
+// listFilter selects the listing's debts and names the key it pages on: seq within one
+// debtor, the debt id across the ledger.
+func listFilter(organizationID, ledgerID uuid.UUID, query ListQuery) (bson.D, string) {
+	filter := bson.D{
+		{Key: "organization_id", Value: organizationID.String()},
+		{Key: "ledger_id", Value: ledgerID.String()},
+	}
+	key := "_id"
+
+	if query.DebtorBalanceRef != "" {
+		filter = append(filter, bson.E{Key: "debtor_balance_ref", Value: query.DebtorBalanceRef})
+		key = "seq"
+	}
+
+	switch query.Status {
+	case StatusOpen:
+		filter = append(filter, bson.E{Key: "remaining", Value: bson.D{{Key: "$gt", Value: zeroDecimal128}}})
+	case StatusSettled:
+		filter = append(filter, bson.E{Key: "remaining", Value: bson.D{{Key: "$lte", Value: zeroDecimal128}}})
+	}
+
+	return filter, key
 }
 
 // collection is the fee_debt collection of the tenant's fee database in multi-tenant
@@ -393,6 +471,8 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 
 	return seed, filter, update, nil
 }
+
+var zeroDecimal128 = bson.NewDecimal128(0, 0)
 
 // decimal128 rounds d to the 34 significant digits a Decimal128 holds; the entry
 // keeps the exact amount as text.

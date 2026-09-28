@@ -2658,6 +2658,11 @@ components:
           examples:
             - eyJpZCI6IjAxOTI...
           type: string
+        openTotal:
+          description: What the debtor owes over all its open debts, not only this page; present only with account_alias
+          examples:
+            - "25"
+          type: string
         prev_cursor:
           examples:
             - eyJpZCI6IjAxOTE...
@@ -15320,6 +15325,13 @@ paths:
           name: balance_key
           schema:
             description: Debtor balance key; requires account_alias (default "default")
+            type: string
+        - description: "open: remaining above zero; settled: the rest. Absent lists both"
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: "open: remaining above zero; settled: the rest. Absent lists both"
             type: string
         - description: Number of items per page (default 10, max 100)
           explode: false

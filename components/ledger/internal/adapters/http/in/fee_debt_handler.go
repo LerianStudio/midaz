@@ -46,10 +46,11 @@ type FeeDebtEntryView struct {
 
 // FeeDebtListBody is the cursor-paginated fee debt listing, oldest first.
 type FeeDebtListBody struct {
-	Items      []*FeeDebtView `json:"items"`
-	Limit      int            `json:"limit" example:"10"`
-	NextCursor string         `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
-	PrevCursor string         `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+	Items      []*FeeDebtView   `json:"items"`
+	Limit      int              `json:"limit" example:"10"`
+	NextCursor string           `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
+	PrevCursor string           `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+	OpenTotal  *decimal.Decimal `json:"openTotal,omitempty" doc:"What the debtor owes over all its open debts, not only this page; present only with account_alias" example:"25"`
 }
 
 // ListFeeDebtsV2Request binds the listing query; the core validates it.
@@ -58,6 +59,7 @@ type ListFeeDebtsV2Request struct {
 
 	AccountAlias string `query:"account_alias" doc:"Only the debts of this debtor account, in settlement order"`
 	BalanceKey   string `query:"balance_key" doc:"Debtor balance key; requires account_alias (default \"default\")"`
+	Status       string `query:"status" doc:"open: remaining above zero; settled: the rest. Absent lists both"`
 	Limit        string `query:"limit" doc:"Number of items per page (default 10, max 100)"`
 	Cursor       string `query:"cursor" doc:"Opaque cursor from a previous page"`
 }
@@ -88,7 +90,7 @@ func (handler *FeeDebtHandler) ListFeeDebtsV2(ctx context.Context, in *ListFeeDe
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	body, err := handler.listFeeDebts(ctx, orgID, ledgerID, in.AccountAlias, in.BalanceKey, in.Limit, in.Cursor)
+	body, err := handler.listFeeDebts(ctx, orgID, ledgerID, in.AccountAlias, in.BalanceKey, in.Status, in.Limit, in.Cursor)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

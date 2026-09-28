@@ -32,8 +32,9 @@ type FeeDebtHandler struct {
 }
 
 // listFeeDebts validates the listing query and pages the ledger's debts oldest first.
-// balanceKey narrows accountAlias and defaults to the default key.
-func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountAlias, balanceKey, limit, cursor string) (*FeeDebtListBody, error) {
+// balanceKey narrows accountAlias and defaults to the default key; a debtor listing
+// also carries what the debtor owes over all its open debts.
+func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountAlias, balanceKey, status, limit, cursor string) (*FeeDebtListBody, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.list_fee_debts")
@@ -44,7 +45,11 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	query := fee_debt.ListQuery{Limit: 10, Cursor: cursor}
+	query := fee_debt.ListQuery{Status: fee_debt.Status(status), Limit: 10, Cursor: cursor}
+
+	if query.Status != "" && query.Status != fee_debt.StatusOpen && query.Status != fee_debt.StatusSettled {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityFeeDebt, "status")
+	}
 
 	if limit != "" {
 		parsed, err := strconv.Atoi(limit)
@@ -81,6 +86,15 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 		}
 
 		body.Items = append(body.Items, view)
+	}
+
+	if query.DebtorBalanceRef != "" {
+		total, err := handler.Service.OpenFeeDebtTotal(ctx, organizationID, ledgerID, query.DebtorBalanceRef)
+		if err != nil {
+			return nil, feeDebtReadFailed(ctx, span, logger, "Failed to sum open fee debts", err)
+		}
+
+		body.OpenTotal = &total
 	}
 
 	return body, nil

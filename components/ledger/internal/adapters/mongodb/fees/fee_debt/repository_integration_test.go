@@ -413,6 +413,66 @@ func TestFindAll_DebtorListingFollowsSeq(t *testing.T) {
 	}
 }
 
+func TestFindAll_StatusAndOpenTotal(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := staticRepository(t, container.Client, container.DBName, nil)
+	ctx := context.Background()
+
+	debts := make([]accounting.FeeDebtChange, 5)
+	for i := range debts {
+		debtor := "@payer#default"
+		if i == 4 {
+			debtor = "@other#default"
+		}
+
+		debts[i] = openedDebt(uuid.MustParse(fmt.Sprintf("01920000-0000-7000-8000-%012d", i+1)), debtor, int64(i+1))
+		require.NoError(t, repo.Apply(ctx, record(t0, "", debts[i])))
+	}
+
+	settle := func(debt accounting.FeeDebtChange, amount int64) {
+		change := debt
+		change.TransactionID, change.PostingRef, change.Kind = uuid.Must(uuid.NewV7()), "to:0:credit:collect", accounting.FeeDebtSettled
+		change.Amount = decimal.NewFromInt(amount)
+		require.NoError(t, repo.Apply(ctx, record(t0.Add(time.Minute), "", change)))
+	}
+
+	settle(debts[1], 10)
+	settle(debts[2], 4)
+	settle(debts[3], 10)
+	settle(debts[3], 10) // a settlement recorded before the reopen it depends on
+
+	foreign := record(t0, "", openedDebt(uuid.MustParse("01910000-0000-7000-8000-000000000001"), "@payer#default", 1))
+	foreign.LedgerID = uuid.MustParse("01920000-0000-7000-8000-0000000000ff")
+	require.NoError(t, repo.Apply(ctx, foreign))
+
+	list := func(query fee_debt.ListQuery) ([]string, libHTTP.CursorPagination) {
+		page, cursor, err := repo.FindAll(ctx, orgID, ledgerID, query)
+		require.NoError(t, err)
+
+		return debtIDs(page), cursor
+	}
+
+	open, _ := list(fee_debt.ListQuery{Limit: 10, Status: fee_debt.StatusOpen})
+	assert.Equal(t, []string{debts[0].DebtID, debts[2].DebtID, debts[4].DebtID}, open)
+
+	settled, _ := list(fee_debt.ListQuery{Limit: 10, Status: fee_debt.StatusSettled})
+	assert.Equal(t, []string{debts[1].DebtID, debts[3].DebtID}, settled, "remaining below zero lists as settled")
+
+	payerOpen := fee_debt.ListQuery{Limit: 1, DebtorBalanceRef: "@payer#default", Status: fee_debt.StatusOpen}
+	page1, cursor := list(payerOpen)
+	payerOpen.Cursor = cursor.Next
+	page2, _ := list(payerOpen)
+	assert.Equal(t, []string{debts[0].DebtID, debts[2].DebtID}, append(page1, page2...))
+
+	total, err := repo.OpenTotal(ctx, orgID, ledgerID, "@payer#default")
+	require.NoError(t, err)
+	assert.Equal(t, "16", total.String(), "open debts of this debtor and ledger only, below-zero ones excluded")
+
+	total, err = repo.OpenTotal(ctx, orgID, ledgerID, "@nobody#default")
+	require.NoError(t, err)
+	assert.True(t, total.IsZero())
+}
+
 func TestFindByID_ScopedToTheLedger(t *testing.T) {
 	container := mongotestutil.SetupReusableContainer(t)
 	repo := staticRepository(t, container.Client, container.DBName, nil)

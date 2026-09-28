@@ -33,8 +33,8 @@ import (
 )
 
 // buildFeeDebtApp mounts the /v2 fee-debt reads through the production registrar over
-// a real MongoDB projection holding three debts of one ledger, oldest first. It returns
-// the app, the list path and the debt ids.
+// a real MongoDB projection holding three debts of one ledger, oldest first, the first
+// settled. It returns the app, the list path and the debt ids.
 func buildFeeDebtApp(t *testing.T) (*fiber.App, string, []string) {
 	t.Helper()
 
@@ -47,19 +47,24 @@ func buildFeeDebtApp(t *testing.T) (*fiber.App, string, []string) {
 	debtors := []string{"@payer#default", "@other#default", "@payer#default"}
 	ids := make([]string, len(debtors))
 
+	opened := make([]accounting.FeeDebtChange, len(debtors))
+
 	for i, debtor := range debtors {
 		origin := uuid.MustParse(fmt.Sprintf("01920000-0000-7000-8000-%012d", i+1))
 		ids[i] = origin.String() + ":from:1:debit"
-
-		require.NoError(t, repo.Apply(context.Background(), command.FeeDebtRecord{
-			OrganizationID: orgID, LedgerID: ledgerID, AppliedAt: appliedAt,
-			Changes: []accounting.FeeDebtChange{{
-				TransactionID: origin, PostingRef: "from:1:debit", Kind: accounting.FeeDebtOpened, DebtID: ids[i],
-				DebtorRef: debtor, CreditRef: "@fees#default", OriginTransactionID: origin,
-				Seq: int64(i + 1), AssetCode: "BRL", Amount: decimal.RequireFromString("12.5"), Opened: decimal.RequireFromString("12.5"),
-			}},
-		}))
+		opened[i] = accounting.FeeDebtChange{
+			TransactionID: origin, PostingRef: "from:1:debit", Kind: accounting.FeeDebtOpened, DebtID: ids[i],
+			DebtorRef: debtor, CreditRef: "@fees#default", OriginTransactionID: origin,
+			Seq: int64(i + 1), AssetCode: "BRL", Amount: decimal.RequireFromString("12.5"), Opened: decimal.RequireFromString("12.5"),
+		}
 	}
+
+	settled := opened[0]
+	settled.TransactionID, settled.PostingRef, settled.Kind = uuid.Must(uuid.NewV7()), "to:0:credit:collect", accounting.FeeDebtSettled
+
+	require.NoError(t, repo.Apply(context.Background(), command.FeeDebtRecord{
+		OrganizationID: orgID, LedgerID: ledgerID, AppliedAt: appliedAt, Changes: append(opened, settled),
+	}))
 
 	app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 
@@ -86,10 +91,22 @@ func TestFeeDebtRoutes(t *testing.T) {
 		return got
 	}
 
-	t.Run("filters by debtor account", func(t *testing.T) {
-		status, body := driveFeeV2(t, app, http.MethodGet, base+"?account_alias=%40payer", "")
+	t.Run("filters by debtor account and sums what it owes", func(t *testing.T) {
+		status, body := driveFeeV2(t, app, http.MethodGet, base+"?account_alias=%40payer&limit=1", "")
 		require.Equal(t, http.StatusOK, status, body)
-		assert.Equal(t, []string{ids[0], ids[2]}, itemIDs(body))
+		assert.Equal(t, []string{ids[0]}, itemIDs(body))
+		assert.Equal(t, "12.5", body["openTotal"], "the open total spans every page")
+
+		status, body = driveFeeV2(t, app, http.MethodGet, base+"?account_alias=%40payer&status=open", "")
+		require.Equal(t, http.StatusOK, status, body)
+		assert.Equal(t, []string{ids[2]}, itemIDs(body))
+	})
+
+	t.Run("filters the ledger by status without a total", func(t *testing.T) {
+		status, body := driveFeeV2(t, app, http.MethodGet, base+"?status=settled", "")
+		require.Equal(t, http.StatusOK, status, body)
+		assert.Equal(t, []string{ids[0]}, itemIDs(body))
+		assert.NotContains(t, body, "openTotal", "a ledger-wide total would mix assets")
 	})
 
 	t.Run("gets one debt whether its colons are encoded or not", func(t *testing.T) {
@@ -111,6 +128,7 @@ func TestFeeDebtRoutes(t *testing.T) {
 		{"non-numeric limit", base + "?limit=ten", "0082", http.StatusBadRequest},
 		{"balance key without an account", base + "?balance_key=default", "0082", http.StatusBadRequest},
 		{"undecodable cursor", base + "?cursor=not-a-cursor", "0082", http.StatusBadRequest},
+		{"unknown status", base + "?status=owed", "0082", http.StatusBadRequest},
 		{"unknown debt", base + "/" + uuid.NewString() + ":from:1:debit", "0007", http.StatusNotFound},
 	}
 

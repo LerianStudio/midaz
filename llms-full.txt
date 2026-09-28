@@ -463,7 +463,7 @@ reaches only what that ledger owns.
 | PATCH | {base}/billing-packages/:id | Update billing package |
 | DELETE | {base}/billing-packages/:id | Delete billing package |
 | POST | {base}/billing/calculate | Calculate billing |
-| GET | {base}/fee-debts | List the ledger's fee debts, oldest first (`?account_alias=` narrows to one debtor) |
+| GET | {base}/fee-debts | List the ledger's fee debts, oldest first; `?status=open\|settled` filters, `?account_alias=` narrows to one debtor and adds `openTotal`, what it owes over all its open debts |
 | GET | {base}/fee-debts/:debt_id | Get fee debt |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a

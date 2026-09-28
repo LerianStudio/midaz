@@ -10,6 +10,7 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
@@ -43,4 +44,9 @@ func (s *FeeDebtService) ListFeeDebts(ctx context.Context, organizationID, ledge
 	}
 
 	return debts, pagination, err
+}
+
+// OpenFeeDebtTotal sums what the debtor still owes over all its open debts.
+func (s *FeeDebtService) OpenFeeDebtTotal(ctx context.Context, organizationID, ledgerID uuid.UUID, debtorBalanceRef string) (decimal.Decimal, error) {
+	return s.Repo.OpenTotal(ctx, organizationID, ledgerID, debtorBalanceRef)
 }
