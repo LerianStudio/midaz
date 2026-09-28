@@ -31,6 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -39,6 +40,13 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 )
+
+// noFeeDebtReader answers that no balance owes a deferred fee.
+type noFeeDebtReader struct{ command.TransactionReader }
+
+func (noFeeDebtReader) GetFeeDebtSeeds(context.Context, uuid.UUID, uuid.UUID, []string) (map[string][]accounting.FeeDebtItem, error) {
+	return nil, nil
+}
 
 // buildHumaBalanceApp mounts the ten balance Huma operations on a /v1 group,
 // mirroring the production wiring (see buildHumaAssetApp for the full rationale +
@@ -167,7 +175,7 @@ func TestDeleteBalance_204Empty(t *testing.T) {
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	redisRepo.EXPECT().ExpireIfValue(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
-	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
+	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo, TransactionReader: noFeeDebtReader{}}}
 
 	app := buildHumaBalanceApp(t, handler, true)
 
