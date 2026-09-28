@@ -590,30 +590,32 @@ func atomicTransactionBatchPreparedBalanceRef(balance *mmodel.Balance) string {
 	return mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), key)
 }
 
+// atomicTransactionBatchBudgetResult measures the largest result the engine can
+// return for an item: one movement per projection context, so fee-debt collects
+// and refunds count every creditor and entry they may move.
 func atomicTransactionBatchBudgetResult(item atomicTransactionBatchItemRun) accounting.ExecutionResult {
 	snapshots := make(map[string]accounting.BalanceSnapshot, len(item.prepared.pool.Snapshots))
 	for _, snapshot := range item.prepared.pool.Snapshots {
 		snapshots[snapshot.BalanceRef] = snapshot
 	}
 
-	companions := make(map[string]string)
-
-	for _, spec := range item.prepared.projection {
-		if spec.Role == accounting.RoleOverdraftCompanion {
-			companions[spec.PostingRef] = spec.BalanceRef
-		}
+	postings := make(map[string]accounting.Posting, len(item.prepared.transaction.Postings))
+	for _, posting := range item.prepared.transaction.Postings {
+		postings[posting.Ref] = posting
 	}
 
 	result := accounting.ExecutionResult{
-		Movements: make([]accounting.Movement, 0, len(item.prepared.transaction.Postings)*2),
+		Movements: make([]accounting.Movement, 0, len(item.prepared.projection)),
 		Final:     make([]accounting.BalanceSnapshot, 0, len(item.prepared.pool.Snapshots)),
 	}
 	touched := make(map[string]struct{})
 
-	appendMovement := func(posting accounting.Posting, role, balanceRef string) {
-		snapshot, ok := snapshots[balanceRef]
-		if !ok {
-			return
+	for _, spec := range item.prepared.projection {
+		snapshot, known := snapshots[spec.BalanceRef]
+		posting, posted := postings[spec.PostingRef]
+
+		if !known || !posted {
+			continue
 		}
 
 		state := accounting.BalanceState{
@@ -624,28 +626,21 @@ func atomicTransactionBatchBudgetResult(item atomicTransactionBatchItemRun) acco
 		}
 
 		result.Movements = append(result.Movements, accounting.Movement{
-			Ref:            fmt.Sprintf("%s:%d:%s:%s:0", item.transactionID, len(posting.Ref), posting.Ref, role),
+			Ref:            fmt.Sprintf("%s:%d:%s:%s:%d", item.transactionID, len(posting.Ref), posting.Ref, spec.Role, spec.Ordinal),
 			TransactionID:  item.transactionID,
 			PostingRef:     posting.Ref,
-			Role:           role,
-			BalanceRef:     balanceRef,
+			Role:           spec.Role,
+			BalanceRef:     spec.BalanceRef,
 			Type:           posting.Type,
 			Amount:         posting.Amount,
 			OverdraftDelta: posting.Amount,
 			Before:         state,
 			After:          state,
 		})
-		if _, exists := touched[balanceRef]; !exists {
-			touched[balanceRef] = struct{}{}
+		if _, exists := touched[spec.BalanceRef]; !exists {
+			touched[spec.BalanceRef] = struct{}{}
 
 			result.Final = append(result.Final, snapshot)
-		}
-	}
-	for _, posting := range item.prepared.transaction.Postings {
-		appendMovement(posting, accounting.RolePrimary, posting.BalanceRef)
-
-		if companionRef := companions[posting.Ref]; companionRef != "" {
-			appendMovement(posting, accounting.RoleOverdraftCompanion, companionRef)
 		}
 	}
 
