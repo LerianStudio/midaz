@@ -76,38 +76,86 @@ func TestIntegration_TransactionGetByID_LegAliasesMatchCreate(t *testing.T) {
 		assertLegAliases(t, v1Absent, "source", "destination", "v1 GET, absent index")
 	})
 
-	// A persisted hold carries a single ON_HOLD leg on the source, so the
-	// primary has no CREDIT leg to name the destination and takes it from the
-	// submitted body, whose entries are stored as "index#alias#balanceKey". No
-	// persisted leg names the source, so it answers empty rather than the alias
-	// the create answered.
-	t.Run("persisted_hold_takes_destination_from_body", func(t *testing.T) {
-		organizationID := fixture.infra.orgID
-		ledgerID := fixture.newLedger(t)
-		seedTransfer(t, fixture.infra.pgContainer.DB, organizationID, ledgerID, "@src", "@dst", 100)
+	// A persisted hold keeps its submitted body through commit and cancel, while
+	// its operations follow the posting plan: without route validation the
+	// source is held and released as ON_HOLD/RELEASE, and a route-validated
+	// cancel credits the source back. Every primary read must still answer the
+	// legs the create or the transition answered.
+	holdLifecycle := []struct {
+		name           string
+		validateRoutes bool
+		transition     func(organizationID, ledgerID, transactionID uuid.UUID) string
+		wantStatus     string
+		// sourceCreditedBack marks the case whose operations disagree with
+		// the submitted legs: a CREDIT on the source account.
+		sourceCreditedBack bool
+	}{
+		{name: "pending_without_route_validation", wantStatus: "PENDING"},
+		{name: "canceled_without_route_validation", transition: v2CancelURL, wantStatus: "CANCELED"},
+		{name: "committed_without_route_validation", transition: v2CommitURL, wantStatus: "APPROVED"},
+		{name: "pending_with_route_validation", validateRoutes: true, wantStatus: "PENDING"},
+		{name: "canceled_with_route_validation", validateRoutes: true, transition: v2CancelURL, wantStatus: "CANCELED", sourceCreditedBack: true},
+		{name: "committed_with_route_validation", validateRoutes: true, transition: v2CommitURL, wantStatus: "APPROVED"},
+	}
 
-		raw, err := json.Marshal(atomicBatchTransfer(organizationID, ledgerID, "hold aliases on read", "@src", "@dst", 100))
-		require.NoError(t, err)
+	for _, tc := range holdLifecycle {
+		t.Run("persisted_hold_answers_its_legs/"+tc.name, func(t *testing.T) {
+			organizationID := fixture.infra.orgID
+			ledgerID := fixture.newLedger(t)
+			seedTransfer(t, fixture.infra.pgContainer.DB, organizationID, ledgerID, "@src", "@dst", 100)
 
-		created := decodeTxResponse(t, postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "hold-aliases"), nethttp.StatusCreated)
-		require.Equal(t, "PENDING", created["status"].(map[string]any)["code"], "the hold must be created PENDING")
-		transactionID := uuid.MustParse(created["id"].(string))
+			request := atomicBatchTransfer(organizationID, ledgerID, "hold aliases on read", "@src", "@dst", 100)
+			if tc.validateRoutes {
+				fixture.setLedgerRoutePolicy(t, organizationID, ledgerID, true)
+				template := fixture.seedCrossLedgerRouteTemplate(t, organizationID,
+					crossLedgerRouteOptions{sourceAlias: "@src", destinationAlias: "@dst", withoutBridge: true})
+				transactionRoute, source, destination := template.transactionRoute.String(), template.source.String(), template.destination.String()
+				request.RouteID = &transactionRoute
+				request.Debits[0].OperationRouteID = &source
+				request.Credits[0].OperationRouteID = &destination
+			}
 
-		pending := engineIndexPending(t, fixture, repository, ledgerID, transactionID)
-		require.False(t, pending, "the acknowledged hold must leave the engine index durable")
+			raw, err := json.Marshal(request)
+			require.NoError(t, err)
 
-		v2URL := v2TxByIDURL(organizationID, ledgerID, transactionID)
+			created := decodeTxResponse(t, postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "hold-aliases-"+tc.name), nethttp.StatusCreated)
+			require.Equal(t, "PENDING", created["status"].(map[string]any)["code"], "the hold must be created PENDING")
+			assertLegAliases(t, created, "debit", "credit", "v2 hold create")
+			transactionID := uuid.MustParse(created["id"].(string))
 
-		assertHoldLegAliases(t, readTransaction(t, v2App, v2URL, "false"), "debit", "credit", "v2 GET, durable index")
-		assertHoldLegAliases(t, readTransaction(t, v1App, v1TxByIDURL(organizationID, ledgerID, transactionID), "false"),
-			"source", "destination", "v1 GET, durable index")
+			if tc.transition != nil {
+				transitioned := decodeTxResponse(t,
+					postTransaction(t, fixture.app, tc.transition(organizationID, ledgerID, transactionID), "", ""), nethttp.StatusCreated)
+				assertLegAliases(t, transitioned, "debit", "credit", "v2 transition response")
+			}
 
-		assertHoldLegAliases(t, listOnlyTransaction(t, v2App, organizationID, ledgerID, transactionID), "debit", "credit", "v2 list item")
+			var status string
+			require.NoError(t, fixture.infra.pgContainer.DB.QueryRowContext(context.Background(),
+				`SELECT status FROM transaction WHERE id = $1`, transactionID).Scan(&status))
+			require.Equal(t, tc.wantStatus, status, "persisted hold status")
 
-		removeEngineIndexEntry(t, fixture, repository, ledgerID, transactionID)
+			var sourceCredits int
+			require.NoError(t, fixture.infra.pgContainer.DB.QueryRowContext(context.Background(),
+				`SELECT count(*) FROM operation WHERE transaction_id = $1 AND type = 'CREDIT' AND account_alias = '@src'`,
+				transactionID).Scan(&sourceCredits))
+			require.Equal(t, tc.sourceCreditedBack, sourceCredits > 0,
+				"a CREDIT on the source is persisted only when the route-validated cancel credits it back")
 
-		assertHoldLegAliases(t, readTransaction(t, v2App, v2URL, "false"), "debit", "credit", "v2 GET, absent index")
-	})
+			pending := engineIndexPending(t, fixture, repository, ledgerID, transactionID)
+			require.False(t, pending, "the acknowledged hold must leave the engine index durable")
+
+			v2URL := v2TxByIDURL(organizationID, ledgerID, transactionID)
+
+			assertLegAliases(t, readTransaction(t, v2App, v2URL, "false"), "debit", "credit", "v2 GET, durable index")
+			assertLegAliases(t, readTransaction(t, v1App, v1TxByIDURL(organizationID, ledgerID, transactionID), "false"),
+				"source", "destination", "v1 GET, durable index")
+			assertLegAliases(t, listOnlyTransaction(t, v2App, organizationID, ledgerID, transactionID), "debit", "credit", "v2 list item")
+
+			removeEngineIndexEntry(t, fixture, repository, ledgerID, transactionID)
+
+			assertLegAliases(t, readTransaction(t, v2App, v2URL, "false"), "debit", "credit", "v2 GET, absent index")
+		})
+	}
 
 	t.Run("pending_index_reads_from_engine_view", func(t *testing.T) {
 		acknowledger := fixture.infra.handler.Command.EngineRecoveryAcknowledger
@@ -221,16 +269,6 @@ func assertLegAliases(t *testing.T, tx map[string]any, debitKey, creditKey, labe
 	t.Helper()
 
 	assert.Equalf(t, []any{"@src"}, tx[debitKey], "%s: %s", label, debitKey)
-	assert.Equalf(t, []any{"@dst"}, tx[creditKey], "%s: %s", label, creditKey)
-}
-
-// assertHoldLegAliases asserts a persisted hold's leg alias lists by value:
-// the destination comes from the submitted body as the bare alias, and the
-// source is empty because no persisted leg names it.
-func assertHoldLegAliases(t *testing.T, tx map[string]any, debitKey, creditKey, label string) {
-	t.Helper()
-
-	assert.Equalf(t, []any{}, tx[debitKey], "%s: %s", label, debitKey)
 	assert.Equalf(t, []any{"@dst"}, tx[creditKey], "%s: %s", label, creditKey)
 }
 

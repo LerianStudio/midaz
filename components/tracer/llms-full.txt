@@ -238,9 +238,9 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 - Masterminds/squirrel v1.5.4: SQL query builder
 - shopspring/decimal v1.4.0: Precise decimal arithmetic
 - google/uuid v1.6.0: UUID generation
-- jackc/pgx/v5 v5.10.0: PostgreSQL driver
+- jackc/pgx/v5 v5.11.0: PostgreSQL driver
 - bxcodec/dbresolver/v2 v2.2.1: Primary/replica DB routing
-- golang-migrate/migrate/v4 v4.19.1: Database migrations
+- golang-migrate/migrate/v4 v4.20.1: Database migrations
 - sony/gobreaker v1.0.0: Circuit breaker
 - DATA-DOG/go-sqlmock v1.5.2: SQL mocking
 - testcontainers/testcontainers-go v0.42.0: Container-based integration tests
