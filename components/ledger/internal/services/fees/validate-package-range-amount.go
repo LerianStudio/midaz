@@ -21,6 +21,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
+// packageScopePageSize is the page size the overlap guard reads its scope with.
+const packageScopePageSize = 100
+
 // ValidatePackageMaxAndMinAmountRange validating max and min amount range of a package
 func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logger libLog.Logger,
 	maxAmount, minAmount, transactionRoute string, metadataSelector map[string]string,
@@ -34,11 +37,22 @@ func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logg
 
 	filterPackage := getFilterPackage(organizationID, ledgerID, segmentID, transactionRoute)
 
-	packs, err := uc.packageRepo.FindList(ctx, filterPackage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to find package list", err)
+	// Every package in scope is read: a colliding one may sit on any page.
+	var packs []*pack.Package
 
-		return err
+	for filterPackage.Page = 1; ; filterPackage.Page++ {
+		page, err := uc.packageRepo.FindList(ctx, filterPackage)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to find package list", err)
+
+			return err
+		}
+
+		packs = append(packs, page...)
+
+		if len(page) < filterPackage.Limit {
+			break
+		}
 	}
 
 	if len(packs) > 0 {
@@ -85,6 +99,7 @@ func getFilterPackage(organizationID, ledgerID uuid.UUID, segmentID *uuid.UUID, 
 	filter := http.QueryHeader{
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
+		Limit:          packageScopePageSize,
 	}
 
 	if segmentID != nil {

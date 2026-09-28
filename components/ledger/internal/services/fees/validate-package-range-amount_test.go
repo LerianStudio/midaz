@@ -275,6 +275,53 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 	}
 }
 
+// TestValidatePackageMaxAndMinAmountRange_ReadsEveryPage proves the guard sees a
+// duplicate that sits past the first page of the packages in scope.
+func TestValidatePackageMaxAndMinAmountRange_ReadsEveryPage(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockRepo := pack.NewMockRepository(ctrl)
+	route := "debitoted"
+
+	inScope := func(minAmount, maxAmount int64) *pack.Package {
+		return &pack.Package{
+			ID:               uuid.New(),
+			MinimumAmount:    decimal.NewFromInt(minAmount),
+			MaximumAmount:    decimal.NewFromInt(maxAmount),
+			TransactionRoute: &route,
+		}
+	}
+
+	firstPage := make([]*pack.Package, 0, packageScopePageSize)
+	for i := range int64(packageScopePageSize) {
+		firstPage = append(firstPage, inScope(2000+i*10, 2005+i*10))
+	}
+
+	mockRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, filter http.QueryHeader) ([]*pack.Package, error) {
+			assert.Equal(t, packageScopePageSize, filter.Limit)
+
+			if filter.Page == 1 {
+				return firstPage, nil
+			}
+
+			return []*pack.Package{inScope(100, 1000)}, nil
+		}).
+		Times(2)
+
+	uc := &UseCase{packageRepo: mockRepo}
+
+	err := uc.ValidatePackageMaxAndMinAmountRange(context.Background(), nil,
+		"1000", "100", route, nil, uuid.New(), uuid.New(), nil, nil)
+
+	var conflictErr pkg.EntityConflictError
+
+	assert.ErrorAs(t, err, &conflictErr)
+	assert.Equal(t, constant.ErrDuplicatePackage.Error(), conflictErr.Code)
+}
+
 func TestGetFilterPackage(t *testing.T) {
 	t.Parallel()
 
