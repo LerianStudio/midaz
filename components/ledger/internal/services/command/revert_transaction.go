@@ -222,7 +222,13 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
-	transactionReverted := tran.TransactionRevert()
+	transactionReverted, err := uc.reverseTransaction(readCtx, in, tran)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to resolve the fee debts of the reversal", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
 

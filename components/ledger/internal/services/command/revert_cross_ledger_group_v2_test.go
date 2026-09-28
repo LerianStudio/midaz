@@ -41,12 +41,12 @@ func TestBuildCrossLedgerRevertBatchInput_ReversesOrderAndLinksEveryOrigin(t *te
 	parts := []preparedCrossLedgerRevertPart{
 		{
 			origin:     originA,
-			reversal:   originA.TransactionRevert(),
+			reversal:   originA.TransactionRevert(nil),
 			dependency: originDependencyReference("tenant-a", organizationID, ledgerA, uuid.MustParse(originA.ID), executionA),
 		},
 		{
 			origin:     originB,
-			reversal:   originB.TransactionRevert(),
+			reversal:   originB.TransactionRevert(nil),
 			dependency: originDependencyReference("tenant-a", organizationID, ledgerB, uuid.MustParse(originB.ID), executionB),
 		},
 	}
