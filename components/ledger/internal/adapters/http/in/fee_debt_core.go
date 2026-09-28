@@ -10,9 +10,11 @@ import (
 	"strconv"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	services "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
@@ -32,7 +34,7 @@ type FeeDebtHandler struct {
 // listFeeDebts validates the listing query and pages the ledger's debts oldest first.
 // balanceKey narrows accountAlias and defaults to the default key.
 func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountAlias, balanceKey, limit, cursor string) (*FeeDebtListBody, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.list_fee_debts")
 	defer span.End()
@@ -67,9 +69,7 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 
 	debts, pagination, err := handler.Service.ListFeeDebts(ctx, organizationID, ledgerID, query)
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to list fee debts", err)
-
-		return nil, err
+		return nil, feeDebtReadFailed(ctx, span, logger, "Failed to list fee debts", err)
 	}
 
 	body := &FeeDebtListBody{Items: make([]*FeeDebtView, 0, len(debts)), Limit: query.Limit, NextCursor: pagination.Next, PrevCursor: pagination.Prev}
@@ -77,9 +77,7 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 	for _, debt := range debts {
 		view, err := newFeeDebtView(debt)
 		if err != nil {
-			handleSpanByErrorClass(span, "Failed to render fee debt", err)
-
-			return nil, err
+			return nil, feeDebtReadFailed(ctx, span, logger, "Failed to render fee debt", err)
 		}
 
 		body.Items = append(body.Items, view)
@@ -91,7 +89,7 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 // getFeeDebt returns one debt of the ledger. rawID is the path segment as received:
 // a debt id carries colons, which clients may send percent-encoded.
 func (handler *FeeDebtHandler) getFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, rawID string) (*FeeDebtView, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_fee_debt")
 	defer span.End()
@@ -110,19 +108,30 @@ func (handler *FeeDebtHandler) getFeeDebt(ctx context.Context, organizationID, l
 
 	debt, err := handler.Service.GetFeeDebt(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to get fee debt", err)
-
-		return nil, err
+		return nil, feeDebtReadFailed(ctx, span, logger, "Failed to get fee debt", err)
 	}
 
 	view, err := newFeeDebtView(debt)
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to render fee debt", err)
-
-		return nil, err
+		return nil, feeDebtReadFailed(ctx, span, logger, "Failed to render fee debt", err)
 	}
 
 	return view, nil
+}
+
+// feeDebtReadFailed records err on span and logs it once: Warn for a business error,
+// Error for a technical one.
+func feeDebtReadFailed(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) error {
+	handleSpanByErrorClass(span, message, err)
+
+	level := libLog.LevelError
+	if pkg.IsBusinessError(err) {
+		level = libLog.LevelWarn
+	}
+
+	logger.Log(ctx, level, message, libLog.Err(err))
+
+	return err
 }
 
 func newFeeDebtView(debt *model.FeeDebt) (*FeeDebtView, error) {

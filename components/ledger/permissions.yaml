@@ -10,7 +10,7 @@
 # WHAT THIS MANIFEST IS: a faithful mirror of the Access-Manager SEED, not a
 # transcript of the route table. Two groups of entries, and the difference matters:
 #
-#   1. Route-backed (81 pairs, every group above the SEED-ONLY marker): each traces
+#   1. Route-backed (82 pairs, every group above the SEED-ONLY marker): each traces
 #      to a real protectedMidaz(auth, resource, verb) registration (= auth.Authorize(
 #      "midaz", resource, verb)); the file:line on each group header points at it.
 #   2. Seed-only (19 pairs, the marked block at the end of `permissions:`): the seed

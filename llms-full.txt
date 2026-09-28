@@ -445,7 +445,7 @@ Scoping is **path-based**: fee endpoints read the organization and ledger from t
 registry in `pkg/constant/errors.go` — the `FEE-` prefixed code family is retired). See
 `docs/api/SCOPING.md`.
 
-The twelve operations are served under the ledger-scoped `/v2` contract (`{base}` =
+The fourteen operations are served under the ledger-scoped `/v2` contract (`{base}` =
 `/v2/organizations/{organization_id}/ledgers/{ledger_id}`); the path names the ledger and a read
 reaches only what that ledger owns.
 
@@ -463,6 +463,8 @@ reaches only what that ledger owns.
 | PATCH | {base}/billing-packages/:id | Update billing package |
 | DELETE | {base}/billing-packages/:id | Delete billing package |
 | POST | {base}/billing/calculate | Calculate billing |
+| GET | {base}/fee-debts | List the ledger's fee debts, oldest first (`?account_alias=` narrows to one debtor) |
+| GET | {base}/fee-debts/:debt_id | Get fee debt |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
 `ledger_id` path value, `ledgerId` was removed from the create/estimate/calculate request bodies
