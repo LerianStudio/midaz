@@ -1286,7 +1286,12 @@ func TestCollectNullPaths_RendersMapAndArrayPaths(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.Unmarshal([]byte(`{"a": null, "b": {"c": null}, "d": [null, {"e": null}]}`), &body))
 
-	assert.Equal(t, []string{"a", "b.c", "d[0]", "d[1].e"}, collectNullPaths(body))
+	assert.Equal(t, []nullPath{
+		{path: "a", objectKey: true},
+		{path: "b.c", objectKey: true},
+		{path: "d[0]", objectKey: false},
+		{path: "d[1].e", objectKey: true},
+	}, collectNullPaths(body))
 }
 
 func TestUnknownNullFieldLeaf_LocksStdlibFormat(t *testing.T) {
@@ -1313,26 +1318,114 @@ func TestUnknownNullFieldLeaf_RefusesOtherErrors(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestUnknownNullFieldDetails_MatchesEveryCandidatePath(t *testing.T) {
+func TestUnknownNullFieldDetails_ReportsSingleCandidateWithoutProbing(t *testing.T) {
 	t.Parallel()
 
-	fields, details := undeclaredNullFieldDetails("bogus", []string{"bogus", "contact.bogus", "items[0].bogus", "notbogus", "contact.name"})
+	probe := func(string) (bool, bool) {
+		t.Fatal("a single candidate must not be probed")
 
-	assert.Equal(t, pkg.UnknownFields{"bogus": nil, "contact.bogus": nil, "items[0].bogus": nil}, fields)
-	assert.Equal(t, []pkg.FieldError{
-		{Location: "bogus", Message: "unexpected field"},
-		{Location: "contact.bogus", Message: "unexpected field"},
-		{Location: "items[0].bogus", Message: "unexpected field"},
-	}, details)
+		return false, false
+	}
+
+	fields, details := undeclaredNullFieldDetails("bogus", []nullPath{
+		{path: "contact.bogus", objectKey: true},
+		{path: "notbogus", objectKey: true},
+		{path: "contact.name", objectKey: true},
+	}, probe)
+
+	assert.Equal(t, pkg.UnknownFields{"contact.bogus": nil}, fields)
+	assert.Equal(t, []pkg.FieldError{{Location: "contact.bogus", Message: "unexpected field"}}, details)
 }
 
 func TestUnknownNullFieldDetails_FallsBackToLeaf(t *testing.T) {
 	t.Parallel()
 
-	fields, details := undeclaredNullFieldDetails("bogus", []string{"contact.name"})
+	fields, details := undeclaredNullFieldDetails("bogus", []nullPath{{path: "contact.name", objectKey: true}}, nil)
 
 	assert.Equal(t, pkg.UnknownFields{"bogus": nil}, fields)
 	assert.Equal(t, []pkg.FieldError{{Location: "bogus", Message: "unexpected field"}}, details)
+}
+
+func TestUnknownNullFieldDetails_SkipsNullArrayElements(t *testing.T) {
+	t.Parallel()
+
+	fields, _ := undeclaredNullFieldDetails("bogus", []nullPath{
+		{path: "bogus", objectKey: false},
+		{path: "items[0].bogus", objectKey: true},
+	}, nil)
+
+	assert.Equal(t, pkg.UnknownFields{"items[0].bogus": nil}, fields)
+}
+
+func TestUnknownNullFieldDetails_ReportsEveryCandidateWhenProbeCannotDecide(t *testing.T) {
+	t.Parallel()
+
+	probe := func(path string) (bool, bool) {
+		return path == "bogus", path == "bogus"
+	}
+
+	fields, details := undeclaredNullFieldDetails("bogus", []nullPath{
+		{path: "bogus", objectKey: true},
+		{path: "contact.bogus", objectKey: true},
+	}, probe)
+
+	assert.Equal(t, pkg.UnknownFields{"bogus": nil, "contact.bogus": nil}, fields)
+	assert.Equal(t, []pkg.FieldError{
+		{Location: "bogus", Message: "unexpected field"},
+		{Location: "contact.bogus", Message: "unexpected field"},
+	}, details)
+}
+
+func TestNullKeyRefused_CannotDecideOnOtherDecodeFailures(t *testing.T) {
+	t.Parallel()
+
+	originalMap := map[string]any{"name": 1.0, "zbogus": nil}
+
+	refused, ok := nullKeyRefused(originalMap, "zbogus", &nullBarrierRequest{}, "zbogus")
+	assert.False(t, refused)
+	assert.False(t, ok)
+}
+
+func TestDecodeAndValidate_DisambiguatesNullKeysSharingALeaf(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		body   string
+		fields pkg.UnknownFields
+	}{
+		{
+			name:   "declared root key shares the leaf of an undeclared nested key",
+			body:   `{"name": null, "contact": {"name": null}}`,
+			fields: pkg.UnknownFields{"contact.name": nil},
+		},
+		{
+			name:   "every candidate undeclared",
+			body:   `{"bogus": null, "contact": {"bogus": null}}`,
+			fields: pkg.UnknownFields{"bogus": nil, "contact.bogus": nil},
+		},
+		{
+			name:   "two of three candidates undeclared",
+			body:   `{"primaryEmail": null, "contact": {"primaryEmail": null}, "items": [{"primaryEmail": null}]}`,
+			fields: pkg.UnknownFields{"primaryEmail": nil, "items[0].primaryEmail": nil},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input nullBarrierRequest
+			_, details, err := DecodeAndValidateWithDetails([]byte(tc.body), &input)
+			require.Error(t, err)
+
+			var unknownErr pkg.ValidationUnknownFieldsError
+			require.ErrorAs(t, err, &unknownErr)
+			assert.Equal(t, "0053", unknownErr.Code)
+			assert.Equal(t, tc.fields, unknownErr.Fields)
+			assert.Equal(t, unknownFieldDetailsFallback(tc.fields), details)
+		})
+	}
 }
 
 func TestUnknownNullFields_ReturnsUnmarshallingErrorForOtherDecodeFailures(t *testing.T) {

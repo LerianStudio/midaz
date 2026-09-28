@@ -1347,6 +1347,17 @@ func joinJSONFieldPath(prefix, field string) string {
 // field name when DisallowUnknownFields refuses a key.
 const jsonUnknownFieldPrefix = "json: unknown field "
 
+// nullPath is the rendered location of a null value in a request body.
+// objectKey is false for a null array element, which cannot be a field name.
+type nullPath struct {
+	path      string
+	objectKey bool
+}
+
+// nullKeyProbe reports whether the null key at path is refused by the strict
+// decode on its own. ok is false when the probe could not decide.
+type nullKeyProbe func(path string) (refused, ok bool)
+
 // findUndeclaredNullFields reports the null keys of body that s does not
 // declare. The marshal round-trip cannot see them because a null key leaves no
 // trace in the marshaled struct, so a strict decode into a fresh value of the
@@ -1357,10 +1368,7 @@ func findUndeclaredNullFields(body []byte, s any, originalMap map[string]any) (p
 		return nil, nil, nil
 	}
 
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.DisallowUnknownFields()
-
-	err := dec.Decode(newOfType(s))
+	err := strictDecode(body, s)
 	if err == nil {
 		return nil, nil, nil
 	}
@@ -1370,9 +1378,20 @@ func findUndeclaredNullFields(body []byte, s any, originalMap map[string]any) (p
 		return nil, nil, pkg.ValidateUnmarshallingError(err)
 	}
 
-	fields, details := undeclaredNullFieldDetails(leaf, nullPaths)
+	probe := func(path string) (bool, bool) {
+		return nullKeyRefused(originalMap, path, s, leaf)
+	}
+
+	fields, details := undeclaredNullFieldDetails(leaf, nullPaths, probe)
 
 	return fields, details, nil
+}
+
+func strictDecode(body []byte, s any) error {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+
+	return dec.Decode(newOfType(s))
 }
 
 // unknownFieldLeaf extracts the field name from an encoding/json unknown-field
@@ -1391,39 +1410,113 @@ func unknownFieldLeaf(err error) (string, bool) {
 	return leaf, true
 }
 
-// undeclaredNullFieldDetails maps the decoder leaf to every null path that
-// names it, falling back to the bare leaf when no path does.
-func undeclaredNullFieldDetails(leaf string, nullPaths []string) (pkg.UnknownFields, []pkg.FieldError) {
-	fields := pkg.UnknownFields{}
+// undeclaredNullFieldDetails maps the decoder leaf to the null keys that name
+// it. When several keys share the leaf, each one is probed alone so a declared
+// key with the same name is not reported; an undecided probe reports every
+// candidate. With no candidate it falls back to the bare leaf.
+func undeclaredNullFieldDetails(leaf string, nullPaths []nullPath, probe nullKeyProbe) (pkg.UnknownFields, []pkg.FieldError) {
+	candidates := pkg.UnknownFields{}
 
-	for _, path := range nullPaths {
-		if path == leaf || strings.HasSuffix(path, "."+leaf) {
-			fields[path] = nil
+	for _, null := range nullPaths {
+		if null.objectKey && (null.path == leaf || strings.HasSuffix(null.path, "."+leaf)) {
+			candidates[null.path] = nil
 		}
 	}
 
-	if len(fields) == 0 {
-		fields[leaf] = nil
+	switch len(candidates) {
+	case 0:
+		candidates[leaf] = nil
+	case 1:
+	default:
+		if confirmed, ok := confirmRefusedNullKeys(candidates, probe); ok {
+			candidates = confirmed
+		}
 	}
 
-	return fields, unknownFieldDetailsFallback(fields)
+	return candidates, unknownFieldDetailsFallback(candidates)
 }
 
-// collectNullPaths returns, sorted, the path of every null value in body at
-// any depth, array items included, rendered like the unknown-field details.
-func collectNullPaths(body map[string]any) []string {
-	var paths []string
+func confirmRefusedNullKeys(candidates pkg.UnknownFields, probe nullKeyProbe) (pkg.UnknownFields, bool) {
+	confirmed := pkg.UnknownFields{}
+
+	for path := range candidates {
+		refused, ok := probe(path)
+		if !ok {
+			return nil, false
+		}
+
+		if refused {
+			confirmed[path] = nil
+		}
+	}
+
+	return confirmed, len(confirmed) > 0
+}
+
+// nullKeyRefused decodes originalMap strictly with every null key except keep
+// removed, so no other undeclared null key can be the one the decoder stops at.
+// Null array elements stay in place to keep array indexes stable.
+func nullKeyRefused(originalMap map[string]any, keep string, s any, leaf string) (refused, ok bool) {
+	body, err := json.Marshal(withoutOtherNullKeys(originalMap, nil, keep))
+	if err != nil {
+		return false, false
+	}
+
+	err = strictDecode(body, s)
+	if err == nil {
+		return false, true
+	}
+
+	if got, isUnknown := unknownFieldLeaf(err); isUnknown && got == leaf {
+		return true, true
+	}
+
+	return false, false
+}
+
+func withoutOtherNullKeys(value any, frames []scanFrame, keep string) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+
+		for key, item := range typed {
+			itemFrames := append(slices.Clip(frames), scanFrame{key: key, object: true})
+			if item == nil && renderPath(itemFrames) != keep {
+				continue
+			}
+
+			out[key] = withoutOtherNullKeys(item, itemFrames, keep)
+		}
+
+		return out
+	case []any:
+		out := make([]any, len(typed))
+
+		for index, item := range typed {
+			out[index] = withoutOtherNullKeys(item, append(slices.Clip(frames), scanFrame{index: index}), keep)
+		}
+
+		return out
+	default:
+		return value
+	}
+}
+
+// collectNullPaths returns, sorted by path, every null value in body at any
+// depth, array items included, rendered like the unknown-field details.
+func collectNullPaths(body map[string]any) []nullPath {
+	var paths []nullPath
 
 	appendNullPaths(body, nil, &paths)
-	sort.Strings(paths)
+	sort.Slice(paths, func(i, j int) bool { return paths[i].path < paths[j].path })
 
 	return paths
 }
 
-func appendNullPaths(value any, frames []scanFrame, paths *[]string) {
+func appendNullPaths(value any, frames []scanFrame, paths *[]nullPath) {
 	switch typed := value.(type) {
 	case nil:
-		*paths = append(*paths, renderPath(frames))
+		*paths = append(*paths, nullPath{path: renderPath(frames), objectKey: len(frames) > 0 && frames[len(frames)-1].object})
 	case map[string]any:
 		for key, item := range typed {
 			appendNullPaths(item, append(slices.Clip(frames), scanFrame{key: key, object: true}), paths)
