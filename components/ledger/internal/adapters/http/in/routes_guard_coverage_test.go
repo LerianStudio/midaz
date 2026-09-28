@@ -10,6 +10,7 @@ import (
 	"go/printer"
 	"go/token"
 	"io/fs"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -131,4 +132,127 @@ func TestRouteGuardCoverage_EveryMountedChainDeclaresItsOwnPath(t *testing.T) {
 	assert.Equalf(t, guarded, mounted,
 		"every protectedMidaz chain must be mounted by a route helper, so this gate sees it: %d chains built, %d mounted",
 		guarded, mounted)
+}
+
+// constStrings resolves every string-valued constant declared anywhere in file,
+// folding "+" concatenation so a path assembled from parts — idPath = listPath +
+// "/:organization_id" — is checked as the path it actually becomes. Without the
+// folding the check would only ever see paths written as one literal, which is the
+// minority: most route files build theirs from a base constant.
+func constStrings(file *ast.File) map[string]string {
+	exprs := make(map[string]ast.Expr)
+
+	ast.Inspect(file, func(node ast.Node) bool {
+		spec, isValue := node.(*ast.ValueSpec)
+		if !isValue {
+			return true
+		}
+
+		for i, name := range spec.Names {
+			if i < len(spec.Values) {
+				exprs[name.Name] = spec.Values[i]
+			}
+		}
+
+		return true
+	})
+
+	resolved := make(map[string]string, len(exprs))
+
+	var resolve func(expr ast.Expr, depth int) (string, bool)
+
+	resolve = func(expr ast.Expr, depth int) (string, bool) {
+		if depth > 16 {
+			return "", false
+		}
+
+		switch e := expr.(type) {
+		case *ast.BasicLit:
+			if e.Kind != token.STRING {
+				return "", false
+			}
+
+			value, err := strconv.Unquote(e.Value)
+
+			return value, err == nil
+		case *ast.Ident:
+			target, known := exprs[e.Name]
+			if !known {
+				return "", false
+			}
+
+			return resolve(target, depth+1)
+		case *ast.BinaryExpr:
+			if e.Op != token.ADD {
+				return "", false
+			}
+
+			left, leftOK := resolve(e.X, depth+1)
+			right, rightOK := resolve(e.Y, depth+1)
+
+			return left + right, leftOK && rightOK
+		default:
+			return "", false
+		}
+	}
+
+	for name, expr := range exprs {
+		if value, ok := resolve(expr, 0); ok {
+			resolved[name] = value
+		}
+	}
+
+	return resolved
+}
+
+// TestRouteGuardCoverage_OrganizationSegmentAlwaysNamesTheOrganization is the gate
+// against a route re-spelling the organization parameter something the derivation
+// cannot recognise.
+//
+// A parameter sitting directly under /organizations IS the organization, on every
+// surface. When it is spelled anything but organization_id the derivation reads it as
+// nothing, the route sends no identifier, and a partner confined to one organization
+// is refused on the organization it owns. That is what the by-id organization routes
+// did until they were renamed: they alone spelled it ":id".
+//
+// The check stays narrow on purpose. It says nothing about parameters deeper in a
+// path — an account's ":id" three segments down is that account's own identifier, and
+// reading it as the organization is the exact confusion whole-segment comparison
+// exists to prevent.
+func TestRouteGuardCoverage_OrganizationSegmentAlwaysNamesTheOrganization(t *testing.T) {
+	t.Parallel()
+
+	fset := token.NewFileSet()
+
+	pkgs, err := parser.ParseDir(fset, ".", func(info fs.FileInfo) bool {
+		return !strings.HasSuffix(info.Name(), "_test.go")
+	}, parser.SkipObjectResolution)
+	require.NoError(t, err)
+
+	pkg, ok := pkgs["in"]
+	require.True(t, ok, "package in must parse from its own directory")
+
+	var checked int
+
+	for name, file := range pkg.Files {
+		for constName, value := range constStrings(file) {
+			// Both spellings: Fiber mounts ":param", Huma publishes "{param}".
+			for _, prefix := range []string{"/organizations/:", "/organizations/{"} {
+				if !strings.HasPrefix(value, prefix) {
+					continue
+				}
+
+				param := strings.SplitN(strings.TrimPrefix(value, prefix), "/", 2)[0]
+				param = strings.TrimSuffix(param, "}")
+
+				checked++
+
+				assert.Equalf(t, pathParamOrganizationID, param,
+					"%s: %s = %q names the organization parameter %q — the derivation only recognises %q, so this route would send no organization at all",
+					name, constName, value, param, pathParamOrganizationID)
+			}
+		}
+	}
+
+	assert.Positive(t, checked, "the package must declare at least one organization-scoped path")
 }

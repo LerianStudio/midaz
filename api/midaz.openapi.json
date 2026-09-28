@@ -454,7 +454,7 @@
         ]
       }
     },
-    "/v1/organizations/{id}": {
+    "/v1/organizations/{organization_id}": {
       "delete": {
         "deprecated": true,
         "operationId": "deleteOrganization",
@@ -462,7 +462,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -522,7 +522,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -589,7 +589,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -9317,14 +9317,14 @@
         ]
       }
     },
-    "/v2/organizations/{id}": {
+    "/v2/organizations/{organization_id}": {
       "delete": {
         "operationId": "deleteOrganizationV2",
         "parameters": [
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -9383,7 +9383,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -9449,7 +9449,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
