@@ -46,7 +46,7 @@ import (
 // create posts against are body fields. RawBody keeps the body out of Huma's validator so
 // the flat v2 model is decoded imperatively via http.DecodeAndValidate.
 type CreateTransactionInputV2 struct {
-	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
@@ -157,14 +157,20 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
+	fingerprint, err := v2IdempotencyFingerprint(rawBody, pending, operationTypeOverride)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	tran, replayed, err := handler.Command.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
-		OrganizationID:        orgID,
-		LedgerID:              ledgerID,
-		Transaction:           transactionInput,
-		TransactionStatus:     transactionInput.InitialStatus(),
-		IdempotencyKey:        idempotencyKey,
-		IdempotencyTTL:        pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
-		IdempotencyHashSource: v2IdempotencyHashSource(rawBody, pending, operationTypeOverride),
+		OrganizationID:         orgID,
+		LedgerID:               ledgerID,
+		Transaction:            transactionInput,
+		TransactionStatus:      transactionInput.InitialStatus(),
+		IdempotencyKey:         idempotencyKey,
+		IdempotencyTTL:         pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+		IdempotencyHashSource:  v2IdempotencyHashSource(rawBody, pending, operationTypeOverride),
+		IdempotencyFingerprint: fingerprint,
 
 		AccountBlockExceptionID: exceptionID,
 	})

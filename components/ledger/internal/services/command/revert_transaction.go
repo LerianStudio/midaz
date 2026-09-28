@@ -519,7 +519,7 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
-	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "")
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "", "")
 	if err != nil {
 		return nil, false, err
 	}
@@ -623,7 +623,7 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
-	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "")
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "", "")
 	if err != nil {
 		return nil, false, err
 	}

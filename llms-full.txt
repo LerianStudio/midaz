@@ -1174,7 +1174,8 @@ and surface on the `transaction.*` and `account.created` streaming payloads.
 **Non-goals / invariants:**
 - A **revert always re-runs the tracer**; the reverse transaction does NOT inherit the
   parent's tracer skip.
-- **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
+- **Idempotency replay returns the first outcome only for the same request**: a replayer
+  whose body differs (a skip included) under the same key answers `0084` (HTTP 409) and posts nothing.
 - An **honored skip adds zero downstream work** — it short-circuits before the control's
   package lookup; it never replaces the control with a more expensive code path.
 

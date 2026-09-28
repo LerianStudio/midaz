@@ -121,7 +121,7 @@ type CreateTransactionResponse struct {
 type CreateTransactionJSONRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
@@ -162,7 +162,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(ctx context.Conte
 type CreateTransactionInflowRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
@@ -186,7 +186,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(ctx context.Context, 
 type CreateTransactionOutflowRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
@@ -212,7 +212,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(ctx context.Context,
 type CreateTransactionBlockRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }

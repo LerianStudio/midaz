@@ -37,6 +37,12 @@ type CreateTransactionV2Input struct {
 	// canonical serialized transaction.
 	IdempotencyHashSource string
 
+	// IdempotencyFingerprint identifies the request for the replay check: a slot
+	// created by a request with another fingerprint answers ErrIdempotencyKey
+	// instead of replaying. Empty falls back to a fingerprint derived from the
+	// canonical serialized transaction and its status.
+	IdempotencyFingerprint string
+
 	// AccountBlockExceptionID is the single-use account-block exception the body
 	// presented, or nil when it presented none. The direct action accepts it; the
 	// hold rejects it at decode (a two-phase transaction would need two grants),
@@ -101,7 +107,7 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
-	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, in.IdempotencyHashSource)
+	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, in.IdempotencyHashSource, in.IdempotencyFingerprint)
 	if err != nil {
 		return nil, false, err
 	}

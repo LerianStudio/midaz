@@ -40,7 +40,10 @@ import (
 // idempotencyHashSource is the optional preimage override: a non-empty value keys the
 // hash off the raw body as submitted, an empty one off the canonical serialized
 // transaction. The HashSHA256 mechanism is the same regardless of which source is used.
-func (uc *UseCase) claimTransactionIdempotency(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun, idempotencyHashSource string) (*transaction.Transaction, error) {
+//
+// requestFingerprint identifies the request for the replay check, separately from the
+// key: an empty one is derived from the canonical serialized transaction and its mode.
+func (uc *UseCase) claimTransactionIdempotency(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun, idempotencyHashSource, requestFingerprint string) (*transaction.Transaction, error) {
 	hashSource, err := resolveIdempotencyHashSource(run.input, idempotencyHashSource)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
@@ -51,7 +54,19 @@ func (uc *UseCase) claimTransactionIdempotency(ctx context.Context, span trace.S
 
 	run.idempotencyHash = libCommons.HashSHA256(hashSource)
 
-	idempotencyResult, err := uc.CreateOrCheckTransactionIdempotency(ctx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyTTL)
+	if requestFingerprint == "" {
+		requestFingerprint, err = deriveTransactionRequestFingerprint(run.input, run.status)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency fingerprint", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency fingerprint", libLog.Err(err))
+
+			return nil, err
+		}
+	}
+
+	run.idempotencyFingerprint = requestFingerprint
+
+	idempotencyResult, err := uc.CreateOrCheckTransactionIdempotency(ctx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyFingerprint, run.idempotencyTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +334,7 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 
-	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, *tran, run.idempotencyTTL)
+	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyFingerprint, *tran, run.idempotencyTTL)
 
 	uc.sendLogTransactionAuditQueueAsync(bgCtx, operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
 
