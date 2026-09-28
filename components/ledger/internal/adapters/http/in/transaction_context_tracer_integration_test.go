@@ -20,10 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tracercontext"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tracerobligation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -32,8 +30,7 @@ import (
 	pgtest "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
-// The mounted Ledger route, official facts, journal and accounting engine are
-// real. The HTTP peer is a contract fixture, not a deployed Tracer or mTLS proof.
+// The mounted Ledger route, official facts and accounting engine are real. The HTTP peer is a contract fixture, not a deployed Tracer or mTLS proof.
 func TestIntegrationContextTracerMountedLedger(t *testing.T) {
 	for _, decision := range []tracercontract.Decision{tracercontract.DecisionAllow, tracercontract.DecisionDeny, tracercontract.DecisionReview} {
 		t.Run(string(decision), func(t *testing.T) { testMountedContextDecision(t, decision, mmodel.TracerModeEnforce, nil) })
@@ -59,12 +56,10 @@ func TestIntegrationContextTracerPolicyFailureNeverPosts(t *testing.T) {
 func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, mode string, peerError error, reasonOverride ...tracercontract.ReserveReason) {
 	t.Helper()
 	allowed := decision == tracercontract.DecisionAllow && peerError == nil
-	expectedState := tracerreservation.Confirmed
-	completionPath := "/confirm"
+	expectedStatus, completionOp := "CONFIRMED", tracerCallConfirm
 	reason := tracercontract.ReasonRuleAllow
 	if !allowed {
-		expectedState = tracerreservation.Released
-		completionPath = "/release"
+		expectedStatus, completionOp = "RELEASED", tracerCallRelease
 		reason = tracercontract.ReasonRuleDeny
 		if decision == tracercontract.DecisionReview {
 			reason = tracercontract.ReasonRuleReview
@@ -92,9 +87,10 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 	h.seedBalance(t, "@payer", "BTC", decimal.NewFromInt(100), "deposit")
 	h.seedBalance(t, "@receiver", "BTC", decimal.Zero, "deposit")
 	bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-	config := tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}
+	const maxBodyBytes = 65536
+	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	received := make(chan tracercontract.ReserveRequest, 1)
-	completed := make(chan uuid.UUID, 1)
+	calls := make(chan tracerCall, 4)
 	evaluationID := uuid.MustParse("9db0acb6-b304-43a7-af12-7a46e1c5667d")
 	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -103,12 +99,12 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/v1/reservations" {
-			raw, err := io.ReadAll(io.LimitReader(r.Body, int64(config.MaxBodyBytes)+1))
+			raw, err := io.ReadAll(io.LimitReader(r.Body, int64(maxBodyBytes)+1))
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			request, err := tracercontract.DecodeReserveJSON(r.Context(), raw, config.MaxBodyBytes, bounds)
+			request, err := tracercontract.DecodeReserveJSON(r.Context(), raw, maxBodyBytes, bounds)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return
@@ -119,6 +115,7 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
+			calls <- tracerCall{op: tracerCallReserve, transactionID: request.TransactionID}
 			if peerError != nil {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				_ = json.NewEncoder(w).Encode(map[string]string{"code": peerError.Error()})
@@ -129,37 +126,27 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 			return
 		}
 		path := strings.TrimPrefix(r.URL.Path, "/v1/reservations/transaction/")
-		if !strings.HasSuffix(path, completionPath) {
+		rawID, op, found := strings.Cut(path, "/")
+		transactionID, err := uuid.Parse(rawID)
+		if !found || err != nil || (op != tracerCallConfirm && op != tracerCallRelease) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		transactionID, err := uuid.Parse(strings.TrimSuffix(path, completionPath))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		select {
-		case completed <- transactionID:
-		default:
+		calls <- tracerCall{op: op, transactionID: transactionID}
+		if op != completionOp {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: string(expectedState), EvaluationID: &evaluationID})
+		_ = json.NewEncoder(w).Encode(tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: expectedStatus, EvaluationID: &evaluationID})
 	}))
 	t.Cleanup(peer.Close)
 	facts, err := tracercontext.NewRepository(h.pgConn, bounds, false)
 	require.NoError(t, err)
 	loader, err := tracer.NewOfficialContextLoader(facts, bounds)
 	require.NoError(t, err)
-	journal, err := tracerobligation.NewRepository(h.pgConn, config, false, 10)
+	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: maxBodyBytes, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
-	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
-	require.NoError(t, err)
-	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-	recoveryConfig := command.TracerRecoveryConfig{IntegrationID: "producer", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}
-	recovery, err := command.NewTracerRecoveryProcessor(journal, client, journal, recoveryConfig, func() time.Time { return instant })
-	require.NoError(t, err)
-	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, command.ContextTracerConfig{Facts: config, MaxReservations: 100, AdmissionTimeout: 5 * time.Second})
+	coordinator, err := command.NewContextTracerCoordinator(client, loader, command.ContextTracerConfig{Bounds: bounds, MaxReservations: 100, AdmissionTimeout: 5 * time.Second}, func() time.Time { return instant })
 	require.NoError(t, err)
 	h.handler.Command.ContextTracer = coordinator
 	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
@@ -212,11 +199,18 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 	require.Len(t, request.Context.Accounts, 2)
 	require.Len(t, request.Context.Entries, 2)
 	require.Equal(t, "10.125", string(request.Amount))
-	key := tracerreservation.Key{OrganizationID: h.orgID, LedgerID: h.ledgerID, TransactionID: transactionID}
-	record, err := journal.Find(t.Context(), key)
-	require.NoError(t, err)
-	require.NotNil(t, record)
-	require.Equal(t, expectedState, record.State)
+	recorded := drainTracerCalls(calls)
+	if peerError == tracer.ErrTracerUnavailable {
+		// An admission that failed for availability is completed by the retrier, off the request path.
+		require.Eventually(t, func() bool {
+			recorded = append(recorded, drainTracerCalls(calls)...)
+			return len(recorded) >= 2
+		}, 10*time.Second, 20*time.Millisecond)
+	}
+	require.Equal(t, []tracerCall{
+		{op: tracerCallReserve, transactionID: transactionID},
+		{op: completionOp, transactionID: transactionID},
+	}, recorded, "the known accounting outcome is delivered by transaction")
 	assertBalances := func() {
 		t.Helper()
 		expectedBalances := map[string]string{"@payer": "89.875", "@receiver": "10.125"}
@@ -240,26 +234,5 @@ func testMountedContextDecision(t *testing.T, decision tracercontract.Decision, 
 			require.True(t, balance.OnHold.IsZero())
 		}
 	}
-	assertBalances()
-	// Reconstruct every recovery collaborator and turn off new admission. The
-	// stored terminal obligation must suffice without the original request,
-	// facts loader, coordinator or today's ledger settings.
-	_, err = h.db.ExecContext(t.Context(), `UPDATE ledger SET settings=jsonb_set(settings,'{tracer,mode}','"off"'::jsonb) WHERE id=$1`, h.ledgerID)
-	require.NoError(t, err)
-	journal, err = tracerobligation.NewRepository(h.pgConn, config, false, 10)
-	require.NoError(t, err)
-	client, err = tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
-	require.NoError(t, err)
-	recovery, err = command.NewTracerRecoveryProcessor(journal, client, journal, recoveryConfig, func() time.Time { return instant })
-	require.NoError(t, err)
-	instant = instant.Add(time.Second)
-	summary, err := recovery.RunOnce(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, 1, summary.Delivered)
-	require.Len(t, completed, 1)
-	require.Equal(t, transactionID, <-completed)
-	summary, err = recovery.RunOnce(t.Context())
-	require.NoError(t, err)
-	require.Zero(t, summary.Claimed)
 	assertBalances()
 }

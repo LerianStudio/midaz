@@ -330,6 +330,14 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 
 	releaseOnPreparationError = false
 
+	if destinationRun != nil {
+		uc.settleAtomicTransactionBatchReservations(
+			ctx, span, logger, destinationRun, atomicTransactionBatchReservationKnownSuccess,
+		)
+	}
+
+	uc.settleCrossLedgerOriginReservations(ctx, span, logger, status, origins)
+
 	transactions, err := uc.completeCrossLedgerGroupTransition(ctx, logger, outcome, idempotencyRun)
 	if err != nil {
 		return nil, err
@@ -338,14 +346,6 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	if err := uc.finalizeCrossLedgerGroupTransition(ctx, idempotencyRun, transactions); err != nil {
 		return nil, err
 	}
-
-	if destinationRun != nil {
-		uc.settleAtomicTransactionBatchReservations(
-			ctx, span, logger, destinationRun, atomicTransactionBatchReservationKnownSuccess,
-		)
-	}
-
-	uc.settleCrossLedgerOriginReservations(ctx, span, logger, status, origins)
 
 	won, err := uc.settleCrossLedgerGroupStatus(ctx, groupID, status)
 	if err != nil {

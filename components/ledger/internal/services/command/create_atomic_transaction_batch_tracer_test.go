@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -18,11 +19,11 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 type atomicTransactionBatchTracerFake struct {
@@ -207,29 +208,58 @@ func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *
 }
 
 func TestAtomicContextBatchPreservesHoldUntilTerminalOutcome(t *testing.T) {
-	for _, outcome := range []tracerreservation.State{tracerreservation.Confirmed, tracerreservation.Released} {
-		t.Run(string(outcome), func(t *testing.T) {
+	for _, action := range []string{reservationActionConfirm, reservationActionRelease} {
+		t.Run(action, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			store := NewMockTracerObligationStore(ctrl)
-			now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
-			coordinator := &ContextTracerCoordinator{recovery: &TracerRecoveryProcessor{store: store, now: func() time.Time { return now }, config: TracerRecoveryConfig{AttemptTimeout: time.Second}}}
+			client := NewMockContextTracerReserver(ctrl)
+			coordinator, err := NewContextTracerCoordinator(client, NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+			require.NoError(t, err)
 			uc := &UseCase{ContextTracer: coordinator}
 			run := atomicTransactionBatchTracerTestRun(2)
 			run.items[0].status = constant.APPROVED
 			run.items[1].status = constant.PENDING
 			for i := range run.items {
-				key := tracerreservation.Key{TransactionID: run.items[i].transactionID}
-				run.items[i].tracerReservation = reservationHandle{ContextAttempt: &ContextTracerAttempt{Key: key, IntentAttempted: true, Frozen: true}}
+				run.items[i].tracerReservation = reservationHandle{ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: run.ledgerSettings.Tracer, Result: &tracercontract.ReserveResult{Decision: tracercontract.DecisionAllow}}, TransactionID: run.items[i].transactionID}
 			}
 			ctx, span, logger := anchorDeps()
-			// Creation settles only the posted item. No outcome is written for
-			// the hold, so a later commit OR cancel remains possible.
-			store.EXPECT().SetOutcome(gomock.Any(), run.items[0].tracerReservation.ContextAttempt.Key, tracerreservation.Confirmed, now).Return(nil)
+			// Creation settles only the posted item. Nothing is sent for the
+			// hold, so a later commit OR cancel remains possible.
+			client.EXPECT().ConfirmByTransaction(gomock.Any(), run.items[0].transactionID).Return(completionResult(run.items[0].transactionID, "CONFIRMED"), nil)
 			uc.settleAtomicTransactionBatchReservations(ctx, span, logger, run, atomicTransactionBatchReservationKnownSuccess)
-			store.EXPECT().SetOutcome(gomock.Any(), run.items[1].tracerReservation.ContextAttempt.Key, outcome, now).Return(nil)
-			uc.concludeContextReservation(ctx, span, run.items[1].tracerReservation, outcome == tracerreservation.Confirmed)
+			pending := run.items[1].transactionID
+			if action == reservationActionConfirm {
+				client.EXPECT().ConfirmByTransaction(gomock.Any(), pending).Return(completionResult(pending, "CONFIRMED"), nil)
+				uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.items[1].tracerReservation, false)
+			} else {
+				client.EXPECT().ReleaseByTransaction(gomock.Any(), pending).Return(completionResult(pending, "RELEASED"), nil)
+				uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.items[1].tracerReservation, false)
+			}
 		})
 	}
+}
+
+func TestAtomicContextBatchUnknownOutcomeLeavesReservations(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	coordinator, err := NewContextTracerCoordinator(NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl), ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}, time.Now)
+	require.NoError(t, err)
+	uc := &UseCase{ContextTracer: coordinator}
+	run := atomicTransactionBatchTracerTestRun(1)
+	run.items[0].tracerReservation = reservationHandle{ContextAttempt: &ContextTracerAttempt{Dispatched: true, Settings: run.ledgerSettings.Tracer}, TransactionID: run.items[0].transactionID}
+	require.True(t, atomicTransactionBatchHoldsReservations(run))
+	ctx, span, _ := anchorDeps()
+	logger := &capturingLogger{}
+	uc.settleAtomicTransactionBatchReservations(ctx, span, logger, run, atomicTransactionBatchReservationUnknown)
+	warnings := logger.atLevelOrMoreSevere(libLog.LevelWarn)
+	require.Len(t, warnings, 1)
+	require.Equal(t, "Atomic transaction batch outcome unknown, reservations left to tracer TTL", warnings[0].Msg)
+	require.Contains(t, warnings[0].Fields, run.executionID.String())
+	run.items[0].tracerReservation.ContextAttempt.Dispatched = false
+	require.False(t, atomicTransactionBatchHoldsReservations(run), "an admission that never reached Tracer holds nothing")
+}
+
+func TestAtomicTransactionBatchFailureSettlementReleasesWhenEngineNeverRan(t *testing.T) {
+	require.Equal(t, atomicTransactionBatchReservationConfirmedAbort, atomicTransactionBatchFailureSettlement(EngineExecutionOutcome{}))
+	require.Equal(t, atomicTransactionBatchReservationUnknown, atomicTransactionBatchFailureSettlement(EngineExecutionOutcome{Executed: true}))
 }
 
 func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchRun {

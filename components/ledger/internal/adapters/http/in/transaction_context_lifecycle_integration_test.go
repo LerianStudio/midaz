@@ -20,21 +20,45 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tracercontext"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tracerobligation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	pgtest "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
+// tracerCall is one request received by the fake Tracer peer, in arrival order.
+type tracerCall struct {
+	op            string
+	transactionID uuid.UUID
+}
+
+const (
+	tracerCallReserve = "reserve"
+	tracerCallConfirm = "confirm"
+	tracerCallRelease = "release"
+)
+
+// drainTracerCalls returns every call recorded so far without waiting. The
+// completion seams run inline before the HTTP response, so a finished request
+// has already recorded all of its calls.
+func drainTracerCalls(calls chan tracerCall) []tracerCall {
+	recorded := []tracerCall{}
+	for {
+		select {
+		case call := <-calls:
+			recorded = append(recorded, call)
+		default:
+			return recorded
+		}
+	}
+}
+
 type mountedContextLifecycle struct {
-	requests    chan tracercontract.ReserveRequest
-	completions chan tracercontract.TransactionCompletionResult
-	journal     *tracerobligation.Repository
-	recovery    *command.TracerRecoveryProcessor
-	instant     time.Time
+	requests chan tracercontract.ReserveRequest
+	calls    chan tracerCall
+	instant  time.Time
 }
 
 // Uses the mounted Ledger, actual fee engine, databases and accounting engine.
@@ -47,9 +71,9 @@ func attachContextLifecycle(t *testing.T, h *feeHarness) *mountedContextLifecycl
 	_, err := h.db.ExecContext(t.Context(), `UPDATE ledger SET settings='{"tracer":{"mode":"enforce","failPosture":"closed","validationMode":"rules-and-limits","timeoutMs":5000}}'::jsonb WHERE id=$1`, h.ledgerID)
 	require.NoError(t, err)
 	pgtest.CreateTestAsset(t, h.db, h.orgID, h.ledgerID, "USD")
-	fixture := &mountedContextLifecycle{requests: make(chan tracercontract.ReserveRequest, 8), completions: make(chan tracercontract.TransactionCompletionResult, 8), instant: time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)}
+	fixture := &mountedContextLifecycle{requests: make(chan tracercontract.ReserveRequest, 8), calls: make(chan tracerCall, 16), instant: time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)}
 	bounds := tracercontract.DefaultResourceProfile().Facts
-	cfg := tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 1048576}
+	const maxBodyBytes = 1048576
 	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
@@ -57,17 +81,18 @@ func attachContextLifecycle(t *testing.T, h *feeHarness) *mountedContextLifecycl
 			return
 		}
 		if r.URL.Path == "/v1/reservations" {
-			raw, err := io.ReadAll(io.LimitReader(r.Body, int64(cfg.MaxBodyBytes)+1))
+			raw, err := io.ReadAll(io.LimitReader(r.Body, int64(maxBodyBytes)+1))
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			request, err := tracercontract.DecodeReserveJSON(r.Context(), raw, cfg.MaxBodyBytes, bounds)
+			request, err := tracercontract.DecodeReserveJSON(r.Context(), raw, maxBodyBytes, bounds)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 			fixture.requests <- request
+			fixture.calls <- tracerCall{op: tracerCallReserve, transactionID: request.TransactionID}
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(tracercontract.ReserveResult{ContractRevision: request.ContractRevision, TransactionID: request.TransactionID, EvaluationID: uuid.NewSHA1(request.TransactionID, []byte("evaluation")), Decision: tracercontract.DecisionAllow, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonRuleAllow}, ReservationIDs: []uuid.UUID{uuid.NewSHA1(request.TransactionID, []byte("reservation"))}})
 			return
@@ -82,16 +107,16 @@ func attachContextLifecycle(t *testing.T, h *feeHarness) *mountedContextLifecycl
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		status := string(tracerreservation.Confirmed)
-		if parts[1] == "release" {
-			status = string(tracerreservation.Released)
-		} else if parts[1] != "confirm" {
+		status := "CONFIRMED"
+		if parts[1] == tracerCallRelease {
+			status = "RELEASED"
+		} else if parts[1] != tracerCallConfirm {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		evaluation := uuid.NewSHA1(id, []byte("evaluation"))
 		result := tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: id, Status: status, EvaluationID: &evaluation}
-		fixture.completions <- result
+		fixture.calls <- tracerCall{op: parts[1], transactionID: id}
 		_ = json.NewEncoder(w).Encode(result)
 	}))
 	t.Cleanup(peer.Close)
@@ -99,13 +124,9 @@ func attachContextLifecycle(t *testing.T, h *feeHarness) *mountedContextLifecycl
 	require.NoError(t, err)
 	loader, err := tracer.NewOfficialContextLoader(facts, bounds)
 	require.NoError(t, err)
-	fixture.journal, err = tracerobligation.NewRepository(h.pgConn, cfg, false, 10)
+	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: maxBodyBytes, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
 	require.NoError(t, err)
-	client, err := tracer.NewContextHTTPClient(peer.URL, tracer.ContextClientConfig{Bounds: bounds, MaxBodyBytes: cfg.MaxBodyBytes, MaxReservations: 100}, tracer.WithOperationTimeout(5*time.Second))
-	require.NoError(t, err)
-	fixture.recovery, err = command.NewTracerRecoveryProcessor(fixture.journal, client, fixture.journal, command.TracerRecoveryConfig{IntegrationID: "producer", SingleTenant: true, MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: 5 * time.Second}, func() time.Time { return fixture.instant })
-	require.NoError(t, err)
-	h.handler.Command.ContextTracer, err = command.NewContextTracerCoordinator(fixture.recovery, loader, command.ContextTracerConfig{Facts: cfg, MaxReservations: 100, AdmissionTimeout: 5 * time.Second})
+	h.handler.Command.ContextTracer, err = command.NewContextTracerCoordinator(client, loader, command.ContextTracerConfig{Bounds: bounds, MaxReservations: 100, AdmissionTimeout: 5 * time.Second}, func() time.Time { return fixture.instant })
 	require.NoError(t, err)
 	h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 	return fixture
@@ -155,19 +176,13 @@ func TestIntegrationContextTracerFeesAndRevert(t *testing.T) {
 	assertLiveBalance(t, h, "@payer", "default", "100")
 	assertLiveBalance(t, h, "@receiver", "default", "0")
 	assertLiveBalance(t, h, "@fee_rev", "default", "0")
-	summary, err := fixture.recovery.RunOnce(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, 2, summary.Delivered)
-	require.Len(t, fixture.completions, 2)
-	completedByTransaction := make(map[uuid.UUID]string, 2)
-	for range 2 {
-		completion := <-fixture.completions
-		completedByTransaction[completion.TransactionID] = completion.Status
-	}
-	require.Equal(t, string(tracerreservation.Confirmed), completedByTransaction[forward.TransactionID],
-		"the original reservation remains consumed after a revert")
-	require.Equal(t, string(tracerreservation.Confirmed), completedByTransaction[reverse.TransactionID],
-		"the revert consumes its own reservation instead of refunding the original")
+	require.Equal(t, []tracerCall{
+		{op: tracerCallReserve, transactionID: forward.TransactionID},
+		{op: tracerCallConfirm, transactionID: forward.TransactionID},
+		{op: tracerCallReserve, transactionID: reverse.TransactionID},
+		{op: tracerCallConfirm, transactionID: reverse.TransactionID},
+	}, drainTracerCalls(fixture.calls),
+		"the original reservation stays consumed and the revert consumes its own instead of refunding the original")
 }
 
 func TestIntegrationContextTracerPendingLifecycle(t *testing.T) {
@@ -186,33 +201,74 @@ func TestIntegrationContextTracerPendingLifecycle(t *testing.T) {
 			request := <-fixture.requests
 			require.NotNil(t, request.LongLived)
 			require.True(t, *request.LongLived)
-			record, err := fixture.journal.Find(t.Context(), tracerreservation.Key{OrganizationID: h.orgID, LedgerID: h.ledgerID, TransactionID: id})
-			require.NoError(t, err)
-			require.Equal(t, tracerreservation.Executing, record.State)
-			fixture.instant = record.PrepareDeadline.Add(time.Second)
-			summary, err := fixture.recovery.RunOnce(t.Context())
-			require.NoError(t, err)
-			require.Equal(t, 1, summary.Unresolved)
-			require.Empty(t, fixture.completions, "PENDING must not consume or release the reservation")
+			require.Equal(t, id, request.TransactionID)
+			require.Equal(t, []tracerCall{{op: tracerCallReserve, transactionID: id}}, drainTracerCalls(fixture.calls),
+				"PENDING must not consume or release the reservation")
 			completed := h.post(t, app, h.v2StatePath(id, action), "", nil)
 			require.Contains(t, []int{http.StatusOK, http.StatusCreated}, completed.status, string(completed.rawBody))
-			fixture.instant = fixture.instant.Add(time.Second)
-			summary, err = fixture.recovery.RunOnce(t.Context())
-			require.NoError(t, err)
-			require.Equal(t, 1, summary.Delivered)
 			require.Empty(t, fixture.requests, "completion must not reserve again")
-			require.Len(t, fixture.completions, 1)
-			outcome := <-fixture.completions
-			require.Equal(t, id, outcome.TransactionID)
+			expected := tracerCallConfirm
+			if action == "cancel" {
+				expected = tracerCallRelease
+			}
+			require.Equal(t, []tracerCall{{op: expected, transactionID: id}}, drainTracerCalls(fixture.calls))
 			if action == "commit" {
-				require.Equal(t, string(tracerreservation.Confirmed), outcome.Status)
 				assertLiveBalance(t, h, "@payer", "default", "89.875")
 				assertLiveBalance(t, h, "@receiver", "default", "10.125")
 			} else {
-				require.Equal(t, string(tracerreservation.Released), outcome.Status)
 				assertLiveBalance(t, h, "@payer", "default", "100")
 				assertLiveBalance(t, h, "@receiver", "default", "0")
 			}
+		})
+	}
+}
+
+func TestIntegrationContextTracerEngineRejectionReleases(t *testing.T) {
+	h := setupFeeHarness(t)
+	fixture := attachContextLifecycle(t, h)
+	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(5), "deposit")
+	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+	result := h.createV2Direct(t, h.newV2App(), h.v2Body("insufficient", "USD", "10", []string{h.v2Leg("@payer", "10")}, []string{h.v2Leg("@receiver", "10")}), nil)
+	require.Equal(t, http.StatusUnprocessableEntity, result.status, string(result.rawBody))
+	require.Len(t, fixture.requests, 1)
+	request := <-fixture.requests
+	require.Equal(t, []tracerCall{
+		{op: tracerCallReserve, transactionID: request.TransactionID},
+		{op: tracerCallRelease, transactionID: request.TransactionID},
+	}, drainTracerCalls(fixture.calls), "an accounting rejection releases the admitted reservation")
+	assertLiveBalance(t, h, "@payer", "default", "5")
+}
+
+func TestIntegrationContextTracerNotParticipating(t *testing.T) {
+	for _, scenario := range []struct {
+		name     string
+		settings string
+		skip     bool
+	}{
+		{name: "mode off", settings: `{"tracer":{"mode":"off"}}`},
+		{name: "honored skip", settings: `{"tracer":{"mode":"enforce","failPosture":"closed","validationMode":"rules-and-limits","timeoutMs":5000},"overrides":{"allowTracerSkip":true}}`, skip: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			h := setupFeeHarness(t)
+			fixture := attachContextLifecycle(t, h)
+			_, err := h.db.ExecContext(t.Context(), `UPDATE ledger SET settings=$1::jsonb WHERE id=$2`, scenario.settings, h.ledgerID)
+			require.NoError(t, err)
+			require.NoError(t, h.redisRepo.Del(h.ctx(), utils.LedgerSettingsInternalKey(h.orgID, h.ledgerID)))
+			h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100), "deposit")
+			h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+			app := h.newV2App()
+			body := h.v2Body("not participating", "USD", "10", []string{h.v2Leg("@payer", "10")}, []string{h.v2Leg("@receiver", "10")})
+			if scenario.skip {
+				body = strings.TrimSuffix(body, "}") + `,"skip":{"tracer":true}}`
+			}
+			direct := h.createV2Direct(t, app, body, nil)
+			require.Equal(t, http.StatusCreated, direct.status, string(direct.rawBody))
+			held := h.createV2Hold(t, app, body, nil)
+			require.Equal(t, http.StatusCreated, held.status, string(held.rawBody))
+			committed := h.post(t, app, h.v2StatePath(mustTxID(t, held), "commit"), "", nil)
+			require.Contains(t, []int{http.StatusOK, http.StatusCreated}, committed.status, string(committed.rawBody))
+			require.Empty(t, drainTracerCalls(fixture.calls), "a non-participating transaction never dials the Tracer")
+			assertLiveBalance(t, h, "@payer", "default", "80")
 		})
 	}
 }

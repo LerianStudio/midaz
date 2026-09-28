@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -22,6 +23,10 @@ import (
 // (panic_recovered_total, structured logs, span events) in dashboards.
 const reservationRetryComponent = "ledger.tracer-reservation-retry"
 
+// errReservationRetryStop is returned by a transport that has already reported
+// the transition's final outcome, so the sequence ends without another log.
+var errReservationRetryStop = errors.New("reservation retry stopped by transport")
+
 // reservationRetryPolicy bounds how hard, and for how long, the ledger keeps
 // trying to hand the tracer a confirm or release the first attempt could not
 // deliver.
@@ -32,6 +37,8 @@ const reservationRetryComponent = "ledger.tracer-reservation-retry"
 // counting the spend without touching the capacity its expiry sweep already
 // returned. The ledger would rather deliver the confirm late — the spend
 // counted, the window logged — than stop trying because the hold is gone.
+// The context profile is the exception: Tracer answers a confirm after expiry
+// with an operation conflict (0530), which is terminal and not retried.
 //
 // It does NOT outlast a PENDING transaction's hold, and nothing sensible could:
 // that one is thirty days by default (RESERVATION_LONG_LIVED_TTL_HOURS). Those
@@ -245,6 +252,10 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 		}
 
 		err := r.deliver(ctx, reserver, transition)
+		if errors.Is(err, errReservationRetryStop) {
+			return
+		}
+
 		if err == nil {
 			span.SetAttributes(attribute.Int("app.reservation.retry_attempts", attempt))
 

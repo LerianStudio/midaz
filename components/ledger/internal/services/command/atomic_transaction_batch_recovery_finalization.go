@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // AtomicTransactionBatchProjectionReader is the recovery-facing query seam.
@@ -273,7 +274,7 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	tran *transaction.Transaction,
 	status string,
 ) {
-	if tran == nil || tran.TracerSkipped || uc.TracerReserver == nil {
+	if tran == nil || tran.TracerSkipped || (uc.TracerReserver == nil && uc.ContextTracer == nil) {
 		return
 	}
 
@@ -295,9 +296,19 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	identity := reservationHandle{TransactionID: transactionID, Amount: amount, Asset: tran.AssetCode}
 
 	// A canceled member moved no funds, so its capacity is returned rather than counted.
-	action, settle := reservationActionConfirm, uc.TracerReserver.ConfirmByTransaction
+	action := reservationActionConfirm
 	if status == constant.CANCELED {
-		action, settle = reservationActionRelease, uc.TracerReserver.ReleaseByTransaction
+		action = reservationActionRelease
+	}
+
+	if uc.ContextTracer != nil {
+		uc.completeContextReservation(ctx, span, logger, mmodel.TracerSettings{}, identity, action)
+		return
+	}
+
+	settle := uc.TracerReserver.ConfirmByTransaction
+	if action == reservationActionRelease {
+		settle = uc.TracerReserver.ReleaseByTransaction
 	}
 
 	if err := settle(ctx, transactionID); err != nil {

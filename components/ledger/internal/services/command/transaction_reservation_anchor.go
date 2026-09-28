@@ -313,7 +313,7 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 // reserver or empty handle is a no-op.
 func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if handle.ContextAttempt != nil {
-		uc.concludeContextReservation(ctx, span, handle, true)
+		uc.confirmReservationsByTransaction(ctx, span, logger, handle.ContextAttempt.Settings, handle, handle.ContextAttempt.Skipped)
 		return
 	}
 
@@ -336,7 +336,7 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 // money — which is why the report distinguishes them.
 func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if handle.ContextAttempt != nil {
-		uc.concludeContextReservation(ctx, span, handle, false)
+		uc.releaseReservationsByTransaction(ctx, span, logger, handle.ContextAttempt.Settings, handle, handle.ContextAttempt.Skipped)
 		return
 	}
 
@@ -394,6 +394,11 @@ func (uc *UseCase) confirmReservationsByTransaction(ctx context.Context, span tr
 		return
 	}
 
+	if uc.ContextTracer != nil {
+		uc.completeContextReservation(ctx, span, logger, settings, identity, reservationActionConfirm)
+		return
+	}
+
 	if err := uc.TracerReserver.ConfirmByTransaction(ctx, identity.TransactionID); err != nil {
 		uc.recordReservationByTransactionFailure(ctx, span, logger, identity.transitionByTransaction(reservationActionConfirm), err)
 	}
@@ -407,18 +412,24 @@ func (uc *UseCase) releaseReservationsByTransaction(ctx context.Context, span tr
 		return
 	}
 
+	if uc.ContextTracer != nil {
+		uc.completeContextReservation(ctx, span, logger, settings, identity, reservationActionRelease)
+		return
+	}
+
 	if err := uc.TracerReserver.ReleaseByTransaction(ctx, identity.TransactionID); err != nil {
 		uc.recordReservationByTransactionFailure(ctx, span, logger, identity.transitionByTransaction(reservationActionRelease), err)
 	}
 }
 
 // tracerReservationEnabled reports whether the by-transaction confirm/release
-// transport should fire: a reserver must be injected and the per-ledger mode must
-// not be off/unset, mirroring the gate the reserve anchor applies at create time.
+// transport should fire: a reserver or context coordinator must be injected and
+// the per-ledger mode must not be off/unset, mirroring the gate the reserve
+// anchor applies at create time.
 // Advisory and enforce both confirm/release — advisory observes the lifecycle, it
 // only declines to BLOCK the request, and a confirm/release here never blocks.
 func (uc *UseCase) tracerReservationEnabled(settings mmodel.TracerSettings) bool {
-	return uc.TracerReserver != nil && settings.Mode != mmodel.TracerModeOff && settings.Mode != ""
+	return (uc.TracerReserver != nil || uc.ContextTracer != nil) && settings.Mode != mmodel.TracerModeOff && settings.Mode != ""
 }
 
 // recordReservationByTransactionFailure logs and span-records a by-transaction
@@ -426,10 +437,14 @@ func (uc *UseCase) tracerReservationEnabled(settings mmodel.TracerSettings) bool
 // record it names the amount as well as the transaction, so a lost confirm is
 // legible as "this much spending went uncounted" rather than as an opaque id.
 func (uc *UseCase) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, err error) {
+	logReservationByTransactionFailure(ctx, span, logger, transition, err)
+
+	uc.scheduleReservationRetry(ctx, logger, transition, err)
+}
+
+func logReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+transition.Action+" by transaction transport failed", err)
 
 	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed on the first attempt; retrying off the request path",
 		append(transition.logFields(), libLog.Err(err)))
-
-	uc.scheduleReservationRetry(ctx, logger, transition, err)
 }

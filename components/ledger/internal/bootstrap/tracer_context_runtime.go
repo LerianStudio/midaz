@@ -5,7 +5,6 @@
 package bootstrap
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -13,69 +12,44 @@ import (
 	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tracercontext"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tracerobligation"
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-type contextTracerDependencies struct {
-	metricsFactory *metrics.MetricsFactory
-	onboarding     *libPostgres.Client
-	transaction    *libPostgres.Client
-	catalog        tracerRecoveryCatalog
-	resolver       tracerRecoveryPoolResolver
-	service        string
-	logger         libLog.Logger
-}
-
 type contextTracerRuntime struct {
 	coordinator *command.ContextTracerCoordinator
-	worker      *TracerRecoveryWorker
 	close       func() error
 }
 
-func buildContextTracer(cfg *Config, deps contextTracerDependencies) (_ *contextTracerRuntime, retErr error) {
+func buildContextTracer(cfg *Config, onboarding *libPostgres.Client) (_ *contextTracerRuntime, retErr error) {
 	if cfg == nil {
 		return nil, constant.ErrTracerContractUnavailable
 	}
 
 	if !cfg.TracerContextEnabled {
-		if tracerDrainRequired(cfg) {
-			if err := verifyTracerDrain(context.Background(), cfg, deps); err != nil {
-				return nil, err
-			}
-		}
-
 		return nil, nil
 	}
 
-	parsed, err := parseContextTracerConfig(cfg, deps.service)
+	parsed, err := parseContextTracerConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	if deps.onboarding == nil || deps.transaction == nil || deps.logger == nil {
+	if onboarding == nil {
 		return nil, constant.ErrTracerContractUnavailable
 	}
 
-	facts, err := tracercontext.NewRepository(deps.onboarding, parsed.client.Bounds, cfg.MultiTenantEnabled)
+	facts, err := tracercontext.NewRepository(onboarding, parsed.client.Bounds, cfg.MultiTenantEnabled)
 	if err != nil {
 		return nil, err
 	}
 
 	loader, err := tracerclient.NewOfficialContextLoader(facts, parsed.client.Bounds)
-	if err != nil {
-		return nil, err
-	}
-
-	journal, err := tracerobligation.NewRepository(deps.transaction, parsed.coordinator.Facts, cfg.MultiTenantEnabled, parsed.recovery.MaxBatch)
 	if err != nil {
 		return nil, err
 	}
@@ -91,24 +65,12 @@ func buildContextTracer(cfg *Config, deps contextTracerDependencies) (_ *context
 		}
 	}()
 
-	recovery, err := command.NewTracerRecoveryProcessor(journal, client, journal, parsed.recovery, time.Now)
+	coordinator, err := command.NewContextTracerCoordinator(client, loader, parsed.coordinator, time.Now)
 	if err != nil {
 		return nil, err
 	}
 
-	recovery.MetricsFactory = deps.metricsFactory
-
-	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, parsed.coordinator)
-	if err != nil {
-		return nil, err
-	}
-
-	worker, err := NewTracerRecoveryWorker(coordinator, deps.catalog, deps.resolver, parsed.worker, deps.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	return &contextTracerRuntime{coordinator: coordinator, worker: worker, close: closeClient}, nil
+	return &contextTracerRuntime{coordinator: coordinator, close: closeClient}, nil
 }
 
 func buildContextTracerClient(cfg *Config, parsed contextTracerRuntimeConfig) (command.ContextTracerReserver, func() error, error) {

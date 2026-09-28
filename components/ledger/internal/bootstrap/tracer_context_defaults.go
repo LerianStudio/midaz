@@ -29,14 +29,6 @@ func applyTracerContextDefaults(cfg *Config) {
 		{"TRACER_CONTEXT_MAX_INTEGER_DIGITS", &cfg.TracerContextMaxIntegerDigits, profile.Facts.MaxIntegerDigits},
 		{"TRACER_CONTEXT_MAX_BODY_BYTES", &cfg.TracerContextMaxBodyBytes, profile.MaxBodyBytes},
 		{"TRACER_CONTEXT_MAX_RESERVATIONS", &cfg.TracerContextMaxReservations, profile.MaxReservations},
-		{"TRACER_RECOVERY_BATCH_SIZE", &cfg.TracerRecoveryBatchSize, 10},
-		{"TRACER_RECOVERY_INTERVAL_MS", &cfg.TracerRecoveryIntervalMs, 1000},
-		{"TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS", &cfg.TracerRecoveryMaxRetryIntervalMs, 300000},
-		{"TRACER_RECOVERY_CYCLE_TIMEOUT_MS", &cfg.TracerRecoveryCycleTimeoutMs, 10000},
-		{"TRACER_RECOVERY_TENANT_TIMEOUT_MS", &cfg.TracerRecoveryTenantTimeoutMs, 2000},
-		{"TRACER_RECOVERY_ATTEMPT_TIMEOUT_MS", &cfg.TracerRecoveryAttemptTimeoutMs, 1000},
-		{"TRACER_RECOVERY_MAX_TENANTS", &cfg.TracerRecoveryMaxTenants, 10},
-		{"TRACER_RECOVERY_MAX_CATALOG_TENANTS", &cfg.TracerRecoveryMaxCatalogTenants, 1000},
 	}
 	for _, entry := range defaults {
 		if _, exists := os.LookupEnv(entry.key); !exists && *entry.target == 0 {

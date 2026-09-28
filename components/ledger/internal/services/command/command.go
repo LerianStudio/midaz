@@ -216,6 +216,9 @@ type UseCase struct {
 
 	// ContextTracer owns the replacement contract and durable coordination.
 	// Bootstrap installs it only together with its independent recovery worker.
+
+	// ContextTracer owns the replacement contract: admission before accounting
+	// and by-transaction completion after it.
 	ContextTracer *ContextTracerCoordinator
 
 	// TracerActivation is installed only by the complete context integration.

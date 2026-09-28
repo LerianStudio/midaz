@@ -10,21 +10,18 @@ import (
 	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/stretchr/testify/require"
 )
 
 func contextTracerTestConfig() Config {
 	return Config{
-		TracerRecoveryMaxRetryIntervalMs: 300000,
-		TracerContextEnabled:             true, TracerBaseURL: "https://tracer.test:4020", TracerTLSMode: "mtls", TracerTimeoutMs: 250, TracerIntegrationID: "producer",
+		TracerContextEnabled: true, TracerBaseURL: "https://tracer.test:4020", TracerTLSMode: "mtls", TracerTimeoutMs: 250,
 		TracerContextMaxBodyBytes: 65536, TracerContextMaxAccounts: 10, TracerContextMaxEntries: 20, TracerContextMaxTextBytes: 256, TracerContextMaxIntegerDigits: 128, TracerContextMaxFractionDigits: "128", TracerContextMaxReservations: 100,
-		TracerRecoveryBatchSize: 10, TracerRecoveryIntervalMs: 1000, TracerRecoveryCycleTimeoutMs: 1000, TracerRecoveryTenantTimeoutMs: 500, TracerRecoveryAttemptTimeoutMs: 250, TracerRecoveryMaxTenants: 10, TracerRecoveryMaxCatalogTenants: 100,
 	}
 }
 
 func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
-	for _, scenario := range []string{"valid", "zero precision", "missing precision", "missing producer", "mesh", "empty endpoint", "empty timeout", "empty interval", "empty batch", "empty catalog bound", "batch exceeds recovery"} {
+	for _, scenario := range []string{"valid", "zero precision", "missing precision", "mesh", "empty endpoint", "empty timeout", "empty body bound", "empty reservation bound"} {
 		t.Run(scenario, func(t *testing.T) {
 			cfg := contextTracerTestConfig()
 			switch scenario {
@@ -32,29 +29,24 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 				cfg.TracerContextMaxFractionDigits = "0"
 			case "missing precision":
 				cfg.TracerContextMaxFractionDigits = ""
-			case "missing producer":
-				cfg.TracerIntegrationID = ""
 			case "mesh":
 				cfg.TracerTLSMode = "mesh"
 			case "empty endpoint":
 				cfg.TracerBaseURL = ""
 			case "empty timeout":
 				cfg.TracerTimeoutMs = 0
-			case "empty interval":
-				cfg.TracerRecoveryIntervalMs = 0
-			case "empty batch":
-				cfg.TracerRecoveryBatchSize = 0
-			case "empty catalog bound":
-				cfg.TracerRecoveryMaxCatalogTenants = 0
-			case "batch exceeds recovery":
-				cfg.TransactionBatchMaxSize = cfg.TracerRecoveryBatchSize + 1
+			case "empty body bound":
+				cfg.TracerContextMaxBodyBytes = 0
+			case "empty reservation bound":
+				cfg.TracerContextMaxReservations = 0
 			}
-			parsed, err := parseContextTracerConfig(&cfg, "ledger")
+			parsed, err := parseContextTracerConfig(&cfg)
 			if scenario == "valid" {
 				require.NoError(t, err)
 				require.Equal(t, 250*time.Millisecond, parsed.coordinator.AdmissionTimeout)
 				require.Equal(t, parsed.operationTimeout, parsed.coordinator.AdmissionTimeout)
-				require.Equal(t, time.Duration(cfg.TracerRecoveryCycleTimeoutMs)*time.Millisecond, parsed.recovery.LeaseDuration)
+				require.Equal(t, parsed.client.Bounds, parsed.coordinator.Bounds)
+				require.Equal(t, cfg.TracerContextMaxReservations, parsed.coordinator.MaxReservations)
 			} else {
 				require.Error(t, err)
 			}
@@ -62,40 +54,28 @@ func TestContextTracerRequiresExplicitConfiguration(t *testing.T) {
 	}
 }
 
-func TestContextTracerDisabledWithoutIdentitySkipsDrain(t *testing.T) {
-	runtime, err := buildContextTracer(&Config{}, contextTracerDependencies{})
+func TestContextTracerDisabledBuildsNothing(t *testing.T) {
+	runtime, err := buildContextTracer(&Config{}, nil)
 	require.NoError(t, err)
 	require.Nil(t, runtime)
 }
 
-func TestContextTracerRuntimeIncludesRecovery(t *testing.T) {
+func TestContextTracerRuntimeBuildsCoordinator(t *testing.T) {
 	certs := writeSeamCertFiles(t)
 	for _, transport := range []string{"grpc", "rest"} {
 		t.Run(transport, func(t *testing.T) {
 			cfg := contextTracerTestConfig()
 			cfg.TracerTransport = transport
 			cfg.TracerTLSCertFile, cfg.TracerTLSKeyFile, cfg.TracerTLSCAFile = certs.certFile, certs.keyFile, certs.caFile
-			deps := contextTracerDependencies{onboarding: &libPostgres.Client{}, transaction: &libPostgres.Client{}, service: "ledger", logger: libLog.NewNop()}
-			runtime, err := buildContextTracer(&cfg, deps)
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{})
 			require.NoError(t, err)
 			require.NotNil(t, runtime.coordinator)
-			require.NotNil(t, runtime.worker)
 			require.NoError(t, runtime.coordinator.ValidateActivation(t.Context()))
 			if runtime.close != nil {
 				require.NoError(t, runtime.close())
 			}
-			apps := (&Service{TracerRecoveryWorker: runtime.worker}).launcherApps()
-			found := false
-			for _, app := range apps {
-				if app.name == "Tracer Recovery Worker" {
-					found = true
-					require.Same(t, runtime.worker, app.app)
-				}
-			}
-			require.True(t, found)
-			cfg.MultiTenantEnabled = true
-			_, err = buildContextTracer(&cfg, deps)
-			require.Error(t, err, "no activation without tenant discovery and pool resolution")
+			_, err = buildContextTracer(&cfg, nil)
+			require.Error(t, err, "no activation without the official facts store")
 		})
 	}
 }
@@ -105,7 +85,7 @@ func TestContextTracerRESTRefusesPlaintext(t *testing.T) {
 	cfg := contextTracerTestConfig()
 	cfg.TracerTransport, cfg.TracerBaseURL = "rest", "http://tracer.test:4020"
 	cfg.TracerTLSCertFile, cfg.TracerTLSKeyFile, cfg.TracerTLSCAFile = certs.certFile, certs.keyFile, certs.caFile
-	parsed, err := parseContextTracerConfig(&cfg, "ledger")
+	parsed, err := parseContextTracerConfig(&cfg)
 	require.NoError(t, err)
 	_, _, err = buildContextTracerClient(&cfg, parsed)
 	require.Error(t, err)

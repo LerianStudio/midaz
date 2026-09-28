@@ -20,12 +20,12 @@ import (
 // preparation. Participation gates precede even the logical-entry projection.
 func (c *ContextTracerCoordinator) AdmitPrepared(ctx context.Context, input ContextTracerInput, transaction mtransaction.Transaction, validated *mtransaction.Responses, balances []*mmodel.Balance) (ContextTracerAttempt, error) {
 	if input.HonoredSkip || input.Settings.Mode == "" || input.Settings.Mode == "off" {
-		return ContextTracerAttempt{Key: input.Key, Skipped: true}, nil
+		return ContextTracerAttempt{Skipped: true, Settings: input.Settings}, nil
 	}
 
-	entries, err := tracerPreparedEntries(ctx, transaction, validated, balances, c.config.Facts.Bounds.MaxEntries)
+	entries, err := tracerPreparedEntries(ctx, transaction, validated, balances, c.config.Bounds.MaxEntries)
 	if err != nil {
-		return ContextTracerAttempt{Key: input.Key}, err
+		return ContextTracerAttempt{Settings: input.Settings}, err
 	}
 
 	input.Entries = entries

@@ -293,6 +293,7 @@ func grpcDeterministicCause(message string) error {
 		constant.ErrExpressionEvaluation,
 		constant.ErrInvalidRequestBody,
 		constant.ErrPayloadTooLarge,
+		constant.ErrReserveOperationConflict,
 		constant.ErrTracerContractUnavailable,
 	} {
 		if message == cause.Error() {

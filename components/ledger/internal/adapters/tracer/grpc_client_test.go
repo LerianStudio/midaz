@@ -455,6 +455,10 @@ func TestMapGRPCErrorPreservesCanonicalCause(t *testing.T) {
 	err := mapGRPCError(status.Error(codes.FailedPrecondition, constant.ErrTracerContractUnavailable.Error()))
 	require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
 	require.NotErrorIs(t, err, ErrTracerUnavailable)
+
+	err = mapGRPCError(status.Error(codes.FailedPrecondition, constant.ErrReserveOperationConflict.Error()))
+	require.ErrorIs(t, err, constant.ErrReserveOperationConflict)
+	require.NotErrorIs(t, err, ErrTracerUnavailable)
 }
 
 func TestContextGRPCClientCompletion(t *testing.T) {

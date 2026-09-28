@@ -112,6 +112,7 @@ func TestContextHTTPResponseErrorClassifiesAvailability(t *testing.T) {
 		{name: "saturated canonical response", status: http.StatusTooManyRequests, body: `{"code":"0527"}`, unavailable: true},
 		{name: "missing policy", status: http.StatusServiceUnavailable, body: `{"code":"0527"}`, cause: constant.ErrContextPolicyUnavailable},
 		{name: "invalid request", status: http.StatusBadRequest, body: `{"code":"0094"}`, cause: constant.ErrInvalidRequestBody},
+		{name: "operation conflict", status: http.StatusConflict, body: `{"code":"0530"}`, cause: constant.ErrReserveOperationConflict},
 	}
 
 	for _, test := range tests {

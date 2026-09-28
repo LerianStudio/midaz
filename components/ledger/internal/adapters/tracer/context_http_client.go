@@ -176,7 +176,7 @@ func contextHTTPResponseError(status int, body []byte) error {
 		Code string `json:"code"`
 	}
 	if json.Unmarshal(body, &envelope) == nil {
-		for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrContextLimitsUnavailable, constant.ErrExpressionCostExceeded, constant.ErrExpressionEvaluation, constant.ErrInvalidRequestBody, constant.ErrPayloadTooLarge} {
+		for _, cause := range []error{constant.ErrContextPolicyUnavailable, constant.ErrContextLimitsUnavailable, constant.ErrExpressionCostExceeded, constant.ErrExpressionEvaluation, constant.ErrInvalidRequestBody, constant.ErrPayloadTooLarge, constant.ErrReserveOperationConflict} {
 			if envelope.Code == cause.Error() {
 				return cause
 			}

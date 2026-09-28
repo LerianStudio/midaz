@@ -256,6 +256,24 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 	}
 }
 
+func TestTransitionCrossLedgerGroupV2_SettlesReservationsBeforeCompletion(t *testing.T) {
+	settingsA := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
+	settingsA.Tracer.Mode = mmodel.TracerModeEnforce
+	uc, repo, engine, target, in, group := newCrossLedgerLifecycleFixtureWith(t, constant.APPROVED, crossLedgerLifecycleSetup{settingsA: &settingsA})
+	legacy := &stubReserver{}
+	uc.TracerReserver = legacy
+	// A completer that contradicts the engine makes completion fail after money moved.
+	uc.AppliedTransactionCompleter = &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.CANCELED}}
+
+	repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
+
+	_, err := uc.transitionCrossLedgerGroupV2(context.Background(), in, target, constant.APPROVED)
+	require.ErrorIs(t, err, ErrTransactionCompletionConflict)
+	require.Len(t, engine.executions, 1)
+	assert.Equal(t, []uuid.UUID{uuid.MustParse(target.ID)}, legacy.confirmedTxns,
+		"the applied origin is confirmed even when completion fails afterwards")
+}
+
 func TestTransitionCrossLedgerGroupV2_UnresolvableMemberIsIncompleteBeforeLocksOrEngine(t *testing.T) {
 	organizationID, ledgerA, ledgerB := uuid.New(), uuid.New(), uuid.New()
 	parts, err := decomposeCrossLedgerTransaction(crossLedgerTestTransaction(

@@ -16,8 +16,8 @@ import (
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=tracer_activation.go -destination=mock_tracer_activation_test.go -package=command
 
 // TracerActivationVerifier belongs to the composed context integration. It must
-// confirm local contract/deployment readiness and durable recovery before rules
-// can be enabled. It must not create a financial reservation to probe support.
+// confirm local contract/deployment readiness before rules can be enabled. It
+// must not create a financial reservation to probe support.
 // The transaction client separately verifies the peer's executed-control echo.
 type TracerActivationVerifier interface {
 	ValidateActivation(ctx context.Context) error

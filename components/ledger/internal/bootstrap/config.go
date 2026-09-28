@@ -354,25 +354,15 @@ type Config struct {
 	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
 	TracerTLSCAFile   string `env:"TRACER_TLS_CA_FILE"`
 
-	// Context activation requires explicit work bounds and a recovery worker.
-	// Per-ledger mode=off stops admission, never recovery of existing records.
-	TracerContextEnabled             bool   `env:"TRACER_CONTEXT_ENABLED"`
-	TracerIntegrationID              string `env:"TRACER_INTEGRATION_ID"`
-	TracerContextMaxBodyBytes        int    `env:"TRACER_CONTEXT_MAX_BODY_BYTES"`
-	TracerContextMaxAccounts         int    `env:"TRACER_CONTEXT_MAX_ACCOUNTS"`
-	TracerContextMaxEntries          int    `env:"TRACER_CONTEXT_MAX_ENTRIES"`
-	TracerContextMaxTextBytes        int    `env:"TRACER_CONTEXT_MAX_TEXT_BYTES"`
-	TracerContextMaxIntegerDigits    int    `env:"TRACER_CONTEXT_MAX_INTEGER_DIGITS"`
-	TracerContextMaxFractionDigits   string `env:"TRACER_CONTEXT_MAX_FRACTION_DIGITS"`
-	TracerContextMaxReservations     int    `env:"TRACER_CONTEXT_MAX_RESERVATIONS"`
-	TracerRecoveryBatchSize          int    `env:"TRACER_RECOVERY_BATCH_SIZE"`
-	TracerRecoveryIntervalMs         int    `env:"TRACER_RECOVERY_INTERVAL_MS"`
-	TracerRecoveryMaxRetryIntervalMs int    `env:"TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS"`
-	TracerRecoveryCycleTimeoutMs     int    `env:"TRACER_RECOVERY_CYCLE_TIMEOUT_MS"`
-	TracerRecoveryTenantTimeoutMs    int    `env:"TRACER_RECOVERY_TENANT_TIMEOUT_MS"`
-	TracerRecoveryAttemptTimeoutMs   int    `env:"TRACER_RECOVERY_ATTEMPT_TIMEOUT_MS"`
-	TracerRecoveryMaxTenants         int    `env:"TRACER_RECOVERY_MAX_TENANTS"`
-	TracerRecoveryMaxCatalogTenants  int    `env:"TRACER_RECOVERY_MAX_CATALOG_TENANTS"`
+	// Context activation requires explicit work bounds.
+	TracerContextEnabled           bool   `env:"TRACER_CONTEXT_ENABLED"`
+	TracerContextMaxBodyBytes      int    `env:"TRACER_CONTEXT_MAX_BODY_BYTES"`
+	TracerContextMaxAccounts       int    `env:"TRACER_CONTEXT_MAX_ACCOUNTS"`
+	TracerContextMaxEntries        int    `env:"TRACER_CONTEXT_MAX_ENTRIES"`
+	TracerContextMaxTextBytes      int    `env:"TRACER_CONTEXT_MAX_TEXT_BYTES"`
+	TracerContextMaxIntegerDigits  int    `env:"TRACER_CONTEXT_MAX_INTEGER_DIGITS"`
+	TracerContextMaxFractionDigits string `env:"TRACER_CONTEXT_MAX_FRACTION_DIGITS"`
+	TracerContextMaxReservations   int    `env:"TRACER_CONTEXT_MAX_RESERVATIONS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -1074,34 +1064,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
-	contextDependencies := contextTracerDependencies{
-		metricsFactory: metricsFactory,
-		onboarding:     onbPG.connection, transaction: txnPG.connection,
-		service: tenantServiceName, logger: logger,
-	}
-	if tenantClient != nil {
-		contextDependencies.catalog = tenantClient
-	}
-
-	if txnPG.pgManager != nil {
-		contextDependencies.resolver = txnPG.pgManager
-	}
-
-	contextTracer, err := buildContextTracer(cfg, contextDependencies)
+	contextTracer, err := buildContextTracer(cfg, onbPG.connection)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("initialize context tracer coordination: %w", err)
 	}
 
-	var (
-		tracerRecoveryWorker *TracerRecoveryWorker
-		contextTracerClose   func() error
-	)
+	var contextTracerClose func() error
 
 	if contextTracer != nil {
 		commandUseCase.ContextTracer = contextTracer.coordinator
 		commandUseCase.TracerActivation = contextTracer.coordinator
-		tracerRecoveryWorker = contextTracer.worker
 
 		contextTracerClose = contextTracer.close
 		if contextTracerClose != nil {
@@ -1363,7 +1336,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		StreamingEnabled:         cfg.StreamingEnabled,
 		DeclarationStops:         declarationStops,
 		TracerClose:              combineTracerClosers(tracerClose, contextTracerClose),
-		TracerRecoveryWorker:     tracerRecoveryWorker,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
 		ServiceDescriptor:        sd.descriptor,

@@ -18,28 +18,25 @@ import (
 	"go.uber.org/mock/gomock"
 
 	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
-func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
-	for _, scenario := range []string{"allow", "backdated", "deny", "review", "off", "skip", "facts unavailable", "facts timeout", "journal unknown", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
+func TestContextAdmissionReservesWithBoundedFacts(t *testing.T) {
+	for _, scenario := range []string{"allow", "backdated", "deny", "review", "off", "skip", "facts unavailable", "facts timeout", "response lost", "controls missing", "global timeout", "ledger timeout", "caller timeout"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			store := NewMockTracerObligationStore(ctrl)
 			client := NewMockContextTracerReserver(ctrl)
 			loader := NewMockTracerFactsLoader(ctrl)
-			evidence := NewMockTracerAccountingEvidence(ctrl)
 			instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-			cfg := ContextTracerConfig{Facts: tracerreservation.Config{Bounds: bounds, MaxBodyBytes: 65536}, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
+			cfg := ContextTracerConfig{Bounds: bounds, MaxReservations: 100, AdmissionTimeout: 250 * time.Millisecond}
 			raw, err := os.ReadFile("../../../../../pkg/tracercontract/testdata/reserve_request.json")
 			require.NoError(t, err)
-			request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, cfg.Facts.MaxBodyBytes, bounds)
+			request, err := tracercontract.DecodeReserveJSON(t.Context(), raw, 65536, bounds)
 			require.NoError(t, err)
-			key := tracerreservation.Key{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: request.TransactionID}
+			key := ContextTracerKey{OrganizationID: uuid.MustParse("35279c72-498a-4fd5-b5b7-1bd4bd44e338"), LedgerID: uuid.MustParse("7e871c7b-24e9-4e3d-a4c2-957180a71e10"), TransactionID: request.TransactionID}
 			settings := mmodel.DefaultLedgerSettings().Tracer
 			settings.Mode, settings.ValidationMode = "enforce", "rules-and-limits"
 			budget := 250 * time.Millisecond
@@ -56,25 +53,20 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 			}
 			require.NotEmpty(t, request.Context.Accounts)
 			entries := []traceradapter.PreparedEntry{{AccountID: request.Context.Accounts[0].ID, Direction: tracercontract.Debit, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset}}
-			input := ContextTracerInput{Key: key, ExecutionID: uuid.MustParse("5639dfb6-862e-4c2c-8a91-1f4f3ff54c9a"), Settings: settings, Timestamp: instant, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset, Entries: entries, HonoredSkip: scenario == "skip"}
+			input := ContextTracerInput{Key: key, Settings: settings, Timestamp: instant, Amount: decimal.RequireFromString(string(request.Amount)), AssetCode: request.Asset, Entries: entries, HonoredSkip: scenario == "skip"}
 			if scenario == "backdated" {
 				input.Timestamp = instant.AddDate(-5, 0, 0)
 			}
 			if scenario != "off" && scenario != "skip" {
-				var factsErr, errorJournal, errorReserve error
+				var factsErr, errorReserve error
 				if scenario == "facts unavailable" {
-					factsErr = errors.New("official facts unavailable")
-				}
-				if scenario == "journal unknown" {
-					errorJournal = errors.New("intent commit unknown")
+					factsErr = constant.ErrTracerFactsUnavailable
 				}
 				if scenario == "response lost" {
 					errorReserve = errors.New("reserve response lost")
 				}
-				var factsDeadline, admissionDeadline time.Time
 				read := loader.EXPECT().EvaluationContext(gomock.Any(), key.OrganizationID, key.LedgerID, entries).DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ []traceradapter.PreparedEntry) (tracercontract.Context, error) {
-					var bounded bool
-					factsDeadline, bounded = ctx.Deadline()
+					factsDeadline, bounded := ctx.Deadline()
 					require.True(t, bounded)
 					if !callerDeadline.IsZero() {
 						require.Equal(t, callerDeadline, factsDeadline)
@@ -87,56 +79,38 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 					return request.Context, factsErr
 				})
 				if factsErr == nil && scenario != "facts timeout" {
-					frozen := false
-					persist := store.EXPECT().Prepare(gomock.Any(), gomock.Any()).After(read).DoAndReturn(func(ctx context.Context, intent tracerreservation.Intent) (*tracerreservation.Record, error) {
-						require.NoError(t, intent.Validate(ctx, cfg.Facts))
-						require.Equal(t, input.ExecutionID, intent.ExecutionID)
-						require.Equal(t, key, intent.Key)
-						require.Equal(t, time.Second+budget, intent.PrepareDeadline.Sub(intent.CreatedAt))
-						var ok bool
-						admissionDeadline, ok = ctx.Deadline()
-						require.True(t, ok)
-						require.False(t, admissionDeadline.Before(factsDeadline))
-						frozen = true
-						return &tracerreservation.Record{Intent: intent, State: tracerreservation.Prepared}, errorJournal
-					})
-					if errorJournal == nil {
-						decision := tracercontract.DecisionAllow
-						if scenario == "deny" {
-							decision = tracercontract.DecisionDeny
-						}
-						if scenario == "review" {
-							decision = tracercontract.DecisionReview
-						}
-						client.EXPECT().Reserve(gomock.Any(), gomock.Any()).After(persist).DoAndReturn(func(ctx context.Context, sent tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
-							deadline, ok := ctx.Deadline()
-							require.True(t, ok)
-							require.Equal(t, admissionDeadline, deadline, "Reserve must retain the facts/journal deadline")
-							require.True(t, frozen)
-							require.Equal(t, instant, sent.TransactionTimestamp, "freshness is processing time, never the business date")
-							require.Equal(t, key.LedgerID.String(), sent.ContextID)
-							require.Equal(t, reservationRequestID(key.TransactionID), sent.RequestID)
-							require.Equal(t, request.Asset, sent.Asset)
-							require.Equal(t, request.Context, sent.Context)
-							require.Equal(t, tracercontract.ValidationRulesAndLimits, sent.ValidationMode)
-							result := &tracercontract.ReserveResult{ContractRevision: sent.ContractRevision, TransactionID: sent.TransactionID, EvaluationID: uuid.MustParse("487458bf-78f8-4f83-84f4-3eb35b66db83"), Decision: decision, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}}
-							if decision == tracercontract.DecisionDeny {
-								result.Reasons = []tracercontract.ReserveReason{tracercontract.ReasonRuleDeny}
-							}
-							if decision == tracercontract.DecisionReview {
-								result.Reasons = []tracercontract.ReserveReason{tracercontract.ReasonRuleReview}
-							}
-							if scenario == "controls missing" {
-								result.Controls.Rules = tracercontract.RulesNotRequested
-							}
-							return result, errorReserve
-						})
+					decision := tracercontract.DecisionAllow
+					if scenario == "deny" {
+						decision = tracercontract.DecisionDeny
 					}
+					if scenario == "review" {
+						decision = tracercontract.DecisionReview
+					}
+					client.EXPECT().Reserve(gomock.Any(), gomock.Any()).After(read).DoAndReturn(func(ctx context.Context, sent tracercontract.ReserveRequest) (*tracercontract.ReserveResult, error) {
+						deadline, ok := ctx.Deadline()
+						require.True(t, ok)
+						require.LessOrEqual(t, time.Until(deadline), budget, "Reserve must be bounded by the admission budget")
+						require.Equal(t, instant, sent.TransactionTimestamp, "freshness is processing time, never the business date")
+						require.Equal(t, key.LedgerID.String(), sent.ContextID)
+						require.Equal(t, reservationRequestID(key.TransactionID), sent.RequestID)
+						require.Equal(t, request.Asset, sent.Asset)
+						require.Equal(t, request.Context, sent.Context)
+						require.Equal(t, tracercontract.ValidationRulesAndLimits, sent.ValidationMode)
+						result := &tracercontract.ReserveResult{ContractRevision: sent.ContractRevision, TransactionID: sent.TransactionID, EvaluationID: uuid.MustParse("487458bf-78f8-4f83-84f4-3eb35b66db83"), Decision: decision, Controls: tracercontract.ReserveControls{Rules: tracercontract.RulesEvaluated, Limits: tracercontract.LimitsEvaluated}, ReservationIDs: []uuid.UUID{}, Reasons: []tracercontract.ReserveReason{tracercontract.ReasonLimitsSatisfied}}
+						if decision == tracercontract.DecisionDeny {
+							result.Reasons = []tracercontract.ReserveReason{tracercontract.ReasonRuleDeny}
+						}
+						if decision == tracercontract.DecisionReview {
+							result.Reasons = []tracercontract.ReserveReason{tracercontract.ReasonRuleReview}
+						}
+						if scenario == "controls missing" {
+							result.Controls.Rules = tracercontract.RulesNotRequested
+						}
+						return result, errorReserve
+					})
 				}
 			}
-			recovery, err := NewTracerRecoveryProcessor(store, client, evidence, TracerRecoveryConfig{IntegrationID: "producer", MaxBatch: 10, RetryInterval: time.Second, AttemptTimeout: time.Second}, func() time.Time { return instant })
-			require.NoError(t, err)
-			coordinator, err := NewContextTracerCoordinator(recovery, loader, cfg)
+			coordinator, err := NewContextTracerCoordinator(client, loader, cfg, func() time.Time { return instant })
 			require.NoError(t, err)
 			parent := tmcore.ContextWithTenantID(t.Context(), "tenant-a")
 			if scenario == "caller timeout" {
@@ -147,30 +121,59 @@ func TestContextAdmissionPersistsBeforeReserve(t *testing.T) {
 				budget = 250 * time.Millisecond
 			}
 			attempt, err := coordinator.Admit(parent, input)
+			require.Equal(t, settings, attempt.Settings)
 			switch scenario {
 			case "off", "skip":
 				require.NoError(t, err)
 				require.True(t, attempt.Skipped)
-				require.False(t, attempt.IntentAttempted)
+				require.False(t, attempt.Dispatched)
 			case "facts unavailable", "facts timeout":
 				require.Error(t, err)
-				require.False(t, attempt.IntentAttempted)
-				if scenario == "facts timeout" {
-					require.ErrorIs(t, err, constant.ErrTracerFactsUnavailable)
-				}
-			case "journal unknown":
-				require.Error(t, err)
-				require.True(t, attempt.IntentAttempted)
-				require.False(t, attempt.Frozen)
+				require.False(t, attempt.Dispatched, "Reserve is never sent without official facts")
+				require.ErrorIs(t, err, constant.ErrTracerFactsUnavailable)
 			case "response lost", "controls missing":
 				require.Error(t, err)
-				require.True(t, attempt.Frozen)
+				require.True(t, attempt.Dispatched)
 				require.Nil(t, attempt.Result)
 			default:
 				require.NoError(t, err)
-				require.True(t, attempt.Frozen)
+				require.True(t, attempt.Dispatched)
 				require.NotNil(t, attempt.Result)
 			}
+		})
+	}
+}
+
+func TestNewContextTracerCoordinatorRequiresDependencies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	cfg := ContextTracerConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxReservations: 100, AdmissionTimeout: time.Second}
+	client, loader := NewMockContextTracerReserver(ctrl), NewMockTracerFactsLoader(ctrl)
+
+	for name, build := range map[string]func() (*ContextTracerCoordinator, error){
+		"client": func() (*ContextTracerCoordinator, error) {
+			return NewContextTracerCoordinator(nil, loader, cfg, time.Now)
+		},
+		"facts": func() (*ContextTracerCoordinator, error) {
+			return NewContextTracerCoordinator(client, nil, cfg, time.Now)
+		},
+		"clock": func() (*ContextTracerCoordinator, error) {
+			return NewContextTracerCoordinator(client, loader, cfg, nil)
+		},
+		"timeout": func() (*ContextTracerCoordinator, error) {
+			bad := cfg
+			bad.AdmissionTimeout = 0
+			return NewContextTracerCoordinator(client, loader, bad, time.Now)
+		},
+		"bounds": func() (*ContextTracerCoordinator, error) {
+			bad := cfg
+			bad.Bounds = tracercontract.Limits{}
+			return NewContextTracerCoordinator(client, loader, bad, time.Now)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			coordinator, err := build()
+			require.Error(t, err)
+			require.Nil(t, coordinator)
 		})
 	}
 }

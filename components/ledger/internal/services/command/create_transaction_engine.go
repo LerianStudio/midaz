@@ -20,7 +20,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -113,22 +112,15 @@ func (uc *UseCase) executeCreateEngine(
 	reservation := reservationOutcome{Kind: reservationProceed}
 	if tracerEligible {
 		reservation = uc.reservePreparedTransaction(ctx, span, logger, ContextTracerInput{
-			Key:         tracerreservation.Key{OrganizationID: run.organizationID, LedgerID: run.ledgerID, TransactionID: run.transactionID},
-			ExecutionID: executionID, Settings: run.ledgerSettings.Tracer,
-			Amount: run.input.Send.Value, AssetCode: run.input.Send.Asset,
+			Key:      ContextTracerKey{OrganizationID: run.organizationID, LedgerID: run.ledgerID, TransactionID: run.transactionID},
+			Settings: run.ledgerSettings.Tracer,
+			Amount:   run.input.Send.Value, AssetCode: run.input.Send.Asset,
 			Timestamp: run.transactionDate, LongLived: run.status == constant.PENDING, HonoredSkip: run.honoredTracerSkip,
 		}, run.input, run.validate, engineState.pool.ExplicitBalances)
 		if reservation.Kind == reservationReject {
 			uc.rollbackCreateClaim(ctx, run)
 			return nil, reservation.Err
 		}
-	}
-
-	if err := uc.beginContextReservation(ctx, reservation.Handle); err != nil {
-		// A failed dispatch fence is never retried and does not prove that an
-		// existing execution aborted. Leave its obligation for reconciliation.
-		uc.rollbackCreateClaim(ctx, run)
-		return nil, err
 	}
 
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
@@ -141,6 +133,8 @@ func (uc *UseCase) executeCreateEngine(
 			if tracerEligible {
 				uc.releaseReservations(ctx, span, logger, reservation.Handle)
 			}
+		} else if tracerEligible {
+			warnContextReservationOutcomeUnknown(ctx, logger, reservation.Handle)
 		}
 
 		if !outcome.Executed {

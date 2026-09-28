@@ -10,11 +10,11 @@ import (
 	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -46,8 +46,8 @@ func (uc *UseCase) reservePreparedTransaction(ctx context.Context, span trace.Sp
 		span.SetAttributes(attribute.String("app.response.tracer.decision", string(attempt.Result.Decision)))
 	}
 
-	if outcome.Kind == reservationReject {
-		uc.concludeContextReservation(ctx, span, outcome.Handle, false)
+	if outcome.Kind == reservationReject && attempt.Dispatched {
+		uc.releaseReservations(ctx, span, logger, outcome.Handle)
 	}
 
 	return outcome
@@ -56,10 +56,6 @@ func (uc *UseCase) reservePreparedTransaction(ctx context.Context, span trace.Sp
 func contextTracerDisposition(settings mmodel.TracerSettings, attempt ContextTracerAttempt, admissionErr error) reservationOutcome {
 	if attempt.Skipped {
 		return reservationOutcome{Kind: reservationProceed}
-	}
-
-	if attempt.IntentAttempted && !attempt.Frozen {
-		return reservationOutcome{Kind: reservationReject, Err: pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction)}
 	}
 
 	if admissionErr != nil {
@@ -113,34 +109,66 @@ func contextTracerRejection(err error) error {
 	return pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction)
 }
 
-func (uc *UseCase) beginContextReservation(ctx context.Context, handle reservationHandle) error {
-	if handle.ContextAttempt == nil {
-		return nil
+// completeContextReservation delivers a known accounting outcome inline and
+// hands a transient failure to the shared retrier. It never fails the request:
+// accounting has already run, and an undelivered outcome expires by Tracer TTL.
+// An admission that failed for availability skips the inline call, so an
+// unreachable Tracer does not cost the request a second timeout.
+func (uc *UseCase) completeContextReservation(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, identity reservationHandle, action string) {
+	transition := identity.transitionByTransaction(action)
+	timeout := time.Duration(settings.TimeoutMs) * time.Millisecond
+	retry := contextTracerRetryTransport{coordinator: uc.ContextTracer, logger: logger, timeout: timeout, transition: transition}
+
+	if attempt := identity.ContextAttempt; attempt != nil && attempt.Unavailable {
+		emitTracerMetric(ctx, uc.MetricsFactory, action, "failed", 0)
+		sharedReservationRetrier.schedule(ctx, retry, logger, transition, traceradapter.ErrTracerUnavailable)
+
+		return
 	}
 
-	if uc.ContextTracer == nil {
-		return pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction)
+	started := time.Now()
+	err := uc.ContextTracer.Complete(context.WithoutCancel(ctx), transition.TransactionID, action, timeout)
+
+	result := "delivered"
+	if err != nil && !contextReleaseSettled(transition, err) {
+		result = "failed"
 	}
 
-	return uc.ContextTracer.BeginExecution(ctx, *handle.ContextAttempt)
+	emitTracerMetric(ctx, uc.MetricsFactory, action, result, time.Since(started))
+
+	if err == nil || concludeContextCompletion(ctx, span, logger, transition, err) {
+		return
+	}
+
+	logReservationByTransactionFailure(ctx, span, logger, transition, err)
+	sharedReservationRetrier.schedule(ctx, retry, logger, transition, err)
 }
 
-func (uc *UseCase) concludeContextReservation(ctx context.Context, span trace.Span, handle reservationHandle, confirmed bool) {
-	if handle.ContextAttempt == nil {
+// warnContextReservationOutcomeUnknown names a dispatched admission left
+// unsettled because accounting may or may not have run.
+func warnContextReservationOutcomeUnknown(ctx context.Context, logger libLog.Logger, handle reservationHandle) {
+	if handle.ContextAttempt == nil || !handle.ContextAttempt.Dispatched {
 		return
 	}
 
-	if uc.ContextTracer == nil {
-		recordTracerCoordinationError(span, constant.ErrTracerContractUnavailable)
+	logger.Log(ctx, libLog.LevelWarn, "Transaction outcome unknown, reservation left to tracer TTL",
+		libLog.String("transaction_id", handle.TransactionID.String()))
+}
+
+func recordTracerCoordinationError(span trace.Span, err error) {
+	if err == nil {
 		return
 	}
 
-	outcome := tracerreservation.Released
-	if confirmed {
-		outcome = tracerreservation.Confirmed
+	classified := err
+	for errors.Unwrap(classified) != nil {
+		classified = errors.Unwrap(classified)
 	}
 
-	if err := uc.ContextTracer.Conclude(ctx, *handle.ContextAttempt, outcome); err != nil {
-		recordTracerCoordinationError(span, err)
+	if pkg.IsBusinessError(pkg.ValidateBusinessError(classified, "TracerCoordination")) {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Tracer coordination rejected", err)
+		return
 	}
+
+	libOtel.HandleSpanError(span, "Tracer coordination incomplete", err)
 }
