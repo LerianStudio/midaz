@@ -7,6 +7,7 @@ package model
 import (
 	"strings"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -55,12 +56,12 @@ func (cp *CreatePackageInput) ValidateFees() error {
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
 func (cp *CreatePackageInput) ValidateMinAndMaxAmount() error {
-	minRealValue, err := parseAmountDecimal(cp.MinAmount)
+	minRealValue, err := safe.ParseDecimal(cp.MinAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 	}
 
-	maxRealValue, err := parseAmountDecimal(cp.MaxAmount)
+	maxRealValue, err := safe.ParseDecimal(cp.MaxAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 	}

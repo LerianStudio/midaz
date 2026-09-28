@@ -5,99 +5,22 @@
 package http
 
 import (
-	"encoding/json"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
-
 	"github.com/LerianStudio/lib-commons/v7/commons"
-	commonsHttp "github.com/LerianStudio/lib-commons/v7/commons/net/http"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/gofiber/fiber/v3"
-	"github.com/shopspring/decimal"
 )
 
-// DecodeHandlerFunc is a handler which works with withBody decorator.
-// It receives a struct which was decoded by withBody decorator before.
-// Ex: json -> withBody -> DecodeHandlerFunc.
+// DecodeHandlerFunc is a handler which works with the WithBodyTracing decorator.
+// It receives the struct that decorator decoded.
 type DecodeHandlerFunc func(p any, c fiber.Ctx) error
-
-// PayloadContextValue is a wrapper type used to keep Context.Locals safe.
-type PayloadContextValue string
-
-// ConstructorFunc representing a constructor of any type.
-type ConstructorFunc func() any
-
-// decoderHandler decodes payload coming from requests.
-type decoderHandler struct {
-	handler      DecodeHandlerFunc
-	constructor  ConstructorFunc
-	structSource any
-}
 
 func newOfType(s any) any {
 	t := reflect.TypeOf(s)
 	v := reflect.New(t.Elem())
 
 	return v.Interface()
-}
-
-func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
-	d := &decoderHandler{
-		handler:      h,
-		structSource: s,
-	}
-
-	return d.FiberHandlerFunc
-}
-
-// FiberHandlerFunc is a method on the decoderHandler struct. It decodes the incoming request's body to a Go struct,
-// validates it, checks for any extraneous fields not defined in the struct, and finally calls the wrapped handler function.
-func (d *decoderHandler) FiberHandlerFunc(c fiber.Ctx) error {
-	var s any
-
-	if d.constructor != nil {
-		s = d.constructor()
-	} else {
-		s = newOfType(d.structSource)
-	}
-
-	bodyBytes := c.Body() // Get the body bytes
-
-	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return commonsHttp.Respond(c, fiber.StatusBadRequest, pkg.ValidateUnmarshallingError(err))
-	}
-
-	marshaled, err := json.Marshal(s)
-	if err != nil {
-		return commonsHttp.Respond(c, fiber.StatusBadRequest, pkg.ValidateUnmarshallingError(err))
-	}
-
-	var originalMap, marshaledMap map[string]any
-
-	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return commonsHttp.Respond(c, fiber.StatusBadRequest, pkg.ValidateUnmarshallingError(err))
-	}
-
-	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return commonsHttp.Respond(c, fiber.StatusBadRequest, pkg.ValidateUnmarshallingError(err))
-	}
-
-	diffFields := findUnknownFields(originalMap, marshaledMap)
-
-	if len(diffFields) > 0 {
-		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
-		return commonsHttp.Respond(c, fiber.StatusBadRequest, err)
-	}
-
-	if err := ValidateStruct(s); err != nil {
-		return commonsHttp.Respond(c, fiber.StatusBadRequest, err)
-	}
-
-	c.Locals("fields", diffFields)
-
-	parseMetadata(s, originalMap)
-
-	return d.handler(s, c)
 }
 
 // findUnknownFields checks if the marshaled value is different from the original value
@@ -185,7 +108,7 @@ func handleSliceDifference(originalSlice []any, marshaledVal any) any {
 
 // isStringNumeric checks if a string is numeric
 func isStringNumeric(s string) bool {
-	_, err := decimal.NewFromString(s)
+	_, err := safe.ParseDecimal(s)
 	return err == nil
 }
 
