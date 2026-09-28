@@ -393,7 +393,8 @@ array in result order and is absent when the result has no change of its kind:
 - `feeDebtOpenings`: one `command.FeeDebtOpening` (`debtId`, `debtorRef`,
   `creditRef`, `opened`, `seq`) per `opened` change.
 - `feeDebtSettlements`: one `command.FeeDebtSettlement` (`debtId`, `debtorRef`,
-  `creditRef`, `amount`, `opened`, `seq`) per `settled` change.
+  `creditRef`, `amount`, `opened`, `seq`) per `settled` change, so a debt that
+  two collects settled appears twice.
 
 A pending commit's completion merges them into the transaction's existing
 metadata and never replaces it. `TransactionRevert` copies the parent's metadata
@@ -424,11 +425,12 @@ documents are not either: they lag completion and round past 34 digits.
 - P opened debts: the payer gets the whole fee back. The row reversal returns
   what P paid, one refund posting per debtor of `feeDebtOpenings` returns what
   later credits settled, and step 1 cancels what is still open.
-- P settled debts: each `feeDebtSettlements` entry becomes one `reopenFeeDebts`
-  entry with its `amount`, `opened` and `seq`, unless the debt's origin is
-  already reverted. Go learns that with `GetParentByTransactionID` on the origin
-  (the UUID leading `debtId`) in the debtor's scope, the same read the revert
-  gate uses.
+- P settled debts: Go sums the `feeDebtSettlements` entries of each `debtId`
+  into one `reopenFeeDebts` entry (`amount` = the sum; `debtorRef`,
+  `creditRef`, `opened` and `seq` are the same on every entry), the reopens
+  ordered by `seq`, and skips a debt whose origin is already reverted. Go
+  learns that with `GetParentByTransactionID` on the origin (the UUID leading
+  `debtId`) in the debtor's scope, the same read the revert gate uses.
 - C, a credit that settled an O debt, reverted before O: C's revert reopened
   the debt, so O's revert cancels `opened` and refunds 0.
 - C reverted after O: Go reopens no debt whose origin is already reverted, and
