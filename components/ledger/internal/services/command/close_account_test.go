@@ -73,6 +73,7 @@ func newCloseAccountMocks(t *testing.T) *closeAccountMocks {
 		OperationRepo:        mocks.operation,
 		TransactionRepo:      mocks.transaction,
 		TransactionRedisRepo: mocks.redis,
+		TransactionReader:    &feeDebtReader{},
 	}
 
 	return mocks
@@ -318,6 +319,47 @@ func TestCloseAccount_RefusesAResidualBalance(t *testing.T) {
 
 	requireClosingCode(t, err, constant.ErrAccountBalanceNotZero)
 	assert.True(t, closedAt.IsZero())
+}
+
+// TestCloseAccount_RefusesAnOpenFeeDebt proves a settled account that still owes a
+// deferred fee stays open: the debt is read once the closing marker stops new
+// movements, and the refusal gives the protection back before anything is written.
+func TestCloseAccount_RefusesAnOpenFeeDebt(t *testing.T) {
+	m := newCloseAccountMocks(t)
+
+	indebted := closeEligibleBalance()
+	reader := &feeDebtReader{
+		debts:  openFeeDebt(indebted.Alias + "#" + indebted.Key),
+		onRead: func() { assert.NotEmpty(t, m.token, "fee debt read before the closing marker was installed") },
+	}
+	m.uc.TransactionReader = reader
+
+	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+	m.expectProtectionTaken()
+	m.expectBalancesRead(indebted)
+	m.expectProtectionReleased()
+
+	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+	requireClosingCode(t, err, constant.ErrBalanceHasOpenFeeDebt)
+	assert.True(t, closedAt.IsZero())
+	assert.Equal(t, []string{indebted.Alias + "#" + indebted.Key}, reader.refs)
+}
+
+// TestCloseAccount_UnreadableFeeDebtIsIndeterminate proves a debt list that cannot
+// be read refuses the closing as indeterminate and still gives the protection back.
+func TestCloseAccount_UnreadableFeeDebtIsIndeterminate(t *testing.T) {
+	m := newCloseAccountMocks(t)
+	m.uc.TransactionReader = &feeDebtReader{err: errors.New("redis down")}
+
+	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+	m.expectProtectionTaken()
+	m.expectBalancesRead(closeEligibleBalance())
+	m.expectProtectionReleased()
+
+	_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 }
 
 // TestCloseAccount_RefusesAPendingTransaction covers AC-08: every component reads

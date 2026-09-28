@@ -191,10 +191,14 @@ func (uc *UseCase) refuseCachedBalanceFunds(ctx context.Context, span trace.Span
 	return nil
 }
 
-// refuseOpenFeeDebt refuses the delete when any balance still owes a deferred fee. Callers
-// hold the balances' delete markers, which the engine honors on every posting that could
-// open a debt, so the answer cannot go stale before the delete commits.
+// refuseOpenFeeDebt refuses when any balance still owes a deferred fee. Callers hold a
+// marker the engine honors on every movement that could open a debt (delete or closing),
+// so the answer cannot go stale before their write commits.
 func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	if len(balances) == 0 {
+		return nil
+	}
+
 	refs := make([]string, 0, len(balances))
 	for _, balance := range balances {
 		refs = append(refs, balance.Alias+"#"+balance.Key)
