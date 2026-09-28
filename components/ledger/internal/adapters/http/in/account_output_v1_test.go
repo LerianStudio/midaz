@@ -7,6 +7,7 @@ package in
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,6 +92,56 @@ func TestAccountV1_PreservesEmbeddedFields(t *testing.T) {
 
 	assert.Len(t, v1Body, len(canonicalBody)-len(accountHolderKeys),
 		"the v1 body must differ from the canonical body by exactly the holder fields")
+}
+
+// TestAccountV1_PublishesClosedAt asserts closedAt is NOT part of the version
+// boundary: unlike the holder keys, the closing instant belongs to both
+// contracts, so a v1 client reads the same value a v2 client reads — null while
+// the account is open, the persisted instant once it is closed. Asserting it
+// alongside the withheld holder keys is what keeps the two rules distinct.
+func TestAccountV1_PublishesClosedAt(t *testing.T) {
+	t.Parallel()
+
+	closedAt := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		closedAt *time.Time
+		want     any
+	}{
+		{name: "open account reports null", closedAt: nil, want: nil},
+		{name: "closed account reports its instant", closedAt: &closedAt, want: "2026-03-04T05:06:07Z"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			acc := accountWithHolder()
+			acc.ClosedAt = tc.closedAt
+
+			v1, err := json.Marshal(newAccountV1(acc))
+			require.NoError(t, err)
+
+			v2, err := json.Marshal(acc)
+			require.NoError(t, err)
+
+			var v1Body, v2Body map[string]any
+			require.NoError(t, json.Unmarshal(v1, &v1Body))
+			require.NoError(t, json.Unmarshal(v2, &v2Body))
+
+			require.Contains(t, v1Body, "closedAt", "/v1 must publish closedAt")
+			require.Contains(t, v2Body, "closedAt", "/v2 must publish closedAt")
+
+			assert.Equal(t, tc.want, v1Body["closedAt"])
+			assert.Equal(t, tc.want, v2Body["closedAt"])
+
+			for _, key := range accountHolderKeys {
+				assert.NotContainsf(t, v1Body, key, "/v1 must still withhold %q", key)
+			}
+		})
+	}
 }
 
 // TestAccountV1_NilStaysNil pins the bodiless answer: a nil account must not become a

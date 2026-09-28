@@ -350,11 +350,13 @@ Most config loaded via `libCommons.SetConfigFromEnvVars(cfg)` from struct tags. 
 | **CORS** | `CORS_ALLOWED_ORIGINS` |
 | **CEL** | `CEL_COST_LIMIT` (default: 10000) |
 | **Evaluation** | `DEFAULT_DECISION_WHEN_NO_MATCH` (ALLOW\|DENY), `MAX_RULES_PER_REQUEST` (1000) |
-| **Telemetry** | `ENABLE_TELEMETRY`, `OTEL_RESOURCE_SERVICE_NAME`, `OTEL_LIBRARY_NAME`, `OTEL_RESOURCE_SERVICE_VERSION`, `OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT`, `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| **Telemetry** | `ENABLE_TELEMETRY`, `OTEL_RESOURCE_SERVICE_NAME`, `OTEL_LIBRARY_NAME`, `OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT`, `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | **Cleanup Worker** | `CLEANUP_WORKER_ENABLED` (false), `CLEANUP_INTERVAL_HOURS` (24) |
 | **Rule Sync** | `RULE_SYNC_POLL_INTERVAL_SECONDS` (10), `RULE_SYNC_STALENESS_THRESHOLD_SECONDS` (50), `RULE_SYNC_OVERLAP_BUFFER_SECONDS` (2) |
 | **Multi-Tenancy** | `MULTI_TENANT_ENABLED` (false), `MULTI_TENANT_URL`, `MULTI_TENANT_SERVICE_API_KEY`, `MULTI_TENANT_REDIS_HOST`, `MULTI_TENANT_ALLOW_INSECURE_HTTP` |
 | **Testing** | `MOCK_TIME` (RFC3339 via `os.Getenv`, not in Config struct — read once at boot for deterministic integration tests) |
+
+**The service version is not configurable.** It is linked into the binary (`-X main.version/revision/buildTime`, from the CI build args `VERSION`, `REVISION` and `BUILD_TIME`) and feeds `GET /version`, the `version`/`revision`/`buildTime` fields of `/readyz` and the OTel `service.version` / `vcs.ref.head.revision`. `docker run <image> --version` prints the identity plus the dependency manifest; a build without those args reports `dev`/`unknown`.
 
 ### Docker Compose Services
 

@@ -13,9 +13,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// DeleteMetadataIndex removes a metadata index from a specific entity collection.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) DeleteMetadataIndex(ctx context.Context, entityName, indexName string) error {
@@ -34,9 +31,7 @@ func (uc *UseCase) DeleteMetadataIndex(ctx context.Context, entityName, indexNam
 
 	err := uc.TransactionMetadataRepo.DeleteIndex(ctx, entityName, indexName)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete metadata index", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to delete metadata index", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to delete metadata index", err)
 
 		return err
 	}

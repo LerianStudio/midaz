@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ import (
 // early on isRevert without ever calling the engine), rather than inferring the
 // no-op from the resulting balance.
 type countingFeeApplier struct {
-	inner FeeApplier
+	inner command.FeeApplier
 	calls int64
 }
 
@@ -52,7 +53,7 @@ func TestFeeProof_T14_DeductibleRevert(t *testing.T) {
 
 	// Wrap the fee applier in the spy so revert's no-op is proven structurally.
 	spy := &countingFeeApplier{inner: h.feeUC}
-	h.handler.FeeApplier = spy
+	h.handler.Command.FeeApplier = spy
 
 	app := h.newV2App()
 

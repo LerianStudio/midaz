@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -933,4 +934,96 @@ func TestCountAccounts_ServiceError(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Empty(t, resp.Header.Get(cn.XTotalCount), "a failed count must not advertise a total")
+}
+
+func TestUpdateAccount_UndeclaredNullKey_LegacyCanonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	accountRepo := account.NewMockRepository(ctrl)
+	accountRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	handler := &AccountHandler{
+		Command: &command.UseCase{AccountRepo: accountRepo},
+		Query:   &query.UseCase{AccountRepo: accountRepo},
+	}
+
+	app := buildHumaAccountApp(t, handler, true)
+
+	body := []byte(`{"name": "x", "bogus": null}`)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"), "/v1 keeps the legacy envelope")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, cn.ErrUnexpectedFieldsInTheRequest.Error(), got["code"])
+	assert.Equal(t, "Unexpected Fields in the Request", got["title"])
+	assert.NotEmpty(t, got["message"])
+	assert.Equal(t, map[string]any{"bogus": "unexpected field"}, got["fields"])
+	assert.NotContains(t, got, "status", "the legacy envelope carries no problem+json members")
+}
+
+func TestUpdateAccount_DeclaredNullKey_PropagatesNullFields(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	accountRepo := account.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+
+	updated := &mmodel.Account{
+		ID:             accountID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Name:           "Original",
+		AssetCode:      "USD",
+		Type:           "deposit",
+		Status:         mmodel.Status{Code: "ACTIVE"},
+	}
+
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit", Name: "Original"}, nil).Times(1)
+	accountRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Cond(func(x any) bool {
+		acc, ok := x.(*mmodel.Account)
+
+		return ok && slices.Equal(acc.NullFields, []string{"segmentId"})
+	})).Return(updated, nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), cn.EntityAccount, accountID.String(), gomock.Any()).Return(nil).AnyTimes()
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).Return(updated, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID.String()).Return(nil, nil).AnyTimes()
+
+	handler := &AccountHandler{
+		Command: &command.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo},
+		Query:   &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo},
+	}
+
+	app := buildHumaAccountApp(t, handler, true)
+
+	body := []byte(`{"segmentId": null}`)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 }

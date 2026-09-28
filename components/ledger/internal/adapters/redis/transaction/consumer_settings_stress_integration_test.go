@@ -124,10 +124,12 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 
 	debitAmount := decimal.NewFromInt(1)
 
-	// lastSettings is written only by the settings-updater goroutine and read
-	// only after wg.Wait(), so the sequential writes and the final read never
-	// race each other (happens-before via the WaitGroup).
+	// lastSettings and settingsErr are written only by the settings-updater
+	// goroutine and read only after wg.Wait(), so the sequential writes and
+	// the final reads never race each other (happens-before via the WaitGroup).
 	var lastSettings *mmodel.BalanceSettings
+
+	var settingsErr error
 
 	start := make(chan struct{})
 
@@ -147,7 +149,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 			op := buildSettingsStressDebitOp(orgID, ledgerID, alias, internalKey, debitAmount)
 
 			_, opErr := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-				uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+				uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 			if opErr != nil {
 				debitErrs.Add(1)
 			}
@@ -173,8 +175,13 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 			// here can only be a genuine infrastructure failure (transport
 			// error or a corrupt cached blob) — there is no retry-exhaustion
 			// outcome to tolerate, so any error is a real test failure.
-			uErr := infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, balanceKey, settings)
-			require.NoError(t, uErr)
+			// FailNow must not run off the test goroutine, so the error is
+			// recorded here and asserted after wg.Wait().
+			if uErr := infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, balanceKey, settings); uErr != nil {
+				settingsErr = uErr
+
+				return
+			}
 
 			settingsCallsSucceeded.Add(1)
 			lastSettings = settings
@@ -184,6 +191,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 	close(start)
 	wg.Wait()
 
+	require.NoError(t, settingsErr, "settings update failed under debit storm")
 	require.Zero(t, debitErrs.Load(), "every debit is well within Available and must not be rejected")
 	require.NotNil(t, lastSettings)
 
@@ -193,26 +201,28 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 	assert.EqualValues(t, settingsStressSettingsIterations, settingsCallsSucceeded.Load(),
 		"every settings update must succeed in a single atomic call, even under concurrent debit pressure")
 
-	final := readCachedBalance(t, infra, internalKey)
+	final := readLimitNormalizationCache(t, infra, internalKey)
 
 	expectedAvailable := decimal.NewFromInt(seededAvailable).
 		Sub(debitAmount.Mul(decimal.NewFromInt(settingsStressDebits)))
-	finalAvailable, err := decimal.NewFromString(final.Available)
+	finalAvailable, err := decimal.NewFromString(decodeSettingsUpdateField[string](t, final, "Available"))
 	require.NoError(t, err)
 	assert.Truef(t, finalAvailable.Equal(expectedAvailable),
 		"Available must equal seeded minus every successful debit (lost update if not): want %s, got %s",
 		expectedAvailable, finalAvailable)
 
 	expectedVersion := seededVersion + settingsStressDebits
-	assert.Equalf(t, expectedVersion, final.Version,
+	assert.Equalf(t, expectedVersion, decodeSettingsUpdateField[int64](t, final, "Version"),
 		"Version must equal seeded plus one increment per successful Lua write (lost update if not)")
 
-	assert.Equal(t, boolToInt(lastSettings.AllowOverdraft), final.AllowOverdraft,
+	assert.Equal(t, boolToInt(lastSettings.AllowOverdraft), decodeSettingsUpdateField[int](t, final, "AllowOverdraft"),
 		"cached AllowOverdraft must reflect the last settings call issued")
-	assert.Equal(t, boolToInt(lastSettings.OverdraftLimitEnabled), final.OverdraftLimitEnabled,
+	assert.Equal(t, lastSettings.AllowOverdraft, decodeSettingsUpdateField[bool](t, final, "allowOverdraft"))
+	assert.Equal(t, boolToInt(lastSettings.OverdraftLimitEnabled), decodeSettingsUpdateField[int](t, final, "OverdraftLimitEnabled"),
 		"cached OverdraftLimitEnabled must reflect the last settings call issued")
-	assert.Equal(t, *lastSettings.OverdraftLimit, final.OverdraftLimit,
+	assert.Equal(t, lastSettings.OverdraftLimitEnabled, decodeSettingsUpdateField[bool](t, final, "overdraftLimitEnabled"))
+	assert.Equal(t, *lastSettings.OverdraftLimit, decodeSettingsUpdateField[string](t, final, "OverdraftLimit"),
 		"cached OverdraftLimit must reflect the last settings call issued")
-	assert.Equal(t, lastSettings.BalanceScope, final.BalanceScope,
+	assert.Equal(t, lastSettings.BalanceScope, decodeSettingsUpdateField[string](t, final, "BalanceScope"),
 		"cached BalanceScope must reflect the last settings call issued")
 }

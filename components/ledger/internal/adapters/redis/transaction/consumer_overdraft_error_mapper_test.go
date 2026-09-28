@@ -33,7 +33,7 @@ func TestMapError_OverdraftLimitExceeded(t *testing.T) {
 		},
 		{
 			name:    "prefixed message",
-			luaErr:  "ERR 0167 overdraft limit exceeded for balance xyz",
+			luaErr:  "ERR 0167",
 			wantErr: constant.ErrOverdraftLimitExceeded,
 		},
 	}
@@ -68,11 +68,6 @@ func TestMapError_ExistingCodes_StillWork(t *testing.T) {
 			name:    "insufficient funds",
 			luaErr:  "0018",
 			wantErr: constant.ErrInsufficientFunds,
-		},
-		{
-			name:    "on hold external",
-			luaErr:  "0098",
-			wantErr: constant.ErrOnHoldExternalAccount,
 		},
 		{
 			name:    "backup cache retrieval failed",
@@ -114,7 +109,7 @@ func TestMapError_AccountIneligibility(t *testing.T) {
 		},
 		{
 			name:    "prefixed message",
-			luaErr:  "ERR 0019 account ineligible: balance carries a deletion marker",
+			luaErr:  "ERR 0019",
 			wantErr: constant.ErrAccountIneligibility,
 		},
 	}
@@ -157,4 +152,28 @@ func TestMapError_StaleBalance(t *testing.T) {
 	// The mapped error message must contain the code so callers can identify it.
 	assert.Contains(t, mapped.Error(), staleBalanceCode,
 		"Mapped stale-balance error must contain the error code")
+}
+
+func TestMapError_UnknownRepliesRemainTechnical(t *testing.T) {
+	t.Parallel()
+
+	for _, message := range []string{
+		"0098",
+		"ERR 0098",
+		"0167 overdraft limit exceeded for balance xyz",
+		"ERR 0167 overdraft limit exceeded for balance xyz",
+		"ERR 0019 account ineligible: balance carries a deletion marker",
+	} {
+		t.Run(message, func(t *testing.T) {
+			t.Parallel()
+
+			tracer := noop.NewTracerProvider().Tracer("test")
+			_, span := tracer.Start(t.Context(), "test")
+			defer span.End()
+
+			rawErr := errors.New(message)
+			mapped := mapBalanceAtomicScriptError(span, rawErr)
+			assert.Same(t, rawErr, mapped, "only exact supported codes are business failures")
+		})
+	}
 }

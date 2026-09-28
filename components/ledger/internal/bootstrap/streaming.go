@@ -258,6 +258,7 @@ func midazEventDefinitions() []events.Definition {
 		events.AccountCreatedDefinition,
 		events.AccountUpdatedDefinition,
 		events.AccountDeletedDefinition,
+		events.AccountClosedDefinition,
 		events.AssetCreatedDefinition,
 		events.AssetUpdatedDefinition,
 		events.AssetDeletedDefinition,
@@ -287,6 +288,10 @@ func midazEventDefinitions() []events.Definition {
 		events.TransactionCommittedDefinition,
 		events.TransactionCanceledDefinition,
 		events.TransactionRevertedDefinition,
+		events.TransactionGroupPostedDefinition,
+		events.TransactionGroupCommittedDefinition,
+		events.TransactionGroupCanceledDefinition,
+		events.TransactionGroupRevertedDefinition,
 		// Fees
 		events.FeesPackageCreatedDefinition,
 		events.FeesPackageUpdatedDefinition,

@@ -341,7 +341,7 @@ type GetBalanceHistoryRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	BalanceID      string `path:"balance_id" doc:"Balance ID (UUID)"`
-	Date           string `query:"date" doc:"Point in time (format: yyyy-mm-dd hh:mm:ss)"`
+	Date           string `query:"date" doc:"Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)"`
 }
 
 // GetBalanceHistoryResponse carries the balance history snapshot.
@@ -378,7 +378,7 @@ type GetAccountBalanceHistoryRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
-	Date           string `query:"date" doc:"Point in time (format: yyyy-mm-dd hh:mm:ss)"`
+	Date           string `query:"date" doc:"Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)"`
 }
 
 // GetAccountBalanceHistoryResponse carries the list of history snapshots.

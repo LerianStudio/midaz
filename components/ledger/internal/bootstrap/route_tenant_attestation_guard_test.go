@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -195,9 +195,9 @@ func buildTenantAttestationServer(t *testing.T, observer fiber.Handler) *Unified
 		httpin.RegisterStreamingManifestRouteToApp(router, auth, setup.onboardingRouteOptions, manifestHandler)
 	}
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
-	server := NewUnifiedServer(":0", "test-version", logger, &libOpentelemetry.Telemetry{}, readyzHandler,
+	server := NewUnifiedServer(":0", "ledger", logger, &libOpentelemetry.Telemetry{}, readyzHandler,
 		humaDeps.MountV1, humaDeps.MountV2, streamingManifestRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
@@ -326,10 +326,12 @@ func fullSurfaceHumaDeps(auth *middleware.AuthClient, setup *unifiedRouteSetup) 
 	return buildHumaMountDeps(
 		auth,
 		&httpin.OrganizationHandler{}, &httpin.LedgerHandler{}, &httpin.PortfolioHandler{}, &httpin.SegmentHandler{},
-		&httpin.AccountHandler{}, &httpin.AccountTypeHandler{}, &httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
+		&httpin.AccountHandler{}, &httpin.AccountTypeHandler{}, &httpin.AccountBlockExceptionHandler{},
+		&httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
 		&httpin.AssetRateHandler{},
 		&httpin.BalanceHandler{}, &httpin.OperationHandler{}, &httpin.OperationRouteHandler{}, &httpin.TransactionRouteHandler{},
 		&httpin.TransactionHandler{},
+		&httpin.DashboardHandler{},
 		&httpin.HolderHandler{}, &httpin.InstrumentHandler{}, &httpin.HolderAccountsHandler{}, &httpin.EncryptionHandler{},
 		&httpin.AuditHandler{},
 		&httpin.PackageHandler{}, &httpin.FeeHandler{}, &httpin.BillingPackageHandler{}, &httpin.BillingCalculateHandler{},

@@ -29,7 +29,6 @@ import (
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
-	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
@@ -37,16 +36,19 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
+	"go.uber.org/mock/gomock"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	postgrescompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -72,6 +74,49 @@ type testInfra struct {
 	app            *fiber.App
 	orgID          uuid.UUID
 	ledgerID       uuid.UUID
+}
+
+type testEngineEvidenceResolver struct {
+	repository redis.EngineWriteBehindRepository
+}
+
+type testEngineWriteBehindDispatcher struct {
+	publisher *rabbitmq.EngineWriteBehindProducer
+}
+
+func (dispatcher testEngineWriteBehindDispatcher) DispatchTransactionWriteBehind(
+	ctx context.Context,
+	envelope *command.TransactionWriteBehindEnvelope,
+) error {
+	body, err := command.EncodeTransactionWriteBehindEnvelope(*envelope)
+	if err != nil {
+		return err
+	}
+
+	return dispatcher.publisher.Publish(ctx, rabbitmq.EngineWriteBehindMessage{
+		TenantID:      envelope.Record.TenantID,
+		TransactionID: envelope.Record.TransactionID,
+		ExecutionID:   envelope.Record.ExecutionID,
+		Body:          body,
+	})
+}
+
+func (resolver testEngineEvidenceResolver) ResolveTransactionEvidence(
+	ctx context.Context,
+	reference command.TransactionEvidenceReference,
+) (*command.TransactionWriteBehindEnvelope, error) {
+	raw, _, err := resolver.repository.GetEngineTransactionEvidence(
+		ctx,
+		reference.OrganizationID,
+		reference.LedgerID,
+		reference.TransactionID,
+		reference.ExecutionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return command.DecodeTransactionWriteBehindEnvelope(raw)
 }
 
 // setupTestInfra initializes all containers and creates the handler.
@@ -101,7 +146,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
 	// Create repositories
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
@@ -112,6 +157,8 @@ func setupTestInfra(t *testing.T) *testInfra {
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	engine, err := redisengine.NewAdapter(redisConn)
+	require.NoError(t, err, "failed to create accounting engine")
 
 	// Store repositories for test assertions
 	infra.redisRepo = redisRepo
@@ -123,16 +170,26 @@ func setupTestInfra(t *testing.T) *testInfra {
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		LedgerRepo:              ledgerRepo,
+		AccountRepo:             newAbsentAccountRepo(t),
 		OperationRouteRepo:      operationRouteRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		EngineWriteBehindRepo:   redisRepo,
+		EngineWriteBehindCodec:  command.EngineWriteBehindEvidenceCodec{},
 	}
 	commandUC := &command.UseCase{
-		TransactionRepo:         transactionRepo,
-		OperationRepo:           operationRepo,
-		BalanceRepo:             balanceRepo,
-		TransactionMetadataRepo: metadataRepo,
-		TransactionRedisRepo:    redisRepo,
+		TransactionRepo:             transactionRepo,
+		OperationRepo:               operationRepo,
+		BalanceRepo:                 balanceRepo,
+		TransactionMetadataRepo:     metadataRepo,
+		TransactionRedisRepo:        redisRepo,
+		TransactionReader:           queryUC,
+		TransactionEvidenceResolver: testEngineEvidenceResolver{repository: redisRepo},
+		Engine:                      engine,
+		AppliedTransactionCompleter: command.NewTransactionCompletionService(
+			postgrescompletion.NewStore(transactionRepo, operationRepo),
+			metadataRepo,
+		),
 	}
 
 	// Create handler
@@ -157,6 +214,37 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.setupRoutes()
 
 	return infra
+}
+
+// newAbsentAccountRepo satisfies the balance read path's account lookup, which
+// this harness otherwise leaves unwired.
+//
+// Every cache-miss balance read hydrates the owning account's blocked and
+// closing state through AccountRepo, so an unwired repository is a nil
+// interface the read dereferences. The `accounts` table belongs to the
+// onboarding migration set, which this transaction-only container does not
+// load, so a real repository would fail on a missing relation instead — hence a
+// mock, following the wireEmptyLedgerSettings precedent for the ledger table.
+//
+// Returning NO rows is the faithful answer, not a convenience: production
+// resolves a balance whose account row is absent to not-blocked, which is
+// exactly the legacy behavior every test in this package was written against.
+func newAbsentAccountRepo(t *testing.T) *account.MockRepository {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockAccountRepo.EXPECT().
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]*mmodel.Account{}, nil).
+		AnyTimes()
+	mockAccountRepo.EXPECT().
+		ListClosedAtByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID]*time.Time{}, nil).
+		AnyTimes()
+
+	return mockAccountRepo
 }
 
 // seedLedgerSettings provisions a minimal `ledger` table and a single settings
@@ -576,35 +664,22 @@ func (mq *testMultiQueueConsumer) run() error {
 	return mq.consumerRoutes.RunConsumers()
 }
 
-// handlerBTOQueue processes messages from the balance transaction operation queue.
-// This mirrors the logic in bootstrap.MultiQueueConsumer.handlerBTOQueue.
+// handlerBTOQueue completes immutable engine evidence without applying balances.
+// It mirrors the engine-aware branch of the production RabbitMQ dispatcher.
 func (mq *testMultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
-	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
-
-	var message mmodel.Queue
-
-	err := msgpack.Unmarshal(body, &message)
+	envelope, err := command.DecodeTransactionWriteBehindEnvelope(body)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Error unmarshalling message JSON", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling balance message JSON: %v", err))
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message consumed: %s", message.QueueData[0].ID))
+	_, err = command.CompleteTransactionWriteBehind(
+		ctx,
+		envelope,
+		mq.useCase.TransactionEvidenceResolver,
+		mq.useCase.AppliedTransactionCompleter,
+	)
 
-	err = mq.useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error creating transaction", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating transaction: %v", err))
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // setupAsyncTestInfra initializes all containers including RabbitMQ and creates the handler with async support.
@@ -670,13 +745,15 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Create repositories
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	engine, err := redisengine.NewAdapter(redisConn)
+	require.NoError(t, err, "failed to create accounting engine")
 
 	// Store Redis repository for test assertions
 	infra.redisRepo = redisRepo
@@ -693,6 +770,13 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 	producerRepo, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	require.NoError(t, err, "failed to create RabbitMQ producer")
+	engineProducer, err := rabbitmq.NewSingleTenantEngineWriteBehindProducer(
+		rabbitMQConnection,
+		"test.transaction.exchange",
+		"test.transaction.key",
+		5*time.Second,
+	)
+	require.NoError(t, err, "failed to create engine write-behind producer")
 
 	// Create use cases with RabbitMQ producer
 	queryUC := &query.UseCase{
@@ -700,16 +784,31 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		LedgerRepo:              ledgerRepo,
+		AccountRepo:             newAbsentAccountRepo(t),
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		EngineWriteBehindRepo:   redisRepo,
+		EngineWriteBehindCodec:  command.EngineWriteBehindEvidenceCodec{},
 	}
+	completionService := command.NewTransactionCompletionService(
+		postgrescompletion.NewStore(transactionRepo, operationRepo),
+		metadataRepo,
+	)
 	infra.commandUC = &command.UseCase{
-		TransactionRepo:         transactionRepo,
-		OperationRepo:           operationRepo,
-		BalanceRepo:             balanceRepo,
-		TransactionMetadataRepo: metadataRepo,
-		TransactionRedisRepo:    redisRepo,
-		RabbitMQRepo:            producerRepo,
+		TransactionRepo:             transactionRepo,
+		OperationRepo:               operationRepo,
+		BalanceRepo:                 balanceRepo,
+		TransactionMetadataRepo:     metadataRepo,
+		TransactionRedisRepo:        redisRepo,
+		RabbitMQRepo:                producerRepo,
+		TransactionReader:           queryUC,
+		TransactionEvidenceResolver: testEngineEvidenceResolver{repository: redisRepo},
+		TransactionWriteBehindDispatcher: testEngineWriteBehindDispatcher{
+			publisher: engineProducer,
+		},
+		TransactionWriteBehindAsync: true,
+		Engine:                      engine,
+		AppliedTransactionCompleter: completionService,
 	}
 
 	// Create handler
@@ -2244,27 +2343,22 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	t.Logf("Idempotency replay test passed: transaction %s, balance %s", txID.String(), sourceBalance.String())
 }
 
-// TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip is the
-// EPIC 4.2 runtime proof that the Redis-backed idempotency replay returns the FIRST
-// transaction's outcome regardless of the replayer's body — specifically, a skip
-// object set only on the second request is IGNORED.
+// TestIntegration_TransactionHandler_IdempotencyKeyReusedWithAnotherBodyConflicts is
+// the runtime proof that a replayer cannot push a different body through a key
+// another request already owns: the second request carries a DIFFERENT description
+// under the same key and is answered 409 0084, neither replayed as the first
+// transaction nor posted as a second one.
 //
-// Direction (deliberate, no-seed): the FIRST request carries NO skip object, so it
-// needs no per-ledger override and persists fees_skipped=false. The SECOND request
-// reuses the same idempotency key but adds skip.fees=true. If the replayer's body
-// were honored, the second request would hit the two-key skip gate and — because
-// this ledger has no Allow*Skip override seeded — return 422 ErrSkipNotPermitted
-// ("0490"). Instead it must replay the first outcome: HTTP 201, same transaction id,
-// X-Idempotency-Replayed=true, and feesSkipped=false. The 201-not-422 result is
-// itself proof the replayer's skip never reached the gate.
+// The persisted audit columns are asserted alongside the response because they are the
+// durable half of the same claim: the conflict writes nothing, so fees_skipped and
+// tracer_skipped stay exactly as the first outcome left them.
 //
-// Out of integration scope here (already unit-covered): the gate's
-// zero-downstream-call and settings-read-count==1 invariants
-// (TestApplyFees_NoOpWhenSkipHonored / TestApplyFees_SkipHonoredTouchesNoFeeDependency
-// in transaction_fee_application_test.go; TestCreateAccountHolderSkip in
-// services/command/create_account_holder_test.go; the two-key truth table in
-// pkg/skip/skip_test.go TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422).
-func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t *testing.T) {
+// The per-call skip controls are NOT exercised here: they live on the /v2 create input
+// only, and this harness mounts the /v1 surface. Their gate is covered by
+// TestCreateTransactionV2_SkipWithoutOptInRejects and
+// TestCreateTransactionV2_SkipWithOptInProceeds in services/command, and the input
+// scoping by TestV1CreateRejectsSkipAsUnknownField / TestV2CreateAcceptsSkip.
+func TestIntegration_TransactionHandler_IdempotencyKeyReusedWithAnotherBodyConflicts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -2276,8 +2370,8 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	sourceAlias := "@source-idem-skip"
-	destAlias := "@dest-idem-skip"
+	sourceAlias := "@source-idem-replay"
+	destAlias := "@dest-idem-replay"
 
 	initialBalance := decimal.NewFromInt(1000)
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -2294,8 +2388,9 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 	destBalanceParams.OnHold = decimal.Zero
 	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
 
-	// First request: NO skip object -> needs no override, persists fees_skipped=false.
+	// First request: the outcome every later replay must be answered with.
 	firstBody := fmt.Sprintf(`{
+		"description": "first",
 		"send": {
 			"asset": "USD",
 			"value": "50",
@@ -2308,9 +2403,9 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 		}
 	}`, sourceAlias, destAlias)
 
-	// Second request: SAME idempotency key, but adds skip.fees=true.
+	// Second request: SAME idempotency key, different description.
 	secondBody := fmt.Sprintf(`{
-		"skip": {"fees": true},
+		"description": "second",
 		"send": {
 			"asset": "USD",
 			"value": "50",
@@ -2323,7 +2418,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 		}
 	}`, sourceAlias, destAlias)
 
-	idempotencyKey := "idem-skip-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
+	idempotencyKey := "idem-replay-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// First POST.
 	req1 := httptest.NewRequest("POST",
@@ -2339,17 +2434,18 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 	body1, err := io.ReadAll(resp1.Body)
 	require.NoError(t, err, "should read first response body")
 	require.Equal(t, 201, resp1.StatusCode,
-		"first request (no skip) should return 201, got %d: %s", resp1.StatusCode, string(body1))
+		"first request should return 201, got %d: %s", resp1.StatusCode, string(body1))
 
 	var result1 map[string]any
 	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
 	// feesSkipped is withheld from the /v1 body (v2-only audit flag); the persisted
 	// audit state is asserted against the DB columns below.
 
-	// Wait for the async goroutine to write the idempotency outcome to Redis.
-	time.Sleep(200 * time.Millisecond)
+	// Wait for the first outcome to be stored, so the conflict below comes from the
+	// stored request and not from the in-flight placeholder.
+	waitForIdempotencyStored(t, context.Background(), infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-	// Second POST: same key, replayer adds skip.fees=true.
+	// Second POST: same key, different body.
 	req2 := httptest.NewRequest("POST",
 		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
 		bytes.NewBufferString(secondBody))
@@ -2363,23 +2459,14 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 	body2, err := io.ReadAll(resp2.Body)
 	require.NoError(t, err, "should read second response body")
 
-	// MANDATORY assertion: the replay returns the FIRST outcome, the replayer's
-	// differing skip is IGNORED. A 422 here would mean the skip gate ran on the
-	// replay (it must not); a 201 with feesSkipped=true would mean the second
-	// body leaked into the replayed result (it must not).
-	require.Equal(t, 201, resp2.StatusCode,
-		"replay must return 201 (first outcome), NOT 422 from the replayer's skip gate; got %d: %s",
+	// MANDATORY assertion: the replayer's differing body is refused, not replayed.
+	require.Equal(t, 409, resp2.StatusCode,
+		"a reused key with a different body must conflict; got %d: %s",
 		resp2.StatusCode, string(body2))
+	requireProblemCode(t, body2, "0084")
 
-	replayed2 := resp2.Header.Get("X-Idempotency-Replayed")
-	assert.Equal(t, "true", replayed2,
-		"second request should be flagged as a replay, got %q", replayed2)
-
-	var result2 map[string]any
-	require.NoError(t, json.Unmarshal(body2, &result2), "second response should be valid JSON")
-
-	assert.Equal(t, result1["id"], result2["id"],
-		"replay must return the same transaction id as the first request")
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"the conflicting request must not post a second transaction")
 
 	// Confirm the persisted audit state is the first outcome (fees_skipped=false).
 	txID, err := uuid.Parse(result1["id"].(string))
@@ -2390,7 +2477,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 		`SELECT fees_skipped, tracer_skipped FROM transaction WHERE id = $1`, txID,
 	).Scan(&dbFeesSkipped, &dbTracerSkipped)
 	require.NoError(t, err, "should read persisted skip-audit columns")
-	assert.False(t, dbFeesSkipped, "persisted fees_skipped must be false (first outcome, replayer skip ignored)")
+	assert.False(t, dbFeesSkipped, "persisted fees_skipped must be false: /v1 has no skip control")
 	assert.False(t, dbTracerSkipped, "persisted tracer_skipped must be false")
 }
 

@@ -197,6 +197,7 @@ func allSentinels() map[string]error {
 		"ErrTokenMissing":                             constant.ErrTokenMissing,
 		"ErrInvalidToken":                             constant.ErrInvalidToken,
 		"ErrInsufficientPrivileges":                   constant.ErrInsufficientPrivileges,
+		"ErrAuthorizationServiceUnavailable":          constant.ErrAuthorizationServiceUnavailable,
 		"ErrPermissionEnforcement":                    constant.ErrPermissionEnforcement,
 		"ErrJWKFetch":                                 constant.ErrJWKFetch,
 		"ErrInternalServer":                           constant.ErrInternalServer,
@@ -274,6 +275,30 @@ func allSentinels() map[string]error {
 		"ErrInvalidAccountTypeKeyValue":               constant.ErrInvalidAccountTypeKeyValue,
 		"ErrInvalidAccountTypeDirection":              constant.ErrInvalidAccountTypeDirection,
 		"ErrSchemaMigrationPending":                   constant.ErrSchemaMigrationPending,
+		"ErrAccountBlocked":                           constant.ErrAccountBlocked,
+		"ErrAccountBlockExceptionsRequired":           constant.ErrAccountBlockExceptionsRequired,
+		"ErrAccountBlockExceptionsBatchTooLarge":      constant.ErrAccountBlockExceptionsBatchTooLarge,
+		"ErrAccountBlockExceptionInvalidAmount":       constant.ErrAccountBlockExceptionInvalidAmount,
+		"ErrAccountBlockExceptionInvalidTTL":          constant.ErrAccountBlockExceptionInvalidTTL,
+		"ErrAccountBlockExceptionAliasNotFound":       constant.ErrAccountBlockExceptionAliasNotFound,
+		"ErrAccountBlockExceptionInvalid":             constant.ErrAccountBlockExceptionInvalid,
+		"ErrAccountBlockExceptionNotSupported":        constant.ErrAccountBlockExceptionNotSupported,
+		"ErrBalanceApplyMarkerMissingAliases":         constant.ErrBalanceApplyMarkerMissingAliases,
+		"ErrTransactionAlreadyTransitioned":           constant.ErrTransactionAlreadyTransitioned,
+		"ErrReservedMetadataKey":                      constant.ErrReservedMetadataKey,
+		"ErrBalanceSeedRebuildInconsistent":           constant.ErrBalanceSeedRebuildInconsistent,
+		"ErrTransactionBatchCardinality":              constant.ErrTransactionBatchCardinality,
+		"ErrTransactionBatchInputLegsLimitExceeded":   constant.ErrTransactionBatchInputLegsLimitExceeded,
+		"ErrTransactionBatchBudgetExceeded":           constant.ErrTransactionBatchBudgetExceeded,
+		"ErrTransactionBatchStructuralValidation":     constant.ErrTransactionBatchStructuralValidation,
+		"ErrAccountAlreadyClosed":                     constant.ErrAccountAlreadyClosed,
+		"ErrAccountClosingInProgress":                 constant.ErrAccountClosingInProgress,
+		"ErrAccountBalanceNotZero":                    constant.ErrAccountBalanceNotZero,
+		"ErrAccountHasPendingTransactions":            constant.ErrAccountHasPendingTransactions,
+		"ErrAccountClosingPersistencePending":         constant.ErrAccountClosingPersistencePending,
+		"ErrAccountClosed":                            constant.ErrAccountClosed,
+		"ErrAccountClosingProtectionIndeterminate":    constant.ErrAccountClosingProtectionIndeterminate,
+		"ErrAccountAdministrativeOperationInProgress": constant.ErrAccountAdministrativeOperationInProgress,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
@@ -331,6 +356,14 @@ func allSentinels() map[string]error {
 		"ErrInvalidSettingsFieldValue":                constant.ErrInvalidSettingsFieldValue,
 		"ErrTransactionReservationDenied":             constant.ErrTransactionReservationDenied,
 		"ErrTransactionReservationUnavailable":        constant.ErrTransactionReservationUnavailable,
+		"ErrCrossLedgerNotEnabled":                    constant.ErrCrossLedgerNotEnabled,
+		"ErrCrossLedgerAssetMismatch":                 constant.ErrCrossLedgerAssetMismatch,
+		"ErrCrossLedgerRouteValidationUnsupported":    constant.ErrCrossLedgerRouteValidationUnsupported,
+		"ErrCrossLedgerLifecycleRequiresV2":           constant.ErrCrossLedgerLifecycleRequiresV2,
+		"ErrCrossLedgerGroupIncomplete":               constant.ErrCrossLedgerGroupIncomplete,
+		"ErrCrossLedgerGroupNotPending":               constant.ErrCrossLedgerGroupNotPending,
+		"ErrCrossLedgerRouteNotConfigured":            constant.ErrCrossLedgerRouteNotConfigured,
+		"ErrInvalidCrossLedgerRoute":                  constant.ErrInvalidCrossLedgerRoute,
 		"ErrFeeCalculationFieldType":                  constant.ErrFeeCalculationFieldType,
 		"ErrPriorityInvalid":                          constant.ErrPriorityInvalid,
 		"ErrFindAccountOnMidaz":                       constant.ErrFindAccountOnMidaz,
@@ -357,6 +390,7 @@ func allSentinels() map[string]error {
 		"ErrInvalidSegmentID":                         constant.ErrInvalidSegmentID,
 		"ErrInvalidLedgerID":                          constant.ErrInvalidLedgerID,
 		"ErrLedgerScopedQueryParameter":               constant.ErrLedgerScopedQueryParameter,
+		"ErrDuplicateFeeKey":                          constant.ErrDuplicateFeeKey,
 		"ErrConvertToDecimal":                         constant.ErrConvertToDecimal,
 		"ErrIsDeductibleFrom":                         constant.ErrIsDeductibleFrom,
 		"ErrApplicationRule":                          constant.ErrApplicationRule,
@@ -490,6 +524,7 @@ func allSentinels() map[string]error {
 		"ErrValidationInvalidMerchantCountry":         constant.ErrValidationInvalidMerchantCountry,
 		"ErrValidationMerchantIDRequired":             constant.ErrValidationMerchantIDRequired,
 		"ErrInvalidTransactionValidationFilters":      constant.ErrInvalidTransactionValidationFilters,
+		"ErrInvalidDashboardWindow":                   constant.ErrInvalidDashboardWindow,
 		"ErrTransactionValidationNotFound":            constant.ErrTransactionValidationNotFound,
 		"ErrListValidationsTimeout":                   constant.ErrListValidationsTimeout,
 		"ErrTransactionValidationIDRequired":          constant.ErrTransactionValidationIDRequired,
@@ -567,6 +602,8 @@ func allSentinels() map[string]error {
 		"ErrRelatedPartyStartDateRequired":            constant.ErrRelatedPartyStartDateRequired,
 		"ErrRelatedPartyEndDateInvalid":               constant.ErrRelatedPartyEndDateInvalid,
 		"ErrHolderHasAccounts":                        constant.ErrHolderHasAccounts,
+		"ErrInvalidInstrumentAccountType":             constant.ErrInvalidInstrumentAccountType,
+		"ErrBankAccountAlreadyRegistered":             constant.ErrBankAccountAlreadyRegistered,
 		"ErrKeysetNotFound":                           constant.ErrKeysetNotFound,
 		"ErrKeysetAlreadyExists":                      constant.ErrKeysetAlreadyExists,
 		"ErrKeysetRevisionConflict":                   constant.ErrKeysetRevisionConflict,
@@ -998,19 +1035,20 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 
 	cases := []struct {
 		name       string
-		fiberCode  int
+		err        error
 		wantStatus int
 		wantCode   string
 	}{
 		{
+			// Only the router's singleton is "wrong method"; a fresh 405 is a refusal.
 			name:       "method_not_allowed_0485_405",
-			fiberCode:  fiber.StatusMethodNotAllowed,
+			err:        fiber.ErrMethodNotAllowed,
 			wantStatus: fiber.StatusMethodNotAllowed,         // 405
 			wantCode:   constant.ErrMethodNotAllowed.Error(), // 0485
 		},
 		{
 			name:       "payload_too_large_0143_413",
-			fiberCode:  fiber.StatusRequestEntityTooLarge,
+			err:        fiber.NewError(fiber.StatusRequestEntityTooLarge, "escaped error"),
 			wantStatus: fiber.StatusRequestEntityTooLarge,   // 413
 			wantCode:   constant.ErrPayloadTooLarge.Error(), // 0143
 		},
@@ -1025,8 +1063,8 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 			app := fiber.New(fiber.Config{
 				ErrorHandler: CanonicalFiberErrorHandler,
 			})
-			app.Get("/probe", func(c fiber.Ctx) error {
-				return fiber.NewError(tc.fiberCode, "escaped error")
+			app.Get("/probe", func(fiber.Ctx) error {
+				return tc.err
 			})
 
 			resp, testErr := app.Test(httptest.NewRequest(fiber.MethodGet, "/probe", nil))

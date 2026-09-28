@@ -63,7 +63,7 @@ func setupCountByFiltersInfra(t *testing.T) *countByFiltersInfra {
 
 	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())

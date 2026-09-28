@@ -85,6 +85,14 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	}
 }
 
+func (uc *UseCase) sendLogTransactionAuditQueueAsync(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
+	if !isAuditLogEnabled() {
+		return
+	}
+
+	go uc.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, transactionID)
+}
+
 func isAuditLogEnabled() bool {
 	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
 	return envValue != "false"

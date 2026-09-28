@@ -254,6 +254,20 @@ func TestCreateLedger_PartialSettings(t *testing.T) {
 			body:        `{"name":"Ledger Empty Tracer Mode","settings":{"tracer":{"mode":""}}}`,
 			wantErrCode: codeInvalidSettingsFieldValue,
 		},
+		{
+			// A zero timeout is well typed, so only the range check rejects it; the row also
+			// pins that no repository call happens, since no mock expectation is registered.
+			name:        "zero tracer timeoutMs is rejected",
+			body:        `{"name":"Ledger Zero Tracer Timeout","settings":{"tracer":{"timeoutMs":0}}}`,
+			wantErrCode: codeInvalidSettingsFieldValue,
+		},
+		{
+			name: "lower-bound tracer timeoutMs persists the given value plus tracer defaults",
+			body: `{"name":"Ledger Min Tracer Timeout","settings":{"tracer":{"timeoutMs":1}}}`,
+			wantPersisted: settingsWith(func(s *mmodel.LedgerSettings) {
+				s.Tracer.TimeoutMs = mmodel.TracerTimeoutMsMin
+			}),
+		},
 	}
 
 	for _, tt := range tests {

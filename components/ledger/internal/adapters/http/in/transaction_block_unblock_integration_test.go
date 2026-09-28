@@ -83,7 +83,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
 	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
@@ -104,6 +104,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		AccountRepo:             newAbsentAccountRepo(t),
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 		OnboardingRedisRepo:     onboardingRedisRepo,
@@ -114,6 +115,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		TransactionReader:       queryUC,
 	}
 
 	infra.txHandler = &TransactionHandler{Query: queryUC, Command: commandUC}

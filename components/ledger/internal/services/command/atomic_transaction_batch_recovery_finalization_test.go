@@ -1,0 +1,596 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"testing"
+
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	operationPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+)
+
+type atomicTransactionBatchRecoveryRepositoryFake struct {
+	*atomicTransactionBatchClaimRepositoryFake
+
+	candidate *txRedis.AtomicTransactionBatchFinalizationCandidateResult
+	err       error
+	calls     int
+	identity  [4]uuid.UUID
+	captures  []json.RawMessage
+}
+
+func (repository *atomicTransactionBatchRecoveryRepositoryFake) CaptureAtomicTransactionBatchInitialResponse(
+	_ context.Context,
+	_, _, _ uuid.UUID,
+	_ string,
+	transactionID uuid.UUID,
+	response json.RawMessage,
+) (*txRedis.AtomicTransactionBatchInitialResponseCaptureResult, error) {
+	if repository.candidate == nil {
+		return nil, errors.New("missing recovery candidate")
+	}
+
+	repository.captures = append(repository.captures, append(json.RawMessage(nil), response...))
+
+	// Mirrors the capture script: a member captured before must be re-sent
+	// with the exact same bytes.
+	if existing, found := repository.candidate.Record.InitialResponses[transactionID.String()]; found {
+		if existing != base64.StdEncoding.EncodeToString(response) {
+			return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+				Outcome: txRedis.AtomicTransactionBatchInitialResponseConflict,
+				Record:  repository.candidate.Record,
+			}, errors.New("atomic transaction batch initial response conflict")
+		}
+
+		return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+			Outcome: txRedis.AtomicTransactionBatchInitialResponseAlreadyCaptured,
+			Record:  repository.candidate.Record,
+		}, nil
+	}
+
+	if repository.candidate.Record.FormatVersion == txRedis.AtomicTransactionBatchIdempotencyFormatVersion {
+		if repository.candidate.Record.InitialResponses == nil {
+			repository.candidate.Record.InitialResponses = make(map[string]string)
+		}
+		repository.candidate.Record.InitialResponses[transactionID.String()] = base64.StdEncoding.EncodeToString(response)
+	}
+
+	return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+		Outcome: txRedis.AtomicTransactionBatchInitialResponseCaptured,
+		Record:  repository.candidate.Record,
+	}, nil
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesDirectWithoutProjectionRead(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Candidate = false
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Zero(t, fixture.reader.calls)
+	require.Len(t, fixture.repository.captures, 1)
+
+	var public transactionPostgres.Transaction
+	require.NoError(t, json.Unmarshal(fixture.repository.captures[0], &public))
+	assert.Equal(t, constant.CREATED, public.Status.Code)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesPendingHoldWithoutProjectionRead(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Candidate = false
+	pending := constant.PENDING
+	fixture.completion.Outcome.TransactionStatus = pending
+	fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: pending, Description: &pending}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Zero(t, fixture.reader.calls)
+	require.Len(t, fixture.repository.captures, 1)
+
+	var public transactionPostgres.Transaction
+	require.NoError(t, json.Unmarshal(fixture.repository.captures[0], &public))
+	assert.Equal(t, constant.PENDING, public.Status.Code)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesCanceledGroupMember(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateApplied
+	fixture.repository.candidate.Candidate = false
+	canceled := constant.CANCELED
+	fixture.completion.Outcome.TransactionStatus = canceled
+	fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: canceled, Description: &canceled}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err, "a canceled group member must not strand its recovery record")
+	require.NotNil(t, prepared)
+	assert.Zero(t, fixture.reader.calls)
+	require.Len(t, fixture.repository.captures, 1)
+
+	var public transactionPostgres.Transaction
+	require.NoError(t, json.Unmarshal(fixture.repository.captures[0], &public))
+	assert.Equal(t, constant.CANCELED, public.Status.Code)
+	assert.Empty(t, fixture.tracer.confirmed, "a canceled member's reservation must not be counted")
+	assert.Equal(t, []uuid.UUID{fixture.transactionIDs[0]}, fixture.tracer.released)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCanceledStatusDrift(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateApplied
+	fixture.completion.Outcome.TransactionStatus = constant.CANCELED
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	assert.Nil(t, prepared)
+	require.ErrorContains(t, err, "canceled status differs")
+	assert.Empty(t, fixture.repository.captures)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesCommittedGroupMemberAsTheCommitAnswers(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		status string
+		action string
+	}{
+		{name: "destination created by the commit", status: constant.CREATED, action: constant.ActionDirect},
+		{name: "origin approved by the commit", status: constant.APPROVED, action: constant.ActionCommit},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			member := committedGroupMemberRecovery(t, test.status, test.action)
+
+			prepared, err := member.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(member.ctx, member.record, member.completion)
+			require.NoError(t, err)
+			require.NotNil(t, prepared)
+			require.Len(t, member.repository.captures, 1)
+			assert.Equal(t, string(member.lookup), string(member.repository.captures[0]),
+				"a recovered commit member must freeze the exact bytes the commit request captures")
+		})
+	}
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_CommittedMemberCapturedByTheRequestIsNotAConflict(t *testing.T) {
+	member := committedGroupMemberRecovery(t, constant.CREATED, constant.ActionDirect)
+	member.repository.candidate.Record.InitialResponses = map[string]string{
+		member.record.TransactionID.String(): base64.StdEncoding.EncodeToString(member.lookup),
+	}
+
+	prepared, err := member.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(member.ctx, member.record, member.completion)
+	require.NoError(t, err, "the request died after capturing this member; recovery must converge on the same bytes")
+	require.NotNil(t, prepared)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsStatusOutsideTheGroupLifecycle(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		lifecycle txRedis.AtomicTransactionBatchLifecycleAction
+		status    string
+	}{
+		{name: "commit left a member pending", lifecycle: txRedis.AtomicTransactionBatchLifecycleCommit, status: constant.PENDING},
+		{name: "commit canceled a member", lifecycle: txRedis.AtomicTransactionBatchLifecycleCommit, status: constant.CANCELED},
+		{name: "cancel approved a member", lifecycle: txRedis.AtomicTransactionBatchLifecycleCancel, status: constant.APPROVED},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := atomicTransactionBatchRecoveryFixture(false)
+			fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+			fixture.repository.candidate.Record.LifecycleAction = test.lifecycle
+			fixture.completion.Outcome.TransactionStatus = test.status
+			fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: test.status, Description: &test.status}
+
+			prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+			assert.Nil(t, prepared)
+			require.ErrorContains(t, err, "differs from its lifecycle")
+			assert.Empty(t, fixture.repository.captures)
+		})
+	}
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsCommittedStatusDrift(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Record.LifecycleAction = txRedis.AtomicTransactionBatchLifecycleCommit
+	pending := constant.PENDING
+	fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: pending, Description: &pending}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	assert.Nil(t, prepared)
+	require.ErrorContains(t, err, "committed status differs")
+	assert.Empty(t, fixture.repository.captures)
+}
+
+type committedGroupMemberRecoveryFixture struct {
+	ctx        context.Context
+	useCase    *UseCase
+	repository *atomicTransactionBatchRecoveryRepositoryFake
+	record     *TransactionCompletionRecord
+	completion TransactionCompletionResult
+	lookup     json.RawMessage
+}
+
+// committedGroupMemberRecovery builds one member of an interrupted group commit
+// from a real completion plan, so the recovered bytes can be compared with the
+// lookup view the commit request captures.
+func committedGroupMemberRecovery(t *testing.T, status, action string) committedGroupMemberRecoveryFixture {
+	t.Helper()
+
+	plan, result := recoveryContractFixture(t)
+	plan.TransactionStatus, plan.Action = status, action
+	plan.IntentFingerprint = mustEvidenceViewFingerprint(t, plan)
+	envelope := recoveryContractEnvelope(t, plan, result)
+
+	views, err := BuildTransactionEvidenceViews(envelope)
+	require.NoError(t, err)
+	lookup, err := json.Marshal(views.Lookup)
+	require.NoError(t, err)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), plan.TenantID)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+		calls:   &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+	completion, err := NewTransactionCompletionService(store, metadata).Complete(ctx, &envelope)
+	require.NoError(t, err)
+
+	executionID := plan.ExecutionID
+	repository := &atomicTransactionBatchRecoveryRepositoryFake{
+		atomicTransactionBatchClaimRepositoryFake: &atomicTransactionBatchClaimRepositoryFake{},
+		candidate: &txRedis.AtomicTransactionBatchFinalizationCandidateResult{
+			Record: txRedis.AtomicTransactionBatchIdempotencyRecord{
+				FormatVersion:      txRedis.AtomicTransactionBatchIdempotencyFormatVersion,
+				State:              txRedis.AtomicTransactionBatchStateApplied,
+				RequestFingerprint: "request-fingerprint",
+				OwnerToken:         "owner-token",
+				BatchID:            uuid.MustParse("01994f13-29b7-7000-8000-000000000201"),
+				ExecutionID:        &executionID,
+				TransactionIDs:     []uuid.UUID{plan.TransactionID, uuid.MustParse("01994f13-29b7-7000-8000-000000000202")},
+				LifecycleAction:    txRedis.AtomicTransactionBatchLifecycleCommit,
+			},
+		},
+	}
+
+	return committedGroupMemberRecoveryFixture{
+		ctx:        ctx,
+		useCase:    &UseCase{AtomicTransactionBatchIdempotencyRepo: repository},
+		repository: repository,
+		record:     &envelope,
+		completion: completion,
+		lookup:     lookup,
+	}
+}
+
+func (repository *atomicTransactionBatchRecoveryRepositoryFake) GetAtomicTransactionBatchFinalizationCandidate(
+	_ context.Context,
+	organizationID, ledgerID, executionID, transactionID uuid.UUID,
+) (*txRedis.AtomicTransactionBatchFinalizationCandidateResult, error) {
+	repository.calls++
+	repository.identity = [4]uuid.UUID{organizationID, ledgerID, executionID, transactionID}
+
+	return repository.candidate, repository.err
+}
+
+type atomicTransactionBatchProjectionReaderFake struct {
+	transactions []*transactionPostgres.Transaction
+	err          error
+	calls        int
+	organization uuid.UUID
+	ledger       uuid.UUID
+	ids          []uuid.UUID
+}
+
+func (reader *atomicTransactionBatchProjectionReaderFake) GetAtomicTransactionBatchProjections(
+	_ context.Context,
+	organizationID, ledgerID uuid.UUID,
+	transactionIDs []uuid.UUID,
+) ([]*transactionPostgres.Transaction, error) {
+	reader.calls++
+	reader.organization = organizationID
+	reader.ledger = ledgerID
+	reader.ids = append([]uuid.UUID(nil), transactionIDs...)
+
+	return reader.transactions, reader.err
+}
+
+type atomicTransactionBatchRecoveryTracerFake struct {
+	confirmed []uuid.UUID
+	released  []uuid.UUID
+}
+
+func (*atomicTransactionBatchRecoveryTracerFake) Reserve(
+	context.Context,
+	tracer.ReserveRequest,
+) (*tracer.ReserveResult, error) {
+	return nil, errors.New("unexpected recovery reservation")
+}
+
+func (*atomicTransactionBatchRecoveryTracerFake) Confirm(context.Context, uuid.UUID) error {
+	return errors.New("unexpected recovery confirmation by reservation")
+}
+
+func (*atomicTransactionBatchRecoveryTracerFake) Release(context.Context, uuid.UUID) error {
+	return errors.New("unexpected recovery release")
+}
+
+func (fake *atomicTransactionBatchRecoveryTracerFake) ConfirmByTransaction(
+	_ context.Context,
+	transactionID uuid.UUID,
+) error {
+	fake.confirmed = append(fake.confirmed, transactionID)
+
+	return nil
+}
+
+func (fake *atomicTransactionBatchRecoveryTracerFake) ReleaseByTransaction(
+	_ context.Context,
+	transactionID uuid.UUID,
+) error {
+	fake.released = append(fake.released, transactionID)
+
+	return nil
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_NonBatchPreservesLegacyAck(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate = nil
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
+		context.Background(),
+		fixture.record,
+		fixture.completion,
+	)
+	require.NoError(t, err)
+	assert.Nil(t, prepared)
+	assert.Equal(t, 1, fixture.repository.calls)
+	assert.Zero(t, fixture.reader.calls)
+	assert.Empty(t, fixture.tracer.confirmed)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_UsesRecordedCoordinationScope(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate = nil
+	coordinationLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000100")
+	raw, err := json.Marshal(fixture.record)
+	require.NoError(t, err)
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	fields["coordinationOrganizationId"] = fixture.organizationID.String()
+	fields["coordinationLedgerId"] = coordinationLedgerID.String()
+	raw, err = json.Marshal(fields)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, fixture.record))
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err)
+	require.Nil(t, prepared)
+	require.Equal(t, [4]uuid.UUID{fixture.organizationID, coordinationLedgerID, fixture.executionID, fixture.transactionIDs[0]}, fixture.repository.identity)
+
+	// Records written before this fix continue to resolve through their own scope.
+	legacy := atomicTransactionBatchRecoveryFixture(false)
+	legacy.repository.candidate = nil
+	prepared, err = legacy.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), legacy.record, legacy.completion)
+	require.NoError(t, err)
+	require.Nil(t, prepared)
+	require.Equal(t, [4]uuid.UUID{legacy.organizationID, legacy.ledgerID, legacy.executionID, legacy.transactionIDs[0]}, legacy.repository.identity)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_IntermediateMemberAvoidsFullRead(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Candidate = false
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
+		context.Background(),
+		fixture.record,
+		fixture.completion,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Empty(t, prepared.ReceiptToken)
+	assert.Nil(t, prepared.Transactions)
+	assert.Zero(t, fixture.reader.calls)
+	assert.Equal(t, []uuid.UUID{fixture.transactionIDs[0]}, fixture.tracer.confirmed)
+	assert.Equal(t, [4]uuid.UUID{
+		fixture.organizationID,
+		fixture.ledgerID,
+		fixture.executionID,
+		fixture.transactionIDs[0],
+	}, fixture.repository.identity)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_LastMemberReadsOnceAndRestoresCreated(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Candidate = true
+	fixture.repository.candidate.ReceiptToken = `{"executionId":"receipt-token"}`
+	fixture.reader.transactions = []*transactionPostgres.Transaction{
+		atomicTransactionBatchRecoveredProjection(
+			fixture.organizationID,
+			fixture.ledgerID,
+			fixture.transactionIDs[1],
+			false,
+		),
+		atomicTransactionBatchRecoveredProjection(
+			fixture.organizationID,
+			fixture.ledgerID,
+			fixture.transactionIDs[0],
+			false,
+		),
+	}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
+		context.Background(),
+		fixture.record,
+		fixture.completion,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Equal(t, fixture.repository.candidate.ReceiptToken, prepared.ReceiptToken)
+	assert.Equal(t, 1, fixture.reader.calls)
+	assert.Equal(t, fixture.organizationID, fixture.reader.organization)
+	assert.Equal(t, fixture.ledgerID, fixture.reader.ledger)
+	assert.Equal(t, fixture.transactionIDs, fixture.reader.ids)
+	assert.Equal(t, []uuid.UUID{fixture.transactionIDs[0]}, fixture.tracer.confirmed)
+	require.Len(t, prepared.Transactions, 2)
+	for _, transactionID := range fixture.transactionIDs {
+		var public transactionPostgres.Transaction
+		require.NoError(t, json.Unmarshal(prepared.Transactions[transactionID], &public))
+		assert.Equal(t, transactionID.String(), public.ID)
+		assert.Equal(t, constant.CREATED, public.Status.Code)
+		require.NotNil(t, public.Status.Description)
+		assert.Equal(t, constant.CREATED, *public.Status.Description)
+	}
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_DuplicateCompleteSkipsReadAndTracerSkipDoesNoWork(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(true)
+	fixture.repository.candidate.Record.State = txRedis.AtomicTransactionBatchStateComplete
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
+		context.Background(),
+		fixture.record,
+		fixture.completion,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Empty(t, prepared.ReceiptToken)
+	assert.Zero(t, fixture.reader.calls)
+	assert.Empty(t, fixture.tracer.confirmed)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_RejectsProjectionOutsideScope(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Candidate = true
+	fixture.repository.candidate.ReceiptToken = "receipt"
+	fixture.reader.transactions = []*transactionPostgres.Transaction{
+		atomicTransactionBatchRecoveredProjection(uuid.New(), fixture.ledgerID, fixture.transactionIDs[0], false),
+		atomicTransactionBatchRecoveredProjection(fixture.organizationID, fixture.ledgerID, fixture.transactionIDs[1], false),
+	}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
+		context.Background(),
+		fixture.record,
+		fixture.completion,
+	)
+	assert.Nil(t, prepared)
+	require.ErrorContains(t, err, "is not durably complete")
+}
+
+type atomicTransactionBatchRecoveryTestFixture struct {
+	useCase        *UseCase
+	repository     *atomicTransactionBatchRecoveryRepositoryFake
+	reader         *atomicTransactionBatchProjectionReaderFake
+	tracer         *atomicTransactionBatchRecoveryTracerFake
+	record         *TransactionCompletionRecord
+	completion     TransactionCompletionResult
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	executionID    uuid.UUID
+	transactionIDs []uuid.UUID
+}
+
+func atomicTransactionBatchRecoveryFixture(tracerSkipped bool) atomicTransactionBatchRecoveryTestFixture {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000101")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000102")
+	executionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000103")
+	transactionIDs := []uuid.UUID{
+		uuid.MustParse("01994f13-29b7-7000-8000-000000000104"),
+		uuid.MustParse("01994f13-29b7-7000-8000-000000000105"),
+	}
+	engineID := executionID
+	batchRecord := txRedis.AtomicTransactionBatchIdempotencyRecord{
+		FormatVersion:      txRedis.AtomicTransactionBatchLegacyFormatVersion,
+		State:              txRedis.AtomicTransactionBatchStateApplied,
+		RequestFingerprint: "request-fingerprint",
+		OwnerToken:         "owner-token",
+		BatchID:            uuid.MustParse("01994f13-29b7-7000-8000-000000000106"),
+		ExecutionID:        &engineID,
+		TransactionIDs:     append([]uuid.UUID(nil), transactionIDs...),
+	}
+	repository := &atomicTransactionBatchRecoveryRepositoryFake{
+		atomicTransactionBatchClaimRepositoryFake: &atomicTransactionBatchClaimRepositoryFake{},
+		candidate: &txRedis.AtomicTransactionBatchFinalizationCandidateResult{
+			Record: batchRecord,
+		},
+	}
+	reader := &atomicTransactionBatchProjectionReaderFake{}
+	tracerFake := &atomicTransactionBatchRecoveryTracerFake{}
+	current := atomicTransactionBatchRecoveredProjection(
+		organizationID,
+		ledgerID,
+		transactionIDs[0],
+		tracerSkipped,
+	)
+	record := &TransactionCompletionRecord{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		ExecutionID:    executionID,
+		TransactionID:  transactionIDs[0],
+	}
+	completion := TransactionCompletionResult{
+		Record: TransactionWriteSet{Transaction: current},
+		Outcome: TransactionPersistenceOutcome{
+			TransactionStatus: constant.APPROVED,
+		},
+	}
+
+	return atomicTransactionBatchRecoveryTestFixture{
+		useCase: &UseCase{
+			AtomicTransactionBatchIdempotencyRepo:  repository,
+			AtomicTransactionBatchProjectionReader: reader,
+			TracerReserver:                         tracerFake,
+		},
+		repository:     repository,
+		reader:         reader,
+		tracer:         tracerFake,
+		record:         record,
+		completion:     completion,
+		organizationID: organizationID,
+		ledgerID:       ledgerID,
+		executionID:    executionID,
+		transactionIDs: transactionIDs,
+	}
+}
+
+func atomicTransactionBatchRecoveredProjection(
+	organizationID, ledgerID, transactionID uuid.UUID,
+	tracerSkipped bool,
+) *transactionPostgres.Transaction {
+	amount := decimal.NewFromInt(10)
+	approved := constant.APPROVED
+
+	return &transactionPostgres.Transaction{
+		ID:             transactionID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transactionPostgres.Status{
+			Code:        approved,
+			Description: &approved,
+		},
+		Amount:        &amount,
+		AssetCode:     "BRL",
+		TracerSkipped: tracerSkipped,
+		Operations: []*operationPostgres.Operation{{
+			ID:            uuid.NewSHA1(transactionID, []byte("operation")).String(),
+			TransactionID: transactionID.String(),
+			Type:          constant.DEBIT,
+		}},
+	}
+}

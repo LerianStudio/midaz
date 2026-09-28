@@ -5,9 +5,15 @@
 package in
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -40,67 +46,227 @@ import (
 // create posts against are body fields. RawBody keeps the body out of Huma's validator so
 // the flat v2 model is decoded imperatively via http.DecodeAndValidate.
 type CreateTransactionInputV2 struct {
-	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction, a different request under the same key answers 409 (0084)"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
+// StateTransactionRequestV2 is the request envelope of the /v2 lifecycle actions that
+// accept a single-use account-block exception: commit and revert. It is the bodiless
+// StateTransactionRequest plus an OPTIONAL JSON body.
+//
+// RawBody keeps the body out of Huma's validator, the same way the create envelope does,
+// so the one field is decoded imperatively through http.DecodeAndValidate and gets the
+// same unknown-field rejection every other body on this surface gets. Declaring only
+// RawBody (and no Body) is also what makes the body optional at runtime: Huma reads the
+// bytes but unmarshals nothing, so an absent body arrives as zero bytes rather than a
+// decode error. Cancel keeps the bodiless envelope — it accepts no grant.
+type StateTransactionRequestV2 struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
+	RawBody        []byte `contentType:"application/json"`
+}
+
+// decodeLifecycleV2Body reads the optional /v2 lifecycle body and returns the
+// account-block exception it presented, or nil when it presented none.
+//
+// An empty body — no bytes at all, or whitespace — is the no-grant case and is NOT an
+// error: that is what keeps the two actions backward compatible with the bodiless
+// requests they shipped with. A body that is present but malformed, or that names an
+// unknown field, is rejected by DecodeAndValidate exactly like any other body here.
+func decodeLifecycleV2Body(rawBody []byte) (*uuid.UUID, error) {
+	if len(bytes.TrimSpace(rawBody)) == 0 {
+		return nil, nil
+	}
+
+	payload := new(LifecycleV2Request)
+	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
+		return nil, err
+	}
+
+	return payload.AccountBlockException()
+}
+
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
-// (decodeAndBuildV2Transaction), delegates to the shared createTransactionShell keyed by the
-// action-discriminated raw body (v2IdempotencyHashSource) under routeV2 — the /v2 contract
-// is the one that includes the fee engine — and projects the v1 output onto the
-// /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID validation
-// surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
+// (decodeAndBuildV2Transaction), delegates to command.CreateTransactionV2 keyed by the
+// action-discriminated raw body (v2IdempotencyHashSource) — the /v2 contract is the one
+// that includes the fee engine and the tracer reservation — and projects the result onto
+// the /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID
+// validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
 func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionInput, scope, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
+	payload, err := decodeCreateTransactionV2Body(rawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
-
-	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, routeV2, hashSource)
+	normalized, err := normalizeCreateCrossLedgerTransactionV2Body(payload, pending)
 	if err != nil {
-		return nil, err
+		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	// out.Body is the /v1 envelope the shared shell builds; the embedded pointer is the
-	// canonical transaction this projects onto the /v2 shape. Reading it here keeps the
-	// six v1 callers able to return the shell directly.
-	return &CreateTransactionOutputV2{
-		Status:              out.Status,
-		IdempotencyReplayed: out.IdempotencyReplayed,
-		Body:                newTransactionV2(out.Body.Transaction),
-	}, nil
-}
-
-// decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
-// http.DecodeAndValidate the v1 create ops run), translates it to the canonical
-// Transaction with the caller's pending intent, and stamps the optional Operation.Type
-// override. It returns the transaction alongside the scope Translate resolved from the
-// legs, which together are exactly what createTransactionV2 hands to the funnel — so this
-// is the unit seam for asserting both the translate+stamp result and the resolved scope.
-func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, mtransaction.V2Scope, error) {
-	payload := new(mtransaction.CreateTransactionV2Input)
-	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, err
-	}
-
-	transactionInput, scope, err := payload.Translate(pending)
-	if err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, err
-	}
-
+	transactionInput := normalized.transaction
 	if operationTypeOverride != "" {
 		transactionInput.OperationTypeOverride = operationTypeOverride
 	}
 
-	return transactionInput, scope, nil
+	exceptionID, err := payload.AccountBlockException()
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	if len(normalized.scopes) > 1 {
+		if operationTypeOverride != "" {
+			return nil, pkgHTTP.HumaProblem(pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction))
+		}
+
+		scopes, err := parseCrossLedgerTransactionScopes(normalized)
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
+		crossLedgerInput := command.CreateCrossLedgerTransactionV2Input{
+			Transaction: transactionInput, Scopes: scopes, AccountBlockExceptionID: exceptionID,
+			CanonicalRequest: []byte(v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)), IdempotencyKey: idempotencyKey,
+			IdempotencyTTL: pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+		}
+
+		var result *command.CreateAtomicTransactionBatchV2Result
+		if pending {
+			result, err = handler.Command.CreateCrossLedgerHoldV2(ctx, crossLedgerInput)
+		} else {
+			result, err = handler.Command.CreateCrossLedgerTransactionV2(ctx, crossLedgerInput)
+		}
+
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
+		return newCrossLedgerCreateOutputV2(result)
+	}
+
+	scope := normalized.scopes[0]
+
+	orgID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	fingerprint, err := v2IdempotencyFingerprint(rawBody, pending, operationTypeOverride)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	tran, replayed, err := handler.Command.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
+		OrganizationID:         orgID,
+		LedgerID:               ledgerID,
+		Transaction:            transactionInput,
+		TransactionStatus:      transactionInput.InitialStatus(),
+		IdempotencyKey:         idempotencyKey,
+		IdempotencyTTL:         pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+		IdempotencyHashSource:  v2IdempotencyHashSource(rawBody, pending, operationTypeOverride),
+		IdempotencyFingerprint: fingerprint,
+
+		AccountBlockExceptionID: exceptionID,
+	})
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &CreateTransactionOutputV2{
+		Status:              http.StatusCreated,
+		IdempotencyReplayed: replayedHeader(replayed),
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(tran)},
+	}, nil
+}
+
+// newCrossLedgerCreateOutputV2 projects a cross-ledger direct or hold result onto the group
+// envelope. A nil result without an error is a command defect, answered as an internal error.
+func newCrossLedgerCreateOutputV2(result *command.CreateAtomicTransactionBatchV2Result) (*CreateTransactionOutputV2, error) {
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("cross-ledger transaction command returned no result"))
+	}
+
+	groupID := result.BatchID.String()
+
+	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
+	for index := range result.Transactions {
+		transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
+	}
+
+	return &CreateTransactionOutputV2{
+		Status: http.StatusCreated, IdempotencyReplayed: replayedHeader(result.Replayed),
+		Body: &CreateTransactionV2Response{GroupID: &groupID, Transactions: transactions},
+	}, nil
+}
+
+func parseCrossLedgerTransactionScopes(normalized normalizedCrossLedgerTransactionV2Body) (command.CrossLedgerTransactionScopes, error) {
+	result := command.CrossLedgerTransactionScopes{
+		Debits:  make([]command.CrossLedgerLegScope, len(normalized.debitScopes)),
+		Credits: make([]command.CrossLedgerLegScope, len(normalized.creditScopes)),
+	}
+	parse := func(scope TransactionV2Scope) (command.CrossLedgerLegScope, error) {
+		organizationID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
+		if err != nil {
+			return command.CrossLedgerLegScope{}, err
+		}
+
+		return command.CrossLedgerLegScope{OrganizationID: organizationID, LedgerID: ledgerID}, nil
+	}
+
+	for index, scope := range normalized.debitScopes {
+		parsed, err := parse(scope)
+		if err != nil {
+			return command.CrossLedgerTransactionScopes{}, err
+		}
+
+		result.Debits[index] = parsed
+	}
+
+	for index, scope := range normalized.creditScopes {
+		parsed, err := parse(scope)
+		if err != nil {
+			return command.CrossLedgerTransactionScopes{}, err
+		}
+
+		result.Credits[index] = parsed
+	}
+
+	return result, nil
+}
+
+// decodeAndBuildV2Transaction is retained as the narrow unit seam for the
+// singular create decoder. Production now uses the multi-scope normalizer
+// directly so direct requests can branch into cross-ledger orchestration.
+//
+//nolint:unused // exercised directly by contract tests
+func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, TransactionV2Scope, *uuid.UUID, error) {
+	payload, err := decodeCreateTransactionV2Body(rawBody)
+	if err != nil {
+		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
+	}
+
+	normalized, err := normalizeCreateTransactionV2Body(payload, pending)
+	if err != nil {
+		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
+	}
+
+	exceptionID, err := payload.AccountBlockException()
+	if err != nil {
+		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
+	}
+
+	transactionInput := normalized.transaction
+	if operationTypeOverride != "" {
+		transactionInput.OperationTypeOverride = operationTypeOverride
+	}
+
+	return transactionInput, normalized.scope, exceptionID, nil
 }
 
 // idempotencyActionDiscriminator returns the action-identity label folded into the v2
@@ -124,7 +290,7 @@ func idempotencyActionDiscriminator(pending bool, operationTypeOverride string) 
 // to /direct and /hold would otherwise share one no-key idempotency slot and cross-replay
 // (a hold could return a settled direct, or vice versa). Folding the action discriminator in
 // gives each action a distinct no-key identity: direct keeps the bare body; every other
-// action prefixes its discriminator joined by idempotencyDiscriminatorSep so the two sources
+// action prefixes its discriminator joined by command.IdempotencyDiscriminatorSep so the two sources
 // can never collide.
 func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride string) string {
 	disc := idempotencyActionDiscriminator(pending, operationTypeOverride)
@@ -132,19 +298,19 @@ func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride
 		return string(rawBody)
 	}
 
-	return disc + idempotencyDiscriminatorSep + string(rawBody)
+	return disc + command.IdempotencyDiscriminatorSep + string(rawBody)
 }
 
 // CreateTransactionDirectV2 creates a v2 transaction with the direct (non-pending)
 // action: it delegates to createTransactionV2 with pending=false and no Operation.Type
-// override, reusing the v1 createTransaction funnel and answering with the /v2
-// CreateTransactionOutputV2 success envelope (201 + X-Idempotency-Replayed).
+// override, answering with the /v2 CreateTransactionOutputV2 success envelope
+// (201 + X-Idempotency-Replayed).
 func (handler *TransactionHandler) CreateTransactionDirectV2(ctx context.Context, in *CreateTransactionInputV2) (*CreateTransactionOutputV2, error) {
 	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, "")
 }
 
 // CreateTransactionHoldV2 creates a v2 transaction with the hold action: it delegates
-// to createTransactionV2 with pending=true so the funnel opens the transaction as PENDING
+// to createTransactionV2 with pending=true so the use case opens the transaction as PENDING
 // (held for later commit/cancel). It reuses the same flat input envelope and success
 // envelope as the direct action.
 func (handler *TransactionHandler) CreateTransactionHoldV2(ctx context.Context, in *CreateTransactionInputV2) (*CreateTransactionOutputV2, error) {
@@ -171,31 +337,43 @@ func (handler *TransactionHandler) CreateTransactionUnblockV2(ctx context.Contex
 
 // --- POST /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/{commit,cancel,revert} ---
 
-// CommitTransactionV2 is the /v2 shell over the SAME commitTransaction core the v1
-// CommitTransaction shell calls (fetch write-behind/DB, then commitOrCancelTransaction with
-// APPROVED). It differs from the v1 shell only in the response envelope: the /v2 wire shape
-// (TransactionV2) instead of the canonical transaction.Transaction. Returns 201.
-func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2, error) {
+// CommitTransactionV2 is the /v2 shell over command.CommitTransactionV2 (fetch
+// write-behind/DB, then the /v2 state transition, which runs the tracer
+// confirm-by-transaction two-phase). It differs from the v1 shell in the response
+// envelope — the /v2 wire shape (TransactionV2) instead of the canonical
+// transaction.Transaction — and in the contract it binds. Returns 201.
+func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *StateTransactionRequestV2) (*StateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	orgID, ledgerID, txID, err := parseOrgLedgerTxParts(in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, routeV2)
+	exceptionID, err := decodeLifecycleV2Body(in.RawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+	result, err := handler.Command.CommitTransactionV2(ctx, command.PendingTransitionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+
+		AccountBlockExceptionID: exceptionID,
+	})
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newPendingTransitionV2Response(result)}, nil
 }
 
-// CancelTransactionV2 is the /v2 shell over the SAME commitTransaction core the v1
-// CancelTransaction shell calls (CANCELED, which runs the tracer release-by-transaction
-// two-phase), differing only in the /v2 response envelope. Returns 201.
+// CancelTransactionV2 is the /v2 shell over command.CancelTransactionV2, which runs the
+// tracer release-by-transaction two-phase, differing from the v1 shell in the /v2
+// response envelope and in the contract it binds. Returns 201.
 func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -206,37 +384,89 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, routeV2)
+	result, err := handler.Command.CancelTransactionV2(ctx, command.PendingTransitionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newPendingTransitionV2Response(result)}, nil
 }
 
-// RevertTransactionV2 is the /v2 shell over the SAME revertTransaction core the v1
-// RevertTransaction shell calls (parent/revert eligibility + bidirectional-route checks,
-// then createRevertTransaction), differing only in the /v2 response envelope
-// (CreateTransactionOutputV2 instead of CreateTransactionResponse) — a revert IS a
-// create, so it carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
-func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionOutputV2, error) {
+// RevertTransactionV2 is the /v2 shell over command.RevertTransactionV2 (parent/revert
+// eligibility + bidirectional-route checks, then the /v2 create pipeline). It differs from
+// the v1 shell in the response envelope (CreateTransactionOutputV2 instead of
+// CreateTransactionResponse) and in the contract it binds — a revert IS a create, so it
+// carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
+func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *StateTransactionRequestV2) (*CreateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	orgID, ledgerID, txID, err := parseOrgLedgerTxParts(in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, routeV2)
+	exceptionID, err := decodeLifecycleV2Body(in.RawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	result, replayed, err := handler.Command.RevertTransactionV2(ctx, command.RevertTransactionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+
+		AccountBlockExceptionID: exceptionID,
+	})
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned no result"))
+	}
+
+	if result.Group != nil {
+		groupID := result.Group.BatchID.String()
+
+		var revertedGroupID *string
+
+		if result.RevertedGroupID != nil {
+			value := result.RevertedGroupID.String()
+			revertedGroupID = &value
+		}
+
+		transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Group.Transactions))
+		for index := range result.Group.Transactions {
+			transactions[index] = &AtomicTransactionBatchV2Transaction{
+				TransactionV2: newTransactionV2(result.Group.Transactions[index]),
+				Order:         index + 1,
+			}
+		}
+
+		return &CreateTransactionOutputV2{
+			Status:              http.StatusCreated,
+			IdempotencyReplayed: replayedHeader(replayed),
+			Body: &CreateTransactionV2Response{
+				GroupID:         &groupID,
+				RevertedGroupID: revertedGroupID,
+				Transactions:    transactions,
+			},
+		}, nil
+	}
+
+	if result.Transaction == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned an empty singular result"))
 	}
 
 	return &CreateTransactionOutputV2{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                newTransactionV2(tran),
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(result.Transaction)},
 	}, nil
 }

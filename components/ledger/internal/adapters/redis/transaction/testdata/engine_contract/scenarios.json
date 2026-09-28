@@ -1,0 +1,3706 @@
+{
+  "schemaVersion": 1,
+  "scenarios": [
+    {
+      "name": "direct debit",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "direct credit",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "130",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "130",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "cold direct debit",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": true,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "high precision debit",
+      "input": {
+        "initial": [
+          {
+            "available": "12345678901234567890.1234567890123456789",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "0.0000000000000000001",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "12345678901234567890.1234567890123456789",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "12345678901234567890.1234567890123456788",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "12345678901234567890.1234567890123456788",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "debit direction debit",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "debit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "130",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "130",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "debit direction credit",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "debit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "debit direction floor",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "101",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "debit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0018",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "external negative",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": true,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "-30",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "-30",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "external",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "external",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "hold route on sixty",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "60",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "ON_HOLD",
+            "amount": "60",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "PENDING",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": true,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "40",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "40",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "40",
+            "onHold": "60",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "40",
+            "onHold": "60",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "hold route on all funds",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "100",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "ON_HOLD",
+            "amount": "100",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "PENDING",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": true,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "0",
+            "onHold": "100",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "100",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "hold route off",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "ON_HOLD",
+            "amount": "60",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "PENDING",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "40",
+            "onHold": "60",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "40",
+            "onHold": "60",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "hold route on refuses overdraft",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "101",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "ON_HOLD",
+            "amount": "101",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "PENDING",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": true,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0018",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "cold hold refuses overdraft",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "ON_HOLD",
+            "amount": "101",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "PENDING",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": true,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0018",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "commit route on",
+      "input": {
+        "initial": [
+          {
+            "available": "40",
+            "onHold": "50",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "ON_HOLD",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": true
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": true,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "40",
+            "onHold": "50",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "after": [
+          {
+            "available": "40",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "57",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true
+          }
+        ],
+        "cache": [
+          {
+            "available": "40",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "57",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source",
+          "destination"
+        ]
+      }
+    },
+    {
+      "name": "commit route off",
+      "input": {
+        "initial": [
+          {
+            "available": "40",
+            "onHold": "50",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": true
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "40",
+            "onHold": "50",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "after": [
+          {
+            "available": "40",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "57",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true
+          }
+        ],
+        "cache": [
+          {
+            "available": "40",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "57",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source",
+          "destination"
+        ]
+      }
+    },
+    {
+      "name": "cancel route off retains debt",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "RELEASE",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": true
+          }
+        ],
+        "status": "CANCELED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "50",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "50",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "cancel route on repays debt",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "RELEASE",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": true
+          }
+        ],
+        "status": "CANCELED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": true,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "legacy release cap",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "RELEASE",
+            "amount": "50",
+            "cap": "20",
+            "destination": false
+          }
+        ],
+        "status": "CANCELED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "30",
+            "onHold": "0",
+            "overdraftUsed": "30",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "30",
+            "onHold": "0",
+            "overdraftUsed": "30",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "overdraft exact limit",
+      "input": {
+        "initial": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "70",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "60",
+        "pending": false,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "60",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "60",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 1,
+            "overdraftLimit": "60",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 1,
+            "overdraftLimit": "60",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "overdraft exceeds limit",
+      "input": {
+        "initial": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "71",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "60",
+        "pending": false,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 1,
+            "overdraftLimit": "60",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 1,
+            "overdraftLimit": "60",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0167",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "stale overdraft accrual",
+      "input": {
+        "initial": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "70",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": true,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0174",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "stale overdraft repayment",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "20",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": true,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0174",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "stale legacy release",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "RELEASE",
+            "amount": "50",
+            "cap": "20",
+            "destination": false
+          }
+        ],
+        "status": "CANCELED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": true,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "50",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0174",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "debt only accrual",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "10",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "10",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "20",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "20",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "partial repayment",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "20",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "30",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "30",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "full repayment",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "repayment with remainder",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "70",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "legacy credit cap",
+      "input": {
+        "initial": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "30",
+            "cap": "10",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 0,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "40",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "40",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "repeated balance chain",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "20",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "5",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "80",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "80",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "85",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "85",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source"
+        ]
+      }
+    },
+    {
+      "name": "deletion marker",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "20",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": true,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0019",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "deferred pending credit with debt",
+      "input": {
+        "initial": [
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "5",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "PENDING",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "5",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "deferred canceled credit with debt",
+      "input": {
+        "initial": [
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "5",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "CREDIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "CANCELED",
+        "direction": "credit",
+        "limit": "",
+        "pending": true,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "5",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": []
+      }
+    },
+    {
+      "name": "explicit overdraft companion draw",
+      "input": {
+        "initial": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "70",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "DEBIT",
+            "amount": "50",
+            "cap": "0",
+            "destination": true
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": true,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": true
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "20",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "after": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "50",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true
+          }
+        ],
+        "cache": [
+          {
+            "available": "0",
+            "onHold": "0",
+            "overdraftUsed": "50",
+            "version": 1,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 1,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "50",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@source",
+            "key": "overdraft",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "debit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "internal"
+          }
+        ],
+        "scheduledBalances": [
+          "source",
+          "destination"
+        ],
+        "errorCode": ""
+      }
+    },
+    {
+      "name": "revert created restores prior transfer",
+      "input": {
+        "initial": [
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          },
+          {
+            "available": "37",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": true
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          }
+        ],
+        "status": "CREATED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": false,
+        "cold": false,
+        "stale": false,
+        "companion": false
+      },
+      "expected": {
+        "before": [
+          {
+            "available": "37",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 11,
+            "destination": true
+          },
+          {
+            "available": "70",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 1,
+            "destination": false
+          }
+        ],
+        "after": [
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 12,
+            "destination": true
+          },
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false
+          }
+        ],
+        "cache": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 2,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 12,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "",
+        "scheduledBalances": [
+          "source",
+          "destination"
+        ]
+      }
+    },
+    {
+      "name": "deletion marker on last balance rejects mixed batch",
+      "input": {
+        "initial": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true
+          }
+        ],
+        "operations": [
+          {
+            "operation": "DEBIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": false
+          },
+          {
+            "operation": "CREDIT",
+            "amount": "30",
+            "cap": "0",
+            "destination": true
+          }
+        ],
+        "status": "APPROVED",
+        "direction": "credit",
+        "limit": "",
+        "pending": false,
+        "route": false,
+        "overdraft": false,
+        "external": false,
+        "deleted": true,
+        "cold": false,
+        "stale": false,
+        "companion": false,
+        "deletedDestination": true
+      },
+      "expected": {
+        "before": [],
+        "after": [],
+        "cache": [
+          {
+            "available": "100",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 0,
+            "destination": false,
+            "id": "fd114916-ea99-4eef-a754-146417d1de59",
+            "accountId": "d2e6f19c-d14b-41c9-b59e-2f8ec4926e88",
+            "alias": "@source",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          },
+          {
+            "available": "7",
+            "onHold": "0",
+            "overdraftUsed": "0",
+            "version": 10,
+            "destination": true,
+            "id": "3746cd63-0a07-48c6-9df2-3f54630c60ed",
+            "accountId": "c36d2ec0-934d-4b57-b9f6-4346ba308f2a",
+            "alias": "@destination",
+            "key": "default",
+            "assetCode": "USD",
+            "accountType": "deposit",
+            "direction": "credit",
+            "allowSending": 1,
+            "allowReceiving": 1,
+            "allowOverdraft": 0,
+            "overdraftLimitEnabled": 0,
+            "overdraftLimit": "0",
+            "balanceScope": "transactional"
+          }
+        ],
+        "errorCode": "0019",
+        "scheduledBalances": []
+      }
+    }
+  ]
+}

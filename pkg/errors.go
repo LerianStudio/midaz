@@ -266,6 +266,89 @@ func (r ValidationUnknownFieldsError) Error() string {
 // UnknownFields is a map of unknown fields and their error messages.
 type UnknownFields map[string]any
 
+const (
+	// MaxFieldErrors is the largest ordered field-detail list exposed by the
+	// error platform. A list that crosses this boundary keeps its first 99 real
+	// entries and uses the final slot to say that more diagnostics were omitted.
+	MaxFieldErrors = 100
+
+	// FieldErrorTruncationLocation is the stable location of the explicit
+	// field-detail truncation marker.
+	FieldErrorTruncationLocation = "body.transactions"
+
+	// FieldErrorTruncationMessage is the stable message of the explicit
+	// field-detail truncation marker.
+	FieldErrorTruncationMessage = "additional validation errors omitted"
+)
+
+// FieldError is a platform-neutral, ordered field diagnostic. HTTP adapters
+// project it to their wire-specific error-detail type without changing order.
+type FieldError struct {
+	Location string
+	Message  string
+}
+
+// FieldErrorCarrier decorates one canonical primary error with ordered field
+// diagnostics. The primary error remains available through errors.Is/errors.As
+// so its business classification continues to select the top-level response.
+//
+// Use WithFieldErrors to construct this type. Its fields are deliberately
+// private so callers cannot mutate the ordered, bounded detail snapshot.
+type FieldErrorCarrier struct {
+	err    error
+	fields []FieldError
+}
+
+// WithFieldErrors decorates primary with an immutable snapshot of ordered field
+// diagnostics. It preserves the caller's order and caps the snapshot at
+// MaxFieldErrors. More than MaxFieldErrors diagnostics become the first 99 real
+// entries followed by the explicit truncation marker.
+func WithFieldErrors(primary error, fields []FieldError) error {
+	if primary == nil || len(fields) == 0 {
+		return primary
+	}
+
+	bounded := make([]FieldError, 0, min(len(fields), MaxFieldErrors))
+	if len(fields) <= MaxFieldErrors {
+		bounded = append(bounded, fields...)
+	} else {
+		bounded = append(bounded, fields[:MaxFieldErrors-1]...)
+		bounded = append(bounded, FieldError{
+			Location: FieldErrorTruncationLocation,
+			Message:  FieldErrorTruncationMessage,
+		})
+	}
+
+	return &FieldErrorCarrier{err: primary, fields: bounded}
+}
+
+// Error preserves the primary error's text.
+func (e *FieldErrorCarrier) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+
+	return e.err.Error()
+}
+
+// Unwrap exposes the primary error for errors.Is/errors.As classification.
+func (e *FieldErrorCarrier) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.err
+}
+
+// FieldErrors returns a copy of the ordered, bounded detail snapshot.
+func (e *FieldErrorCarrier) FieldErrors() []FieldError {
+	if e == nil {
+		return nil
+	}
+
+	return append([]FieldError(nil), e.fields...)
+}
+
 // IsBusinessError reports whether err is a business/domain error (validation, not-found,
 // conflict, auth) as opposed to a technical/infrastructure error. Business errors should
 // use HandleSpanBusinessErrorEvent so they don't pollute error-rate metrics with expected
@@ -528,6 +611,108 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
+			Title:      "Cross-Ledger Not Enabled Error",
+			Message:    fmt.Sprintf("Ledger %v is not enabled for cross-ledger transactions. Enable crossLedger.enabled on every ledger involved.", args...),
+		},
+		constant.ErrCrossLedgerAssetMismatch: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerAssetMismatch.Error(),
+			Title:      "Cross-Ledger Asset Mismatch Error",
+			Message:    "Cross-ledger transactions must use the same asset on every leg.",
+		},
+		constant.ErrCrossLedgerRouteValidationUnsupported: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerRouteValidationUnsupported.Error(),
+			Title:      "Cross-Organization Route Validation Unsupported Error",
+			Message:    "Cross-ledger transactions that span more than one organization are not supported when accounting route validation is enabled on a participating ledger, because accounting routes belong to a single organization.",
+		},
+		constant.ErrCrossLedgerLifecycleRequiresV2: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerLifecycleRequiresV2.Error(),
+			Title:      "Cross-Ledger Lifecycle Requires V2 Error",
+			Message:    "A transaction that belongs to a cross-ledger group must be committed, canceled, or reverted through the v2 API so the complete group is transitioned atomically.",
+		},
+		constant.ErrCrossLedgerGroupIncomplete: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerGroupIncomplete.Error(),
+			Title:      "Cross-Ledger Group Incomplete Error",
+			Message:    "The cross-ledger transaction group is incomplete and cannot be transitioned safely.",
+		},
+		constant.ErrCrossLedgerGroupNotPending: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerGroupNotPending.Error(),
+			Title:      "Cross-Ledger Group Not Pending Error",
+			Message:    fmt.Sprintf("The cross-ledger transaction group is %v and can no longer be committed or canceled.", args...),
+		},
+		constant.ErrCrossLedgerRouteNotConfigured: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerRouteNotConfigured.Error(),
+			Title:      "Cross-Ledger Route Not Configured Error",
+			Message:    "The transaction could not be completed because route validation is enabled on a participating ledger but the transaction route has no operation route with a crossLedger accounting entry for the cross-ledger bridge. Link a bidirectional operation route with a crossLedger entry to the transaction route and try again.",
+		},
+		constant.ErrInvalidCrossLedgerRoute: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidCrossLedgerRoute.Error(),
+			Title:      "Invalid Cross-Ledger Route Error",
+			Message:    fmt.Sprintf("The cross-ledger bridge route must resolve to exactly one operation route. %v", args...),
+		},
+		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceSeedRebuildInconsistent.Error(),
+			Title:      "Balance Seed Rebuild Inconsistent Error",
+			Message:    "The request could not be completed because the current state of this balance could not be established from its operation history. Please retry shortly.",
+		},
+		constant.ErrAccountAlreadyClosed: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAlreadyClosed.Error(),
+			Title:      "Account Already Closed Error",
+			Message:    "The account is already closed and cannot be closed again. The recorded closing instant is preserved; please review the account state and try again if this was unexpected.",
+		},
+		constant.ErrAccountClosingInProgress: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosingInProgress.Error(),
+			Title:      "Account Closing In Progress Error",
+			Message:    "A closing of this account is in progress. Please wait for it to conclude and try again.",
+		},
+		constant.ErrAccountAdministrativeOperationInProgress: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAdministrativeOperationInProgress.Error(),
+			Title:      "Account Administrative Operation In Progress Error",
+			Message:    "Another operation on this account is in progress. Please try again shortly.",
+		},
+		constant.ErrAccountBalanceNotZero: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBalanceNotZero.Error(),
+			Title:      "Account Balance Not Zero Error",
+			Message:    "The account cannot be closed because at least one of its balances still holds available funds, funds on hold or used overdraft. Please settle every balance to exactly zero and try again.",
+		},
+		constant.ErrAccountHasPendingTransactions: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountHasPendingTransactions.Error(),
+			Title:      "Account Has Pending Transactions Error",
+			Message:    "The account cannot be closed because a pending transaction still holds its funds. Please commit or cancel those transactions and try again.",
+		},
+		constant.ErrAccountClosingPersistencePending: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosingPersistencePending.Error(),
+			Title:      "Account Closing Persistence Pending Error",
+			Message:    "The account cannot be closed yet because earlier work on it has not finished being persisted. No transaction is reapplied; please try again shortly.",
+		},
+		constant.ErrAccountClosed: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosed.Error(),
+			Title:      "Account Closed Error",
+			Message:    "The operation could not be completed because the account is closed. A closed account accepts no further movements, and unblocking it does not reopen it.",
+		},
+		constant.ErrAccountClosingProtectionIndeterminate: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosingProtectionIndeterminate.Error(),
+			Title:      "Account Closing Protection Indeterminate Error",
+			Message:    "The request could not be completed because the state of this account could not be established. Please retry shortly.",
+		},
 		constant.ErrOverdraftRouteNotConfigured: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrOverdraftRouteNotConfigured.Error(),
@@ -617,6 +802,54 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrAccountStatusTransactionRestriction.Error(),
 			Title:      "Account Status Transaction Restriction",
 			Message:    "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
+		},
+		constant.ErrAccountBlocked: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlocked.Error(),
+			Title:      "Account Blocked",
+			Message:    "A source and/or destination account involved in this transaction is blocked and cannot transact. Unblock the account and try again.",
+		},
+		constant.ErrAccountBlockExceptionsRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionsRequired.Error(),
+			Title:      "Missing Account Block Exceptions",
+			Message:    "The 'exceptions' field must carry at least one exception. Please provide the exceptions to create and try again.",
+		},
+		constant.ErrAccountBlockExceptionsBatchTooLarge: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionsBatchTooLarge.Error(),
+			Title:      "Account Block Exception Batch Too Large",
+			Message:    "The 'exceptions' field accepts at most 100 items per request. Please split the batch and try again.",
+		},
+		constant.ErrAccountBlockExceptionInvalidAmount: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionInvalidAmount.Error(),
+			Title:      "Invalid Account Block Exception Amount",
+			Message:    fmt.Sprintf("The 'amount' of the exception at index %v must be a positive decimal value. Please verify the amount and try again.", args...),
+		},
+		constant.ErrAccountBlockExceptionInvalidTTL: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionInvalidTTL.Error(),
+			Title:      "Invalid Account Block Exception TTL",
+			Message:    fmt.Sprintf("The 'ttl' of the exception at index %v must be between 1 and 86400 seconds. Please verify the ttl and try again.", args...),
+		},
+		constant.ErrAccountBlockExceptionAliasNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionAliasNotFound.Error(),
+			Title:      "Account Block Exception Alias Not Found",
+			Message:    fmt.Sprintf("The 'accountAlias' of the exception at index %v does not exist in this ledger: %v. No exception was created. Please verify the alias and try again.", args...),
+		},
+		constant.ErrAccountBlockExceptionInvalid: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionInvalid.Error(),
+			Title:      "Invalid Account Block Exception",
+			Message:    "The 'accountBlockExceptionId' presented does not exist, has expired or has already been used, or does not authorize this transaction's source account and debited amount. Please create a new exception and try again.",
+		},
+		constant.ErrAccountBlockExceptionNotSupported: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionNotSupported.Error(),
+			Title:      "Account Block Exception Not Supported",
+			Message:    fmt.Sprintf("The 'accountBlockExceptionId' field is not accepted on the %v operation. Please present it on the direct, commit or revert operation instead.", args...),
 		},
 		constant.ErrInsufficientAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
@@ -732,6 +965,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Insufficient Privileges",
 			Message:    "You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
 		},
+		constant.ErrAuthorizationServiceUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrAuthorizationServiceUnavailable.Error(),
+			Title:      "Authorization Service Unavailable",
+			Message:    "The request could not be completed because the authorization service did not respond. Please retry shortly.",
+		},
 		constant.ErrPermissionEnforcement: FailedPreconditionError{
 			EntityType: entityType,
 			Code:       constant.ErrPermissionEnforcement.Error(),
@@ -845,6 +1084,36 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidMetadataNesting.Error(),
 			Title:      "Invalid Metadata Nesting",
 			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %v is not nested and try again.", args...),
+		},
+		constant.ErrReservedMetadataKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservedMetadataKey.Error(),
+			Title:      "Reserved Metadata Key",
+			Message:    fmt.Sprintf("The metadata key %v is reserved by the ledger, which writes it itself. Please remove it from your request and try again.", args...),
+		},
+		constant.ErrTransactionBatchCardinality: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchCardinality.Error(),
+			Title:      "Invalid Transaction Batch Cardinality",
+			Message:    fmt.Sprintf("The transaction batch contains %v items, but it must contain between 1 and %v items. Please adjust the 'transactions' array and try again.", args...),
+		},
+		constant.ErrTransactionBatchInputLegsLimitExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchInputLegsLimitExceeded.Error(),
+			Title:      "Transaction Batch Input Leg Limit Exceeded",
+			Message:    fmt.Sprintf("The transaction batch contains %v input debit and credit legs, exceeding the maximum of %v. Please reduce the number of legs and try again.", args...),
+		},
+		constant.ErrTransactionBatchBudgetExceeded: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchBudgetExceeded.Error(),
+			Title:      "Transaction Batch Budget Exceeded",
+			Message:    fmt.Sprintf("The transaction batch exceeds the %v budget at transaction index %v: observed %v, maximum %v. Please reduce the batch work and try again.", args...),
+		},
+		constant.ErrTransactionBatchStructuralValidation: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchStructuralValidation.Error(),
+			Title:      "Invalid Transaction Batch",
+			Message:    "One or more transactions in the batch failed structural validation. Check errors for details.",
 		},
 		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1031,6 +1300,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrCommitTransactionNotPending.Error(),
 			Title:      "Invalid Transaction Status",
 			Message:    "The transaction status does not allow the requested action. Please check the transaction status.",
+		},
+		constant.ErrTransactionAlreadyTransitioned: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionAlreadyTransitioned.Error(),
+			Title:      "Transaction Already Transitioned",
+			Message:    "The transaction has already been committed or canceled, so the requested transition cannot run again. Please check the transaction status.",
 		},
 		constant.ErrPendingTransactionLocked: EntityConflictError{
 			EntityType: entityType,
@@ -1254,6 +1529,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Already Associated",
 			Message:    "An accountId from ledger can only be associated with a single related account on CRM.",
 		},
+		constant.ErrBankAccountAlreadyRegistered: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrBankAccountAlreadyRegistered.Error(),
+			Title:      "Bank Account Already Registered",
+			Message:    "This bank account is already registered to another instrument in this organization: the same bankId and account, on the same branch or where one of them has no branch. Use that instrument, or delete it before registering the account again.",
+		},
 		constant.ErrHolderHasInstruments: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrHolderHasInstruments.Error(),
@@ -1331,6 +1612,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrRelatedPartyEndDateInvalid.Error(),
 			Title:      "Related Party End Date Invalid",
 			Message:    "The related party end date must be after the start date. Please provide a valid end date.",
+		},
+		constant.ErrInvalidInstrumentAccountType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidInstrumentAccountType.Error(),
+			Title:      "Invalid Instrument Account Type",
+			Message:    "The provided instrument account type is not valid. Accepted values are: DEPOSIT, SAVINGS, INVESTMENT, OTHER_FINANCIAL_INVESTMENTS, NON_RESIDENT, or PAYMENT.",
 		},
 		constant.ErrMetadataIndexAlreadyExists: EntityConflictError{
 			EntityType: entityType,
@@ -1707,7 +1994,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrFilterPackage.Error(),
 			Title:      "Package filtering error",
-			Message:    "Failed to filter a single package by transactionRoute, segmentID, and maximum/minimum amount. Either no package was found or multiple packages matched the criteria.",
+			Message:    fmt.Sprintf("More than one fee package matches this transaction on transactionRoute, segmentID and the amount range, and they are equally specific, so none of them can be applied. Re-scope one of these packages: %v.", args...),
 		},
 		constant.ErrPackageRange: EntityConflictError{
 			EntityType: entityType,
@@ -1780,6 +2067,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrLedgerScopedQueryParameter.Error(),
 			Title:      "Query Parameter Not Accepted",
 			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
+		},
+		constant.ErrDuplicateFeeKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateFeeKey.Error(),
+			Title:      "Duplicate fee key",
+			Message:    fmt.Sprintf("More than one fee in this request resolves to the key '%v', so the fee it applies to is ambiguous. Please send each fee once.", args...),
 		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,
@@ -2543,6 +2836,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidTransactionValidationFilters.Error(),
 			Title:      "Invalid Transaction Validation Filters",
 			Message:    "Invalid transaction validation filter parameters.",
+		},
+		constant.ErrInvalidDashboardWindow: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDashboardWindow.Error(),
+			Title:      "Invalid Dashboard Window",
+			Message:    "Invalid dashboard window: use period (7d, 30d, 90d) or start_date/end_date (RFC3339, at most 90 days apart), never both.",
 		},
 		constant.ErrTransactionValidationNotFound: EntityNotFoundError{
 			EntityType: entityType,

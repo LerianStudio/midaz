@@ -11,7 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 
-	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -36,7 +36,7 @@ type holderReaderAdapter struct {
 
 	// crmTenantDB resolves the tenant CRM database in multi-tenant mode. It is nil
 	// in single-tenant mode, where the CRM repos use their static connection.
-	crmTenantDB httpin.TenantMongoResolver
+	crmTenantDB command.TenantMongoResolver
 }
 
 // newHolderReaderAdapter builds the holder reader over the CRM holder service.
@@ -83,7 +83,7 @@ func (a holderReaderAdapter) crmTenantContext(ctx context.Context) (context.Cont
 		return ctx, nil
 	}
 
-	return httpin.ResolveTenantMongoContext(ctx, a.crmTenantDB, "holder seam")
+	return command.ResolveTenantMongoContext(ctx, a.crmTenantDB, "holder seam")
 }
 
 // holderAccountsReaderAdapter satisfies httpin.HolderAccountsReader over the

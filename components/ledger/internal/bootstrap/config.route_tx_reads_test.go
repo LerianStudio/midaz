@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestConfig_RouteTransactionalReadsToPrimary_FieldTag locks the rollout-flag
-// field onto the exact env var name. The transactional-read routing rollout is
-// gated by this flag; renaming the field or the tag silently disables the gate.
+// TestConfig_RouteTransactionalReadsToPrimary_FieldTag locks the correctness-gate
+// field onto the exact env var name. Transactional-read routing is gated by this
+// flag; renaming the field or the tag silently disables the gate.
 func TestConfig_RouteTransactionalReadsToPrimary_FieldTag(t *testing.T) {
 	t.Parallel()
 
@@ -28,12 +28,14 @@ func TestConfig_RouteTransactionalReadsToPrimary_FieldTag(t *testing.T) {
 		"RouteTransactionalReadsToPrimary must be a bool")
 }
 
-// TestConfig_RouteTransactionalReadsToPrimary_EnvParsing verifies safe-by-default,
-// tolerant parsing via the repo's SetConfigFromEnvVars mechanism:
-//   - unset          => false (backwards-compatible; app must not break)
-//   - "true"         => true  (explicit opt-in)
-//   - "false"        => false (explicit opt-out)
-//   - invalid value  => false (fallback; SetConfigFromEnvVars must not error/panic)
+// TestConfig_RouteTransactionalReadsToPrimary_EnvParsing verifies the default-on
+// correctness gate via the repo's SetConfigFromEnvVars + applyConfigDefaults
+// mechanism:
+//   - unset          => true  (default; the correctness fix ships active)
+//   - empty string   => true  (treated the same as unset)
+//   - "true"         => true  (explicit opt-in, redundant with the default)
+//   - "false"        => false (the only opt-out)
+//   - invalid value  => true  (fallback; an operator typo must not disable the fix)
 func TestConfig_RouteTransactionalReadsToPrimary_EnvParsing(t *testing.T) {
 	// Note: t.Parallel() omitted because sub-tests use t.Setenv.
 
@@ -43,10 +45,11 @@ func TestConfig_RouteTransactionalReadsToPrimary_EnvParsing(t *testing.T) {
 		value string
 		want  bool
 	}{
-		{name: "unset_defaults_false", set: false, want: false},
+		{name: "unset_defaults_true", set: false, want: true},
+		{name: "empty_defaults_true", set: true, value: "", want: true},
 		{name: "explicit_true", set: true, value: "true", want: true},
 		{name: "explicit_false", set: true, value: "false", want: false},
-		{name: "invalid_falls_back_false", set: true, value: "notabool", want: false},
+		{name: "invalid_falls_back_true", set: true, value: "notabool", want: true},
 	}
 
 	for _, tt := range tests {

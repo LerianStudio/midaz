@@ -41,8 +41,6 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 	operationUpdated, err := uc.OperationRepo.Update(ctx, organizationID, ledgerID, transactionID, operationID, op)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error updating op on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, constant.EntityOperation)
 
@@ -53,7 +51,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update operation on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update operation on repo by id", err)
 
 		return nil, err
 	}

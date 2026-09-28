@@ -36,6 +36,7 @@ type AccountPostgreSQLModel struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	DeletedAt          sql.NullTime
+	ClosedAt           sql.NullTime
 	Metadata           map[string]any
 }
 
@@ -70,6 +71,11 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		acc.DeletedAt = &deletedAtCopy
+	}
+
+	if t.ClosedAt.Valid {
+		closedAtCopy := t.ClosedAt.Time
+		acc.ClosedAt = &closedAtCopy
 	}
 
 	return acc
@@ -112,5 +118,12 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	if account.DeletedAt != nil {
 		deletedAtCopy := *account.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+
+	// closed_at rides the model for round-trip fidelity only. No INSERT or UPDATE
+	// built here names the column: the close command owns the write.
+	if account.ClosedAt != nil {
+		closedAtCopy := *account.ClosedAt
+		t.ClosedAt = sql.NullTime{Time: closedAtCopy, Valid: true}
 	}
 }

@@ -160,8 +160,8 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		}
 	}
 
-	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From)
-	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To)
+	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From, f.Transaction.Send.Source.From)
+	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To, f.Transaction.Send.Distribute.To)
 
 	return nil
 }

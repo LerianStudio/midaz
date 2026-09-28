@@ -97,7 +97,7 @@ func TestIntegration_Overdraft_PendingDestinationCreditDefersRepayment(t *testin
 		libConstants.CREDIT, constant.PENDING, decimal.NewFromInt(60), decimal.Zero, false)
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{sourceOp, destOp})
+		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{sourceOp, destOp}, nil)
 	require.NoError(t, err)
 
 	sourceAfter := findBalanceByAliasKey(t, result.After, sourceAliasKey)
@@ -163,7 +163,7 @@ func TestIntegration_Overdraft_CommitDestinationCreditRepaysOnce(t *testing.T) {
 		libConstants.CREDIT, constant.APPROVED, decimal.NewFromInt(50), decimal.Zero, false)
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{sourceOp, destOp, companionOp})
+		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{sourceOp, destOp, companionOp}, nil)
 	require.NoError(t, err)
 
 	sourceAfter := findBalanceByAliasKey(t, result.After, sourceAliasKey)
@@ -256,7 +256,7 @@ func TestIntegration_Overdraft_CancelDefersDestinationCredit(t *testing.T) {
 			libConstants.CREDIT, constant.CANCELED, decimal.NewFromInt(60), decimal.Zero, false)
 
 		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{release, restore, destOp})
+			uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{release, restore, destOp}, nil)
 		require.NoError(t, err)
 
 		payerAfter := findLatestBalanceByAliasKey(t, result.After, payerAliasKey)
@@ -286,7 +286,7 @@ func TestIntegration_Overdraft_CancelDefersDestinationCredit(t *testing.T) {
 			libConstants.CREDIT, constant.CANCELED, decimal.NewFromInt(60), decimal.Zero, false)
 
 		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{release, destOp})
+			uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{release, destOp}, nil)
 		require.NoError(t, err)
 
 		payerAfter := findLatestBalanceByAliasKey(t, result.After, payerAliasKey)

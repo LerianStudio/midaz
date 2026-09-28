@@ -36,7 +36,7 @@ import (
 // preserved IDs so the post-update hydration path covers the
 // `input.OperationRoutes == nil` case (i.e. PATCHes that omit the
 // link set should still see the canonical post-state on the wire).
-func newUpdateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, fixedUpdatedAt time.Time, canonicalTitle string, preservedOperationRouteIDs []uuid.UUID) *UseCase {
+func newUpdateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, routeLedgerID uuid.UUID, fixedUpdatedAt time.Time, canonicalTitle string, preservedOperationRouteIDs []uuid.UUID) *UseCase {
 	t.Helper()
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -44,12 +44,12 @@ func newUpdateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockTransactionRouteRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID, id uuid.UUID, in *mmodel.TransactionRoute, _, _ []uuid.UUID) (*mmodel.TransactionRoute, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orgID, id uuid.UUID, in *mmodel.TransactionRoute, _, _ []uuid.UUID) (*mmodel.TransactionRoute, error) {
 			out := &mmodel.TransactionRoute{
 				ID:             id,
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
+				LedgerID:       &routeLedgerID,
 				Title:          canonicalTitle,
 				Description:    in.Description,
 				UpdatedAt:      fixedUpdatedAt,
@@ -75,8 +75,8 @@ func newUpdateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 	// Hydration step: return mirror OperationRoute objects so the
 	// streaming payload's operationRouteIds slice is populated.
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
+		FindByIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
 			routes := make([]*mmodel.OperationRoute, 0, len(ids))
 			for _, id := range ids {
 				routes = append(routes, &mmodel.OperationRoute{ID: id, OperationType: "source"})
@@ -115,11 +115,11 @@ func TestUpdateTransactionRoute_EmitsTransactionRouteUpdatedEvent(t *testing.T) 
 	preservedOR2 := uuid.New()
 
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, mockEmitter, fixedUpdatedAt, "Canonical Title", []uuid.UUID{preservedOR1, preservedOR2})
+	ledgerID := uuid.New()
+	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, mockEmitter, ledgerID, fixedUpdatedAt, "Canonical Title", []uuid.UUID{preservedOR1, preservedOR2})
 
 	ctx := context.Background()
 	orgID := uuid.New()
-	ledgerID := uuid.New()
 	transactionRouteID := uuid.New()
 
 	input := &mmodel.UpdateTransactionRouteInput{
@@ -127,7 +127,7 @@ func TestUpdateTransactionRoute_EmitsTransactionRouteUpdatedEvent(t *testing.T) 
 		Description: "Updated description",
 	}
 
-	tr, err := uc.UpdateTransactionRoute(ctx, orgID, ledgerID, transactionRouteID, input)
+	tr, err := uc.UpdateTransactionRoute(ctx, orgID, transactionRouteID, input)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 
@@ -169,11 +169,11 @@ func TestUpdateTransactionRoute_NoopEmitterDoesNotPanic(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter(), fixedUpdatedAt, "Canonical Title", nil)
+	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, libStreaming.NewNoopEmitter(), uuid.New(), fixedUpdatedAt, "Canonical Title", nil)
 
 	input := &mmodel.UpdateTransactionRouteInput{Title: "Noop Updated Transaction Route"}
 
-	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), uuid.New(), input)
+	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 }
@@ -185,11 +185,11 @@ func TestUpdateTransactionRoute_EmitFailureDoesNotFailRequest(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{}, fixedUpdatedAt, "Canonical Title", nil)
+	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, streamingFailingEmitter{}, uuid.New(), fixedUpdatedAt, "Canonical Title", nil)
 
 	input := &mmodel.UpdateTransactionRouteInput{Title: "Emit Fail Updated Transaction Route"}
 
-	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), uuid.New(), input)
+	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, tr)
 }
@@ -201,11 +201,11 @@ func TestUpdateTransactionRoute_NilStreamingDoesNotPanic(t *testing.T) {
 	defer ctrl.Finish()
 
 	fixedUpdatedAt := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
-	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, nil, fixedUpdatedAt, "Canonical Title", nil)
+	uc := newUpdateTransactionRouteStreamingTestUseCase(t, ctrl, nil, uuid.New(), fixedUpdatedAt, "Canonical Title", nil)
 
 	input := &mmodel.UpdateTransactionRouteInput{Title: "Nil Streaming Updated Transaction Route"}
 
-	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), uuid.New(), input)
+	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 }

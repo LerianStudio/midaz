@@ -75,6 +75,11 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 
 	logger = logging.WithTrace(ctx, logger)
 
+	if _, err := http.RefuseOutOfBoundTokens(rawBody, (*CreateLimitInput)(nil)); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request body out of bounds", err)
+		return nil, err
+	}
+
 	var input CreateLimitInput
 	if err := json.Unmarshal(rawBody, &input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
@@ -231,6 +236,11 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+	}
+
+	if _, err := http.RefuseOutOfBoundTokens(rawBody, (*UpdateLimitInput)(nil)); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request body out of bounds", err)
+		return nil, err
 	}
 
 	// Check for immutable fields BEFORE parsing into struct

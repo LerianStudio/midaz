@@ -19,6 +19,7 @@ import (
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	servicesMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
@@ -177,6 +178,56 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
+	})
+
+	t.Run("A replayed reserve hands back the existing row's id", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+		specs := twoSpecs()
+
+		// The id the retried reserve collapses onto. The repository overwrites the
+		// reservation's id with the row that owns the capacity, so the handle the
+		// ledger confirms or releases with must be THIS id, not the one the service
+		// generated for the retry.
+		owningID := testutil.MustDeterministicUUID(7099)
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(specs[:1], false, nil).
+			Times(1)
+
+		deps.expectTxCommit()
+		deps.expectScopeLock()
+
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+				r.ID = owningID
+
+				return nil
+			}).
+			Times(1)
+
+		var auditedID uuid.UUID
+
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, _ model.AuditEventType, _ model.AuditAction, id uuid.UUID, _ command.ReservationAuditContext) error {
+				auditedID = id
+
+				return nil
+			}).
+			Times(1)
+
+		result, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+		require.False(t, result.Denied)
+		require.Len(t, result.ReservationIDs, 1)
+		assert.Equal(t, owningID, result.ReservationIDs[0],
+			"the handle returned must address the row that owns the held capacity")
+		assert.Equal(t, owningID, auditedID,
+			"the audit row must reference the reservation that owns the held capacity")
 	})
 
 	t.Run("Fractional spec amount reaches the reservation row intact", func(t *testing.T) {

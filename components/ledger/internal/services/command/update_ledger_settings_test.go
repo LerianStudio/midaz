@@ -11,6 +11,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
@@ -118,7 +120,12 @@ func TestUpdateLedgerSettings_ValidationError(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	uc := &UseCase{LedgerRepo: mockLedgerRepo}
+
+	// No expectation is registered on either mock: validation runs before any I/O, so a
+	// call to UpdateSettingsAtomic or to the cache invalidation fails the row it came from.
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{LedgerRepo: mockLedgerRepo, OnboardingRedisRepo: mockRedisRepo}
 	ctx := context.Background()
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -127,6 +134,7 @@ func TestUpdateLedgerSettings_ValidationError(t *testing.T) {
 		name          string
 		inputSettings map[string]any
 		wantErrSubstr string
+		wantErrCode   string // structured error code to assert, if non-empty
 	}{
 		{
 			name: "unknown_top_level_field",
@@ -153,6 +161,16 @@ func TestUpdateLedgerSettings_ValidationError(t *testing.T) {
 			},
 			wantErrSubstr: "validateAccountType",
 		},
+		{
+			name: "tracer_timeout_out_of_range",
+			inputSettings: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": 0,
+				},
+			},
+			wantErrSubstr: "tracer.timeoutMs",
+			wantErrCode:   constant.ErrInvalidSettingsFieldValue.Error(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -162,6 +180,13 @@ func TestUpdateLedgerSettings_ValidationError(t *testing.T) {
 			require.Error(t, err)
 			assert.Nil(t, settings)
 			assert.Contains(t, err.Error(), tt.wantErrSubstr)
+
+			if tt.wantErrCode != "" {
+				var vErr pkg.ValidationError
+
+				require.True(t, errors.As(err, &vErr), "expected pkg.ValidationError, got %T", err)
+				assert.Equal(t, tt.wantErrCode, vErr.Code)
+			}
 		})
 	}
 }

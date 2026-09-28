@@ -162,20 +162,89 @@ connection is dialled, and a `/v1` create can never answer `0177` (reservation d
 `tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
 client integrated against.
 
-Both seams read one signal — `routeVersionPolicy` (`routeV1`/`routeV2`,
-`transaction_route_version.go`), threaded from the transport shell because the cores are
-transport-agnostic and cannot read the request path. Each seam decides for itself what the version
-means. Structural gates in `transaction_fee_seam_structure_test.go` and
-`transaction_route_version_structure_test.go` assert every route names its policy and that the
-route gate is the first statement of each tracer seam.
+On every transaction path the version is the method name, not a runtime value:
+`CreateTransactionV1` and `RevertTransactionV1` name neither the fee engine nor the tracer
+reservation; `CreateTransactionV2` names both and `RevertTransactionV2` names the tracer only —
+a revert already carries the reversed fee legs, but limits measure GROSS activity, so the reversal
+reserves capacity of its own. The PENDING state transition follows the same rule:
+`CommitTransactionV1` / `CancelTransactionV1` run `transitionPendingV1`, which names neither
+by-transaction seam, while `CommitTransactionV2` / `CancelTransactionV2` run `transitionPendingV2`,
+which confirms on APPROVED and releases on CANCELED, both after the balance commit. Structural
+gates assert all of it: `create_transaction_version_gates_test.go` (a `/v1` create pipeline names
+no versioned seam, a `/v2` one names them in order),
+`transaction_reservation_anchor_structure_test.go` (the same for the two state pipelines) and, on
+the transport side, `transaction_fee_seam_structure_test.go` and
+`transaction_route_version_structure_test.go` (every route binds the use case matching its
+version).
+
+### Cross-ledger enablement is a `/v2` contract
+
+`crossLedger.enabled` is an operator's per-ledger opt-in. The policy resolver accepts only
+ledgers that explicitly enable it and returns `0249` (HTTP 422) when one is disabled. This
+setting does not retroactively change `/v1`: `/v2/transactions/direct` and
+`/v2/transactions/hold` consume the policy when debit and credit legs name multiple ledgers.
+Direct decomposes and executes every part atomically under a shared `groupId`. Hold creates
+only PENDING origin parts; v2 commit creates destinations while approving all origins in one
+engine execution, and v2 cancel releases the origins without creating destinations. V2 revert
+continues to reverse every APPROVED member in one atomic execution and returns a new group plus
+`revertedGroupId`. Cross-ledger block and unblock remain unsupported. Authorization is checked
+against the organization and ledger in the lifecycle route path; other group members may belong
+to other enabled ledgers or organizations in the same authenticated tenant. `/v1` cannot express
+the grouped response and rejects grouped commit, cancel, or revert with `0252` (HTTP 422). See
+[Cross-ledger transactions](cross-ledger-transactions.md).
+
+### Transaction skips are a `/v2` body field
+
+The two per-call transaction controls — `skip.fees` and `skip.tracer` — exist only on the
+`/v2` create input (`CreateTransactionV2Input`). They opt out of the fee engine and the tracer
+reservation, and neither runs on `/v1`, so the field has nothing to mean there. A `/v1` create
+body naming `skip` is rejected by the decoder as an unknown field: **HTTP 400**
+(`ErrUnexpectedFieldsInTheRequest`), the same answer any other unknown field gets — not the
+422 an unpermitted skip earns on `/v2`.
+
+The consequence is durable, not just transport-level: `transaction.fees_skipped` and
+`transaction.tracer_skipped` can only be `true` on a row created through `/v2`. On a `/v1`
+row they are always `false`, and they stay distinguishable from `fees_route_eligible` /
+`tracer_route_eligible`, the span attributes that say the control was never in play.
+
+This differs from `skip.holder`, which remains a known — but inert — field on the `/v1`
+account body.
 
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
-confirm/release cannot tell whether the transaction holds reservations, so gating it on the route
-version means a PENDING created on `/v2` and committed through `/v1` never receives its confirm:
-the reservation stays RESERVED until the TTL reaper releases it, and the committed amount is never
-counted against the usage limit. Commit and cancel a transaction on the same contract that created
-it. Closing this needs create-time reservation state persisted on the transaction row for the gate
-to read instead of the route version.
+confirm/release cannot tell whether the transaction holds reservations, so a PENDING created on
+`/v2` and committed through `/v1` never receives its confirm — `transitionPendingV1` names no
+reservation seam: the reservation stays RESERVED until the TTL reaper releases it, and the
+committed amount is never counted against the usage limit. Commit and cancel a transaction on the
+same contract that created it. Closing this needs create-time reservation state persisted on the
+transaction row for the `/v1` pipeline to read.
+
+### Singular create idempotency applies to both contracts
+
+A singular create on `/v1` or `/v2` stores a fingerprint of the request next to the
+transaction in its idempotency slot. A later request that reuses the slot replays the stored
+transaction (`X-Idempotency-Replayed: true`) only when its fingerprint matches; a different
+request under the same key answers `0084` (HTTP 409) and posts nothing. The effective key of a
+request without `X-Idempotency` is unchanged, so a retry that straddles a deploy still finds its
+original slot, and a slot written before fingerprints existed keeps replaying until its TTL
+(default 300 s, `X-TTL` up to 604800 s) runs out.
+
+- **`/v2`** fingerprints the body canonically (whitespace and property order ignored) together
+  with the action, so direct, hold, block, and unblock never replay one another.
+- **`/v1`** fingerprints the canonical transaction together with its status and operation-type
+  override. `json`, `annotation`, `block`, and `unblock` accept the same body, so a byte-identical
+  body posted to two of them within the TTL answers `0084` even without a key.
+- **`/v1` and `/v2`** fingerprints never match each other, so one key cannot cross versions.
+
+`RevertTransactionV1` and `RevertTransactionV2` go through the same check. A revert sends no
+idempotency key, so its slot is still keyed on the reversal hash and is not scoped by origin. Its
+fingerprint is derived the way `/v1`'s is, from the reversal with status `CREATED` and no override.
+A matching fingerprint replays the stored reversal, so two reverts that share a slot still replay
+each other. A differing fingerprint answers `0084` (HTTP 409); that happens only when the slot was
+created by another kind of request with the same serialized reversal, such as a `/v1` annotation.
+The atomic batch and the cross-ledger request keep their own fingerprint rules; see
+[Atomic transaction batch](atomic-transaction-batch.md) and
+[Cross-ledger transactions](cross-ledger-transactions.md).
+
 ## The holder seam is `/v2`-only
 
 The same contract-versus-scope split applies to accounts. The **holder seam** on account create —
@@ -183,11 +252,12 @@ the `accounting.requireHolder` gate, the two-key `skip.holder` control, and the 
 self-holder default that materialises `account.holder_id` — is **`/v2`-only**.
 
 The signal is `command.RouteHolderPolicy` (`HolderOffV1` / `HolderOnV2`), threaded from the transport
-shell for the same reason the transaction cores thread `routeVersionPolicy`: the use case is
-transport-agnostic and cannot read the request path. The two are siblings at different layers, not
-duplicates — the fee and tracer seams sit in the transaction handler, the holder seam in the account
-use case, and a `command` type cannot be the unexported `in` one without inverting the dependency
-direction.
+shell because the use case is transport-agnostic and cannot read the request path. It is the one
+place where the version travels as a runtime value rather than as a method name: the account create
+path has a single `CreateAccount` use case, so the seam inside it has to be told which contract it
+is serving. The transaction paths encode the version in the use-case name instead
+(`CreateTransactionV1`/`V2`, `RevertTransactionV1`/`V2`, `CommitTransactionV1`/`V2`,
+`CancelTransactionV1`/`V2`) and thread nothing.
 
 A `/v1` account create never reaches it. It links no holder (the row persists `holder_id = NULL`
 and `holder_check_skipped = false`), performs no holder settings read, and can be rejected by
@@ -252,6 +322,40 @@ the seam would resolve for an external account. And the account **update** path 
 ownership: `holderId` is immutable (it is not a field on the update input, and an unknown body field
 is a `400`), and neither holder column appears in the update statement.
 
+## Accounting routes: organization-owned, reachable from both scopes
+
+Operation routes and transaction routes belong to the **organization**. A route is resolved,
+updated and deleted by `(organization, id)`, a transaction route may link operation routes created
+under different ledgers of the organization, and a route validates in every ledger of the
+organization that sets `accounting.validateRoutes` (that setting stays per ledger).
+
+Two path scopes serve the same routes:
+
+| Scope | Paths | Contracts | `ledgerId` on create |
+| --- | --- | --- | --- |
+| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{id}]` | `/v2` only | absent — the route has no ledger |
+| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
+
+On the ledger paths the ledger is **provenance, not a filter**: list, get, patch and delete reach
+every route of the organization, whichever ledger it was created under and including routes created
+at organization level. `ledgerId` is omitted from the response (and from the six route events) for a
+route that has no ledger; a route created under a ledger still carries it, so existing `/v1`
+responses keep their shape.
+
+Both scopes authorize with the same tuples — `("midaz","operation-routes",verb)` and
+`("midaz","transaction-routes",verb)`, verbs `post`/`get`/`patch`/`delete` — and the same
+transaction-module tenant chain. The organization paths add no permission name and need no
+tenant-manager policy change.
+
+**Rollout:** pods older than this change cannot see a route with no ledger. Do not create routes at
+organization level until every pod runs a version that serves the organization paths.
+
+Route cache entries never expire. Newer pods read `accounting_routes:{organization:route}` and clear the
+older per-ledger key on every route write, so older pods reload fresh rules. An update or delete served
+by an older pod clears only the per-ledger key and leaves the newer pods' entry stale. Hold route updates
+and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
+afterwards.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,
@@ -265,6 +369,6 @@ query parameter. The convention does not change; only how much of the hierarchy 
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
 both live); the transaction fee seam, the tracer reservation lifecycle and the account holder seam
-answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the transaction
-handler, the third by `command.RouteHolderPolicy` in the account use case). A surface being
+answer the second (`/v2` only — the first two by the transaction create pipeline the route binds,
+the third by `command.RouteHolderPolicy` in the account create use case). A surface being
 reachable at a scope says nothing about which contract applies it.

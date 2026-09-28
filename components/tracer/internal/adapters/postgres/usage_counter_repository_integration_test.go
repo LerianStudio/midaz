@@ -632,3 +632,54 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_Boundary_Integration(t 
 	t.Logf("SUCCESS: Boundary test with pre-seeded %s, %d goroutines with amount=%s and maxAmount=%s: %d succeeded, %d failed (ErrUsageCounterExceedsLimit), final usage = %s",
 		preSeededUsage.String(), numGoroutines, amount.String(), maxAmount.String(), successCount, failCount, finalUsage.String())
 }
+
+// TestIntegration_UsageCounter_SynchronousIncrement_SeesHeldCapacity proves both
+// writers on one counter bucket defend the SAME ceiling.
+//
+// The two-phase reserve path holds capacity in reserved_usage and guards on
+// current_usage + reserved_usage + amount <= maxAmount. The synchronous
+// validation path increments current_usage and, before this fix, guarded on
+// current_usage alone — so outstanding holds were invisible to it and a
+// deployment using both paths against one limit could commit close to twice the
+// configured cap.
+//
+// Scenario: cap 1000, 900 already held by a reservation, then a synchronous
+// amount of 900. The synchronous write MUST be refused.
+func TestIntegration_UsageCounter_SynchronousIncrement_SeesHeldCapacity(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	repo := NewUsageCounterRepositoryWithConnection(adapter)
+
+	limitID := createTestLimit(t, db, 9031)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:9031-" + testutil.MustDeterministicUUID(9131).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+	maxAmount := decimal.NewFromInt(1000)
+	held := decimal.NewFromInt(900)
+
+	reserved, err := repo.UpsertAndReserveAtomic(ctx, db, limitID, scopeKey, periodKey, held, maxAmount, nil)
+	require.NoError(t, err, "the reserve must hold 900 under a cap of 1000")
+	require.True(t, held.Equal(reserved), "want reserved_usage 900, got %s", reserved)
+
+	// The synchronous path on the SAME counter bucket. 900 committed on top of 900
+	// held would put the customer at 1800 against a cap of 1000.
+	_, err = repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, held, maxAmount, nil)
+	require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit,
+		"the synchronous check must count capacity already held by a reservation")
+
+	current, stillHeld := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "a refused synchronous write must not move current_usage; got %s", current)
+	assert.True(t, held.Equal(stillHeld), "a refused synchronous write must not disturb the hold; got %s", stillHeld)
+
+	// The remaining headroom is still spendable synchronously: 100 fits under the cap.
+	headroom := decimal.NewFromInt(100)
+
+	newUsage, err := repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, headroom, maxAmount, nil)
+	require.NoError(t, err, "a synchronous amount inside the real headroom must still be allowed")
+	assert.True(t, headroom.Equal(newUsage), "want current_usage 100, got %s", newUsage)
+}

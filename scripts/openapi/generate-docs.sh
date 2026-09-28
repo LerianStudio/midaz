@@ -1,0 +1,413 @@
+#!/bin/bash
+
+# Copyright (c) 2026 Lerian Studio. All rights reserved.
+# Use of this source code is governed by the Elastic License 2.0
+# that can be found in the LICENSE file.
+
+set -euo pipefail
+
+# Clean documentation generation script
+# Regenerates the native Huma OAS 3.1 dumps and consolidates them for the hub
+
+# Root directory of the repo (this script lives in scripts/openapi/)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# OpenAPI tooling and consolidated-spec directories
+OPENAPI_DIR="${ROOT_DIR}/scripts/openapi"
+API_OUTPUT_DIR="${ROOT_DIR}/api"
+
+# Components to process (each must have a cmd/app/main.go entry point)
+COMPONENTS=("ledger" "tracer")
+
+# Temporary log dir
+LOG_DIR="${ROOT_DIR}/tmp"
+mkdir -p "${LOG_DIR}"
+
+# Convert YAML to JSON with the repository's Go YAML dependency. Keeping this
+# conversion in Go avoids carrying a second YAML parser in the Node toolchain;
+# Node remains scoped to the Redocly join/lint CLI.
+yaml_to_json() {
+    go -C "${ROOT_DIR}" run ./scripts/openapi/cmd/yamljson "$@"
+}
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Print a nice header
+print_header() {
+    echo ""
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${BLUE}  📝 $1${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+}
+
+# Print step with status
+print_step() {
+    local step_name="$1"
+    local status="$2"
+    local time_taken="${3:-}"
+
+    if [ "$status" = "SUCCESS" ]; then
+        echo -e "    ${GREEN}✅ ${step_name}${time_taken:+ (${time_taken}s)}${NC}"
+    elif [ "$status" = "FAILED" ]; then
+        echo -e "    ${RED}❌ ${step_name} - FAILED${NC}"
+    else
+        echo -e "    ${YELLOW}⏳ ${step_name}...${NC}"
+    fi
+}
+
+# Regenerate a component's native Huma OAS 3.1 dump (components/<c>/api/openapi.huma.yaml)
+# by running its golden-dump test with -update. No swag, no Docker.
+generate_openapi_spec() {
+    local component="$1"
+    local start_time=$(date +%s.%N)
+
+    print_step "Generating ${component} OpenAPI spec (Huma dump)" "PROCESSING"
+
+    local out_log="${LOG_DIR}/${component}_dump.out"
+    local err_log="${LOG_DIR}/${component}_dump.err"
+
+    if (go -C "${ROOT_DIR}" test -buildvcs=false -run TestOpenAPISpecDump \
+            "./components/${component}/internal/adapters/http/in/" -update \
+            > "${out_log}" 2> "${err_log}"); then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Generated ${component} OpenAPI spec (Huma dump)" "SUCCESS" "${elapsed}"
+        return 0
+    else
+        print_step "Generate ${component} OpenAPI spec (Huma dump)" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+}
+
+# Merge the per-component openapi.huma.yaml dumps into one consolidated spec
+# (api/midaz.openapi.{yaml,json}) via @redocly/cli join, reading DIRECTLY from
+# components/<c>/api. Ledger is listed first so it acts as the "main" and takes
+# precedence on shared metadata.
+consolidate_openapi() {
+    print_step "Consolidating OpenAPI specs" "PROCESSING"
+
+    local out_log="${LOG_DIR}/consolidate.out"
+    local err_log="${LOG_DIR}/consolidate.err"
+    local start_time=$(date +%s.%N)
+
+    local redocly_bin="${OPENAPI_DIR}/node_modules/.bin/redocly"
+    local consolidated_yaml="${API_OUTPUT_DIR}/midaz.openapi.yaml"
+    local consolidated_json="${API_OUTPUT_DIR}/midaz.openapi.json"
+
+    if [ ! -x "${redocly_bin}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        @redocly/cli not found at ${redocly_bin}; run install_npm_dependencies first."
+        return 1
+    fi
+
+    mkdir -p "${API_OUTPUT_DIR}"
+
+    # 1. Assert all component specs declare the same openapi: version.
+    local ref_version="" version=""
+    for component in "${COMPONENTS[@]}"; do
+        local spec="${ROOT_DIR}/components/${component}/api/openapi.huma.yaml"
+        if [ ! -f "${spec}" ]; then
+            print_step "Consolidate OpenAPI specs" "FAILED"
+            echo -e "      ${RED}Error details:${NC}"
+            echo "        Missing component spec: ${spec}"
+            return 1
+        fi
+        version="$(awk '/^openapi:/ {print $2; exit}' "${spec}" | tr -d '"'"'"\\r)"
+        if [ -z "${ref_version}" ]; then
+            ref_version="${version}"
+        elif [ "${version}" != "${ref_version}" ]; then
+            print_step "Consolidate OpenAPI specs" "FAILED"
+            echo -e "      ${RED}Error details:${NC}"
+            echo "        openapi version mismatch: ${component} is '${version}', expected '${ref_version}'."
+            echo "        All component specs must share one openapi version before join."
+            return 1
+        fi
+    done
+
+    # 2a. Derive the tracer join input from its committed Huma dump. The dump is
+    #     served under /v1 with server-relative paths (servers ["/v1"]) and path keys
+    #     WITHOUT the /v1 prefix (e.g. "/audit-events"). The ledger dump, by contrast,
+    #     carries "/v1/" + "/v2/" directly on its keys and declares servers ["/"].
+    #     redocly join derives the joined document's root servers from the FIRST input
+    #     only; if any later input's servers differ from the first's (including a bare
+    #     "/v1" vs "/"), redocly compensates by stamping a servers array onto EVERY
+    #     path item of EVERY input. This transform makes the tracer input SYMMETRIC to
+    #     the ledger dump so no such override is emitted, WITHOUT mutating the committed
+    #     tracer dump (yamljson parses a fresh copy; the source file is never written):
+    #       - prefix "/v1" onto every path key so each key is self-describing and
+    #         globally unique against the ledger keys;
+    #       - declare top-level servers "/" so it matches the ledger dump's servers.
+    #     Net: both inputs reach the join with self-describing keys and servers ["/"],
+    #     so the joined root servers is ["/"] and NOT ONE path item carries a servers
+    #     override. No per-path-item servers are written here — that asymmetry is
+    #     exactly what produced the overrides.
+    local tracer_dump="${ROOT_DIR}/components/tracer/api/openapi.huma.yaml"
+    local tracer_join_input="${LOG_DIR}/tracer_join_input.json"
+
+    # LOG_DIR survives between runs, so discard whatever an earlier run left here.
+    # Joining below keys off THIS run having derived the input, never off the file
+    # merely being present — otherwise renaming the dump would silently republish a
+    # stale key set from a leftover output file.
+    rm -f "${tracer_join_input}"
+
+    # The tracer surface is a REQUIRED member of the hub: fail rather than degrade to
+    # a ledger-only document if its dump is missing.
+    if [ ! -f "${tracer_dump}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Missing required tracer dump: ${tracer_dump}"
+        return 1
+    fi
+
+    if ! yaml_to_json "${tracer_dump}" \
+            | jq '.paths |= with_entries(.key = ("/v1" + .key)) | .servers = [{"url":"/"}]' \
+                > "${tracer_join_input}" 2>> "${err_log}"; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 2b. Join (ledger first => takes precedence on shared metadata and supplies the
+    #     joined root servers). The derived tracer input follows. Run the
+    #     locally-installed binary directly so the component paths stay relative to
+    #     ROOT_DIR.
+    local join_inputs=(components/ledger/api/openapi.huma.yaml "${tracer_join_input}")
+
+    if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
+            "${join_inputs[@]}" \
+            --prefix-tags-with-info-prop title \
+            -o api/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 3. Produce a deterministic JSON twin from the YAML.
+    if ! yaml_to_json "${consolidated_yaml}" "${consolidated_json}" \
+            >> "${out_log}" 2>> "${err_log}"; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 4. Post-join validation against the JSON twin.
+
+    # 4a. Structural HTTP-neutrality guard. Both join inputs arrive with
+    #     self-describing keys and servers ["/"], so the joined document must expose a
+    #     single root server "/" and NOT ONE path item may carry a servers override. A
+    #     redocly upgrade that reverts to per-path-item stamping (the pre-symmetry
+    #     behaviour) is invisible to the effective URL of any operation but changes the
+    #     document shape; only this assertion catches that silent return.
+    if ! jq -e '.servers == [{"url":"/"}]' "${consolidated_json}" > /dev/null; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated root servers is not exactly [{\"url\":\"/\"}]."
+        echo "        A non-first input's servers likely diverged from the ledger dump's."
+        return 1
+    fi
+    if ! jq -e '[.paths[] | select(has("servers"))] | length == 0' "${consolidated_json}" > /dev/null; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        One or more path items carry a servers override; expected none."
+        echo "        The join stamped per-path-item servers, meaning an input was asymmetric."
+        return 1
+    fi
+
+    # 4b. Membership guard (derived, not a brittle literal). A join that silently loses
+    #     a member — a dropped join_inputs entry, or a derivation that drops path keys —
+    #     still produces a valid, smaller document every other check passes. A hardcoded
+    #     count instead fails on any legitimate route change while misdirecting with a
+    #     "dropped member" message. So derive the expected surface from the two required
+    #     members' SOURCE dumps and assert each member's contribution to the hub is
+    #     whole:
+    #       - expected counts come from the committed dumps (ledger dump + the ORIGINAL
+    #         tracer dump), NOT the derived tracer input — deriving from the intermediate
+    #         would move in lockstep with a buggy derivation and hide a partial loss;
+    #       - the hub partitions cleanly because the tracer keys are /v1-prefixed and
+    #         disjoint from ledger's, so hub keys also present in the ledger dump are
+    #         ledger's contribution and everything else is the tracer input's.
+    #     A dropped or partially-lost member then fails the per-member "contributed X of
+    #     Y" check, while a normal route addition simply moves the derived totals.
+    local ledger_keys_file="${LOG_DIR}/ledger_path_keys.json"
+    local tracer_keys_file="${LOG_DIR}/tracer_path_keys.json"
+    if ! yaml_to_json "${ROOT_DIR}/components/ledger/api/openapi.huma.yaml" \
+            | jq -c '.paths | keys' > "${ledger_keys_file}" \
+        || ! yaml_to_json "${tracer_dump}" \
+            | jq -c '[.paths | keys[] | "/v1" + .]' > "${tracer_keys_file}" \
+        || ! jq -e --slurpfile ledger "${ledger_keys_file}" \
+            --slurpfile tracer "${tracer_keys_file}" '
+                (.paths | keys) as $hub
+                | ($ledger[0]) as $ledger_keys
+                | ($tracer[0]) as $tracer_keys
+                | ($ledger_keys + $tracer_keys | unique) as $expected
+                | ((($ledger_keys | length) + ($tracer_keys | length)) == ($expected | length))
+                  and ($hub == $expected)
+            ' "${consolidated_json}" > /dev/null 2>> "${err_log}"; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated hub is missing or adding path keys relative to its required inputs."
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 4c. Security post-validation against the JSON twin. redocly join's security
+    #    merge is undocumented and root security may be dropped (known issue), so
+    #    this guard catches a regression where a scheme goes missing or an
+    #    operation references a scheme that is not defined.
+    local missing
+    missing="$(jq -r '
+        ["BearerAuth","ApiKeyAuth"]
+        - (.components.securitySchemes // {} | keys)
+        | join(", ")
+    ' "${consolidated_json}")"
+    if [ -n "${missing}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated spec is missing required securityScheme(s): ${missing}."
+        echo "        Expected both BearerAuth and ApiKeyAuth (both declared by the tracer dump)."
+        return 1
+    fi
+
+    local orphans
+    orphans="$(jq -r '
+        (.components.securitySchemes // {} | keys) as $defined
+        | [ .paths | to_entries[] | .value | to_entries[]
+            | select(.key | test("^(get|post|put|patch|delete|head|options)$"))
+            | (.value.security // [])[] | keys[] ]
+        | unique
+        | map(select(. as $s | ($defined | index($s)) | not))
+        | join(", ")
+    ' "${consolidated_json}")"
+    if [ -n "${orphans}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated spec has operations referencing undefined securityScheme(s): ${orphans}."
+        return 1
+    fi
+
+    local end_time=$(date +%s.%N)
+    local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+    print_step "Consolidated OpenAPI specs (openapi ${ref_version})" "SUCCESS" "${elapsed}"
+    return 0
+}
+
+# Install the Node.js dependency for OpenAPI consolidation tooling (Redocly).
+install_npm_dependencies() {
+    print_step "Installing Node.js dependencies" "PROCESSING"
+
+    local npm_out="${LOG_DIR}/npm.out"
+    local npm_err="${LOG_DIR}/npm.err"
+    local start_time=$(date +%s.%N)
+
+    # Check if node_modules exists and is newer than both package.json and package-lock.json
+    if [ -d "${OPENAPI_DIR}/node_modules" ] && \
+       [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package.json" ] && \
+       [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package-lock.json" ]; then
+        print_step "Node.js dependencies already up to date" "SUCCESS" "0.0"
+        return 0
+    fi
+
+    if [ -f "${OPENAPI_DIR}/package-lock.json" ]; then
+        if (cd "${OPENAPI_DIR}" && npm ci --silent > "${npm_out}" 2> "${npm_err}"); then
+            local end_time=$(date +%s.%N)
+            local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+            print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
+            return 0
+        fi
+    elif (cd "${OPENAPI_DIR}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
+        return 0
+    fi
+
+    print_step "Install Node.js dependencies" "FAILED"
+    echo -e "      ${RED}Error details:${NC}"
+    head -5 "${npm_err}" | sed 's/^/        /'
+    return 1
+}
+
+# Verify the consolidated spec was produced
+verify_outputs() {
+    print_step "Verifying generated files" "PROCESSING"
+
+    local consolidated_yaml="${API_OUTPUT_DIR}/midaz.openapi.yaml"
+    local consolidated_json="${API_OUTPUT_DIR}/midaz.openapi.json"
+
+    if [ -f "${consolidated_yaml}" ] && [ -f "${consolidated_json}" ]; then
+        local path_count=$(jq '.paths | length' "${consolidated_json}" 2>/dev/null || echo "0")
+
+        print_step "Generated consolidated spec with ${path_count} paths" "SUCCESS"
+        return 0
+    else
+        print_step "Verify generated files" "FAILED"
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    print_header "Generating OpenAPI API Documentation"
+
+    # Track overall success
+    local overall_success=true
+
+    # Regenerate each component's native Huma OAS 3.1 dump via its golden test.
+    if [ "$overall_success" = true ]; then
+        for component in "${COMPONENTS[@]}"; do
+            if ! generate_openapi_spec "$component"; then
+                overall_success=false
+                break
+            fi
+        done
+    fi
+
+    # Install dependencies, then consolidate the per-component dumps into one.
+    if [ "$overall_success" = true ]; then
+        if ! install_npm_dependencies; then
+            overall_success=false
+        elif ! consolidate_openapi; then
+            overall_success=false
+        fi
+    fi
+
+    # Verify outputs
+    if [ "$overall_success" = true ]; then
+        if ! verify_outputs; then
+            overall_success=false
+        fi
+    fi
+
+    # Final status
+    echo ""
+    if [ "$overall_success" = true ]; then
+        echo -e "${GREEN}🎉 Documentation generation completed successfully!${NC}"
+        echo -e "   📚 Consolidated spec: api/midaz.openapi.yaml"
+    else
+        echo -e "${RED}❌ Documentation generation failed.${NC}"
+        echo -e "   📋 Check logs in: ${LOG_DIR}/"
+        exit 1
+    fi
+
+    # Clean up temporary logs on success
+    if [ "$overall_success" = true ]; then
+        rm -rf "${LOG_DIR}"
+    fi
+
+    echo ""
+}
+
+# Run main function
+main "$@"

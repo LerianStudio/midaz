@@ -42,6 +42,14 @@ const (
 	ActionUnblock = "unblock"
 )
 
+// ActionCrossLedger is the accounting-entry action of the bridge route of a
+// cross-ledger group: the operation route whose AccountingEntries.CrossLedger
+// classifies the synthetic @external/<asset> legs that close each ledger's part
+// (debit = arriving from another ledger, credit = leaving to another ledger).
+// Like ActionOverdraft it is NOT a transaction-route action and stays out of
+// ValidActions and the migration 000023 CHECK constraint.
+const ActionCrossLedger = "crossLedger"
+
 // ValidActions contains all valid action values for programmatic validation.
 //
 // This slice mirrors the migration 000023 CHECK constraint on the

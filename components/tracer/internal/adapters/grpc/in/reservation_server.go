@@ -17,11 +17,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -265,7 +265,7 @@ func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveReques
 		return nil, constant.ErrValidationRequestIDRequired
 	}
 
-	amount, err := decimal.NewFromString(req.GetAmount())
+	amount, err := safe.ParseDecimal(req.GetAmount())
 	if err != nil {
 		return nil, constant.ErrValidationAmountNonPositive
 	}

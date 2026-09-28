@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +56,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 	tests := []struct {
 		name           string
 		checkers       []DependencyChecker
-		version        string
 		deploymentMode string
 		wantStatus     int
 		wantHealthy    bool
@@ -67,7 +67,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 				&mockChecker{name: "postgres", tlsEnabled: false, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 			},
-			version:        "1.0.0",
 			deploymentMode: "production",
 			wantStatus:     http.StatusOK,
 			wantHealthy:    true,
@@ -82,7 +81,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 				&mockChecker{name: "postgres", tlsEnabled: false, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusDown, Error: "connection refused"}},
 			},
-			version:        "1.0.0",
 			deploymentMode: "production",
 			wantStatus:     http.StatusServiceUnavailable,
 			wantHealthy:    false,
@@ -96,7 +94,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 			checkers: []DependencyChecker{
 				&mockChecker{name: "rabbitmq", tlsEnabled: false, check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker half-open", BreakerState: "half-open"}},
 			},
-			version:        "1.0.0",
 			deploymentMode: "local",
 			wantStatus:     http.StatusServiceUnavailable,
 			wantHealthy:    false,
@@ -111,7 +108,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 				&mockChecker{name: "redis", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 				&mockChecker{name: "rabbitmq", tlsEnabled: false, check: DependencyCheck{Status: StatusSkipped, Reason: "not configured"}},
 			},
-			version:        "2.0.0",
 			deploymentMode: "staging",
 			wantStatus:     http.StatusOK,
 			wantHealthy:    true,
@@ -124,7 +120,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 		{
 			name:           "no_checkers_returns_healthy",
 			checkers:       []DependencyChecker{},
-			version:        "1.0.0",
 			deploymentMode: "local",
 			wantStatus:     http.StatusOK,
 			wantHealthy:    true,
@@ -139,7 +134,6 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:         libLog.NewNop(),
 				Checkers:       tt.checkers,
-				Version:        tt.version,
 				DeploymentMode: tt.deploymentMode,
 			})
 
@@ -165,7 +159,9 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 				assert.Equal(t, "unhealthy", response.Status)
 			}
 
-			assert.Equal(t, tt.version, response.Version)
+			assert.Equal(t, buildinfo.Get().Version, response.Version)
+			assert.Equal(t, buildinfo.Get().Revision, response.Revision)
+			assert.Equal(t, buildinfo.Get().BuildTime, response.BuildTime)
 			assert.Equal(t, tt.deploymentMode, response.DeploymentMode)
 
 			for name, wantStatus := range tt.wantChecks {
@@ -188,7 +184,6 @@ func TestReadyzHandler_TLSField(t *testing.T) {
 			&mockChecker{name: "postgres_tls", tlsEnabled: true, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 			&mockChecker{name: "redis_no_tls", tlsEnabled: false, check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 		},
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -223,7 +218,6 @@ func TestReadyzHandler_DeploymentModeDefault(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{},
-		Version:        "1.0.0",
 		DeploymentMode: "", // Empty should default to "local"
 	})
 
@@ -398,7 +392,6 @@ func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
 			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:         libLog.NewNop(),
 				Checkers:       tt.checkers,
-				Version:        "1.0.0",
 				DeploymentMode: "local",
 			})
 
@@ -585,7 +578,6 @@ func TestReadyzHandler_ErrorSanitization_InResponse(t *testing.T) {
 						},
 					},
 				},
-				Version:        "1.0.0",
 				DeploymentMode: tt.deploymentMode,
 			})
 
@@ -629,7 +621,6 @@ func TestReadyzHandler_LifecycleState(t *testing.T) {
 		handler := NewReadyzHandler(ReadyzHandlerConfig{
 			Logger:         libLog.NewNop(),
 			Checkers:       []DependencyChecker{},
-			Version:        "1.0.0",
 			DeploymentMode: "local",
 		})
 
@@ -660,7 +651,6 @@ func TestReadyzHandler_LifecycleState(t *testing.T) {
 		handler := NewReadyzHandler(ReadyzHandlerConfig{
 			Logger:         libLog.NewNop(),
 			Checkers:       []DependencyChecker{},
-			Version:        "1.0.0",
 			DeploymentMode: "local",
 		})
 
@@ -687,7 +677,6 @@ func TestReadyzHandler_LifecycleState(t *testing.T) {
 		handler := NewReadyzHandler(ReadyzHandlerConfig{
 			Logger:         libLog.NewNop(),
 			Checkers:       []DependencyChecker{},
-			Version:        "1.0.0",
 			DeploymentMode: "local",
 		})
 

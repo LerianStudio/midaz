@@ -149,7 +149,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** A bare `context.Background()` severs the goroutine's work from the request trace, making async side-effects (idempotency writes, audit emits) invisible in the parent trace and unattributable when they fail. `WithoutCancel` preserves trace and values while correctly detaching the request's cancellation.
 
-**Counter-example (forbidden bare Background):** [`components/ledger/internal/adapters/http/in/transaction_create.go:1371`](../../components/ledger/internal/adapters/http/in/transaction_create.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines on lines 1373–1375, dropping the trace.
+**Counter-example (forbidden bare Background):** [`components/ledger/internal/services/command/create_transaction_steps.go`](../../components/ledger/internal/services/command/create_transaction_steps.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines at the end of `finalizeCreatedTransaction`, dropping the trace.
 
 **Enforcement:** `custom-lint` — flag `context.Background()` used as the seed for a `go` statement's context; broker inject/extract presence is `review-only`.
 
@@ -177,7 +177,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Traces differ from metrics on purpose.** The span attribute is seeded from OTel baggage, which `MarkTrustedAuthAssertion` writes for ANY claim that passes `tmcore.IsValidTenantID`, UUID or not; lib-observability's span processor copies it onto application spans. The metric attestation additionally requires a parsed UUID, so a legacy non-UUID tenant appears on traces but not on the per-tenant metrics. `tenant.id` is deliberately absent from the built-in HTTP server span: lib-observability strips request identity from infrastructure signals.
 
-**They agree on FORM as of lib-observability v4.0.2.** The tenant-manager writes the claim as 32 hex without hyphens, and lib-observability now renders the metric label in that same canonical dashless form (`hex.EncodeToString(id[:])`) instead of `uuid.UUID.String()`. Before v4.0.2 a span carried `03fb5615b8f04c56983826a13d9aadef` while the metric carried the `uuid.Parse`d `03fb5615-b8f0-4c56-9838-26a13d9aadef`, so a panel could not join a span to a metric on `tenant.id` without normalizing one side. Confirmed fixed live in benedita/stg-mt: with `service_version` as the witness, `4.1.0-beta.13` emitted no hyphenated `tenant_id` and `4.1.0-beta.11` emitted no dashless one, and all new request volume landed on the dashless form.
+**They agree on FORM as of lib-observability v4.0.2.** The tenant-manager writes the claim as 32 hex without hyphens, and lib-observability now renders the metric label in that same canonical dashless form (`hex.EncodeToString(id[:])`) instead of `uuid.UUID.String()`; `go.mod` pins `lib-observability/v4` at v4.0.4, which retains that form. Before v4.0.2 a span carried `03fb5615b8f04c56983826a13d9aadef` while the metric carried the `uuid.Parse`d `03fb5615-b8f0-4c56-9838-26a13d9aadef`, so a panel could not join a span to a metric on `tenant.id` without normalizing one side. Confirmed fixed live in benedita/stg-mt: with `service_version` as the witness, `4.1.0-beta.13` emitted no hyphenated `tenant_id` and `4.1.0-beta.11` emitted no dashless one, and all new request volume landed on the dashless form.
 
 **The remaining gap is the claim itself.** The baggage member is written verbatim from the claim, so the two channels agree only while the claim is dashless — which it is in production today. A hyphenated claim would now diverge the other way: dashless metric, hyphenated span. Closing that means canonicalizing at the two entry points midaz owns — `MarkTrustedAuthAssertion` (`pkg/net/http/protected_routes.go`, which matters because the ledger route chain has no `WithTenantDB` to canonicalize for it) and the tracer's `seamtenant` resolver (`components/tracer/internal/adapters/seamtenant/resolver.go`, the entry point for the client-supplied `X-Tenant-Id` header and gRPC metadata). Not done yet.
 
@@ -239,6 +239,12 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 | `create_transaction` | `(command.UseCase).WriteTransaction` |
 | `update_transaction` | `(command.UseCase).UpdateTransaction` |
 | `update_transaction_status` | `(command.UseCase).UpdateTransactionStatus` |
+| `update_transaction_status_from_pending` | `(command.UseCase).UpdateTransactionStatusFromPending` |
+| `create_cross_ledger_transaction` | `(command.UseCase).CreateCrossLedgerTransactionV2` |
+| `create_cross_ledger_hold` | `(command.UseCase).CreateCrossLedgerHoldV2` |
+| `commit_cross_ledger_group` | `(command.UseCase).transitionCrossLedgerGroupV2` with status `APPROVED` (reached from `CommitTransactionV2` on a grouped PENDING transaction) |
+| `cancel_cross_ledger_group` | `(command.UseCase).transitionCrossLedgerGroupV2` with status `CANCELED` (reached from `CancelTransactionV2`) |
+| `revert_cross_ledger_group` | `(command.UseCase).revertCrossLedgerGroupV2` (reached from `RevertTransactionV2` once the target is known to be a group member; a rejection raised before that point is not counted here) |
 | `get_account` | `(query.UseCase).GetAccountByID` |
 | `list_accounts` | `(query.UseCase).GetAllAccount` |
 | `get_ledger` | `(query.UseCase).GetLedgerByID` |
@@ -308,7 +314,7 @@ The CRM field-encryption subsystem (`components/ledger/internal/crm/services/enc
 
 **Rationale:** Wiring once at the composition root keeps a single global tracer/meter provider; flushing last guarantees that spans and metrics emitted during the shutdown of every other component are captured before the exporter closes. The audit validated flush-last for both services.
 
-**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:415`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(...)` then `telemetry.ApplyGlobals()` at line 430.
+**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:464`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(telemetryConfig(cfg, baseLogger))`, where the `telemetryConfig` helper (line 61) builds the resource identity from config plus the compiled build identity, then `telemetry.ApplyGlobals()` at line 481.
 
 **Canonical example (flush last):** [`components/ledger/internal/bootstrap/unified-server.go:146`](../../components/ledger/internal/bootstrap/unified-server.go) — the `ServerManager` is the single owner of telemetry teardown; it `ShutdownTelemetry()` only AFTER the HTTP drain completes (intent comment at lines 146–150), so spans from in-flight requests are exported before the exporter closes.
 

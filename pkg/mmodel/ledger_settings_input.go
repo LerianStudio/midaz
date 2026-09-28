@@ -13,9 +13,10 @@ package mmodel
 // The value space of each leaf is enforced by ValidateSettings, the single source of truth
 // shared with PATCH /ledgers/{id}/settings; these types therefore carry no validate tags.
 type LedgerSettingsInput struct {
-	Accounting *AccountingValidationInput `json:"accounting,omitempty"`
-	Tracer     *TracerSettingsInput       `json:"tracer,omitempty"`
-	Overrides  *OverridePolicyInput       `json:"overrides,omitempty"`
+	Accounting  *AccountingValidationInput `json:"accounting,omitempty"`
+	Tracer      *TracerSettingsInput       `json:"tracer,omitempty"`
+	Overrides   *OverridePolicyInput       `json:"overrides,omitempty"`
+	CrossLedger *CrossLedgerSettingsInput  `json:"crossLedger,omitempty"`
 }
 
 // AccountingValidationInput is the request-side projection of AccountingValidation.
@@ -39,6 +40,11 @@ type OverridePolicyInput struct {
 	AllowHolderSkip *bool `json:"allowHolderSkip,omitempty" example:"false"`
 }
 
+// CrossLedgerSettingsInput is the request-side projection of CrossLedgerSettings.
+type CrossLedgerSettingsInput struct {
+	Enabled *bool `json:"enabled,omitempty" example:"false"`
+}
+
 // ToSparseMap renders only the keys the client actually sent, in the nested shape
 // ValidateSettings and ParseLedgerSettings consume. A nil receiver returns nil so the caller
 // can distinguish "no settings key in the request" from "an empty settings object".
@@ -50,7 +56,7 @@ func (in *LedgerSettingsInput) ToSparseMap() map[string]any {
 		return nil
 	}
 
-	out := make(map[string]any, 3)
+	out := make(map[string]any, 4)
 
 	if in.Accounting != nil {
 		group := make(map[string]any, 3)
@@ -74,6 +80,12 @@ func (in *LedgerSettingsInput) ToSparseMap() map[string]any {
 		putSettingsField(group, "allowTracerSkip", in.Overrides.AllowTracerSkip)
 		putSettingsField(group, "allowHolderSkip", in.Overrides.AllowHolderSkip)
 		out["overrides"] = group
+	}
+
+	if in.CrossLedger != nil {
+		group := make(map[string]any, 1)
+		putSettingsField(group, "enabled", in.CrossLedger.Enabled)
+		out["crossLedger"] = group
 	}
 
 	return out

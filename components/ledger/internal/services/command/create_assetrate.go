@@ -18,9 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// CreateOrUpdateAssetRate creates or updates an asset rate.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (_ *assetrate.AssetRate, err error) {
@@ -59,9 +56,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	arFound, err := uc.AssetRateRepo.FindByCurrencyPair(ctx, organizationID, ledgerID, cari.From, cari.To)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset rate by currency pair", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error creating asset rate", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to find asset rate by currency pair", err)
 
 		return nil, err
 	}
@@ -79,9 +74,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 		arFound, err = uc.AssetRateRepo.Update(ctx, organizationID, ledgerID, uuid.MustParse(arFound.ID), arFound)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update asset rate", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error updating asset rate", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to update asset rate", err)
 
 			return nil, err
 		}
@@ -120,9 +113,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset rate on repository", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error creating asset rate", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create asset rate on repository", err)
 
 		return nil, err
 	}
@@ -137,9 +128,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		}
 
 		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityAssetRate, &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset rate metadata", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error into creating asset rate metadata", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to create asset rate metadata", err)
 
 			return nil, err
 		}

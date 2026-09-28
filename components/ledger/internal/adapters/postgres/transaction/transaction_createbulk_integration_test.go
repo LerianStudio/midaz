@@ -49,7 +49,7 @@ func setupBulkTestInfra(t *testing.T) *bulkTestInfra {
 	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())

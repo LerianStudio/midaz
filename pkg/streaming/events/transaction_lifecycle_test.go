@@ -24,6 +24,7 @@ var (
 	tranOrg      = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac11").String()
 	tranLed      = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac12").String()
 	tranParent   = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac13").String()
+	tranGroup    = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac15").String()
 	tranOpID     = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac14").String()
 	tranAmount   = decimal.NewFromInt(1500)
 	approvedCode = constant.APPROVED
@@ -82,10 +83,13 @@ func TestTransactionLifecycleDefinitions_Keys(t *testing.T) {
 
 func TestNewTransactionPosted_MapsAllSourceFields(t *testing.T) {
 	src := minimalTransactionSource()
+	src.GroupID = &tranGroup
 	payload := events.NewTransactionPosted(src)
 
 	assert.Equal(t, src.ID, payload.ID)
 	assert.Nil(t, payload.ParentTransactionID, "posted has no parent")
+	require.NotNil(t, payload.GroupID)
+	assert.Equal(t, tranGroup, *payload.GroupID)
 	assert.Equal(t, src.OrganizationID, payload.OrganizationID)
 	assert.Equal(t, src.LedgerID, payload.LedgerID)
 	assert.Equal(t, approvedCode, payload.Status.Code)
@@ -101,6 +105,26 @@ func TestNewTransactionPosted_MapsAllSourceFields(t *testing.T) {
 	require.Len(t, payload.Operations, 1)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.CreatedAt)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.UpdatedAt)
+}
+
+func TestTransactionPayload_GroupMemberCarriesGroupRole(t *testing.T) {
+	src := minimalTransactionSource()
+	src.GroupID = &tranGroup
+	role := events.TransactionGroupRoleDestination
+	src.GroupRole = &role
+
+	payload := events.NewTransactionPosted(src)
+	require.NotNil(t, payload.GroupRole)
+	assert.Equal(t, events.TransactionGroupRoleDestination, *payload.GroupRole)
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var generic map[string]any
+	require.NoError(t, json.Unmarshal(data, &generic))
+	assert.Equal(t, tranGroup, generic["groupId"])
+	assert.Equal(t, "destination", generic["groupRole"])
+	assert.Len(t, generic, 18, "a group member adds exactly groupId and groupRole to the minimal payload")
 }
 
 func TestNewTransactionReverted_PopulatesParentTransactionID(t *testing.T) {
@@ -236,6 +260,9 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 
 	_, hasParent := generic["parentTransactionId"]
 	assert.False(t, hasParent, "parentTransactionId must omitempty when nil")
+
+	_, hasGroupRole := generic["groupRole"]
+	assert.False(t, hasGroupRole, "groupRole must omitempty outside a group")
 
 	_, hasScale := generic["scale"]
 	assert.False(t, hasScale, "scale is intentionally omitted (asset-level property)")

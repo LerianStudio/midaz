@@ -235,6 +235,32 @@ func (handler *AccountHandler) deleteAccount(ctx context.Context, organizationID
 	return nil
 }
 
+// closeAccount owns the span and the service call for the account closing.
+//
+// The instant the database recorded does not leave the command: the success is a
+// bodiless 204, so there is no field on the wire to carry it, and a later read of
+// the account answers with closedAt.
+func (handler *AccountHandler) closeAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.close_account")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+	)
+
+	if _, err := handler.Command.CloseAccount(ctx, organizationID, ledgerID, accountID); err != nil {
+		handleSpanByErrorClass(span, "Failed to close Account on command", err)
+
+		return err
+	}
+
+	return nil
+}
+
 // countAccounts returns the total account count for the ledger.
 func (handler *AccountHandler) countAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)

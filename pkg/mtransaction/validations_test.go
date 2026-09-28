@@ -40,6 +40,25 @@ func codeFromError(err error) string {
 	}
 }
 
+func TestValidateSendSourceAndDistribute_RecordsMissingOperationRoutes(t *testing.T) {
+	t.Parallel()
+
+	amount := Amount{Asset: "BRL", Value: decimal.NewFromInt(10)}
+	transaction := Transaction{Send: Send{
+		Asset:      "BRL",
+		Value:      amount.Value,
+		Source:     Source{From: []FromTo{{AccountAlias: "@payer", Amount: &amount, IsFrom: true}}},
+		Distribute: Distribute{To: []FromTo{{AccountAlias: "@receiver", Amount: &amount}}},
+	}}
+
+	response, err := ValidateSendSourceAndDistribute(context.Background(), transaction, pkgConstant.CREATED)
+	require.NoError(t, err)
+	require.Contains(t, response.OperationRoutesFrom, "@payer")
+	require.Contains(t, response.OperationRoutesTo, "@receiver")
+	assert.Equal(t, "", response.OperationRoutesFrom["@payer"])
+	assert.Equal(t, "", response.OperationRoutesTo["@receiver"])
+}
+
 func TestValidateBalancesRules(t *testing.T) {
 	t.Parallel()
 
@@ -110,6 +129,153 @@ func TestValidateBalancesRules(t *testing.T) {
 				},
 			},
 			expectError: false,
+		},
+		{
+			name: "invalid - blocked source account rejects with 0502",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{{AccountAlias: "@blocked"}},
+					},
+					Distribute: Distribute{
+						To: []FromTo{{AccountAlias: "@account2"}},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@blocked#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@blocked",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					AllowSending:   true,
+					AllowReceiving: true,
+					Blocked:        true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@account2",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlocked
+		},
+		{
+			name: "invalid - blocked destination account rejects with 0502 (bidirectional)",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{{AccountAlias: "@account1"}},
+					},
+					Distribute: Distribute{
+						To: []FromTo{{AccountAlias: "@blocked"}},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@blocked#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@account1",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@blocked",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					AllowSending:   true,
+					AllowReceiving: true,
+					Blocked:        true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlocked
+		},
+		{
+			name: "invalid - blocked check precedes balance permission check",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{{AccountAlias: "@blocked"}},
+					},
+					Distribute: Distribute{
+						To: []FromTo{{AccountAlias: "@account2"}},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@blocked#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@blocked",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					AllowSending:   false, // would be 0024 if the block check did not run first
+					AllowReceiving: true,
+					Blocked:        true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@account2",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlocked wins over ErrAccountStatusTransactionRestriction
 		},
 		{
 			name:        "invalid - wrong number of balances",
@@ -255,7 +421,7 @@ func TestValidateBalancesRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances)
+			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -356,7 +522,7 @@ func TestValidateFromBalances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateFromBalances(tt.balance, tt.from, tt.asset, false)
+			err := validateFromBalances(tt.balance, tt.from, tt.asset, false, false)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -440,7 +606,7 @@ func TestValidateToBalances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateToBalances(tt.balance, tt.to, tt.asset)
+			err := validateToBalances(tt.balance, tt.to, tt.asset, false)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -2016,4 +2182,119 @@ func TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset(t *testing.T) {
 	require.NotNil(t, resp, "a passing validation must return a response to inspect")
 	assert.Empty(t, resp.Asset, "the empty asset is copied through to the response unchanged")
 	assert.True(t, resp.Total.Equal(decimal.NewFromInt(100)), "the balance check passed on its own terms")
+}
+
+// TestValidateSendSourceAndDistribute_NonPositiveRemainderRejected covers remaining entries
+// whose remainder is zero or negative. The totals still close for these sends (120 plus a
+// remainder of -20 is 100), so without its own rule such an entry would reach posting with
+// a value no posting can carry.
+func TestValidateSendSourceAndDistribute_NonPositiveRemainderRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	tests := []struct {
+		name      string
+		send      Transaction
+		normalize bool
+		wantCode  string
+	}{
+		{
+			name: "source remainder of zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "source remainder below zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 120), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "destination remainder of zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@src", "", "USD", 100)},
+				[]FromTo{leg("@dstA", "", "USD", 100), remainingLeg("@dstB")}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "normalized remainder of zero",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			normalize: true,
+			wantCode:  pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "within one normalized call ambiguity answers before the remainder rule",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@a", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@a", "", "USD", 100)}),
+			normalize: true,
+			wantCode:  pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			// The raw call cannot key the ambiguity check, so the pipelines' first pass
+			// answers the remainder rule for this send, as it does the totals check.
+			name: "raw call answers the remainder rule for an ambiguous send",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@a", "", "USD", 100), remainingLeg("@srcB")},
+				[]FromTo{leg("@a", "", "USD", 100)}),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+		{
+			name: "positive remainder is accepted",
+			send: sendOf("USD", 100,
+				[]FromTo{leg("@srcA", "", "USD", 60), remainingLeg("@srcB")},
+				[]FromTo{leg("@dst", "", "USD", 100)}),
+			normalize: true,
+		},
+		{
+			// A repeated alias keys each raw entry by its index, so the rule must read the
+			// remaining entry under that key rather than under the bare alias.
+			name: "raw call with a repeated alias accepts a positive remainder",
+			send: repeatedAliasRemainderSend(60),
+		},
+		{
+			name:     "raw call with a repeated alias refuses a zero remainder",
+			send:     repeatedAliasRemainderSend(100),
+			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			send := tc.send
+			if tc.normalize {
+				normalizeSendLegsLikeCreate(&send)
+			}
+
+			_, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.CREATED)
+
+			if tc.wantCode == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, tc.wantCode, codeFromError(err))
+		})
+	}
+}
+
+// repeatedAliasRemainderSend spells a 100 USD send whose two sources are the same account on
+// different balance keys: an explicit amount on k1 and the remainder on k2.
+func repeatedAliasRemainderSend(explicitValue int64) Transaction {
+	remainder := remainingLeg("@acc")
+	remainder.BalanceKey = "k2"
+
+	return sendOf("USD", 100,
+		[]FromTo{leg("@acc", "k1", "USD", explicitValue), remainder},
+		[]FromTo{leg("@dst", "", "USD", 100)})
 }

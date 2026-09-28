@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -87,9 +86,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	tran, phase, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateTransaction, "Failed to create or update transaction", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create or update transaction", libLog.Err(err))
+		recordCommandError(ctx, spanUpdateTransaction, logger, "Failed to create or update transaction", err)
 
 		return err
 	}
@@ -99,9 +96,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, constant.EntityTransaction)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateMetadata, "Failed to create metadata on transaction", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create metadata on transaction", libLog.Err(err))
+		recordCommandError(ctx, spanCreateMetadata, logger, "Failed to create metadata on transaction", err)
 
 		return err
 	}
@@ -126,9 +121,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 				continue
 			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create operation", err)
-
-				logger.Log(ctx, libLog.LevelError, "Error creating operation", libLog.Err(err))
+				recordCommandError(ctx, spanCreateOperation, logger, "Failed to create operation", err)
 
 				return err
 			}
@@ -136,44 +129,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, constant.EntityOperation)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create metadata on operation", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to create metadata on operation", libLog.Err(err))
+			recordCommandError(ctx, spanCreateOperation, logger, "Failed to create metadata on operation", err)
 
 			return err
 		}
 	}
 
-	// Send events asynchronously with context that preserves trace but survives parent cancellation.
-	// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
-	go func() {
-		base := context.WithoutCancel(ctx)
-
-		runWithTimeout := func(fn func(context.Context)) {
-			emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
-			defer cancel()
-
-			fn(emitCtx)
-		}
-
-		var wg sync.WaitGroup
-
-		wg.Add(3)
-
-		go func() {
-			defer wg.Done()
-
-			runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tran, phase) })
-		}()
-		go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tran) }) }()
-		go func() {
-			defer wg.Done()
-
-			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
-		}()
-
-		wg.Wait()
-	}()
+	uc.dispatchTransactionEvents(ctx, tran, phase)
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		if backupStatusForCleanup == "" {
@@ -197,16 +159,18 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 // lib-streaming event_type:
 //
 //   - TransactionLifecyclePhaseCreated — fresh insert via
-//     TransactionRepo.Create (L193 success). Emits transaction.posted
-//     when ParentTransactionID is nil, transaction.reverted otherwise.
-//   - TransactionLifecyclePhaseUpdated — status transition via the
-//     unique-violation idempotency branch
-//     (UpdateTransactionStatus, L198 success). Emits
-//     transaction.committed when Status.Code is APPROVED,
+//     TransactionRepo.Create. Emits transaction.posted when
+//     ParentTransactionID is nil, transaction.reverted otherwise.
+//   - TransactionLifecyclePhaseUpdated — status transition won through
+//     the unique-violation idempotency branch, where
+//     UpdateTransactionStatusFromPending found the row still PENDING.
+//     Emits transaction.committed when Status.Code is APPROVED,
 //     transaction.canceled when CANCELED.
-//   - TransactionLifecyclePhaseNoop — no state change occurred (e.g.
-//     unique violation with no status transition). Callers must NOT
-//     emit a lifecycle event in this phase.
+//   - TransactionLifecyclePhaseNoop — no state change occurred: a unique
+//     violation with no eligible status transition, or a compare-and-set
+//     that matched no PENDING row because another transition already
+//     settled it. Callers must NOT emit a lifecycle event in this phase;
+//     the transition that won the row emits instead.
 //
 // Tracking the phase explicitly inside this function — rather than
 // inferring it from CreatedAt vs UpdatedAt downstream — keeps the
@@ -238,14 +202,30 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
 			if t.Validate != nil && t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
-				_, err = uc.UpdateTransactionStatus(ctx, tran)
+				// The transition variant: the flip lands only while the row is
+				// still PENDING, so a commit cannot overwrite a cancel that
+				// already settled the same transaction.
+				_, transitioned, err := uc.UpdateTransactionStatusFromPending(ctx, tran)
 				if err != nil {
-					libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to update transaction", err)
+					libOpentelemetry.HandleSpanError(spanCreateTransaction, "Failed to update transaction", err)
 
 					logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
 						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
 
 					return nil, TransactionLifecyclePhaseNoop, err
+				}
+
+				if !transitioned {
+					// The row is already terminal: the request-path transition
+					// landed first, or this message is a replay of one that did.
+					// Failing here would send an idempotent message to retry and
+					// then to the DLQ for a transition that is already done, so
+					// it is reported as a no-op — which also keeps a duplicate
+					// lifecycle event off the wire.
+					logger.Log(ctx, libLog.LevelWarn, "Transaction is no longer pending; status transition already applied",
+						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
+
+					return tran, TransactionLifecyclePhaseNoop, nil
 				}
 
 				// Status transition succeeded via the idempotency branch.
@@ -258,9 +238,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 			return tran, TransactionLifecyclePhaseNoop, nil
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create transaction on repo", libLog.Err(err))
+		recordCommandError(ctx, spanCreateTransaction, logger, "Failed to create transaction on repo", err)
 
 		return nil, TransactionLifecyclePhaseNoop, err
 	}
@@ -395,6 +373,11 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 				allowReceiving = 1
 			}
 
+			blocked := 0
+			if b.Blocked {
+				blocked = 1
+			}
+
 			balanceRedis = append(balanceRedis, mmodel.BalanceRedis{
 				ID:             b.ID,
 				Alias:          b.Alias,
@@ -407,6 +390,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 				AccountType:    b.AccountType,
 				AllowSending:   allowSending,
 				AllowReceiving: allowReceiving,
+				Blocked:        blocked,
 			})
 		}
 	}

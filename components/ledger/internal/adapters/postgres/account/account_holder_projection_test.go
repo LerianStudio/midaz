@@ -21,7 +21,7 @@ import (
 const (
 	holderIDPosition           = 4
 	holderCheckSkippedPosition = 18
-	accountColumnCount         = 19
+	accountColumnCount         = 20
 )
 
 func TestAccountColumns_HolderProjectionKeepsShape(t *testing.T) {

@@ -12,6 +12,8 @@ type ReadyzResponse struct {
 	Draining       bool                   `json:"draining,omitempty" example:"false"`
 	Checks         map[string]ReadyzCheck `json:"checks"`
 	Version        string                 `json:"version" example:"1.2.3"`
+	Revision       string                 `json:"revision" example:"9f3c1a2"`
+	BuildTime      string                 `json:"buildTime" example:"2026-09-23T00:00:00Z"`
 	DeploymentMode string                 `json:"deployment_mode" example:"saas"`
 }
 

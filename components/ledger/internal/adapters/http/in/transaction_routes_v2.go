@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -19,13 +19,13 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // This file is the v2 transaction contract seam (filename-suffix
-// versioning — v1 files are left untouched). It registers the v2 `direct`, `hold`,
-// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the /v2
+// versioning — v1 files are left untouched). It registers the v2 `direct`, atomic
+// `batch`, `hold`, `block`, `unblock`, `commit`, `cancel`, and `revert`
+// transaction ops onto the /v2
 // version group of the shared Huma contract and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
@@ -37,9 +37,10 @@ import (
 // transaction_handler_v2.go: they decode the flat v2 body, translate it, and enter
 // the v1 createTransaction funnel (hold with pending=true) under the scope the body
 // resolved. They therefore hang off a path that names no organization and no ledger.
-// The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction and
-// carry no body, so their scope can only come from the URL: they stay under the
-// organization/ledger prefix. They are thin v2-specific shells
+// The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction, and no
+// body of theirs carries a scope — commit and revert accept only an OPTIONAL single-use
+// account-block exception, cancel accepts none — so their scope can only come from the
+// URL: they stay under the organization/ledger prefix. They are thin v2-specific shells
 // (CommitTransactionV2 / CancelTransactionV2 / RevertTransactionV2, also in
 // transaction_handler_v2.go) over the SAME transport-neutral core the v1 shells in
 // transaction_handler_huma.go call (commitTransaction / revertTransaction) — the only
@@ -50,15 +51,17 @@ import (
 // not a native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the /v2 version
-// group of the shared Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
-// scope-free create path, plus the bodiless lifecycle ops `commit`, `cancel`, and `revert`
+// group of the shared Huma API. It registers the singular create ops `direct`, `hold`,
+// `block`, and `unblock` plus the dedicated atomic `batch` op on the scope-free
+// create path, and the lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
-// call — no idempotency HEADERS, since they carry no body or headers. Auth is the Fiber
+// call — no idempotency HEADERS, since they carry no headers. Auth is the Fiber
 // guard chain attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here —
 // the per-op Security metadata is SPEC-ONLY. Every path is declared GROUP-RELATIVE: it names
 // no /v2 segment. Once every op is registered, publishV2CreateBodySchema gives the create ops
-// a typed request-body schema.
+// a typed request-body schema and publishV2LifecycleBodySchema does the same for the optional
+// commit/revert body.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsIDBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}"
 
@@ -81,13 +84,27 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	}
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "commitTransactionV2",
-		Method:        http.MethodPost,
-		Path:          transactionsIDBasePath + "/commit",
-		Summary:       "Commit a Transaction (v2)",
-		Tags:          []string{transactionsTag},
-		Security:      secTransactionBearer,
-		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+		OperationID:      v2AtomicTransactionBatchOperationID,
+		Method:           http.MethodPost,
+		Path:             v2AtomicTransactionBatchPath,
+		Summary:          "Create an atomic batch of Transactions (v2)",
+		Description:      "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. The internal idempotency/recovery batch identifier is not exposed; there is no batch query endpoint.",
+		Tags:             []string{transactionsTag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true,
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
+		DefaultStatus:    http.StatusCreated,
+	}, h.CreateAtomicTransactionBatchV2)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "commitTransactionV2",
+		Method:           http.MethodPost,
+		Path:             transactionsIDBasePath + "/commit",
+		Summary:          "Commit a Transaction (v2)",
+		Tags:             []string{transactionsTag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true, // optional body decoded imperatively (http.DecodeAndValidate), like the create ops.
+		DefaultStatus:    http.StatusCreated,
 	}, h.CommitTransactionV2)
 
 	huma.Register(api, huma.Operation{
@@ -101,16 +118,105 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	}, h.CancelTransactionV2)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "revertTransactionV2",
-		Method:        http.MethodPost,
-		Path:          transactionsIDBasePath + "/revert",
-		Summary:       "Revert a Transaction (v2)",
-		Tags:          []string{transactionsTag},
-		Security:      secTransactionBearer,
-		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+		OperationID:      "revertTransactionV2",
+		Method:           http.MethodPost,
+		Path:             transactionsIDBasePath + "/revert",
+		Summary:          "Revert a Transaction (v2)",
+		Tags:             []string{transactionsTag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true, // optional body decoded imperatively (http.DecodeAndValidate), like the create ops.
+		DefaultStatus:    http.StatusCreated,
 	}, h.RevertTransactionV2)
 
 	publishV2CreateBodySchema(api)
+	attachTypedRequestBody[CreateAtomicTransactionBatchV2Request](api, v2AtomicTransactionBatchOperationID)
+	publishV2LifecycleBodySchema(api)
+	publishV2SingularTransactionResponseSchemas(api)
+	publishV2TransactionOrGroupResponseSchemas(api)
+}
+
+func publishV2SingularTransactionResponseSchemas(api huma.API) {
+	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
+		return
+	}
+
+	singular := map[string]struct{}{
+		"createTransactionBlockV2": {}, "createTransactionUnblockV2": {},
+	}
+	t := reflect.TypeFor[TransactionV2]()
+
+	schema := api.OpenAPI().Components.Schemas.Schema(t, true, t.Name())
+	for _, item := range api.OpenAPI().Paths {
+		for _, op := range operationsOf(item) {
+			if _, ok := singular[op.OperationID]; !ok {
+				continue
+			}
+
+			for status, response := range op.Responses {
+				if status == "" || status[0] != '2' || response == nil {
+					continue
+				}
+
+				if media, ok := response.Content["application/json"]; ok && media != nil {
+					media.Schema = schema
+				}
+			}
+		}
+	}
+}
+
+func publishV2TransactionOrGroupResponseSchemas(api huma.API) {
+	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
+		return
+	}
+
+	registry := api.OpenAPI().Components.Schemas
+	transactionType := reflect.TypeFor[TransactionV2]()
+	groupType := reflect.TypeFor[CrossLedgerTransactionGroupV2]()
+	schema := &huma.Schema{OneOf: []*huma.Schema{
+		registry.Schema(transactionType, true, transactionType.Name()),
+		registry.Schema(groupType, true, groupType.Name()),
+	}}
+
+	for _, item := range api.OpenAPI().Paths {
+		for _, op := range operationsOf(item) {
+			switch op.OperationID {
+			case "createTransactionDirectV2", "createTransactionHoldV2", "commitTransactionV2", "cancelTransactionV2", "revertTransactionV2":
+			default:
+				continue
+			}
+
+			for status, response := range op.Responses {
+				if status == "" || status[0] != '2' || response == nil {
+					continue
+				}
+
+				if media, ok := response.Content["application/json"]; ok && media != nil {
+					media.Schema = schema
+				}
+			}
+		}
+	}
+}
+
+// v2LifecycleBodyOperationIDs are the /v2 lifecycle ops that accept the optional
+// account-block-exception body. Cancel is absent: it accepts no grant, so it stays
+// bodiless.
+var v2LifecycleBodyOperationIDs = []string{"commitTransactionV2", "revertTransactionV2"}
+
+// publishV2LifecycleBodySchema gives commit and revert the typed schema of their optional
+// body and marks that body NOT REQUIRED.
+//
+// Both are needed because the envelope declares only RawBody: Huma then publishes the
+// body as `string/binary` and marks it required, neither of which describes what the ops
+// accept. The runtime already treats the body as optional (a RawBody-only input
+// unmarshals nothing, so zero bytes is not a decode error) — this makes the CONTRACT say
+// so, which is what keeps a generated client from sending a body the ops never needed.
+func publishV2LifecycleBodySchema(api huma.API) {
+	for _, operationID := range v2LifecycleBodyOperationIDs {
+		attachTypedRequestBody[LifecycleV2Request](api, operationID)
+		markRequestBodyOptional(api, operationID)
+	}
 }
 
 // v2CreateBasePath is the collection the v2 create actions hang off, group-relative to /v2.
@@ -119,9 +225,13 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 // one spelling between them, not two that have to be kept equal.
 const v2CreateBasePath = "/transactions"
 
+const (
+	v2AtomicTransactionBatchPath        = v2CreateBasePath + "/batch"
+	v2AtomicTransactionBatchOperationID = "createAtomicTransactionBatchV2"
+)
+
 // v2CreateBodyContentType is the media type the v2 create ops accept, matching the
-// `contentType` tag on CreateTransactionInputV2.RawBody — the key Huma files the
-// request body under.
+// `contentType` tags on their RawBody fields — the key Huma files each request body under.
 const v2CreateBodyContentType = "application/json"
 
 // v2CreateTerminal is the shape every v2 create terminal shares. All four actions accept the
@@ -143,9 +253,9 @@ type v2CreateAction struct {
 	terminal    func(*TransactionHandler) v2CreateTerminal
 }
 
-// v2CreateActions are the v2 create ops, the ones that carry a body. The lifecycle ops
-// (commit/cancel/revert) are absent because they are bodiless: they have no request body to
-// describe and no body scope to read.
+// v2CreateActions are the v2 create ops, the ones whose body carries the whole request. The
+// lifecycle ops (commit/cancel/revert) are absent because none of their bodies carries a
+// scope to read: commit and revert accept one optional field, cancel accepts nothing.
 var v2CreateActions = []v2CreateAction{
 	{
 		suffix:      "/direct",
@@ -195,9 +305,9 @@ const v2CreateMaxBodyBytes int64 = 1 << 20
 const v2CreateBodyDescription = "Transaction request body. `debits` and `credits` are the two " +
 	"required, non-empty leg arrays of the transaction; one debit paired with many credits, or " +
 	"the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its " +
-	"account belongs to; all of them must name the SAME pair, and that pair is the organization " +
-	"and ledger the transaction is created in. A request whose accounts name different pairs is " +
-	"rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
+	"account belongs to. The direct and hold actions accept multiple enabled ledgers and return an " +
+	"atomic group; block and unblock still require every leg to name the same pair. `asset`, " +
+	"`amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
 	"`metadata` sit alongside the two leg arrays, and `amount` is the transaction total that " +
 	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."
 
@@ -206,7 +316,8 @@ const v2CreateBodyDescription = "Transaction request body. `debits` and `credits
 // structural expression in the schema and has to be stated here.
 const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value expression " +
 	"per leg: `amount` for an explicit value, or `share` for a percentage of the transaction " +
-	"total. A leg carrying both, or neither, is rejected."
+	"total. A leg carrying both, or neither, is rejected. `balanceKey` optionally selects one " +
+	"of the account's balances; when omitted, the `default` balance is used."
 
 // publishV2CreateBodySchema replaces the opaque request-body schema of the v2 create ops
 // with a $ref to the typed v2 input component, so the contract documents the accepted
@@ -272,7 +383,7 @@ func publishV2CreateBodySchema(api huma.API) {
 		return
 	}
 
-	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+	inputType := reflect.TypeFor[CreateTransactionV2Request]()
 
 	// Registering is idempotent for a given type; each call hands back a fresh $ref
 	// so the ops never share one schema value. Every one of them names the same component, so
@@ -286,7 +397,7 @@ func publishV2CreateBodySchema(api huma.API) {
 
 	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)
 
-	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref
+	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[TransactionV2LegRequest](), true, "").Ref
 	describeV2Component(oapi, legRef, v2LegDescription)
 }
 
@@ -361,8 +472,8 @@ func rejectOversizedV2Body(c fiber.Ctx) error {
 	})
 }
 
-// RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, `unblock`,
-// `commit`, `cancel`, and `revert` ops end-to-end: it attaches the Fiber auth chain —
+// RegisterTransactionV2RoutesToApp wires the v2 `direct`, atomic `batch`, `hold`,
+// `block`, `unblock`, `commit`, `cancel`, and `revert` ops end-to-end: it attaches the Fiber auth chain —
 // auth.Authorize("midaz","transactions","post") + the tenant PostAuthMiddlewares (plus
 // ParseUUIDPathParameters("transaction") on the routes that carry path UUIDs) — as
 // MIDDLEWARE ONLY (group-relative path, no terminal) on the /v2 GROUP, then registers the
@@ -392,6 +503,9 @@ func RegisterTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 		routePost(group, v2CreateBasePath+action.suffix,
 			protectedMidaz(auth, "transactions", "post", routeOptions, v2CreateBodyLimit))
 	}
+
+	routePost(group, v2AtomicTransactionBatchPath,
+		protectedMidaz(auth, "transactions", "post", routeOptions, v2CreateBodyLimit))
 
 	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))

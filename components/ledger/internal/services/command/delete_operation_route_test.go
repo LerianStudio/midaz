@@ -12,8 +12,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -24,7 +27,6 @@ func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -32,16 +34,21 @@ func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(&mmodel.OperationRoute{ID: operationRouteID, OrganizationID: organizationID}, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), organizationID, operationRouteID).
 		Return(false, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		Delete(gomock.Any(), organizationID, operationRouteID).
 		Return(nil).
 		Times(1)
 
-	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.NoError(t, err)
 }
@@ -53,7 +60,6 @@ func TestDeleteOperationRouteByIDContextCanceled(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -63,7 +69,7 @@ func TestDeleteOperationRouteByIDContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := uc.DeleteOperationRouteByID(ctx, organizationID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(ctx, organizationID, operationRouteID)
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
@@ -75,7 +81,6 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -83,16 +88,21 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(&mmodel.OperationRoute{ID: operationRouteID, OrganizationID: organizationID}, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), organizationID, operationRouteID).
 		Return(false, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		Delete(gomock.Any(), organizationID, operationRouteID).
 		Return(services.ErrDatabaseItemNotFound).
 		Times(1)
 
-	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 
@@ -109,7 +119,6 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	databaseError := errors.New("database connection error")
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -118,16 +127,21 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(&mmodel.OperationRoute{ID: operationRouteID, OrganizationID: organizationID}, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), organizationID, operationRouteID).
 		Return(false, nil).
 		Times(1)
 
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		Delete(gomock.Any(), organizationID, operationRouteID).
 		Return(databaseError).
 		Times(1)
 
-	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, databaseError, err)
@@ -140,7 +154,6 @@ func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -148,16 +161,21 @@ func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(&mmodel.OperationRoute{ID: operationRouteID, OrganizationID: organizationID}, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), organizationID, operationRouteID).
 		Return(true, nil).
 		Times(1)
 
 	// Delete should not be called since operation route is linked
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		Delete(gomock.Any(), organizationID, operationRouteID).
 		Times(0)
 
-	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 
@@ -174,7 +192,6 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
-	ledgerID := uuid.New()
 	linkCheckError := errors.New("failed to check transaction route links")
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -183,17 +200,49 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		HasTransactionRouteLinks(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(&mmodel.OperationRoute{ID: operationRouteID, OrganizationID: organizationID}, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), organizationID, operationRouteID).
 		Return(false, linkCheckError).
 		Times(1)
 
 	// Delete should not be called since link check failed
 	mockRepo.EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		Delete(gomock.Any(), organizationID, operationRouteID).
 		Times(0)
 
-	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
 
 	assert.Error(t, err)
 	assert.Equal(t, linkCheckError, err)
+}
+
+func TestDeleteOperationRouteByID_UnknownRouteIsNotFoundBeforeLinkCheck(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
+	organizationID := uuid.New()
+
+	mockRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
+	}
+
+	mockRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).
+		Times(1)
+
+	mockRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
+
+	var entityNotFoundError pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &entityNotFoundError)
+	assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), entityNotFoundError.Code)
 }

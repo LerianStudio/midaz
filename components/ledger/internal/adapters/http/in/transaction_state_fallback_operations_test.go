@@ -31,13 +31,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations pins the money-path
-// fix for the two-phase overdraft cancel. The write-behind cache is cleared once the
-// create persists, so a later /cancel misses it and falls through to the database.
-// That fallback MUST read the transaction WITH its operations
-// (GetTransactionWithOperationsByID / FindWithOperations): commitOrCancelTransaction's
+// fix for the two-phase overdraft cancel. Once the engine index no longer names the
+// transaction, a /cancel reads it from the database.
+// That read MUST load the transaction WITH its operations
+// (GetTransactionWithOperationsByID / FindWithOperations): the pending transition's
 // annotateCanceledOverdraftAmounts step reads tran.Operations to size the overdraft
 // deficit, and a row-only read (GetTransactionByID / Find) leaves Operations empty so
 // the cancel restores the whole hold to available instead of only the non-overdraft
@@ -98,11 +99,8 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 		},
 	}
 
-	// Write-behind cache miss forces the database fallback.
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
+	// No engine index is configured, so the lookup reads PostgreSQL. Only once the
+	// primary answers not-found is the legacy write-behind entry consulted.
 
 	// The fallback MUST use the with-operations read.
 	mockTransactionRepo.EXPECT().
@@ -134,6 +132,7 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 	}
 	commandUC := &command.UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    queryUC,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -160,7 +159,7 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 // with-operations fallback against its INNER JOIN semantics: FindWithOperations returns
 // an empty transaction (no error) when it matches no operation rows — a nonexistent
 // transaction, or one with no operations. Without the empty-value guard,
-// commitOrCancelTransaction would parse an empty organization id and panic. The guard
+// the pending transition would parse an empty organization id and panic. The guard
 // falls back to the row-only read, which reports not-found, so the response stays a
 // clean 404.
 func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *testing.T) {
@@ -175,22 +174,13 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	// Write-behind cache miss forces the database fallback.
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
+	// No engine index is configured, so the lookup reads PostgreSQL. The strict
+	// Redis mock fails the test on any read of the legacy write-behind entry.
 
 	// INNER JOIN matched nothing: empty transaction, no error.
 	mockTransactionRepo.EXPECT().
 		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(&transaction.Transaction{}, nil).
-		Times(1)
-
-	// Metadata lookup runs against the empty (non-nil) transaction.
-	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
 		Times(1)
 
 	// The guard falls back to the row-only read, which surfaces the not-found error.
@@ -204,12 +194,17 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 		}).
 		Times(1)
 
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), utils.WriteBehindTransactionKey(orgID, ledgerID, transactionID.String())).
+		Return(nil, errors.New("cache miss")).
+		Times(1)
+
 	queryUC := &query.UseCase{
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 		TransactionRedisRepo:    mockRedisRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -235,7 +230,7 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 // has no operations. The guard must fall back to the row-only read, which returns the REAL
 // row — not a not-found. Here that row is APPROVED, so the state machine short-circuits at
 // its not-pending guard and answers 409, proving the fallback carried a live transaction
-// (not a nil/empty value) into commitOrCancelTransaction.
+// (not a nil/empty value) into the pending transition.
 func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -251,7 +246,7 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 	amount := decimal.NewFromInt(100)
 
 	// A REAL, operation-less transaction: valid ids and APPROVED status so
-	// commitOrCancelTransaction parses the ids and returns at the not-pending guard.
+	// The transition parses the ids and returns at the not-pending guard.
 	tranRowOnly := &transaction.Transaction{
 		ID:             transactionID.String(),
 		OrganizationID: orgID.String(),
@@ -261,11 +256,8 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 		Status:         transaction.Status{Code: cn.APPROVED},
 	}
 
-	// Write-behind cache miss forces the database fallback.
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("cache miss")).
-		AnyTimes()
+	// No engine index is configured, so the lookup reads PostgreSQL. The strict
+	// Redis mock fails the test on any read of the legacy write-behind entry.
 
 	// INNER JOIN matched no operation rows: empty transaction, no error — triggers the guard.
 	mockTransactionRepo.EXPECT().
@@ -279,11 +271,11 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 		Return(tranRowOnly, nil).
 		Times(1)
 
-	// Metadata lookup runs on both reads (with-operations empty result + row-only result).
+	// Metadata is attached once, to the row the lookup settles on.
 	mockMetadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
 		Return(nil, nil).
-		Times(2)
+		Times(1)
 
 	// Lock acquired, then released on the not-pending guard error path.
 	mockRedisRepo.EXPECT().
@@ -302,6 +294,7 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 	}
 	commandUC := &command.UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    queryUC,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 

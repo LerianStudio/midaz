@@ -15,8 +15,8 @@ import (
 	time "time"
 
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	mtransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	uuid "github.com/google/uuid"
-	redis "github.com/redis/go-redis/v9"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,6 +42,52 @@ func NewMockRedisRepository(ctrl *gomock.Controller) *MockRedisRepository {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 	return m.recorder
+}
+
+// AcquireAccountAdminOwnership mocks base method.
+func (m *MockRedisRepository) AcquireAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireAccountAdminOwnership", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireAccountAdminOwnership indicates an expected call of AcquireAccountAdminOwnership.
+func (mr *MockRedisRepositoryMockRecorder) AcquireAccountAdminOwnership(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireAccountAdminOwnership", reflect.TypeOf((*MockRedisRepository)(nil).AcquireAccountAdminOwnership), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// AcquireAccountClosingMarker mocks base method.
+func (m *MockRedisRepository) AcquireAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireAccountClosingMarker", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireAccountClosingMarker indicates an expected call of AcquireAccountClosingMarker.
+func (mr *MockRedisRepositoryMockRecorder) AcquireAccountClosingMarker(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireAccountClosingMarker", reflect.TypeOf((*MockRedisRepository)(nil).AcquireAccountClosingMarker), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// AcquireAccountSeedAdmission mocks base method.
+func (m *MockRedisRepository) AcquireAccountSeedAdmission(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, AccountAdminHolder, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireAccountSeedAdmission", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(AccountAdminHolder)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AcquireAccountSeedAdmission indicates an expected call of AcquireAccountSeedAdmission.
+func (mr *MockRedisRepositoryMockRecorder) AcquireAccountSeedAdmission(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireAccountSeedAdmission", reflect.TypeOf((*MockRedisRepository)(nil).AcquireAccountSeedAdmission), ctx, organizationID, ledgerID, accountID, token)
 }
 
 // AddMessageToQueue mocks base method.
@@ -72,6 +118,20 @@ func (mr *MockRedisRepositoryMockRecorder) ClearBackupAttempt(ctx, key any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearBackupAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ClearBackupAttempt), ctx, key)
 }
 
+// CreateAccountBlockExceptions mocks base method.
+func (m *MockRedisRepository) CreateAccountBlockExceptions(ctx context.Context, organizationID, ledgerID uuid.UUID, exceptions []AccountBlockException) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAccountBlockExceptions", ctx, organizationID, ledgerID, exceptions)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateAccountBlockExceptions indicates an expected call of CreateAccountBlockExceptions.
+func (mr *MockRedisRepositoryMockRecorder) CreateAccountBlockExceptions(ctx, organizationID, ledgerID, exceptions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccountBlockExceptions", reflect.TypeOf((*MockRedisRepository)(nil).CreateAccountBlockExceptions), ctx, organizationID, ledgerID, exceptions)
+}
+
 // Del mocks base method.
 func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
@@ -84,6 +144,36 @@ func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 func (mr *MockRedisRepositoryMockRecorder) Del(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockRedisRepository)(nil).Del), ctx, key)
+}
+
+// DeleteIfValue mocks base method.
+func (m *MockRedisRepository) DeleteIfValue(ctx context.Context, key, value string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIfValue", ctx, key, value)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteIfValue indicates an expected call of DeleteIfValue.
+func (mr *MockRedisRepositoryMockRecorder) DeleteIfValue(ctx, key, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIfValue", reflect.TypeOf((*MockRedisRepository)(nil).DeleteIfValue), ctx, key, value)
+}
+
+// ExpireIfValue mocks base method.
+func (m *MockRedisRepository) ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpireIfValue", ctx, key, value, ttl)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExpireIfValue indicates an expected call of ExpireIfValue.
+func (mr *MockRedisRepositoryMockRecorder) ExpireIfValue(ctx, key, value, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireIfValue", reflect.TypeOf((*MockRedisRepository)(nil).ExpireIfValue), ctx, key, value, ttl)
 }
 
 // Get mocks base method.
@@ -99,6 +189,53 @@ func (m *MockRedisRepository) Get(ctx context.Context, key string) (string, erro
 func (mr *MockRedisRepositoryMockRecorder) Get(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), ctx, key)
+}
+
+// GetAccountBlockException mocks base method.
+func (m *MockRedisRepository) GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountBlockException", ctx, organizationID, ledgerID, exceptionID)
+	ret0, _ := ret[0].(*mmodel.AccountBlockExceptionRedis)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountBlockException indicates an expected call of GetAccountBlockException.
+func (mr *MockRedisRepositoryMockRecorder) GetAccountBlockException(ctx, organizationID, ledgerID, exceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountBlockException", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountBlockException), ctx, organizationID, ledgerID, exceptionID)
+}
+
+// GetAccountClosedMarker mocks base method.
+func (m *MockRedisRepository) GetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (time.Time, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountClosedMarker", ctx, organizationID, ledgerID, accountID)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetAccountClosedMarker indicates an expected call of GetAccountClosedMarker.
+func (mr *MockRedisRepositoryMockRecorder) GetAccountClosedMarker(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountClosedMarker", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountClosedMarker), ctx, organizationID, ledgerID, accountID)
+}
+
+// GetAccountClosingMarker mocks base method.
+func (m *MockRedisRepository) GetAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (string, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountClosingMarker", ctx, organizationID, ledgerID, accountID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetAccountClosingMarker indicates an expected call of GetAccountClosingMarker.
+func (mr *MockRedisRepositoryMockRecorder) GetAccountClosingMarker(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountClosingMarker", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountClosingMarker), ctx, organizationID, ledgerID, accountID)
 }
 
 // GetBalanceSyncKeys mocks base method.
@@ -220,19 +357,50 @@ func (mr *MockRedisRepositoryMockRecorder) MGet(ctx, keys any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MGet", reflect.TypeOf((*MockRedisRepository)(nil).MGet), ctx, keys)
 }
 
-// ProcessBalanceAtomicOperation mocks base method.
-func (m *MockRedisRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+// MarkAccountClosingWriteIssued mocks base method.
+func (m *MockRedisRepository) MarkAccountClosingWriteIssued(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	ret := m.ctrl.Call(m, "MarkAccountClosingWriteIssued", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkAccountClosingWriteIssued indicates an expected call of MarkAccountClosingWriteIssued.
+func (mr *MockRedisRepositoryMockRecorder) MarkAccountClosingWriteIssued(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAccountClosingWriteIssued", reflect.TypeOf((*MockRedisRepository)(nil).MarkAccountClosingWriteIssued), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// ProcessBalanceAtomicOperation mocks base method.
+func (m *MockRedisRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding)
 	ret0, _ := ret[0].(*mmodel.BalanceAtomicResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ProcessBalanceAtomicOperation indicates an expected call of ProcessBalanceAtomicOperation.
-func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding)
+}
+
+// ReadAccountClosingAttempt mocks base method.
+func (m *MockRedisRepository) ReadAccountClosingAttempt(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (AccountClosingAttempt, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadAccountClosingAttempt", ctx, organizationID, ledgerID, accountID)
+	ret0, _ := ret[0].(AccountClosingAttempt)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReadAccountClosingAttempt indicates an expected call of ReadAccountClosingAttempt.
+func (mr *MockRedisRepositoryMockRecorder) ReadAccountClosingAttempt(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadAccountClosingAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ReadAccountClosingAttempt), ctx, organizationID, ledgerID, accountID)
 }
 
 // ReadAllMessagesFromQueue mocks base method.
@@ -265,6 +433,82 @@ func (mr *MockRedisRepositoryMockRecorder) ReadMessageFromQueue(ctx, key any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadMessageFromQueue), ctx, key)
 }
 
+// RefreshBalanceSyncKeyTTLs mocks base method.
+func (m *MockRedisRepository) RefreshBalanceSyncKeyTTLs(ctx context.Context, ttl time.Duration) (int64, float64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshBalanceSyncKeyTTLs", ctx, ttl)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(float64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RefreshBalanceSyncKeyTTLs indicates an expected call of RefreshBalanceSyncKeyTTLs.
+func (mr *MockRedisRepositoryMockRecorder) RefreshBalanceSyncKeyTTLs(ctx, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshBalanceSyncKeyTTLs", reflect.TypeOf((*MockRedisRepository)(nil).RefreshBalanceSyncKeyTTLs), ctx, ttl)
+}
+
+// ReleaseAccountAdminOwnership mocks base method.
+func (m *MockRedisRepository) ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseAccountAdminOwnership", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseAccountAdminOwnership indicates an expected call of ReleaseAccountAdminOwnership.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseAccountAdminOwnership(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseAccountAdminOwnership", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseAccountAdminOwnership), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// ReleaseAccountClosingAttempt mocks base method.
+func (m *MockRedisRepository) ReleaseAccountClosingAttempt(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseAccountClosingAttempt", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseAccountClosingAttempt indicates an expected call of ReleaseAccountClosingAttempt.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseAccountClosingAttempt(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseAccountClosingAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseAccountClosingAttempt), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// ReleaseAccountClosingMarker mocks base method.
+func (m *MockRedisRepository) ReleaseAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseAccountClosingMarker", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseAccountClosingMarker indicates an expected call of ReleaseAccountClosingMarker.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseAccountClosingMarker(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseAccountClosingMarker", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseAccountClosingMarker), ctx, organizationID, ledgerID, accountID, token)
+}
+
+// ReleaseAccountSeedAdmission mocks base method.
+func (m *MockRedisRepository) ReleaseAccountSeedAdmission(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseAccountSeedAdmission", ctx, organizationID, ledgerID, accountID, token)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReleaseAccountSeedAdmission indicates an expected call of ReleaseAccountSeedAdmission.
+func (mr *MockRedisRepositoryMockRecorder) ReleaseAccountSeedAdmission(ctx, organizationID, ledgerID, accountID, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseAccountSeedAdmission", reflect.TypeOf((*MockRedisRepository)(nil).ReleaseAccountSeedAdmission), ctx, organizationID, ledgerID, accountID, token)
+}
+
 // RemoveBalanceSyncKeysBatch mocks base method.
 func (m *MockRedisRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error) {
 	m.ctrl.T.Helper()
@@ -294,18 +538,49 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
 }
 
-// ScheduleBalanceSyncBatch mocks base method.
-func (m *MockRedisRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
+// ScanAccountAdminOwnerships mocks base method.
+func (m *MockRedisRepository) ScanAccountAdminOwnerships(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ScheduleBalanceSyncBatch", ctx, members)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "ScanAccountAdminOwnerships", ctx, cursor, count)
+	ret0, _ := ret[0].(AccountProtectionScanPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// ScheduleBalanceSyncBatch indicates an expected call of ScheduleBalanceSyncBatch.
-func (mr *MockRedisRepositoryMockRecorder) ScheduleBalanceSyncBatch(ctx, members any) *gomock.Call {
+// ScanAccountAdminOwnerships indicates an expected call of ScanAccountAdminOwnerships.
+func (mr *MockRedisRepositoryMockRecorder) ScanAccountAdminOwnerships(ctx, cursor, count any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScheduleBalanceSyncBatch", reflect.TypeOf((*MockRedisRepository)(nil).ScheduleBalanceSyncBatch), ctx, members)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanAccountAdminOwnerships", reflect.TypeOf((*MockRedisRepository)(nil).ScanAccountAdminOwnerships), ctx, cursor, count)
+}
+
+// ScanAccountClosingMarkers mocks base method.
+func (m *MockRedisRepository) ScanAccountClosingMarkers(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanAccountClosingMarkers", ctx, cursor, count)
+	ret0, _ := ret[0].(AccountProtectionScanPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ScanAccountClosingMarkers indicates an expected call of ScanAccountClosingMarkers.
+func (mr *MockRedisRepositoryMockRecorder) ScanAccountClosingMarkers(ctx, cursor, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanAccountClosingMarkers", reflect.TypeOf((*MockRedisRepository)(nil).ScanAccountClosingMarkers), ctx, cursor, count)
+}
+
+// ScanRecoveryMessages mocks base method.
+func (m *MockRedisRepository) ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanRecoveryMessages", ctx, source, cursor, count)
+	ret0, _ := ret[0].(RecoveryScanPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ScanRecoveryMessages indicates an expected call of ScanRecoveryMessages.
+func (mr *MockRedisRepositoryMockRecorder) ScanRecoveryMessages(ctx, source, cursor, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanRecoveryMessages", reflect.TypeOf((*MockRedisRepository)(nil).ScanRecoveryMessages), ctx, source, cursor, count)
 }
 
 // Set mocks base method.
@@ -320,6 +595,20 @@ func (m *MockRedisRepository) Set(ctx context.Context, key, value string, ttl ti
 func (mr *MockRedisRepositoryMockRecorder) Set(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockRedisRepository)(nil).Set), ctx, key, value, ttl)
+}
+
+// SetAccountClosedMarker mocks base method.
+func (m *MockRedisRepository) SetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, closedAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAccountClosedMarker", ctx, organizationID, ledgerID, accountID, closedAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetAccountClosedMarker indicates an expected call of SetAccountClosedMarker.
+func (mr *MockRedisRepositoryMockRecorder) SetAccountClosedMarker(ctx, organizationID, ledgerID, accountID, closedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAccountClosedMarker", reflect.TypeOf((*MockRedisRepository)(nil).SetAccountClosedMarker), ctx, organizationID, ledgerID, accountID, closedAt)
 }
 
 // SetBytes mocks base method.
@@ -349,6 +638,34 @@ func (m *MockRedisRepository) SetNX(ctx context.Context, key, value string, ttl 
 func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
+}
+
+// UpdateBalanceCacheAllowFlags mocks base method.
+func (m *MockRedisRepository) UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceCacheAllowFlags", ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceCacheAllowFlags indicates an expected call of UpdateBalanceCacheAllowFlags.
+func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheAllowFlags(ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheAllowFlags", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheAllowFlags), ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving)
+}
+
+// UpdateBalanceCacheBlocked mocks base method.
+func (m *MockRedisRepository) UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceCacheBlocked", ctx, organizationID, ledgerID, cacheKeys, blocked)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceCacheBlocked indicates an expected call of UpdateBalanceCacheBlocked.
+func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheBlocked", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheBlocked), ctx, organizationID, ledgerID, cacheKeys, blocked)
 }
 
 // UpdateBalanceCacheSettings mocks base method.

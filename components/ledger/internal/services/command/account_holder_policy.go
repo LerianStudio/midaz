@@ -14,11 +14,11 @@ import "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 // package depends on, so the type has to live outside both. The alias keeps the
 // command-layer name the seam is documented under.
 //
-// It is the command-layer sibling of the transaction cores' routeVersionPolicy: the
-// use case is transport-agnostic and cannot read the request path, so the version
-// signal has to travel as an argument. They stay separate types because they sit on
-// opposite sides of the dependency direction — the fee and tracer seams live in the
-// transaction handler, the holder seam in the account and organization use cases.
+// It carries the version as a runtime value because the account create path has a
+// single use case: the use case is transport-agnostic and cannot read the request
+// path, so the seam inside it has to be told which contract it is serving. The
+// transaction paths encode the version in the use-case name instead and thread
+// nothing.
 type RouteHolderPolicy = mmodel.HolderPolicy
 
 const (

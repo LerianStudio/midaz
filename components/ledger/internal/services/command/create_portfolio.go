@@ -49,7 +49,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	portfolioID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate portfolio ID", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to generate portfolio ID", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to generate portfolio ID", libLog.Err(err))
 
 		return nil, err
@@ -69,9 +69,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create portfolio", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create portfolio", err)
 
 		return nil, err
 	}
@@ -80,9 +78,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityPortfolio, port.ID, cpi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create portfolio metadata", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create portfolio metadata", err)
 
 		return nil, err
 	}

@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 )
 
 func newTestMetricsFactory(t *testing.T) *metrics.MetricsFactory {
@@ -31,7 +32,7 @@ func newTestMetricsFactory(t *testing.T) *metrics.MetricsFactory {
 func TestEmitQueueGauges_NilFactory(t *testing.T) {
 	t.Parallel()
 
-	consumer := NewRedisQueueConsumer(newTestLogger(), in.TransactionHandler{})
+	consumer := NewRedisQueueConsumer(newTestLogger(), &command.UseCase{}, &query.UseCase{})
 
 	require.NotPanics(t, func() {
 		consumer.emitDepthGauge(context.Background(), 1)
@@ -44,7 +45,7 @@ func TestEmitQueueGauges_NilFactory(t *testing.T) {
 func TestEmitQueueGauges_WithFactory(t *testing.T) {
 	t.Parallel()
 
-	consumer := NewRedisQueueConsumer(newTestLogger(), in.TransactionHandler{}).
+	consumer := NewRedisQueueConsumer(newTestLogger(), &command.UseCase{}, &query.UseCase{}).
 		WithMetricsFactory(newTestMetricsFactory(t))
 
 	require.NotPanics(t, func() {
@@ -67,7 +68,7 @@ func TestEmitQuarantineMetric(t *testing.T) {
 	t.Run("nil factory is a no-op", func(t *testing.T) {
 		t.Parallel()
 
-		consumer := NewRedisQueueConsumer(newTestLogger(), in.TransactionHandler{})
+		consumer := NewRedisQueueConsumer(newTestLogger(), &command.UseCase{}, &query.UseCase{})
 
 		require.NotPanics(t, func() {
 			consumer.emitQuarantineMetric(context.Background(), newTestLogger())
@@ -77,7 +78,7 @@ func TestEmitQuarantineMetric(t *testing.T) {
 	t.Run("with factory emits", func(t *testing.T) {
 		t.Parallel()
 
-		consumer := NewRedisQueueConsumer(newTestLogger(), in.TransactionHandler{}).
+		consumer := NewRedisQueueConsumer(newTestLogger(), &command.UseCase{}, &query.UseCase{}).
 			WithMetricsFactory(newTestMetricsFactory(t))
 
 		require.NotPanics(t, func() {

@@ -69,7 +69,7 @@ func TestGetBalancesByKeys_EmptyInput_NoRedisCall(t *testing.T) {
 }
 
 func TestGetBalancesByKeys_SingleKey_Found(t *testing.T) {
-	validJSON := `{"id":"uuid-123","alias":"@sender","key":"default","accountId":"acc-1","assetCode":"USD","available":"100.00","onHold":"10.00","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON := `{"id":"00000000-0000-0000-0000-000000000123","alias":"@sender","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"USD","available":"100.00","onHold":"10.00","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
 
 	mockClient := &mockMGetClient{
 		mGetFunc: func(_ context.Context, _ ...string) *redis.SliceCmd {
@@ -89,7 +89,7 @@ func TestGetBalancesByKeys_SingleKey_Found(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.NotNil(t, result["balance:key1"])
-	assert.Equal(t, "uuid-123", result["balance:key1"].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000123", result["balance:key1"].ID)
 	assert.Equal(t, "@sender", result["balance:key1"].Alias)
 	assert.Equal(t, "USD", result["balance:key1"].AssetCode)
 	assert.True(t, result["balance:key1"].Available.Equal(decimal.NewFromFloat(100.00)))
@@ -117,8 +117,8 @@ func TestGetBalancesByKeys_SingleKey_NotFound(t *testing.T) {
 }
 
 func TestGetBalancesByKeys_MultipleKeys_MixedResults(t *testing.T) {
-	validJSON1 := `{"id":"uuid-1","alias":"@sender","key":"default","accountId":"acc-1","assetCode":"USD","available":"100.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
-	validJSON2 := `{"id":"uuid-2","alias":"@receiver","key":"default","accountId":"acc-2","assetCode":"USD","available":"500.00","onHold":"50.00","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON1 := `{"id":"00000000-0000-0000-0000-000000000101","alias":"@sender","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"USD","available":"100.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON2 := `{"id":"00000000-0000-0000-0000-000000000102","alias":"@receiver","key":"default","accountId":"00000000-0000-0000-0000-000000000002","assetCode":"USD","available":"500.00","onHold":"50.00","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
 
 	mockClient := &mockMGetClient{
 		mGetFunc: func(_ context.Context, _ ...string) *redis.SliceCmd {
@@ -141,18 +141,18 @@ func TestGetBalancesByKeys_MultipleKeys_MixedResults(t *testing.T) {
 
 	// key1 - found
 	require.NotNil(t, result["key1"])
-	assert.Equal(t, "uuid-1", result["key1"].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000101", result["key1"].ID)
 
 	// key2 - not found
 	assert.Nil(t, result["key2"])
 
 	// key3 - found
 	require.NotNil(t, result["key3"])
-	assert.Equal(t, "uuid-2", result["key3"].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000102", result["key3"].ID)
 }
 
 func TestGetBalancesByKeys_MalformedJSON(t *testing.T) {
-	validJSON := `{"id":"uuid-1","alias":"@sender","key":"default","accountId":"acc-1","assetCode":"USD","available":"100.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON := `{"id":"00000000-0000-0000-0000-000000000101","alias":"@sender","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"USD","available":"100.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
 	malformedJSON := `{invalid json`
 
 	mockClient := &mockMGetClient{
@@ -171,23 +171,14 @@ func TestGetBalancesByKeys_MalformedJSON(t *testing.T) {
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"key1", "key2", "key3"})
 
-	// Should not return error - malformed keys logged and set to nil
-	require.NoError(t, err)
-	require.Len(t, result, 3)
-
-	// key1 - valid
-	require.NotNil(t, result["key1"])
-
-	// key2 - malformed JSON should result in nil (logged, not fatal)
-	assert.Nil(t, result["key2"], "Malformed JSON should result in nil value")
-
-	// key3 - valid
-	require.NotNil(t, result["key3"])
+	// A malformed member invalidates the whole MGET batch.
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestGetBalancesByKeys_ByteSliceValue(t *testing.T) {
 	// Test that []byte values are handled correctly
-	validJSON := []byte(`{"id":"uuid-bytes","alias":"@test","key":"default","accountId":"acc-1","assetCode":"BRL","available":"200.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`)
+	validJSON := []byte(`{"id":"00000000-0000-0000-0000-000000000201","alias":"@test","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"BRL","available":"200.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`)
 
 	mockClient := &mockMGetClient{
 		mGetFunc: func(_ context.Context, _ ...string) *redis.SliceCmd {
@@ -207,7 +198,7 @@ func TestGetBalancesByKeys_ByteSliceValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.NotNil(t, result["balance:key1"])
-	assert.Equal(t, "uuid-bytes", result["balance:key1"].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000201", result["balance:key1"].ID)
 	assert.Equal(t, "BRL", result["balance:key1"].AssetCode)
 }
 
@@ -228,10 +219,9 @@ func TestGetBalancesByKeys_UnexpectedValueType(t *testing.T) {
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"balance:key1"})
 
-	// Should not error - unexpected type logged and set to nil
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Nil(t, result["balance:key1"], "Unexpected type should result in nil value")
+	// An unexpected Redis value type invalidates the whole MGET batch.
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestGetBalancesByKeys_RedisError(t *testing.T) {
@@ -288,7 +278,7 @@ func TestGetBalancesByKeys_AllKeysNotFound(t *testing.T) {
 func TestGetBalancesByKeys_SingleTenant_KeyReachesMGetUnchanged(t *testing.T) {
 	const plainKey = "balance:{transactions}:org:ledger:@alias#default"
 
-	validJSON := `{"id":"uuid-st","alias":"@alias","key":"default","accountId":"acc-st","assetCode":"USD","available":"7.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON := `{"id":"00000000-0000-0000-0000-000000000301","alias":"@alias","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"USD","available":"7.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
 
 	var capturedKeys []string
 
@@ -313,7 +303,7 @@ func TestGetBalancesByKeys_SingleTenant_KeyReachesMGetUnchanged(t *testing.T) {
 
 	require.Equal(t, []string{plainKey}, capturedKeys, "single-tenant key must reach MGET unchanged")
 	require.NotNil(t, result[plainKey], "balance value must be found in single-tenant mode")
-	assert.Equal(t, "uuid-st", result[plainKey].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000301", result[plainKey].ID)
 }
 
 func TestGetBalancesByKeys_InterfaceCompliance(t *testing.T) {

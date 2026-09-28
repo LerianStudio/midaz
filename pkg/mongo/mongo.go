@@ -14,6 +14,24 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// managedFields are the document fields the server owns. BuildDocumentToPatch
+// never unsets them, nor any path below them, whatever a caller asks for.
+var managedFields = []string{
+	"_id",
+	"type",
+	"document",
+	"search",
+	"search_key_version",
+	"created_at",
+	"updated_at",
+	"deleted_at",
+	"holder_id",
+	"account_id",
+	"ledger_id",
+}
+
+// BuildDocumentToPatch builds the $set and $unset operators of a partial update.
+// A field to remove that names a managed field, or a path below one, is dropped.
 func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M {
 	flatDocument := bson.M{}
 	flattenBSONM(updateDocument, "", flatDocument)
@@ -30,8 +48,8 @@ func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M
 	for _, v := range fieldsToRemove {
 		if strings.HasPrefix(v, "metadata.") {
 			unsetMap[v] = ""
-		} else {
-			unsetMap[strcase.ToSnakeWithIgnore(v, ".")] = v
+		} else if path := strcase.ToSnakeWithIgnore(v, "."); !isManagedField(path) {
+			unsetMap[path] = v
 		}
 	}
 
@@ -81,6 +99,25 @@ func joinKey(prefix, key string) string {
 	}
 
 	return prefix + "." + key
+}
+
+// isManagedField compares case- and underscore-insensitively, so every
+// spelling that could reach a managed field is refused.
+func isManagedField(path string) bool {
+	folded := foldFieldName(path)
+
+	for _, field := range managedFields {
+		managed := foldFieldName(field)
+		if folded == managed || strings.HasPrefix(folded, managed+".") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func foldFieldName(name string) string {
+	return strings.ReplaceAll(strings.ToLower(name), "_", "")
 }
 
 // shouldUnset Checks if the key should be "unset" (removed) based on the fieldsToRemove array.

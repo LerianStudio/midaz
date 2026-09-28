@@ -871,6 +871,112 @@ func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing
 	assert.NoError(t, err)
 }
 
+func TestIntegration_AccountRepository_FindByAlias_UnderscoreIsLiteral(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Wildcard Account", "wc-abc", "USD", nil)
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Treasury Account", "@treasury_checking", "USD", nil)
+
+	ctx := context.Background()
+
+	// Act - "_" differs from "b" at the same position
+	exists, err := repo.FindByAlias(ctx, orgID, ledgerID, "wc-a_c")
+
+	// Assert
+	assert.False(t, exists, "underscore must not match an arbitrary character")
+	assert.NoError(t, err)
+
+	// Act - an all-underscore alias of the same length as an existing one
+	exists, err = repo.FindByAlias(ctx, orgID, ledgerID, strings.Repeat("_", len("@treasury_checking")))
+
+	// Assert
+	assert.False(t, exists, "underscore-only alias must not reveal an alias of the same length")
+	assert.NoError(t, err)
+}
+
+func TestIntegration_AccountRepository_FindByAlias_UnderscoreExactStillConflicts(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	alias := "@treasury_x"
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Treasury Account", alias, "USD", nil)
+
+	ctx := context.Background()
+
+	// Act
+	exists, err := repo.FindByAlias(ctx, orgID, ledgerID, alias)
+
+	// Assert
+	assert.True(t, exists, "identical alias containing underscore must conflict")
+	require.Error(t, err)
+
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr, "error should be EntityConflictError")
+	assert.Equal(t, constant.ErrAliasUnavailability.Error(), conflictErr.Code, "error code should be ErrAliasUnavailability")
+}
+
+func TestIntegration_AccountRepository_FindByAlias_IsCaseSensitive(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Case Account", "case-abc", "USD", nil)
+
+	ctx := context.Background()
+
+	// Act
+	exists, err := repo.FindByAlias(ctx, orgID, ledgerID, "case-ABC")
+
+	// Assert
+	assert.False(t, exists, "alias comparison must be case-sensitive")
+	assert.NoError(t, err)
+}
+
+func TestIntegration_AccountRepository_FindByAlias_ScopedPerLedger(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	alias := "scope-alias"
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledger1ID, nil, "Scoped Account", alias, "USD", nil)
+
+	ctx := context.Background()
+
+	// Act - same alias in another ledger of the same organization
+	exists, err := repo.FindByAlias(ctx, orgID, ledger2ID, alias)
+
+	// Assert
+	assert.False(t, exists, "alias in another ledger must not conflict")
+	assert.NoError(t, err)
+
+	// Act - the owning ledger still reports the conflict
+	exists, err = repo.FindByAlias(ctx, orgID, ledger1ID, alias)
+
+	// Assert
+	assert.True(t, exists, "alias must still conflict in its own ledger")
+	assert.Error(t, err)
+}
+
 // ============================================================================
 // Update Tests
 // ============================================================================

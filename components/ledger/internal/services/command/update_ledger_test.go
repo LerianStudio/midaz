@@ -49,6 +49,12 @@ func TestUpdateLedgerByID(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockLedgerRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Ledger{ID: "123"}, nil)
+				mockLedgerRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil)
+				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Ledger{ID: "123", Name: "Updated Ledger", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
 				mockMetadataRepo.EXPECT().
@@ -71,6 +77,12 @@ func TestUpdateLedgerByID(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockLedgerRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Ledger{ID: "123"}, nil)
+				mockLedgerRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil)
+				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
@@ -86,6 +98,12 @@ func TestUpdateLedgerByID(t *testing.T) {
 				Metadata: map[string]any{"key": "value"},
 			},
 			mockSetup: func() {
+				mockLedgerRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Ledger{ID: "123"}, nil)
+				mockLedgerRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil)
 				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Ledger{ID: "123", Name: "Ledger with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
@@ -108,6 +126,12 @@ func TestUpdateLedgerByID(t *testing.T) {
 				Metadata: nil,
 			},
 			mockSetup: func() {
+				mockLedgerRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Ledger{ID: "123"}, nil)
+				mockLedgerRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil)
 				mockLedgerRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("update error"))

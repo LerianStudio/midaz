@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
 	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -73,6 +74,8 @@ type ReadyzResponse struct {
 	Status         string                     `json:"status"`
 	Checks         map[string]DependencyCheck `json:"checks"`
 	Version        string                     `json:"version"`
+	Revision       string                     `json:"revision"`
+	BuildTime      string                     `json:"buildTime"`
 	DeploymentMode string                     `json:"deployment_mode"`
 	Reason         string                     `json:"reason,omitempty"`
 }
@@ -94,7 +97,6 @@ type DependencyChecker interface {
 type ReadyzHandler struct {
 	logger         libLog.Logger
 	checkers       []DependencyChecker
-	version        string
 	deploymentMode string
 
 	// Lifecycle state
@@ -109,7 +111,6 @@ type ReadyzHandler struct {
 type ReadyzHandlerConfig struct {
 	Logger         libLog.Logger
 	Checkers       []DependencyChecker
-	Version        string
 	DeploymentMode string
 	MetricsFactory *metrics.MetricsFactory
 }
@@ -119,7 +120,6 @@ func NewReadyzHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
 	return &ReadyzHandler{
 		logger:         cfg.Logger,
 		checkers:       cfg.Checkers,
-		version:        cfg.Version,
 		deploymentMode: ResolveDeploymentMode(cfg.DeploymentMode),
 		metricsFactory: cfg.MetricsFactory,
 	}
@@ -204,12 +204,19 @@ func (h *ReadyzHandler) checkLifecycleState() (string, bool) {
 // HandleReadyz handles the /readyz endpoint for global health checks.
 // All configured dependency checkers are probed and their status is returned.
 func (h *ReadyzHandler) HandleReadyz(c fiber.Ctx) error {
+	// Identity linked into the binary at build time: version, revision and
+	// build time travel together so an operator reading /readyz knows exactly
+	// which image answered.
+	build := buildinfo.Get()
+
 	// Check lifecycle state first (self-probe and graceful drain)
 	if reason, ok := h.checkLifecycleState(); !ok {
 		return c.Status(http.StatusServiceUnavailable).JSON(ReadyzResponse{
 			Status:         "unhealthy",
 			Checks:         map[string]DependencyCheck{},
-			Version:        h.version,
+			Version:        build.Version,
+			Revision:       build.Revision,
+			BuildTime:      build.BuildTime,
 			DeploymentMode: h.deploymentMode,
 			Reason:         reason,
 		})
@@ -264,7 +271,9 @@ func (h *ReadyzHandler) HandleReadyz(c fiber.Ctx) error {
 	response := ReadyzResponse{
 		Status:         status,
 		Checks:         checks,
-		Version:        h.version,
+		Version:        build.Version,
+		Revision:       build.Revision,
+		BuildTime:      build.BuildTime,
 		DeploymentMode: h.deploymentMode,
 	}
 
@@ -491,7 +500,6 @@ func buildReadyzHandler(
 	return NewReadyzHandler(ReadyzHandlerConfig{
 		Logger:         logger,
 		Checkers:       checkers,
-		Version:        cfg.Version,
 		DeploymentMode: cfg.DeploymentMode,
 		MetricsFactory: metricsFactory,
 	}), nil

@@ -7,6 +7,7 @@ package mmodel
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
@@ -53,8 +54,11 @@ func TestLedgerSettings_Comparable(t *testing.T) {
 	assert.False(t, a == b, "settings differing in Tracer.Mode must not be == equal")
 }
 
-func TestDefaultLedgerSettingsMap(t *testing.T) {
-	settings := DefaultLedgerSettingsMap()
+// TestLedgerSettingsToMap_DefaultsShape locks the JSONB-persisted key names and default
+// values produced from the typed defaults; renaming a key here breaks reading ledgers
+// already stored.
+func TestLedgerSettingsToMap_DefaultsShape(t *testing.T) {
+	settings := LedgerSettingsToMap(DefaultLedgerSettings())
 
 	assert.NotNil(t, settings)
 	accounting, ok := settings["accounting"].(map[string]any)
@@ -70,24 +74,10 @@ func TestDefaultLedgerSettingsMap(t *testing.T) {
 	assert.Equal(t, 250, tracer["timeoutMs"])
 }
 
-// TestDefaultLedgerSettingsMap_SerializesIdenticallyForExistingLedgers asserts that the
-// default map is deterministic and round-trips through JSON to a stable shape. Existing
-// ledgers that never set tracer settings must resolve to these defaults, so the default
-// map serialization is the contract their stored/absent settings are compared against.
-func TestDefaultLedgerSettingsMap_SerializesIdenticallyForExistingLedgers(t *testing.T) {
-	// The default map and the map produced from default typed settings must be identical.
-	assert.Equal(t, DefaultLedgerSettingsMap(), LedgerSettingsToMap(DefaultLedgerSettings()),
-		"DefaultLedgerSettingsMap must equal LedgerSettingsToMap(DefaultLedgerSettings())")
-
-	// JSON serialization must be stable across repeated calls (deterministic keys).
-	first, err := json.Marshal(DefaultLedgerSettingsMap())
-	require.NoError(t, err)
-	second, err := json.Marshal(DefaultLedgerSettingsMap())
-	require.NoError(t, err)
-	assert.JSONEq(t, string(first), string(second))
-
-	// An existing ledger with no tracer group parses to the tracer defaults: behavior
-	// is unchanged for settings written before the tracer group existed.
+// TestParseLedgerSettings_LegacyWithoutTracerGroupResolvesToTracerDefaults asserts that
+// settings stored before the tracer group existed (a map with only accounting) parse to
+// defaultTracerSettings.
+func TestParseLedgerSettings_LegacyWithoutTracerGroupResolvesToTracerDefaults(t *testing.T) {
 	legacy := ParseLedgerSettings(map[string]any{
 		"accounting": map[string]any{
 			"validateAccountType": true,
@@ -574,6 +564,119 @@ func TestValidateSettings(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "tracer timeoutMs lower bound accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(1),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer timeoutMs upper bound accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(30000),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer timeoutMs fraction within range accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(250.7),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer timeoutMs zero rejected with field-value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(0),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs negative rejected with field-value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(-250),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs above upper bound rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(30001),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs fraction below lower bound rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(0.5),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs zero as int rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": int(0),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs as string rejected as type error not value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": "0",
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0148",
+		},
+		{
+			name: "tracer timeoutMs NaN rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": math.NaN(),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "null tracer timeoutMs is valid",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": nil,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -595,6 +698,11 @@ func TestValidateSettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTracerTimeoutMsDefaultWithinRange(t *testing.T) {
+	assert.GreaterOrEqual(t, defaultTracerTimeoutMs, TracerTimeoutMsMin)
+	assert.LessOrEqual(t, defaultTracerTimeoutMs, TracerTimeoutMsMax)
 }
 
 func TestDeepMergeSettings(t *testing.T) {
@@ -789,7 +897,7 @@ func TestSettingsDefaultOverridePolicyIsAllFalse(t *testing.T) {
 	assert.False(t, settings.Overrides.AllowTracerSkip, "AllowTracerSkip must default to false")
 	assert.False(t, settings.Overrides.AllowHolderSkip, "AllowHolderSkip must default to false")
 
-	overrides, ok := DefaultLedgerSettingsMap()["overrides"].(map[string]any)
+	overrides, ok := LedgerSettingsToMap(DefaultLedgerSettings())["overrides"].(map[string]any)
 	require.True(t, ok, "overrides section must exist in default map")
 	assert.Equal(t, false, overrides["allowFeeSkip"])
 	assert.Equal(t, false, overrides["allowTracerSkip"])

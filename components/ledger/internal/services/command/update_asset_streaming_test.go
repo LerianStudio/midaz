@@ -37,6 +37,10 @@ func newUpdateAssetStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, e
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockAssetRepo.EXPECT().
+		FindByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).AnyTimes()
+
+	mockAssetRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, id uuid.UUID, in *mmodel.Asset) (*mmodel.Asset, error) {
 			return &mmodel.Asset{

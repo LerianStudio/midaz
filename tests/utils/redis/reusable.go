@@ -58,16 +58,17 @@ func CleanupReusableContainers() error {
 // SetupReusableContainer reuses one Valkey process within the test binary and
 // leases an isolated logical database to the calling test. SetupContainer
 // remains the exclusive-process contract for lifecycle and chaos tests.
-func SetupReusableContainer(t *testing.T) *ContainerResult {
-	t.Helper()
+func SetupReusableContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
 
-	return SetupReusableContainerWithConfig(t, DefaultContainerConfig())
+	return SetupReusableContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupReusableContainerWithConfig is SetupReusableContainer with explicit
 // server configuration. Identical configurations share the same process.
-func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupReusableContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
+	t := tb
 
 	server := getReusableRedisServer(t, cfg)
 
@@ -118,8 +119,9 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 	}
 }
 
-func getReusableRedisServer(t *testing.T, cfg ContainerConfig) *reusableRedisServer {
-	t.Helper()
+func getReusableRedisServer(tb testing.TB, cfg ContainerConfig) *reusableRedisServer {
+	tb.Helper()
+	t := tb
 
 	key := fmt.Sprintf("%s|%d|%g|%s|%t|%s", cfg.Image, cfg.MemoryMB, cfg.CPULimit,
 		cfg.MaxmemoryPolicy, cfg.AppendOnly, cfg.AppendFsync)

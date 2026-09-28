@@ -167,9 +167,9 @@ type HealthChecker struct {
 	// so there is no race with /readyz reads. Tests use the same setter.
 	multiTenantEnabled bool
 
-	// version + deploymentMode are echoed in /readyz responses. Sourced from
-	// cfg.OtelServiceVersion + cfg.DeploymentMode at bootstrap time.
-	version        string
+	// deploymentMode is echoed in /readyz responses. Sourced from
+	// cfg.DeploymentMode at bootstrap time. The build identity that travels
+	// alongside it comes from buildinfo, not from config.
 	deploymentMode string
 
 	// draining is set to true when SIGTERM has been received (Gate 7 wires
@@ -229,9 +229,9 @@ type HealthChecker struct {
 
 // NewHealthChecker creates a new HealthChecker instance with connection pools.
 // Uses DefaultHealthCheckTimeout (3s) which is suitable for liveness probes.
-// Version + deploymentMode are echoed in /readyz responses; bootstrap sources
-// them from cfg.OtelServiceVersion + cfg.DeploymentMode.
-func NewHealthChecker(postgresConn *libPostgres.Client, version, deploymentMode string) *HealthChecker {
+// deploymentMode is echoed in /readyz responses; bootstrap sources it from
+// cfg.DeploymentMode.
+func NewHealthChecker(postgresConn *libPostgres.Client, deploymentMode string) *HealthChecker {
 	var provider PostgresDBProvider
 
 	if postgresConn != nil {
@@ -241,26 +241,24 @@ func NewHealthChecker(postgresConn *libPostgres.Client, version, deploymentMode 
 	return &HealthChecker{
 		dbProvider:              provider,
 		cacheStalenessThreshold: DefaultCacheStalenessThreshold,
-		version:                 version,
 		deploymentMode:          deploymentMode,
 	}
 }
 
 // NewTestableHealthChecker creates a HealthChecker with an injectable PostgresDBProvider.
 // This constructor is intended for testing, allowing mock database connections.
-// version + deploymentMode default to empty strings.
+// deploymentMode defaults to the empty string.
 func NewTestableHealthChecker(provider PostgresDBProvider) *HealthChecker {
-	return NewTestableHealthCheckerWithMeta(provider, "", "")
+	return NewTestableHealthCheckerWithMeta(provider, "")
 }
 
 // NewTestableHealthCheckerWithMeta is the test constructor with explicit
-// version + deploymentMode wiring. Use this when tests assert the /readyz
-// response echoes those values.
-func NewTestableHealthCheckerWithMeta(provider PostgresDBProvider, version, deploymentMode string) *HealthChecker {
+// deploymentMode wiring. Use this when tests assert the /readyz response
+// echoes that value.
+func NewTestableHealthCheckerWithMeta(provider PostgresDBProvider, deploymentMode string) *HealthChecker {
 	return &HealthChecker{
 		dbProvider:              provider,
 		cacheStalenessThreshold: DefaultCacheStalenessThreshold,
-		version:                 version,
 		deploymentMode:          deploymentMode,
 	}
 }

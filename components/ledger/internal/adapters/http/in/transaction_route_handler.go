@@ -73,7 +73,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionRoute, err := handler.createTransactionRoute(ctx, orgID, ledgerID, payload)
+	transactionRoute, err := handler.createTransactionRoute(ctx, orgID, &ledgerID, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -122,12 +122,12 @@ type ListTransactionRoutesResponse struct {
 // GetAllTransactionRoutes binds the query imperatively then delegates to
 // getAllTransactionRoutes.
 func (handler *TransactionRouteHandler) GetAllTransactionRoutes(ctx context.Context, in *ListTransactionRoutesRequest) (*ListTransactionRoutesResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	pagination, err := handler.getAllTransactionRoutes(ctx, orgID, ledgerID, in.queries())
+	pagination, err := handler.getAllTransactionRoutes(ctx, orgID, in.queries())
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -153,7 +153,7 @@ type GetTransactionRouteResponse struct {
 
 // GetTransactionRouteByID delegates to getTransactionRouteByID.
 func (handler *TransactionRouteHandler) GetTransactionRouteByID(ctx context.Context, in *GetTransactionRouteRequest) (*GetTransactionRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -163,7 +163,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(ctx context.Cont
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionRoute, err := handler.getTransactionRouteByID(ctx, orgID, ledgerID, id)
+	transactionRoute, err := handler.getTransactionRouteByID(ctx, orgID, id)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -190,7 +190,7 @@ type UpdateTransactionRouteResponse struct {
 // UpdateTransactionRoute decodes+validates the raw body imperatively then delegates
 // to the shared updateTransactionRoute core.
 func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Context, in *UpdateTransactionRouteRequest) (*UpdateTransactionRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -205,7 +205,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionRoute, err := handler.updateTransactionRoute(ctx, orgID, ledgerID, id, payload)
+	transactionRoute, err := handler.updateTransactionRoute(ctx, orgID, id, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -222,7 +222,7 @@ type DeleteTransactionRouteResponse struct{}
 // DeleteTransactionRouteByID delegates to deleteTransactionRouteByID; returns a
 // bodiless 204 on success.
 func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(ctx context.Context, in *GetTransactionRouteRequest) (*DeleteTransactionRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -232,7 +232,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(ctx context.C
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deleteTransactionRouteByID(ctx, orgID, ledgerID, id); err != nil {
+	if err := handler.deleteTransactionRouteByID(ctx, orgID, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

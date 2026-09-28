@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -143,7 +144,7 @@ func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Tr
 			EventType:      OverdraftEventType,
 			Action:         ep.action,
 			TimeStamp:      time.Now(),
-			Version:        os.Getenv("VERSION"),
+			Version:        buildinfo.Get().Version,
 			OrganizationID: tran.OrganizationID,
 			LedgerID:       tran.LedgerID,
 			Payload:        raw,

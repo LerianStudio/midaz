@@ -27,6 +27,7 @@ import (
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -39,6 +40,9 @@ type BalanceSyncConfig struct {
 	FlushTimeoutMs int
 	// PollIntervalMs is the ZSET polling interval in milliseconds when buffer has items but no new keys.
 	PollIntervalMs int
+	// TTLKeepaliveIntervalMs is how often the worker re-applies the balance cache TTL
+	// to every key still scheduled for sync.
+	TTLKeepaliveIntervalMs int
 }
 
 // FlushTimeout returns FlushTimeoutMs as a time.Duration.
@@ -49,6 +53,11 @@ func (c BalanceSyncConfig) FlushTimeout() time.Duration {
 // PollInterval returns PollIntervalMs as a time.Duration.
 func (c BalanceSyncConfig) PollInterval() time.Duration {
 	return time.Duration(c.PollIntervalMs) * time.Millisecond
+}
+
+// KeepaliveInterval returns TTLKeepaliveIntervalMs as a time.Duration.
+func (c BalanceSyncConfig) KeepaliveInterval() time.Duration {
+	return time.Duration(c.TTLKeepaliveIntervalMs) * time.Millisecond
 }
 
 // tenantPGResolver resolves a tenant's transaction-module PostgreSQL handle.
@@ -102,6 +111,43 @@ const tenantReconcileInterval = 10 * time.Second
 // tracking it). Batches above a few hundred rarely make sense for this workload.
 const maxBatchSize = 13000
 
+// defaultKeepaliveIntervalMs refreshes the TTL of every scheduled balance key
+// every 5 minutes, which is ~288 passes inside a 24h balance TTL.
+const defaultKeepaliveIntervalMs = 300000
+
+// maxKeepaliveIntervalMs is the sanity ceiling: an interval above half the balance
+// TTL could let a scheduled key expire between two passes, which is the loss the
+// keepalive exists to prevent.
+const maxKeepaliveIntervalMs = int(cachepolicy.BalanceTTL / 2 / time.Millisecond)
+
+// normalizeKeepaliveIntervalMs resolves the configured keepalive interval. An
+// absent, invalid or non-positive value falls back to the default, and a value
+// above the ceiling is clamped; neither ever stops the worker from starting.
+// Zero does NOT disable the keepalive — BALANCE_SYNC_WORKER_ENABLED disables the
+// worker as a whole.
+func normalizeKeepaliveIntervalMs(logger libLog.Logger, intervalMs int) int {
+	switch {
+	case intervalMs <= 0:
+		if intervalMs < 0 {
+			logger.Log(context.Background(), libLog.LevelWarn,
+				"BalanceSyncWorker: invalid TTL keepalive interval, applying default",
+				libLog.Int("configured_ms", intervalMs),
+				libLog.Int("applied_ms", defaultKeepaliveIntervalMs))
+		}
+
+		return defaultKeepaliveIntervalMs
+	case intervalMs > maxKeepaliveIntervalMs:
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"BalanceSyncWorker: TTL keepalive interval above the balance TTL ceiling, clamping",
+			libLog.Int("configured_ms", intervalMs),
+			libLog.Int("applied_ms", maxKeepaliveIntervalMs))
+
+		return maxKeepaliveIntervalMs
+	default:
+		return intervalMs
+	}
+}
+
 func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	// Apply safe defaults for zero-value config (e.g., in tests)
 	if syncCfg.BatchSize <= 0 {
@@ -119,6 +165,8 @@ func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCf
 	if syncCfg.PollIntervalMs <= 0 {
 		syncCfg.PollIntervalMs = 50
 	}
+
+	syncCfg.TTLKeepaliveIntervalMs = normalizeKeepaliveIntervalMs(logger, syncCfg.TTLKeepaliveIntervalMs)
 
 	// Idle wait defaults to 2x the flush timeout. With dual-trigger and dueAt=now,
 	// a long idle backoff (e.g. 10 min) would delay pickup of new keys. Using a short
@@ -232,6 +280,117 @@ func (w *BalanceSyncWorker) recordSyncSuccess(
 	}
 }
 
+// recordOldestPendingAge stamps the pending-age gauge for the scope in ctx. An empty
+// schedule reports 0, which is what clears the alert; a score in the future (clock
+// drift between the process and Redis) reports 0 rather than a negative age.
+// Best-effort: a metric failure never affects the worker.
+func (w *BalanceSyncWorker) recordOldestPendingAge(ctx context.Context, oldestScore float64) {
+	if w.metricsFactory == nil {
+		return
+	}
+
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
+	gauge, err := w.metricsFactory.Gauge(utils.BalanceSyncOldestPendingAge)
+	if err != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create pending-age gauge",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
+
+		return
+	}
+
+	age := int64(0)
+
+	if oldestScore > 0 {
+		if elapsed := float64(time.Now().Unix()) - oldestScore; elapsed > 0 {
+			age = int64(elapsed)
+		}
+	}
+
+	if setErr := gauge.WithLabels(map[string]string{
+		"tenant_id": tenantID,
+	}).Set(ctx, age); setErr != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit pending-age gauge",
+			libLog.String("tenant_id", tenantID), libLog.Err(setErr))
+	}
+}
+
+// startTTLKeepalive launches the TTL keepalive pass loop for the scope in ctx and
+// returns a channel closed once the loop has exited. The loop shares no state with
+// the flush path, so a Redis failure in a pass can neither block nor delay a flush.
+func (w *BalanceSyncWorker) startTTLKeepalive(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		defer func() {
+			if r := recover(); r != nil {
+				w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: TTL keepalive panicked",
+					libLog.String("panic", fmt.Sprint(r)))
+			}
+		}()
+
+		w.runTTLKeepalive(ctx)
+	}()
+
+	return done
+}
+
+// runTTLKeepalive re-applies the balance cache TTL to every scheduled key, once
+// immediately — so a restart after downtime rescues keys that are close to expiry —
+// and then on every keepalive tick until ctx is done.
+func (w *BalanceSyncWorker) runTTLKeepalive(ctx context.Context) {
+	w.keepalivePass(ctx)
+
+	ticker := time.NewTicker(w.syncConfig.KeepaliveInterval())
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			w.keepalivePass(ctx)
+		}
+	}
+}
+
+// keepalivePass runs one keepalive pass with panic recovery scoped to that pass, so
+// a panic never terminates the loop: the next tick still runs and TTL refreshes
+// continue for the process lifetime.
+func (w *BalanceSyncWorker) keepalivePass(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: TTL keepalive pass panicked",
+				libLog.String("panic", fmt.Sprint(r)))
+		}
+	}()
+
+	w.keepaliveOnce(ctx)
+}
+
+// keepaliveOnce runs a single keepalive pass. A pass is best-effort: a failure is
+// logged and the next tick tries again, because the flush path must never wait on it.
+func (w *BalanceSyncWorker) keepaliveOnce(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+
+	refreshed, oldestScore, err := w.useCase.TransactionRedisRepo.RefreshBalanceSyncKeyTTLs(ctx, cachepolicy.BalanceTTL)
+	if err != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: TTL keepalive pass failed",
+			libLog.String("tenant_id", tmcore.GetTenantIDContext(ctx)), libLog.Err(err))
+
+		return
+	}
+
+	w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: TTL keepalive pass completed",
+		libLog.Int("refreshed", int(refreshed)))
+
+	w.recordOldestPendingAge(ctx, oldestScore)
+}
+
 // isMTReady returns true when the worker is configured for MT (multi-tenant)
 // dispatching. mtEnabled, pgResolver, and tenantCache must all be set;
 // if any is missing the worker falls back to default (single-tenant) behavior.
@@ -272,6 +431,8 @@ func (w *BalanceSyncWorker) runWorker() error {
 		w.logger,
 	)
 
+	keepaliveDone := w.startTTLKeepalive(ctx)
+
 	collector.Run(
 		ctx,
 		// FlushFunc: batch flush grouped by org/ledger, then persisted to PostgreSQL
@@ -287,6 +448,8 @@ func (w *BalanceSyncWorker) runWorker() error {
 			return waitOrDone(waitCtx, w.idleWait)
 		},
 	)
+
+	<-keepaliveDone
 
 	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
@@ -493,6 +656,17 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 
 		w.logger.Log(collectorCtx, libLog.LevelInfo, "BalanceSyncWorker: collector started",
 			libLog.String("tenant_id", tenantID))
+
+		// The keepalive rides the collector context, so the tenant's schedule keys are
+		// namespaced like its fetches and the loop ends with the collector.
+		keepaliveDone := w.startTTLKeepalive(collectorCtx)
+
+		// Cancelling before the wait covers the collector exiting on its own — a panic
+		// included — where nothing else would ever end the keepalive loop.
+		defer func() {
+			cancel()
+			<-keepaliveDone
+		}()
 
 		collector.Run(
 			collectorCtx,

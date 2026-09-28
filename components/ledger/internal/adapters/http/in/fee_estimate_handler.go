@@ -84,10 +84,20 @@ func decodeFeeBodyInSpan(ctx context.Context, rawBody []byte, payload any) error
 // the transaction tree, so this is the fee-estimate-only escape hatch. The raw []byte
 // keeps Huma from recursing into that tree (it schema-gens as an opaque string) while
 // the wire bytes stay byte-identical to the Fiber commonsHttp.Respond(JSON) path.
-// ContentType pins application/json so the response header matches Fiber.
+//
+// The contentType tag on Body is schema metadata only: it publishes the media type in
+// the contract, but it never reaches the wire, because Huma short-circuits a []byte body
+// before it sets the response content type (v2.39.1 huma.go:1291-1295). The output-header
+// loop runs first and honours a string field tagged Content-Type (:1268-1272), so
+// ContentType is the field that actually makes the response say JSON. Without it Fiber
+// sniffs the bytes and answers text/plain, which a client reading the header takes for an
+// outage rather than a quote. The field is hidden from the generated spec: OpenAPI 3.1
+// ignores a Content-Type entry under response headers (the content map's key already
+// carries the media type), and Huma keeps writing a hidden header at runtime.
 type EstimateFeeResponse struct {
-	Status int
-	Body   []byte `contentType:"application/json"`
+	Status      int
+	ContentType string `header:"Content-Type" hidden:"true"`
+	Body        []byte `contentType:"application/json"`
 }
 
 // --- POST /ledgers/{ledger_id}/estimates -----------------------------------------
@@ -127,5 +137,5 @@ func (handler *FeeHandler) EstimateFeeCalculationV2(ctx context.Context, in *Est
 		return nil, pkgHTTP.HumaProblem(feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "Fee"))
 	}
 
-	return &EstimateFeeResponse{Status: http.StatusOK, Body: body}, nil
+	return &EstimateFeeResponse{Status: http.StatusOK, ContentType: "application/json", Body: body}, nil
 }

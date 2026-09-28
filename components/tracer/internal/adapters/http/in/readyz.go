@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
@@ -217,9 +218,16 @@ func (h *HealthChecker) ReadyzHandler() fiber.Handler {
 			"streaming":      streamCheck,
 		}
 
+		// Identity linked into the binary at build time: version, revision and
+		// build time travel together so an operator reading /readyz knows
+		// exactly which image answered.
+		build := buildinfo.Get()
+
 		response := api.ReadyzResponse{
 			Checks:         checks,
-			Version:        h.version,
+			Version:        build.Version,
+			Revision:       build.Revision,
+			BuildTime:      build.BuildTime,
 			DeploymentMode: h.deploymentMode,
 		}
 

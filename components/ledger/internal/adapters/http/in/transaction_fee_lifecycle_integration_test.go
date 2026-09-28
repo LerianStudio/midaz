@@ -83,7 +83,7 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 	// Spy the fee applier so commit's no-op is proven STRUCTURALLY: the commit
 	// path has no applyFees call, so the engine invocation count must not change.
 	spy := &countingFeeApplier{inner: h.feeUC}
-	h.handler.FeeApplier = spy
+	h.handler.Command.FeeApplier = spy
 
 	app := h.newV2App()
 

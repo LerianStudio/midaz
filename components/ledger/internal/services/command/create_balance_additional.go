@@ -73,6 +73,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	// Settings validation also runs pre-persistence to keep the repository
 	// free of corrupt payloads.
 	if cbi.Settings != nil {
+		cbi.Settings.Normalize()
+
 		if err := cbi.Settings.Validate(); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings", err)
 			logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance settings", libLog.Err(err))
@@ -92,12 +94,37 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 	}
 
+	// The ownership is taken before the account is inspected and held until the
+	// creation has a known SQL result, so a closing that starts meanwhile either
+	// waits for this creation or refuses it — never validates a balance list that
+	// is still growing. The companion provisioned below belongs to the same
+	// account, so it is already covered and asks for no ownership of its own.
+	admission, err := uc.acquireAccountOwnership(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to protect the account for balance creation", err)
+
+		return nil, err
+	}
+
+	// writeIssued opens the window in which the ownership may no longer be given
+	// back on an unresolved failure: from the first persistence attempt onwards the
+	// outcome has to be proven, not assumed.
+	writeIssued := false
+
+	defer func() { resolveAccountAdmission(ctx, admission, writeIssued, err) }()
+
+	if err := uc.ensureAccountsNotClosed(ctx, organizationID, ledgerID, constant.ErrAccountClosed, accountID); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused to create a balance on a closed account", err)
+		logger.Log(ctx, libLog.LevelWarn, "Refused to create a balance on a closed account", libLog.Err(err))
+
+		return nil, err
+	}
+
 	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(err, &notFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check if additional balance already exists", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to check if additional balance already exists", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to check if additional balance already exists", err)
 
 			return nil, err
 		}
@@ -112,8 +139,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get default balance", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get default balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to get default balance", err)
 
 		return nil, err
 	}
@@ -174,6 +200,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		syntheticCurrent := *additionalBalance
 		syntheticCurrent.Settings = nil
 
+		writeIssued = true
+
 		companion, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
 		if oerr != nil {
 			return nil, oerr
@@ -181,6 +209,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		overdraftCompanion = companion
 	}
+
+	writeIssued = true
 
 	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {

@@ -7,30 +7,153 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+func TestLoadEngineBalancesSeparatesExplicitBalancesFromExecutionBalances(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("d47fd4d0-1b64-4c4e-a4fd-8b96558d6a96")
+	ledgerID := uuid.MustParse("93210bdf-d5f3-4b66-8b36-2b44936605e8")
+	accountID := uuid.MustParse("3315045e-1ba4-42af-8b12-a27651c2f379")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+
+	var calls [][]string
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#default", "@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls = append(calls, append([]string(nil), aliases...))
+			return []*mmodel.Balance{primary, companion}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"@alice#default", "@alice#overdraft"}}, calls)
+	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
+	assert.Equal(t, []*mmodel.Balance{primary, companion}, executionBalances)
+	assert.Equal(t, mmodel.BalanceScopeInternal, executionBalances[1].Settings.BalanceScope)
+}
+
+func TestLoadEngineBalancesDoesNotRefetchAnExplicitInternalBalance(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("547db4ae-f3fc-4db4-86a1-2bfc94dc32df")
+	ledgerID := uuid.MustParse("e39c8754-171d-48b9-9808-42b7dcc995ed")
+	accountID := uuid.MustParse("fc96409c-351a-4bc0-84f3-b7094ade51cd")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+	calls := 0
+
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#overdraft", "@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+			return []*mmodel.Balance{companion, primary}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []*mmodel.Balance{primary, companion}, explicitBalances)
+	assert.Equal(t, explicitBalances, executionBalances)
+}
+
+func TestLoadEngineBalancesRejectsAnInconsistentCompanion(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("b8e120f1-47a3-482d-a555-a2b8121257a9")
+	ledgerID := uuid.MustParse("4d3cd4fa-5bf5-47c6-b9b8-d9315ad12b6c")
+	primary := engineBalance(organizationID, ledgerID,
+		uuid.MustParse("50919fd5-6ea5-4ec7-baa1-4bb009b1c1da"), "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := engineBalance(organizationID, ledgerID,
+		uuid.MustParse("78566a27-b05a-421b-a5c5-8706095a9405"), "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+	calls := 0
+
+	_, _, err := loadEngineBalances(t.Context(), organizationID, ledgerID, []string{"@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+			return []*mmodel.Balance{primary, companion}, nil
+		})
+
+	assert.ErrorContains(t, err, "inconsistent account identity")
+	assert.Equal(t, 1, calls)
+}
+
+func TestLoadEngineBalancesTreatsMissingCompanionAsEmptyInSingleLookup(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("c47fd4d0-1b64-4c4e-a4fd-8b96558d6a96")
+	ledgerID := uuid.MustParse("c3210bdf-d5f3-4b66-8b36-2b44936605e8")
+	accountID := uuid.MustParse("c315045e-1ba4-42af-8b12-a27651c2f379")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	calls := 0
+
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+
+			return []*mmodel.Balance{primary}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
+	assert.Equal(t, []*mmodel.Balance{primary}, executionBalances)
+}
+
+func engineBalance(organizationID, ledgerID, accountID uuid.UUID, alias, key, scope string) *mmodel.Balance {
+	return &mmodel.Balance{
+		ID: uuid.New().String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		AccountID: accountID.String(), Alias: alias, Key: key, AssetCode: "USD",
+		AllowSending: true, AllowReceiving: true, Settings: &mmodel.BalanceSettings{BalanceScope: scope},
+	}
+}
 
 func TestGetBalances(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		BalanceRepo:          mockBalanceRepo,
+		AccountRepo:          mockAccountRepo,
 		TransactionRedisRepo: mockRedisRepo,
+		OperationRepo:        mockOperationRepo,
 	}
+
+	// The seed guard queries the operation trail on every cache miss; these cases are
+	// about the cache-aside flow, so no balance has a trail ahead of its row.
+	mockOperationRepo.EXPECT().
+		ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]*operation.Operation{}, nil).
+		AnyTimes()
+
+	// Every cache miss also coordinates its seed with closing; these accounts were
+	// never closed, so the protection answers absence throughout.
+	expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
 
 	ctx := context.Background()
 	organizationID := uuid.New()
@@ -109,6 +232,12 @@ func TestGetBalances(t *testing.T) {
 			EXPECT().
 			ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"alias2#default", "alias3#default"}).
 			Return(databaseBalances, nil).
+			Times(2)
+
+		mockAccountRepo.
+			EXPECT().
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return([]*mmodel.Account{}, nil).
 			Times(1)
 
 		allBalances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
@@ -176,6 +305,134 @@ func TestGetBalances(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, allBalances, 2)
 	})
+}
+
+func TestGetBalances_CacheProjection(t *testing.T) {
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New()
+	accountID := uuid.New()
+	alias := "@alice#default"
+
+	legacy := func(extra string) string {
+		return fmt.Sprintf(`{"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1%s}`,
+			balanceID, accountID, extra)
+	}
+
+	tests := []struct {
+		name              string
+		cached            string
+		wantDatabase      bool
+		wantAvailable     decimal.Decimal
+		wantSettings      bool
+		wantLimit         string
+		wantLimitDisabled bool
+		wantBlocked       bool
+	}{
+		{
+			name: "legacy lower camel hit with missing logical identity",
+			cached: fmt.Sprintf(`{"id":%q,"alias":"","key":"","accountId":%q,"assetCode":"BRL","available":"120","onHold":"0","version":3,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`,
+				balanceID, accountID),
+			wantAvailable: decimal.NewFromInt(120),
+		},
+		{
+			name: "dual cache uses authoritative legacy fields",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"wrong","key":"other","available":"999","onHold":"9","version":"8","allowSending":false,"allowReceiving":false}`,
+				balanceID, accountID, uuid.New(), uuid.New()),
+			wantAvailable: decimal.NewFromInt(120),
+		},
+		{
+			name: "new only cache hit",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"@alice","key":"default","direction":"credit","balanceScope":"transactional","available":"120","onHold":"0","overdraftUsed":"10","overdraftLimit":"0","version":"3","allowSending":true,"allowReceiving":true,"blocked":true,"allowOverdraft":false,"overdraftLimitEnabled":false}`,
+				balanceID, accountID),
+			wantAvailable: decimal.NewFromInt(120),
+			wantBlocked:   true,
+		},
+		{
+			name:          "valid noncanonical live limit is projected without fallback",
+			cached:        legacy(`,"Direction":"credit","OverdraftUsed":"10","AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"1E3","BalanceScope":"transactional"`),
+			wantAvailable: decimal.NewFromInt(120),
+			wantSettings:  true,
+			wantLimit:     "1000",
+		},
+		{
+			name: "cached alias mismatch falls back",
+			cached: fmt.Sprintf(`{"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@mallory","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1}`,
+				balanceID, accountID),
+			wantDatabase:  true,
+			wantAvailable: decimal.NewFromInt(999),
+		},
+		{
+			name: "invalid authoritative decimal falls back",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"invalid","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"@alice","key":"default","available":"120","onHold":"0","version":"3","allowSending":true,"allowReceiving":true}`,
+				balanceID, accountID, balanceID, accountID),
+			wantDatabase:  true,
+			wantAvailable: decimal.NewFromInt(999),
+		},
+		{
+			name:              "disabled limit is omitted from settings",
+			cached:            legacy(`,"Direction":"credit","OverdraftUsed":"0","AllowOverdraft":1,"OverdraftLimitEnabled":0,"OverdraftLimit":"100","BalanceScope":"transactional"`),
+			wantAvailable:     decimal.NewFromInt(120),
+			wantSettings:      true,
+			wantLimitDisabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockAccountRepo := account.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			mockOperationRepo := operation.NewMockRepository(ctrl)
+			uc := &UseCase{
+				BalanceRepo: mockBalanceRepo, AccountRepo: mockAccountRepo,
+				TransactionRedisRepo: mockRedisRepo, OperationRepo: mockOperationRepo,
+			}
+
+			mockOperationRepo.EXPECT().
+				ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(map[string]*operation.Operation{}, nil).
+				AnyTimes()
+
+			expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
+
+			internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
+			mockRedisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(tt.cached, nil)
+
+			if tt.wantDatabase {
+				blocked := false
+				mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{alias}).
+					Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil).
+					Times(2)
+				mockAccountRepo.EXPECT().ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{accountID}).
+					Return([]*mmodel.Account{{ID: accountID.String(), Blocked: &blocked}}, nil)
+			}
+
+			balances, err := uc.GetBalances(context.Background(), organizationID, ledgerID, []string{alias})
+			assert.NoError(t, err)
+			if !assert.Len(t, balances, 1) {
+				return
+			}
+
+			got := balances[0]
+			assert.True(t, got.Available.Equal(tt.wantAvailable))
+			assert.Equal(t, tt.wantBlocked, got.Blocked)
+			if !tt.wantSettings {
+				assert.Nil(t, got.Settings)
+				return
+			}
+
+			if assert.NotNil(t, got.Settings) {
+				if tt.wantLimitDisabled {
+					assert.False(t, got.Settings.OverdraftLimitEnabled)
+					assert.Nil(t, got.Settings.OverdraftLimit)
+				} else if assert.NotNil(t, got.Settings.OverdraftLimit) {
+					assert.Equal(t, tt.wantLimit, *got.Settings.OverdraftLimit)
+				}
+			}
+		})
+	}
 }
 
 func TestGetBalancesFromCache(t *testing.T) {
@@ -377,6 +634,186 @@ func TestGetBalancesFromCache_PropagatesOverdraftFields(t *testing.T) {
 			assert.Nil(t, got.Settings.OverdraftLimit,
 				"OverdraftLimit must be nil when OverdraftLimitEnabled is false (Validate() contract)")
 		}
+	})
+}
+
+// TestGetBalances_BlockedHydration covers the on-demand hydration of the
+// account-level blocked flag on the cache-miss path: one batched AccountRepo
+// lookup per GetBalances call (distinct account IDs only), and zero AccountRepo
+// round-trips on cache hits, where the flag comes from the cached blob.
+func TestGetBalances_BlockedHydration(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	newUseCase := func(ctrl *gomock.Controller) (*UseCase, *balance.MockRepository, *account.MockRepository, *redis.MockRedisRepository) {
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockAccountRepo := account.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+
+		mockOperationRepo.EXPECT().
+			ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(map[string]*operation.Operation{}, nil).
+			AnyTimes()
+
+		expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
+
+		return &UseCase{
+			BalanceRepo:          mockBalanceRepo,
+			AccountRepo:          mockAccountRepo,
+			TransactionRedisRepo: mockRedisRepo,
+			OperationRepo:        mockOperationRepo,
+		}, mockBalanceRepo, mockAccountRepo, mockRedisRepo
+	}
+
+	boolPtr := func(b bool) *bool { return &b }
+
+	t.Run("cache miss hydrates blocked with a single batched query", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		uc, mockBalanceRepo, mockAccountRepo, mockRedisRepo := newUseCase(ctrl)
+
+		blockedAccountID := uuid.New()
+		openAccountID := uuid.New()
+
+		aliases := []string{"blocked#default", "blocked#extra", "open#default"}
+
+		// Two balances share the blocked account so the batched lookup must
+		// deduplicate account IDs.
+		databaseBalances := []*mmodel.Balance{
+			{ID: uuid.New().String(), AccountID: blockedAccountID.String(), Alias: "blocked", Key: "default"},
+			{ID: uuid.New().String(), AccountID: blockedAccountID.String(), Alias: "blocked", Key: "extra"},
+			{ID: uuid.New().String(), AccountID: openAccountID.String(), Alias: "open", Key: "default"},
+		}
+
+		for _, alias := range aliases {
+			mockRedisRepo.EXPECT().
+				Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, alias)).
+				Return("", nil).
+				Times(1)
+		}
+
+		mockBalanceRepo.EXPECT().
+			ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, aliases).
+			Return(databaseBalances, nil).
+			Times(2)
+
+		mockAccountRepo.EXPECT().
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _, _ uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
+				assert.ElementsMatch(t, []uuid.UUID{blockedAccountID, openAccountID}, ids,
+					"the batched lookup must carry the DISTINCT account IDs, once each")
+
+				return []*mmodel.Account{
+					{ID: blockedAccountID.String(), Blocked: boolPtr(true)},
+					{ID: openAccountID.String(), Blocked: boolPtr(false)},
+				}, nil
+			}).
+			Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
+		require.NoError(t, err)
+		require.Len(t, balances, 3)
+
+		byKey := make(map[string]bool, len(balances))
+		for _, b := range balances {
+			byKey[b.Alias+"#"+b.Key] = b.Blocked
+		}
+
+		assert.True(t, byKey["blocked#default"], "balance of blocked account must carry Blocked=true")
+		assert.True(t, byKey["blocked#extra"], "every balance of a blocked account must carry Blocked=true")
+		assert.False(t, byKey["open#default"], "balance of unblocked account must carry Blocked=false")
+	})
+
+	t.Run("cache hit never touches the account repository", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// No EXPECT on mockAccountRepo or mockBalanceRepo: any call fails the test.
+		uc, _, _, mockRedisRepo := newUseCase(ctrl)
+
+		cached := mmodel.BalanceRedis{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   1,
+			AllowReceiving: 1,
+			AssetCode:      "USD",
+			Blocked:        1,
+		}
+		cachedJSON, err := json.Marshal(cached)
+		require.NoError(t, err)
+
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@hit#default")).
+			Return(string(cachedJSON), nil).
+			Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, []string{"@hit#default"})
+		require.NoError(t, err)
+		require.Len(t, balances, 1)
+
+		assert.True(t, balances[0].Blocked, "Blocked must propagate from the cached blob on a hit")
+	})
+
+	t.Run("legacy cached blob without the blocked field decodes as not blocked", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		uc, _, _, mockRedisRepo := newUseCase(ctrl)
+
+		// Raw legacy blob in the Lua CamelCase casing, predating the Blocked field.
+		legacyBlob := `{"ID":"` + uuid.New().String() + `","AccountID":"` + uuid.New().String() + `",` +
+			`"Available":"250","OnHold":"0","Version":2,"AccountType":"deposit",` +
+			`"AllowSending":1,"AllowReceiving":1,"AssetCode":"USD","Key":"default"}`
+
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@legacy#default")).
+			Return(legacyBlob, nil).
+			Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, []string{"@legacy#default"})
+		require.NoError(t, err)
+		require.Len(t, balances, 1)
+
+		assert.False(t, balances[0].Blocked, "legacy blob without the field must decode as not blocked")
+	})
+
+	t.Run("account lookup failure fails the read", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		uc, mockBalanceRepo, mockAccountRepo, mockRedisRepo := newUseCase(ctrl)
+
+		accountID := uuid.New()
+
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@miss#default")).
+			Return("", nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"@miss#default"}).
+			Return([]*mmodel.Balance{
+				{ID: uuid.New().String(), AccountID: accountID.String(), Alias: "@miss", Key: "default"},
+			}, nil).
+			Times(2)
+
+		lookupErr := errors.New("account lookup failed")
+		mockAccountRepo.EXPECT().
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil, lookupErr).
+			Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, []string{"@miss#default"})
+		assert.ErrorIs(t, err, lookupErr,
+			"a failed account lookup must fail the read: the block state cannot be silently assumed open")
+		assert.Nil(t, balances)
 	})
 }
 

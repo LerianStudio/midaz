@@ -75,7 +75,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	operationRoute, err := handler.createOperationRoute(ctx, orgID, ledgerID, payload, in.RawBody)
+	operationRoute, err := handler.createOperationRoute(ctx, orgID, &ledgerID, payload, in.RawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -124,12 +124,12 @@ type ListOperationRoutesResponse struct {
 // GetAllOperationRoutes binds the query imperatively then delegates to
 // getAllOperationRoutes.
 func (handler *OperationRouteHandler) GetAllOperationRoutes(ctx context.Context, in *ListOperationRoutesRequest) (*ListOperationRoutesResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	pagination, err := handler.getAllOperationRoutes(ctx, orgID, ledgerID, in.queries())
+	pagination, err := handler.getAllOperationRoutes(ctx, orgID, in.queries())
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -155,7 +155,7 @@ type GetOperationRouteResponse struct {
 
 // GetOperationRouteByID delegates to getOperationRouteByID.
 func (handler *OperationRouteHandler) GetOperationRouteByID(ctx context.Context, in *GetOperationRouteRequest) (*GetOperationRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -165,7 +165,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(ctx context.Context,
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	operationRoute, err := handler.getOperationRouteByID(ctx, orgID, ledgerID, id)
+	operationRoute, err := handler.getOperationRouteByID(ctx, orgID, id)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -195,7 +195,7 @@ type UpdateOperationRouteResponse struct {
 // to the shared updateOperationRoute core, feeding in.RawBody so the RFC 7396 merge
 // distinguishes accountingEntries absent from accountingEntries:null.
 func (handler *OperationRouteHandler) UpdateOperationRoute(ctx context.Context, in *UpdateOperationRouteRequest) (*UpdateOperationRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -210,7 +210,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	operationRoute, err := handler.updateOperationRoute(ctx, orgID, ledgerID, id, payload, in.RawBody)
+	operationRoute, err := handler.updateOperationRoute(ctx, orgID, id, payload, in.RawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -227,7 +227,7 @@ type DeleteOperationRouteResponse struct{}
 // DeleteOperationRouteByID delegates to deleteOperationRouteByID; returns a
 // bodiless 204 on success.
 func (handler *OperationRouteHandler) DeleteOperationRouteByID(ctx context.Context, in *GetOperationRouteRequest) (*DeleteOperationRouteResponse, error) {
-	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -237,7 +237,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deleteOperationRouteByID(ctx, orgID, ledgerID, id); err != nil {
+	if err := handler.deleteOperationRouteByID(ctx, orgID, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

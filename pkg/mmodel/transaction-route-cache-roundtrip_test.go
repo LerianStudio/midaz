@@ -29,7 +29,7 @@ func TestTransactionRoute_ToCache_MsgpackRoundTrip_FullPipeline(t *testing.T) {
 	route := &TransactionRoute{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
-		LedgerID:       uuid.New(),
+		LedgerID:       new(uuid.New()),
 		Title:          "Full Pipeline Route",
 		OperationRoutes: []OperationRoute{
 			{

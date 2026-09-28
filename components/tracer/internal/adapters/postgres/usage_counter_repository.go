@@ -42,6 +42,15 @@ const usageCountersTable = "usage_counters"
 // 3. If WHERE guard fails: CTE returns 0 rows
 // 4. Outer query uses COALESCE: if CTE empty, fallback to SELECT + false flag
 //
+// The DO UPDATE guard reads reserved_usage as well as current_usage, so the
+// synchronous validation path and the two-phase reserve path defend the SAME
+// ceiling on a shared counter bucket. Without the reserved_usage term the
+// synchronous writer cannot see capacity a reservation is holding, and a
+// deployment using both paths against one limit could commit close to twice the
+// configured cap. The INSERT branch needs no such term: it only runs when the
+// bucket does not exist yet, so there is nothing held to account for, and the
+// caller's amount-vs-cap pre-check covers it.
+//
 // Parameters: $1=counterID, $2=limitID, $3=scopeKey, $4=periodKey, $5=amount (INSERT),
 //
 //	$6=now (INSERT last_updated_at), $7=amount (UPDATE), $8=now (UPDATE last_updated_at),
@@ -55,7 +64,7 @@ const upsertAndIncrementCTEQuery = `
 			current_usage = usage_counters.current_usage + $7,
 			last_updated_at = $8,
 			expires_at = $11
-		WHERE usage_counters.current_usage + $9 <= $10
+		WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10
 		RETURNING current_usage, true as succeeded
 	)
 	SELECT 

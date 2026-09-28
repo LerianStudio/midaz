@@ -51,7 +51,7 @@ func TestIntegration_Overdraft_DebitDirection_DebitOperation(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(50))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
@@ -79,7 +79,7 @@ func TestIntegration_Overdraft_DebitDirection_CreditOperation(t *testing.T) {
 		constant.CREDIT, decimal.NewFromInt(30))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
@@ -166,7 +166,7 @@ func TestIntegration_Overdraft_StaleVersion_Returns0174(t *testing.T) {
 	}
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.Error(t, err, "stale version must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrStaleBalanceVersion.Error()),
@@ -197,7 +197,7 @@ func TestIntegration_Overdraft_VersionIncrementAndSyncScheduling(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(150))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)

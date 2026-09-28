@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -180,6 +181,49 @@ func (uc *UseCase) resolveSourceSegment(
 	return resolved
 }
 
+// routeIDOf returns the transaction route identifier a fee package is scoped
+// by: the canonical route identifier the payment carries, and the empty string
+// when it carries none.
+//
+// The deprecated route string the transaction model still publishes is not read
+// here, on any surface. The create path that charges a fee declares the
+// canonical identifier alone and refuses an unknown field, so a posted payment
+// never carries the string; the fee estimate embeds the whole transaction model,
+// whose published contract still carries it. Scoping on whichever field held a
+// value would let one caller be quoted against a route the payment it previews
+// cannot carry, and charged against another.
+func routeIDOf(t transaction.Transaction) string {
+	if t.RouteID == nil {
+		return ""
+	}
+
+	return *t.RouteID
+}
+
+// refuseAmbiguousPackages answers a payment whose fee packages tie on scope, and
+// names the packages that tied everywhere an operator might look: the message
+// the client reads, the service log, and the span, through the business error
+// the entry point records on it.
+//
+// The refusal is reachable only on a ledger whose packages overlap in scope, and
+// the only fix is to re-scope one of them. A refusal naming none of them costs
+// an operator a manual replay of the selection against every package the ledger
+// holds, which is why the ids travel rather than the bare code.
+func refuseAmbiguousPackages(ctx context.Context, logger libLog.Logger, errFilterPack error) error {
+	tied := ""
+
+	var ambiguous feeUtils.AmbiguousPackagesError
+	if errors.As(errFilterPack, &ambiguous) {
+		tied = strings.Join(ambiguous.PackageIDs, ", ")
+	}
+
+	logger.Log(ctx, libLog.LevelWarn,
+		"Fee packages tie on scope, so the payment is refused rather than charged an arbitrary one of them",
+		libLog.String("package_ids", tied))
+
+	return pkg.ValidateBusinessError(constant.ErrFilterPackage, "", tied)
+}
+
 // calculateFeeForSinglePackage calculate the fee for a single package
 func (uc *UseCase) calculateFeeForSinglePackage(
 	ctx context.Context,
@@ -192,12 +236,13 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 	organizationID uuid.UUID,
 ) error {
 	// Route the sole package through the same scope filter the multi-package
-	// path uses so a single SCOPED package (route and/or segment) is applied only
-	// when its scope matches the transaction. An unscoped single package (nil
-	// route, nil segment) still survives every filter and is selected as before.
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, cf.Transaction.Route, cf.SegmentID, sendModel.Value) //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+	// path uses, so a package a client restricted to one transaction route is
+	// applied only on that route, and a package carrying no segment constraint
+	// goes on being charged on a payment whose source resolves into a segment.
+	// The amount band is re-checked below on whatever comes back.
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
-		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
+		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
 
 	if packFilter == nil {
@@ -236,9 +281,9 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 	validationResultFromSize, validationResultToSize int,
 	organizationID uuid.UUID,
 ) error {
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, cf.Transaction.Route, cf.SegmentID, sendModel.Value) //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
-		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
+		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
 
 	if packFilter == nil {

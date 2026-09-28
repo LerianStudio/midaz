@@ -7,7 +7,9 @@ package http
 import (
 	"context"
 	"errors"
+	"strings"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -20,9 +22,15 @@ import (
 
 // CanonicalFiberErrorHandler is the Fiber ErrorHandler that renders the canonical
 // {code,title,message} envelope (E13) for errors that escape the handler chain —
-// chiefly *fiber.Error producers: auth assertions (401), Fiber's router (404/405),
-// the body-limit guard (413), and the header-size guard (431). Any unmapped error
-// degrades to a generic 500 with no raw error text (E9).
+// chiefly *fiber.Error producers: authorization refusals returned by lib-auth
+// (401, 403, 503 when the Access Manager never decided, and any 4xx the Access
+// Manager itself answered), Fiber's router (404/405), the body-limit guard (413),
+// and the header-size guard (431). Any unmapped error degrades to a generic 500
+// with no raw error text (E9).
+//
+// A returned refusal can carry 404 or 405, so "no such route" and "wrong method"
+// are recognised only by the identity of Fiber's router singletons, never by
+// status alone.
 //
 // Reuse this handler in every fiber.Config{ErrorHandler: ...} so all Midaz fiber
 // apps share one error envelope.
@@ -34,25 +42,74 @@ func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
 		span.End()
 	}
 
+	// Only the router's singletons mean "no such route" or "wrong method"; the
+	// Access Manager answers 404 when the token's subject does not exist, and that
+	// is a refusal.
+	if errors.Is(err, fiber.ErrNotFound) {
+		return WithError(c, pkg.ValidateBusinessError(constant.ErrRouteNotFound, ""))
+	}
+
+	if errors.Is(err, fiber.ErrMethodNotAllowed) {
+		return renderCanonical(c, fiber.StatusMethodNotAllowed, pkg.ValidateBusinessError(constant.ErrMethodNotAllowed, ""))
+	}
+
 	var fiberErr *fiber.Error
 	if errors.As(err, &fiberErr) {
+		// A refusal the Access Manager itself answered carries that service's own
+		// code, which is what the Console reads, at the status it chose.
+		if isClientError(fiberErr.Code) && accessManagerCode(err) != "" {
+			return withProblemStatus(c, fiberErr.Code, err)
+		}
+
 		switch fiberErr.Code {
 		case fiber.StatusUnauthorized:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidToken, ""))
-		case fiber.StatusNotFound:
-			return WithError(c, pkg.ValidateBusinessError(constant.ErrRouteNotFound, ""))
-		case fiber.StatusMethodNotAllowed:
-			return renderCanonical(c, fiber.StatusMethodNotAllowed, pkg.ValidateBusinessError(constant.ErrMethodNotAllowed, ""))
+		case fiber.StatusForbidden:
+			return WithError(c, pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, ""))
+		case fiber.StatusServiceUnavailable:
+			return WithError(c, pkg.ValidateBusinessError(constant.ErrAuthorizationServiceUnavailable, ""))
 		case fiber.StatusRequestEntityTooLarge:
 			return renderCanonical(c, fiber.StatusRequestEntityTooLarge, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, ""))
 		case fiber.StatusRequestHeaderFieldsTooLarge:
 			return renderCanonical(c, fiber.StatusRequestHeaderFieldsTooLarge, pkg.ValidateBusinessError(constant.ErrRequestHeaderFieldsTooLarge, ""))
+		}
+
+		// Every remaining 4xx is a refusal lib-auth returned without a usable
+		// Access Manager code; it renders the generic client-error code at that
+		// code's own status (FC-A item 4), never a 500. Typed: ErrBadRequest has
+		// no business-error map entry.
+		if isClientError(fiberErr.Code) {
+			return renderCanonical(c, fiber.StatusBadRequest, pkg.ValidationError{
+				Code:    constant.ErrBadRequest.Error(),
+				Message: "The authorization service refused the request.",
+			})
 		}
 	}
 
 	logError(ctx, c, err)
 
 	return WithError(c, pkg.ValidateInternalError(err, ""))
+}
+
+func isClientError(status int) bool {
+	return status >= fiber.StatusBadRequest && status < fiber.StatusInternalServerError
+}
+
+// accessManagerCode is the code the Access Manager sent on a decoded refusal
+// (AUT-xxxx), or "" when there is none to carry. An all-digit code is dropped:
+// Midaz catalog codes are four digits, so passing one through would have clients
+// read it as a Midaz code.
+func accessManagerCode(err error) string {
+	response := libCommons.Response{}
+	if !errors.As(err, &response) || response.Code == "" {
+		return ""
+	}
+
+	if strings.Trim(response.Code, "0123456789") == "" {
+		return ""
+	}
+
+	return response.Code
 }
 
 // renderCanonical emits the RFC 9457 problem+json envelope at an explicit status

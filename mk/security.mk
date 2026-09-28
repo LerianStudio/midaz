@@ -24,7 +24,7 @@
 
 # Pinned tool versions for reproducible security scans
 GOSEC_VERSION ?= v2.29.0
-GOVULNCHECK_VERSION ?= v1.1.4
+GOVULNCHECK_VERSION ?= v1.8.0
 
 # A tool on PATH counts as current only when `go version -m` shows it was
 # built from the pinned module version by the active Go toolchain. A stale

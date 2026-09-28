@@ -9,6 +9,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v7/commons/server"
@@ -21,7 +22,7 @@ import (
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
-	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -68,7 +69,7 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 // Route registrars are responsible for attaching any module-specific middleware.
 func NewUnifiedServer(
 	serverAddress string,
-	version string,
+	serviceName string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
 	readyzHandler *ReadyzHandler,
@@ -133,8 +134,10 @@ func NewUnifiedServer(
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)
 
-	// Version endpoint
-	app.Get("/version", buildinfo.VersionHandler(version))
+	// Version endpoint. The handler reads the identity linked into the binary,
+	// so the body cannot disagree with what --version prints. serviceName is the
+	// same roster name the process reports as its OTel service.name.
+	app.Get("/version", buildinfo.Handler(serviceName))
 
 	// Readyz endpoint - mounted BEFORE auth middleware (before route registrars)
 	// This endpoint is public and does not require authentication.
@@ -157,7 +160,7 @@ func NewUnifiedServer(
 	// is a boot panic rather than a silent second document. A nil registrar mounts
 	// nothing for that version; all-nil mounts no document at all.
 	mountHumaContracts(
-		app, logger, version,
+		app, logger,
 		humaContract{prefix: "/v1", mount: humaMount},
 		humaContract{prefix: "/v2", mount: humaMountV2},
 	)
@@ -192,6 +195,12 @@ func NewUnifiedServer(
 				libLog.String("drain_delay", DefaultDrainDelay.String()))
 			time.Sleep(DefaultDrainDelay)
 			logger.Log(context.Background(), libLog.LevelInfo, "Drain delay complete, proceeding with shutdown")
+
+			// Name any confirm/release still owed to the tracer. The retry that
+			// redelivers them is in-process, so whatever is still in flight here
+			// dies with the process; a rolling deploy would otherwise drop
+			// uncounted spends and held capacity with no log line at all.
+			command.ReportOutstandingReservationRetries(context.Background(), logger)
 
 			return nil
 		})
@@ -239,7 +248,7 @@ type humaContract struct {
 //     document bytes and derives the per-version view specs, so it must run after the
 //     final huma.Register. Exposure is bootstrap policy gated on openAPIDocsEnabled(),
 //     which is why it lives here and not inside AssembleHumaContract.
-func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, contracts ...humaContract) {
+func mountHumaContracts(app *fiber.App, logger libLog.Logger, contracts ...humaContract) {
 	anyMounted := false
 
 	for _, c := range contracts {
@@ -258,7 +267,7 @@ func mountHumaContracts(app *fiber.App, logger libLog.Logger, version string, co
 
 	api := httpin.AssembleHumaContract(app, app, openapi.Config{
 		Title:       title,
-		Version:     version,
+		Version:     buildinfo.Get().Version,
 		Description: "Midaz Ledger API. Operations are served under the /v1 and /v2 path prefixes on this single document.",
 		Servers:     []string{"/"},
 	})
