@@ -220,9 +220,12 @@ Top level, omitted when empty:
   `#KEYS = 7 + 3*balances + grants + 3*accounts + 5*extraScopes + #feeDebts`
   and no existing index moves. `keyIndex` is the 1-based `KEYS` index, as for
   balances. Each key ends with the unprefixed `FeeDebtInternalKey` of its entry.
-- A declared debtor need not appear in `balances`. A revert declares the
-  debtors of its parent's `feeDebtOpenings` and `feeDebtSettlements` and, on
-  `/v2`, each debtor that gets a collect (see "Revert").
+- Collect, refund and deferral debtors are always postings. A reopen debtor is
+  in `balances` as a touch, with no movement, because a revert can fold its
+  legs to zero; a debtor that only cancel reaches need not appear in
+  `balances`. A revert declares the debtors of its parent's `feeDebtOpenings`
+  and `feeDebtSettlements` and, on `/v2`, each debtor that gets a collect (see
+  "Revert").
 
 Per transaction, omitted when empty:
 
@@ -265,10 +268,11 @@ and refuses with `invalid_protocol` when:
 - `items` is on a non-collect; a collect has no items or a duplicate, or its
   debtor key is not declared;
 - `reopenFeeDebts` appears when `action` is not `revert`; a `debtId` repeats
-  within its transaction; a reopen names an undeclared debtor key, a `debtId`
-  whose first 36 characters are not a UUID followed by `:`, a non-positive
-  amount, opened or seq, an amount above its opened, or a `creditRef` that no
-  debit posting of the same transaction debits;
+  within its transaction; a reopen names an undeclared debtor key or a debtor
+  absent from `balances`, a `debtId` whose first 36 characters are not a UUID
+  followed by `:`, a non-positive amount, opened or seq, an amount above its
+  opened, or a `creditRef` that no debit posting of the same transaction
+  debits;
 - `refunds` is on a non-refund; a refund posting appears when `action` is not
   `revert`, has no entries, an amount other than the sum of their `opened`, or
   an undeclared debtor key; an entry has a non-positive `opened` or seq, a
@@ -291,8 +295,10 @@ its first posting:
    stays at most `opened`); otherwise the item is inserted where `seq` keeps
    ascending, with `remaining = amount`, the entry's `opened`, the UUID that
    leads `debtId` as `originTransactionId` and the `creditRef` balance's asset,
-   and its `seq` must be below `nextSeq`. A mismatch is a technical error. One
-   `reopened` change each.
+   and its `seq` must be below `nextSeq`. A mismatch is a technical error. Each
+   reopen first touches its debtor, so a deleted debtor refuses with
+   `balance_deleted` and a closed or closing account refuses exactly as for any
+   touched balance. One `reopened` change each.
 
 Then the posting loop:
 
