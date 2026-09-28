@@ -179,7 +179,7 @@ func TestAuthzRefusal_LedgerEdge(t *testing.T) {
 
 				group := app.Group(family.prefix)
 				registerRoute(group, fiber.MethodGet, "/organizations",
-					protectedMidaz(auth, "organization", "get", nil, func(c fiber.Ctx) error {
+					protectedMidaz(auth, "/organizations", "organization", "get", nil, func(c fiber.Ctx) error {
 						handlerRan.Store(true)
 
 						return c.SendString("served")

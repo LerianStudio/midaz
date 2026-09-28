@@ -81,8 +81,8 @@ func registerEncryptionRoutesToApp(group fiber.Router, api huma.API, auth *middl
 
 	orgParse := pkgHTTP.ParseUUIDPathParameters("organization")
 
-	routePost(group, provisionPath, protectedMidaz(auth, "encryption", "post", routeOptions, orgParse))
-	routeGet(group, statusPath, protectedMidaz(auth, "encryption", "get", routeOptions, orgParse))
+	routePost(group, provisionPath, protectedMidaz(auth, provisionPath, "encryption", "post", routeOptions, orgParse))
+	routeGet(group, statusPath, protectedMidaz(auth, statusPath, "encryption", "get", routeOptions, orgParse))
 
 	RegisterEncryptionRoutes(api, h, opSuffix)
 }

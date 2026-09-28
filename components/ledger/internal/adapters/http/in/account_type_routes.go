@@ -123,11 +123,11 @@ func registerAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *midd
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account_type")
 
-	routePost(group, listPath, protectedMidaz(auth, "account-types", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "account-types", "patch", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "account-types", "get", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "account-types", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "account-types", "delete", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "account-types", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "account-types", "patch", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "account-types", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "account-types", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "account-types", "delete", routeOptions, parse))
 
 	RegisterAccountTypeRoutes(api, h, opSuffix)
 }

@@ -129,12 +129,12 @@ func registerPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middle
 
 	parse := pkgHTTP.ParseUUIDPathParameters("portfolio")
 
-	routePost(group, listPath, protectedMidaz(auth, "portfolios", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "portfolios", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "portfolios", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "portfolios", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "portfolios", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, "portfolios", "head", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "portfolios", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "portfolios", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "portfolios", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "portfolios", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "portfolios", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, countPath, "portfolios", "head", routeOptions, parse))
 
 	RegisterPortfolioRoutes(api, ph, opSuffix)
 }

@@ -32,5 +32,5 @@ func RegisterStreamingManifestRouteToApp(app fiber.Router, auth *middleware.Auth
 	}
 
 	routeGet(app, pkgStreaming.ManifestRoutePath,
-		protectedMidaz(auth, "streaming-manifest", "get", routeOptions, adaptor.HTTPHandler(handler)))
+		protectedMidaz(auth, pkgStreaming.ManifestRoutePath, "streaming-manifest", "get", routeOptions, adaptor.HTTPHandler(handler)))
 }

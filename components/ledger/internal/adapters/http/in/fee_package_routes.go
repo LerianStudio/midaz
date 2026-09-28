@@ -113,11 +113,11 @@ func registerPackageRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 
 	packageParse := pkgHTTP.ParseUUIDPathParameters("packages")
 
-	routePost(group, packagesPath, protectedMidaz(auth, "packages", "post", routeOptions, packageParse))
-	routeGet(group, packagesPath, protectedMidaz(auth, "packages", "get", routeOptions, packageParse))
-	routeGet(group, packageIDPath, protectedMidaz(auth, "packages", "get", routeOptions, packageParse))
-	routePatch(group, packageIDPath, protectedMidaz(auth, "packages", "patch", routeOptions, packageParse))
-	routeDelete(group, packageIDPath, protectedMidaz(auth, "packages", "delete", routeOptions, packageParse))
+	routePost(group, packagesPath, protectedMidaz(auth, packagesPath, "packages", "post", routeOptions, packageParse))
+	routeGet(group, packagesPath, protectedMidaz(auth, packagesPath, "packages", "get", routeOptions, packageParse))
+	routeGet(group, packageIDPath, protectedMidaz(auth, packageIDPath, "packages", "get", routeOptions, packageParse))
+	routePatch(group, packageIDPath, protectedMidaz(auth, packageIDPath, "packages", "patch", routeOptions, packageParse))
+	routeDelete(group, packageIDPath, protectedMidaz(auth, packageIDPath, "packages", "delete", routeOptions, packageParse))
 
 	RegisterPackageRoutes(api, h, opSuffix)
 }

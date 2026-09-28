@@ -54,7 +54,7 @@ func RegisterHolderAccountsV2RoutesToApp(group fiber.Router, api huma.API, auth 
 func registerHolderAccountsRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderAccountsHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const acctsPath = "/organizations/:organization_id/holders/:id/accounts"
 
-	routeGet(group, acctsPath, protectedMidaz(auth, "holders", "get", routeOptions, pkgHTTP.ParseUUIDPathParameters("holder")))
+	routeGet(group, acctsPath, protectedMidaz(auth, acctsPath, "holders", "get", routeOptions, pkgHTTP.ParseUUIDPathParameters("holder")))
 
 	RegisterHolderAccountsRoutes(api, h, opSuffix)
 }

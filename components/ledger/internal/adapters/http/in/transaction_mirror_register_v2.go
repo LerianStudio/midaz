@@ -100,11 +100,11 @@ func RegisterTransactionMirrorV2RoutesToApp(group fiber.Router, api huma.API, au
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 
 	// PATCH update — ("transactions","patch").
-	routePatch(group, idPath, protectedMidaz(auth, "transactions", "patch", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "transactions", "patch", routeOptions, parse))
 
 	// Two reads — ("transactions","get").
-	routeGet(group, idPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "transactions", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "transactions", "get", routeOptions, parse))
 
 	RegisterTransactionMirrorV2Routes(api, th)
 }

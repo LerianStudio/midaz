@@ -129,12 +129,12 @@ func registerSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 
 	parse := pkgHTTP.ParseUUIDPathParameters("segment")
 
-	routePost(group, listPath, protectedMidaz(auth, "segments", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "segments", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "segments", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "segments", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "segments", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, "segments", "head", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "segments", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "segments", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "segments", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "segments", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "segments", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, countPath, "segments", "head", routeOptions, parse))
 
 	RegisterSegmentRoutes(api, h, opSuffix)
 }

@@ -135,12 +135,12 @@ func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware
 
 	parse := pkgHTTP.ParseUUIDPathParameters("asset")
 
-	routePost(group, listPath, protectedMidaz(auth, "assets", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "assets", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "assets", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "assets", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "assets", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "assets", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "assets", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, countPath, "assets", "head", routeOptions, parse))
 
 	RegisterAssetRoutes(api, ih, opSuffix)
 }

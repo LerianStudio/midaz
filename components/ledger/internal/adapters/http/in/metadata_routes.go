@@ -107,9 +107,9 @@ func registerMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *mi
 		keyPath    = entityPath + "/key/:index_key"
 	)
 
-	routePost(group, entityPath, protectedMidaz(auth, "settings", "post", routeOptions))
-	routeGet(group, listPath, protectedMidaz(auth, "settings", "get", routeOptions))
-	routeDelete(group, keyPath, protectedMidaz(auth, "settings", "delete", routeOptions))
+	routePost(group, entityPath, protectedMidaz(auth, entityPath, "settings", "post", routeOptions))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "settings", "get", routeOptions))
+	routeDelete(group, keyPath, protectedMidaz(auth, keyPath, "settings", "delete", routeOptions))
 
 	RegisterMetadataIndexRoutes(api, h, opSuffix)
 }

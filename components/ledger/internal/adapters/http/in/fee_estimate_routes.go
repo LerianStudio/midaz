@@ -65,7 +65,7 @@ func registerFeeEstimateRoutesToApp(group fiber.Router, api huma.API, auth *midd
 
 	estimateParse := pkgHTTP.ParseUUIDPathParameters("estimates")
 
-	routePost(group, estimatesPath, protectedMidaz(auth, "estimates", "post", routeOptions, estimateParse))
+	routePost(group, estimatesPath, protectedMidaz(auth, estimatesPath, "estimates", "post", routeOptions, estimateParse))
 
 	RegisterFeeEstimateRoutes(api, h, opSuffix)
 }

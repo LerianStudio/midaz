@@ -87,7 +87,7 @@ func registerAccountBlockExceptionRoutesToApp(group fiber.Router, api huma.API, 
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account_block_exception")
 
-	routePost(group, path, protectedMidaz(auth, accountBlockExceptionResource, "post", routeOptions, parse))
+	routePost(group, path, protectedMidaz(auth, path, accountBlockExceptionResource, "post", routeOptions, parse))
 
 	RegisterAccountBlockExceptionRoutes(api, h, opSuffix)
 }
