@@ -109,46 +109,8 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if balance != nil {
-		// The Redis snapshot may contain a newer balance than PostgreSQL while its
-		// transaction is waiting for asynchronous synchronization. A cache hit must
-		// therefore pass the same funds guard before the persisted row is deleted.
-		cacheKey := balanceCacheKeyFor(organizationID, ledgerID, balance)
-
-		cacheValue, cacheErr := uc.TransactionRedisRepo.Get(ctx, cacheKey)
-		if cacheErr != nil {
-			err = fmt.Errorf("failed to get balance cache value: %w", cacheErr)
-			libOpentelemetry.HandleSpanError(span, "Failed to get balance cache value on redis", err)
-			logger.Log(ctx, libLog.LevelError, "Error getting balance cache value", libLog.Err(err))
-
+		if err = uc.refuseCachedBalanceFunds(ctx, span, logger, organizationID, ledgerID, balance); err != nil {
 			return err
-		}
-
-		if cacheValue != "" {
-			cachedBalance := mmodel.BalanceRedis{}
-			if decodeErr := json.Unmarshal([]byte(cacheValue), &cachedBalance); decodeErr != nil {
-				err = fmt.Errorf("failed to decode balance cache value: %w", decodeErr)
-				libOpentelemetry.HandleSpanError(span, "Failed to decode balance cache value from redis", err)
-				logger.Log(ctx, libLog.LevelError, "Error decoding balance cache value", libLog.Err(err))
-
-				return err
-			}
-
-			hasFunds, overdraftErr := balanceRedisHasFunds(cachedBalance)
-			if overdraftErr != nil {
-				err = fmt.Errorf("failed to parse overdraft used from balance cache: %w", overdraftErr)
-				libOpentelemetry.HandleSpanError(span, "Failed to parse overdraft used from balance cache", err)
-				logger.Log(ctx, libLog.LevelError, "Error parsing overdraft used from balance cache", libLog.Err(err))
-
-				return err
-			}
-
-			if hasFunds {
-				err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in its cache snapshot", err)
-				logger.Log(ctx, libLog.LevelWarn, "Error deleting balance", libLog.Err(err))
-
-				return err
-			}
 		}
 	}
 
@@ -176,6 +138,51 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 func balanceHasFunds(balance *mmodel.Balance) bool {
 	return balance != nil &&
 		(!balance.Available.IsZero() || !balance.OnHold.IsZero() || !balance.OverdraftUsed.IsZero())
+}
+
+// refuseCachedBalanceFunds applies the funds guard to the balance's Redis snapshot, which may
+// be newer than PostgreSQL while its transaction waits for asynchronous synchronization.
+func (uc *UseCase) refuseCachedBalanceFunds(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) (err error) {
+	cacheKey := balanceCacheKeyFor(organizationID, ledgerID, balance)
+
+	cacheValue, cacheErr := uc.TransactionRedisRepo.Get(ctx, cacheKey)
+	if cacheErr != nil {
+		err = fmt.Errorf("failed to get balance cache value: %w", cacheErr)
+		libOpentelemetry.HandleSpanError(span, "Failed to get balance cache value on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting balance cache value", libLog.Err(err))
+
+		return err
+	}
+
+	if cacheValue != "" {
+		cachedBalance := mmodel.BalanceRedis{}
+		if decodeErr := json.Unmarshal([]byte(cacheValue), &cachedBalance); decodeErr != nil {
+			err = fmt.Errorf("failed to decode balance cache value: %w", decodeErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to decode balance cache value from redis", err)
+			logger.Log(ctx, libLog.LevelError, "Error decoding balance cache value", libLog.Err(err))
+
+			return err
+		}
+
+		hasFunds, overdraftErr := balanceRedisHasFunds(cachedBalance)
+		if overdraftErr != nil {
+			err = fmt.Errorf("failed to parse overdraft used from balance cache: %w", overdraftErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to parse overdraft used from balance cache", err)
+			logger.Log(ctx, libLog.LevelError, "Error parsing overdraft used from balance cache", libLog.Err(err))
+
+			return err
+		}
+
+		if hasFunds {
+			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in its cache snapshot", err)
+			logger.Log(ctx, libLog.LevelWarn, "Error deleting balance", libLog.Err(err))
+
+			return err
+		}
+	}
+
+	return nil
 }
 
 // balanceRedisHasFunds applies the same deletion guard to a Redis snapshot. BalanceRedis stores
