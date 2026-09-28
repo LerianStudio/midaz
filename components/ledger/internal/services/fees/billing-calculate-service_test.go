@@ -13,6 +13,7 @@ import (
 	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -61,7 +62,7 @@ func volumePackageForCalc(orgID, ledgerID string) *model.BillingPackage {
 		Enable:         boolPtr(true),
 		EventFilter: &model.EventFilter{
 			TransactionRoute: routeID.String(),
-			Status:           "completed",
+			Status:           constant.APPROVED,
 		},
 		PricingModel: &pricingModel,
 		Tiers: []model.PricingTier{
@@ -864,7 +865,7 @@ func TestCalculateVolume_FixedPricingHappyPath(t *testing.T) {
 		Enable:         boolPtr(true),
 		EventFilter: &model.EventFilter{
 			TransactionRoute: routeID.String(),
-			Status:           "completed",
+			Status:           constant.APPROVED,
 		},
 		PricingModel: &pricingModel,
 		Tiers: []model.PricingTier{
