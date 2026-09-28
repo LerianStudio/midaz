@@ -28,6 +28,8 @@ func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase
 		return err
 	}
 
+	delegate.WithFeeDebtRecorder(useCase.FeeDebtRecorder)
+
 	completer := &tenantAppliedTransactionCompleter{
 		delegate: delegate, multiTenantEnabled: multiTenantEnabled, mongoResolver: mongoResolver,
 	}
