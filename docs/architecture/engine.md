@@ -625,7 +625,10 @@ keys per balance (live value plus both deletion-marker forms), then one grant ke
 for each transaction that presents an account-block exception, in transaction
 order, and finally three account-protection keys — `closing`, `closed` and the
 administrative ownership — for each account of the declared balance pool, once per
-account in stable order. Balance-key bytes and the 24-hour balance-cache TTL are
+account in stable order. After the coordination keys of any additional scope, the
+inventory closes with one fee-debt list key per debtor the execution declares
+(`fee-debt:{transactions}:<org>:<ledger>:<alias#key>`, see the engine README's
+fee-debt protocol). Balance-key bytes and the 24-hour balance-cache TTL are
 unchanged.
 
 Before the first write, the engine must:
@@ -767,6 +770,19 @@ returns `*redis.ClusterClient` and is currently rejected because the engine's
 single-slot transport guarantees have not been implemented for that topology.
 Ring is not selected by the current service configuration. Deployments using the
 default engine must use a supported standalone or Sentinel connection.
+
+Fee-debt lists are the only live copy of a payer's receivables. A lost balance
+blob re-seeds from PostgreSQL on the next cache miss; a lost fee-debt list has no
+such source, because the Fees `fee_debt` documents lag completion, round past 34
+significant digits and are never read back as a seed. The `{transactions}` Redis
+must therefore be persistent and run with `maxmemory-policy` `noeviction` or a
+`volatile-*` policy: lists carry no TTL, so a `volatile-*` policy never selects
+them, while any `allkeys-*` policy evicts receivables. A flush, an eviction, or a
+failover to a replica that missed the last writes is data loss, not a cache miss:
+later credits stop settling the lost debts, and a revert that must refund one
+fails with `fee_debt_conflict` instead of refunding from a guess. Verify the
+production instance's persistence and eviction policy before enabling deferrable
+fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
 
 Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the

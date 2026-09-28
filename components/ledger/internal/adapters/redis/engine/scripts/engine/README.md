@@ -14,6 +14,7 @@ atomic execution.
 | `request.lua` | Redis key-type checks and validation of the protocol-v3 execution request, including per-balance and per-transaction scope. |
 | `receipt.lua` | Validation and replay of engine execution receipts; this closes the lost-response window independently of HTTP idempotency. |
 | `posting_algebra.lua` | Monetary meaning of each supported posting type. |
+| `fee_debt.lua` | Fee-debt lists: loading, deferral, settlement, cancellation, reopening and refund, in memory only. |
 | `execution.lua` | Protection checks, live-state loading, in-memory application, write preparation, and commit. |
 | `../engine.lua` | Entrypoint and closed error-protocol translation. |
 
@@ -69,7 +70,8 @@ The entrypoint tells one ordered story:
    repeat both protections at their exact mutation site.
 7. `applyTransactionsInMemory` validates live asset/permission requirements,
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
-   and builds truthful movements and version chains without writing Redis.
+   and builds truthful movements and version chains without writing Redis. It
+   applies fee-debt changes to the lists `loadFeeDebts` read (`fee_debt.lua`).
 8. `selectCompanionCacheWrites` picks, for every account whose balances this
    execution writes, the overdraft companion that must stay cached beside them:
    an unmoved cached companion gets its expiry refreshed, and an unmoved seeded
@@ -91,9 +93,10 @@ The entrypoint tells one ordered story:
    them, so refusals and no-ops publish no companion.
 10. `commitPreparedExecution` is the only publication phase. It receives the
     score derived from the same Redis `TIME` read and writes changed and
-    published companion balances, synchronization schedule members, refreshed
-    companion expiries, recovery records, guards, protection coordinators, and
-    index entries, deletes consumed grant keys, and finally writes the receipt.
+    published companion balances, changed fee-debt lists, synchronization
+    schedule members, refreshed companion expiries, recovery records, guards,
+    protection coordinators, and index entries, deletes consumed grant keys, and
+    finally writes the receipt.
 
 A published companion carries no movement and no version increment and appears
 in neither the response nor the recovery evidence. Its synchronization is
@@ -220,8 +223,9 @@ Top level, omitted when empty:
   `#KEYS = 7 + 3*balances + grants + 3*accounts + 5*extraScopes + #feeDebts`
   and no existing index moves. `keyIndex` is the 1-based `KEYS` index, as for
   balances. Each key ends with the unprefixed `FeeDebtInternalKey` of its entry.
-- A declared debtor need not appear in `balances`. On a revert Go declares
-  every revert destination.
+- A declared debtor need not appear in `balances`. On a revert Go declares the
+  debtors of the parent's `feeDebtOpenings` and `feeDebtSettlements` and every
+  collect debtor; step 1 below walks only declared lists.
 
 Per transaction, omitted when empty:
 
@@ -264,7 +268,8 @@ and refuses with `invalid_protocol` when:
 - `items` is on a non-collect; a collect has no items or a duplicate, or its
   debtor key is not declared;
 - `reopenFeeDebts` appears when `action` is not `revert`; a `debtId` repeats
-  within its transaction; a reopen names an undeclared debtor key, a `debtId`
+  within its transaction; a reopen names an undeclared debtor key or a debtor
+  outside `balances`, a `debtId`
   whose first 36 characters are not a UUID followed by `:`, a non-positive
   amount, opened or seq, an amount above its opened, or a `creditRef` that no
   debit posting of the same transaction debits;
@@ -290,8 +295,10 @@ its first posting:
    stays at most `opened`); otherwise the item is inserted where `seq` keeps
    ascending, with `remaining = amount`, the entry's `opened`, the UUID that
    leads `debtId` as `originTransactionId` and the `creditRef` balance's asset,
-   and its `seq` must be below `nextSeq`. A mismatch is a technical error. One
-   `reopened` change each.
+   and its `seq` must be below `nextSeq`. A mismatch is the technical error
+   `fee_debt_conflict`. The debtor is touched like a moved balance (posting
+   index -1), so a deleted balance or a closing account refuses. One `reopened`
+   change each.
 
 Then the posting loop:
 
@@ -309,13 +316,14 @@ Then the posting loop:
   account-block exceptions. It stops softly, settling nothing more, when the
   debtor is external, debit-direction, deleted, live-blocked,
   `allowSending = false`, closing/closed or an unconfirmed seed; when the budget
-  is 0; or at the FIRST live item whose id is not in `items` or whose creditor is
+  is 0; or at the FIRST live item whose id is not in `items`, whose position in
+  `items` is not after the previous settled item's, or whose creditor is
   outside the pool, not credit-direction, the debtor itself, external, deleted,
   live-blocked, `allowReceiving = false`, closing/closed, an unconfirmed seed,
   `overdraftUsed > 0`, or of another asset. Each settled item moves
   `take(budget, remaining)`, is removed at 0, and emits one `settled` change.
 - Refund: the debtor's list must exist with `nextSeq` above every entry's
-  `seq`; otherwise the execution fails with a technical error and refunds
+  `seq`; otherwise the execution fails with `fee_debt_conflict` and refunds
   nothing, so a lost list (a Redis failover) holds the revert for an operator
   instead of refunding the whole `opened`. Then, per entry in order,
   `refund = opened - canceled`, where `canceled` is what step 1 of this
@@ -365,8 +373,9 @@ omitted when empty. Changes keep execution order. One change:
 deferrable debit (opened), the collect posting (settled), the refund posting
 (refunded) or `""` (canceled, reopened); `opened` is the debt's opened amount
 and `0 < amount <= opened`. A result with fee-debt changes and no movement is
-invalid in this release: an execution without movements stays a no-op, and the
-early return and the receipt's "no movements" refusal are unchanged.
+invalid in this release (`fee_debt_conflict` before any write): an execution
+without movements stays a no-op, and the early return and the receipt's "no
+movements" refusal are unchanged.
 
 The adapter checks, per `deferShortfall` debit, that its primary amount (0 when
 absent) plus its opened amount equals the posting amount and that the opened
