@@ -802,3 +802,44 @@ func (s stubInstrumentLedgerAccountReader) AccountExists(_ context.Context, _, _
 func (s stubInstrumentLedgerAccountReader) CountAccountsByHolder(_ context.Context, _, _ uuid.UUID) (int64, error) {
 	return 0, nil
 }
+
+func TestUpdateInstrument_UndeclaredNullKey_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	tests := []struct {
+		name     string
+		body     string
+		location string
+	}{
+		{name: "account link", body: `{"accountId": null}`, location: "accountId"},
+		{name: "ledger link", body: `{"ledgerId": null}`, location: "ledgerId"},
+		{name: "undeclared key inside related party", body: `{"relatedParties": [{"bogus": null}]}`, location: "relatedParties[0].bogus"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			holderID := uuid.Must(libCommons.GenerateUUIDv7())
+			instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			handler, repo := newInstrumentHandler(t, ctrl)
+			repo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+			app := buildHumaInstrumentApp(t, handler, true)
+
+			req := httptest.NewRequest(http.MethodPatch, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewReader([]byte(tc.body)))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, _ := io.ReadAll(resp.Body)
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+			assert.Equal(t, []string{tc.location}, problemErrorLocations(t, respBody))
+		})
+	}
+}

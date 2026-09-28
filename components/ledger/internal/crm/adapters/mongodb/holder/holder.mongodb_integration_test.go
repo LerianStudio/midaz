@@ -922,3 +922,127 @@ func TestHolderRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) 
 	assert.Len(t, indexes, len(indexModels())+1,
 		"collection should have the 5 modeled indexes plus the implicit _id_ index")
 }
+
+// ============================================================================
+// Managed Field Protection Tests
+// ============================================================================
+
+// rawHolderDocument reads the stored holder document, bypassing the repository.
+func rawHolderDocument(t *testing.T, container *mongotestutil.ContainerResult, organizationID string, id uuid.UUID) bson.M {
+	t.Helper()
+
+	var doc bson.M
+
+	collName := strings.ToLower("holders_" + organizationID)
+	require.NoError(t, container.Database.Collection(collName).FindOne(context.Background(), bson.M{"_id": id}).Decode(&doc))
+
+	return doc
+}
+
+func TestIntegration_HolderRepo_NullKeyPatch_RefusedBeforePersistence(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-nullkey-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+
+	sharedDocument := "31313131313"
+
+	holder := mongotestutil.CreateTestHolderSimple(t, "Original Holder", sharedDocument)
+	_, err := repo.Create(ctx, organizationID, holder)
+	require.NoError(t, err)
+
+	before := rawHolderDocument(t, container, organizationID, *holder.ID)
+
+	// Act - the request body is refused by the shared decode pipeline, so no
+	// fieldsToRemove is ever derived and the repository is never reached.
+	_, err = http.DecodeAndValidate([]byte(`{"search.document": null, "createdAt": null}`), &mmodel.UpdateHolderInput{})
+
+	// Assert
+	var unknownErr pkg.ValidationUnknownFieldsError
+	require.ErrorAs(t, err, &unknownErr)
+	assert.Equal(t, "0053", unknownErr.Code)
+
+	after := rawHolderDocument(t, container, organizationID, *holder.ID)
+	assert.Equal(t, before["search"], after["search"], "search token must be untouched")
+	assert.Equal(t, before["created_at"], after["created_at"], "created_at must be untouched")
+
+	duplicate := mongotestutil.CreateTestHolderSimple(t, "Duplicate Holder", sharedDocument)
+	_, err = repo.Create(ctx, organizationID, duplicate)
+
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr, "duplicate document must still be refused")
+	assert.Equal(t, "CRM-0010", conflictErr.Code)
+}
+
+func TestIntegration_HolderRepo_ManagedFieldRemoval_Ignored(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-managed-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+
+	sharedDocument := "42424242424"
+
+	holder := mongotestutil.CreateTestHolderSimple(t, "Managed Holder", sharedDocument)
+	holder.Metadata = map[string]any{"keep": "yes", "drop": "yes"}
+	_, err := repo.Create(ctx, organizationID, holder)
+	require.NoError(t, err)
+
+	before := rawHolderDocument(t, container, organizationID, *holder.ID)
+	require.NotNil(t, before["search"], "fixture must carry a search token")
+	require.NotNil(t, before["created_at"], "fixture must carry created_at")
+
+	// Act - an internal caller bypassing the transport asks to remove managed
+	// fields next to a declared metadata key.
+	fieldsToRemove := []string{"search.document", "createdAt", "searchKeyVersion", "document", "metadata.drop"}
+	updated, err := repo.Update(ctx, organizationID, *holder.ID, &mmodel.Holder{}, fieldsToRemove)
+	require.NoError(t, err)
+
+	// Assert
+	after := rawHolderDocument(t, container, organizationID, *holder.ID)
+	assert.Equal(t, before["search"], after["search"], "search token survives the patch")
+	assert.Equal(t, before["search_key_version"], after["search_key_version"], "search key version survives the patch")
+	assert.Equal(t, before["document"], after["document"], "document survives the patch")
+	assert.Equal(t, before["created_at"], after["created_at"], "created_at survives the patch")
+
+	assert.Equal(t, "yes", updated.Metadata["keep"])
+	assert.NotContains(t, updated.Metadata, "drop", "declared metadata removal still applies")
+
+	duplicate := mongotestutil.CreateTestHolderSimple(t, "Duplicate Holder", sharedDocument)
+	_, err = repo.Create(ctx, organizationID, duplicate)
+
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr, "duplicate document must still be refused")
+	assert.Equal(t, "CRM-0010", conflictErr.Code)
+}
+
+// TestIntegration_HolderRepo_ManagedFieldRemoval_TwoHoldersKeepSearchToken proves
+// the repository guard: two holders of one organization asked to drop their
+// search token keep it, so neither update collides on the partial unique index.
+func TestIntegration_HolderRepo_ManagedFieldRemoval_TwoHoldersKeepSearchToken(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-managed2-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+
+	first := mongotestutil.CreateTestHolderSimple(t, "First Holder", "51515151515")
+	_, err := repo.Create(ctx, organizationID, first)
+	require.NoError(t, err)
+
+	second := mongotestutil.CreateTestHolderSimple(t, "Second Holder", "62626262626")
+	_, err = repo.Create(ctx, organizationID, second)
+	require.NoError(t, err)
+
+	// Act - both holders receive the same managed-field removal.
+	_, err = repo.Update(ctx, organizationID, *first.ID, &mmodel.Holder{}, []string{"search.document"})
+	require.NoError(t, err)
+
+	_, err = repo.Update(ctx, organizationID, *second.ID, &mmodel.Holder{}, []string{"search.document"})
+
+	// Assert
+	require.NoError(t, err, "second holder update must not hit the unique index")
+	assert.NotNil(t, rawHolderDocument(t, container, organizationID, *first.ID)["search"])
+	assert.NotNil(t, rawHolderDocument(t, container, organizationID, *second.ID)["search"])
+}

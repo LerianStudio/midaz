@@ -5,11 +5,13 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -132,6 +134,18 @@ func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pk
 	unknownDetails := findUnknownFieldDetails(originalMap, marshaledMap)
 	if len(diffFields) > 0 && len(unknownDetails) == 0 {
 		unknownDetails = unknownFieldDetailsFallback(diffFields)
+	}
+
+	if len(diffFields) == 0 {
+		nullUnknown, nullDetails, err := findUndeclaredNullFields(bodyBytes, s, originalMap)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if len(nullUnknown) > 0 {
+			diffFields = nullUnknown
+			unknownDetails = nullDetails
+		}
 	}
 
 	validationDetails, validationErr := validateStructWithDetails(s)
@@ -1085,10 +1099,8 @@ func parseMetadata(s any, originalMap map[string]any) {
 // populateNullFields detects fields explicitly sent as null in the JSON request
 // and populates the NullFields slice for downstream processing.
 // This enables RFC 7396 JSON Merge Patch semantics for nullable fields.
-//
-// TODO(review): Consider adding allowlist validation for NullFields to enforce
-// defense-in-depth. Currently, the repository layer provides protection by only
-// processing specific fields (segmentId, entityId, portfolioId). (security-reviewer, 2026-02-11, Low)
+// It assumes every key in originalMap is declared on s; undeclared keys are not
+// filtered here.
 func populateNullFields(s any, originalMap map[string]any) {
 	if s == nil {
 		return
@@ -1329,6 +1341,193 @@ func joinJSONFieldPath(prefix, field string) string {
 	}
 
 	return prefix + "." + field
+}
+
+// jsonUnknownFieldPrefix is the text encoding/json puts before the quoted
+// field name when DisallowUnknownFields refuses a key.
+const jsonUnknownFieldPrefix = "json: unknown field "
+
+// nullPath is the rendered location of a null value in a request body.
+// objectKey is false for a null array element, which cannot be a field name.
+type nullPath struct {
+	path      string
+	objectKey bool
+}
+
+// nullKeyProbe reports whether the null key at path is refused by the strict
+// decode on its own. ok is false when the probe could not decide.
+type nullKeyProbe func(path string) (refused, ok bool)
+
+// findUndeclaredNullFields reports the null keys of body that s does not
+// declare. The marshal round-trip cannot see them because a null key leaves no
+// trace in the marshaled struct, so a strict decode into a fresh value of the
+// same type decides it. Bodies without any null skip the strict decode.
+func findUndeclaredNullFields(body []byte, s any, originalMap map[string]any) (pkg.UnknownFields, []pkg.FieldError, error) {
+	nullPaths := collectNullPaths(originalMap)
+	if len(nullPaths) == 0 {
+		return nil, nil, nil
+	}
+
+	err := strictDecode(body, s)
+	if err == nil {
+		return nil, nil, nil
+	}
+
+	leaf, ok := unknownFieldLeaf(err)
+	if !ok {
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
+	}
+
+	probe := func(path string) (bool, bool) {
+		return nullKeyRefused(originalMap, path, s, leaf)
+	}
+
+	fields, details := undeclaredNullFieldDetails(leaf, nullPaths, probe)
+
+	return fields, details, nil
+}
+
+func strictDecode(body []byte, s any) error {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+
+	return dec.Decode(newOfType(s))
+}
+
+// unknownFieldLeaf extracts the field name from an encoding/json unknown-field
+// error. The decoder reports only the leaf name, never its path.
+func unknownFieldLeaf(err error) (string, bool) {
+	quoted, ok := strings.CutPrefix(err.Error(), jsonUnknownFieldPrefix)
+	if !ok {
+		return "", false
+	}
+
+	leaf, unquoteErr := strconv.Unquote(quoted)
+	if unquoteErr != nil {
+		return "", false
+	}
+
+	return leaf, true
+}
+
+// undeclaredNullFieldDetails maps the decoder leaf to the null keys that name
+// it. When several keys share the leaf, each one is probed alone so a declared
+// key with the same name is not reported; an undecided probe reports every
+// candidate. No candidate means the decoder named a key that no null path
+// renders, as a change in the encoding/json error text would cause; the bare
+// leaf is reported so the request is still refused rather than accepted.
+func undeclaredNullFieldDetails(leaf string, nullPaths []nullPath, probe nullKeyProbe) (pkg.UnknownFields, []pkg.FieldError) {
+	candidates := pkg.UnknownFields{}
+
+	for _, null := range nullPaths {
+		if null.objectKey && (null.path == leaf || strings.HasSuffix(null.path, "."+leaf)) {
+			candidates[null.path] = nil
+		}
+	}
+
+	switch len(candidates) {
+	case 0:
+		candidates[leaf] = nil
+	case 1:
+	default:
+		if confirmed, ok := confirmRefusedNullKeys(candidates, probe); ok {
+			candidates = confirmed
+		}
+	}
+
+	return candidates, unknownFieldDetailsFallback(candidates)
+}
+
+func confirmRefusedNullKeys(candidates pkg.UnknownFields, probe nullKeyProbe) (pkg.UnknownFields, bool) {
+	confirmed := pkg.UnknownFields{}
+
+	for path := range candidates {
+		refused, ok := probe(path)
+		if !ok {
+			return nil, false
+		}
+
+		if refused {
+			confirmed[path] = nil
+		}
+	}
+
+	return confirmed, len(confirmed) > 0
+}
+
+// nullKeyRefused decodes originalMap strictly with every null key except keep
+// removed, so no other undeclared null key can be the one the decoder stops at.
+// Null array elements stay in place to keep array indexes stable.
+func nullKeyRefused(originalMap map[string]any, keep string, s any, leaf string) (refused, ok bool) {
+	body, err := json.Marshal(withoutOtherNullKeys(originalMap, nil, keep))
+	if err != nil {
+		return false, false
+	}
+
+	err = strictDecode(body, s)
+	if err == nil {
+		return false, true
+	}
+
+	if got, isUnknown := unknownFieldLeaf(err); isUnknown && got == leaf {
+		return true, true
+	}
+
+	return false, false
+}
+
+func withoutOtherNullKeys(value any, frames []scanFrame, keep string) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+
+		for key, item := range typed {
+			itemFrames := append(slices.Clip(frames), scanFrame{key: key, object: true})
+			if item == nil && renderPath(itemFrames) != keep {
+				continue
+			}
+
+			out[key] = withoutOtherNullKeys(item, itemFrames, keep)
+		}
+
+		return out
+	case []any:
+		out := make([]any, len(typed))
+
+		for index, item := range typed {
+			out[index] = withoutOtherNullKeys(item, append(slices.Clip(frames), scanFrame{index: index}), keep)
+		}
+
+		return out
+	default:
+		return value
+	}
+}
+
+// collectNullPaths returns, sorted by path, every null value in body at any
+// depth, array items included, rendered like the unknown-field details.
+func collectNullPaths(body map[string]any) []nullPath {
+	var paths []nullPath
+
+	appendNullPaths(body, nil, &paths)
+	sort.Slice(paths, func(i, j int) bool { return paths[i].path < paths[j].path })
+
+	return paths
+}
+
+func appendNullPaths(value any, frames []scanFrame, paths *[]nullPath) {
+	switch typed := value.(type) {
+	case nil:
+		*paths = append(*paths, nullPath{path: renderPath(frames), objectKey: len(frames) > 0 && frames[len(frames)-1].object})
+	case map[string]any:
+		for key, item := range typed {
+			appendNullPaths(item, append(slices.Clip(frames), scanFrame{key: key, object: true}), paths)
+		}
+	case []any:
+		for index, item := range typed {
+			appendNullPaths(item, append(slices.Clip(frames), scanFrame{index: index}), paths)
+		}
+	}
 }
 
 func unknownFieldDetailsFallback(fields pkg.UnknownFields) []pkg.FieldError {
