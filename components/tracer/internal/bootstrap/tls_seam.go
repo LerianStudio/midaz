@@ -14,38 +14,28 @@ import (
 	libCert "github.com/LerianStudio/lib-commons/v7/commons/certificate"
 )
 
-// TLS modes for the reservation seam (TRACER_TLS_MODE). Empty is treated as
-// tlsModeMesh so local dev and the Phase-1 toggle default keep working without
-// cert material.
+// TLS modes of the tracer listeners (TRACER_TLS_MODE). Empty is treated as
+// tlsModeMesh so local dev keeps working without cert material.
 const (
 	tlsModeMTLS = "mtls"
 	tlsModeMesh = "mesh"
 )
 
-// buildSeamTLSConfig builds the *tls.Config that secures BOTH reservation-seam
-// listeners (the gRPC server and the Fiber REST listener). It is the single
-// place the seam's mutual-TLS posture is decided, so the two transports cannot
-// drift.
+// buildGRPCTLSConfig builds the *tls.Config of the reservation gRPC listener,
+// which identifies producers only by their client certificate.
 //
-// Behavior contract (per the Seam Contract — identity is mutual TLS, no shared
-// secret):
-//
-//   - mode "" / "mesh"  ⇒ (nil, nil). The app listens plaintext; a service-mesh
-//     sidecar (Istio/Linkerd) terminates mTLS. No cert material is consulted.
+//   - mode "" / "mesh"  ⇒ (nil, nil). No cert material is consulted.
 //   - mode "mtls"       ⇒ (*tls.Config, nil) presenting the tracer's own server
 //     certificate and enforcing tls.RequireAndVerifyClientCert against the
-//     loaded client CA pool. The reservation seam is unreachable without a
-//     verified client cert.
+//     loaded client CA pool.
 //   - mode "mtls" + missing/unreadable material ⇒ error naming the failing knob,
-//     so a misconfigured deploy fails fast at boot rather than silently serving
-//     an unverified seam.
+//     so a misconfigured deploy fails fast at boot.
 //   - any other mode    ⇒ error (fail fast on a typo rather than guessing).
 //
-// The function is pure (Config in ⇒ tls.Config|error out) and does no logging —
-// it runs at boot before listeners bind, and callers surface its error with
-// context. Server cert loading goes through lib-commons certificate.Manager so
-// the seam inherits its hot-reload/rotation support via GetCertificate.
-func buildSeamTLSConfig(cfg *Config) (*tls.Config, error) {
+// The function is pure and does no logging. Server cert loading goes through
+// lib-commons certificate.Manager so the listener inherits its rotation support
+// via GetCertificate.
+func buildGRPCTLSConfig(cfg *Config) (*tls.Config, error) {
 	mode := strings.ToLower(strings.TrimSpace(cfg.TracerTLSMode))
 
 	switch mode {
@@ -56,6 +46,24 @@ func buildSeamTLSConfig(cfg *Config) (*tls.Config, error) {
 	default:
 		return nil, fmt.Errorf("invalid TRACER_TLS_MODE %q: expected %q or %q", cfg.TracerTLSMode, tlsModeMTLS, tlsModeMesh)
 	}
+}
+
+// buildHTTPTLSConfig builds the *tls.Config of the HTTP listener. In mtls mode
+// it is the gRPC configuration without client-certificate verification: HTTP
+// callers authenticate with tokens, so the listener neither requests nor
+// verifies a client certificate. The same material and mode rules apply, so
+// TRACER_TLS_CLIENT_CA_FILE stays required in mtls for the gRPC listener.
+func buildHTTPTLSConfig(cfg *Config) (*tls.Config, error) {
+	grpcTLS, err := buildGRPCTLSConfig(cfg)
+	if err != nil || grpcTLS == nil {
+		return nil, err
+	}
+
+	httpTLS := grpcTLS.Clone()
+	httpTLS.ClientAuth = tls.NoClientCert
+	httpTLS.ClientCAs = nil
+
+	return httpTLS, nil
 }
 
 // buildMTLSConfig assembles the RequireAndVerifyClientCert config for mtls mode.

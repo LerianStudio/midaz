@@ -144,6 +144,7 @@ func TestBuildMultiTenantComponents_Success(t *testing.T) {
 		"pool manager must carry the tracer catalog module so tenant connection settings resolve")
 	assert.NotNil(t, components.supervisor, "worker supervisor must be built")
 	assert.NotNil(t, components.eventListener, "tenant event listener wrapper must be built")
+	assert.True(t, components.tenantAuthorizer.Active(), "producer tenant authorizer must enforce under multi-tenant mode")
 }
 
 // TestBuildMultiTenantComponents_InvalidTenantManagerURL verifies the fail-fast

@@ -194,19 +194,16 @@ func TestIntegrationContextPolicyRollbackAndConcurrentBinding(t *testing.T) {
 }
 
 func TestIntegrationContextPolicyMigrationPreservesUsage(t *testing.T) {
-	db := testutil.SetupIntegrationDB(t)
+	db, dir := databaseBeforeRetirement(t)
 	ctx := context.Background()
 	limitID := createTestLimitNamed(t, db, 60201, "policy-migration")
-	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
 	reservation, err := model.NewReservation(limitID, testutil.MustDeterministicUUID(60202), "acct:policy-migration", "2026-09",
 		decimal.RequireFromString("0.00000001"), testutil.FixedTime().Add(time.Hour), testutil.FixedTime())
 	require.NoError(t, err)
-	repo := newReservationRepoIntegration(db)
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReserveWithTx(ctx, tx, reservation, decimal.NewFromInt(100)) }))
-	dir := t.TempDir()
-	require.NoError(t, migrations.WriteTo(dir))
+	seedCounterBucket(t, db, 60203, limitID, reservation.ScopeKey, reservation.PeriodKey, "0", reservation.Amount.String())
+	insertLegacyReservation(t, db, reservation)
 	// Roll back the newer capacity/operation/decision FKs before their targets, then restore
-	// them in forward order. No stored decisions exist in this shared fixture.
+	// them in forward order. No stored decisions exist in this fresh database.
 	for _, file := range []string{"000030_decision_reservations.down.sql", "000029_reserve_operations.down.sql", "000028_reserve_decisions.down.sql", "000025_context_policies.down.sql", "000025_context_policies.up.sql", "000028_reserve_decisions.up.sql", "000029_reserve_operations.up.sql", "000030_decision_reservations.up.sql"} {
 		body, err := os.ReadFile(filepath.Join(dir, file))
 		require.NoError(t, err)

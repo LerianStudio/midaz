@@ -47,28 +47,11 @@ func newReserveRequest(now time.Time, transactionID, requestID, accountID uuid.U
 	}
 }
 
-func TestNewReservationServer_NilDeps(t *testing.T) {
-	clk := testutil.NewDefaultMockClock()
+func TestContextReservationRejectsRevisionlessCompletion(t *testing.T) {
+	t.Parallel()
 
-	t.Run("nil service", func(t *testing.T) {
-		_, err := NewReservationServer(nil, clk)
-		require.Error(t, err)
-	})
-
-	t.Run("nil clock", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-
-		_, err := NewReservationServer(svc, nil)
-		require.Error(t, err)
-	})
-}
-
-func TestContextProfileRejectsRevisionlessLegacyCompletion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	server, err := NewContextReservationServer(
-		mocks.NewMockReservationService(ctrl),
-		testutil.NewDefaultMockClock(),
 		mocks.NewMockContextReserveAdmitter(ctrl),
 		mocks.NewMockContextReserveCompleter(ctrl),
 		mocks.NewMockContextReserveIDCompleter(ctrl),
@@ -78,25 +61,56 @@ func TestContextProfileRejectsRevisionlessLegacyCompletion(t *testing.T) {
 
 	transactionID := uuid.New().String()
 	reservationID := uuid.New().String()
-	_, err = server.ConfirmByTransaction(t.Context(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID})
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
-	_, err = server.ReleaseByTransaction(t.Context(), &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID})
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
-	_, err = server.ConfirmById(t.Context(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID})
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
-	_, err = server.ReleaseById(t.Context(), &reservationv1.ReleaseByIdRequest{ReservationId: reservationID})
-	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer"})
+
+	for name, call := range map[string]func() error{
+		"confirm by transaction": func() error {
+			_, err := server.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID})
+			return err
+		},
+		"release by transaction": func() error {
+			_, err := server.ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID})
+			return err
+		},
+		"confirm by id": func() error {
+			_, err := server.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID})
+			return err
+		},
+		"release by id": func() error {
+			_, err := server.ReleaseById(ctx, &reservationv1.ReleaseByIdRequest{ReservationId: reservationID})
+			return err
+		},
+		"nil confirm by transaction": func() error {
+			_, err := server.ConfirmByTransaction(ctx, nil)
+			return err
+		},
+		"nil release by id": func() error {
+			_, err := server.ReleaseById(ctx, nil)
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := call()
+			require.Equal(t, codes.InvalidArgument, status.Code(err), "err=%v", err)
+			require.Equal(t, constant.ErrInvalidRequestBody.Error(), status.Convert(err).Message())
+		})
+	}
 }
 
 func TestReservationServer_Reserve(t *testing.T) {
+	t.Parallel()
+
 	for _, scenario := range []string{"allow", "deny", "review", "long lived", "invalid id", "zero amount", "missing presence", "identity absent", "deadline", "mismatched result", "oversize"} {
 		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
-			legacy := mocks.NewMockReservationService(ctrl)
 			admission := mocks.NewMockContextReserveAdmitter(ctrl)
 			completion := mocks.NewMockContextReserveCompleter(ctrl)
 			config := ContextReservationConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100}
-			server, err := NewContextReservationServer(legacy, testutil.NewDefaultMockClock(), admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), config)
+			server, err := NewContextReservationServer(admission, completion, mocks.NewMockContextReserveIDCompleter(ctrl), config)
 			require.NoError(t, err)
 			transaction := testutil.MustDeterministicUUID(1)
 			request := newReserveRequest(testutil.FixedTime(), transaction, testutil.MustDeterministicUUID(2), testutil.MustDeterministicUUID(3))
@@ -168,117 +182,17 @@ func TestReservationServer_Reserve(t *testing.T) {
 	}
 }
 
-func TestReservationServer_ConfirmReleaseById(t *testing.T) {
-	reservationID := testutil.MustDeterministicUUID(10)
-	now := testutil.FixedTime()
-
-	t.Run("confirm by id succeeds", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(nil)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
-		require.NoError(t, err)
-	})
-
-	t.Run("release by id succeeds", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		svc.EXPECT().Release(gomock.Any(), reservationID).Return(nil)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ReleaseById(context.Background(), &reservationv1.ReleaseByIdRequest{ReservationId: reservationID.String()})
-		require.NoError(t, err)
-	})
-
-	t.Run("not found maps to NotFound", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(constant.ErrReservationNotFound)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
-		require.Equal(t, codes.NotFound, status.Code(err))
-	})
-
-	t.Run("invalid id is InvalidArgument", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ReleaseById(context.Background(), &reservationv1.ReleaseByIdRequest{ReservationId: "nope"})
-		require.Equal(t, codes.InvalidArgument, status.Code(err))
-	})
-}
-
-func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
-	transactionID := testutil.MustDeterministicUUID(20)
-	now := testutil.FixedTime()
-
-	t.Run("confirm by transaction succeeds (idempotent zero flips)", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(0, nil)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
-		require.NoError(t, err)
-	})
-
-	t.Run("release by transaction succeeds", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		svc.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(2, nil)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ReleaseByTransaction(context.Background(), &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
-		require.NoError(t, err)
-	})
-
-	t.Run("empty transaction id is InvalidArgument", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		svc := mocks.NewMockReservationService(ctrl)
-		clk := testutil.NewMockClock(now)
-
-		server, err := NewReservationServer(svc, clk)
-		require.NoError(t, err)
-
-		_, err = server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: ""})
-		require.Equal(t, codes.InvalidArgument, status.Code(err))
-	})
-}
-
 func TestContextReservationCompletion(t *testing.T) {
+	t.Parallel()
+
 	for _, scenario := range []string{"confirmed", "released", "before admission", "unsupported", "identity absent", "wrong transaction", "conflict"} {
 		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			completion := mocks.NewMockContextReserveCompleter(ctrl)
 			config := ContextReservationConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100}
-			server, err := NewContextReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewDefaultMockClock(), mocks.NewMockContextReserveAdmitter(ctrl), completion, mocks.NewMockContextReserveIDCompleter(ctrl), config)
+			server, err := NewContextReservationServer(mocks.NewMockContextReserveAdmitter(ctrl), completion, mocks.NewMockContextReserveIDCompleter(ctrl), config)
 			require.NoError(t, err)
 			transaction := testutil.MustDeterministicUUID(88101)
 			evaluation := testutil.MustDeterministicUUID(88102)

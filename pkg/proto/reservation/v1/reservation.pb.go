@@ -239,8 +239,9 @@ func (x *EvaluationContext) GetEntries() []*ContextEntry {
 	return nil
 }
 
-// ReserveRequest replaces the old contract on the same RPC. Removed field
-// numbers cannot be reused; an old binary must fail contract verification.
+// ReserveRequest is the contract-revision request of the Reserve RPC. Field
+// numbers 1-11 are reserved and never reused, so a binary built against an
+// earlier message fails contract verification.
 type ReserveRequest struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	ContractRevision     string                 `protobuf:"bytes,16,opt,name=contract_revision,json=contractRevision,proto3" json:"contract_revision,omitempty"`
@@ -611,7 +612,7 @@ func (x *ReleaseByTransactionRequest) GetContractRevision() string {
 	return ""
 }
 
-// ConfirmByIdRequest addresses the owning operation under the new revision.
+// ConfirmByIdRequest addresses the operation that owns reservation_id.
 type ConfirmByIdRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ReservationId    string                 `protobuf:"bytes,1,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`
@@ -664,7 +665,7 @@ func (x *ConfirmByIdRequest) GetContractRevision() string {
 	return ""
 }
 
-// ReleaseByIdRequest addresses the owning operation under the new revision.
+// ReleaseByIdRequest addresses the operation that owns reservation_id.
 type ReleaseByIdRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ReservationId    string                 `protobuf:"bytes,1,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`

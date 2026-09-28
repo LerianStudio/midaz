@@ -442,7 +442,6 @@ func TestNewWorkerSupervisor_ValidatesRequiredDeps(t *testing.T) {
 			mutate: func(d *WorkerSupervisorDeps) {
 				d.ReaperWorkerEnabled = true
 				d.ReaperRepo = &ttlPredicateRepo{}
-				d.ReaperAuditor = mocks.NewMockReservationExpiryAuditor(gomock.NewController(t))
 				d.ReaperConfig = DefaultReservationReaperWorkerConfig()
 			},
 			wantErr: ErrNilOperationExpirer,

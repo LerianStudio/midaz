@@ -14,12 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/migrations"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -49,6 +47,18 @@ func capacityDatabase(t *testing.T) (*sql.DB, *ReserveDecisionRepository, *Usage
 	return db, decisions, newReservationRepoIntegration(db)
 }
 
+// retiredCapacityDatabase is capacityDatabase with the legacy reservations
+// retired, so every reservation row must belong to a decision.
+func retiredCapacityDatabase(t *testing.T) (*sql.DB, *ReserveDecisionRepository, *UsageReservationRepository) {
+	t.Helper()
+	db, decisions, repo := capacityDatabase(t)
+	for _, name := range []string{"000035_retire_legacy_reservations.up.sql", "000036_validate_reservation_decision_required.up.sql"} {
+		_, err := db.ExecContext(t.Context(), capacityMigration(t, name))
+		require.NoError(t, err)
+	}
+	return db, decisions, repo
+}
+
 func decisionCapacity(limitID uuid.UUID, seed int64) *model.Reservation {
 	return &model.Reservation{
 		ID: testutil.MustDeterministicUUID(seed), LimitID: limitID,
@@ -72,36 +82,17 @@ func persistDecisionCapacity(t *testing.T, db *sql.DB, repo *UsageReservationRep
 	}))
 }
 
-func TestIntegrationDecisionCapacityOwnershipAndLegacyIsolation(t *testing.T) {
-	db, decisions, repo := capacityDatabase(t)
+func TestIntegrationDecisionCapacityOwnership(t *testing.T) {
+	db, decisions, repo := retiredCapacityDatabase(t)
 	limitID := createTestLimitNamed(t, db, 75001, "ownership")
 	a, b := persistedDecision(), persistedDecision()
 	b.Key.IntegrationID = "producer-b"
 	b.Result.EvaluationID = testutil.MustDeterministicUUID(75002)
-	first, second, legacy := decisionCapacity(limitID, 75003), decisionCapacity(limitID, 75004), decisionCapacity(limitID, 75005)
+	first, second := decisionCapacity(limitID, 75003), decisionCapacity(limitID, 75004)
 	persistDecisionCapacity(t, db, repo, decisions, a, first)
 	persistDecisionCapacity(t, db, repo, decisions, b, second)
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReserveWithTx(t.Context(), tx, legacy, decimal.NewFromInt(100)) }))
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReserveWithTx(t.Context(), tx, legacy, decimal.NewFromInt(100)) }))
 	cur, held := readCounterDecimal(t, db, limitID, first.ScopeKey, first.PeriodKey)
 	require.True(t, cur.IsZero())
-	require.Equal(t, "30.375", held.String())
-	// Old addressing must neither confirm nor release new decision-owned rows.
-	require.ErrorIs(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ConfirmWithTx(t.Context(), tx, first.ID) }), constant.ErrReservationNotFound)
-	require.ErrorIs(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReleaseWithTx(t.Context(), tx, first.ID, model.StatusExpired) }), constant.ErrReservationNotFound)
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		rows, err := repo.ConfirmByTransactionWithTx(t.Context(), tx, a.Key.TransactionID)
-		require.Len(t, rows, 1)
-		require.Equal(t, legacy.ID, rows[0].ID)
-		return err
-	}))
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		rows, err := repo.ReleaseByTransactionWithTx(t.Context(), tx, a.Key.TransactionID, model.StatusReleased)
-		require.Empty(t, rows)
-		return err
-	}))
-	cur, held = readCounterDecimal(t, db, limitID, first.ScopeKey, first.PeriodKey)
-	require.Equal(t, "10.125", cur.String())
 	require.Equal(t, "20.25", held.String())
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		rows, err := repo.SettleDecisionWithTx(t.Context(), tx, a.Result.EvaluationID, model.StatusConfirmed)
@@ -116,7 +107,7 @@ func TestIntegrationDecisionCapacityOwnershipAndLegacyIsolation(t *testing.T) {
 		return err
 	}))
 	cur, held = readCounterDecimal(t, db, limitID, first.ScopeKey, first.PeriodKey)
-	require.Equal(t, "20.25", cur.String())
+	require.Equal(t, "10.125", cur.String(), "only the confirmed decision counts")
 	require.True(t, held.IsZero())
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		rows, err := repo.SettleDecisionWithTx(t.Context(), tx, a.Result.EvaluationID, model.StatusConfirmed)
@@ -128,7 +119,7 @@ func TestIntegrationDecisionCapacityOwnershipAndLegacyIsolation(t *testing.T) {
 func TestIntegrationDecisionCapacityDeferredOwnershipAndRollback(t *testing.T) {
 	for _, scenario := range []string{"missing decision", "wrong transaction", "denied capacity", "caller rollback"} {
 		t.Run(scenario, func(t *testing.T) {
-			db, decisions, repo := capacityDatabase(t)
+			db, decisions, repo := retiredCapacityDatabase(t)
 			limitID := createTestLimitNamed(t, db, 75101, "rollback")
 			d := persistedDecision()
 			res := decisionCapacity(limitID, 75102)
@@ -169,16 +160,15 @@ func TestIntegrationDecisionCapacityDeferredOwnershipAndRollback(t *testing.T) {
 }
 
 func TestIntegrationDecisionCapacityExpiresOnlyThroughOperationAndProtectsCounter(t *testing.T) {
-	db, decisions, repo := capacityDatabase(t)
+	db, decisions, repo := retiredCapacityDatabase(t)
 	limitID := createTestLimitNamed(t, db, 75201, "ttl")
 	d, res := persistedDecision(), decisionCapacity(limitID, 75202)
 	persistDecisionCapacity(t, db, repo, decisions, d, res)
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
-	reaper := NewReservationReaperRepository(adapter, pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db))), repo)
+	reaper := NewReservationReaperRepository(adapter)
 	expired, err := reaper.FindExpiredReservations(t.Context(), testutil.FixedTime(), nil, 100)
 	require.NoError(t, err)
-	require.Equal(t, []model.ExpiredReservation{{ID: res.ID, ExpiresAt: res.ReservationExpiresAt.UTC(), Operation: &model.ReserveOperationIdentity{IntegrationID: d.Key.IntegrationID, TransactionID: d.Key.TransactionID}}}, expired)
-	require.ErrorIs(t, reaper.ReleaseExpired(t.Context(), res.ID), constant.ErrReservationNotFound, "legacy expiry must not touch decision capacity")
+	require.Equal(t, []model.ExpiredReservation{{ID: res.ID, ExpiresAt: res.ReservationExpiresAt.UTC(), Operation: model.ReserveOperationIdentity{IntegrationID: d.Key.IntegrationID, TransactionID: d.Key.TransactionID}}}, expired)
 	for _, query := range []string{
 		"UPDATE usage_reservations SET decision_id=NULL",
 		"UPDATE usage_reservations SET amount=0",
@@ -204,7 +194,7 @@ func TestIntegrationDecisionCapacityExpiresOnlyThroughOperationAndProtectsCounte
 func TestIntegrationDecisionCapacityRequiresAllowAndResponseOwnership(t *testing.T) {
 	for _, scenario := range []string{"deny", "missing handle"} {
 		t.Run(scenario, func(t *testing.T) {
-			db, decisions, repo := capacityDatabase(t)
+			db, decisions, repo := retiredCapacityDatabase(t)
 			limitID := createTestLimitNamed(t, db, 75301, "owner-result")
 			d, res := persistedDecision(), decisionCapacity(limitID, 75302)
 			tx, err := db.BeginTx(t.Context(), nil)
@@ -225,7 +215,7 @@ func TestIntegrationDecisionCapacityRequiresAllowAndResponseOwnership(t *testing
 }
 
 func TestIntegrationDecisionCapacitySavepointPersistsDenyWithoutHolds(t *testing.T) {
-	db, decisions, repo := capacityDatabase(t)
+	db, decisions, repo := retiredCapacityDatabase(t)
 	limitID := createTestLimitNamed(t, db, 75401, "savepoint")
 	d, res := persistedDecision(), decisionCapacity(limitID, 75402)
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
@@ -251,10 +241,11 @@ func TestIntegrationDecisionCapacitySavepointPersistsDenyWithoutHolds(t *testing
 }
 
 func TestIntegrationDecisionCapacityMigrationPreservesLegacy(t *testing.T) {
-	db, _, repo := capacityDatabase(t)
+	db, _, _ := capacityDatabase(t)
 	limitID := createTestLimitNamed(t, db, 75501, "legacy-migration")
 	res := decisionCapacity(limitID, 75502)
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReserveWithTx(t.Context(), tx, res, decimal.NewFromInt(100)) }))
+	seedCounterBucket(t, db, 75503, limitID, res.ScopeKey, res.PeriodKey, "0", res.Amount.String())
+	insertLegacyReservation(t, db, res)
 	const snapshot = `SELECT jsonb_build_array((SELECT to_jsonb(r)-'decision_id' FROM usage_reservations r), (SELECT to_jsonb(c) FROM usage_counters c))::text`
 	var before, after string
 	require.NoError(t, db.QueryRowContext(t.Context(), snapshot).Scan(&before))
@@ -270,7 +261,10 @@ func TestIntegrationDecisionCapacityMigrationPreservesLegacy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.QueryRowContext(t.Context(), snapshot).Scan(&after))
 	require.Equal(t, before, after)
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReserveWithTx(t.Context(), tx, res, decimal.NewFromInt(100)) }))
+	// The partial legacy index is back for the legacy writer's ON CONFLICT target.
+	_, err = db.ExecContext(t.Context(), `INSERT INTO usage_reservations SELECT * FROM usage_reservations
+        ON CONFLICT (transaction_id, limit_id, scope_key, period_key) WHERE decision_id IS NULL DO NOTHING`)
+	require.NoError(t, err)
 	_, held := readCounterDecimal(t, db, limitID, res.ScopeKey, res.PeriodKey)
 	require.Equal(t, "10.125", held.String())
 }
@@ -278,7 +272,7 @@ func TestIntegrationDecisionCapacityMigrationPreservesLegacy(t *testing.T) {
 func TestIntegrationDecisionCapacityCleanupRechecksConcurrentHold(t *testing.T) {
 	for _, commitHold := range []bool{true, false} {
 		t.Run(map[bool]string{true: "committed hold", false: "rolled back hold"}[commitHold], func(t *testing.T) {
-			db, decisions, repo := capacityDatabase(t)
+			db, decisions, repo := retiredCapacityDatabase(t)
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			limitID := createTestLimitNamed(t, db, 75601, "cleanup-race")
@@ -333,7 +327,7 @@ func TestIntegrationDecisionCapacityCleanupRechecksConcurrentHold(t *testing.T) 
 }
 
 func TestIntegrationDecisionCapacityConcurrentSettlementAndRollback(t *testing.T) {
-	db, decisions, repo := capacityDatabase(t)
+	db, decisions, repo := retiredCapacityDatabase(t)
 	limitA := createTestLimitNamed(t, db, 75701, "ordered-a")
 	limitB := createTestLimitNamed(t, db, 75702, "ordered-b")
 	a, b := persistedDecision(), persistedDecision()
@@ -403,7 +397,7 @@ func TestIntegrationDecisionCapacityConcurrentSettlementAndRollback(t *testing.T
 func TestIntegrationDecisionCapacityGuardAndDuplicateDoNotLeakHolds(t *testing.T) {
 	for _, scenario := range []string{"counter guard", "duplicate ownership"} {
 		t.Run(scenario, func(t *testing.T) {
-			db, decisions, repo := capacityDatabase(t)
+			db, decisions, repo := retiredCapacityDatabase(t)
 			limitID := createTestLimitNamed(t, db, 75801, "guard")
 			d, res := persistedDecision(), decisionCapacity(limitID, 75802)
 			persistDecisionCapacity(t, db, repo, decisions, d, res)
@@ -428,7 +422,7 @@ func TestIntegrationDecisionCapacityGuardAndDuplicateDoNotLeakHolds(t *testing.T
 }
 
 func TestIntegrationDecisionCapacityMigrationAcceptsExpiry(t *testing.T) {
-	db, decisions, repo := capacityDatabase(t)
+	db, decisions, repo := retiredCapacityDatabase(t)
 	limitID := createTestLimitNamed(t, db, 75901, "expiry-migration")
 	d, res := persistedDecision(), decisionCapacity(limitID, 75902)
 	persistDecisionCapacity(t, db, repo, decisions, d, res)

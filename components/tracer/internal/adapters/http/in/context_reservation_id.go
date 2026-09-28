@@ -5,7 +5,6 @@
 package in
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"reflect"
@@ -64,10 +63,6 @@ func (h *ContextReservationHandler) completeReservation(ctx context.Context, inp
 		return nil, err
 	}
 
-	if len(bytes.TrimSpace(input.RawBody)) == 0 {
-		return h.completeLegacyReservation(ctx, input.ID, outcome)
-	}
-
 	if _, err := tracercontract.DecodeCompletionJSON(ctx, input.RawBody, h.maxBodyBytes); err != nil {
 		return nil, err
 	}
@@ -107,24 +102,6 @@ func (h *ContextReservationHandler) validateCompletionAddress(ctx context.Contex
 	return id, nil
 }
 
-func (h *ContextReservationHandler) completeLegacyReservation(ctx context.Context, id string, outcome model.ReserveOperationStatus) (*ContextTransactionCompletionOutput, error) {
-	if h.legacy == nil {
-		return nil, constant.ErrInvalidRequestBody
-	}
-
-	action := h.legacy.service.Confirm
-	if outcome == model.OperationReleased {
-		action = h.legacy.service.Release
-	}
-
-	result, err := h.legacy.terminate(ctx, id, "handler.legacy_reservation_completion", string(outcome), action)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ContextTransactionCompletionOutput{Body: result}, nil
-}
-
 func registerContextReservationIDRoutes(api huma.API, h *ContextReservationHandler) {
 	for _, op := range []struct {
 		id, path, summary string
@@ -135,9 +112,8 @@ func registerContextReservationIDRoutes(api huma.API, h *ContextReservationHandl
 	} {
 		huma.Register(api, huma.Operation{OperationID: op.id, Method: http.MethodPost, Path: op.path, Summary: op.summary, Tags: []string{"Reservations"}, Security: contextReservationSecurity(api), SkipValidateBody: true, MaxBodyBytes: int64(h.maxBodyBytes), Errors: []int{400, 401, 403, 404, 409, 413, 503}}, op.handler)
 		request := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[tracercontract.CompletionRequest](), true, "")
-		api.OpenAPI().Paths[op.path].Post.RequestBody = &huma.RequestBody{Required: false, Description: "The revision body completes every reservation in the addressed coordinated operation atomically. An absent body addresses only a legacy reservation and requires legacy API-key/Bearer authorization.", Content: map[string]*huma.MediaType{"application/json": {Schema: request}}}
+		api.OpenAPI().Paths[op.path].Post.RequestBody = &huma.RequestBody{Required: true, Description: "The revision body completes every reservation in the addressed coordinated operation atomically.", Content: map[string]*huma.MediaType{"application/json": {Schema: request}}}
 		response := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[tracercontract.ReservationCompletionResult](), true, "")
-		legacy := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[ReservationActionResponse](), true, "")
-		api.OpenAPI().Paths[op.path].Post.Responses["200"].Content = map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{OneOf: []*huma.Schema{response, legacy}}}}
+		api.OpenAPI().Paths[op.path].Post.Responses["200"].Content = map[string]*huma.MediaType{"application/json": {Schema: response}}
 	}
 }

@@ -241,7 +241,8 @@ func TestIntegrationReserveDecisionMigrationPreservesLegacyCapacity(t *testing.T
 	db := contextPolicyDatabase(t, "legacy")
 	_, err := db.ExecContext(t.Context(), `
 		CREATE TABLE usage_counters (LIKE public.usage_counters INCLUDING ALL);
-		CREATE TABLE usage_reservations (LIKE public.usage_reservations INCLUDING ALL)`)
+		CREATE TABLE usage_reservations (LIKE public.usage_reservations INCLUDING ALL);
+		ALTER TABLE usage_reservations DROP CONSTRAINT usage_reservations_decision_required`)
 	require.NoError(t, err)
 	limitID := testutil.MustDeterministicUUID(72501)
 	_, err = db.ExecContext(t.Context(), `INSERT INTO usage_counters

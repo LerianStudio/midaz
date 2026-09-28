@@ -24,11 +24,9 @@ import (
 // ServerManager graceful-shutdown path as the Fiber server. The otelgrpc stats
 // handler gives the gRPC surface the same tracing parity as REST.
 //
-// Transport security depends on TRACER_TLS_MODE (Epic 1.3): in "mtls" mode a
-// non-nil *tls.Config is passed in and the server requires+verifies a client
-// cert (the reservation seam is unreachable without one); in "mesh" mode the
-// config is nil and a sidecar terminates mTLS. The server is opt-in: bootstrap
-// only registers it when TRACER_GRPC_PORT is set.
+// The server always requires and verifies a client certificate: the gRPC seam
+// identifies producers only by that certificate, so bootstrap registers it only
+// when TRACER_GRPC_PORT is set under TRACER_TLS_MODE=mtls.
 type GRPCServer struct {
 	server    *grpc.Server
 	address   string
@@ -37,23 +35,30 @@ type GRPCServer struct {
 }
 
 // NewGRPCServer builds the gRPC server, registers the reservation service, and
-// returns the runnable. address is the listen address (e.g. ":4021"). When
-// tlsConfig is non-nil the server enforces mutual TLS via grpc.Creds; nil means
-// plaintext (mesh mode). When tenantInterceptor is non-nil it is chained as a
-// unary interceptor so the trusted x-tenant-id resolves the per-tenant pool
-// before the reservation handler runs (multi-tenant mode); nil leaves the
-// single-tenant path untouched. Returns an error if any dependency is nil.
+// returns the runnable. address is the listen address (e.g. ":4021").
+// tlsConfig must require and verify client certificates, and interceptor must
+// authenticate the producer and authorize its tenant before any RPC runs;
+// both are mandatory, since without either the seam would serve unidentified
+// callers. Returns an error if any dependency is nil.
 func NewGRPCServer(
 	address string,
 	reservationServer reservationv1.ReservationServiceServer,
 	tlsConfig *tls.Config,
-	tenantInterceptor grpc.UnaryServerInterceptor,
+	interceptor grpc.UnaryServerInterceptor,
 	logger libObsLog.Logger,
 	telemetry *libObsOtel.Telemetry,
 	additionalOptions ...grpc.ServerOption,
 ) (*GRPCServer, error) {
 	if reservationServer == nil {
 		return nil, fmt.Errorf("reservation server must not be nil")
+	}
+
+	if tlsConfig == nil || tlsConfig.ClientAuth != tls.RequireAndVerifyClientCert {
+		return nil, fmt.Errorf("TLS config must require and verify client certificates")
+	}
+
+	if interceptor == nil {
+		return nil, fmt.Errorf("reservation interceptor must not be nil")
 	}
 
 	if logger == nil {
@@ -64,18 +69,13 @@ func NewGRPCServer(
 		return nil, fmt.Errorf("telemetry must not be nil")
 	}
 
-	opts := []grpc.ServerOption{
+	opts := make([]grpc.ServerOption, 0, 3+len(additionalOptions))
+	opts = append(
+		opts,
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-	}
-
-	if tenantInterceptor != nil {
-		opts = append(opts, grpc.ChainUnaryInterceptor(tenantInterceptor))
-	}
-
-	if tlsConfig != nil {
-		opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
-	}
-
+		grpc.ChainUnaryInterceptor(interceptor),
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+	)
 	opts = append(opts, additionalOptions...)
 	server := grpc.NewServer(opts...)
 

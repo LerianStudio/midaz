@@ -15,7 +15,6 @@ import (
 	time "time"
 
 	model "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -56,20 +55,6 @@ func (m *MockReservationReaperRepository) FindExpiredReservations(ctx context.Co
 func (mr *MockReservationReaperRepositoryMockRecorder) FindExpiredReservations(ctx, now, after, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindExpiredReservations", reflect.TypeOf((*MockReservationReaperRepository)(nil).FindExpiredReservations), ctx, now, after, limit)
-}
-
-// ReleaseExpired mocks base method.
-func (m *MockReservationReaperRepository) ReleaseExpired(ctx context.Context, reservationID uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseExpired", ctx, reservationID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReleaseExpired indicates an expected call of ReleaseExpired.
-func (mr *MockReservationReaperRepositoryMockRecorder) ReleaseExpired(ctx, reservationID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExpired", reflect.TypeOf((*MockReservationReaperRepository)(nil).ReleaseExpired), ctx, reservationID)
 }
 
 // MockReserveOperationExpirer is a mock of ReserveOperationExpirer interface.

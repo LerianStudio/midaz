@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -29,8 +30,12 @@ import (
 )
 
 func TestContextReservationTransportStrictRequest(t *testing.T) {
+	t.Parallel()
+
 	for _, scenario := range []string{"valid", "duplicate", "identity absent", "invalid asset code", "service unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			admission := mocks.NewMockContextReserveAdmitter(ctrl)
 			completion := mocks.NewMockContextReserveCompleter(ctrl)
@@ -62,7 +67,7 @@ func TestContextReservationTransportStrictRequest(t *testing.T) {
 				}
 				admission.EXPECT().Execute(gomock.Any(), r).Return(result, serviceErr)
 			}
-			result, err := handler.Reserve(ctx, &ReserveInputHuma{RawBody: raw})
+			result, err := handler.Reserve(ctx, &ContextReserveInput{RawBody: raw})
 			if scenario == "valid" {
 				require.NoError(t, err)
 				require.Equal(t, r.TransactionID, result.Body.TransactionID)
@@ -75,8 +80,10 @@ func TestContextReservationTransportStrictRequest(t *testing.T) {
 }
 
 func TestContextReservationSchemaPresence(t *testing.T) {
+	t.Parallel()
+
 	_, api := contextPolicyTestApp(t, NewMockContextPolicyAdminService(gomock.NewController(t)), nil)
-	RegisterContextReservationRoutes(api, &ContextReservationHandler{maxBodyBytes: 65536}, nil)
+	RegisterContextReservationRoutes(api, &ContextReservationHandler{maxBodyBytes: 65536})
 	registry := api.OpenAPI().Components.Schemas
 	for _, tc := range []struct {
 		typ   reflect.Type
@@ -100,13 +107,33 @@ func TestContextReservationSchemaPresence(t *testing.T) {
 }
 
 func TestContextReservationPreservesPolicyEvaluationError(t *testing.T) {
+	t.Parallel()
+
 	var failure pkg.InternalServerError
 	require.ErrorAs(t, canonicalContextReservationError(constant.ErrExpressionEvaluation), &failure)
 	require.Equal(t, constant.ErrExpressionEvaluation.Error(), failure.Code)
 }
 
 func TestContextReservationReportsCompilationSaturation(t *testing.T) {
+	t.Parallel()
+
 	var failure huma.StatusError
 	require.ErrorAs(t, canonicalContextReservationError(query.ErrContextPolicyCompilationBusy), &failure)
 	require.Equal(t, http.StatusTooManyRequests, failure.GetStatus())
+}
+
+func TestContextReservationMapsCallerCancellationAndDeadline(t *testing.T) {
+	t.Parallel()
+
+	var canceled pkg.ServiceUnavailableError
+	require.ErrorAs(t, canonicalContextReservationError(fmt.Errorf("admit: %w", context.Canceled)), &canceled)
+	require.Equal(t, "0330", canceled.Code)
+	require.Equal(t, constant.ErrContextCancelled.Error(), canceled.Code)
+	require.Equal(t, constant.EntityReservation, canceled.EntityType)
+
+	var timedOut pkg.GatewayTimeoutError
+	require.ErrorAs(t, canonicalContextReservationError(fmt.Errorf("admit: %w", context.DeadlineExceeded)), &timedOut)
+	require.Equal(t, "0422", timedOut.Code)
+	require.Equal(t, constant.ErrValidationTimeout.Error(), timedOut.Code)
+	require.Equal(t, constant.EntityReservation, timedOut.EntityType)
 }

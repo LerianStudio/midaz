@@ -75,6 +75,10 @@ func fetchTracerSpec(t *testing.T) openAPISpec {
 	}
 	deps := newTestRouterDeps(t, guardCfg)
 	deps.openAPIDocsEnabled = true // gate ServeSpec on
+
+	key, _ := testProducerAuthChain(t)
+	reservation := withProducerVerifier(t, contextReservationRoutesDeps(t), key)
+	deps.contextReservation = &reservation
 	app := deps.build()
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/openapi.json", nil)
@@ -92,10 +96,10 @@ func fetchTracerSpec(t *testing.T) openAPISpec {
 	return spec
 }
 
-// TestSpecLock_SecuritySchemes asserts the two auth schemes referenced by the
+// TestSpecLock_SecuritySchemes asserts the three auth schemes referenced by the
 // per-op Security metadata are declared on the shared Huma API: BearerAuth (from
-// openapi.DeclareBearerAuth) and ApiKeyAuth (declared locally). Without these the
-// per-op security:[{BearerAuth:{}}] / {ApiKeyAuth:{}} entries would dangle.
+// openapi.DeclareBearerAuth), ApiKeyAuth (declared locally) and the reservation
+// producer scheme. Without these the per-op security entries would dangle.
 func TestSpecLock_SecuritySchemes(t *testing.T) {
 	spec := fetchTracerSpec(t)
 
@@ -109,6 +113,11 @@ func TestSpecLock_SecuritySchemes(t *testing.T) {
 	assert.Equal(t, "apiKey", apiKey.Type, "ApiKeyAuth.type")
 	assert.Equal(t, "header", apiKey.In, "ApiKeyAuth.in")
 	assert.Equal(t, "X-API-Key", apiKey.Name, "ApiKeyAuth.name")
+
+	producer, ok := spec.Components.SecuritySchemes[producerSecurityScheme]
+	require.True(t, ok, "%s scheme must be declared", producerSecurityScheme)
+	assert.Equal(t, "http", producer.Type, "%s.type", producerSecurityScheme)
+	assert.Equal(t, "bearer", producer.Scheme, "%s.scheme", producerSecurityScheme)
 }
 
 // TestSpecLock_PerOpSecurity spot-checks the three security shapes that matter:
@@ -156,6 +165,7 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 	spec := fetchTracerSpec(t)
 
 	bearerOrAPIKey := []map[string][]string{{"BearerAuth": {}}, {"ApiKeyAuth": {}}}
+	producer := []map[string][]string{{producerSecurityScheme: {}}}
 
 	cases := []struct {
 		path, method string
@@ -180,12 +190,12 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/limits/{id}/draft", http.MethodPost, bearerOrAPIKey},
 		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
 		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
-		// reservations (5)
-		{"/reservations", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/release", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, bearerOrAPIKey},
+		// reservations (5): only a platform producer's M2M token is accepted.
+		{"/reservations", http.MethodPost, producer},
+		{"/reservations/{id}/confirm", http.MethodPost, producer},
+		{"/reservations/{id}/release", http.MethodPost, producer},
+		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, producer},
+		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, producer},
 		// validations (3): all bearer|apikey — POST's runtime guard is config-driven
 		// (cfg.APIKeyOnlyValidation, default false), so the spec advertises the union.
 		{"/validations", http.MethodPost, bearerOrAPIKey},

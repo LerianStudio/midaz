@@ -1,0 +1,1 @@
+-- VALIDATE CONSTRAINT has no inverse and is non-destructive; nothing to undo.

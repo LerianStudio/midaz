@@ -5,7 +5,6 @@
 package in
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -26,6 +25,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
+// ContextReserveInput takes the body raw so the strict contract decoder is the
+// sole validator and every rejection keeps its canonical code.
+type ContextReserveInput struct {
+	RawBody []byte `contentType:"application/json"`
+}
+
 type ContextReserveOutput struct {
 	Status int
 	Body   *tracercontract.ReserveResult
@@ -40,9 +45,9 @@ type ContextTransactionCompletionOutput struct {
 	Body any
 }
 
-// ContextReservationHandler replaces Reserve on the existing route. Legacy
-// lifecycle bodies remain restricted to the legacy repository's reservations.
-// Authentication and tenant resolution must precede all registered handlers.
+// ContextReservationHandler serves the coordinated reservation contract.
+// Producer authentication and tenant resolution must precede all registered
+// handlers.
 type ContextReservationHandler struct {
 	admission       ContextReserveAdmitter
 	completion      ContextReserveCompleter
@@ -50,7 +55,6 @@ type ContextReservationHandler struct {
 	bounds          tracercontract.Limits
 	maxBodyBytes    int
 	maxReservations int
-	legacy          *ReservationHandler
 }
 
 func NewContextReservationHandler(admission ContextReserveAdmitter, completion ContextReserveCompleter, completionByID ContextReserveIDCompleter, bounds tracercontract.Limits, maxBodyBytes, maxReservations int) (*ContextReservationHandler, error) {
@@ -65,7 +69,7 @@ func NewContextReservationHandler(admission ContextReserveAdmitter, completion C
 	return &ContextReservationHandler{admission: admission, completion: completion, completionByID: completionByID, bounds: bounds, maxBodyBytes: maxBodyBytes, maxReservations: maxReservations}, nil
 }
 
-func (h *ContextReservationHandler) Reserve(ctx context.Context, input *ReserveInputHuma) (_ *ContextReserveOutput, retErr error) {
+func (h *ContextReservationHandler) Reserve(ctx context.Context, input *ContextReserveInput) (_ *ContextReserveOutput, retErr error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.context_reserve")
@@ -170,10 +174,6 @@ func (h *ContextReservationHandler) complete(ctx context.Context, input *Context
 		return nil, constant.ErrInvalidPathParameter
 	}
 
-	if len(bytes.TrimSpace(input.RawBody)) == 0 {
-		return h.completeLegacy(ctx, input.TransactionID, status)
-	}
-
 	if _, err := tracercontract.DecodeCompletionJSON(ctx, input.RawBody, h.maxBodyBytes); err != nil {
 		return nil, err
 	}
@@ -188,24 +188,6 @@ func (h *ContextReservationHandler) complete(ctx context.Context, input *Context
 	}
 
 	logging.WithTrace(ctx, logger).Log(ctx, libLog.LevelDebug, "Context completion response ready")
-
-	return &ContextTransactionCompletionOutput{Body: result}, nil
-}
-
-func (h *ContextReservationHandler) completeLegacy(ctx context.Context, id string, status model.ReserveOperationStatus) (*ContextTransactionCompletionOutput, error) {
-	if h.legacy == nil {
-		return nil, constant.ErrInvalidRequestBody
-	}
-
-	action := h.legacy.service.ConfirmByTransaction
-	if status == model.OperationReleased {
-		action = h.legacy.service.ReleaseByTransaction
-	}
-
-	result, err := h.legacy.terminateByTransaction(ctx, id, "handler.legacy_reserve_completion", string(status), action)
-	if err != nil {
-		return nil, err
-	}
 
 	return &ContextTransactionCompletionOutput{Body: result}, nil
 }
@@ -247,12 +229,11 @@ func canonicalContextReservationError(err error) error {
 	return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "Reservation processing failed."}
 }
 
-// RegisterContextReservationRoutes mounts the replacement on the current URL.
-// Call once during bootstrap; legacy is retained only for old completion calls.
-func RegisterContextReservationRoutes(api huma.API, h *ContextReservationHandler, legacy *ReservationHandler) {
+// RegisterContextReservationRoutes mounts the coordinated reservation
+// operations. Call once during bootstrap.
+func RegisterContextReservationRoutes(api huma.API, h *ContextReservationHandler) {
 	installContextReservationSchemas(api.OpenAPI().Components.Schemas)
 
-	h.legacy = legacy
 	huma.Register(api, huma.Operation{OperationID: "createReservation", Method: http.MethodPost, Path: "/reservations", DefaultStatus: http.StatusCreated, Summary: "Evaluate rules and reserve account capacity", Tags: []string{"Reservations"}, Security: contextReservationSecurity(api), SkipValidateBody: true, MaxBodyBytes: int64(h.maxBodyBytes), Errors: []int{400, 401, 403, 409, 413, 503}}, h.Reserve)
 	reserveSchema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[tracercontract.ReserveRequest](), true, "")
 
@@ -266,21 +247,24 @@ func RegisterContextReservationRoutes(api huma.API, h *ContextReservationHandler
 	} {
 		huma.Register(api, huma.Operation{OperationID: op.id, Method: http.MethodPost, Path: op.path, Summary: op.summary, Tags: []string{"Reservations"}, Security: contextReservationSecurity(api), SkipValidateBody: true, MaxBodyBytes: int64(h.maxBodyBytes), Errors: []int{400, 401, 403, 409, 413, 503}}, op.handler)
 		schema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[tracercontract.CompletionRequest](), true, "")
-		api.OpenAPI().Paths[op.path].Post.RequestBody = &huma.RequestBody{Required: false, Description: "A contractRevision body completes a coordinated operation. An absent body addresses only legacy reservations and additionally requires the configured legacy API-key/Bearer authorization.", Content: map[string]*huma.MediaType{"application/json": {Schema: schema}}}
+		api.OpenAPI().Paths[op.path].Post.RequestBody = &huma.RequestBody{Required: true, Description: "The contractRevision body completes the coordinated operation of the transaction.", Content: map[string]*huma.MediaType{"application/json": {Schema: schema}}}
 		response := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[tracercontract.TransactionCompletionResult](), true, "")
-		legacyResponse := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[TransactionActionResponse](), true, "")
-		api.OpenAPI().Paths[op.path].Post.Responses["200"].Content = map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{OneOf: []*huma.Schema{response, legacyResponse}}}}
+		api.OpenAPI().Paths[op.path].Post.Responses["200"].Content = map[string]*huma.MediaType{"application/json": {Schema: response}}
 	}
 
 	registerContextReservationIDRoutes(api, h)
 }
+
+// producerSecurityScheme names the producer credential the reservation
+// operations accept. User and admin credentials never substitute for it.
+const producerSecurityScheme = "ProducerM2M"
 
 func contextReservationSecurity(api huma.API) []map[string][]string {
 	if api.OpenAPI().Components.SecuritySchemes == nil {
 		api.OpenAPI().Components.SecuritySchemes = map[string]*huma.SecurityScheme{}
 	}
 
-	api.OpenAPI().Components.SecuritySchemes["ProducerMTLS"] = &huma.SecurityScheme{Type: "mutualTLS", Description: "Verified producer certificate bound to a registered integration."}
+	api.OpenAPI().Components.SecuritySchemes[producerSecurityScheme] = &huma.SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT", Description: "M2M access token of a registered platform producer; its authorized party selects the producer."}
 
-	return []map[string][]string{{"ProducerMTLS": {}}}
+	return []map[string][]string{{producerSecurityScheme: {}}}
 }

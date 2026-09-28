@@ -21,13 +21,11 @@ import (
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
 	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
-	grpcmocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in/mocks"
 	httpin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
@@ -58,7 +56,7 @@ func TestIntegrationReserveHTTPPersistsAndReplays(t *testing.T) {
 	group := app.Group("/v1", func(c fiber.Ctx) error { c.SetContext(completionContext(c.Context(), "producer")); return c.Next() })
 	api := openapi.New(app, group, openapi.Config{Title: "reservation persistence test", Version: "1", Servers: []string{"/v1"}})
 	pkgHTTP.InstallSchemaNamer(api)
-	httpin.RegisterContextReservationRoutes(api, handler, nil)
+	httpin.RegisterContextReservationRoutes(api, handler)
 	post := func(path string, body any, status int) []byte {
 		t.Helper()
 		raw, err := json.Marshal(body)
@@ -80,7 +78,7 @@ func TestIntegrationReserveHTTPPersistsAndReplays(t *testing.T) {
 	require.Len(t, first.ReservationIDs, 1)
 	require.JSONEq(t, string(raw), string(post("/v1/reservations", request, http.StatusCreated)))
 	// Replay across transports must resolve the original durable decision.
-	server, err := grpcin.NewContextReservationServer(grpcmocks.NewMockReservationService(gomock.NewController(t)), testutil.NewDefaultMockClock(), admission, completion, byID, grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
+	server, err := grpcin.NewContextReservationServer(admission, completion, byID, grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
 	require.NoError(t, err)
 	client := reservePersistenceGRPCClient(t, server)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)

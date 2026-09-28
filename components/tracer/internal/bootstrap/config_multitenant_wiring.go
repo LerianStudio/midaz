@@ -18,6 +18,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/producerauth"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
@@ -31,12 +32,19 @@ import (
 // the /readyz redis probe can PING it directly. tmClient is likewise the
 // signal source for the /readyz tenant_manager probe. Both are wired into the
 // HealthChecker in the multi-tenant bootstrap path.
+//
+// tenantAuthorizer checks a platform producer's requested tenant against the
+// tenant-manager's list of tenants active for that producer's service, held in
+// tenantAssociations. The list carries tenant ids only, so no credential of a
+// producer service is ever fetched or cached by the Tracer.
 type componentsMT struct {
-	tmClient      *tmclient.Client
-	redisClient   redis.UniversalClient
-	pgManager     *tmpostgres.Manager
-	supervisor    *workers.WorkerSupervisor
-	eventListener *tenantListenerApp
+	tmClient           *tmclient.Client
+	redisClient        redis.UniversalClient
+	pgManager          *tmpostgres.Manager
+	supervisor         *workers.WorkerSupervisor
+	eventListener      *tenantListenerApp
+	tenantAssociations *activeTenantSets
+	tenantAuthorizer   *producerauth.TenantAuthorizer
 }
 
 // wiringDepsMT groups the pre-built dependencies the wiring helper
@@ -259,12 +267,20 @@ func buildComponentsMT(
 	// All steps succeeded — flip the sentinel so the deferred cleanup no-ops.
 	success = true
 
+	tenantAssociations := newActiveTenantSets(tmClient, activeTenantSetConfig{
+		TTL:          time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second,
+		FetchTimeout: time.Duration(cfg.MultiTenantTimeout) * time.Second,
+		Logger:       logger,
+	}, producerauth.ServiceLedger)
+
 	return &componentsMT{
-		tmClient:      tmClient,
-		redisClient:   redisClient,
-		pgManager:     pgManager,
-		supervisor:    supervisor,
-		eventListener: listenerApp,
+		tmClient:           tmClient,
+		redisClient:        redisClient,
+		pgManager:          pgManager,
+		supervisor:         supervisor,
+		eventListener:      listenerApp,
+		tenantAssociations: tenantAssociations,
+		tenantAuthorizer:   producerauth.NewTenantAuthorizer(tenantAssociations.Lookup, true),
 	}, nil
 }
 

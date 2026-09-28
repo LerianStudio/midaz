@@ -267,8 +267,9 @@ func validLowSurrogate(raw []byte, lastHigh int) bool {
 	return err == nil && low >= 0xDC00 && low <= 0xDFFF
 }
 
-// DecodeCompletionJSON requires explicit acknowledgement of this contract.
-// Empty legacy bodies are handled by the transport's separate legacy lifecycle.
+// DecodeCompletionJSON requires explicit acknowledgement of this contract: the
+// body must be a single object naming exactly this contract revision, so an
+// empty or revision-less body is rejected.
 func DecodeCompletionJSON(ctx context.Context, raw []byte, maxBodyBytes int) (CompletionRequest, error) {
 	if err := ctx.Err(); err != nil {
 		return CompletionRequest{}, err

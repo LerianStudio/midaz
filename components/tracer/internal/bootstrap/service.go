@@ -347,9 +347,10 @@ func (r *streamingProducerRunnable) drain() {
 //     READYZ_DRAIN_GRACE_SECONDS) sized for periodSeconds=5 ×
 //     failureThreshold=2 plus buffer.
 //  3. ShutdownWithContext — stops accepting new HTTP requests; in-flight
-//     requests get fiber's per-handler context to drain.
-//  4. Worker / multi-tenant cleanup — supervisor, listener, pgManager, then
-//     tmClient. The order matters (see inline comments below).
+//     requests get fiber's per-handler context to drain. The reservation
+//     producer JWKS refresher stops right after, even when this step fails.
+//  4. Worker / multi-tenant cleanup — listener, supervisor, pgManager, then
+//     tmClient (see shutdownTenancy for why the order matters).
 //  5. PostgreSQL pool close — last so any worker shutting down can still use
 //     the pool until its goroutine exits.
 //
@@ -358,8 +359,30 @@ func (r *streamingProducerRunnable) drain() {
 func (app *Service) Shutdown(ctx context.Context) error {
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
-	// Step 1: flip drainingState. /readyz starts returning 503 immediately
-	// so K8s removes the pod from service endpoints during the grace window.
+	app.drain(ctx, logger)
+
+	err := app.shutdownHTTP(ctx, logger)
+
+	// The JWKS refresher stops whether or not the HTTP server drained cleanly:
+	// nothing restarts it, so a failed drain must not leak its goroutine.
+	app.closeReservationVerifier(ctx, logger)
+
+	if err != nil {
+		return err
+	}
+
+	app.logLauncherManagedWorkers(ctx, logger)
+	app.shutdownTenancy(ctx, logger)
+	app.closePostgres(ctx, logger)
+
+	return nil
+}
+
+// drain flips /readyz to 503 so K8s removes the pod from service endpoints,
+// then waits the grace window. The wait honors the parent context, so an
+// explicit cancel/SIGINT can cut it short rather than oversleeping the full
+// grace period.
+func (app *Service) drain(ctx context.Context, logger libLog.Logger) {
 	if app.healthChecker != nil {
 		app.healthChecker.MarkDraining()
 		logger.With(
@@ -367,38 +390,60 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		).Log(ctx, libLog.LevelInfo, "draining_state_set")
 	}
 
-	// Step 2: grace window. select honors the parent context — operators
-	// running an explicit cancel/SIGINT can cut the wait short rather than
-	// being forced to oversleep the full grace period.
 	graceDuration := drainGracePeriod(app.config)
-	if graceDuration > 0 {
+	if graceDuration <= 0 {
+		return
+	}
+
+	logger.With(
+		libLog.String("service.name", "HTTP Service"),
+		libLog.String("grace.duration", graceDuration.String()),
+	).Log(ctx, libLog.LevelInfo, "drain_grace_started")
+
+	timer := time.NewTimer(graceDuration)
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		timer.Stop()
+	}
+}
+
+// shutdownHTTP stops accepting new HTTP requests and lets in-flight ones drain.
+func (app *Service) shutdownHTTP(ctx context.Context, logger libLog.Logger) error {
+	if app.HTTPServer == nil || app.app == nil {
+		return nil
+	}
+
+	if err := app.app.ShutdownWithContext(ctx); err != nil {
 		logger.With(
 			libLog.String("service.name", "HTTP Service"),
-			libLog.String("grace.duration", graceDuration.String()),
-		).Log(ctx, libLog.LevelInfo, "drain_grace_started")
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to shutdown HTTP server")
 
-		timer := time.NewTimer(graceDuration)
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-		}
+		return err
 	}
 
-	if app.HTTPServer != nil && app.app != nil {
-		if err := app.app.ShutdownWithContext(ctx); err != nil {
-			logger.With(
-				libLog.String("service.name", "HTTP Service"),
-				libLog.String("error.message", err.Error()),
-			).Log(ctx, libLog.LevelError, "failed to shutdown HTTP server")
+	return nil
+}
 
-			return err
-		}
+// closeReservationVerifier stops the reservation producer JWKS refresher,
+// when one was started.
+func (app *Service) closeReservationVerifier(ctx context.Context, logger libLog.Logger) {
+	if app.HTTPServer == nil || app.contextReservations == nil {
+		return
 	}
 
-	// The cleanup worker uses signal.NotifyContext for graceful shutdown.
-	// When running via Launcher, shutdown is coordinated through OS signals.
-	// For programmatic shutdown scenarios, the worker stops when its context is cancelled.
+	if err := app.contextReservations.config.close(); err != nil {
+		logger.With(
+			libLog.String("service.name", "Reservation Producer Verifier"),
+		).Log(ctx, libLog.LevelWarn, "Failed to stop JWKS key source", libLog.Err(err))
+	}
+}
+
+// logLauncherManagedWorkers records that the cleanup and sync workers stop on
+// the Launcher's OS-signal path, or when their context is cancelled, rather
+// than here.
+func (app *Service) logLauncherManagedWorkers(ctx context.Context, logger libLog.Logger) {
 	if app.cleanupWorker != nil {
 		logger.With(
 			libLog.String("service.name", "Usage Cleanup Worker"),
@@ -410,11 +455,14 @@ func (app *Service) Shutdown(ctx context.Context) error {
 			libLog.String("service.name", "Rule Sync Worker"),
 		).Log(ctx, libLog.LevelInfo, "rule sync worker shutdown is managed by Launcher via OS signals")
 	}
+}
 
-	// Multi-tenant: stop the event listener (which unblocks its Run loop) and
-	// the supervisor (which tears down every per-tenant worker set). Ordering
-	// matters: stop the listener first so no new EnsureWorkers callbacks can
-	// race with the supervisor shutting down.
+// shutdownTenancy stops the multi-tenant machinery in dependency order: the
+// event listener first, so no new EnsureWorkers callback races the supervisor
+// tearing down every per-tenant worker set; then the tenant pool manager; and
+// the tenant-manager client last, because the pool manager may call back into
+// it while it evicts pools during Close.
+func (app *Service) shutdownTenancy(ctx context.Context, logger libLog.Logger) {
 	if app.eventListener != nil {
 		app.eventListener.Shutdown()
 	}
@@ -434,11 +482,6 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	// Close the Tenant Manager HTTP client AFTER the pgManager. The pgManager's
-	// LRU may evict tenant pools during Close and (in some lib-commons paths)
-	// call back into the tmClient for metrics/telemetry; keeping the client
-	// alive until the manager is fully drained avoids "use of closed client"
-	// warnings during shutdown.
 	if app.tmClient != nil {
 		if err := app.tmClient.Close(); err != nil {
 			logger.With(
@@ -447,17 +490,20 @@ func (app *Service) Shutdown(ctx context.Context) error {
 			).Log(ctx, libLog.LevelWarn, "Failed to close tenant-manager client")
 		}
 	}
+}
 
-	// Close the PostgreSQL connection pool to release database connections.
-	// This is critical for repeated restarts (e.g., integration tests with
-	// RestartServerWithConfig) to avoid exhausting the database's max_connections.
-	if app.postgresConn != nil {
-		if err := app.postgresConn.Close(); err != nil {
-			logger.With(
-				libLog.String("error.message", err.Error()),
-			).Log(ctx, libLog.LevelWarn, "Failed to close PostgreSQL connection pool")
-		}
+// closePostgres releases the primary PostgreSQL pool last, so a worker still
+// shutting down can use it until its goroutine exits. Repeated restarts (the
+// integration suite's RestartServerWithConfig) would otherwise exhaust the
+// database's max_connections.
+func (app *Service) closePostgres(ctx context.Context, logger libLog.Logger) {
+	if app.postgresConn == nil {
+		return
 	}
 
-	return nil
+	if err := app.postgresConn.Close(); err != nil {
+		logger.With(
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to close PostgreSQL connection pool")
+	}
 }

@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,15 +27,13 @@ import (
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
-// TestReservationMTLS proves the tracer enforces client-certificate
-// verification on the reservation seam in TRACER_TLS_MODE=mtls, on BOTH
-// transports:
+// TestReservationMTLS proves the per-port TLS posture in TRACER_TLS_MODE=mtls:
 //
 //   - gRPC: a client presenting a CA-signed cert completes the Reserve RPC; a
 //     client without a cert is rejected at the TLS layer (the RPC never reaches
 //     the service).
-//   - REST (Fiber): a tls.Dial with a CA-signed client cert handshakes; a dial
-//     without a client cert is rejected by the server.
+//   - REST (Fiber): the listener serves HTTPS without requesting a client
+//     certificate, so a client with or without one completes a request.
 //
 // It runs under the integration tag because it binds real loopback sockets and
 // performs real TLS handshakes. No Docker is required: certs come from the
@@ -43,10 +42,15 @@ func TestReservationMTLS(t *testing.T) {
 	fixture := testutil.GenerateMTLSFixture(t)
 	cfg := writeMTLSConfig(t, fixture)
 
-	serverTLS, err := buildSeamTLSConfig(cfg)
+	grpcTLS, err := buildGRPCTLSConfig(cfg)
 	require.NoError(t, err)
-	require.NotNil(t, serverTLS)
-	require.Equal(t, tls.RequireAndVerifyClientCert, serverTLS.ClientAuth)
+	require.NotNil(t, grpcTLS)
+	require.Equal(t, tls.RequireAndVerifyClientCert, grpcTLS.ClientAuth)
+
+	httpTLS, err := buildHTTPTLSConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, httpTLS)
+	require.Equal(t, tls.NoClientCert, httpTLS.ClientAuth)
 
 	clientCert, err := tls.X509KeyPair(fixture.ClientCertPEM, fixture.ClientKeyPEM)
 	require.NoError(t, err)
@@ -55,7 +59,7 @@ func TestReservationMTLS(t *testing.T) {
 	require.True(t, caPool.AppendCertsFromPEM(fixture.CACertPEM))
 
 	t.Run("gRPC accepts CA-signed client and rejects uncertified client", func(t *testing.T) {
-		addr := startGRPCMTLSServer(t, serverTLS)
+		addr := startGRPCMTLSServer(t, grpcTLS)
 
 		// Valid client: presents its cert, verifies the server against the CA.
 		validCreds := credentials.NewTLS(&tls.Config{
@@ -98,58 +102,36 @@ func TestReservationMTLS(t *testing.T) {
 		require.Error(t, err, "client without a verified cert must be rejected")
 	})
 
-	t.Run("Fiber TLS listener accepts CA-signed client and rejects uncertified client", func(t *testing.T) {
-		addr := startFiberMTLSServer(t, cfg, serverTLS)
+	t.Run("Fiber TLS listener serves clients with and without a certificate", func(t *testing.T) {
+		addr := startFiberMTLSServer(t, cfg, httpTLS)
 
-		// Valid client: handshake completes.
-		validConn, err := tls.Dial("tcp", addr, &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{clientCert},
-			RootCAs:      caPool,
-			ServerName:   "localhost",
-		})
-		require.NoError(t, err, "CA-signed client must handshake with the Fiber TLS listener")
-		require.NoError(t, validConn.Handshake())
-		_ = validConn.Close()
+		for name, certificates := range map[string][]tls.Certificate{
+			"with client certificate":    {clientCert},
+			"without client certificate": nil,
+		} {
+			t.Run(name, func(t *testing.T) {
+				transport := &http.Transport{TLSClientConfig: &tls.Config{
+					MinVersion:   tls.VersionTLS12,
+					Certificates: certificates,
+					RootCAs:      caPool,
+					ServerName:   "localhost",
+				}}
+				t.Cleanup(transport.CloseIdleConnections)
 
-		// Uncertified client: server demands a client cert and rejects the
-		// connection. Under TLS 1.3 the client's Handshake() can complete
-		// optimistically (the server's alert rides the first flight the client
-		// reads), so we force a read to surface the rejection — an uncertified
-		// client must never exchange application data with the seam.
-		require.Error(t, mtlsRejectionError(addr, caPool),
-			"client without a cert must be rejected by the mTLS seam")
+				client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
+
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+addr+"/health", nil)
+				require.NoError(t, err)
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+
+				defer func() { _ = resp.Body.Close() }()
+
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+			})
+		}
 	})
-}
-
-// mtlsRejectionError dials addr without a client certificate, completes the
-// handshake, and attempts a read. It returns the first error observed — under
-// TLS 1.2 the handshake itself fails; under TLS 1.3 the server's bad-certificate
-// alert surfaces on the read. Either way an uncertified client cannot exchange
-// data with the seam, which is the property under test.
-func mtlsRejectionError(addr string, caPool *x509.CertPool) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    caPool,
-		ServerName: "localhost",
-	})
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = conn.Close() }()
-
-	if err := conn.Handshake(); err != nil {
-		return err
-	}
-
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-
-	buf := make([]byte, 1)
-
-	_, err = conn.Read(buf)
-
-	return err
 }
 
 // startGRPCMTLSServer stands up a gRPC server secured by serverTLS, registers a
@@ -171,7 +153,7 @@ func startGRPCMTLSServer(t *testing.T, serverTLS *tls.Config) string {
 	return listener.Addr().String()
 }
 
-// startFiberMTLSServer runs a Fiber app behind the seam TLS listener (the same
+// startFiberMTLSServer runs a Fiber app behind the HTTP TLS listener (the same
 // path HTTPServer.Run uses in mtls mode) and returns its loopback address.
 func startFiberMTLSServer(t *testing.T, cfg *Config, serverTLS *tls.Config) string {
 	t.Helper()

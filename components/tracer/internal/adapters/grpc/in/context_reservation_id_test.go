@@ -29,7 +29,7 @@ func TestContextReservationByID(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			completer := mocks.NewMockContextReserveIDCompleter(ctrl)
 			config := ContextReservationConfig{Bounds: tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}, MaxBodyBytes: 65536, MaxReservations: 100}
-			server, err := NewContextReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewDefaultMockClock(), mocks.NewMockContextReserveAdmitter(ctrl), mocks.NewMockContextReserveCompleter(ctrl), completer, config)
+			server, err := NewContextReservationServer(mocks.NewMockContextReserveAdmitter(ctrl), mocks.NewMockContextReserveCompleter(ctrl), completer, config)
 			require.NoError(t, err)
 			ctx := contextutil.WithIntegrationIdentity(t.Context(), contextutil.IntegrationIdentity{ID: "producer"})
 			id := testutil.MustDeterministicUUID(88951)

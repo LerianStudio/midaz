@@ -33,6 +33,16 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
+// Snapshot returns a copy of the recorded calls, taken under the logger's
+// lock. Read calls through it whenever something may still be logging, such
+// as a background goroutine that outlives the code under test.
+func (m *MockLogger) Snapshot() []LogCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return append([]LogCall(nil), m.Calls...)
+}
+
 func (m *MockLogger) Log(_ context.Context, level int, msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

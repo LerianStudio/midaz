@@ -18,7 +18,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	dbmocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -41,18 +40,18 @@ func (e *recordingExpirer) Execute(_ context.Context, key model.ReserveOperation
 	return 1, nil
 }
 
-// reaperWiringDeps returns the reaper's two collaborators. Neither is exercised
-// during construction, so a repository over nil handles is enough to prove the
-// boot path assembles the worker.
-func reaperWiringDeps() (*limitServiceDeps, *command.RecordAuditEventCommand) {
+// reaperWiringDeps returns the reaper's collaborators. None is exercised during
+// construction, so a repository over nil handles is enough to prove the boot
+// path assembles the worker.
+func reaperWiringDeps() *limitServiceDeps {
 	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(nil)
 	deps := &limitServiceDeps{
 		reservationRepo:  reservationRepo,
-		reaperRepo:       postgres.NewReservationReaperRepository(nil, nil, reservationRepo),
+		reaperRepo:       postgres.NewReservationReaperRepository(nil),
 		operationExpirer: &recordingExpirer{},
 	}
 
-	return deps, command.NewRecordAuditEventCommand(nil)
+	return deps
 }
 
 // TestLoadReservationReaperConfig covers the two knobs that had no reader at
@@ -198,14 +197,14 @@ func TestApplyReservationReaperDefaults(t *testing.T) {
 func TestInitReaperWorker(t *testing.T) {
 	t.Parallel()
 
-	limitDeps, auditor := reaperWiringDeps()
+	limitDeps := reaperWiringDeps()
 
 	t.Run("enabled builds the worker", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{ReservationReaperEnabled: true, ReservationReaperIntervalSeconds: "5"}
 
-		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, auditor, limitDeps.operationExpirer,
+		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, limitDeps.operationExpirer,
 			testutil.NewMockLogger(), clock.RealClock{})
 		require.NoError(t, err)
 		assert.NotNil(t, worker, "an operator who enables the reaper must get a sweep")
@@ -216,7 +215,7 @@ func TestInitReaperWorker(t *testing.T) {
 
 		cfg := &Config{ReservationReaperEnabled: false}
 
-		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, auditor, limitDeps.operationExpirer,
+		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, limitDeps.operationExpirer,
 			testutil.NewMockLogger(), clock.RealClock{})
 		require.NoError(t, err)
 		assert.Nil(t, worker)
@@ -227,7 +226,7 @@ func TestInitReaperWorker(t *testing.T) {
 
 		cfg := &Config{ReservationReaperEnabled: true, ReservationReaperIntervalSeconds: "5"}
 
-		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, auditor, nil,
+		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, nil,
 			testutil.NewMockLogger(), clock.RealClock{})
 		require.ErrorIs(t, err, workers.ErrNilOperationExpirer)
 		assert.Nil(t, worker)
@@ -238,7 +237,7 @@ func TestInitReaperWorker(t *testing.T) {
 
 		cfg := &Config{ReservationReaperEnabled: true, ReservationReaperIntervalSeconds: "thirty"}
 
-		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, auditor, limitDeps.operationExpirer,
+		worker, err := initReaperWorker(t.Context(), cfg, limitDeps.reaperRepo, limitDeps.operationExpirer,
 			testutil.NewMockLogger(), clock.RealClock{})
 		require.Error(t, err)
 		assert.Nil(t, worker)
@@ -251,14 +250,14 @@ func TestInitReaperWorker(t *testing.T) {
 func TestInitWorkers_SingleTenantRegistersReaper(t *testing.T) {
 	t.Parallel()
 
-	limitDeps, auditor := reaperWiringDeps()
+	limitDeps := reaperWiringDeps()
 
 	t.Run("enabled", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{ReservationReaperEnabled: true, ReservationReaperIntervalSeconds: "5"}
 
-		svc, err := initWorkers(t.Context(), cfg, limitDeps, auditor, nil, nil, nil, nil, nil,
+		svc, err := initWorkers(t.Context(), cfg, limitDeps, nil, nil, nil, nil, nil,
 			testutil.NewMockLogger(), clock.RealClock{}, nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, svc)
@@ -270,7 +269,7 @@ func TestInitWorkers_SingleTenantRegistersReaper(t *testing.T) {
 
 		cfg := &Config{ReservationReaperEnabled: false}
 
-		svc, err := initWorkers(t.Context(), cfg, limitDeps, auditor, nil, nil, nil, nil, nil,
+		svc, err := initWorkers(t.Context(), cfg, limitDeps, nil, nil, nil, nil, nil,
 			testutil.NewMockLogger(), clock.RealClock{}, nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, svc)
@@ -287,12 +286,9 @@ func TestBuildSupervisorDeps_PreservesReaperWiring(t *testing.T) {
 
 	deps, extras := newWiringTestDeps(t)
 
-	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(nil)
-	reaperRepo := postgres.NewReservationReaperRepository(nil, nil, reservationRepo)
-	auditor := command.NewRecordAuditEventCommand(nil)
+	reaperRepo := postgres.NewReservationReaperRepository(nil)
 
 	extras.ReaperRepo = reaperRepo
-	extras.ReaperAuditor = auditor
 	extras.ReaperConfig = workers.ReservationReaperWorkerConfig{ReapInterval: 5 * time.Second, BatchSize: workers.DefaultReservationReaperBatchSize}
 	extras.ReaperWorkerEnabled = true
 
@@ -300,7 +296,6 @@ func TestBuildSupervisorDeps_PreservesReaperWiring(t *testing.T) {
 
 	assert.True(t, got.ReaperWorkerEnabled, "per-tenant reapers must stay enabled through the deps build")
 	assert.Equal(t, reaperRepo, got.ReaperRepo)
-	assert.Equal(t, auditor, got.ReaperAuditor)
 	assert.Equal(t, 5*time.Second, got.ReaperConfig.ReapInterval)
 }
 
@@ -322,18 +317,18 @@ func TestInitWorkers_SingleTenantReaperExpiresThroughTheOperationExpirer(t *test
 	expirer := &recordingExpirer{}
 	limitDeps := &limitServiceDeps{
 		reservationRepo:  reservationRepo,
-		reaperRepo:       postgres.NewReservationReaperRepository(conn, nil, reservationRepo),
+		reaperRepo:       postgres.NewReservationReaperRepository(conn),
 		operationExpirer: expirer,
 	}
 
 	operation := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(96001)}
-	sqlMock.ExpectQuery(`SELECT r.id, r.reservation_expires_at, r.decision_id, d.integration_id, d.transaction_id FROM usage_reservations AS r`).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "reservation_expires_at", "decision_id", "integration_id", "transaction_id"}).
-			AddRow(testutil.MustDeterministicUUID(96002), testutil.FixedTime(), testutil.MustDeterministicUUID(96003), operation.IntegrationID, operation.TransactionID))
+	sqlMock.ExpectQuery(`SELECT r.id, r.reservation_expires_at, d.integration_id, d.transaction_id FROM usage_reservations AS r`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "reservation_expires_at", "integration_id", "transaction_id"}).
+			AddRow(testutil.MustDeterministicUUID(96002), testutil.FixedTime(), operation.IntegrationID, operation.TransactionID))
 
 	cfg := &Config{ReservationReaperEnabled: true, ReservationReaperIntervalSeconds: "5"}
 
-	svc, err := initWorkers(t.Context(), cfg, limitDeps, command.NewRecordAuditEventCommand(nil), nil, nil, nil, nil, nil,
+	svc, err := initWorkers(t.Context(), cfg, limitDeps, nil, nil, nil, nil, nil,
 		testutil.NewMockLogger(), clock.NewFixedClock(testutil.FixedTime()), nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, svc.reaperWorker)
@@ -351,15 +346,14 @@ func TestInitWorkers_SingleTenantReaperExpiresThroughTheOperationExpirer(t *test
 func TestWithReservationReaper_CarriesTheOperationExpirer(t *testing.T) {
 	t.Parallel()
 
-	limitDeps, auditor := reaperWiringDeps()
+	limitDeps := reaperWiringDeps()
 	reaperConfig := workers.ReservationReaperWorkerConfig{ReapInterval: 5 * time.Second, BatchSize: 25}
 
-	got := withReservationReaper(workers.WorkerSupervisorDeps{Service: "tracer"}, limitDeps, auditor, reaperConfig, true)
+	got := withReservationReaper(workers.WorkerSupervisorDeps{Service: "tracer"}, limitDeps, reaperConfig, true)
 
 	assert.Equal(t, "tracer", got.Service, "fields it does not own survive")
 	assert.Same(t, limitDeps.operationExpirer, got.ReaperExpirer)
 	assert.Equal(t, limitDeps.reaperRepo, got.ReaperRepo)
-	assert.Equal(t, auditor, got.ReaperAuditor)
 	assert.Equal(t, reaperConfig, got.ReaperConfig)
 	assert.True(t, got.ReaperWorkerEnabled)
 }

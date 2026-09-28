@@ -8,12 +8,10 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/bxcodec/dbresolver/v2"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
@@ -45,17 +43,15 @@ func TestIntegrationReaperExpiresDecisionReservationWithItsOperation(t *testing.
 	_, held := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
 	require.Equal(t, "10.125", held.String())
 
-	beginner := pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db)))
-	reservations := newReservationRepoIntegration(db)
 	audit := NewAuditEventRepositoryWithConnection(conn)
 	expire := expireCommand(t, db)
 	sweptAt := admittedAt.Add(2 * time.Second)
-	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(NewReservationReaperRepository(conn, beginner, reservations), command.NewRecordAuditEventCommand(audit), expire,
+	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(NewReservationReaperRepository(conn), expire,
 		workers.ReservationReaperWorkerConfig{ReapInterval: time.Second, BatchSize: workers.DefaultReservationReaperBatchSize}, testutil.NewMockLogger(), clock.NewFixedClock(sweptAt), "", nil)
 	require.NoError(t, err)
 
 	// Before the TTL elapses the reservation stays held.
-	early, err := workers.NewReservationReaperWorkerWithPoolResolver(NewReservationReaperRepository(conn, beginner, reservations), command.NewRecordAuditEventCommand(audit), expire,
+	early, err := workers.NewReservationReaperWorkerWithPoolResolver(NewReservationReaperRepository(conn), expire,
 		workers.ReservationReaperWorkerConfig{ReapInterval: time.Second, BatchSize: workers.DefaultReservationReaperBatchSize}, testutil.NewMockLogger(), clock.NewFixedClock(admittedAt), "", nil)
 	require.NoError(t, err)
 	released, err := early.RunOnce(ctx)
@@ -86,7 +82,7 @@ func TestIntegrationReaperExpiresDecisionReservationWithItsOperation(t *testing.
 	require.True(t, valid.IsValid)
 	var batches int
 	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM audit_events WHERE event_type=$1", string(model.AuditEventReservationExpired)).Scan(&batches))
-	require.Zero(t, batches, "the legacy batch row never counts decision capacity")
+	require.Zero(t, batches, "the operation audits its own expiry; the sweep writes no batch row")
 
 	// The swept row is gone from the sweep, and a late confirm conflicts.
 	released, err = reaper.RunOnce(ctx)
@@ -120,14 +116,13 @@ func TestIntegrationReaperBatchCapSplitsAnOperation(t *testing.T) {
 	require.Equal(t, tracercontract.DecisionAllow, admitted.Decision)
 	require.Len(t, admitted.ReservationIDs, 2)
 
-	beginner := pgdb.NewTxBeginnerAdapter(dbresolver.New(dbresolver.WithPrimaryDBs(db)))
-	repo := NewReservationReaperRepository(conn, beginner, newReservationRepoIntegration(db))
+	repo := NewReservationReaperRepository(conn)
 	sweptAt := admittedAt.Add(2 * time.Second)
 	read, err := repo.FindExpiredReservations(ctx, sweptAt, nil, 1)
 	require.NoError(t, err)
 	require.Len(t, read, 1, "the cap bounds what one sweep reads")
 
-	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(repo, command.NewRecordAuditEventCommand(NewAuditEventRepositoryWithConnection(conn)), expireCommand(t, db),
+	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(repo, expireCommand(t, db),
 		workers.ReservationReaperWorkerConfig{ReapInterval: time.Second, BatchSize: 1}, testutil.NewMockLogger(), clock.NewFixedClock(sweptAt), "", nil)
 	require.NoError(t, err)
 
@@ -148,8 +143,8 @@ func TestIntegrationReaperBatchCapSplitsAnOperation(t *testing.T) {
 // TestIntegrationReaperFailingOperationDoesNotStarveNewerExpiries lowers the
 // reservation bound below an outstanding decision, so that operation fails to
 // expire on every sweep while its rows hold the head of the expiry order and
-// fill a whole page. The next sweep resumes past them: a newer decision and a
-// newer legacy row expire, and the failing operation stays RESERVED.
+// fill a whole page. The next sweep resumes past them: a newer decision expires,
+// and the failing operation stays RESERVED.
 func TestIntegrationReaperFailingOperationDoesNotStarveNewerExpiries(t *testing.T) {
 	db := completionDatabase(t)
 	conn := &testutil.IntegrationDBAdapter{DB: db}
@@ -176,13 +171,6 @@ func TestIntegrationReaperFailingOperationDoesNotStarveNewerExpiries(t *testing.
 	require.Len(t, admitted.ReservationIDs, 1)
 
 	reservations := newReservationRepoIntegration(db)
-	legacyLimit := createTestLimitNamed(t, db, 77920, "starvation")
-	legacy, err := model.NewReservation(legacyLimit, testutil.MustDeterministicUUID(77921), "acct:77921", "2026-09", decimal.NewFromInt(400),
-		admittedAt.Add(3*time.Second), admittedAt)
-	require.NoError(t, err)
-	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return reservations.ReserveWithTx(ctx, tx, legacy, decimal.NewFromInt(10000))
-	}))
 
 	// The operator lowered the bound below the stuck decision's two reservations.
 	decisions, err := NewReserveDecisionRepository(conn, 10, 1)
@@ -193,8 +181,7 @@ func TestIntegrationReaperFailingOperationDoesNotStarveNewerExpiries(t *testing.
 	require.NoError(t, err)
 
 	sweptAt := admittedAt.Add(time.Minute)
-	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(NewReservationReaperRepository(conn, beginner, reservations),
-		command.NewRecordAuditEventCommand(NewAuditEventRepositoryWithConnection(conn)), expire,
+	reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(NewReservationReaperRepository(conn), expire,
 		workers.ReservationReaperWorkerConfig{ReapInterval: time.Second, BatchSize: 2}, testutil.NewMockLogger(), clock.NewFixedClock(sweptAt), "", nil)
 	require.NoError(t, err)
 
@@ -202,13 +189,11 @@ func TestIntegrationReaperFailingOperationDoesNotStarveNewerExpiries(t *testing.
 	require.Error(t, err, "the stuck operation fills the first page and fails")
 	require.Zero(t, released)
 	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, admitted.ReservationIDs[0]))
-	require.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, legacy.ID))
 
 	released, err = reaper.RunOnce(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 2, released, "the newer decision and the newer legacy row expire behind the stuck operation")
+	require.Equal(t, 1, released, "the newer decision expires behind the stuck operation")
 	require.Equal(t, string(model.StatusExpired), readReservationStatus(t, db, admitted.ReservationIDs[0]))
-	require.Equal(t, string(model.StatusExpired), readReservationStatus(t, db, legacy.ID))
 	status, _ := readOperationState(t, db, model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: healthy.TransactionID})
 	require.Equal(t, string(model.OperationExpired), status)
 

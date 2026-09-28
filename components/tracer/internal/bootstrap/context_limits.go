@@ -13,10 +13,6 @@ import (
 )
 
 func initContextLimitDefinitionPolicy(cfg *Config) (*command.ContextLimitDefinitionPolicy, error) {
-	if !cfg.ContextReserveEnabled {
-		return nil, nil
-	}
-
 	facts, err := loadContextFactBounds(cfg)
 	if err != nil {
 		return nil, err

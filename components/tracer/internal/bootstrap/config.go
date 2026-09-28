@@ -33,8 +33,8 @@ import (
 	httpMiddleware "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/producerauth"
 	tracerRedis "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
@@ -72,27 +72,28 @@ func telemetryConfig(cfg *Config, logger libLog.Logger) libOtel.TelemetryConfig 
 type Config struct {
 	ServerAddress string `env:"SERVER_ADDRESS"`
 	// TracerGRPCPort is the listen address for the reservation gRPC seam (e.g.
-	// ":4021"). When empty (the default) the gRPC server is NOT started — the
-	// transport is opt-in during the Phase-1 rollout. Transport security follows
-	// TRACER_TLS_MODE: in "mtls" the gRPC server requires+verifies a client cert.
+	// ":4021"). When empty (the default) the gRPC server is not started. A set
+	// port requires TracerTLSMode=mtls and a certUri mapping in
+	// TRACER_PLATFORM_PRODUCERS, because the gRPC seam identifies producers
+	// only by client certificate.
 	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
-	// TracerTLSMode selects how the reservation seam is secured. "mtls"
-	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
-	// client cert on BOTH the gRPC and the Fiber listeners — the verified mTLS
-	// peer is the seam credential (no shared secret). "mesh" lets a service-mesh
-	// sidecar (Istio/Linkerd) terminate mTLS, so the app listens plaintext and
-	// skips its own TLS. Empty/unset behaves like "mesh" (plaintext) so the
-	// Phase-1 toggle default and local dev keep working without cert material.
+	// TracerTLSMode selects how the tracer's listeners are secured. "mtls"
+	// makes the app load its own cert/key/CA: the gRPC listener requires and
+	// verifies a client certificate, whose URI SAN is mapped onto a platform
+	// producer, while the HTTP listener serves TLS without requesting one, since
+	// HTTP producers authenticate with an M2M access token. "mesh" lets a
+	// service-mesh sidecar terminate TLS, so the app listens plaintext and
+	// serves no gRPC. Empty/unset behaves like "mesh" for local development;
+	// DEPLOYMENT_MODE=saas refuses to boot without an explicit mode.
 	TracerTLSMode string `env:"TRACER_TLS_MODE"`
 	// TracerTLSCertFile / TracerTLSKeyFile are the PEM paths for the tracer's
-	// OWN server certificate and private key, presented on both transports in
+	// OWN server certificate and private key, presented on both listeners in
 	// "mtls" mode. Required (non-empty) when TracerTLSMode=mtls.
 	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
 	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
 	// TracerTLSClientCAFile is the PEM bundle of CA certificate(s) used to
-	// verify client certificates the ledger presents. Required (non-empty) when
-	// TracerTLSMode=mtls — without it the server cannot enforce
-	// RequireAndVerifyClientCert.
+	// verify the client certificates producers present on the gRPC listener.
+	// Required (non-empty) when TracerTLSMode=mtls.
 	TracerTLSClientCAFile string `env:"TRACER_TLS_CLIENT_CA_FILE"`
 
 	LogLevel                string `env:"LOG_LEVEL"`
@@ -210,14 +211,21 @@ type Config struct {
 	// CEL Expression Engine
 	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
-	// Shared-context administration is opt-in and requires explicit resource bounds.
-	ContextReserveEnabled         bool   `env:"CONTEXT_RESERVE_ENABLED"`
+	// Reservation producer identity. CONTEXT_M2M_JWKS_URL is the JWKS the
+	// producer access tokens are verified against; CONTEXT_M2M_ISSUER pins
+	// their "iss" claim and is required outside DEPLOYMENT_MODE=local.
+	// TRACER_PLATFORM_PRODUCERS maps token authorized parties and client
+	// certificate URIs onto the platform producer roster.
+	ContextM2MJWKSURL       string `env:"CONTEXT_M2M_JWKS_URL"`
+	ContextM2MIssuer        string `env:"CONTEXT_M2M_ISSUER"`
+	TracerPlatformProducers string `env:"TRACER_PLATFORM_PRODUCERS"`
+
+	// Shared-context resource bounds.
 	ContextReserveMaxBodyBytes    int    `env:"CONTEXT_RESERVE_MAX_BODY_BYTES"`
 	ContextReserveMaxLimits       int    `env:"CONTEXT_RESERVE_MAX_LIMITS"`
 	ContextReserveMaxReservations int    `env:"CONTEXT_RESERVE_MAX_RESERVATIONS"`
 	ContextPolicyCacheEntries     int    `env:"CONTEXT_POLICY_CACHE_ENTRIES"`
 	ContextPolicyMaxCompilations  int    `env:"CONTEXT_POLICY_MAX_COMPILATIONS"`
-	ContextProducerBindings       string `env:"CONTEXT_PRODUCER_BINDINGS"`
 	ContextLimitMaxScopes         int    `env:"CONTEXT_LIMIT_MAX_SCOPES"`
 	ContextLimitMaxScopeBytes     int    `env:"CONTEXT_LIMIT_MAX_SCOPE_BYTES"`
 	ContextPolicyAdminEnabled     bool   `env:"CONTEXT_POLICY_ADMIN_ENABLED"`
@@ -479,8 +487,8 @@ func parseReservationReaperBatchSize(s string) (int, error) {
 
 // parseReservationLongLivedTTLHours parses the long-lived reservation TTL from
 // string to time.Duration, and is the one place its default is resolved: empty
-// yields services.DefaultLongLivedReservationTTL (30 days) for both the legacy
-// reservation service and context admission. The unit is hours because a
+// yields services.DefaultLongLivedReservationTTL (30 days) for context
+// admission. The unit is hours because a
 // long-lived pending reservation spans days, not seconds (unlike the reaper
 // interval). Returns an error if the value is invalid, non-positive, or exceeds
 // 1 year — beyond that the reaper effectively never converges an abandoned pending.
@@ -1175,7 +1183,7 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	// once here so the HTTP reserve/confirm/release seam and the TTL reaper share
 	// one instance in both boot modes.
 	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(usageCounterRepo)
-	reaperRepo := postgres.NewReservationReaperRepository(pgConn, txBeginner, reservationRepo)
+	reaperRepo := postgres.NewReservationReaperRepository(pgConn)
 
 	return &limitServiceDeps{
 		service:          service,
@@ -1212,7 +1220,7 @@ func initHTTPServer(
 	mtMetrics metrics.MultiTenantMetrics,
 	txBeginner pgdb.TxBeginner,
 	authHost string,
-) (*HTTPServer, *services.ReservationService, error) {
+) (_ *HTTPServer, err error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 
 	// Init the dashboard read stack: bounded postgres aggregations behind a
@@ -1238,7 +1246,7 @@ func initHTTPServer(
 	// Init LimitChecker for ValidationService
 	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create limit checker: %w", err)
+		return nil, fmt.Errorf("failed to create limit checker: %w", err)
 	}
 
 	// Init ValidationService with audit writer for SOX/GLBA compliance
@@ -1249,7 +1257,7 @@ func initHTTPServer(
 	// change would cascade into supervisor.go + 4 test sites in metrics_test.
 	validationService, err := services.NewValidationService(txBeginner, evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Attach multi-tenant metrics sink. In single-tenant mode this is the
@@ -1265,49 +1273,31 @@ func initHTTPServer(
 	// Init Transaction Validation service facade
 	transactionValidationService, err := services.NewTransactionValidationService(getTransactionValidationQuery, listTransactionValidationsQuery)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create transaction validation service: %w", err)
+		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
 	}
 
-	// Init Reservation service (two-phase capacity hold). It reuses the limit
-	// checker as the limit resolver and the shared audit writer / txBeginner so
-	// the reserve/confirm/release counter moves commit atomically with their
-	// audit rows — the same atomicity discipline as the validate path.
-	reservationRepo := limitDeps.reservationRepo
-
-	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
+	contextReservations, err := initContextReservation(cfg, pgConn, txBeginner, auditEventRepo, limitDeps.reservationRepo, clk, logger)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse reservation long-lived TTL: %w", err)
+		return nil, fmt.Errorf("initialize context reservations: %w", err)
 	}
 
-	reservationService, err := services.NewReservationServiceWithLongLivedTTL(txBeginner, limitChecker, reservationRepo, auditWriter, clk, longLivedTTL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create reservation service: %w", err)
-	}
-
-	contextReservations, err := initContextReservation(cfg, pgConn, txBeginner, auditEventRepo, reservationRepo, clk)
-	if err != nil {
-		return nil, nil, fmt.Errorf("initialize context reservations: %w", err)
-	}
-
-	var (
-		contextHandler  *in.ContextReservationHandler
-		contextIdentity *seamidentity.Resolver
-	)
-
-	if contextReservations != nil {
-		contextHandler = contextReservations.handler
-		contextIdentity = contextReservations.identity
-	}
+	// Past this point the reservation runtime owns a running JWKS refresher; a
+	// server that is never built must stop it.
+	defer func() {
+		if err != nil {
+			err = closeOnFailure(err, contextReservations.config)
+		}
+	}()
 
 	contextPolicyService, err := initContextPolicyService(cfg, pgConn, txBeginner, auditEventRepo, clk)
 	if err != nil {
-		return nil, nil, fmt.Errorf("initialize context policy administration: %w", err)
+		return nil, fmt.Errorf("initialize context policy administration: %w", err)
 	}
 
 	// Init Audit Event service (read-only per SOX/GLBA requirements)
 	auditEventService, err := initAuditEventService(auditEventRepo)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Parse the trusted-proxy CIDR set ONCE at boot. A malformed entry fails
@@ -1315,7 +1305,7 @@ func initHTTPServer(
 	// silently recording forgeable audit IPs at runtime.
 	trustedProxyCIDRs, err := parseTrustedProxyCIDRs(cfg.TrustedProxyCIDRs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid trusted proxy configuration: %w", err)
+		return nil, fmt.Errorf("invalid trusted proxy configuration: %w", err)
 	}
 
 	// Route configuration with CORS settings. Authentication is handled
@@ -1376,50 +1366,51 @@ func initHTTPServer(
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
 	// individual request lifecycles).
 	httpApp, err := in.NewRoutes(in.RoutesDeps{
-		ContextPolicyService:         contextPolicyService,
-		ContextPolicyMaxRules:        cfg.ContextMaxRules,
-		ContextPolicyMaxBodyBytes:    cfg.ContextPolicyMaxBodyBytes,
-		Logger:                       logger,
-		Telemetry:                    telemetry,
-		HealthChecker:                healthChecker,
-		Cfg:                          routeConfig,
-		RuleService:                  ruleService,
-		LimitService:                 limitDeps.service,
-		ValidationService:            validationService,
-		ReservationService:           reservationService,
-		ContextReservation:           contextHandler,
-		ContextReservationIdentity:   contextIdentity,
-		TransactionValidationService: transactionValidationService,
-		AuditEventService:            auditEventService,
-		DashboardService:             dashboardService,
-		Guard:                        authGuard,
-		Clock:                        clk,
-		MultiTenantEnabled:           cfg.MultiTenantEnabled,
-		PgManager:                    pgManager,
-		Supervisor:                   workerSupervisor,
-		StreamingManifestHandler:     streamingManifestHandler,
-		ServiceName:                  cfg.OtelServiceName,
+		ContextPolicyService:                  contextPolicyService,
+		ContextPolicyMaxRules:                 cfg.ContextMaxRules,
+		ContextPolicyMaxBodyBytes:             cfg.ContextPolicyMaxBodyBytes,
+		Logger:                                logger,
+		Telemetry:                             telemetry,
+		HealthChecker:                         healthChecker,
+		Cfg:                                   routeConfig,
+		RuleService:                           ruleService,
+		LimitService:                          limitDeps.service,
+		ValidationService:                     validationService,
+		ContextReservation:                    contextReservations.handler,
+		ContextReservationM2M:                 contextReservations.config.m2m,
+		ContextReservationProducers:           contextReservations.config.producers,
+		ContextReservationUnverifiedProducers: contextReservations.config.unverifiedProducers,
+		ContextReservationTenants:             reservationTenantAuthorizer(mtComponents),
+		TransactionValidationService:          transactionValidationService,
+		AuditEventService:                     auditEventService,
+		DashboardService:                      dashboardService,
+		Guard:                                 authGuard,
+		Clock:                                 clk,
+		MultiTenantEnabled:                    cfg.MultiTenantEnabled,
+		PgManager:                             pgManager,
+		Supervisor:                            workerSupervisor,
+		StreamingManifestHandler:              streamingManifestHandler,
+		ServiceName:                           cfg.OtelServiceName,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
+		return nil, fmt.Errorf("failed to create routes: %w", err)
 	}
 
-	// Secure the REST reservation seam per TRACER_TLS_MODE: mtls ⇒ a verifying
-	// *tls.Config, mesh/unset ⇒ nil (plaintext, sidecar terminates). Same builder
-	// the gRPC server uses, so both transports share one posture.
-	seamTLS, err := buildSeamTLSConfig(cfg)
+	// mtls serves HTTPS without requesting a client certificate: HTTP callers
+	// authenticate with tokens. mesh/unset listens plaintext.
+	httpTLS, err := buildHTTPTLSConfig(cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
+		return nil, fmt.Errorf("failed to build HTTP TLS config: %w", err)
 	}
 
-	httpServer, err := NewHTTPServer(cfg, httpApp, seamTLS, logger, telemetry)
+	httpServer, err := NewHTTPServer(cfg, httpApp, httpTLS, logger, telemetry)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	httpServer.contextReservations = contextReservations
 
-	return httpServer, reservationService, nil
+	return httpServer, nil
 }
 
 // dashboardCacheClient returns the Valkey client the dashboard cache should
@@ -1434,18 +1425,27 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 	return mtComponents.redisClient
 }
 
+// reservationTenantAuthorizer returns the tenant-manager backed authorizer in
+// multi-tenant mode and an inactive one in single-tenant mode, where the
+// reservation tenant header is ignored.
+func reservationTenantAuthorizer(mtComponents *componentsMT) *producerauth.TenantAuthorizer {
+	if mtComponents == nil || mtComponents.tenantAuthorizer == nil {
+		return producerauth.NewTenantAuthorizer(nil, false)
+	}
+
+	return mtComponents.tenantAuthorizer
+}
+
 // initGRPCServer builds the opt-in reservation gRPC server. It returns nil (no
-// error) when TRACER_GRPC_PORT is unset, so the gRPC transport stays off unless
-// an operator configures it. Transport security follows TRACER_TLS_MODE (Epic
-// 1.3): mtls ⇒ the server requires+verifies a client cert (reservation seam
-// unreachable without one); mesh/unset ⇒ plaintext (sidecar terminates). The
-// server delegates to the SAME reservationService the REST handler uses; clk
-// drives the reserve timestamp-window check identically to the REST path.
+// error) when TRACER_GRPC_PORT is unset. The server always requires and
+// verifies a client certificate (TRACER_TLS_MODE=mtls is enforced when the
+// reservation runtime loads), identifies the producer by that certificate,
+// authorizes its requested tenant, and serves the context reservation
+// contract.
 func initGRPCServer(
 	cfg *Config,
-	reservationService *services.ReservationService,
 	pgManager *tmpostgres.Manager,
-	clk clock.Clock,
+	authz *producerauth.TenantAuthorizer,
 	logger libLog.Logger,
 	telemetry *libOtel.Telemetry,
 	runtime *contextReservationRuntime,
@@ -1454,48 +1454,30 @@ func initGRPCServer(
 		return nil, nil
 	}
 
-	reservationServer, err := grpcin.NewReservationServer(reservationService, clk)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reservation gRPC server: %w", err)
-	}
-
-	if cfg.ContextReserveEnabled {
-		if runtime == nil {
-			return nil, fmt.Errorf("context reservation runtime is required")
-		}
-
-		reservationServer, err = grpcin.NewContextReservationServer(reservationService, clk, runtime.admission, runtime.completion, runtime.reservationCompletion, grpcin.ContextReservationConfig{Bounds: runtime.config.evaluation.CEL.Limits, MaxBodyBytes: runtime.config.maxBodyBytes, MaxReservations: runtime.config.admission.Plan.MaxReservations})
-		if err != nil {
-			return nil, fmt.Errorf("create context reservation gRPC server: %w", err)
-		}
-	}
-
-	// Same seam TLS posture as the REST listener so the two transports cannot
-	// diverge. nil in mesh/unset mode ⇒ plaintext gRPC.
-	seamTLS, err := buildSeamTLSConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
-	}
-
-	// Resolve the per-tenant pool from the trusted x-tenant-id metadata the
-	// ledger forwards over the mTLS/mesh-verified connection. In single-tenant
-	// mode the resolver is a no-op and the interceptor passes through.
+	// Under multi-tenancy both tenant steps must enforce; the interceptor
+	// would otherwise fail every call closed with 0527 behind a green boot.
 	tenantResolver := seamtenant.NewResolver(pgManager, cfg.MultiTenantEnabled)
-
-	var tenantInterceptor grpc.UnaryServerInterceptor
-	if tenantResolver.Active() {
-		tenantInterceptor = grpcin.TenantUnaryInterceptor(tenantResolver)
+	if cfg.MultiTenantEnabled && (!authz.Active() || !tenantResolver.Active()) {
+		return nil, fmt.Errorf("reservation gRPC server: MULTI_TENANT_ENABLED requires the tenant authorizer and the tenant pool manager")
 	}
 
-	var options []grpc.ServerOption
-
-	if cfg.ContextReserveEnabled {
-		tenantInterceptor = grpcin.ContextReservationUnaryInterceptor(runtime.identity, tenantResolver)
-
-		options = append(options, grpc.MaxRecvMsgSize(runtime.config.maxBodyBytes))
+	if runtime == nil {
+		return nil, fmt.Errorf("context reservation runtime is required")
 	}
 
-	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, tenantInterceptor, logger, telemetry, options...)
+	reservationServer, err := grpcin.NewContextReservationServer(runtime.admission, runtime.completion, runtime.reservationCompletion, grpcin.ContextReservationConfig{Bounds: runtime.config.evaluation.CEL.Limits, MaxBodyBytes: runtime.config.maxBodyBytes, MaxReservations: runtime.config.admission.Plan.MaxReservations})
+	if err != nil {
+		return nil, fmt.Errorf("create context reservation gRPC server: %w", err)
+	}
+
+	grpcTLS, err := buildGRPCTLSConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build gRPC TLS config: %w", err)
+	}
+
+	interceptor := grpcin.ContextReservationUnaryInterceptor(runtime.config.producers, authz, tenantResolver)
+
+	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, grpcTLS, interceptor, logger, telemetry, grpc.MaxRecvMsgSize(runtime.config.maxBodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
@@ -1537,7 +1519,6 @@ func initReaperWorker(
 	ctx context.Context,
 	cfg *Config,
 	reaperRepo *postgres.ReservationReaperRepository,
-	auditor *command.RecordAuditEventCommand,
 	expirer workers.ReserveOperationExpirer,
 	logger libLog.Logger,
 	clk clock.Clock,
@@ -1552,7 +1533,7 @@ func initReaperWorker(
 	}
 
 	// tenantID is empty in single-tenant mode; the supervisor passes the real tenantID in MT mode.
-	reaperWorker, err := workers.NewReservationReaperWorkerWithPoolResolver(reaperRepo, auditor, expirer, *reaperConfig, logger, clk, "", nil)
+	reaperWorker, err := workers.NewReservationReaperWorkerWithPoolResolver(reaperRepo, expirer, *reaperConfig, logger, clk, "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reservation reaper worker: %w", err)
 	}
@@ -1578,7 +1559,6 @@ func buildMultiTenantStack(
 	ruleCache *cache.RuleCache,
 	ruleSyncRepo *postgres.RuleSyncRepository,
 	limitDeps *limitServiceDeps,
-	auditWriter *command.RecordAuditEventCommand,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 ) (*componentsMT, metrics.MultiTenantMetrics, error) {
@@ -1595,7 +1575,7 @@ func buildMultiTenantStack(
 	// (rare fallback path that should never fire in production).
 	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger)
 
-	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk, mtMetrics)
+	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1619,7 +1599,6 @@ func initMultiTenant(
 	ruleCache *cache.RuleCache,
 	ruleSyncRepo *postgres.RuleSyncRepository,
 	limitDeps *limitServiceDeps,
-	auditWriter *command.RecordAuditEventCommand,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 	mtMetrics metrics.MultiTenantMetrics,
@@ -1702,7 +1681,7 @@ func initMultiTenant(
 			MaxTenants: cfg.MultiTenantMaxTenantPools,
 			Service:    cfg.ApplicationName,
 			Metrics:    mtMetrics,
-		}, limitDeps, auditWriter, resolvedReaper, reaperEnabled),
+		}, limitDeps, resolvedReaper, reaperEnabled),
 	)
 	if err != nil {
 		return nil, err
@@ -1719,15 +1698,17 @@ func initMultiTenant(
 
 	go runInitialTenantSync(ctx, logger, components.supervisor)
 
+	libRuntime.SafeGoWithContextAndComponent(context.WithoutCancel(ctx), logger, "bootstrap", "active-tenant-warm-up",
+		libRuntime.KeepRunning, components.tenantAssociations.warmUp)
+
 	return components, nil
 }
 
 // withReservationReaper sets the per-tenant reservation reaper fields of the
 // supervisor deps from the same repository and operation expirer the
 // single-tenant reaper uses.
-func withReservationReaper(deps workers.WorkerSupervisorDeps, limitDeps *limitServiceDeps, auditor workers.ReservationExpiryAuditor, reaperConfig workers.ReservationReaperWorkerConfig, enabled bool) workers.WorkerSupervisorDeps {
+func withReservationReaper(deps workers.WorkerSupervisorDeps, limitDeps *limitServiceDeps, reaperConfig workers.ReservationReaperWorkerConfig, enabled bool) workers.WorkerSupervisorDeps {
 	deps.ReaperRepo = limitDeps.reaperRepo
-	deps.ReaperAuditor = auditor
 	deps.ReaperExpirer = limitDeps.operationExpirer
 	deps.ReaperConfig = reaperConfig
 	deps.ReaperWorkerEnabled = enabled
@@ -1764,7 +1745,6 @@ func initWorkers(
 	ctx context.Context,
 	cfg *Config,
 	limitDeps *limitServiceDeps,
-	auditWriter *command.RecordAuditEventCommand,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	grpcServer *GRPCServer,
@@ -1802,7 +1782,7 @@ func initWorkers(
 		return nil, err
 	}
 
-	reaperWorker, err := initReaperWorker(ctx, cfg, limitDeps.reaperRepo, auditWriter, limitDeps.operationExpirer, logger, clk)
+	reaperWorker, err := initReaperWorker(ctx, cfg, limitDeps.reaperRepo, limitDeps.operationExpirer, logger, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -1974,6 +1954,12 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	// SaaS mode a cleartext http:// IDP_HOST refuses boot before any IdP dial, so
 	// the M2M grant and bearer token cannot travel unencrypted.
 	if err := ValidateSaaSDeclarationTLS(cfg); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+	}
+
+	// A SaaS listener is never plaintext by omission: TRACER_TLS_MODE must name
+	// mtls, or mesh when a sidecar terminates TLS.
+	if err := ValidateSaaSListenerTLS(cfg); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
@@ -2187,7 +2173,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 		return nil, fmt.Errorf("initialize reserve operation expiry: %w", err)
 	}
 
-	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk)
+	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -2225,7 +2211,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// Init HTTP server with all services. mtComponents is nil in single-tenant
 	// mode; the HTTP server builder threads pgManager + supervisor through to
 	// the TenantMiddleware when non-nil.
-	serverAPI, reservationService, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner, sd.authHost)
+	serverAPI, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner, sd.authHost)
 	if err != nil {
 		return nil, err
 	}
@@ -2234,7 +2220,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)
 	if err != nil {
 		return nil, err
 	}
@@ -2398,10 +2384,8 @@ func finalizeStartup(
 	ctx context.Context,
 	cfg *Config,
 	limitDeps *limitServiceDeps,
-	auditWriter *command.RecordAuditEventCommand,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
-	reservationService *services.ReservationService,
 	postgresConn *libPostgres.Client,
 	healthChecker *in.HealthChecker,
 	logger libLog.Logger,
@@ -2411,18 +2395,26 @@ func finalizeStartup(
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
 	authHost string,
-) (*Service, error) {
+) (_ *Service, err error) {
+	// A Service that is never returned never runs Shutdown, so a failed
+	// finalization stops the reservation producer JWKS refresher itself.
+	defer func() {
+		if err != nil && serverAPI != nil && serverAPI.contextReservations != nil {
+			err = closeOnFailure(err, serverAPI.contextReservations.config)
+		}
+	}()
+
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
 		pgManager = mtComponents.pgManager
 	}
 
-	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, clk, logger, telemetry, serverAPI.contextReservations)
+	grpcServer, err := initGRPCServer(cfg, pgManager, reservationTenantAuthorizer(mtComponents), logger, telemetry, serverAPI.contextReservations)
 	if err != nil {
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}

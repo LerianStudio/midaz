@@ -7,7 +7,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
@@ -23,39 +22,25 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// ReservationReaperRepository adapts the two-phase reservation repository to the
-// TTL-reaper's narrow surface: find the outstanding RESERVED rows past their TTL
-// and release each legacy one as EXPIRED in its own transaction. It composes the
-// existing UsageReservationRepository (whose ReleaseWithTx keeps the counter bucket
-// move and the row flip atomic per row) with a TxBeginner so the reaper does NOT
-// manage the transaction lifecycle itself, and a Connection for the read-only
-// sweep query. Decision-owned rows are only located here; they expire through
-// their operation.
-//
-// It writes NO per-row audit rows — the reaper batches the audit side into one
-// summary event per sweep (Q11). The find query rides the
+// ReservationReaperRepository is the TTL reaper's read surface: it locates the
+// outstanding RESERVED rows past their TTL together with the operation that owns
+// each one. The rows expire through their operation, never one by one, so this
+// repository writes nothing. The find query rides the
 // idx_usage_reservations_reaper partial index.
 type ReservationReaperRepository struct {
-	conn       pgdb.Connection
-	txBeginner pgdb.TxBeginner
-	resRepo    *UsageReservationRepository
+	conn pgdb.Connection
 }
 
-// NewReservationReaperRepository builds a reaper repository. conn supplies the
-// read handle for the sweep, txBeginner opens the per-row release transaction, and
-// resRepo runs the atomic EXPIRED transition on that transaction.
-func NewReservationReaperRepository(
-	conn pgdb.Connection,
-	txBeginner pgdb.TxBeginner,
-	resRepo *UsageReservationRepository,
-) *ReservationReaperRepository {
-	return &ReservationReaperRepository{conn: conn, txBeginner: txBeginner, resRepo: resRepo}
+// NewReservationReaperRepository builds a reaper repository over conn, which
+// supplies the read handle for the sweep.
+func NewReservationReaperRepository(conn pgdb.Connection) *ReservationReaperRepository {
+	return &ReservationReaperRepository{conn: conn}
 }
 
 // FindExpiredReservations returns at most limit RESERVED reservations whose
 // reservation_expires_at is strictly before now, ordered by (expiry, id) and
 // strictly after the after position when one is given, with the owning
-// operation of each decision-owned row. The status is a literal rather
+// operation of each row. The status is a literal rather
 // than a bind parameter so a generic plan can still prove the reaper partial
 // index's predicate. Tenant resolution is carried on ctx (tmcore.ContextWithPG
 // in MT mode), so the read lands on the correct database.
@@ -82,7 +67,7 @@ func (r *ReservationReaperRepository) FindExpiredReservations(
 		return nil, fmt.Errorf("failed to resolve database connection: %w", err)
 	}
 
-	query := sq.Select("r.id", "r.reservation_expires_at", "r.decision_id", "d.integration_id", "d.transaction_id").
+	query := sq.Select("r.id", "r.reservation_expires_at", "d.integration_id", "d.transaction_id").
 		From(usageReservationsTable + " AS r").
 		LeftJoin("reserve_decisions AS d ON d.evaluation_id = r.decision_id AND d.transaction_id = r.transaction_id").
 		Where("r.status = '" + string(model.StatusReserved) + "'").
@@ -113,28 +98,25 @@ func (r *ReservationReaperRepository) FindExpiredReservations(
 	for rows.Next() {
 		var (
 			item          model.ExpiredReservation
-			decisionID    uuid.NullUUID
 			integrationID sql.NullString
 			transactionID uuid.NullUUID
 		)
 
-		if err := rows.Scan(&item.ID, &item.ExpiresAt, &decisionID, &integrationID, &transactionID); err != nil {
+		if err := rows.Scan(&item.ID, &item.ExpiresAt, &integrationID, &transactionID); err != nil {
 			libOtel.HandleSpanError(span, "Failed to scan expired reservation", err)
 			return nil, fmt.Errorf("failed to scan expired reservation: %w", err)
 		}
 
-		item.ExpiresAt = item.ExpiresAt.UTC()
-
-		if decisionID.Valid {
-			// The deferred ownership FK guarantees the decision; a missing one
-			// must never demote the row to a lone legacy expiry.
-			if !integrationID.Valid || !transactionID.Valid {
-				libOtel.HandleSpanError(span, "Expired reservation lost its decision", constant.ErrInternalServer)
-				return nil, fmt.Errorf("expired reservation %s has no owning decision: %w", item.ID, constant.ErrInternalServer)
-			}
-
-			item.Operation = &model.ReserveOperationIdentity{IntegrationID: integrationID.String, TransactionID: transactionID.UUID}
+		// The decision CHECK and the deferred ownership FK guarantee the
+		// decision; a row without one must fail the sweep rather than expire
+		// outside an operation.
+		if !integrationID.Valid || !transactionID.Valid {
+			libOtel.HandleSpanError(span, "Expired reservation lost its decision", constant.ErrInternalServer)
+			return nil, fmt.Errorf("expired reservation %s has no owning decision: %w", item.ID, constant.ErrInternalServer)
 		}
+
+		item.ExpiresAt = item.ExpiresAt.UTC()
+		item.Operation = model.ReserveOperationIdentity{IntegrationID: integrationID.String, TransactionID: transactionID.UUID}
 
 		expired = append(expired, item)
 	}
@@ -147,63 +129,4 @@ func (r *ReservationReaperRepository) FindExpiredReservations(
 	logger.With(libLog.Int("count", len(expired))).Log(ctx, libLog.LevelDebug, "Found expired reservations")
 
 	return expired, nil
-}
-
-// ReleaseExpired flips a RESERVED reservation to EXPIRED and returns its held
-// amount to the counter, atomically in one transaction. A reservation that has
-// already reached a terminal state (a confirm/release raced the sweep) is an
-// idempotent no-op: ReleaseWithTx returns ErrReservationAlreadyTerminal, which is
-// mapped to success here so the reaper never reports an expected race as an error.
-func (r *ReservationReaperRepository) ReleaseExpired(ctx context.Context, reservationID uuid.UUID) (err error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.reservation_reaper.release_expired")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	tx, beginErr := r.txBeginner.BeginTx(ctx, nil)
-	if beginErr != nil {
-		libOtel.HandleSpanError(span, "Failed to begin transaction", beginErr)
-		return fmt.Errorf("failed to begin reaper transaction: %w", beginErr)
-	}
-
-	if tx == nil {
-		return errors.New("reservation_reaper: BeginTx returned nil transaction without error")
-	}
-
-	committed := false
-
-	defer func() {
-		if committed {
-			return
-		}
-
-		if rbErr := tx.Rollback(); rbErr != nil {
-			logger.With(
-				libLog.String("operation", "repository.reservation_reaper.rollback"),
-				libLog.String("error.message", rbErr.Error()),
-			).Log(ctx, libLog.LevelWarn, "Failed to rollback reaper transaction")
-		}
-	}()
-
-	if relErr := r.resRepo.ReleaseWithTx(ctx, tx, reservationID, model.StatusExpired); relErr != nil {
-		// Already terminal: a confirm/release committed between the find and this
-		// release. Commit nothing — the row is already in a terminal state and its
-		// counter move already happened. Treat as an idempotent no-op success.
-		if errors.Is(relErr, constant.ErrReservationAlreadyTerminal) {
-			return nil
-		}
-
-		return relErr
-	}
-
-	if commitErr := tx.Commit(); commitErr != nil {
-		libOtel.HandleSpanError(span, "Failed to commit transaction", commitErr)
-		return fmt.Errorf("failed to commit reaper transaction: %w", commitErr)
-	}
-
-	committed = true
-
-	return nil
 }

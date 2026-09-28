@@ -13,10 +13,6 @@ import (
 func TestInitContextLimitDefinitionPolicy(t *testing.T) {
 	t.Parallel()
 
-	disabled, err := initContextLimitDefinitionPolicy(&Config{})
-	require.NoError(t, err)
-	require.Nil(t, disabled, "the legacy profile installs no definition policy")
-
 	for _, tc := range []struct {
 		name   string
 		mutate func(*Config)
@@ -32,7 +28,6 @@ func TestInitContextLimitDefinitionPolicy(t *testing.T) {
 			t.Parallel()
 
 			cfg := validContextPolicyConfig()
-			cfg.ContextReserveEnabled = true
 			cfg.ContextLimitMaxScopes = 100
 			cfg.ContextLimitMaxScopeBytes = 32768
 			tc.mutate(cfg)

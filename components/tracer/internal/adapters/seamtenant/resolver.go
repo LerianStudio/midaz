@@ -2,21 +2,23 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-// Package seamtenant resolves the per-tenant PostgreSQL pool for the
-// service-to-service reservation seam from a TRUSTED tenant id, rather than
-// from a JWT claim.
+// Package seamtenant binds the per-tenant PostgreSQL pool for the reservation
+// seam from the tenant id a platform producer requests, rather than from a JWT
+// claim.
 //
-// The reservation surface is reachable only over the mTLS/mesh-protected
-// transport (gRPC or REST behind the verified peer). On that connection the
-// ledger is a verified service, so the `x-tenant-id` it forwards is trusted as
-// the tenant key — the verified peer IS the identity. User-facing tracer routes
-// keep their JWT-claim tenant path; this resolver is wired ONLY onto the
-// reservation routes/RPCs, never onto a header-trust path reachable without the
-// verified peer.
+// The tenant id arrives as X-Tenant-Id (HTTP) or x-tenant-id (gRPC metadata)
+// and is not trusted on its own. AuthorizeTenant runs after the transport has
+// authenticated the producer (an M2M access token on HTTP, a mapped client
+// certificate on gRPC): it has producerauth.TenantAuthorizer confirm that the
+// tenant is active for that producer's service before any pool is resolved.
+// It is wired only onto the reservation routes and RPCs. User-facing tracer
+// routes keep their JWT-claim tenant path.
 package seamtenant
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -26,13 +28,13 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// HeaderName is the canonical trusted-tenant header/metadata name. The REST
+// HeaderName is the canonical requested-tenant header name. The REST
 // adapter reads it as an HTTP header; the gRPC adapter reads its lower-cased
 // form from incoming metadata (gRPC normalizes metadata keys to lower case).
 // It matches the ledger client's TenantHeader so the wire key cannot drift.
 const HeaderName = "X-Tenant-Id"
 
-// MetadataKey is the gRPC metadata key for the trusted tenant id — the
+// MetadataKey is the gRPC metadata key for the requested tenant id — the
 // lower-cased HeaderName, since gRPC normalizes metadata keys to lower case.
 // Derived from HeaderName so the two cannot drift, mirroring how the ledger
 // client derives its gRPC key from TenantHeader.
@@ -45,10 +47,10 @@ var MetadataKey = strings.ToLower(HeaderName)
 // database.
 type PoolFunc func(ctx context.Context, tenantID string) (dbresolver.DB, error)
 
-// Resolver binds the per-tenant PostgreSQL pool into a context from the trusted
-// tenant id. In single-tenant mode (mtEnabled=false, or a nil resolution
-// function) it is a no-op: the tenant key is ignored and ctx is returned
-// unchanged.
+// Resolver resolves the per-tenant PostgreSQL pool for an authorized tenant
+// id; AuthorizeTenant binds it into the request context. In single-tenant mode
+// (mtEnabled=false, or a nil resolution function) it is inactive: the tenant
+// key is ignored and the context is left unchanged.
 //
 // The hard invariant: under multi-tenant mode a missing/empty tenant key is a
 // clean failure (ErrReservationTenantRequired) and NEVER falls back to a
@@ -94,32 +96,40 @@ func (r *Resolver) Active() bool {
 	return r != nil && r.mtEnabled && r.pool != nil
 }
 
-// Resolve validates the trusted tenant id, resolves the per-tenant pool through
-// the lib-commons tenant manager, and returns a context carrying both the tenant
-// id and the resolved PG connection (via tmcore.ContextWith*). Repositories pick
-// them up through tmcore.GetPGContext / tmcore.GetTenantIDContext, exactly as on
-// the JWT path.
-//
-// In no-op mode it returns ctx unchanged with a nil error, regardless of whether
-// a tenant key was supplied. Under MT an empty/invalid tenant key yields
-// ErrReservationTenantRequired; a pool-resolution failure is returned so the
-// caller can classify it as technical.
-func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Context, error) {
-	if !r.Active() {
-		return ctx, nil
-	}
-
+// resolvePool validates the authorized tenant id and resolves its pool
+// through the lib-commons tenant manager. An empty or invalid tenant id is
+// ErrReservationTenantRequired and never reaches the pool. A pool the
+// tenant-manager denies (tenant not found, or its tracer association suspended
+// or purged) wraps ErrInsufficientPrivileges; any other failure (tenant-manager
+// or database unreachable, open circuit breaker) wraps
+// ErrTenantServiceUnavailable. Callers must check Active first.
+func (r *Resolver) resolvePool(ctx context.Context, tenantID string) (dbresolver.DB, error) {
 	if tenantID == "" || !tmcore.IsValidTenantID(tenantID) {
-		return ctx, constant.ErrReservationTenantRequired
+		return nil, constant.ErrReservationTenantRequired
 	}
 
 	db, err := r.pool(ctx, tenantID)
 	if err != nil {
-		return ctx, err
+		return nil, classifyPoolError(err)
 	}
 
-	ctx = tmcore.ContextWithTenantID(ctx, tenantID)
-	ctx = tmcore.ContextWithPG(ctx, db)
+	return db, nil
+}
 
-	return ctx, nil
+// bindTenant returns ctx carrying the tenant id and its pool, where
+// repositories read them through tmcore.GetTenantIDContext and
+// tmcore.GetPGContext, exactly as on the JWT path.
+func bindTenant(ctx context.Context, tenantID string, db dbresolver.DB) context.Context {
+	ctx = tmcore.ContextWithTenantID(ctx, tenantID)
+
+	return tmcore.ContextWithPG(ctx, db)
+}
+
+func classifyPoolError(err error) error {
+	if errors.Is(err, tmcore.ErrTenantNotFound) || errors.Is(err, tmcore.ErrTenantServiceAccessDenied) ||
+		tmcore.IsTenantSuspendedError(err) {
+		return fmt.Errorf("%w: %w", constant.ErrInsufficientPrivileges, err)
+	}
+
+	return fmt.Errorf("%w: %w", constant.ErrTenantServiceUnavailable, err)
 }

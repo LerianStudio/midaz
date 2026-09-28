@@ -32,7 +32,7 @@ func TestIntegrationReservationAddressCompletesWholeOperation(t *testing.T) {
 			capacity := newReservationRepoIntegration(db)
 			limit := createTestLimitNamed(t, db, 88931, "address completion")
 			decision := persistedDecision()
-			first, second, legacy := decisionCapacity(limit, 88932), decisionCapacity(limit, 88933), decisionCapacity(limit, 88934)
+			first, second, unknown := decisionCapacity(limit, 88932), decisionCapacity(limit, 88933), decisionCapacity(limit, 88934)
 			second.ScopeKey = "account:second"
 			decision.Result.ReservationIDs = []uuid.UUID{first.ID, second.ID}
 			require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
@@ -46,15 +46,12 @@ func TestIntegrationReservationAddressCompletesWholeOperation(t *testing.T) {
 				}
 				return decisions.CreateWithTx(t.Context(), tx, decision)
 			}))
-			require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-				return capacity.ReserveWithTx(t.Context(), tx, legacy, decimal.NewFromInt(100))
-			}))
 			cmd, err := command.NewCompleteReserveReservationCommand(decisions, reporter, true)
 			require.NoError(t, err)
 			_, err = cmd.Execute(completionContext(t.Context(), "foreign-producer"), first.ID, outcome)
 			require.ErrorIs(t, err, constant.ErrReservationNotFound)
 			ctx := completionContext(t.Context(), decision.Key.IntegrationID)
-			_, err = cmd.Execute(ctx, legacy.ID, outcome)
+			_, err = cmd.Execute(ctx, unknown.ID, outcome)
 			require.ErrorIs(t, err, constant.ErrReservationNotFound)
 			result, err := cmd.Execute(ctx, first.ID, outcome)
 			require.NoError(t, err)
@@ -78,9 +75,6 @@ func TestIntegrationReservationAddressCompletesWholeOperation(t *testing.T) {
 			verified, err := audit.VerifyHashChain(ctx, events[0])
 			require.NoError(t, err)
 			require.True(t, verified.IsValid)
-			var legacyStatus string
-			require.NoError(t, db.QueryRowContext(ctx, "SELECT status FROM usage_reservations WHERE id = $1", legacy.ID).Scan(&legacyStatus))
-			require.Equal(t, string(model.StatusReserved), legacyStatus)
 		})
 	}
 }

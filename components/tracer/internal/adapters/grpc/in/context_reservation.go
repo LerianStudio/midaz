@@ -2,6 +2,8 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+// Package in hosts Tracer's inbound gRPC adapters. Coordinated Reserve and
+// completion use the same admission and completion commands as HTTP.
 package in
 
 import (
@@ -18,7 +20,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -45,7 +46,19 @@ type ContextReservationConfig struct {
 	MaxReservations int
 }
 
-func NewContextReservationServer(legacy ReservationService, clk clock.Clock, admission ContextReserveAdmitter, completion ContextReserveCompleter, completionByID ContextReserveIDCompleter, config ContextReservationConfig) (*ReservationServer, error) {
+// ReservationServer is the gRPC ReservationService implementation. Every RPC
+// serves the coordinated reservation contract through the same admission and
+// completion commands as HTTP.
+type ReservationServer struct {
+	reservationv1.UnimplementedReservationServiceServer
+
+	admission      ContextReserveAdmitter
+	completion     ContextReserveCompleter
+	completionByID ContextReserveIDCompleter
+	contextConfig  ContextReservationConfig
+}
+
+func NewContextReservationServer(admission ContextReserveAdmitter, completion ContextReserveCompleter, completionByID ContextReserveIDCompleter, config ContextReservationConfig) (*ReservationServer, error) {
 	if admission == nil || completion == nil || completionByID == nil || config.MaxBodyBytes <= 0 || config.MaxReservations <= 0 || config.MaxReservations > math.MaxInt32 {
 		return nil, constant.ErrInvalidRequestBody
 	}
@@ -54,17 +67,12 @@ func NewContextReservationServer(legacy ReservationService, clk clock.Clock, adm
 		return nil, err
 	}
 
-	server, err := NewReservationServer(legacy, clk)
-	if err != nil {
-		return nil, err
-	}
-
-	server.admission = admission
-	server.completion = completion
-	server.completionByID = completionByID
-	server.contextConfig = config
-
-	return server, nil
+	return &ReservationServer{
+		admission:      admission,
+		completion:     completion,
+		completionByID: completionByID,
+		contextConfig:  config,
+	}, nil
 }
 
 func (s *ReservationServer) Reserve(ctx context.Context, input *reservationv1.ReserveRequest) (_ *reservationv1.ReserveResult, retErr error) {
@@ -119,6 +127,78 @@ func (s *ReservationServer) Reserve(ctx context.Context, input *reservationv1.Re
 	return encoded, nil
 }
 
+// ConfirmByTransaction confirms every reservation of a coordinated operation
+// addressed by its transaction id.
+func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+	if err := validateCompletionRequest(req); err != nil {
+		return nil, err
+	}
+
+	result, err := s.completeContext(ctx, req.ContractRevision, req.TransactionId, model.OperationConfirmed)
+	if err != nil {
+		return nil, err
+	}
+
+	flipped, err := completionMovementCount(result.Flipped)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ConfirmByTransactionResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), Status: result.Status, Flipped: flipped, EvaluationId: completionEvaluationID(result)}, nil
+}
+
+// ReleaseByTransaction releases every reservation of a coordinated operation
+// addressed by its transaction id.
+func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+	if err := validateCompletionRequest(req); err != nil {
+		return nil, err
+	}
+
+	result, err := s.completeContext(ctx, req.ContractRevision, req.TransactionId, model.OperationReleased)
+	if err != nil {
+		return nil, err
+	}
+
+	flipped, err := completionMovementCount(result.Flipped)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ReleaseByTransactionResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), Status: result.Status, Flipped: flipped, EvaluationId: completionEvaluationID(result)}, nil
+}
+
+// ConfirmById confirms the whole coordinated operation that owns a reservation id.
+func (s *ReservationServer) ConfirmById(ctx context.Context, req *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
+	if err := validateCompletionRequest(req); err != nil {
+		return nil, err
+	}
+
+	result, err := s.completeContextReservation(ctx, req.ContractRevision, req.ReservationId, model.OperationConfirmed)
+	if err != nil {
+		return nil, err
+	}
+
+	evaluation := result.EvaluationID.String()
+
+	return &reservationv1.ConfirmByIdResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), ReservationId: result.ReservationID.String(), Status: result.Status, EvaluationId: &evaluation}, nil
+}
+
+// ReleaseById releases the whole coordinated operation that owns a reservation id.
+func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
+	if err := validateCompletionRequest(req); err != nil {
+		return nil, err
+	}
+
+	result, err := s.completeContextReservation(ctx, req.ContractRevision, req.ReservationId, model.OperationReleased)
+	if err != nil {
+		return nil, err
+	}
+
+	evaluation := result.EvaluationID.String()
+
+	return &reservationv1.ReleaseByIdResponse{ContractRevision: result.ContractRevision, TransactionId: result.TransactionID.String(), ReservationId: result.ReservationID.String(), Status: result.Status, EvaluationId: &evaluation}, nil
+}
+
 func (s *ReservationServer) completeContext(ctx context.Context, revision, id string, outcome model.ReserveOperationStatus) (*tracercontract.TransactionCompletionResult, error) {
 	if _, ok := contextutil.GetIntegrationIdentity(ctx); !ok {
 		return nil, contextReservationError(constant.ErrInsufficientPrivileges)
@@ -147,6 +227,29 @@ func (s *ReservationServer) completeContext(ctx context.Context, revision, id st
 	}
 
 	return result, nil
+}
+
+// completionRequest is the shape every completion RPC request shares.
+type completionRequest interface {
+	proto.Message
+	GetContractRevision() string
+}
+
+// validateCompletionRequest rejects a nil request, one carrying fields this
+// server does not know, and one without a contract revision, all as
+// constant.ErrInvalidRequestBody, the same class the HTTP completion routes
+// answer.
+func validateCompletionRequest(req completionRequest) error {
+	if req == nil {
+		return contextReservationError(constant.ErrInvalidRequestBody)
+	}
+
+	message := req.ProtoReflect()
+	if !message.IsValid() || len(message.GetUnknown()) != 0 || req.GetContractRevision() == "" {
+		return contextReservationError(constant.ErrInvalidRequestBody)
+	}
+
+	return nil
 }
 
 func completionEvaluationID(result *tracercontract.TransactionCompletionResult) *string {

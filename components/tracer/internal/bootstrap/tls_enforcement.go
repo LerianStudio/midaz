@@ -124,6 +124,25 @@ func ValidateSaaSDeclarationTLS(cfg *Config) error {
 	)
 }
 
+// ValidateSaaSListenerTLS extends the SaaS TLS gate to the tracer's own
+// listeners. An unset TRACER_TLS_MODE serves plaintext, which is the local
+// development default; a SaaS deployment must choose explicitly: "mtls" for
+// app-terminated TLS, or "mesh" when a service-mesh sidecar terminates it.
+// The mode's value itself is validated where the listeners are built.
+func ValidateSaaSListenerTLS(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("validate SaaS listener TLS: nil config")
+	}
+
+	if !isSaaSMode(cfg.DeploymentMode) || strings.TrimSpace(cfg.TracerTLSMode) != "" {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"DEPLOYMENT_MODE=saas: TLS required for the tracer listeners but not configured (set TRACER_TLS_MODE=mtls, or mesh when a sidecar terminates TLS)",
+	)
+}
+
 // isSaaSMode normalizes the deployment mode (case + whitespace) so values like
 // "SaaS" or " saas " cannot bypass a gate by string-equality alone. Shared by
 // both SaaS gates in this file so the normalization can never drift between them.

@@ -9,12 +9,14 @@ package lerian.midaz.reservation.v1;
 option go_package = "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1;reservationv1";
 
 // ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// reservation seam. It mirrors the REST reservation routes (reserve plus the
+// by-transaction and by-reservation confirm/release transitions) field-for-field,
+// so a producer selects gRPC or REST without any behavioral difference. Every
+// request carries the contract revision, and the tracer rejects a request
+// without it. Producer identity on this seam is the mutual TLS
+// client certificate. The tenant travels out-of-band as the "x-tenant-id" gRPC
+// metadata key (never a message field) and is accepted only when the producer
+// is associated with that tenant.
 service ReservationService {
   // Reserve evaluates rules and holds capacity (phase one). DENY/REVIEW are
   // completed decisions with no retained reservations, not transport errors.
@@ -26,12 +28,10 @@ service ReservationService {
   // ReleaseByTransaction returns EVERY reservation a transaction holds.
   rpc ReleaseByTransaction(ReleaseByTransactionRequest) returns (ReleaseByTransactionResponse);
 
-  // ConfirmById completes the operation addressed by a coordinated reservation.
-  // Without a contract revision it only addresses a single legacy reservation.
+  // ConfirmById confirms the whole operation that owns the addressed reservation.
   rpc ConfirmById(ConfirmByIdRequest) returns (ConfirmByIdResponse);
 
-  // ReleaseById releases the operation addressed by a coordinated reservation.
-  // Without a contract revision it only addresses a single legacy reservation.
+  // ReleaseById releases the whole operation that owns the addressed reservation.
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
 }
 
@@ -65,8 +65,9 @@ message EvaluationContext {
   repeated ContextEntry entries = 2;
 }
 
-// ReserveRequest replaces the old contract on the same RPC. Removed field
-// numbers cannot be reused; an old binary must fail contract verification.
+// ReserveRequest is the contract-revision request of the Reserve RPC. Field
+// numbers 1-11 are reserved and never reused, so a binary built against an
+// earlier message fails contract verification.
 message ReserveRequest {
   reserved 1 to 11;
   reserved "account", "segment_id", "portfolio_id", "merchant_id", "transaction_type";
@@ -115,13 +116,13 @@ message ReleaseByTransactionRequest {
   string contract_revision = 16;
 }
 
-// ConfirmByIdRequest addresses the owning operation under the new revision.
+// ConfirmByIdRequest addresses the operation that owns reservation_id.
 message ConfirmByIdRequest {
   string reservation_id = 1;
   string contract_revision = 16;
 }
 
-// ReleaseByIdRequest addresses the owning operation under the new revision.
+// ReleaseByIdRequest addresses the operation that owns reservation_id.
 message ReleaseByIdRequest {
   string reservation_id = 1;
   string contract_revision = 16;
@@ -130,7 +131,6 @@ message ReleaseByIdRequest {
 // Coordinated responses acknowledge the revision and known operation outcome.
 // Transaction completion may precede admission, so evaluation_id is optional.
 // flipped counts movements in this call and is zero on a committed replay.
-// Legacy calls without revision retain their empty response messages.
 
 // ConfirmByTransactionResponse is the response to ConfirmByTransaction.
 message ConfirmByTransactionResponse {

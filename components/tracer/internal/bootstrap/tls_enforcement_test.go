@@ -295,3 +295,38 @@ func TestValidateSaaSDeclarationTLS_ErrorNamesTheKnob(t *testing.T) {
 	require.Contains(t, err.Error(), "IDP_HOST")
 	require.NotContains(t, err.Error(), secret)
 }
+
+func TestValidateSaaSListenerTLS(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		mode    string
+		tlsMode string
+		wantErr bool
+	}{
+		{name: "saas without a TLS mode refuses", mode: "saas", wantErr: true},
+		{name: "saas with a blank TLS mode refuses", mode: " SaaS ", tlsMode: "   ", wantErr: true},
+		{name: "saas with mtls boots", mode: "saas", tlsMode: "mtls"},
+		{name: "saas with an explicit mesh boots", mode: "saas", tlsMode: "mesh"},
+		{name: "byoc without a TLS mode boots", mode: "byoc"},
+		{name: "local without a TLS mode boots", mode: "local"},
+		{name: "unset deployment mode without a TLS mode boots"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSaaSListenerTLS(&Config{DeploymentMode: tc.mode, TracerTLSMode: tc.tlsMode})
+			if !tc.wantErr {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorContains(t, err, "DEPLOYMENT_MODE=saas")
+			require.ErrorContains(t, err, "TRACER_TLS_MODE")
+		})
+	}
+
+	require.ErrorContains(t, ValidateSaaSListenerTLS(nil), "nil config")
+}

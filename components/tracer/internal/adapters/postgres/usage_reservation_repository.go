@@ -6,22 +6,16 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -29,19 +23,6 @@ import (
 // usageReservationsTable is the PostgreSQL table name for usage reservations.
 // Using a constant prevents SQL injection via table name interpolation.
 const usageReservationsTable = "usage_reservations"
-
-// Status predicates for the by-transaction lookups. They are fixed literals, never
-// built from caller input, so composing them into the statement text is safe.
-//
-// A confirm settles an EXPIRED row as well as a RESERVED one, because the ledger
-// only confirms a transaction that committed and that spend has to reach the
-// customer's cap even though the sweep already returned its hold. A release must
-// not: the hold was returned once when the row expired, and releasing it again
-// would take the same capacity out of the bucket twice.
-const (
-	settleableByConfirmPredicate = `status IN ('RESERVED', 'EXPIRED')`
-	settleableByReleasePredicate = `status = 'RESERVED'`
-)
 
 // reserveScopeLockSQL takes a transaction-scoped advisory lock. pg_advisory_xact_lock
 // blocks until the key is free and releases it automatically at commit or rollback,
@@ -54,42 +35,12 @@ const reserveScopeLockSQL = `SELECT pg_advisory_xact_lock($1)`
 // hot account can drain the per-tenant pool (default 25) into an indefinite queue.
 // When the wait exceeds this budget PostgreSQL aborts the statement with SQLSTATE
 // 55P03 (lock_not_available); the service rolls the transaction back, releasing the
-// connection, and its jittered transient-retry re-attempts. 3s sits well above the
+// connection, and the lock timeout surfaces as an error to the producer. Nothing on
+// this path retries it. 3s sits well above the
 // time a legitimate same-account reserve queue drains (each reserve touches a handful
 // of rows in single-digit milliseconds) yet far below the point a stuck waiter would
 // starve the pool.
 const reserveLockTimeout = 3 * time.Second
-
-// insertReservationReturningIDSQL inserts the reservation row idempotently on the
-// (transaction_id, limit_id, scope_key, period_key) tuple and returns the id of
-// the row that owns the capacity, together with whether THIS call created it.
-//
-// The two branches are mutually exclusive by construction: the data-modifying CTE
-// runs to completion first, so either it produced a row (a first insert, inserted
-// = true) or it produced none and the NOT EXISTS lets the plain SELECT return the
-// pre-existing row (a replay, inserted = false).
-//
-// Returning the existing row's id on the replay is what keeps a retried reserve's
-// handle valid. Without it the caller keeps its freshly generated id, which
-// matches no row, and the ledger's confirm against that handle fails with
-// ErrReservationNotFound while the capacity stays held.
-const insertReservationReturningIDSQL = `
-	WITH inserted AS (
-		INSERT INTO usage_reservations (
-			id, limit_id, scope_key, period_key, amount, status,
-			transaction_id, reservation_expires_at, created_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) WHERE decision_id IS NULL DO NOTHING
-		RETURNING id
-	)
-	SELECT id, true AS inserted FROM inserted
-	UNION ALL
-	SELECT id, false AS inserted
-	FROM usage_reservations
-	WHERE transaction_id = $7 AND limit_id = $2 AND scope_key = $3 AND period_key = $4
-	  AND decision_id IS NULL AND NOT EXISTS (SELECT 1 FROM inserted)
-`
 
 // reserveLockTimeoutSQL bounds the reserve transaction's lock wait. set_config with
 // is_local=true is the SET LOCAL equivalent that accepts a bind parameter, so the
@@ -97,45 +48,31 @@ const insertReservationReturningIDSQL = `
 // and no value is interpolated into the statement text.
 const reserveLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
 
-// UsageReservationRepository implements the two-phase reservation lifecycle over
-// usage_reservations, keeping each transition atomic with the matching
-// usage_counters bucket move. Every method takes the caller's db handle (a *sql.Tx
-// via the pgdb.Tx adapter), so the reservation-row mutation, the counter bucket
-// move, AND the caller's audit write all commit in ONE transaction owned by the
-// service (mirroring the RuleRepository/LimitRepository *WithTx pattern).
+// UsageReservationRepository keeps decision-owned reservations atomic with their
+// usage_counters bucket moves. Every method takes the caller's transaction
+// handle, so the reservation-row mutation, the counter bucket move and the
+// caller's audit write commit together in ONE transaction owned by the service.
+// A partial apply would leave a counter that disagrees with its reservations, so
+// the counter move and the row flip MUST share the transaction.
 //
-//   - ReserveWithTx: inserts the reservation row (idempotent on the 4-tuple) FIRST
-//     and reads back the id of the row that owns the capacity, then seeds
-//     usage_counters.reserved_usage via the reserve CTE (guarded on
-//     current_usage + reserved_usage + amount <= maxAmount) only when that insert
-//     added a new row, so a replay never moves the counter twice and never hands
-//     back a handle that owns no row.
-//   - ConfirmWithTx: moves the amount reserved_usage -> current_usage AND flips the
-//     row to CONFIRMED, guarded WHERE status='RESERVED'.
-//   - ReleaseWithTx: returns the amount from reserved_usage AND flips the row to
-//     RELEASED/EXPIRED, same guard.
-//
-// A partial apply is exactly the divergence the TTL reaper would otherwise have to
-// reconcile, so the counter move and the row flip MUST share the transaction.
-//
-// counterRepo owns the reserve CTE (the critical over-limit guard); confirm/release
-// run direct counter UPDATEs on the supplied handle. Tenant resolution is handled
-// by the connection the caller used to open the transaction (M1).
+// counterRepo owns the reserve CTE (the critical over-limit guard); settlement
+// runs direct counter UPDATEs on the supplied handle. Tenant resolution is
+// handled by the connection the caller used to open the transaction.
 type UsageReservationRepository struct {
 	counterRepo *UsageCounterRepository
 }
 
 // NewUsageReservationRepositoryWithConnection creates a usage reservation
-// repository. counterRepo supplies the reserve CTE so the reserve guard and the row
-// insert run on the same transaction handle.
+// repository. counterRepo supplies the reserve CTE so the reserve guard and the
+// row insert run on the same transaction handle.
 func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterRepository) *UsageReservationRepository {
 	return &UsageReservationRepository{counterRepo: counterRepo}
 }
 
 // AcquireReserveScopeLock sets a transaction-scoped lock_timeout FIRST, then takes
 // the advisory lock, so a wait that exceeds reserveLockTimeout surfaces as SQLSTATE
-// 55P03 (and the service retries) rather than parking the pooled connection
-// indefinitely under same-account contention.
+// 55P03, returned as an error to the producer without a retry, rather than parking
+// the pooled connection indefinitely under same-account contention.
 func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error {
 	if db == nil {
 		return pgdb.ErrNilConnection
@@ -162,399 +99,18 @@ func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context
 	return nil
 }
 
-// ReserveWithTx inserts the reservation row idempotently on the (transaction_id,
-// limit_id, scope_key, period_key) tuple FIRST, then — only when that insert added a
-// new row — seeds the counter's reserved_usage via the reserve CTE, both on the
-// supplied transaction handle. A replay for an existing 4-tuple hits ON CONFLICT DO
-// NOTHING and returns without touching the counter, so the held capacity is never
-// counted twice.
-//
-// On BOTH branches reservation.ID is overwritten with the id of the row that owns
-// the capacity. On a first insert that is the caller's own generated id; on a
-// replay it is the existing row's id, so the handle the caller goes on to confirm
-// or release with always addresses a real row.
-//
-// maxAmount is the limit ceiling the reserve CTE guards against; it is supplied by
-// the caller (the limit it resolved) and is NOT stored on the reservation row.
-//
-// Returns constant.ErrUsageCounterExceedsLimit when the combined committed +
-// outstanding usage would exceed the limit (the guard denied the reservation). The
-// caller is responsible for rolling the transaction back on any error so a denied
-// reserve leaves no RESERVED row whose capacity was never held — the CTE runs after
-// the row insert, so that rollback also unwinds the freshly inserted row.
-//
-// Concurrency: two simultaneous first-inserts of the same 4-tuple serialize on the
-// unique index — the second blocks until the first commits, then hits ON CONFLICT
-// and reports zero rows, so the RowsAffected gate stays correct without extra locks.
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error {
-	if db == nil {
-		return pgdb.ErrNilConnection
-	}
-
-	if reservation == nil {
-		return errors.New("reservation cannot be nil")
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_reservation.reserve")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	if err := reservation.Validate(); err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid reservation", err)
-		return err
-	}
-
-	var (
-		rowID    uuid.UUID
-		inserted bool
-	)
-
-	err := db.QueryRowContext(
-		ctx,
-		insertReservationReturningIDSQL,
-		reservation.ID,
-		reservation.LimitID,
-		reservation.ScopeKey,
-		reservation.PeriodKey,
-		reservation.Amount,
-		string(reservation.Status),
-		reservation.TransactionID,
-		reservation.ReservationExpiresAt,
-		reservation.CreatedAt,
-	).Scan(&rowID, &inserted)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		// Neither branch produced a row: the conflicting row was written by a
-		// transaction this statement's snapshot cannot see. The per-account
-		// advisory lock the reserve takes first makes that unreachable in
-		// production; fail closed rather than hand back a handle that owns
-		// nothing, which is the very defect this query exists to prevent.
-		err = errors.New("reserve resolved no owning reservation row")
-
-		libOtel.HandleSpanError(span, "Reserve resolved no owning reservation row", err)
-
-		return err
-	}
-
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to insert reservation row", err)
-		return fmt.Errorf("failed to insert reservation row: %w", err)
-	}
-
-	// The row that owns the capacity is authoritative over the caller's generated
-	// id. On a first insert they are the same; on a replay this adopts the
-	// existing row's id so the handle the caller confirms or releases with
-	// addresses a real row.
-	reservation.ID = rowID
-
-	// Not inserted means the 4-tuple already exists: an idempotent replay. The
-	// capacity was reserved on the first call, so return without re-moving the
-	// counter.
-	if !inserted {
-		span.SetAttributes(attribute.Bool("app.reservation_replay", true))
-
-		logger.With(
-			libLog.String("operation", "repository.usage_reservation.reserve"),
-			libLog.String("reservation_id", reservation.ID.String()),
-			libLog.String("limit_id", reservation.LimitID.String()),
-		).Log(ctx, libLog.LevelDebug, "Reserve replay, counter unchanged")
-
-		return nil
-	}
-
-	// A new row was inserted: reserve capacity on the counter (the over-limit guard
-	// lives in the CTE). On guard failure this returns ErrUsageCounterExceedsLimit;
-	// the caller rolls back, which also unwinds the row inserted above.
-	if _, err := r.counterRepo.UpsertAndReserveAtomic(
-		ctx,
-		db,
-		reservation.LimitID,
-		reservation.ScopeKey,
-		reservation.PeriodKey,
-		reservation.Amount,
-		maxAmount,
-		&reservation.ReservationExpiresAt,
-	); err != nil {
-		return err
-	}
-
-	logger.With(
-		libLog.String("operation", "repository.usage_reservation.reserve"),
-		libLog.String("reservation_id", reservation.ID.String()),
-		libLog.String("limit_id", reservation.LimitID.String()),
-	).Log(ctx, libLog.LevelDebug, "Reserved usage")
-
-	return nil
-}
-
-// settleableByConfirm reports whether a confirm can still settle a reservation in
-// this state.
-//
-// RESERVED is the ordinary case. EXPIRED is the LATE confirm: the sweep returned
-// the hold at its stated expiry on the presumption the transaction was abandoned,
-// and then the ledger's confirm arrived because the transaction really did commit.
-// The money moved, so the spend must land on the customer's cap; discarding it
-// would under-enforce the limit for the rest of the period. CONFIRMED and RELEASED
-// are genuinely terminal and stay idempotent no-ops.
-func settleableByConfirm(status model.ReservationStatus) bool {
-	return status == model.StatusReserved || status == model.StatusExpired
-}
-
-// ConfirmWithTx settles a reservation onto the counter and flips the row to
-// CONFIRMED, on the supplied handle. A RESERVED row moves its amount from
-// reserved_usage into current_usage. An EXPIRED row is the late confirm: the sweep
-// already returned its hold, so only current_usage grows and the hold bucket is
-// left alone. Both flips are guarded on the status that was read under the row
-// lock, so a concurrent transition loses cleanly.
-//
-// A retried confirm against a CONFIRMED or RELEASED row is a no-op: the counter
-// move is NEVER issued and the method returns ErrReservationAlreadyTerminal
-// without a double-move. A missing reservation maps to ErrReservationNotFound.
-//
-// Settling an EXPIRED row can push counted spending above the limit's ceiling.
-// That is the honest state: the customer really did spend it, and the capacity the
-// sweep handed back may already have been taken by another transaction.
-func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error {
-	if db == nil {
-		return pgdb.ErrNilConnection
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_reservation.confirm")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	res, err := r.lockReservation(ctx, db, reservationID)
-	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(span, "Reservation lookup failed", err)
-		return err
-	}
-
-	if !settleableByConfirm(res.Status) {
-		return constant.ErrReservationAlreadyTerminal
-	}
-
-	if err := r.applyConfirm(ctx, span, db, res); err != nil {
-		return err
-	}
-
-	logger.With(
-		libLog.String("operation", "repository.usage_reservation.confirm"),
-		libLog.String("reservation_id", reservationID.String()),
-	).Log(ctx, libLog.LevelDebug, "Confirmed reservation")
-
-	return nil
-}
-
-// ReleaseWithTx returns a RESERVED reservation's amount from reserved_usage on the
-// counter (without crediting current_usage) and flips the row to the given terminal
-// status, on the supplied handle, guarded WHERE status='RESERVED'. status MUST be
-// StatusReleased (explicit abort) or StatusExpired (reaper sweep). Idempotency
-// mirrors ConfirmWithTx.
-func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error {
-	if db == nil {
-		return pgdb.ErrNilConnection
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_reservation.release")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	if status != model.StatusReleased && status != model.StatusExpired {
-		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid release status", constant.ErrReservationInvalidStatus)
-		return constant.ErrReservationInvalidStatus
-	}
-
-	res, err := r.lockReservation(ctx, db, reservationID)
-	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(span, "Reservation lookup failed", err)
-		return err
-	}
-
-	if res.Status != model.StatusReserved {
-		return constant.ErrReservationAlreadyTerminal
-	}
-
-	now := time.Now().UTC()
-
-	counterUpdate := sq.Update(usageCountersTable).
-		Set("reserved_usage", sq.Expr("reserved_usage - ?", res.Amount)).
-		Set("last_updated_at", now).
-		Where(sq.Eq{
-			"limit_id":   res.LimitID,
-			"scope_key":  res.ScopeKey,
-			"period_key": res.PeriodKey,
-		}).
-		PlaceholderFormat(sq.Dollar)
-
-	if err := r.execCounterMove(ctx, span, db, counterUpdate); err != nil {
-		return err
-	}
-
-	rowUpdate := sq.Update(usageReservationsTable).
-		Set("status", string(status)).
-		Set("released_at", now).
-		Where(sq.Eq{"id": reservationID, "status": string(model.StatusReserved)}).
-		PlaceholderFormat(sq.Dollar)
-
-	affected, err := r.execRowFlip(ctx, span, db, rowUpdate)
-	if err != nil {
-		return err
-	}
-
-	if affected == 0 {
-		return constant.ErrReservationAlreadyTerminal
-	}
-
-	logger.With(
-		libLog.String("operation", "repository.usage_reservation.release"),
-		libLog.String("reservation_id", reservationID.String()),
-		libLog.String("status", string(status)),
-	).Log(ctx, libLog.LevelDebug, "Released reservation")
-
-	return nil
-}
-
-// ConfirmByTransactionWithTx confirms settleable LEGACY reservation rows carrying
-// the given transaction_id, on the supplied handle, in one transaction owned by
-// the caller. For each row it applies the same counter move (reserved_usage ->
-// current_usage) and row flip (-> CONFIRMED) the by-id ConfirmWithTx performs. The
-// 4-tuple unique index leads with transaction_id, so the lookup is index-efficient.
-//
-// Returns the flipped reservations (their ids and resolved limit coordinates) so
-// the caller can record one audit row per flip in the SAME transaction. The flipped
-// count is len(result). Zero rows is an idempotent no-op success: either the
-// transaction never reserved (tracer disabled / no counter-backed limit applied) or
-// every reservation already reached a terminal state (a retried confirm). The
-// caller maps an empty result to a success either way — this is the by-transaction
-// confirm the ledger /commit drives with only the transaction id.
-func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
-	if db == nil {
-		return nil, pgdb.ErrNilConnection
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_reservation.confirm_by_transaction")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	reservations, err := r.lockSettleableByTransaction(ctx, db, transactionID,
-		settleableByConfirmPredicate)
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to load settleable rows for transaction", err)
-		return nil, err
-	}
-
-	for i := range reservations {
-		if err := r.applyConfirm(ctx, span, db, reservations[i]); err != nil {
-			return nil, err
-		}
-	}
-
-	span.SetAttributes(attribute.Int("db.rows_flipped", len(reservations)))
-
-	logger.With(
-		libLog.String("operation", "repository.usage_reservation.confirm_by_transaction"),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.Int("flipped", len(reservations)),
-	).Log(ctx, libLog.LevelDebug, "Confirmed reservations by transaction")
-
-	return reservations, nil
-}
-
-// ReleaseByTransactionWithTx releases RESERVED LEGACY reservation rows carrying
-// the given transaction_id, on the supplied handle, in one transaction owned by the
-// caller. For each row it returns the held amount to capacity (reserved_usage
-// decremented, current_usage untouched) and flips the row to the given terminal
-// status, mirroring the by-id ReleaseWithTx. status MUST be StatusReleased (an
-// explicit abort) or StatusExpired (a reaper sweep).
-//
-// Returns the flipped reservations so the caller can record one audit row per flip
-// in the same transaction; the flipped count is len(result). Zero rows is an
-// idempotent no-op success, as in ConfirmByTransactionWithTx. This is the
-// by-transaction release the ledger /cancel drives with only the transaction id.
-func (r *UsageReservationRepository) ReleaseByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, status model.ReservationStatus) ([]*model.Reservation, error) {
-	if db == nil {
-		return nil, pgdb.ErrNilConnection
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_reservation.release_by_transaction")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	if status != model.StatusReleased && status != model.StatusExpired {
-		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid release status", constant.ErrReservationInvalidStatus)
-		return nil, constant.ErrReservationInvalidStatus
-	}
-
-	// RESERVED only: an EXPIRED row's hold was already returned by the sweep, and
-	// releasing it again would decrement the same capacity twice.
-	reservations, err := r.lockSettleableByTransaction(ctx, db, transactionID,
-		settleableByReleasePredicate)
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to load reserved rows for transaction", err)
-		return nil, err
-	}
-
-	for i := range reservations {
-		if err := r.applyRelease(ctx, span, db, reservations[i], status); err != nil {
-			return nil, err
-		}
-	}
-
-	span.SetAttributes(attribute.Int("db.rows_flipped", len(reservations)))
-
-	logger.With(
-		libLog.String("operation", "repository.usage_reservation.release_by_transaction"),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.String("status", string(status)),
-		libLog.Int("flipped", len(reservations)),
-	).Log(ctx, libLog.LevelDebug, "Released reservations by transaction")
-
-	return reservations, nil
-}
-
-// applyConfirm settles one reservation onto the counter and flips the row to
-// CONFIRMED, on the supplied handle. It is the shared per-row body of BOTH
-// ConfirmWithTx and ConfirmByTransactionWithTx, so the by-id and by-transaction
-// routes can never drift on the counter arithmetic.
-//
-// The counter move depends on the state the row was locked in:
-//
-//   - RESERVED: the hold is still outstanding, so the amount moves out of
-//     reserved_usage and into current_usage.
-//   - EXPIRED: the sweep already returned the hold, so ONLY current_usage grows.
-//     Draining reserved_usage a second time would take capacity the counter no
-//     longer holds and drive the bucket toward its non-negative floor.
-//
-// The row flip is guarded on the status read under the lock, so a concurrent
-// transition loses cleanly and the caller sees zero rows affected.
+// applyConfirm settles one RESERVED reservation onto the counter, moving its
+// amount out of reserved_usage and into current_usage, and flips the row to
+// CONFIRMED, on the supplied handle. The row flip is guarded on RESERVED, so a
+// concurrent transition loses cleanly and surfaces as
+// ErrReservationAlreadyTerminal.
 func (r *UsageReservationRepository) applyConfirm(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation) error {
 	now := time.Now().UTC()
-	lateConfirm := res.Status == model.StatusExpired
 
 	counterUpdate := sq.Update(usageCountersTable).
 		Set("current_usage", sq.Expr("current_usage + ?", res.Amount)).
-		Set("last_updated_at", now)
-
-	if !lateConfirm {
-		counterUpdate = counterUpdate.Set("reserved_usage", sq.Expr("reserved_usage - ?", res.Amount))
-	}
-
-	counterUpdate = counterUpdate.
+		Set("last_updated_at", now).
+		Set("reserved_usage", sq.Expr("reserved_usage - ?", res.Amount)).
 		Where(sq.Eq{
 			"limit_id":   res.LimitID,
 			"scope_key":  res.ScopeKey,
@@ -569,7 +125,7 @@ func (r *UsageReservationRepository) applyConfirm(ctx context.Context, span trac
 	rowUpdate := sq.Update(usageReservationsTable).
 		Set("status", string(model.StatusConfirmed)).
 		Set("confirmed_at", now).
-		Where(sq.Eq{"id": res.ID, "status": string(res.Status)}).
+		Where(sq.Eq{"id": res.ID, "status": string(model.StatusReserved)}).
 		PlaceholderFormat(sq.Dollar)
 
 	affected, err := r.execRowFlip(ctx, span, db, rowUpdate)
@@ -581,32 +137,12 @@ func (r *UsageReservationRepository) applyConfirm(ctx context.Context, span trac
 		return constant.ErrReservationAlreadyTerminal
 	}
 
-	if lateConfirm {
-		// The limit was under-enforced between the sweep and this confirm: the
-		// capacity was available to other transactions while this spend was in
-		// flight. Say so loudly — a silent late confirm is how a cap quietly
-		// stops matching reality.
-		span.SetAttributes(attribute.Bool("app.reservation_late_confirm", true))
-
-		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-		logging.WithTrace(ctx, logger).With(
-			libLog.String("operation", "repository.usage_reservation.confirm"),
-			libLog.String("reservation_id", res.ID.String()),
-			libLog.String("transaction_id", res.TransactionID.String()),
-			libLog.String("limit_id", res.LimitID.String()),
-			libLog.String("amount", res.Amount.String()),
-			libLog.String("reservation_expires_at", res.ReservationExpiresAt.UTC().Format(time.RFC3339)),
-		).Log(ctx, libLog.LevelWarn,
-			"Confirmed a reservation the expiry sweep had already released; the spend is counted now, but the limit was under-enforced until this point")
-	}
-
 	return nil
 }
 
 // applyRelease returns a single RESERVED reservation's amount from reserved_usage
 // (current_usage untouched) and flips the row to the given terminal status, on the
-// supplied handle. It is the shared per-row body of ReleaseByTransactionWithTx.
+// supplied handle.
 func (r *UsageReservationRepository) applyRelease(ctx context.Context, span trace.Span, db pgdb.DB, res *model.Reservation, status model.ReservationStatus) error {
 	now := time.Now().UTC()
 
@@ -635,139 +171,6 @@ func (r *UsageReservationRepository) applyRelease(ctx context.Context, span trac
 	}
 
 	return nil
-}
-
-// lockSettleableByTransaction reads every reservation row for a transaction whose
-// status is in statuses, FOR UPDATE, so the per-row counter moves and flips see a
-// stable status under a concurrent by-id confirm/release or the sweep. The lookup
-// rides the 4-tuple unique index (transaction_id leads). A transaction with no
-// matching rows returns an empty slice, NOT an error — the by-transaction
-// confirm/release is idempotent over "nothing to do".
-//
-// The status set differs by caller, and the difference is load-bearing. A confirm
-// also settles EXPIRED rows, because the transaction committed and its spend must
-// be counted even though the sweep already returned the hold. A release must NOT:
-// an expired hold was returned once already, and releasing it again would take the
-// same capacity out of the bucket twice.
-func (r *UsageReservationRepository) lockSettleableByTransaction(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, statusPredicate string) ([]*model.Reservation, error) {
-	// statusPredicate is one of the two package constants below, never caller
-	// input, so it is safe to compose into the statement text.
-	selectSQL := `
-		SELECT id, limit_id, scope_key, period_key, amount, status,
-		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
-		FROM usage_reservations
-		WHERE transaction_id = $1 AND decision_id IS NULL AND ` + statusPredicate + `
-		FOR UPDATE
-	`
-
-	rows, err := db.QueryContext(ctx, selectSQL, transactionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load reserved rows for transaction: %w", err)
-	}
-
-	defer func() { _ = rows.Close() }()
-
-	var reservations []*model.Reservation
-
-	for rows.Next() {
-		var (
-			res         model.Reservation
-			status      string
-			confirmedAt sql.NullTime
-			releasedAt  sql.NullTime
-		)
-
-		if err := rows.Scan(
-			&res.ID,
-			&res.LimitID,
-			&res.ScopeKey,
-			&res.PeriodKey,
-			&res.Amount,
-			&status,
-			&res.TransactionID,
-			&res.ReservationExpiresAt,
-			&res.CreatedAt,
-			&confirmedAt,
-			&releasedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan reserved row: %w", err)
-		}
-
-		res.Status = model.ReservationStatus(status)
-
-		if confirmedAt.Valid {
-			t := confirmedAt.Time
-			res.ConfirmedAt = &t
-		}
-
-		if releasedAt.Valid {
-			t := releasedAt.Time
-			res.ReleasedAt = &t
-		}
-
-		reservations = append(reservations, &res)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate reserved rows: %w", err)
-	}
-
-	return reservations, nil
-}
-
-// lockReservation reads only a legacy reservation FOR UPDATE so the counter move and the
-// row flip see a stable status under concurrent confirm/release. Maps a missing row
-// to ErrReservationNotFound.
-func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (*model.Reservation, error) {
-	selectSQL := `
-		SELECT id, limit_id, scope_key, period_key, amount, status,
-		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
-		FROM usage_reservations
-		WHERE id = $1 AND decision_id IS NULL
-		FOR UPDATE
-	`
-
-	var (
-		res         model.Reservation
-		status      string
-		confirmedAt sql.NullTime
-		releasedAt  sql.NullTime
-	)
-
-	err := db.QueryRowContext(ctx, selectSQL, reservationID).Scan(
-		&res.ID,
-		&res.LimitID,
-		&res.ScopeKey,
-		&res.PeriodKey,
-		&res.Amount,
-		&status,
-		&res.TransactionID,
-		&res.ReservationExpiresAt,
-		&res.CreatedAt,
-		&confirmedAt,
-		&releasedAt,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, constant.ErrReservationNotFound
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to load reservation: %w", err)
-	}
-
-	res.Status = model.ReservationStatus(status)
-
-	if confirmedAt.Valid {
-		t := confirmedAt.Time
-		res.ConfirmedAt = &t
-	}
-
-	if releasedAt.Valid {
-		t := releasedAt.Time
-		res.ReleasedAt = &t
-	}
-
-	return &res, nil
 }
 
 // execCounterMove runs the counter UPDATE and maps zero rows affected to the

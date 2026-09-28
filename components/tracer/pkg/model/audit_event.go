@@ -65,11 +65,12 @@ const (
 	AuditEventLimitDeactivated AuditEventType = "LIMIT_DEACTIVATED"
 	AuditEventLimitDrafted     AuditEventType = "LIMIT_DRAFTED"
 
-	// Reservation lifecycle events (two-phase reservation seam).
-	// RESERVED/CONFIRMED/RELEASED/EXPIRED mirror the persisted
-	// usage_reservations.status transitions. SKIPPED is audit-only: it records
-	// the ledger fail-open decision when the tracer is unreachable, and is NEVER
-	// a usage_reservations.status value (no reservation row is written).
+	// Reservation events. Recorded by earlier reservation contracts; read-only
+	// for audit history. They stay valid so persisted rows keep parsing, and
+	// nothing emits them: reserve decisions and operation completions carry
+	// their own event types. RESERVED/CONFIRMED/RELEASED/EXPIRED mirror
+	// usage_reservations.status transitions; SKIPPED recorded a ledger
+	// fail-open with no reservation row.
 	AuditEventReservationReserved  AuditEventType = "RESERVATION_RESERVED"
 	AuditEventReservationConfirmed AuditEventType = "RESERVATION_CONFIRMED"
 	AuditEventReservationReleased  AuditEventType = "RESERVATION_RELEASED"
@@ -102,14 +103,16 @@ const (
 	AuditActionDeactivate AuditAction = "DEACTIVATE"
 	AuditActionDraft      AuditAction = "DRAFT"
 
-	// Reservation lifecycle actions (two-phase reservation seam). RESERVE holds
-	// capacity, CONFIRM commits it, RELEASE returns it on abort, EXPIRE is the
-	// reaper-driven release, and SKIP records a ledger fail-open with no counter
-	// move.
-	AuditActionReserve AuditAction = "RESERVE"
+	// Reservation completion actions. CONFIRM commits held capacity, RELEASE
+	// returns it on abort, and EXPIRE is the reaper-driven release.
 	AuditActionConfirm AuditAction = "CONFIRM"
 	AuditActionRelease AuditAction = "RELEASE"
 	AuditActionExpire  AuditAction = "EXPIRE"
+
+	// RESERVE held capacity and SKIP recorded a ledger fail-open with no counter
+	// move. Recorded by earlier reservation contracts; read-only for audit
+	// history, and nothing emits them.
+	AuditActionReserve AuditAction = "RESERVE"
 	AuditActionSkip    AuditAction = "SKIP"
 )
 

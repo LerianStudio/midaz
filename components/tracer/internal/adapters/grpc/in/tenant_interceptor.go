@@ -13,43 +13,73 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/producerauth"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// TenantUnaryInterceptor resolves the per-tenant PostgreSQL pool from the
-// TRUSTED x-tenant-id metadata the ledger forwards and binds it into the
-// request context BEFORE the reservation handler runs. The tenant key is
-// trusted because the gRPC peer is mTLS-verified (or sits behind a verified
-// mesh sidecar); this interceptor is registered ONLY on the reservation gRPC
-// server, which is unreachable without that verified peer.
+// TenantUnaryInterceptor accepts the x-tenant-id a platform producer asks for
+// only after the tenant-manager confirms the tenant uses that producer's
+// service, and then binds the tenant's PostgreSQL pool into the context. It
+// must follow IdentityUnaryInterceptor: a call without a resolved Producer is a
+// wiring error and fails with codes.Unavailable.
 //
-// Under multi-tenant mode a missing/empty/invalid tenant key fails with
-// codes.InvalidArgument and never resolves a default/wrong pool. In
-// single-tenant (no-op) mode the resolver passes through and the key is ignored.
-func TenantUnaryInterceptor(resolver *seamtenant.Resolver) grpc.UnaryServerInterceptor {
+// Outcomes: a missing or malformed tenant under multi-tenancy is
+// codes.InvalidArgument (0487); a tenant the tenant-manager does not associate
+// with the producer, or whose Tracer pool it denies, is codes.PermissionDenied
+// (0043); a tenant-manager or pool that cannot answer is codes.Unavailable
+// (0161), an availability failure the caller's fail posture governs; a
+// cancelled call or passed deadline keeps its own code. Single-tenant mode
+// ignores the metadata. A missing producer, and an authorizer and resolver that
+// disagree on multi-tenancy, are deployment defects that fail closed with
+// codes.Unavailable (0527).
+func TenantUnaryInterceptor(authz *producerauth.TenantAuthorizer, resolver *seamtenant.Resolver) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if !resolver.Active() {
-			return handler(ctx, req)
-		}
-
-		resolvedCtx, err := resolver.Resolve(ctx, tenantIDFromMetadata(ctx))
+		resolvedCtx, err := seamtenant.AuthorizeTenant(ctx, authz, resolver, tenantIDFromMetadata(ctx))
 		if err != nil {
-			if errors.Is(err, constant.ErrReservationTenantRequired) {
-				return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error())
-			}
-
-			return nil, status.Error(codes.Internal, constant.ErrInternalServer.Error())
+			return nil, tenantStatusError(err)
 		}
 
 		return handler(resolvedCtx, req)
 	}
 }
 
-// tenantIDFromMetadata reads the trusted tenant id from incoming gRPC metadata.
-// Returns an empty string when absent; the resolver maps empty to the clean
-// missing-tenant failure under MT.
+// ContextReservationUnaryInterceptor authenticates the producer, then
+// authorizes its requested tenant and binds the tenant pool. Bootstrap and
+// transport tests share this exact chain.
+func ContextReservationUnaryInterceptor(identity *producerauth.Registry, authz *producerauth.TenantAuthorizer, tenant *seamtenant.Resolver) grpc.UnaryServerInterceptor {
+	authenticate := IdentityUnaryInterceptor(identity)
+	authorize := TenantUnaryInterceptor(authz, tenant)
+
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		return authenticate(ctx, req, info, func(verified context.Context, input any) (any, error) {
+			return authorize(verified, input, info, handler)
+		})
+	}
+}
+
+// tenantStatusError maps a seamtenant.AuthorizeTenant sentinel onto its gRPC
+// status.
+func tenantStatusError(err error) error {
+	switch {
+	case errors.Is(err, constant.ErrReservationTenantRequired):
+		return status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error())
+	case errors.Is(err, constant.ErrInsufficientPrivileges):
+		return status.Error(codes.PermissionDenied, constant.ErrInsufficientPrivileges.Error())
+	case errors.Is(err, context.Canceled):
+		return status.Error(codes.Canceled, context.Canceled.Error())
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Error(codes.DeadlineExceeded, context.DeadlineExceeded.Error())
+	case errors.Is(err, constant.ErrTenantServiceUnavailable):
+		return status.Error(codes.Unavailable, constant.ErrTenantServiceUnavailable.Error())
+	default:
+		return status.Error(codes.Unavailable, constant.ErrContextPolicyUnavailable.Error())
+	}
+}
+
+// tenantIDFromMetadata reads the tenant id from incoming gRPC metadata.
+// Returns an empty string when absent; authorization maps empty to the clean
+// missing-tenant failure under multi-tenancy.
 func tenantIDFromMetadata(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -62,17 +92,4 @@ func tenantIDFromMetadata(ctx context.Context) string {
 	}
 
 	return values[0]
-}
-
-// ContextReservationUnaryInterceptor authenticates the producer before resolving
-// its requested tenant. Bootstrap and transport tests share this exact chain.
-func ContextReservationUnaryInterceptor(identity *seamidentity.Resolver, tenant *seamtenant.Resolver) grpc.UnaryServerInterceptor {
-	authenticate := IdentityUnaryInterceptor(identity)
-	resolve := TenantUnaryInterceptor(tenant)
-
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return authenticate(ctx, req, info, func(verified context.Context, input any) (any, error) {
-			return resolve(verified, input, info, handler)
-		})
-	}
 }

@@ -368,7 +368,13 @@ func bootServiceInMTMode(t *testing.T, h *mtHarness, extra map[string]string) fu
 	redisHost, redisPort := h.RedisAddr(t)
 
 	env := map[string]string{
-		"MULTI_TENANT_ENABLED":         "true",
+		"MULTI_TENANT_ENABLED": "true",
+		// Multi-tenancy refuses DEPLOYMENT_MODE=local, which skips producer
+		// token verification on the reservation seam. byoc verifies tokens;
+		// the JWKS is fetched lazily, so its unreachable suite URL does not
+		// block the boot.
+		"DEPLOYMENT_MODE":              "byoc",
+		"CONTEXT_M2M_ISSUER":           "https://access-manager.example.test",
 		"MULTI_TENANT_URL":             h.URL(),
 		"MULTI_TENANT_SERVICE_API_KEY": "test-svc-api-key",
 		"MULTI_TENANT_REDIS_HOST":      redisHost,
@@ -457,7 +463,8 @@ func ensureTenantDatabase(t *testing.T, dbName string) tenantPGSpec {
 
 	// Postgres does not support "CREATE DATABASE IF NOT EXISTS"; check first.
 	var exists bool
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, dbName,
 	).Scan(&exists)
 	require.NoError(t, err, "check database existence")

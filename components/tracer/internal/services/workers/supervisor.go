@@ -81,11 +81,10 @@ type WorkerSupervisorDeps struct {
 	// single-tenant CLEANUP_WORKER_ENABLED knob so operators get consistent
 	// behavior in both modes (H8).
 	CleanupWorkerEnabled bool
-	// ReaperRepo + ReaperAuditor + ReaperExpirer + ReaperConfig drive the
+	// ReaperRepo + ReaperExpirer + ReaperConfig drive the
 	// per-tenant reservation reaper. Only required when ReaperWorkerEnabled is
 	// true (mirrors the UsageRepo / CleanupWorkerEnabled coupling).
-	ReaperRepo    ReservationReaperRepository
-	ReaperAuditor ReservationExpiryAuditor
+	ReaperRepo ReservationReaperRepository
 	// ReaperExpirer closes the operations of expired decision-owned reservations.
 	ReaperExpirer ReserveOperationExpirer
 	ReaperConfig  ReservationReaperWorkerConfig
@@ -146,7 +145,6 @@ type WorkerSupervisor struct {
 	cleanupConfig        UsageCleanupWorkerConfig
 	cleanupWorkerEnabled bool
 	reaperRepo           ReservationReaperRepository
-	reaperAuditor        ReservationExpiryAuditor
 	reaperExpirer        ReserveOperationExpirer
 	reaperConfig         ReservationReaperWorkerConfig
 	reaperWorkerEnabled  bool
@@ -220,15 +218,11 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		return nil, constant.ErrSupervisorNilUsageRepo
 	}
 
-	// ReaperRepo + ReaperAuditor are only consumed by the per-tenant reservation
+	// ReaperRepo + ReaperExpirer are only consumed by the per-tenant reservation
 	// reaper; skipping the nil-check when ReaperWorkerEnabled=false lets operators
 	// omit the dependencies entirely (mirrors UsageRepo / CleanupWorkerEnabled).
 	if deps.ReaperWorkerEnabled && deps.ReaperRepo == nil {
 		return nil, constant.ErrSupervisorNilReaperRepo
-	}
-
-	if deps.ReaperWorkerEnabled && deps.ReaperAuditor == nil {
-		return nil, constant.ErrSupervisorNilReaperAuditor
 	}
 
 	if deps.ReaperWorkerEnabled && deps.ReaperExpirer == nil {
@@ -273,7 +267,6 @@ func NewWorkerSupervisor(deps WorkerSupervisorDeps) (*WorkerSupervisor, error) {
 		cleanupConfig:        deps.CleanupConfig,
 		cleanupWorkerEnabled: deps.CleanupWorkerEnabled,
 		reaperRepo:           deps.ReaperRepo,
-		reaperAuditor:        deps.ReaperAuditor,
 		reaperExpirer:        deps.ReaperExpirer,
 		reaperConfig:         deps.ReaperConfig,
 		reaperWorkerEnabled:  deps.ReaperWorkerEnabled,
@@ -418,7 +411,7 @@ func (s *WorkerSupervisor) EnsureWorkers(ctx context.Context, tenantID string) e
 
 	if s.reaperWorkerEnabled {
 		reaperWorker, err = NewReservationReaperWorkerWithPoolResolver(
-			s.reaperRepo, s.reaperAuditor, s.reaperExpirer, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
+			s.reaperRepo, s.reaperExpirer, s.reaperConfig, s.logger, s.clock, tenantID, s.poolResolver,
 		)
 		if err != nil {
 			s.metrics.IncConnectionErrors(ctx, tenantID, trcConstant.ModuleName, "reaper_worker_init")

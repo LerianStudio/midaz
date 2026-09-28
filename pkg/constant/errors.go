@@ -481,8 +481,7 @@ var (
 	ErrSupervisorNilUsageRepo                 = errors.New("0469")
 	ErrSupervisorNilCompiler                  = errors.New("0470")
 	ErrSupervisorNilLogger                    = errors.New("0471")
-	ErrSupervisorNilReaperRepo                = errors.New("0472")
-	ErrSupervisorNilReaperAuditor             = errors.New("0473")
+	ErrSupervisorNilReaperRepo                = errors.New("0472") // 0473 retired; do not reuse.
 	ErrUnauthorizedMissingSub                 = errors.New("0474")
 	ErrReservationLimitIDRequired             = errors.New("0475")
 	ErrReservationTransactionIDReq            = errors.New("0476")
@@ -690,6 +689,9 @@ var (
 	ErrTracerContractUnavailable = errors.New("0534")
 	// ErrTransactionReviewRequired rejects REVIEW without creating a pending hold.
 	ErrTransactionReviewRequired = errors.New("0535")
+	// ErrTracerTokenUnavailable reports that no valid M2M token for the Tracer
+	// REST seam could be obtained; callers treat it as Tracer unavailability.
+	ErrTracerTokenUnavailable = errors.New("0536")
 )
 
 // List of CRM domain errors.

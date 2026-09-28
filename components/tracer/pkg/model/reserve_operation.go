@@ -87,13 +87,12 @@ func (o ReserveReservationOwner) Validate() error {
 	return o.Operation.Validate()
 }
 
-// ExpiredReservation locates a RESERVED row past its TTL. Operation is nil for a
-// legacy reservation, which expires alone; a decision-owned reservation expires
-// only together with its whole operation.
+// ExpiredReservation locates a RESERVED row past its TTL. The reservation
+// expires only together with its whole owning operation.
 type ExpiredReservation struct {
 	ID        uuid.UUID
 	ExpiresAt time.Time
-	Operation *ReserveOperationIdentity
+	Operation ReserveOperationIdentity
 }
 
 // Position returns the sweep position this reservation occupies.

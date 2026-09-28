@@ -36,12 +36,14 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// reservation seam. It mirrors the REST reservation routes (reserve plus the
+// by-transaction and by-reservation confirm/release transitions) field-for-field,
+// so a producer selects gRPC or REST without any behavioral difference. Every
+// request carries the contract revision, and the tracer rejects a request
+// without it. Producer identity on this seam is the mutual TLS
+// client certificate. The tenant travels out-of-band as the "x-tenant-id" gRPC
+// metadata key (never a message field) and is accepted only when the producer
+// is associated with that tenant.
 type ReservationServiceClient interface {
 	// Reserve evaluates rules and holds capacity (phase one). DENY/REVIEW are
 	// completed decisions with no retained reservations, not transport errors.
@@ -50,11 +52,9 @@ type ReservationServiceClient interface {
 	ConfirmByTransaction(ctx context.Context, in *ConfirmByTransactionRequest, opts ...grpc.CallOption) (*ConfirmByTransactionResponse, error)
 	// ReleaseByTransaction returns EVERY reservation a transaction holds.
 	ReleaseByTransaction(ctx context.Context, in *ReleaseByTransactionRequest, opts ...grpc.CallOption) (*ReleaseByTransactionResponse, error)
-	// ConfirmById completes the operation addressed by a coordinated reservation.
-	// Without a contract revision it only addresses a single legacy reservation.
+	// ConfirmById confirms the whole operation that owns the addressed reservation.
 	ConfirmById(ctx context.Context, in *ConfirmByIdRequest, opts ...grpc.CallOption) (*ConfirmByIdResponse, error)
-	// ReleaseById releases the operation addressed by a coordinated reservation.
-	// Without a contract revision it only addresses a single legacy reservation.
+	// ReleaseById releases the whole operation that owns the addressed reservation.
 	ReleaseById(ctx context.Context, in *ReleaseByIdRequest, opts ...grpc.CallOption) (*ReleaseByIdResponse, error)
 }
 
@@ -121,12 +121,14 @@ func (c *reservationServiceClient) ReleaseById(ctx context.Context, in *ReleaseB
 // for forward compatibility.
 //
 // ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// reservation seam. It mirrors the REST reservation routes (reserve plus the
+// by-transaction and by-reservation confirm/release transitions) field-for-field,
+// so a producer selects gRPC or REST without any behavioral difference. Every
+// request carries the contract revision, and the tracer rejects a request
+// without it. Producer identity on this seam is the mutual TLS
+// client certificate. The tenant travels out-of-band as the "x-tenant-id" gRPC
+// metadata key (never a message field) and is accepted only when the producer
+// is associated with that tenant.
 type ReservationServiceServer interface {
 	// Reserve evaluates rules and holds capacity (phase one). DENY/REVIEW are
 	// completed decisions with no retained reservations, not transport errors.
@@ -135,11 +137,9 @@ type ReservationServiceServer interface {
 	ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error)
 	// ReleaseByTransaction returns EVERY reservation a transaction holds.
 	ReleaseByTransaction(context.Context, *ReleaseByTransactionRequest) (*ReleaseByTransactionResponse, error)
-	// ConfirmById completes the operation addressed by a coordinated reservation.
-	// Without a contract revision it only addresses a single legacy reservation.
+	// ConfirmById confirms the whole operation that owns the addressed reservation.
 	ConfirmById(context.Context, *ConfirmByIdRequest) (*ConfirmByIdResponse, error)
-	// ReleaseById releases the operation addressed by a coordinated reservation.
-	// Without a contract revision it only addresses a single legacy reservation.
+	// ReleaseById releases the whole operation that owns the addressed reservation.
 	ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error)
 	mustEmbedUnimplementedReservationServiceServer()
 }

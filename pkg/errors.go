@@ -505,6 +505,10 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType, Code: constant.ErrTracerContractUnavailable.Error(),
 			Title: "Tracer Contract Unavailable", Message: "The requested Tracer profile is not ready for activation.",
 		},
+		constant.ErrTracerTokenUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrTracerTokenUnavailable.Error(),
+			Title: "Tracer Credentials Unavailable", Message: "The ledger could not obtain a valid service token for Tracer.",
+		},
 		constant.ErrTracerFactsUnavailable: ServiceUnavailableError{
 			EntityType: entityType, Code: constant.ErrTracerFactsUnavailable.Error(),
 			Title: "Official Tracer Facts Unavailable", Message: "Official account and asset records are incomplete or inconsistent; the validation context cannot be built safely.",
@@ -3168,12 +3172,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrSupervisorNilReaperRepo.Error(),
 			Title:      "Supervisor Nil Reaper Repo",
 			Message:    "Worker supervisor: reservation reaper repo is required when reaper workers are enabled.",
-		},
-		constant.ErrSupervisorNilReaperAuditor: InternalServerError{
-			EntityType: entityType,
-			Code:       constant.ErrSupervisorNilReaperAuditor.Error(),
-			Title:      "Supervisor Nil Reaper Auditor",
-			Message:    "Worker supervisor: reservation reaper auditor is required when reaper workers are enabled.",
 		},
 		constant.ErrUnauthorizedMissingSub: UnauthorizedError{
 			EntityType: entityType,

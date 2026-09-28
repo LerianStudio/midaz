@@ -168,24 +168,6 @@ func NewValidationRequest(
 //
 // For programmatic construction with automatic asset normalization, use NewValidationRequest() instead.
 func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
-	return r.normalizeAndValidateWith(now, (*ValidationRequest).Validate)
-}
-
-// NormalizeAndValidateForReserve normalizes the request exactly as
-// NormalizeAndValidate does, then validates it with the relaxed reserve rules
-// (ValidateForReserve): transactionType and account are optional. Same atomic
-// commit semantics — the receiver is only mutated when validation succeeds.
-func (r *ValidationRequest) NormalizeAndValidateForReserve(now time.Time) error {
-	return r.normalizeAndValidateWith(now, (*ValidationRequest).ValidateForReserve)
-}
-
-// normalizeAndValidateWith applies the shared normalization (subType canonical
-// form, defensive metadata copies at all levels) on a temporary copy, runs the
-// supplied validator against that copy, and commits the normalized values to
-// the receiver only when validation succeeds. The validate parameter is the one
-// difference between the strict (Validate) and reserve (ValidateForReserve)
-// paths, so both share one normalization body.
-func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate func(*ValidationRequest, time.Time) error) error {
 	// Prepare normalized values without mutating the receiver yet
 	// SubType canonical form is lowercase (trim + lower).
 	normalizedSubType := normalizeSubTypeRaw(r.SubType)
@@ -208,7 +190,7 @@ func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate fun
 	temp.Merchant = temp.Merchant.Clone()
 
 	// Validate on temp - if error, original r remains unchanged
-	if err := validate(&temp, now); err != nil {
+	if err := temp.Validate(now); err != nil {
 		return err
 	}
 
@@ -357,52 +339,9 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 	return r.validateMetadata()
 }
 
-// ValidateForReserve validates the request for the two-phase reserve path. It
-// runs the SAME core checks as the synchronous validate path (requestId,
-// positive amount, valid asset code, in-window timestamp) but relaxes two
-// fields the ledger legitimately cannot supply at the reserve anchor:
-//
-//   - transactionType: optional. The ledger is a double-entry ledger with no
-//     card-rail nature; when empty the tracer matches account-scoped limits
-//     without a transaction-type constraint. When present it must still be a
-//     valid type.
-//   - account: optional. A ledger transaction whose only source is an external
-//     account has no internal account UUID to scope on; when absent the tracer
-//     matches non-account-scoped (segment/portfolio/global) limits. When
-//     present it must be a non-nil UUID.
-//
-// The synchronous /v1/validations path keeps both fields mandatory via
-// Validate; this relaxation is scoped to reserve only.
-func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
-	if r.RequestID == uuid.Nil {
-		return constant.ErrValidationRequestIDRequired
-	}
-
-	if err := r.validateAmountAssetTimestamp(now); err != nil {
-		return err
-	}
-
-	if r.TransactionType != "" && !r.TransactionType.IsValid() {
-		return constant.ErrValidationInvalidTransactionType
-	}
-
-	if err := r.validateOptionalFields(); err != nil {
-		return err
-	}
-
-	if err := r.validateMerchant(); err != nil {
-		return err
-	}
-
-	return r.validateMetadata()
-}
-
-// validateAmountAssetTimestamp validates the value/asset/timestamp core
-// shared by the synchronous validate path and the reserve path: a positive
-// amount, a valid asset code, and an in-window (not-future / not-too-far-past)
-// timestamp. The requestId, transactionType-enum, and account-presence checks
-// live in the orchestrators (Validate / ValidateForReserve) because their
-// requiredness differs between the two paths.
+// validateAmountAssetTimestamp validates the value/asset/timestamp core: a
+// positive amount, a valid asset code, and an in-window (not-future /
+// not-too-far-past) timestamp.
 func (r *ValidationRequest) validateAmountAssetTimestamp(now time.Time) error {
 	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrValidationAmountNonPositive
@@ -503,9 +442,7 @@ func (r *ValidationRequest) validateMetadata() error {
 // transactionTypePtr returns nil when no transaction type was supplied. Scope
 // matching uses a nil TransactionType to mean "no type filter"; a pointer to the
 // empty string slips past those != nil guards as a present-but-empty value and
-// breaks downstream resolution. The reserve path deliberately permits an absent
-// type (ValidateForReserve), so the ledger's typeless reserve must normalize to
-// nil here rather than &"".
+// breaks downstream resolution.
 func (r *ValidationRequest) transactionTypePtr() *TransactionType {
 	if r.TransactionType == "" {
 		return nil
