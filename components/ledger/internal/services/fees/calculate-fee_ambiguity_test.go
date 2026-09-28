@@ -62,10 +62,6 @@ func (l *ambiguityLogger) rendered() string {
 // without the ids is to re-derive the selection by hand against every package on
 // the ledger. So the ids go in three places at once: the message the client
 // reads, the span event, and a warn line in the service log.
-//
-// Both selection paths are covered. The sole-package path cannot tie on its own,
-// so the two-package ledger drives the multi-package path; the sole-package path
-// is pinned on the shape it can reach, which is no refusal at all.
 func TestCalculateFee_AmbiguousPackagesAreNamed(t *testing.T) {
 	t.Parallel()
 

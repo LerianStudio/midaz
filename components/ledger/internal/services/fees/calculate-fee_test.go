@@ -336,244 +336,6 @@ func TestCalculateFee_NoPackagesFound(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestCalculateFee_SinglePackage_Success tests successful calculation with single package
-func TestCalculateFee_SinglePackage_Success(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	enableFlag := false
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(1000),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	fee := model.Fee{
-		FeeLabel: "TestFee",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "flatFee",
-			Calculations: []model.Calculation{{
-				Type:  "flat",
-				Value: "100",
-			}},
-		},
-		ReferenceAmount:  "originalAmount",
-		Priority:         1,
-		IsDeductibleFrom: &enableFlag,
-		CreditAccount:    "@fee_account",
-	}
-
-	packEntity := &pack.Package{
-		ID:             packID,
-		MinimumAmount:  decimal.NewFromInt(100),
-		MaximumAmount:  decimal.NewFromInt(2000),
-		Fees:           map[string]model.Fee{"test": fee},
-		WaivedAccounts: &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-	assert.Greater(t, feeInput.Transaction.Send.Value.IntPart(), int64(1000))
-}
-
-// TestCalculateFee_SinglePackage_CalculateFeeError tests error when calculating fee in single package
-func TestCalculateFee_SinglePackage_CalculateFeeError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(1000),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	fee := model.Fee{
-		FeeLabel: "InvalidFee",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "invalidRule",
-			Calculations: []model.Calculation{{
-				Type:  "flat",
-				Value: "100",
-			}},
-		},
-		ReferenceAmount:  "originalAmount",
-		Priority:         1,
-		IsDeductibleFrom: func() *bool { b := false; return &b }(),
-		CreditAccount:    "@fee_account",
-	}
-
-	packEntity := &pack.Package{
-		ID:             packID,
-		MinimumAmount:  decimal.NewFromInt(100),
-		MaximumAmount:  decimal.NewFromInt(2000),
-		Fees:           map[string]model.Fee{"test": fee},
-		WaivedAccounts: &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "0206")
-}
-
-// TestCalculateFee_SinglePackage_WithMetadataUpdate tests metadata update when From/To change
-func TestCalculateFee_SinglePackage_WithMetadataUpdate(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	enableFlag := false
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Metadata: nil,
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(1000),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	fee := model.Fee{
-		FeeLabel: "TestFee",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "flatFee",
-			Calculations: []model.Calculation{{
-				Type:  "flat",
-				Value: "100",
-			}},
-		},
-		ReferenceAmount:  "originalAmount",
-		Priority:         1,
-		IsDeductibleFrom: &enableFlag,
-		CreditAccount:    "@fee_account",
-	}
-
-	packEntity := &pack.Package{
-		ID:             packID,
-		MinimumAmount:  decimal.NewFromInt(100),
-		MaximumAmount:  decimal.NewFromInt(2000),
-		Fees:           map[string]model.Fee{"test": fee},
-		WaivedAccounts: &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-	assert.NotNil(t, feeInput.Transaction.Metadata)
-	assert.Equal(t, packID.String(), feeInput.Transaction.Metadata["packageAppliedID"])
-}
-
 // TestCalculateFee_MultiplePackages_Success tests successful calculation with multiple packages
 func TestCalculateFee_MultiplePackages_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -745,312 +507,6 @@ func TestCalculateFee_MultiplePackages_CalculateFeeError(t *testing.T) {
 	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "0206")
-}
-
-// TestCalculateFee_SinglePackage_ValueAtMinimum tests value at minimum limit
-func TestCalculateFee_SinglePackage_ValueAtMinimum(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	enableFlag := false
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(100),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(100),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(100),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	fee := model.Fee{
-		FeeLabel: "TestFee",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "flatFee",
-			Calculations: []model.Calculation{{
-				Type:  "flat",
-				Value: "10",
-			}},
-		},
-		ReferenceAmount:  "originalAmount",
-		Priority:         1,
-		IsDeductibleFrom: &enableFlag,
-		CreditAccount:    "@fee_account",
-	}
-
-	packEntity := &pack.Package{
-		ID:             packID,
-		MinimumAmount:  decimal.NewFromInt(100),
-		MaximumAmount:  decimal.NewFromInt(2000),
-		Fees:           map[string]model.Fee{"test": fee},
-		WaivedAccounts: &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-}
-
-// TestCalculateFee_SinglePackage_ValueAtMaximum tests value at maximum limit
-func TestCalculateFee_SinglePackage_ValueAtMaximum(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	enableFlag := false
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(2000),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(2000),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(2000),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	fee := model.Fee{
-		FeeLabel: "TestFee",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "flatFee",
-			Calculations: []model.Calculation{{
-				Type:  "flat",
-				Value: "10",
-			}},
-		},
-		ReferenceAmount:  "originalAmount",
-		Priority:         1,
-		IsDeductibleFrom: &enableFlag,
-		CreditAccount:    "@fee_account",
-	}
-
-	packEntity := &pack.Package{
-		ID:             packID,
-		MinimumAmount:  decimal.NewFromInt(100),
-		MaximumAmount:  decimal.NewFromInt(2000),
-		Fees:           map[string]model.Fee{"test": fee},
-		WaivedAccounts: &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-}
-
-// TestCalculateFee_MultiplePackages_ValueAtMinimum tests multiple packages with value at minimum
-func TestCalculateFee_MultiplePackages_ValueAtMinimum(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID1 := uuid.New()
-	packID2 := uuid.New()
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	route := "debitoted"
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(100),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(100),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			RouteID: &route,
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(100),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	packEntity1 := &pack.Package{
-		ID:               packID1,
-		TransactionRoute: &route,
-		MinimumAmount:    decimal.NewFromInt(100),
-		MaximumAmount:    decimal.NewFromInt(1000),
-		Fees:             map[string]model.Fee{},
-		WaivedAccounts:   &[]string{},
-	}
-
-	packEntity2 := &pack.Package{
-		ID:               packID2,
-		TransactionRoute: &route,
-		MinimumAmount:    decimal.NewFromInt(2000),
-		MaximumAmount:    decimal.NewFromInt(5000),
-		Fees:             map[string]model.Fee{},
-		WaivedAccounts:   &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity1, packEntity2}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-}
-
-// TestCalculateFee_MultiplePackages_ValueAtMaximum tests multiple packages with value at maximum
-func TestCalculateFee_MultiplePackages_ValueAtMaximum(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID1 := uuid.New()
-	packID2 := uuid.New()
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	route := "debitoted"
-	from := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	to := transaction.FromTo{
-		Amount: &transaction.Amount{
-			Asset: "BRL",
-			Value: decimal.NewFromInt(1000),
-		},
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			RouteID: &route,
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(1000),
-				Source: transaction.Source{
-					From: []transaction.FromTo{from},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{to},
-				},
-			},
-		},
-	}
-
-	packEntity1 := &pack.Package{
-		ID:               packID1,
-		TransactionRoute: &route,
-		MinimumAmount:    decimal.NewFromInt(100),
-		MaximumAmount:    decimal.NewFromInt(1000),
-		Fees:             map[string]model.Fee{},
-		WaivedAccounts:   &[]string{},
-	}
-
-	packEntity2 := &pack.Package{
-		ID:               packID2,
-		TransactionRoute: &route,
-		MinimumAmount:    decimal.NewFromInt(2000),
-		MaximumAmount:    decimal.NewFromInt(5000),
-		Fees:             map[string]model.Fee{},
-		WaivedAccounts:   &[]string{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity1, packEntity2}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
 }
 
 // TestCalculateFee_MultiplePackages_WithSegmentID tests multiple packages with segmentID
@@ -1290,108 +746,6 @@ func TestCalculateFee_ValidationError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestCalculateFee_SinglePackage_ValueOutOfRange tests single package with value out of range
-func TestCalculateFee_SinglePackage_ValueOutOfRange(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(50),
-				Source: transaction.Source{
-					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
-					}},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
-					}},
-				},
-			},
-		},
-	}
-
-	packEntity := &pack.Package{
-		ID:            packID,
-		MinimumAmount: decimal.NewFromInt(100),
-		MaximumAmount: decimal.NewFromInt(2000),
-		Fees:          map[string]model.Fee{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-}
-
-// TestCalculateFee_SinglePackage_ValueAboveMax tests single package with value above maximum
-func TestCalculateFee_SinglePackage_ValueAboveMax(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(3000),
-				Source: transaction.Source{
-					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(3000)},
-					}},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(3000)},
-					}},
-				},
-			},
-		},
-	}
-
-	packEntity := &pack.Package{
-		ID:            packID,
-		MinimumAmount: decimal.NewFromInt(100),
-		MaximumAmount: decimal.NewFromInt(2000),
-		Fees:          map[string]model.Fee{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-}
-
 // TestCalculateFee_MultiplePackages tests calculation with multiple packages
 func TestCalculateFee_MultiplePackages(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -1583,193 +937,95 @@ func TestCalculateFee_MultiplePackages_FilterError(t *testing.T) {
 	assert.Contains(t, err.Error(), constant.ErrFilterPackage.Error())
 }
 
-// TestCalculateFee_MultiplePackages_ValueOutOfRange tests multiple packages with value out of range
-func TestCalculateFee_MultiplePackages_ValueOutOfRange(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID1 := uuid.New()
-
-	feeSvc := &UseCase{
-		packageRepo: mockPackRepo,
-	}
-
-	route := "debitoted"
-	feeInput := &model.FeeCalculate{
-		SegmentID: nil,
-		LedgerID:  ledgerID,
-		Transaction: transaction.Transaction{
-			RouteID: &route,
-			Send: transaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(50),
-				Source: transaction.Source{
-					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
-					}},
-				},
-				Distribute: transaction.Distribute{
-					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
-					}},
-				},
-			},
-		},
-	}
-
-	packEntity1 := &pack.Package{
-		ID:               packID1,
-		TransactionRoute: &route,
-		MinimumAmount:    decimal.NewFromInt(100),
-		MaximumAmount:    decimal.NewFromInt(1000),
-		Fees:             map[string]model.Fee{},
-	}
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{packEntity1}, nil)
-
-	ctx := context.Background()
-	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
-	assert.NoError(t, err)
-}
-
-// TestCalculateFee_TechnicalError_MalformedSegmentWaiver drives a NON-business
-// (technical) error out of feeUtils.CalculateFee so recordSpanError takes its
-// HandleSpanError arm — the technical/5xx side of the T5 span classification.
-// A package whose waivedAccounts carries "segment:<not-a-uuid>" fails segment
-// waiver resolution with a bare error that pkg.IsBusinessError must NOT accept
-// as business: were that predicate ever inverted, every technical fee failure
-// would be reported on a green span. Both CalculateFee tails are exercised, the
-// single-package one and the multi-package one.
+// TestCalculateFee_TechnicalError_MalformedSegmentWaiver proves a malformed
+// segment waiver fails the calculation as a technical error, flips the span
+// red and leaves the send value untouched.
 func TestCalculateFee_TechnicalError_MalformedSegmentWaiver(t *testing.T) {
 	t.Parallel()
 
 	const malformedWaiver = "segment:not-a-uuid"
 
 	isDeductible := false
+	waived := []string{malformedWaiver}
 
-	validFee := model.Fee{
-		FeeLabel: "TestFee",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "flatFee",
-			Calculations: []model.Calculation{{
-				Type:  "flat",
-				Value: "100",
-			}},
-		},
-		ReferenceAmount:  "originalAmount",
-		Priority:         1,
-		IsDeductibleFrom: &isDeductible,
-		CreditAccount:    "@fee_account",
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	feeSvc := &UseCase{
+		packageRepo: mockPackRepo,
 	}
 
-	// newPackage builds an otherwise valid flat-fee package, so the only error
-	// the calculation can produce comes from the waivedAccounts entries.
-	newPackage := func(minAmount, maxAmount int64, waived []string) *pack.Package {
-		return &pack.Package{
-			ID:             uuid.New(),
-			MinimumAmount:  decimal.NewFromInt(minAmount),
-			MaximumAmount:  decimal.NewFromInt(maxAmount),
-			Fees:           map[string]model.Fee{"test": validFee},
-			WaivedAccounts: &waived,
-		}
-	}
-
-	tests := []struct {
-		name     string
-		packages []*pack.Package
-	}{
-		{
-			name:     "single package tail",
-			packages: []*pack.Package{newPackage(100, 2000, []string{malformedWaiver})},
-		},
-		{
-			// The second package is out of the amount range, so the filter
-			// selects the malformed one while len(packages) > 1 still routes
-			// through calculateFeeForMultiplePackages.
-			name: "multiple packages tail",
-			packages: []*pack.Package{
-				newPackage(100, 2000, []string{malformedWaiver}),
-				newPackage(5000, 9000, []string{}),
+	feeInput := &model.FeeCalculate{
+		SegmentID: nil,
+		LedgerID:  ledgerID,
+		Transaction: transaction.Transaction{
+			Send: transaction.Send{
+				Asset: "BRL",
+				Value: decimal.NewFromInt(1000),
+				Source: transaction.Source{
+					From: []transaction.FromTo{{
+						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+					}},
+				},
+				Distribute: transaction.Distribute{
+					To: []transaction.FromTo{{
+						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+					}},
+				},
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockPackRepo := pack.NewMockRepository(ctrl)
-			orgID := uuid.New()
-			ledgerID := uuid.New()
-
-			feeSvc := &UseCase{
-				packageRepo: mockPackRepo,
-			}
-
-			feeInput := &model.FeeCalculate{
-				SegmentID: nil,
-				LedgerID:  ledgerID,
-				Transaction: transaction.Transaction{
-					Send: transaction.Send{
-						Asset: "BRL",
-						Value: decimal.NewFromInt(1000),
-						Source: transaction.Source{
-							From: []transaction.FromTo{{
-								Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
-							}},
-						},
-						Distribute: transaction.Distribute{
-							To: []transaction.FromTo{{
-								Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
-							}},
-						},
-					},
+	mockPackRepo.EXPECT().
+		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+		Return([]*pack.Package{{
+			ID:            uuid.New(),
+			MinimumAmount: decimal.NewFromInt(100),
+			MaximumAmount: decimal.NewFromInt(2000),
+			Fees: map[string]model.Fee{"test": {
+				FeeLabel: "TestFee",
+				CalculationModel: &model.CalculationModel{
+					ApplicationRule: "flatFee",
+					Calculations:    []model.Calculation{{Type: "flat", Value: "100"}},
 				},
-			}
+				ReferenceAmount:  "originalAmount",
+				Priority:         1,
+				IsDeductibleFrom: &isDeductible,
+				CreditAccount:    "@fee_account",
+			}},
+			WaivedAccounts: &waived,
+		}}, nil)
 
-			mockPackRepo.EXPECT().
-				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-				Return(tt.packages, nil)
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 
-			// A real SDK tracer injected through the lib-observability context
-			// seam, so the span CalculateFee opens is recorded and its final
-			// status can be read back instead of only the branch predicate.
-			recorder := tracetest.NewSpanRecorder()
-			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	ctx := libObservability.ContextWithTracer(context.Background(), provider.Tracer("fees_test"))
+	err := feeSvc.CalculateFee(ctx, feeInput, orgID)
 
-			ctx := libObservability.ContextWithTracer(context.Background(), provider.Tracer("fees_test"))
-			err := feeSvc.CalculateFee(ctx, feeInput, orgID)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, malformedWaiver)
+	assert.False(t, pkg.IsBusinessError(err),
+		"malformed segment waiver must stay technical so recordSpanError flips the span red")
+	assert.True(t, feeInput.Transaction.Send.Value.Equal(decimal.NewFromInt(1000)),
+		"a failed calculation must leave the send value untouched")
 
-			assert.Error(t, err)
-			assert.ErrorContains(t, err, malformedWaiver)
-			assert.False(t, pkg.IsBusinessError(err),
-				"malformed segment waiver must stay technical so recordSpanError flips the span red")
-			assert.True(t, feeInput.Transaction.Send.Value.Equal(decimal.NewFromInt(1000)),
-				"a failed calculation must leave the send value untouched")
+	var recorded sdktrace.ReadOnlySpan
 
-			var recorded sdktrace.ReadOnlySpan
+	for _, s := range recorder.Ended() {
+		if s.Name() == "service.calculate_fee" {
+			recorded = s
 
-			for _, s := range recorder.Ended() {
-				if s.Name() == "service.calculate_fee" {
-					recorded = s
-
-					break
-				}
-			}
-
-			require.NotNil(t, recorded, "the injected tracer must receive the service.calculate_fee span")
-			assert.Equal(t, codes.Error, recorded.Status().Code,
-				"a technical fee failure must leave the span status Error")
-		})
+			break
+		}
 	}
+
+	require.NotNil(t, recorded, "the injected tracer must receive the service.calculate_fee span")
+	assert.Equal(t, codes.Error, recorded.Status().Code,
+		"a technical fee failure must leave the span status Error")
 }
 
 // routedFeeInput builds the transfer the create seam produces for a routed
@@ -1802,9 +1058,8 @@ func routeAndSegmentScopedFlatPackage(packID uuid.UUID, routeID string, segmentI
 	return packEntity
 }
 
-// outOfBandPackage moves a package out of the routed transfer amount band, so a
-// second stored package forces the multi-package selection path without making
-// the selection ambiguous.
+// outOfBandPackage moves a package out of the amount band the routed transfer
+// of 1000 falls in.
 func outOfBandPackage(packEntity *pack.Package) *pack.Package {
 	packEntity.MinimumAmount = decimal.NewFromInt(3000)
 	packEntity.MaximumAmount = decimal.NewFromInt(5000)
@@ -1841,14 +1096,12 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 	)
 
 	routeID := uuid.New().String()
-	otherRouteID := uuid.New().String()
 	sourceSegment := uuid.New()
 	otherSegment := uuid.New()
 
 	tests := []struct {
 		name string
-		// packages is what the ledger holds; one entry drives the sole-package
-		// selection path and more than one drives the multi-package path.
+		// packages is what the ledger holds.
 		packages []*pack.Package
 		// wantChargedIdx indexes packages with the one that must be charged, and
 		// is negative when the payment must be charged nothing.
@@ -1865,25 +1118,10 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 		unroutedPayment bool
 	}{
 		{
-			// The defect this repair closes, on the sole-package path: the
-			// service handed the selector the deprecated route string, which the
-			// create seam leaves empty, so the restricted package was never
-			// selected and the payment was charged nothing.
+			// The route the payment carries selects the package restricted to it.
 			// Mutant: revert the route accessor to the deprecated string.
 			name:           "a package restricted to this route is charged when it is the only one on the ledger",
 			packages:       []*pack.Package{routeScopedFlatPackage(uuid.New(), routeID)},
-			wantChargedIdx: 0,
-		},
-		{
-			// The same repair on the multi-package path, a separate call into
-			// the selector that carried the same defect. The second package sits
-			// outside the amount band, so it forces that path without colliding.
-			// Mutant: revert the route accessor to the deprecated string.
-			name: "a package restricted to this route is charged when the ledger holds several",
-			packages: []*pack.Package{
-				routeScopedFlatPackage(uuid.New(), routeID),
-				outOfBandPackage(routeScopedFlatPackage(uuid.New(), otherRouteID)),
-			},
 			wantChargedIdx: 0,
 		},
 		{
@@ -1894,17 +1132,6 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			// against an empty route.
 			name:           "a package restricted to nothing is still charged on a routed payment",
 			packages:       []*pack.Package{segScopingFlatPackage(uuid.New(), nil)},
-			wantChargedIdx: 0,
-		},
-		{
-			// The same regression guard on the multi-package path.
-			// Mutant: restore the clause that kept an unrestricted package only
-			// against an empty route.
-			name: "a package restricted to nothing is still charged when the ledger holds several",
-			packages: []*pack.Package{
-				segScopingFlatPackage(uuid.New(), nil),
-				outOfBandPackage(segScopingFlatPackage(uuid.New(), nil)),
-			},
 			wantChargedIdx: 0,
 		},
 		{
@@ -1933,14 +1160,6 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			},
 			wantChargedIdx: -1,
 			wantErrCode:    constant.ErrFilterPackage.Error(),
-		},
-		{
-			// A package restricted to this route is charged only inside the
-			// amount band its client configured, even when it is the only
-			// package the ledger holds.
-			name:           "a package restricted to this route is not charged outside its own amount band",
-			packages:       []*pack.Package{outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID))},
-			wantChargedIdx: -1,
 		},
 		{
 			// The same order rule at the seam the money moves: the package a

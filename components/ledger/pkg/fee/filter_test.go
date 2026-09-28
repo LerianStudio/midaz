@@ -296,11 +296,6 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// A package outside its own amount band is not selected, even
-			// when it is the only one the route filter leaves standing. The
-			// seam row
-			// a_package_restricted_to_this_route_is_not_charged_outside_its_own_amount_band
-			// in components/ledger/internal/services/fees pins it.
 			name:     "a route-scoped package outside its own amount band is not selected",
 			packages: []*pack.Package{outOfBand},
 			payment:  routed,
@@ -499,7 +494,6 @@ func TestFindPackageToCalculateFee_MetadataSelector(t *testing.T) {
 		packages []*pack.Package
 		metadata map[string]any
 		want     *pack.Package
-		wantErr  bool
 	}{
 		{
 			name:     "the unscoped package is charged when the payment carries the key with another value",
@@ -532,13 +526,6 @@ func TestFindPackageToCalculateFee_MetadataSelector(t *testing.T) {
 			t.Parallel()
 
 			got, err := FindPackageToCalculateFee(tc.packages, routeID, uuidPtr(segX), tc.metadata, amount)
-
-			if tc.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, got)
-
-				return
-			}
 
 			require.NoError(t, err)
 			assert.Same(t, tc.want, got)

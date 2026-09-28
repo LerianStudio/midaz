@@ -20,7 +20,7 @@ import (
 )
 
 // segScopingFeeInput builds a single-source JSON transfer of value 1000 from
-// srcAlias for the single-package scoping tests.
+// srcAlias.
 func segScopingFeeInput(ledgerID uuid.UUID, srcAlias string) *model.FeeCalculate {
 	return &model.FeeCalculate{
 		SegmentID: nil,
@@ -144,9 +144,8 @@ func TestCalculateFee_SinglePackage_SegmentScoped_Matches(t *testing.T) {
 }
 
 // TestCalculateFee_SinglePackage_SegmentScoped_DroppedForUnsegmentedSource
-// proves the core defect is fixed: a sole segment-scoped package is NOT applied
-// to a source whose resolved segment is nil. Previously the single-package fast
-// path skipped scope filtering and charged the fee regardless.
+// proves a sole segment-scoped package is NOT applied to a source whose
+// resolved segment is nil.
 func TestCalculateFee_SinglePackage_SegmentScoped_DroppedForUnsegmentedSource(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
