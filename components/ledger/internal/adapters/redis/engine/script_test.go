@@ -27,6 +27,7 @@ func TestEngineScriptCompositionPreservesDependencyOrder(t *testing.T) {
 		"local function redisType",
 		"local function validateStoredResponse",
 		"local function applyDebitPosting",
+		"local function take",
 		"local function prepareExecutionProtection",
 		"local function main()",
 	}

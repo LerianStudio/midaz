@@ -229,7 +229,9 @@ local function validateAccountClosingMarkers(request, protection)
             used[owners[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)]] = true
         end
         for _, posting in ipairs(transaction.postings) do
-            used[owners[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]] = true
+            if posting.type ~= "collect" then
+                used[owners[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]] = true
+            end
         end
     end
     for _, account in ipairs(request.accounts) do
@@ -271,14 +273,17 @@ end
 
 -- validateAccountClosingAvailability applies the account protection to every
 -- balance this execution actually uses. A companion that only sits in the pool is
--- left alone; one that moves repeats the check at its own mutation site.
+-- left alone; one that moves repeats the check at its own mutation site. A collect
+-- posting never refuses, so it is checked only where it settles.
 local function validateAccountClosingAvailability(request, pool, protection)
     for _, transaction in ipairs(request.transactions) do
         for _, requirement in ipairs(transaction.balanceRequirements) do
             validateAccountAvailability(protection, pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)])
         end
         for _, posting in ipairs(transaction.postings) do
-            validateAccountAvailability(protection, pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)])
+            if posting.type ~= "collect" then
+                validateAccountAvailability(protection, pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)])
+            end
         end
     end
 end
@@ -346,20 +351,87 @@ local function validateLiveBalanceAvailability(request, pool, exemptions)
         end
         for postingIndex, posting in ipairs(transaction.postings) do
             local item = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
-            if item.deleted then
+            if item.deleted and posting.type ~= "collect" then
                 refuse("balance_deleted", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
-            if blockedByLiveControl(transaction.rejectBlockedBalances, item, exempt) then
+            if blockedByLiveControl(transaction.rejectBlockedBalances, item, exempt) and posting.type ~= "collect" then
                 refuse("account_blocked", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
         end
     end
 end
 
+-- applyAccountingPosting applies one monetary posting: the closed algebra, then
+-- the overdraft draw or repayment it produces, mirrored on the companion. A
+-- deferrable debit moves only what its payer funds; its funded credit moves the
+-- same part and opens the rest as a fee debt.
+local function applyAccountingPosting(step, postingIndex, posting, item)
+    local transaction, txIndex = step.transaction, step.txIndex
+    local amount = posting.amount
+    if posting.deferShortfall then
+        amount = deferShortfall(step, postingIndex, posting, item)
+    elseif posting.fundedByRef then
+        amount = step.deferrals[posting.fundedByRef].paid
+    end
+    local applied = posting
+    if amount ~= posting.amount then
+        applied = clone(posting)
+        applied.amount = amount
+    end
+    local current, nextState = item.current, clone(item.current)
+    local external = current.accountType == "external"
+    local postingType = posting.type
+    local primaryAmount, delta = postingAlgebra[postingType](current, nextState, applied, txIndex, postingIndex)
+    -- A negative internal available value is either a deterministic
+    -- refusal or an authorized overdraft draw. The primary balance never
+    -- persists negative: authorized debt moves into overdraftUsed.
+    if cmp_decimal(nextState.available, "0") < 0 and not external then
+        if postingType == "hold" or posting.drawPolicy == "forbidden" or current.direction ~= "credit" or not current.allowOverdraft then
+            refuse("insufficient_funds", txIndex, postingIndex, posting.balanceRef)
+        end
+        if posting.drawPolicy == "route_denied" then
+            refuse("overdraft_not_eligible", txIndex, postingIndex, posting.balanceRef)
+        end
+        if postingType ~= "debit" then technical("invalid_balance", "unexpected debt-producing posting") end
+        local draw = sub_decimal("0", nextState.available)
+        nextState.overdraftUsed = add_decimal(current.overdraftUsed, draw)
+        if current.overdraftLimitEnabled and cmp_decimal(nextState.overdraftUsed, current.overdraftLimit) > 0 then
+            refuse("overdraft_limit_exceeded", txIndex, postingIndex, posting.balanceRef)
+        end
+        nextState.available, primaryAmount, delta = "0", sub_decimal(amount, draw), draw
+    end
+
+    -- Mirror every overdraft draw or repayment on the account's dedicated
+    -- companion balance so both sides of the debt remain explicit.
+    local companion, companionNext, companionAmount, companionType
+    if cmp_decimal(delta, "0") ~= 0 then
+        companion = step.companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, current.accountId)]
+        if not companion then refuse("overdraft_companion_missing", txIndex, postingIndex, posting.balanceRef) end
+        if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
+            technical("invalid_companion", "invalid overdraft companion")
+        end
+        step.touch(companion, txIndex, postingIndex, transaction.rejectBlockedBalances, step.exempt)
+        companionNext = clone(companion.current)
+        if cmp_decimal(delta, "0") > 0 then
+            companionAmount, companionType = delta, "debit"
+            companionNext.available = add_decimal(companion.current.available, companionAmount)
+        else
+            companionAmount, companionType = sub_decimal("0", delta), "credit"
+            if cmp_decimal(companion.current.available, companionAmount) < 0 then
+                refuse("insufficient_funds", txIndex, postingIndex, companion.current.balanceRef)
+            end
+            companionNext.available = sub_decimal(companion.current.available, companionAmount)
+        end
+    end
+    step.record(item, nextState, posting, "primary", postingType, primaryAmount, delta)
+    if companion then step.record(companion, companionNext, posting, "overdraft_companion", companionType, companionAmount, "0") end
+    if posting.fundedByRef then openFeeDebt(step, posting) end
+end
+
 -- applyTransactionsInMemory evaluates ordered transactions against a shared
 -- working pool without issuing Redis writes. Later transactions observe state
 -- produced by earlier transactions in the same execution.
-local function applyTransactionsInMemory(request, pool, companions, exemptions, protection)
+local function applyTransactionsInMemory(request, pool, companions, exemptions, protection, feeDebts)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
     -- touch repeats deletion, account-closing and account-block protection at the
     -- exact mutation site, including companion movements generated internally
@@ -371,6 +443,14 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
             refuse("account_blocked", txIndex, postingIndex, item.current.balanceRef)
         end
     end
+    -- settleable answers, without refusing, whether a fee-debt settlement may move
+    -- this balance: internal, live, unblocked, on an open account, and not a seed
+    -- whose admission is unconfirmed.
+    local function settleable(item)
+        local state = protection[item.current.accountId]
+        return item.current.accountType ~= "external" and not item.deleted and not item.current.blocked and
+            state ~= nil and not state.closed and not state.closing and not (item.seeded and not admissionConfirmed(state))
+    end
 
     for txIndex, transaction in ipairs(request.transactions) do
         local exempt = exemptions[txIndex]
@@ -378,13 +458,13 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
         -- record materializes one real state transition. No-op calculations do
         -- not create movements or versions; changed balances advance exactly once
         -- and are tracked globally and for the current transaction.
-        local function record(item, nextState, posting, role, postingType, amount, delta)
+        local function record(item, nextState, posting, role, postingType, amount, delta, ordinal)
             local previous = item.current
             if cmp_decimal(previous.available, nextState.available) == 0 and cmp_decimal(previous.onHold, nextState.onHold) == 0 and cmp_decimal(previous.overdraftUsed, nextState.overdraftUsed) == 0 then return end
             if previous.version == "9223372036854775807" then technical("version_overflow", "balance version cannot advance") end
             nextState.version = add_decimal(previous.version, "1")
             local movement = {
-                ref = transaction.id .. ":" .. #posting.ref .. ":" .. posting.ref .. ":" .. role .. ":0",
+                ref = transaction.id .. ":" .. #posting.ref .. ":" .. posting.ref .. ":" .. role .. ":" .. (ordinal or 0),
                 transactionId = transaction.id, postingRef = posting.ref, role = role,
                 balanceRef = previous.balanceRef, type = postingType, amount = amount,
                 overdraftDelta = delta, before = state(previous, false), after = state(nextState, false)
@@ -412,65 +492,31 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
                 refuse("external_hold_not_allowed", txIndex - 1, -1, requirement.balanceRef)
             end
         end
-        -- Apply the closed posting algebra first, then resolve any debt created or
-        -- repaid by that primary transition.
+        local step = {
+            transaction = transaction, txIndex = txIndex - 1, exempt = exempt, pool = pool, companions = companions,
+            feeDebts = feeDebts, touch = touch, record = record, settleable = settleable,
+            deferrals = {}, canceled = {}, changes = array()
+        }
+        cancelFeeDebts(step)
+        reopenFeeDebts(step)
         for postingIndex, posting in ipairs(transaction.postings) do
             local item = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
-            touch(item, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances, exempt)
-            local current, nextState = item.current, clone(item.current)
-            local external = current.accountType == "external"
-            local amount = posting.amount
-            local postingType = posting.type
-            local primaryAmount, delta = postingAlgebra[postingType](current, nextState, posting, txIndex - 1, postingIndex - 1)
-            -- A negative internal available value is either a deterministic
-            -- refusal or an authorized overdraft draw. The primary balance never
-            -- persists negative: authorized debt moves into overdraftUsed.
-            if cmp_decimal(nextState.available, "0") < 0 and not external then
-                if postingType == "hold" or posting.drawPolicy == "forbidden" or current.direction ~= "credit" or not current.allowOverdraft then
-                    refuse("insufficient_funds", txIndex - 1, postingIndex - 1, posting.balanceRef)
-                end
-                if posting.drawPolicy == "route_denied" then
-                    refuse("overdraft_not_eligible", txIndex - 1, postingIndex - 1, posting.balanceRef)
-                end
-                if postingType ~= "debit" then technical("invalid_balance", "unexpected debt-producing posting") end
-                local draw = sub_decimal("0", nextState.available)
-                nextState.overdraftUsed = add_decimal(current.overdraftUsed, draw)
-                if current.overdraftLimitEnabled and cmp_decimal(nextState.overdraftUsed, current.overdraftLimit) > 0 then
-                    refuse("overdraft_limit_exceeded", txIndex - 1, postingIndex - 1, posting.balanceRef)
-                end
-                nextState.available, primaryAmount, delta = "0", sub_decimal(amount, draw), draw
-            end
-
-            -- Mirror every overdraft draw or repayment on the account's dedicated
-            -- companion balance so both sides of the debt remain explicit.
-            local companion, companionNext, companionAmount, companionType
-            if cmp_decimal(delta, "0") ~= 0 then
-                companion = companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, current.accountId)]
-                if not companion then refuse("overdraft_companion_missing", txIndex - 1, postingIndex - 1, posting.balanceRef) end
-                if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
-                    technical("invalid_companion", "invalid overdraft companion")
-                end
-                touch(companion, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances, exempt)
-                companionNext = clone(companion.current)
-                if cmp_decimal(delta, "0") > 0 then
-                    companionAmount, companionType = delta, "debit"
-                    companionNext.available = add_decimal(companion.current.available, companionAmount)
+            if posting.type == "collect" then
+                collectFeeDebts(step, posting, item)
+            else
+                touch(item, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances, exempt)
+                if posting.type == "refund" then
+                    refundFeeDebts(step, postingIndex - 1, posting, item)
                 else
-                    companionAmount, companionType = sub_decimal("0", delta), "credit"
-                    if cmp_decimal(companion.current.available, companionAmount) < 0 then
-                        refuse("insufficient_funds", txIndex - 1, postingIndex - 1, companion.current.balanceRef)
-                    end
-                    companionNext.available = sub_decimal(companion.current.available, companionAmount)
+                    applyAccountingPosting(step, postingIndex - 1, posting, item)
                 end
             end
-            record(item, nextState, posting, "primary", postingType, primaryAmount, delta)
-            if companion then record(companion, companionNext, posting, "overdraft_companion", companionType, companionAmount, "0") end
         end
         -- Freeze the state reached by this transaction for its correlated recovery
         -- record before a later transaction can mutate the shared working pool.
         local txFinal = array()
         for _, item in ipairs(txTouched) do txFinal[#txFinal + 1] = snapshotCopy(item.current, false) end
-        transactionResults[#transactionResults + 1] = { movements = txMovements, final = txFinal }
+        transactionResults[#transactionResults + 1] = { movements = txMovements, final = txFinal, feeDebt = step.changes }
     end
 
     return movements, touched, transactionResults
@@ -530,18 +576,63 @@ local function selectCompanionCacheWrites(touched, companions, protection)
     return published, refreshed
 end
 
+-- recoveryRecord builds one transaction's immutable recovery record, using
+-- numeric JSON version tokens only in the persisted evidence format.
+local function recoveryRecord(request, transaction, txResult, appliedAtUnixMicro)
+    local recoveryMovements, recoveryFinal = array(), array()
+    for _, movement in ipairs(txResult.movements) do
+        local saved = clone(movement)
+        saved.before, saved.after = clone(movement.before), clone(movement.after)
+        saved.before.version, saved.after.version = numberToken(movement.before.version), numberToken(movement.after.version)
+        recoveryMovements[#recoveryMovements + 1] = saved
+    end
+    for _, snapshot in ipairs(txResult.final) do recoveryFinal[#recoveryFinal + 1] = snapshotCopy(snapshot, true) end
+    local record = {
+        formatVersion = 2, tenantId = request.tenantId, organizationId = transaction.organizationId,
+        ledgerId = transaction.ledgerId, executionId = request.executionId,
+        intentFingerprint = request.intentFingerprint, transactionId = transaction.id,
+        payload = transaction.completionPlan,
+        result = {
+            movements = recoveryMovements, final = recoveryFinal, appliedAtUnixMicro = numberToken(appliedAtUnixMicro),
+            feeDebt = #txResult.feeDebt > 0 and txResult.feeDebt or nil
+        }
+    }
+    local planDecoded, plan = pcall(cjson.decode, transaction.completionPlan)
+    if not planDecoded or type(plan) ~= "table" then technical("invalid_protocol", "invalid completion plan") end
+    if plan.coordinationOrganizationId ~= nil or plan.coordinationLedgerId ~= nil or
+       plan.receiptOrganizationId ~= nil or plan.receiptLedgerId ~= nil then
+        if type(plan.coordinationOrganizationId) ~= "string" or type(plan.coordinationLedgerId) ~= "string" or
+           type(plan.receiptOrganizationId) ~= "string" or type(plan.receiptLedgerId) ~= "string" then
+            technical("invalid_protocol", "incomplete batch coordination scope")
+        end
+        record.coordinationOrganizationId = plan.coordinationOrganizationId
+        record.coordinationLedgerId = plan.coordinationLedgerId
+        record.receiptOrganizationId = plan.receiptOrganizationId
+        record.receiptLedgerId = plan.receiptLedgerId
+    end
+    return record
+end
+
 -- prepareExecutionWrites serializes every value and accounts for its byte cost
 -- before the first Redis write. This keeps all predictable allocation, encoding,
 -- and size failures on the safe precommit side of the execution boundary.
-local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults, companionCache, appliedAtUnixMicro)
+local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults, companionCache, appliedAtUnixMicro, feeDebts)
     local final = array()
     for _, item in ipairs(touched) do final[#final + 1] = snapshotCopy(item.current, false) end
-    local response = encodeJSON({ protocolVersion = 1, movements = movements, final = final, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) })
+    local changes = feeDebts.changes
+    local response = encodeJSON({
+        protocolVersion = 1, movements = movements, final = final, appliedAtUnixMicro = numberToken(appliedAtUnixMicro),
+        feeDebt = #changes > 0 and changes or nil
+    })
     local preparedBytes = #response
     if preparedBytes > maximumPrepared then technical("prepared_bytes_exceeded", "response exceeds prepared byte budget") end
     -- A true no-op has no state to protect or recover and therefore publishes no
-    -- balance, guard, recovery, coordinator, or receipt writes.
-    if #movements == 0 then return response, nil end
+    -- balance, guard, recovery, coordinator, or receipt writes. A fee-debt change
+    -- always travels with a movement, so a no-op never changes a debt.
+    if #movements == 0 then
+        if #changes > 0 then feeDebtConflict("fee-debt changes without movements") end
+        return response, nil
+    end
 
     -- charge accumulates every prepared string against one global response and
     -- persistence budget before that string may reach a Redis command.
@@ -567,38 +658,9 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
     end
     local preparedExpirations = {}
     for _, item in ipairs(companionCache.refreshed) do preparedExpirations[#preparedExpirations + 1] = KEYS[item.keyIndex] end
-    -- Build one immutable recovery envelope per transaction, using numeric JSON
-    -- version tokens only in the persisted evidence format.
+    -- Build one immutable recovery envelope per transaction.
     for i, transaction in ipairs(request.transactions) do
-        local txResult = transactionResults[i]
-        local recoveryMovements, recoveryFinal = array(), array()
-        for _, movement in ipairs(txResult.movements) do
-            local saved = clone(movement)
-            saved.before, saved.after = clone(movement.before), clone(movement.after)
-            saved.before.version, saved.after.version = numberToken(movement.before.version), numberToken(movement.after.version)
-            recoveryMovements[#recoveryMovements + 1] = saved
-        end
-        for _, snapshot in ipairs(txResult.final) do recoveryFinal[#recoveryFinal + 1] = snapshotCopy(snapshot, true) end
-        local record = {
-            formatVersion = 2, tenantId = request.tenantId, organizationId = transaction.organizationId,
-            ledgerId = transaction.ledgerId, executionId = request.executionId,
-            intentFingerprint = request.intentFingerprint, transactionId = transaction.id,
-            payload = transaction.completionPlan,
-            result = { movements = recoveryMovements, final = recoveryFinal, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) }
-        }
-        local planDecoded, plan = pcall(cjson.decode, transaction.completionPlan)
-        if not planDecoded or type(plan) ~= "table" then technical("invalid_protocol", "invalid completion plan") end
-        if plan.coordinationOrganizationId ~= nil or plan.coordinationLedgerId ~= nil or
-           plan.receiptOrganizationId ~= nil or plan.receiptLedgerId ~= nil then
-            if type(plan.coordinationOrganizationId) ~= "string" or type(plan.coordinationLedgerId) ~= "string" or
-               type(plan.receiptOrganizationId) ~= "string" or type(plan.receiptLedgerId) ~= "string" then
-                technical("invalid_protocol", "incomplete batch coordination scope")
-            end
-            record.coordinationOrganizationId = plan.coordinationOrganizationId
-            record.coordinationLedgerId = plan.coordinationLedgerId
-            record.receiptOrganizationId = plan.receiptOrganizationId
-            record.receiptLedgerId = plan.receiptLedgerId
-        end
+        local record = recoveryRecord(request, transaction, transactionResults[i], appliedAtUnixMicro)
         preparedRecoverRecords[#preparedRecoverRecords + 1] = {
             field = transaction.recoveryField,
             value = charge(encodeJSON({
@@ -654,21 +716,23 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         charge(transaction.id)
     end
 
-    return response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations
+    return response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations, prepareFeeDebtWrites(feeDebts, charge)
 end
 
 -- commitPreparedExecution is the only money-changing publication phase. Every
 -- argument has already been validated and serialized. Once commitStarted is set,
 -- any unexpected failure is indeterminate because Redis does not roll writes back.
-local function commitPreparedExecution(request, preparedBalances, preparedExpirations, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
+local function commitPreparedExecution(request, preparedBalances, preparedFeeDebts, preparedExpirations, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
-    -- Publish live balances first, then the synchronization schedule, the expiry of
-    -- cached companions kept beside them, the recovery evidence, lifecycle guards,
-    -- and cleanup coordinators. The receipt is written last so
-    -- its presence proves that the complete prepared command sequence ran.
+    -- Publish live balances first, then the fee-debt lists they owe (never
+    -- expiring: they are the only live copy of receivables), the synchronization
+    -- schedule, the expiry of cached companions kept beside them, the recovery
+    -- evidence, lifecycle guards, and cleanup coordinators. The receipt is written
+    -- last so its presence proves that the complete prepared command sequence ran.
     for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
+    for _, list in ipairs(preparedFeeDebts) do redis.call("SET", list.key, list.value) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
     for _, key in ipairs(preparedExpirations) do redis.call("EXPIRE", key, balance_cache_ttl_seconds) end
     for _, recoverRecord in ipairs(preparedRecoverRecords) do redis.call("HSET", KEYS[2], recoverRecord.field, recoverRecord.value) end
@@ -704,11 +768,13 @@ local function execute(request, maximumPrepared)
     local exemptions, grantKeys = validateAccountBlockExceptions(request, pool, companions)
     validateLiveBalanceAvailability(request, pool, exemptions)
 
-    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions, protection)
+    local feeDebts = loadFeeDebts(request)
+
+    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions, protection, feeDebts)
     local published, refreshed = selectCompanionCacheWrites(touched, companions, protection)
-    local response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations = prepareExecutionWrites(
+    local response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations, preparedFeeDebts = prepareExecutionWrites(
         request, maximumPrepared, preparedProtection, movements, touched, transactionResults,
-        { published = published, refreshed = refreshed }, appliedAtUnixMicro
+        { published = published, refreshed = refreshed }, appliedAtUnixMicro, feeDebts
     )
     if not preparedBalances then
         if #grantKeys > 0 then technical("invalid_protocol", "account-block exception execution has no movements") end
@@ -716,7 +782,7 @@ local function execute(request, maximumPrepared)
     end
 
     commitPreparedExecution(
-        request, preparedBalances, preparedExpirations, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
+        request, preparedBalances, preparedFeeDebts, preparedExpirations, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
     )
     return response
 end
