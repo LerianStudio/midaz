@@ -1351,3 +1351,22 @@ func TestUnknownNullFields_ReturnsUnmarshallingErrorForOtherDecodeFailures(t *te
 	var responseErr pkg.ResponseError
 	assert.ErrorAs(t, err, &responseErr)
 }
+
+func TestDecodeAndValidate_NullFieldsReceiveOnlyDeclaredKeys(t *testing.T) {
+	t.Parallel()
+
+	var rejected StructWithNullFields
+	_, err := DecodeAndValidate([]byte(`{"segmentId": null, "bogus": null}`), &rejected)
+	require.Error(t, err)
+
+	var unknownErr pkg.ValidationUnknownFieldsError
+	require.ErrorAs(t, err, &unknownErr)
+	assert.Equal(t, "0053", unknownErr.Code)
+	assert.Equal(t, pkg.UnknownFields{"bogus": nil}, unknownErr.Fields)
+	assert.Empty(t, rejected.NullFields)
+
+	var accepted StructWithNullFields
+	_, err = DecodeAndValidate([]byte(`{"segmentId": null}`), &accepted)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"segmentId"}, accepted.NullFields)
+}

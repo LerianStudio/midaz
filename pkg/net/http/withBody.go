@@ -1099,10 +1099,8 @@ func parseMetadata(s any, originalMap map[string]any) {
 // populateNullFields detects fields explicitly sent as null in the JSON request
 // and populates the NullFields slice for downstream processing.
 // This enables RFC 7396 JSON Merge Patch semantics for nullable fields.
-//
-// TODO(review): Consider adding allowlist validation for NullFields to enforce
-// defense-in-depth. Currently, the repository layer provides protection by only
-// processing specific fields (segmentId, entityId, portfolioId). (security-reviewer, 2026-02-11, Low)
+// Only keys declared by the target struct reach it: the decode pipeline refuses
+// an undeclared null key before this step.
 func populateNullFields(s any, originalMap map[string]any) {
 	if s == nil {
 		return
