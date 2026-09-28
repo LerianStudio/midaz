@@ -1017,7 +1017,10 @@ func TestIntegration_HolderRepo_ManagedFieldRemoval_Ignored(t *testing.T) {
 	assert.Equal(t, "CRM-0010", conflictErr.Code)
 }
 
-func TestIntegration_HolderRepo_ManagedFieldRemoval_SecondHolderNoInternalError(t *testing.T) {
+// TestIntegration_HolderRepo_ManagedFieldRemoval_TwoHoldersKeepSearchToken proves
+// the repository guard: two holders of one organization asked to drop their
+// search token keep it, so neither update collides on the partial unique index.
+func TestIntegration_HolderRepo_ManagedFieldRemoval_TwoHoldersKeepSearchToken(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-managed2-" + uuid.New().String()[:8]
@@ -1032,8 +1035,7 @@ func TestIntegration_HolderRepo_ManagedFieldRemoval_SecondHolderNoInternalError(
 	_, err = repo.Create(ctx, organizationID, second)
 	require.NoError(t, err)
 
-	// Act - both holders receive the same managed-field removal; losing the
-	// search token on both would collide on the partial unique index.
+	// Act - both holders receive the same managed-field removal.
 	_, err = repo.Update(ctx, organizationID, *first.ID, &mmodel.Holder{}, []string{"search.document"})
 	require.NoError(t, err)
 

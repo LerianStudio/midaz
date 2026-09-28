@@ -1127,13 +1127,14 @@ func TestUpdateHolder_UndeclaredNullKey_Canonical400(t *testing.T) {
 	}
 }
 
-// problemErrorLocations decodes a 0053 problem document and returns the
-// location of each entry in its errors list.
+// problemErrorLocations decodes a 0053 problem document, checks its status
+// member, and returns the location of each entry in its errors list.
 func problemErrorLocations(t *testing.T, body []byte) []string {
 	t.Helper()
 
 	var got struct {
 		Code   string `json:"code"`
+		Status int    `json:"status"`
 		Errors []struct {
 			Location string `json:"location"`
 			Message  string `json:"message"`
@@ -1141,6 +1142,7 @@ func problemErrorLocations(t *testing.T, body []byte) []string {
 	}
 	require.NoError(t, json.Unmarshal(body, &got), "body: %s", string(body))
 	require.Equal(t, constant.ErrUnexpectedFieldsInTheRequest.Error(), got.Code, "body: %s", string(body))
+	assert.Equal(t, http.StatusBadRequest, got.Status, "problem status member")
 
 	locations := make([]string, 0, len(got.Errors))
 	for _, entry := range got.Errors {
