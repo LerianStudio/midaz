@@ -7,6 +7,7 @@ package model
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -108,10 +109,16 @@ func (a *AccountTarget) Validate() error {
 // EventFilter identifies the transaction route and status used to match billing events.
 type EventFilter struct {
 	TransactionRoute string `json:"transactionRoute" bson:"transaction_route" example:"payment_route"`
-	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"CREATED,APPROVED,PENDING,CANCELED,NOTED"`
+	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"APPROVED,PENDING,CANCELED,NOTED"`
 }
 
-// Validate checks that EventFilter has a non-blank route and a non-blank status.
+// storedTransactionStatuses are the statuses a stored transaction can hold:
+// CREATED is promoted before every write, so a filter on it would bill zero.
+var storedTransactionStatuses = slices.DeleteFunc(slices.Clone(constant.TransactionStatuses),
+	func(s string) bool { return s == constant.CREATED })
+
+// Validate checks that EventFilter has a non-blank route and a status a stored
+// transaction can hold, in any letter case: the repository mapper upper-cases it.
 func (ef *EventFilter) Validate() error {
 	if strings.TrimSpace(ef.TransactionRoute) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.transactionRoute is required")
@@ -119,6 +126,12 @@ func (ef *EventFilter) Validate() error {
 
 	if strings.TrimSpace(ef.Status) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.status is required")
+	}
+
+	if !slices.Contains(storedTransactionStatuses, strings.ToUpper(ef.Status)) {
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{
+			"eventFilter.status": "must be one of " + strings.Join(storedTransactionStatuses, ", "),
+		}, "BillingPackage", map[string]any{})
 	}
 
 	return nil

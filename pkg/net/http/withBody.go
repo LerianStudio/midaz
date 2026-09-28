@@ -16,6 +16,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libMid "github.com/LerianStudio/lib-observability/v4/middleware"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -28,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -102,6 +104,10 @@ func DecodeAndValidate(bodyBytes []byte, s any) (map[string]any, error) {
 // details are an ordered, platform-neutral projection for callers that need to
 // aggregate several request-body failures before rendering them.
 func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pkg.FieldError, error) {
+	if details, err := RefuseOutOfBoundTokens(bodyBytes, s); err != nil {
+		return nil, details, err
+	}
+
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
 		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
@@ -483,6 +489,9 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("accounttypedirection", validateAccountTypeDirection)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
+	_ = v.RegisterValidation("currencycode", validateCurrencyCode)
+	_ = v.RegisterValidation("isodate", validateISODate)
+	_ = v.RegisterValidation("decimalamount", validateDecimalAmount)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -581,6 +590,30 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("decimalamount", trans, func(ut ut.Translator) error {
+		return ut.Add("decimalamount", "{0} must be a non-negative decimal with at most 20 integer and 10 fraction digits", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("decimalamount", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("currencycode", trans, func(ut ut.Translator) error {
+		return ut.Add("currencycode", "{0} must be an ISO 4217 currency code", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("currencycode", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("isodate", trans, func(ut ut.Translator) error {
+		return ut.Add("isodate", "{0} must be a date in YYYY-MM-DD format", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("isodate", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
 	_ = v.RegisterTranslation("metadatakeyformat", trans, func(ut ut.Translator) error {
 		return ut.Add("metadatakeyformat", "{0} must start with a letter and contain only alphanumeric characters and underscores", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
@@ -590,6 +623,26 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	})
 
 	return v, trans, nil
+}
+
+// decimalAmountPattern is a plain non-negative decimal: at most 20 integer and 10 fraction digits.
+var decimalAmountPattern = regexp.MustCompile(`^[0-9]{1,20}(\.[0-9]{1,10})?$`)
+
+// validateDecimalAmount accepts a non-negative plain decimal string of bounded size.
+func validateDecimalAmount(fl validator.FieldLevel) bool {
+	return decimalAmountPattern.MatchString(fl.Field().String())
+}
+
+// validateCurrencyCode accepts an ISO 4217 code from the list asset creation uses.
+func validateCurrencyCode(fl validator.FieldLevel) bool {
+	return utils.ValidateCurrency(fl.Field().String()) == nil
+}
+
+// validateISODate accepts a calendar date written as YYYY-MM-DD.
+func validateISODate(fl validator.FieldLevel) bool {
+	_, err := time.Parse(time.DateOnly, fl.Field().String())
+
+	return err == nil
 }
 
 // validateMetadataNestedValues checks if there are nested metadata structures
@@ -1156,13 +1209,14 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 // request is rejected; this projection exists for ordered aggregate responses.
 func findUnknownFieldDetails(original, marshaled map[string]any) []pkg.FieldError {
 	details := make([]pkg.FieldError, 0)
-	collectUnknownFieldDetails(original, marshaled, "", &details)
+	collectUnknownFieldDetails(original, marshaled, nil, &details)
 	sortFieldErrors(details)
 
 	return details
 }
 
-func collectUnknownFieldDetails(original, marshaled any, path string, details *[]pkg.FieldError) {
+// collectUnknownFieldDetails renders path only when it records a detail.
+func collectUnknownFieldDetails(original, marshaled any, path []scanFrame, details *[]pkg.FieldError) {
 	switch originalValue := original.(type) {
 	case map[string]any:
 		marshaledMap, ok := marshaled.(map[string]any)
@@ -1181,7 +1235,7 @@ func collectUnknownFieldDetails(original, marshaled any, path string, details *[
 
 		for _, key := range keys {
 			value := originalValue[key]
-			fieldPath := joinJSONFieldPath(path, key)
+			fieldPath := append(path, scanFrame{key: key, object: true})
 
 			marshaledValue, exists := marshaledMap[key]
 			if !exists {
@@ -1206,7 +1260,7 @@ func collectUnknownFieldDetails(original, marshaled any, path string, details *[
 		}
 
 		for index, value := range originalValue {
-			itemPath := path + "[" + strconv.Itoa(index) + "]"
+			itemPath := append(path, scanFrame{index: index})
 			if index >= len(marshaledArray) {
 				appendUnknownFieldDetail(itemPath, details)
 
@@ -1260,7 +1314,8 @@ func unknownStringValuesEqual(original string, marshaled any) bool {
 	return ok && areDatesEqual(original, marshaledString)
 }
 
-func appendUnknownFieldDetail(path string, details *[]pkg.FieldError) {
+func appendUnknownFieldDetail(frames []scanFrame, details *[]pkg.FieldError) {
+	path := renderPath(frames)
 	if path == "" {
 		return
 	}
@@ -1298,7 +1353,7 @@ func isDecimalEqual(a, b any) bool {
 
 	switch valA := a.(type) {
 	case string:
-		decimalA, err = decimal.NewFromString(valA)
+		decimalA, err = safe.ParseDecimal(valA)
 		if err != nil {
 			return false
 		}
@@ -1310,7 +1365,7 @@ func isDecimalEqual(a, b any) bool {
 
 	switch valB := b.(type) {
 	case string:
-		decimalB, err = decimal.NewFromString(valB)
+		decimalB, err = safe.ParseDecimal(valB)
 		if err != nil {
 			return false
 		}
@@ -1324,7 +1379,7 @@ func isDecimalEqual(a, b any) bool {
 }
 
 func isStringNumeric(s string) bool {
-	_, err := decimal.NewFromString(s)
+	_, err := safe.ParseDecimal(s)
 	return err == nil
 }
 

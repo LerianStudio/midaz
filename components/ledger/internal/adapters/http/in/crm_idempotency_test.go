@@ -6,10 +6,25 @@ package in
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 )
+
+// newTestFieldEncryptor is the production legacy-mode field encryptor
+// (KMS_VENDOR=none) that seals CRM idempotency slots.
+func newTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
+	t.Helper()
+
+	metrics := encryption.NewProtectionMetrics(nil)
+	resolver := encryption.NewProtectionStateResolver(nil, metrics)
+
+	return encryption.NewFieldEncryptorAdapter(encryption.NewEncryptionService(resolver, nil, nil, testutils.SetupCrypto(t), metrics))
+}
 
 // fakeCRMIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics,
 // shared by the CRM handler tests whose flows claim an idempotency slot. One

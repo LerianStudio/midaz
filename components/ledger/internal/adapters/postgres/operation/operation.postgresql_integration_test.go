@@ -528,6 +528,31 @@ func TestIntegration_OperationRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page3, 1, "page 3 should have 1 item")
 	assert.Empty(t, cur3.Next, "page 3 should not have next cursor")
 	assert.NotEmpty(t, cur3.Prev, "page 3 should have prev cursor")
+
+	// Walking back with prev cursors returns each page in the requested order,
+	// including the first page, which the prev query reaches with no row to spare.
+	operationIDs := func(ops []*Operation) []string {
+		out := make([]string, len(ops))
+		for i, op := range ops {
+			out[i] = op.ID
+		}
+
+		return out
+	}
+
+	back2Filter := page3Filter
+	back2Filter.Cursor = cur3.Prev
+	back2, _, err := repo.FindAll(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, back2Filter)
+
+	require.NoError(t, err)
+	assert.Equal(t, operationIDs(page2), operationIDs(back2), "prev from page 3 should return page 2 in DESC order")
+
+	back1Filter := page2Filter
+	back1Filter.Cursor = cur2.Prev
+	back1, _, err := repo.FindAll(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, back1Filter)
+
+	require.NoError(t, err)
+	assert.Equal(t, operationIDs(page1), operationIDs(back1), "prev from page 2 should return page 1 in DESC order")
 }
 
 func TestIntegration_OperationRepository_FindAll_FiltersByDateRange(t *testing.T) {

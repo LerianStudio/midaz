@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
@@ -731,7 +731,7 @@ func validateCursorSortValue(sortBy, sortValue string) error {
 		}
 	case "max_amount":
 		// Decimal column expects numeric string (integer or decimal format)
-		if _, err := decimal.NewFromString(sortValue); err != nil {
+		if _, err := safe.ParseDecimal(sortValue); err != nil {
 			return fmt.Errorf("invalid decimal format for %s", sortBy)
 		}
 	case "name":

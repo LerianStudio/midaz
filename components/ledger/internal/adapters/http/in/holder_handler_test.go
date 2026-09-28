@@ -32,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 )
 
 // buildHumaHolderApp mounts the five holder Huma operations on a /v2 group,
@@ -515,19 +516,21 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
 		Times(1)
 
+	slots := newFakeCRMIdempotencyRepo()
 	handler := &HolderHandler{Service: &services.UseCase{
 		HolderRepo:  repo,
-		Idempotency: newFakeCRMIdempotencyRepo(),
+		Idempotency: slots,
+		Encryptor:   newTestFieldEncryptor(t),
 	}}
 
 	app := buildHumaHolderApp(t, handler, true)
 
 	body := `{"type":"NATURAL_PERSON","name":"John Doe","document":"91315026015"}`
 
+	// No X-Idempotency: the slot key is the organization's keyed hash of the body.
 	doRequest := func() (int, string, []byte) {
 		req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(libConstants.IdempotencyKey, "holder-key-1")
 
 		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
@@ -556,6 +559,11 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 
 	assert.Equal(t, first["id"], second["id"])
 	assert.Equal(t, first["name"], second["name"])
+
+	payload, err := libCommons.StructToJSONString(&mmodel.CreateHolderInput{Type: &holderType, Name: name, Document: document, Metadata: map[string]any{}})
+	require.NoError(t, err)
+	assert.Contains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), testutils.TestLegacySearchToken(payload)),
+		"the default slot key must be the keyed hash of the body, never a plain body hash")
 }
 
 func TestGetHolderByID_IncludeDeleted(t *testing.T) {
