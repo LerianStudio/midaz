@@ -256,7 +256,7 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 
 			err := uc.ValidatePackageMaxAndMinAmountRange(
 				ctx, nil,
-				tt.maxAmount, tt.minAmount, tt.transactionRoute,
+				tt.maxAmount, tt.minAmount, tt.transactionRoute, nil,
 				orgID, ledgerID,
 				tt.segmentID, tt.packageID,
 			)
@@ -362,8 +362,18 @@ func TestIsSamePackage(t *testing.T) {
 		newMax           decimal.Decimal
 		transactionRoute string
 		segmentID        *uuid.UUID
+		metadataSelector map[string]string
 		expected         bool
 	}{
+		{
+			name:             "Different metadata selector",
+			newMin:           decimal.NewFromInt(100),
+			newMax:           decimal.NewFromInt(1000),
+			transactionRoute: "debitoted",
+			segmentID:        &segmentID,
+			metadataSelector: map[string]string{"fee_context": "ted_salario"},
+			expected:         false,
+		},
 		{
 			name:             "Same package",
 			newMin:           decimal.NewFromInt(100),
@@ -419,7 +429,7 @@ func TestIsSamePackage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := isSamePackage(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID)
+			result := isSamePackage(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID, tt.metadataSelector)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -444,8 +454,18 @@ func TestIsRangeOverlap(t *testing.T) {
 		newMax           decimal.Decimal
 		transactionRoute string
 		segmentID        *uuid.UUID
+		metadataSelector map[string]string
 		expected         bool
 	}{
+		{
+			name:             "No overlap - different metadata selector",
+			newMin:           decimal.NewFromInt(200),
+			newMax:           decimal.NewFromInt(800),
+			transactionRoute: "debitoted",
+			segmentID:        &segmentID,
+			metadataSelector: map[string]string{"fee_context": "ted_salario"},
+			expected:         false,
+		},
 		{
 			name:             "Overlap - new range inside existing",
 			newMin:           decimal.NewFromInt(200),
@@ -509,7 +529,7 @@ func TestIsRangeOverlap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := isRangeOverlap(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID)
+			result := isRangeOverlap(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID, tt.metadataSelector)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

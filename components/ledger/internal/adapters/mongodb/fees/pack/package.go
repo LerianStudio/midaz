@@ -62,6 +62,7 @@ type PackageMongoDBModel struct {
 	SegmentID        *uuid.UUID          `bson:"segment_id"`
 	LedgerID         uuid.UUID           `bson:"ledger_id"`
 	TransactionRoute *string             `bson:"transaction_route"`
+	MetadataSelector map[string]string   `bson:"metadata_selector"`
 	MinimumAmount    bsondecimal.Decimal `bson:"minimum_amount"`
 	MaximumAmount    bsondecimal.Decimal `bson:"maximum_amount"`
 	WaivedAccounts   *[]string           `bson:"waived_accounts"`
@@ -80,6 +81,7 @@ type Package struct {
 	SegmentID        *uuid.UUID           `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID         uuid.UUID            `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	TransactionRoute *string              `json:"transactionRoute" example:"00000000-0000-0000-0000-000000000000" doc:"Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. An absent or empty value applies the package to every payment."`
+	MetadataSelector map[string]string    `json:"metadataSelector,omitempty" example:"{\"fee_context\":\"ted_salario\"}" doc:"Metadata pairs a transaction must all carry for this package to apply, values compared by their string form. Each pair counts one toward package specificity. Absent or empty applies the package whatever the metadata."`
 	MinimumAmount    decimal.Decimal      `json:"minimumAmount" example:"100" minimum:"0"`
 	MaximumAmount    decimal.Decimal      `json:"maximumAmount" example:"2" minimum:"0"`
 	WaivedAccounts   *[]string            `json:"waivedAccounts" example:"acc001,acc002"`
@@ -196,6 +198,7 @@ func (pmm *PackageMongoDBModel) ToEntity() *Package {
 		LedgerID:         pmm.LedgerID,
 		SegmentID:        pmm.SegmentID,
 		TransactionRoute: pmm.TransactionRoute,
+		MetadataSelector: pmm.MetadataSelector,
 		MinimumAmount:    pmm.MinimumAmount.Decimal,
 		MaximumAmount:    pmm.MaximumAmount.Decimal,
 		WaivedAccounts:   pmm.WaivedAccounts,
@@ -218,6 +221,7 @@ func (pmm *PackageMongoDBModel) FromEntity(p *Package, organizationID uuid.UUID)
 	pmm.FeeGroupLabel = p.FeeGroupLabel
 	pmm.Description = p.Description
 	pmm.TransactionRoute = p.TransactionRoute
+	pmm.MetadataSelector = p.MetadataSelector
 	pmm.SegmentID = p.SegmentID
 	pmm.OrganizationID = organizationID
 	pmm.LedgerID = p.LedgerID

@@ -1865,7 +1865,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrDuplicatePackage.Error(),
 			Title:      "Package already exists",
-			Message:    "A package already exists with the same combination of organizationId, ledgerId, segmentId, transactionRoute, minimumAmount, and maximumAmount.",
+			Message:    "A package already exists in the same scope with the same minimumAmount and maximumAmount.",
 		},
 		constant.ErrFeeInvalidHeaderParameter: ValidationError{
 			EntityType: entityType,
@@ -1988,7 +1988,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrFilterPackage.Error(),
 			Title:      "Package filtering error",
-			Message:    fmt.Sprintf("More than one fee package matches this transaction on transactionRoute, segmentID and the amount range, and they are equally specific, so none of them can be applied. Re-scope one of these packages: %v.", args...),
+			Message:    fmt.Sprintf("More than one fee package matches this transaction at the same specificity, so none of them can be applied. Re-scope one of these packages: %v.", args...),
 		},
 		constant.ErrPackageRange: EntityConflictError{
 			EntityType: entityType,

@@ -303,7 +303,7 @@ func (uc *UseCase) SetAmountsDataToUpdate(ctx context.Context, logger libLog.Log
 
 	// validating max and min amount range of a package
 	if errRange := uc.ValidatePackageMaxAndMinAmountRange(
-		ctx, logger, maxAmount, minAmount, feesAmountData.GetTransactionRoute(),
+		ctx, logger, maxAmount, minAmount, feesAmountData.GetTransactionRoute(), feesAmountData.MetadataSelector,
 		organizationID, feesAmountData.LedgerID, feesAmountData.SegmentID, packageID,
 	); errRange != nil {
 		return errRange

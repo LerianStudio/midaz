@@ -272,6 +272,7 @@ type AmountData struct {
 	LedgerID         uuid.UUID
 	SegmentID        *uuid.UUID
 	TransactionRoute *string
+	MetadataSelector map[string]string
 }
 
 func (a *AmountData) GetTransactionRoute() string {

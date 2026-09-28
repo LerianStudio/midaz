@@ -18112,6 +18112,17 @@ components:
             - '1000.20'
           minimum: 0
           type: string
+        metadataSelector:
+          additionalProperties:
+            type: string
+          description: >-
+            Metadata pairs a transaction must all carry for this package to
+            apply, values compared by their string form. Each pair counts one
+            toward package specificity. Omit it to apply the package whatever
+            the metadata.
+          examples:
+            - fee_context: ted_salario
+          type: object
         minimumAmount:
           examples:
             - '100.00'
@@ -18237,6 +18248,17 @@ components:
             - '2'
           minimum: 0
           type: string
+        metadataSelector:
+          additionalProperties:
+            type: string
+          description: >-
+            Metadata pairs a transaction must all carry for this package to
+            apply, values compared by their string form. Each pair counts one
+            toward package specificity. Absent or empty applies the package
+            whatever the metadata.
+          examples:
+            - fee_context: ted_salario
+          type: object
         minimumAmount:
           examples:
             - '100'

@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"maps"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
@@ -22,7 +23,7 @@ import (
 
 // ValidatePackageMaxAndMinAmountRange validating max and min amount range of a package
 func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logger libLog.Logger,
-	maxAmount, minAmount, transactionRoute string,
+	maxAmount, minAmount, transactionRoute string, metadataSelector map[string]string,
 	organizationID, ledgerID uuid.UUID,
 	segmentID, packageID *uuid.UUID,
 ) error {
@@ -59,7 +60,7 @@ func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logg
 		for _, p := range packs {
 			if packageID == nil || p.ID != *packageID {
 				// Validate if all package data equals the new package
-				if isSamePackage(p, newMinAmount, newMaxAmount, transactionRoute, segmentID) {
+				if isSamePackage(p, newMinAmount, newMaxAmount, transactionRoute, segmentID, metadataSelector) {
 					err := pkg.ValidateBusinessError(constant.ErrDuplicatePackage, constant.EntityPackage)
 					libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Duplicate package detected", err)
 
@@ -67,7 +68,7 @@ func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logg
 				}
 
 				// Validate if max and min amount of new package is within the range of a package
-				if isRangeOverlap(p, newMinAmount, newMaxAmount, transactionRoute, segmentID) {
+				if isRangeOverlap(p, newMinAmount, newMaxAmount, transactionRoute, segmentID, metadataSelector) {
 					err := pkg.ValidateBusinessError(constant.ErrPackageRange, "")
 					libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Package amount range overlap detected", err)
 
@@ -97,26 +98,28 @@ func getFilterPackage(organizationID, ledgerID uuid.UUID, segmentID *uuid.UUID, 
 	return filter
 }
 
-// isSamePackage validating if all package data is equal to the new package
-func isSamePackage(p *pack.Package, newMin, newMax decimal.Decimal, transactionRoute string, segmentID *uuid.UUID) bool {
-	if segmentID == nil {
-		segmentID = &uuid.Nil
-	}
-
-	return p.MaximumAmount.Equal(newMax) &&
-		p.MinimumAmount.Equal(newMin) &&
-		p.GetSegmentID() == *segmentID &&
-		p.GetTransactionRoute() == transactionRoute
-}
-
-// isRangeOverlap validating if max and min amount of new package is inside the range of a package
-func isRangeOverlap(p *pack.Package, newMin, newMax decimal.Decimal, transactionRoute string, segmentID *uuid.UUID) bool {
+// sameScope reports whether p is scoped exactly as the new package: same route,
+// same segment and the same metadata selector. Only packages in one scope can collide.
+func sameScope(p *pack.Package, transactionRoute string, segmentID *uuid.UUID, metadataSelector map[string]string) bool {
 	if segmentID == nil {
 		segmentID = &uuid.Nil
 	}
 
 	return p.GetSegmentID() == *segmentID &&
 		p.GetTransactionRoute() == transactionRoute &&
+		maps.Equal(p.MetadataSelector, metadataSelector)
+}
+
+// isSamePackage validating if all package data is equal to the new package
+func isSamePackage(p *pack.Package, newMin, newMax decimal.Decimal, transactionRoute string, segmentID *uuid.UUID, metadataSelector map[string]string) bool {
+	return sameScope(p, transactionRoute, segmentID, metadataSelector) &&
+		p.MaximumAmount.Equal(newMax) &&
+		p.MinimumAmount.Equal(newMin)
+}
+
+// isRangeOverlap validating if max and min amount of new package is inside the range of a package
+func isRangeOverlap(p *pack.Package, newMin, newMax decimal.Decimal, transactionRoute string, segmentID *uuid.UUID, metadataSelector map[string]string) bool {
+	return sameScope(p, transactionRoute, segmentID, metadataSelector) &&
 		newMin.LessThanOrEqual(p.MaximumAmount) &&
 		newMax.GreaterThanOrEqual(p.MinimumAmount)
 }
