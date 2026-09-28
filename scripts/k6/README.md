@@ -11,7 +11,7 @@ scripts/k6/
 ├── lib/midaz.js                       # shared: env, HTTP, provisioning, metrics, summary
 ├── bench-account-crm.js               # Deliverable #1: account create — with vs without CRM
 ├── bench-transaction-fees-tracer.js   # Deliverable #2: txn create — fees × tracer matrix
-├── f3-reserve-latency.js              # (pre-existing) tracer reserve/confirm latency proof
+├── f3-reserve-latency.js              # tracer reserve/confirm latency proof
 └── results/                           # JSON dumps land here (git-ignored)
 ```
 
@@ -56,6 +56,10 @@ k6 summary to `scripts/k6/results/<name>.json`.
 The tracer legs measure real overhead **only** when the ledger binary is wired
 to a running tracer. Enforce mode alone is a no-op when `TRACER_BASE_URL` is
 unset. To wire it: bring the tracer service up, restart the ledger with
-`TRACER_BASE_URL` (and `TRACER_TRANSPORT=rest` for the cert-free local path)
-pointing at it, then run with `WITH_TRACER=1`. See
+`TRACER_BASE_URL` pointing at it and a producer identity the tracer maps in
+`TRACER_PLATFORM_PRODUCERS` — `TRACER_TRANSPORT=rest` with plugin auth and the
+ledger's M2M credentials (`IDP_M2M_CLIENT_ID` / `IDP_M2M_CLIENT_SECRET`), or
+gRPC with `TRACER_TLS_MODE=mtls` certificates — then run with `WITH_TRACER=1`.
+`f3-reserve-latency.js` also calls the tracer directly; give it the producer's
+M2M token in `TRACER_M2M_TOKEN` (and `TRACER_TENANT_ID` in multi-tenant mode). See
 `scripts/k6/results/BENCHMARKS.md` for the captured numbers and exact setup.

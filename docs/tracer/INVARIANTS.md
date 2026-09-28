@@ -55,7 +55,7 @@ core differentiator and carries rules that exist nowhere else in the monorepo.
 ### Expression context
 
 The synchronous `/v1/validations` evaluator uses the following variables.
-The shared reservation profile has a separate typed environment described below:
+Reservations use a separate typed environment described below:
 
 ```cel
 transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
@@ -78,13 +78,12 @@ to binary floating-point representation. Prefer range comparisons
 (`amount >= 100.00 && amount <= 100.02`) or integer thresholds (`amount > 100`) for reliable
 results.
 
-### Typed shared-context evaluator
+### Typed reservation evaluator
 
-`ContextAdapter` compiles a separate, strictly typed environment for the shared
-`pkg/tracercontract` contract, mounted on the existing reservation endpoint when
-`CONTEXT_RESERVE_ENABLED=true`. The variables above belong to synchronous
-validations; reservation policy expressions require coordinated migration and
-recompilation.
+`ContextAdapter` compiles a separate, strictly typed environment for the
+`pkg/tracercontract` reservation contract served on `/v1/reservations` and the
+gRPC seam. The variables above belong to synchronous validations; reservation
+policy expressions compile against this environment only.
 
 The new environment exposes `accounts`, `entries` and `debits`. The Tracer
 computes gross internal debits per account and asset; credits never offset them
@@ -122,7 +121,7 @@ scope fields are rejected. It locks selected limit rows FOR SHARE in UUID order,
 after the caller's operation/account locks and before counters/audit. The SQL
 statement defines the selected set; it does not prevent subsequent insertions.
 
-Activating a limit for the shared profile requires account-only scopes within
+Activating a limit for reservations requires account-only scopes within
 the configured scope bounds and an asset code that passes the shared rule.
 Broad scopes stay ineligible.
 
@@ -133,11 +132,11 @@ read-only repeatable-read transaction fetches the participating accounts in one
 snapshot, rejecting missing, deleted or ambiguous records with 0533/503.
 External entries carry their asset code without fictitious accounts. The Ledger
 context coordinator loads these facts after off/skip gates and propagates the
-admission deadline. Bootstrap installs it when `TRACER_CONTEXT_ENABLED=true`. A consistent snapshot does not freeze facts
+admission deadline. Bootstrap installs it when `TRACER_BASE_URL` is set. A consistent snapshot does not freeze facts
 against later updates. Tracer trusts the verified producer's attestation, as for
 Reserve facts; it neither queries nor replicates the Midaz asset registry.
 
-Limit administration, legacy reservations and synchronous validations accept
+Limit administration and synchronous validations accept
 asset codes under the Ledger rule, without uppercasing or trimming: `BTC` and
 `LERIANPOINTS` are accepted, `usd` is rejected with "Asset code must contain
 only uppercase letters (1-100).". Repository asset filters match exact case.
@@ -193,7 +192,7 @@ budget and returns policy/rule revisions in deterministic order. A matching
 rule never masks an error from another rule. No decision is returned on failure.
 The result covers rules only: authenticated policy resolution, limit precedence,
 durable decisions and the reservation lifecycle still belong to the enclosing
-use case. These components do not activate the new contract on their own.
+use case.
 
 Migration `000025` persists immutable policy and rule revisions, plus exact
 `(integration_id, context_id)` bindings within the authenticated tenant database.
@@ -203,7 +202,7 @@ implicit ALLOW. Immutable revision conflicts and stale binding updates use
 `0528` (409). Binding versions advance on every update, including a return to a
 previous policy, so stale administrative writes cannot overwrite that change.
 
-The replacement reservation contract has shared request/response types in
+The reservation contract has shared request/response types in
 `pkg/tracercontract`. A framed SHA-256 fingerprint includes authenticated scope
 and ordered transaction facts, with exact decimal and UTC timestamp normalization.
 `ReserveResult` reports ALLOW/DENY/REVIEW, completed controls, reservation IDs and
@@ -222,9 +221,7 @@ transaction. Parsing/storage bounds must continue to cover replayable records.
 The decision repository only writes through the caller's transaction. The
 reservation use case must combine the decision, capacity and mandatory audit,
 and recheck replay under the operation lock. `ReserveAdmissionCommand` composes
-these components on the shared Reserve path. Migration `000030` separates reservation
-ownership while preserving existing rows and counter values; activation requires
-coordinated deployment.
+these components on the Reserve path.
 The decision migration can be rolled back only while its table is empty; an
 exclusive lock prevents a concurrent first insert from being lost during rollback.
 
@@ -253,13 +250,13 @@ The operation repository does not move capacity, write audit or commit. The
 enclosing use case must settle existing decision-owned reservations and append
 mandatory audit in the same transaction as completion. No completion result is
 durable before commit, and an unknown commit result must not be retried blindly.
-Shared Reserve, completion and expiry commands compose this repository; the
+Reserve, completion and expiry commands compose this repository; the
 Ledger retries an undelivered completion by transaction identity from memory,
 within a bounded budget.
 
-Migration `000030` adds nullable `decision_id` to `usage_reservations`. Legacy
-rows retain their transaction/limit/scope/period uniqueness through a partial
-index; new rows use decision/limit/scope/period instead. A deferred composite FK
+Every `usage_reservations` row belongs to a decision: migration `000030` adds
+`decision_id`, and migrations `000035`/`000036` make it mandatory (see below).
+Rows are unique by decision/limit/scope/period. A deferred composite FK
 requires the decision and reservation transaction IDs to match. A deferred
 constraint trigger requires an ALLOW response naming each owned reservation.
 This permits provisional capacity before the final decision within one transaction
@@ -277,10 +274,10 @@ the resolved decision's capacity. Identical repeats do not move it again;
 contradictory terminal states conflict. Authentication, operation locking and
 mandatory audit remain responsibilities of the enclosing transaction owner.
 
-Legacy by-ID/by-transaction settlement selects only rows with NULL
-`decision_id`. The TTL reaper selects every RESERVED row past its expiry: a
-legacy row expires alone, while a decision-owned row is grouped by its operation
-and expired through `ExpireReserveOperationCommand`, once per operation. A sweep
+The TTL reaper selects every RESERVED row past its expiry, groups it by its
+owning operation and expires it through `ExpireReserveOperationCommand`, once per
+operation. A row without a decision fails the sweep instead of expiring outside
+an operation. A sweep
 reads at most `RESERVATION_REAPER_BATCH_SIZE` rows (default 500) in
 `(reservation_expires_at, id)` order; the rest wait for a later sweep. After a
 full page the next sweep resumes strictly past its last row, whatever that
@@ -288,23 +285,31 @@ page's outcome; a short page, or an empty page past the resume position, returns
 the walk to the oldest expiry. An operation that fails to expire on every sweep
 (for example a decision above a lowered `CONTEXT_MAX_RULES` or
 `CONTEXT_RESERVE_MAX_RESERVATIONS`) is therefore retried once per pass instead
-of holding the head of every sweep, and newer decision and legacy rows still
-expire. The resume position is per-worker memory; a restart begins again at the
+of holding the head of every sweep, and newer rows still expire. The resume position is per-worker memory; a restart begins again at the
 oldest expiry. The cap may split an operation's rows across sweeps, but the
 operation still expires whole, and the sweep counts the rows the expiry moved,
 so no row is counted twice.
 
 Counter cleanup preserves nonzero `reserved_usage`, checking
 both expiry and held capacity on the DELETE target after a concurrent writer's
-lock wait. This guard also protects legacy holds. It does not reconstruct counters
-already removed by older binaries or prove the outcome of expired legacy holds.
+lock wait. These repositories do not implement authenticated Reserve admission
+or its required decision audit event.
 
-The index replacement is an atomic, coordinated schema/writer change. The old
-binary's ON CONFLICT clause cannot use the new partial index: suspend incompatible
-writers during rollout. Down restores full legacy indexes only when there is no
-decision-owned reservation history; it never drops or relabels such history to
-make a binary rollback succeed. These repositories do not implement authenticated
-Reserve admission or its required decision audit event.
+Migration `000035_retire_legacy_reservations` closes the reservations written
+without a decision, in one transaction per tenant database under an ACCESS
+EXCLUSIVE lock with a five-second lock timeout. Each such RESERVED row becomes
+EXPIRED and its amount leaves its counter bucket's `reserved_usage` (floored at
+zero; `current_usage` is untouched). Every row without a decision, whatever its
+status, is then copied to `retired_legacy_reservations` and deleted from
+`usage_reservations`; audit events carry reservation IDs by value, so their
+history still resolves against the retired copy. The migration adds the
+`usage_reservations_decision_required` CHECK (`decision_id IS NOT NULL`) as
+`NOT VALID` and drops `idx_usage_reservations_request`. The lock blocks reserve
+admission for as long as the copy and delete take, proportional to the retired
+row count. Its downgrade refuses with SQLSTATE 0A000: the holds were returned to
+their counters and nothing can settle such rows.
+`000036_validate_reservation_decision_required` validates the CHECK under SHARE
+UPDATE EXCLUSIVE, which does not block writes; its downgrade has nothing to undo.
 
 `CompleteReserveOperationCommand` composes known completion, decision-owned
 capacity settlement and mandatory audit in one tenant transaction. Integration
@@ -316,7 +321,7 @@ policy/settings or re-evaluating limits. Every expected reservation must move;
 missing, duplicate or unrelated capacity aborts the transaction.
 
 Migration `000031` adds RESERVE_OPERATION_CONFIRMED/RELEASED/EXPIRED audit events
-and the `reserve_operation` resource type. This distinct resource avoids legacy audit
+and the `reserve_operation` resource type. This distinct resource avoids audit
 deduplication by transaction ID alone, which would suppress another integration's
 event. The command appends one hash-chained event per first completion, with the
 verified producer, optional evaluation ID and exact before/after reservation
@@ -332,21 +337,20 @@ actual capacity movements in this call and the original evaluation ID. Replay
 reads that immutable ID in the same tenant transaction and reports zero movements;
 it does not repeat settlement or audit. Completion before admission has no
 evaluation ID, while ALLOW without applicable limits still has its evaluation ID.
-The shared JSON completion decoder requires an explicit supported revision and
-rejects unknown/duplicate fields; empty legacy bodies are a transport concern.
+The JSON completion decoder requires an explicit supported revision and
+rejects unknown/duplicate fields, so a completion without a revision body is
+rejected.
 
-HTTP/gRPC shared-contract completion uses this command.
+HTTP/gRPC completion uses this command.
 `ExpireReserveOperationCommand` shares its settlement and audit: in one tenant
 transaction it records EXPIRED, returns every reservation the decision holds and
 appends one hash-chained `RESERVE_OPERATION_EXPIRED` event. An operation already
 terminal, including one a completion reached first, is left untouched without
 another event. Decision reservations receive a 5-minute TTL, or
 `RESERVATION_LONG_LIVED_TTL_HOURS` (default 720 hours) when the request sets
-`longLived`. The reaper expires them even when `CONTEXT_RESERVE_ENABLED` is off,
-and it must stay enabled while Reserve is on: `check-integration-profile` rejects
-`RESERVATION_REAPER_ENABLED=false` in that Tracer environment.
-Legacy reaper releases still commit separately from their batch audit; waiting for
-its whole cycle in the cadence test is not proof of atomic legacy shutdown.
+`longLived`. The reaper expires only decision reservations, and it must stay
+enabled while the reservation integration is in use: `check-integration-profile`
+rejects `RESERVATION_REAPER_ENABLED=false` in that Tracer environment.
 
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.
@@ -371,7 +375,7 @@ precision or CEL budget is a production default. The HTTP routes use the existin
 JWT tenant middleware and require separate `policies:post/get` and
 `policy-bindings:put/get` grants in the `tracer` namespace. There is no API-key or
 disabled-auth fallback. Application tokens require real-subject M2M authorization
-and product forwarding; legacy fabricated editor-role authorization is refused.
+and product forwarding; fabricated editor-role authorization is refused.
 
 The administration API is `POST /v1/policies`,
 `GET /v1/policies/{id}/revisions/{revision}`, and `PUT/GET /v1/policy-bindings`.
@@ -384,37 +388,144 @@ Unknown body fields are rejected. The request-byte bound applies before JSON
 parsing, subject also to Fiber's global body limit. Audit reads accept the policy
 resource and POLICY_PUBLISHED/POLICY_BOUND event filters.
 
-These administrative endpoints do not activate context evaluation in Reserve.
-`CONTEXT_RESERVE_ENABLED` independently mounts native mTLS identity, policy
-selection and persisted decision coordination on Reserve. Policy administration
-records configuration; admission records the resulting transaction decision.
+Policy administration records configuration; admission records the resulting
+transaction decision. Reserve always resolves the bound policy for the verified
+producer and context; administration never bypasses that resolution.
 
-### Producer identity for shared-context reservations
+### Producer identity for reservations
 
-The `seamidentity` registry maps an exact URI SAN to an integration ID. It
-carries no asset data. It requires a completed native TLS handshake and a
-verified chain matching the actual peer leaf. A certificate must contain exactly
-one URI SAN. Trusting its CA alone is insufficient: the URI must also be
-registered. Common names, DNS SANs, forwarded certificate headers and payload
-fields cannot select the integration. HTTP and gRPC use the same resolver.
-Unknown or ambiguous peers return 403/PermissionDenied; missing configuration
-returns 503/Unavailable. Diagnostic responses do not disclose certificate data.
+Every reservation caller is a platform producer. The roster is `{ledger}`
+(`producerauth.ServiceLedger`); the producer's service name is also its
+integration ID and the service the tenant-manager associates with a tenant.
+Each transport has its own credential, and both resolve to the same
+`Producer{Service}` value; everything after identity is shared.
 
-Configuration is copied at construction. Each URI is registered once, and every
-binding declares its purposes explicitly; `reserve` is the only purpose.
-Multiple exact URI registrations may map to the same integration for
-certificate/workload identity rotation. The registry applies no normalization
-or wildcards. The context Reserve bootstrap consumes this registry only in
-native mTLS mode.
+- **HTTP** (`/v1/reservations`): the producer presents an M2M access token issued
+  by the Access Manager (`Authorization: Bearer`). lib-auth `RequireM2M` verifies
+  it locally against the JWKS at `CONTEXT_M2M_JWKS_URL`, with keys cached and
+  refreshed in the background, and pins the issuer to `CONTEXT_M2M_ISSUER`; no
+  call to the Access Manager happens on the request path. Rejections are
+  `application/problem+json`: a missing token is 401 `0041`, an invalid or
+  expired token is 401 `0042` (also when the JWKS cannot be fetched), and a user
+  token is 403 `0043`. The token's `azp` is then looked up exactly in
+  `TRACER_PLATFORM_PRODUCERS` (`clientId`); an unmapped `azp` is 403 `0043`. The
+  HTTP listener never asks for a client certificate.
+- **gRPC**: the producer presents a client certificate on the mutually
+  authenticated listener. The handshake must be complete, the leaf must equal
+  the first verified chain's leaf, and the certificate must carry exactly one URI
+  subject alternative name, matched exactly against a `certUri` in
+  `TRACER_PLATFORM_PRODUCERS`. Trusting the CA alone is insufficient. Common
+  names, DNS names, forwarded certificate headers and payload fields never select
+  the producer. A rejected certificate is `PermissionDenied` (`0043`); a missing
+  or certificate-less producer map is `Unavailable` (`0527`).
+
+`TRACER_PLATFORM_PRODUCERS` is a non-empty JSON array of at most 64 KiB such as
+`[{"service":"ledger","clientId":"<azp>","certUri":"spiffe://example.test/ledger"}]`.
+Each `service` must be in the roster, each entry has a `clientId`, a `certUri`
+or both and no other key (an unknown key is rejected), `clientId` and `certUri`
+values are unique, and a `certUri` is an absolute URI with a host and no user
+info, query, fragment, wildcard or space. Any violation refuses boot. The map is
+copied at construction and applies no normalization or wildcards; rotation adds
+a second entry for the same service.
+
+Every Tracer boot requires `TRACER_PLATFORM_PRODUCERS`, whichever transports it
+serves; `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are required unless
+`DEPLOYMENT_MODE=local`. Under `local` producer token verification is off: every
+HTTP reservation is attributed to the ledger producer, and boot logs a Warn.
+`DEPLOYMENT_MODE=local` together with `MULTI_TENANT_ENABLED=true` refuses boot,
+because an unverified caller would choose its own tenant. A multi-tenant Tracer
+that serves gRPC refuses boot without its tenant authorizer and tenant pool
+manager.
+
+In multi-tenant mode the tenant association check reads a cached set of the
+tenants active for each producer service, fetched from the tenant-manager with
+`GET /v1/tenants/active?service=ledger`
+(`internal/bootstrap/tenant_association_set.go`). The set holds tenant IDs only:
+no connection settings or credentials of the producer service reach the Tracer.
+`MULTI_TENANT_SERVICE_API_KEY` must be allowed to list active tenants for
+`service=ledger`. A set is fresh for `MULTI_TENANT_CACHE_TTL_SEC` and usable up
+to three times that:
+
+- A member of a fresh set is admitted without a call. A member of a stale but
+  usable set is admitted immediately while one background refresh runs
+  (stale-while-revalidate).
+- A tenant absent from a usable set starts one shared refresh at most every 5
+  seconds, so a newly associated tenant gets `0043` until a refresh sees it.
+  Only these miss lookups start the 5-second window; warm-up, background and
+  expiry refreshes never delay an onboarding. Between refreshes, a fresh set
+  answers a non-member with `0043` and a stale one with `0161`. Without a usable
+  set, callers wait for one shared refresh.
+- For 5 seconds after a failed list call the Tracer makes no call: members of a
+  usable set are admitted and every other tenant gets 503 `0161`. A failed
+  refresh never produces `0043`.
+- An empty list while the previous set is non-empty and usable counts as a
+  failed call: the previous set keeps answering until its stale bound, one Error
+  is logged, and non-members get `0161`.
+- Each failed list call logs one Warn; a 4xx adds a hint that
+  `MULTI_TENANT_SERVICE_API_KEY` may lack permission to list active tenants. The
+  tenant-manager client can log its own Error for a non-200 answer. A 401 or 403
+  on the list therefore leaves members of a usable set admitted until the set is
+  three TTLs old, and answers every other reservation with 503 `0161`.
+
+Boot warms every set in the background; a failure logs a Warn and requests
+refresh on demand. Warm-up and background refreshes run under `SafeGo`.
+
+After identity, both transports authorize the tenant in a fixed order:
+
+| Situation | Result |
+|---|---|
+| Single-tenant | tenant header ignored; no tenant-manager lookup |
+| Multi-tenant, `X-Tenant-Id` / `x-tenant-id` missing or malformed | 400 `0487` (gRPC `InvalidArgument`) |
+| Tenant absent from a fresh active set for the producer service | 403 `0043` (gRPC `PermissionDenied`) |
+| Active set cannot be refreshed and does not admit the tenant as described above | 503 `0161` (gRPC `Unavailable`, message `0161`) |
+| The tracer pool of the tenant is not found or suspended | 403 `0043` (gRPC `PermissionDenied`) |
+| The tracer pool cannot be resolved | 503 `0161` (gRPC `Unavailable`, message `0161`) |
+| The caller cancelled | 503 `0330` (gRPC `Canceled`, no code in the message) |
+| The deadline passed | 504 `0422` (gRPC `DeadlineExceeded`, no code in the message) |
+| Missing producer, or authorizer and resolver disagree on multi-tenancy | 503 `0527` (gRPC `Unavailable`, message `0527`) |
+| Otherwise | context carries the tenant, its pool and the producer's integration ID |
+
+`0161`, `0330` and `0422` are availability failures: the Ledger handles them as
+Tracer unavailability, so the ledger's `failPosture` applies. `0043`, `0487` and
+`0527` are refusals before evaluation: the Ledger rejects the Reserve in every
+mode and treats the same answer on a confirm or release as terminal. A missing
+or unusable configuration, such as a missing producer map or policy, is `0527`,
+which blocks accounting in every posture. The Ledger recognizes a refusal only
+by its canonical code: the `code` of the REST problem body, or a gRPC status
+message that is exactly the code, whatever the HTTP status or gRPC code. Any
+other non-2xx answer counts as Tracer unavailability, so the `failPosture`
+applies and a completion goes to the retrier: a 429, a 5xx, a timeout, and a 3xx
+or 4xx without a recognized code, such as a mesh RBAC denial, an ingress default
+backend, a 404 from a Tracer pod without the route, or a redirect, which is
+never followed. On gRPC the same holds for `PermissionDenied`,
+`InvalidArgument`, `NotFound`, `FailedPrecondition`, `Unimplemented`,
+`Unavailable` or any other status without a recognized message. On REST a
+Tracer 401 makes the Ledger discard its cached token and retry once with a
+fresh one; a 401 that persists counts as unavailability.
+
+Revoking an association or suspending a tenant takes effect once the cached
+active set expires, up to `MULTI_TENANT_CACHE_TTL_SEC` (default 120 seconds),
+and up to three times that while the tenant-manager cannot answer.
+Diagnostic responses never disclose token or certificate data.
+
+TLS is configured per listener by `TRACER_TLS_MODE`. Under `mtls` the HTTP
+listener serves server-only TLS and the gRPC listener requires and verifies a
+client certificate against `TRACER_TLS_CLIENT_CA_FILE`, which stays required in
+`mtls`. With `mesh` or an empty mode HTTP is plaintext behind the sidecar, and a
+non-empty `TRACER_GRPC_PORT` refuses boot, as it does without a `certUri`
+mapping: the certificate is the only producer identity on gRPC. Under
+`DEPLOYMENT_MODE=saas` an empty `TRACER_TLS_MODE` refuses boot, so a SaaS Tracer
+names `mtls` or `mesh` explicitly. The Ledger's matching gate refuses a REST
+`TRACER_BASE_URL` over `http://` under `saas` unless its `TRACER_TLS_MODE=mesh`.
 
 `ResolveContextPolicyQuery` receives the opaque producer-derived context ID and
 reads the integration identity from authenticated request context. It returns
 only the exact binding, immutable policy revision and binding version, preserving
 the tenant context. Missing/invalid policy configuration is
 an error, with no implicit ALLOW/DENY or hierarchical fallback. Tenant and database
-pool resolution must precede this query; producer authentication must precede
-trusting the tenant forwarded by that producer. This does not give an arbitrary
-end user permission to select another tenant or context.
+pool resolution must precede this query; producer authentication and the
+tenant-manager association of the forwarded tenant must precede both. This does
+not give an arbitrary end user permission to select another tenant or context.
 
 `CompiledContextPolicyQuery` resolves that binding on every request, then reuses
 only the immutable compiled revision. Keys include tenant, producer, context and
@@ -426,14 +537,9 @@ Binding failures never use stale configuration, and failed/canceled compilations
 are not cached. The initiating caller owns the compilation deadline; its failure
 is shared with waiters, while canceling a waiter does not cancel the leader.
 Saturation returns an availability error without an internal retry or queue.
-This query does not cache decisions or activate the new Reserve path.
+This query does not cache decisions.
 
-The context Reserve bootstrap mounts these adapters on the existing routes when
-explicitly enabled. Mesh-terminated plaintext is rejected by this native TLS resolver;
-context Reserve in mesh mode still requires a separately verified workload
-identity source and deployment wiring. No identity header is trusted implicitly.
-
-### Context Reserve admission
+### Reserve admission
 
 `ReserveAdmissionCommand` performs authenticated structural validation and primary
 replay before checking freshness or the current policy. A stored decision whose
@@ -454,46 +560,48 @@ Rule DENY can skip limits; REVIEW still checks limits, and limit DENY wins. Only
 ALLOW retains reservations. No admission operation increments current usage.
 
 Decision and one mandatory `TRANSACTION_VALIDATED` audit event commit together.
-The resource is `reserve_operation`, so legacy transaction-only audit deduplication
+The resource is `reserve_operation`, so transaction-only audit deduplication
 cannot discard another integration's event. The result is ALLOW/DENY/REVIEW, with
 fingerprint, policy/binding/rule revisions and reservation handles in audit context.
 Replay does not duplicate audit or capacity, including after known completion,
 policy removal, restart or the timestamp window; after expiry it conflicts instead. Audit/commit failures return no
 successful decision and are never retried internally. Existing completion settles
 the saved handles without reevaluating policy. The reservation expiry column
-drives TTL expiry for this profile; expiry returns capacity but never proves an
-accounting outcome.
+drives TTL expiry; expiry returns capacity but never proves an accounting
+outcome.
 
-The REST and gRPC adapters share this command and the contract codecs. Bootstrap
-is opt-in through `CONTEXT_RESERVE_ENABLED`; body, fact, limit, reservation, CEL
-and compiled-policy-cache bounds are explicit, not inferred from test fixtures.
-Native mTLS and a registered producer URI are mandatory. Reserve uses producer
-certificate authorization; administrative endpoints retain their separate RBAC.
-HTTP completion without a revision body additionally requires the legacy guard.
+The REST and gRPC adapters share this command and the contract codecs. The
+reservation routes and RPCs are always mounted; body, fact, limit, reservation,
+CEL and compiled-policy-cache bounds are explicit, not inferred from test
+fixtures. Reserve authorizes producers as described in "Producer identity for
+reservations"; administrative endpoints retain their separate RBAC. The HTTP
+body is the contextual contract only: any other body, including one with
+unknown fields, is a 400.
 
-The protobuf Reserve replacement intentionally removes its old fields and reserves
-their numbers/names. Its RPC and HTTP URLs do not change. An absent/unknown revision,
-legacy payload or missing explicit boolean is rejected;
-clients require the revision and completed-control echo and reject legacy replies.
-The protobuf breaking check therefore reports the approved removals; it is not
-silently disabled. Coordinated deployment must prevent old and new admission
-traffic from mixing. This change does not authorize activation or deployment.
+The protobuf Reserve messages carry only the contextual contract; the numbers
+and names of removed fields are reserved and never reused. An absent/unknown
+revision, unknown payload or missing explicit boolean is rejected; clients
+require the revision and completed-control echo.
 
 A revised completion addressed by reservation ID resolves its immutable owner on
 the tenant primary and completes the **entire operation** through the same atomic
 coordinator as transaction-addressed completion. It cannot partially confirm/release
 one of that operation's holds. Replay adds no capacity movements or audit events;
-opposite outcomes conflict. Foreign producer, tenant and legacy reservation IDs
-cannot resolve to a new operation. Empty-revision legacy lifecycle calls retain
-their old individual/transaction semantics and cannot mutate coordinated records.
+opposite outcomes conflict. Reservation IDs of another producer or tenant
+cannot resolve to an operation.
 
-Shared-contract Ledger HTTP/gRPC clients, transaction coordination and
-official-facts loading are composed under `TRACER_CONTEXT_ENABLED`. Activation
-requires native mTLS and explicit identity/resource configuration; local composition
-does not prove migration or deployment readiness. The old Ledger gRPC Reserve DTO is rejected locally rather than
-inventing missing facts; legacy completion remains available for draining old
-reservations. Timestamp, resource and retention values come from the composition
-root; test values are not production defaults.
+The Ledger HTTP/gRPC clients, transaction coordination and official-facts
+loading are composed when `TRACER_BASE_URL` is set. Over gRPC the Ledger
+presents its client certificate and sends the tenant as `x-tenant-id`; over REST
+it presents an M2M token and sends `X-Tenant-Id`, and never follows redirects.
+The token is cached and renewed ahead of `exp` by the smaller of 60 seconds and
+half its lifetime, in the background while still valid, one renewal shared by
+every caller; after a failed mint no mint runs for 5 seconds. No usable token is
+the internal cause `0536`, which the Ledger treats as Tracer unavailability: under
+`enforce` with `failPosture=closed` the API client receives `0178` (503), with
+span attribute `app.tracer.failure_cause=token_unavailable`. Timestamp, resource and
+retention values come from the composition root; test values are not production
+defaults.
 
 ### Evaluation semantics
 
@@ -662,4 +770,6 @@ acceptable justifications. Default expectation: idempotency via the mechanisms l
 Kubernetes `ClusterIP` Service, NetworkPolicy, or equivalent firewall — never exposed via
 public ingress. Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`.
 Everything else requires auth (API Key `X-API-Key` with constant-time comparison, plus the
-Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`).
+Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`), except
+`/v1/reservations`, which accepts only a platform producer's M2M token and takes its tenant
+from `X-Tenant-Id` (see "Producer identity for reservations").

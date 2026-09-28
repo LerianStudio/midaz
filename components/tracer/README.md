@@ -490,11 +490,15 @@ http://localhost:4020/v1
 
 ### Authentication
 
-All endpoints require API Key header:
+All endpoints except the reservation surface require API Key header:
 
 ```http
 X-API-Key: your-api-key
 ```
+
+`/v1/reservations` accepts only a platform producer's M2M access token
+(`Authorization: Bearer`) plus `X-Tenant-Id`; see
+[Ledger reservation integration](#ledger-reservation-integration).
 
 ### Date/Time Format
 
@@ -756,6 +760,91 @@ See `.env.example` for all configuration options.
 | `LOG_LEVEL`        | Logging verbosity       | `INFO`                                 |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP trace exporter endpoint | `tracer-jaeger:4317`        |
 
+### Ledger reservation integration
+
+The Ledger reserves through `POST /v1/reservations` or the
+`ReservationService.Reserve` RPC, and completes through the confirm/release
+routes and RPCs addressed by transaction ID. Confirm/release routes and RPCs
+addressed by reservation ID also exist; each completes the whole operation that
+owns the reservation. The Ledger does not call `/v1/validations` first. Both
+transports carry one contract; any other HTTP body is rejected with 400. The
+Ledger enables the integration by setting
+`TRACER_BASE_URL`, confirms or releases inline, and leaves an undelivered
+completion to the Tracer reservation TTL.
+
+Every caller is a platform producer (the roster is `{ledger}`):
+
+- **HTTP**: an Access Manager M2M token, verified locally against
+  `CONTEXT_M2M_JWKS_URL` / `CONTEXT_M2M_ISSUER` and mapped by its `azp`. A
+  missing token is 401 `0041`, an invalid one 401 `0042`, and a user token or
+  unmapped `azp` 403 `0043`, all as `application/problem+json`.
+- **gRPC** (`TRACER_GRPC_PORT`, requires `TRACER_TLS_MODE=mtls`): the verified
+  client certificate, mapped by its URI subject alternative name.
+
+Both maps live in `TRACER_PLATFORM_PRODUCERS`, e.g.
+`[{"service":"ledger","clientId":"<azp>","certUri":"spiffe://example.test/ledger"}]`
+(at most 64 KiB; an unknown entry key refuses boot). Every boot requires
+`TRACER_PLATFORM_PRODUCERS`, whichever transports are served, and, outside
+`DEPLOYMENT_MODE=local`, `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`. Under
+`local` producer tokens are not verified and every HTTP reservation is
+attributed to the ledger; `local` together with `MULTI_TENANT_ENABLED=true`
+refuses boot.
+
+In multi-tenant mode the tenant from `X-Tenant-Id` (REST) or `x-tenant-id`
+metadata (gRPC) must be in the cached set of
+tenants active for the producer's service, which the Tracer reads from the
+tenant-manager (`GET /v1/tenants/active?service=ledger`) without fetching any
+Ledger credentials. `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list that
+set. The set is fresh for `MULTI_TENANT_CACHE_TTL_SEC` and usable up to three
+times that; a member of a stale but usable set is admitted at once while one
+background refresh runs. A tenant absent from a fresh set is 403 `0043`; a newly
+associated tenant gets `0043` until a refresh sees it, and a miss starts at most
+one shared refresh every 5 seconds. For 5 seconds after a failed list call no
+call is made. A failed refresh never yields `0043`: members of a usable set are
+still admitted, and every other tenant gets 503 `0161`. An empty list while the
+previous set is non-empty and usable is ignored and logged once as an Error.
+Each failed list call logs one Warn, with a permission hint for a 4xx, so a 401
+or 403 on the list leaves members of a usable set admitted and answers every
+other tenant with `0161`. A tenant pool that cannot be resolved is
+also 503 `0161`, a cancelled call 503 `0330` and a passed deadline 504 `0422`:
+availability failures under the Ledger's `failPosture`. A missing or malformed
+tenant is 400 `0487`, and a missing or unusable configuration is 503 `0527`;
+the Ledger rejects both, like `0043`, in every posture. On REST a 401 makes the
+Ledger discard its cached token and retry once, and a persistent 401 counts as
+unavailability. The Ledger treats an answer as a refusal only by its canonical
+code; any other non-2xx, such as a mesh denial or a 404 from an older pod,
+counts as unavailability. Revoking an association takes effect
+within `MULTI_TENANT_CACHE_TTL_SEC`, or three times that while the
+tenant-manager cannot answer.
+
+Under `mtls` the HTTP listener serves server-only TLS and only the gRPC listener
+requires a client certificate. Under `DEPLOYMENT_MODE=saas` an empty
+`TRACER_TLS_MODE` refuses boot; name `mtls` or `mesh`.
+
+The synchronous validation examples above retain their own context and enums.
+Reservation policies instead receive `accounts`, `entries` and Tracer's
+computed `debits`. Account classifications come from the producer's official
+facts, without translating them into the checking/savings/credit taxonomy.
+An asset is identified by its code. The contract carries the Ledger's stored
+asset code; limits require codes following the Ledger asset code rule (1–100
+uppercase letters) and match debits by exact code, so a non-conforming stored
+code is never limited. Decimal
+expressions use exact values, for example:
+
+```cel
+accounts.exists(a, a.type == "deposit" && a.status == "ACTIVE" && !a.blocked)
+entries.exists(e, e.direction == "DEBIT" && e.amount.equal(decimal("0.00000001")))
+entries.exists(e, e.external && !has(e.accountId))
+debits.exists(d, d.asset == "BTC" && d.amount.greaterThan(decimal("100.01")))
+```
+
+Rules and limits execute in one reservation admission. Gross debits include fees;
+credits do not offset consumption. Enforced REVIEW blocks accounting without
+creating a pending hold. Confirmation/release follows the accounting outcome;
+unknown outcomes make no completion call and expire by the reservation TTL;
+accounting is never repeated. See [invariants](../../docs/tracer/INVARIANTS.md) and
+[deployment configuration](../../docs/architecture/ledger-tracer-topology.md).
+
 ---
 
 ## Documentation
@@ -810,37 +899,3 @@ See the [LICENSE](LICENSE) file for details.
 ---
 
 Built with ❤️ by LerianStudio Engineering Team
-
-
-### Ledger shared reservation profile
-
-Ledger integration uses the existing `POST /v1/reservations` and
-`ReservationService.Reserve` RPC. It does not call `/v1/validations` first.
-`CONTEXT_RESERVE_ENABLED` installs the shared contract on Tracer;
-`TRACER_CONTEXT_ENABLED` installs the matching Ledger coordinator, which confirms
-or releases inline; an undelivered completion expires by the Tracer reservation TTL.
-The replacement reservation payload requires coordinated client/rule migration.
-
-The synchronous validation examples above retain their own context and enums.
-Shared reservation policies instead receive `accounts`, `entries` and Tracer's
-computed `debits`. Account classifications come from the producer's official
-facts, without translating them into the checking/savings/credit taxonomy.
-An asset is identified by its code. The contract carries the Ledger's stored
-asset code; limits require codes following the Ledger asset code rule (1–100
-uppercase letters) and match debits by exact code, so a non-conforming stored
-code is never limited. Decimal
-expressions use exact values, for example:
-
-```cel
-accounts.exists(a, a.type == "deposit" && a.status == "ACTIVE" && !a.blocked)
-entries.exists(e, e.direction == "DEBIT" && e.amount.equal(decimal("0.00000001")))
-entries.exists(e, e.external && !has(e.accountId))
-debits.exists(d, d.asset == "BTC" && d.amount.greaterThan(decimal("100.01")))
-```
-
-Rules and limits execute in one reservation admission. Gross debits include fees;
-credits do not offset consumption. Enforced REVIEW blocks accounting without
-creating a pending hold. Confirmation/release follows the accounting outcome;
-unknown outcomes make no completion call and expire by the reservation TTL;
-accounting is never repeated. See [invariants](../../docs/tracer/INVARIANTS.md) and
-[deployment configuration](../../docs/architecture/ledger-tracer-topology.md).

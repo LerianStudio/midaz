@@ -154,7 +154,7 @@ those packages apply only to the transactions it posts on `/v2`.
 
 ### The tracer reservation is a `/v2` contract too
 
-New Tracer admission is **`/v2`-only**. The synchronous legacy lifecycle has three
+Tracer admission is **`/v2`-only**. The reservation lifecycle has three
 seams: the reserve anchor on create and revert, and the by-transaction confirm/release on
 commit and cancel. A `/v1` create/revert never starts Tracer admission — no reserve request is built, no
 connection is dialled, and a `/v1` create can never answer `0177` (reservation denied) or `0178`
@@ -210,14 +210,11 @@ row they are always `false`, and they stay distinguishable from `fees_route_elig
 This differs from `skip.holder`, which remains a known — but inert — field on the `/v1`
 account body.
 
-**Use the same route contract throughout a transaction lifecycle.** In the legacy
-profile, `/v1` completion does not call the reservation seam for a PENDING created
-on `/v2`; its TTL can release capacity instead of recording consumption.
-
-The shared profile has the same gap: `/v1` commit and cancel make no completion
-call, so a PENDING created on `/v2` and completed on `/v1` keeps its reservation
-until the Tracer TTL (`RESERVATION_LONG_LIVED_TTL_HOURS`, default 720 hours)
-expires it. Expiry releases the capacity; it never counts the consumption.
+**Use the same route contract throughout a transaction lifecycle.** `/v1` commit
+and cancel make no completion call, so a PENDING created on `/v2` and completed on
+`/v1` keeps its reservation until the Tracer TTL (`RESERVATION_LONG_LIVED_TTL_HOURS`,
+default 720 hours) expires it. Expiry releases the capacity; it never counts the
+consumption.
 
 ### Singular create idempotency applies to both contracts
 

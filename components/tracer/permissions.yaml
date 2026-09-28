@@ -10,6 +10,8 @@
 # The (resource, action) tuples are the EXACT surface the tracer routes enforce
 # via guard.With(resource, method, forceAPIKey) — each traces to a registration
 # in components/tracer/internal/adapters/http/in/routes.go (file:line per group).
+# The one exception is reservations/post: it is declared for the Access Manager
+# seed; not checked by any route (see the reservations entry below).
 # The action is the HTTP verb (get/post/patch/delete), preserved verbatim, so a
 # granted role's permission matches what the middleware checks. `resource` is
 # bare; the reconciler composes the "tracer/" prefix.
@@ -29,8 +31,9 @@
 #   validator    -> validations at get/post, plus reservations/post
 #   audit-viewer -> audit-events at get, plus reservations/post
 #
-# reservations (called by the ledger over the reservation seam) is therefore NOT
-# editor-only: the seed grants it to editor, validator and audit-viewer alike.
+# reservations/post is declared for the Access Manager seed; not checked by any
+# route. The seed grants it to editor, validator and audit-viewer alike, so the
+# manifest declares it for those three tiers to keep the seeded grant alive.
 #
 # This manifest must stay a SUPERSET of the seed. The tenant-manager's
 # template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
@@ -54,7 +57,10 @@ permissions:
   - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer] }
   - { resource: validations, action: post, effect: allow, roles: [editor, validator] }
 
-  # reservations — limit reservation (M2M; called by the ledger) (routes.go:565)
+  # reservations — declared for the Access Manager seed; not checked by any route.
+  # Reservation calls authenticate by producer M2M token (REST) or mTLS client
+  # certificate (gRPC), plus the producer's tenant-manager association; no route
+  # authorizes them against this permission.
   - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer] }
 
   # audit-events — hash-chained audit read (routes.go:574)
@@ -92,9 +98,9 @@ roles:
   # All FIVE seeded tiers are declared, because once the tenant-manager's
   # template-origin prune runs, whatever this manifest does not declare stops
   # existing. `validator` and `audit-viewer` are the ones that would hurt: the
-  # seed grants them reservations/post — the surface the ledger calls over the
-  # reservation seam — and audit-events/get, neither of which the editor/viewer
-  # pair covers.
+  # seed grants them reservations/post (declared for the Access Manager seed; not
+  # checked by any route) and audit-events/get, neither of which the
+  # editor/viewer pair covers.
   #
   # NOTE: the seed defines tracer-contributor-role, but at least one provisioned
   # tenant carries tracer-contributor-group with no matching role (seeded before
@@ -123,8 +129,9 @@ roles:
       - group: tracer-viewer-group
 
 m2m:
-  # EXPORT: tracer exposes its M2M surface — the `reservations` API guarded by
-  # tracer's own reservation permission. The ledger (midaz) reaches it over the
-  # gRPC/mTLS reservation seam, not an RI declaration M2M edge. tracer imports
-  # nothing over M2M.
+  # EXPORT: tracer exposes its M2M surface. The ledger (midaz) reaches the
+  # reservation seam as a platform producer, authenticated by M2M token (REST)
+  # or mTLS client certificate (gRPC) plus its tenant-manager association, not
+  # by an RI declaration M2M edge or the `reservations` permission. tracer
+  # imports nothing over M2M.
   exposed: true

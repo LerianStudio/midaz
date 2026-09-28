@@ -15257,7 +15257,7 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Service Unavailable
       security:
-        - ProducerMTLS: []
+        - ProducerM2M: []
       summary: Evaluate rules and reserve account capacity
       tags:
         - Midaz_Tracer_API_Reservations
@@ -15276,17 +15276,15 @@ paths:
             schema:
               $ref: '#/components/schemas/CompletionRequest'
         description: >-
-          A contractRevision body completes a coordinated operation. An absent
-          body addresses only legacy reservations and additionally requires the
-          configured legacy API-key/Bearer authorization.
+          The contractRevision body completes the coordinated operation of the
+          transaction.
+        required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/TransactionCompletionResult'
-                  - $ref: '#/components/schemas/TransactionActionResponse'
+                $ref: '#/components/schemas/TransactionCompletionResult'
           description: OK
         '400':
           content:
@@ -15337,7 +15335,7 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Service Unavailable
       security:
-        - ProducerMTLS: []
+        - ProducerM2M: []
       summary: Confirm a known transaction outcome
       tags:
         - Midaz_Tracer_API_Reservations
@@ -15356,17 +15354,15 @@ paths:
             schema:
               $ref: '#/components/schemas/CompletionRequest'
         description: >-
-          A contractRevision body completes a coordinated operation. An absent
-          body addresses only legacy reservations and additionally requires the
-          configured legacy API-key/Bearer authorization.
+          The contractRevision body completes the coordinated operation of the
+          transaction.
+        required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/TransactionCompletionResult'
-                  - $ref: '#/components/schemas/TransactionActionResponse'
+                $ref: '#/components/schemas/TransactionCompletionResult'
           description: OK
         '400':
           content:
@@ -15417,7 +15413,7 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Service Unavailable
       security:
-        - ProducerMTLS: []
+        - ProducerM2M: []
       summary: Release a known aborted transaction
       tags:
         - Midaz_Tracer_API_Reservations
@@ -15437,16 +15433,14 @@ paths:
               $ref: '#/components/schemas/CompletionRequest'
         description: >-
           The revision body completes every reservation in the addressed
-          coordinated operation atomically. An absent body addresses only a
-          legacy reservation and requires legacy API-key/Bearer authorization.
+          coordinated operation atomically.
+        required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ReservationCompletionResult'
-                  - $ref: '#/components/schemas/ReservationActionResponse'
+                $ref: '#/components/schemas/ReservationCompletionResult'
           description: OK
         '400':
           content:
@@ -15503,7 +15497,7 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Service Unavailable
       security:
-        - ProducerMTLS: []
+        - ProducerM2M: []
       summary: Confirm the entire operation addressed by a reservation
       tags:
         - Midaz_Tracer_API_Reservations
@@ -15523,16 +15517,14 @@ paths:
               $ref: '#/components/schemas/CompletionRequest'
         description: >-
           The revision body completes every reservation in the addressed
-          coordinated operation atomically. An absent body addresses only a
-          legacy reservation and requires legacy API-key/Bearer authorization.
+          coordinated operation atomically.
+        required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ReservationCompletionResult'
-                  - $ref: '#/components/schemas/ReservationActionResponse'
+                $ref: '#/components/schemas/ReservationCompletionResult'
           description: OK
         '400':
           content:
@@ -15589,7 +15581,7 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Service Unavailable
       security:
-        - ProducerMTLS: []
+        - ProducerM2M: []
       summary: Release the entire operation addressed by a reservation
       tags:
         - Midaz_Tracer_API_Reservations
@@ -22734,20 +22726,6 @@ components:
       required:
         - portfolioId
       type: object
-    ReservationActionResponse:
-      additionalProperties: false
-      properties:
-        reservationId:
-          format: uuid
-          type: string
-        status:
-          examples:
-            - CONFIRMED
-          type: string
-      required:
-        - reservationId
-        - status
-      type: object
     ReservationCompletionResult:
       additionalProperties: false
       properties:
@@ -23025,26 +23003,6 @@ components:
         - executions
         - detectionRate
         - avgProcessingMs
-      type: object
-    TransactionActionResponse:
-      additionalProperties: false
-      properties:
-        flipped:
-          examples:
-            - 2
-          format: int64
-          type: integer
-        status:
-          examples:
-            - CONFIRMED
-          type: string
-        transactionId:
-          format: uuid
-          type: string
-      required:
-        - transactionId
-        - status
-        - flipped
       type: object
     TransactionCompletionResult:
       additionalProperties: false
@@ -23390,9 +23348,13 @@ components:
       in: header
       name: X-API-Key
       type: apiKey
-    ProducerMTLS:
-      description: Verified producer certificate bound to a registered integration.
-      type: mutualTLS
+    ProducerM2M:
+      bearerFormat: JWT
+      description: >-
+        M2M access token of a registered platform producer; its authorized party
+        selects the producer.
+      scheme: bearer
+      type: http
 x-tagGroups:
   - name: Midaz Ledger API
     tags:

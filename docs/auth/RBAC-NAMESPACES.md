@@ -156,7 +156,7 @@ next edit to the file, and four of the eight that used to sit in this table had 
 | Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
 |-----------|-------------|----------------------|------------------------|
 | `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `account-block-exceptions`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate`, `fee-debts` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go`, `fee_estimate_routes.go`, `billing_package_routes.go`, `billing_calculate_routes.go` and `fee_debt_routes.go` (each calling `protectedMidaz` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate`/`fee-debts` — there is no dedicated fees authz const; the fee surface is served on `/v2` only |
-| `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
+| `tracer` | tracer (`:4020`) | `audit-events` (reservations are not RBAC-checked; see below) | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
 > **Audit-ref check:** every symbol above resolves in the tree as written — `midazName` and
 > `protectedMidaz` (`routes.go`); the fee/billing registrars (`fee_package_routes.go`,
@@ -317,7 +317,18 @@ into `midaz` in the embedded ledger binary (§4, §5). What remains **deferred t
 namespace break integrators ever absorb is the single coordinated X1 migration. The standalone
 `plugin-fees` / `plugin-crm` services keep their slugs and are outside this migration.
 
-## Tracer shared-context policy administration
+## Tracer reservations
+
+`/v1/reservations` and the gRPC reservation seam are not authorized through
+`auth.Authorize`: no `tracer:reservations:*` tuple is checked. HTTP producers
+present an Access Manager M2M token, verified locally with lib-auth
+`RequireM2M` and mapped from its `azp` to a platform producer through
+`TRACER_PLATFORM_PRODUCERS`; gRPC producers are identified by their client
+certificate. The tenant is then authorized by its tenant-manager association
+with the producer's service. User tokens are refused (403). See
+[Tracer invariants](../tracer/INVARIANTS.md#producer-identity-for-reservations).
+
+## Tracer policy administration
 
 The opt-in policy administration surface requires Access Manager authorization.
 Grant only the tenant-wide operations required by the administrator:
@@ -336,5 +347,6 @@ tenants supplied by a request. The validation API key cannot administer policies
 explicit resource bounds documented in the Tracer `.env.example`.
 Application tokens additionally require `AUTH_M2M_INVERSION_ENABLED=true` and
 `AUTH_M2M_PRODUCT_FORWARD_ENABLED=true`, so Access Manager checks their actual
-subject in the Tracer namespace. Legacy fabricated editor-role authorization is
-refused. These routes do not enable shared-context evaluation in Reserve.
+subject in the Tracer namespace. Fabricated editor-role authorization is
+refused. Publishing and binding configure the policy Reserve evaluates; they
+never authorize a reservation.

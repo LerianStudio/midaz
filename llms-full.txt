@@ -514,16 +514,24 @@ Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL r
 hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`. This is
 an INDEPENDENT spec/port/deploy unit — it is not folded into `:3002`. Base path: `/v1`.
 
-The ledger reaches Tracer over a separate reservation seam (not the `:4020` REST API). The seam is
-opt-in on both ends: the ledger turns it on by setting `TRACER_BASE_URL` (empty injects a nil
-reserver, leaving the transaction-create path unchanged), and the tracer starts the seam only when
-`TRACER_GRPC_PORT` is set (distinct from the `:4020` REST/health port). Transport is toggled by
-`TRACER_TRANSPORT` — gRPC by default, with REST retained as a selectable fallback. Identity is mutual
-TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated with no shared
-secret (the ledger presents a client cert, the tracer verifies it against its client CA, and the
-ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates mTLS to a
-service-mesh sidecar. Over the verified connection the ledger forwards a trusted `x-tenant-id` that
-the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
+The ledger reaches Tracer through the reservation contract, served on `/v1/reservations` (HTTP,
+`:4020`) and on the gRPC seam (`TRACER_GRPC_PORT`, e.g. `:4021`). The ledger turns the integration on
+by setting `TRACER_BASE_URL` (empty wires no reservation client, so no transaction path dials the
+tracer). `TRACER_TRANSPORT` selects gRPC (default) or REST. Every caller is a platform producer from
+the roster `{ledger}`, and each transport has its own identity: REST presents an Access Manager M2M
+token (`Authorization: Bearer`) that the tracer verifies locally against `CONTEXT_M2M_JWKS_URL` and
+maps by `azp`; gRPC presents a client certificate (`TRACER_TLS_MODE=mtls` on both sides) whose URI
+subject alternative name the tracer maps by `certUri`. Both maps live in the tracer's
+`TRACER_PLATFORM_PRODUCERS`. The tenant (`X-Tenant-Id` / `x-tenant-id` metadata) is then authorized
+against a cached set of the tenants active for the producer's service, read from the tenant-manager
+with `GET /v1/tenants/active?service=ledger` (no Ledger credentials are fetched), and resolves the
+tracer's per-tenant pool. The set is fresh for `MULTI_TENANT_CACHE_TTL_SEC` and usable up to three
+times that; members of a usable set stay admitted while the tenant-manager cannot answer. An absent
+tenant is 403 `0043`; a tenant-manager or pool that cannot answer is 503 `0161`, which the ledger
+treats as unavailability under its `failPosture`. Refusals before evaluation (`0043`, `0487`, `0527`)
+reject the transaction in every posture; the ledger recognizes them only by the canonical code (REST
+problem `code`, or the exact gRPC status message), and any other non-2xx or gRPC status counts as
+unavailability. See
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 | Method | Path | Description |
@@ -548,7 +556,7 @@ the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenan
 | POST | /v1/validations | Run validation |
 | GET | /v1/validations | List validations |
 | GET | /v1/validations/:id | Get validation |
-| POST | /v1/reservations | Create reservation (two-phase: reserve) |
+| POST | /v1/reservations | Evaluate rules and reserve account capacity |
 | POST | /v1/reservations/:id/confirm | Confirm a reservation by ID |
 | POST | /v1/reservations/:id/release | Release a reservation by ID |
 | POST | /v1/reservations/transaction/:transaction_id/confirm | Confirm reservations for a transaction |
@@ -557,10 +565,12 @@ the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenan
 | GET | /v1/audit-events/:id | Get audit event |
 | GET | /v1/audit-events/:id/verify | Verify the audit-event hash chain |
 
-The `/v1/reservations` two-phase surface backs the transaction reserve → confirm/release flow:
-a reservation holds projected limit usage, then is confirmed (commit) or released (rollback),
-either by reservation ID or by the originating transaction ID. The reservation routes are mounted
-only when the reservation service is wired (non-nil); they are live in the default/production wiring.
+The `/v1/reservations` surface backs the transaction reserve → confirm/release flow: a reservation
+evaluates the ledger-supplied transaction context against the active rules and limits, holds the
+projected limit usage of an ALLOW decision, and is then confirmed (commit) or released (rollback),
+either by reservation ID or by the originating transaction ID. A decision whose completion never
+arrives expires at its TTL. The routes accept only producer M2M tokens; the body is the contextual
+reservation contract, and any other body is a 400.
 
 #### System
 
@@ -959,13 +969,15 @@ enabling discovery with an empty advertise address aborts boot
 #### Tracer Client (ledger → tracer)
 | Variable | Default | Description |
 |----------|---------|-------------|
-| TRACER_BASE_URL | — | Tracer service base URL (enables reservation calls) |
+| TRACER_BASE_URL | — | Tracer endpoint; set = integration on |
 | TRACER_TIMEOUT_MS | — | Per-reservation-call timeout (ms) |
-| TRACER_TRANSPORT | grpc | Seam transport: `grpc` (default) or `rest` fallback |
-| TRACER_TLS_MODE | — | Seam identity: `mtls` (mutual TLS) or `mesh`/empty (plaintext, sidecar mTLS) |
-| TRACER_TLS_CERT_FILE | — | Ledger client cert presented under `mtls` |
-| TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
+| TRACER_TRANSPORT | grpc | `grpc` (client-certificate identity; requires `mtls`) or `rest` (M2M bearer token; any TLS mode) |
+| TRACER_TLS_MODE | — | `mtls` (native TLS) or `mesh`/empty (plaintext to a sidecar; REST only) |
+| TRACER_TLS_CERT_FILE | — | Ledger client cert; required for gRPC, optional for REST |
+| TRACER_TLS_KEY_FILE | — | Ledger client key; required for gRPC, optional for REST |
 | TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
+| APPLICATION_NAME | ledger | Integration id sent to Tracer; must be in the producer roster `{ledger}` |
+| IDP_M2M_CLIENT_ID / IDP_M2M_CLIENT_SECRET | — | M2M application credentials; required for `TRACER_TRANSPORT=rest` (with `PLUGIN_AUTH_ENABLED=true` and `PLUGIN_AUTH_HOST` or a service-discovery plugin-auth address). A missing token is the internal cause `0536`, surfaced to API clients as `0178` (503) under `enforce` + `failPosture=closed` |
 
 Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
@@ -1037,11 +1049,15 @@ ledger binary (one set governs onboarding, transaction, CRM, and fees) — see s
 Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVER_ADDRESS`,
 `DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
 `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` / `DB_SSL_MODE` (its own PostgreSQL),
-plus the standard OTEL exporter vars. The ledger→tracer reservation seam (separate from the `:4020`
-REST API) is governed server-side by `TRACER_GRPC_PORT` (starts the gRPC seam; distinct from
-`SERVER_PORT`) and the `TRACER_TLS_*` certs — `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the
-server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client cert under
-`TRACER_TLS_MODE=mtls`; see
+plus the standard OTEL exporter vars. Reservation producer identity is `TRACER_PLATFORM_PRODUCERS`
+(JSON map of roster service → M2M `clientId` and/or certificate `certUri`, always required),
+`CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` (both required unless `DEPLOYMENT_MODE=local`, where
+token verification is off). Under multi-tenancy `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list
+active tenants for `service=ledger`, and `MULTI_TENANT_CACHE_TTL_SEC` bounds how late a revoked tenant
+association takes effect. `TRACER_GRPC_PORT` starts the gRPC seam and requires `TRACER_TLS_MODE=mtls`
+plus a `certUri` mapping. Under `mtls` the HTTP listener serves server-only TLS and the gRPC listener
+requires a client cert verified against `TRACER_TLS_CLIENT_CA_FILE`; `TRACER_TLS_CERT_FILE` /
+`TRACER_TLS_KEY_FILE` are the server identity on both; see
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 ### 6.4 Infrastructure

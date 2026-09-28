@@ -112,7 +112,7 @@ and an unknown execution outcome is never blindly retried.
 TLS is enforced per connection by the security tier derived from `DEPLOYMENT_MODE` /`ENV_NAME`; the
 postgres/mongo/redis/rabbitmq constructors refuse plaintext dependencies unless `ALLOW_INSECURE_TLS=true`
 (local development only). Optionally reserves against the co-located **tracer** service (:4020) over
-gRPC/mTLS — see [`docs/architecture/ledger-tracer-topology.md`](../../docs/architecture/ledger-tracer-topology.md).
+gRPC with a client certificate, or REST with an M2M token — see [`docs/architecture/ledger-tracer-topology.md`](../../docs/architecture/ledger-tracer-topology.md).
 
 ---
 

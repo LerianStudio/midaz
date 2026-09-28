@@ -25,8 +25,9 @@
 // LEDGER_P99_MS defaults to the Ledger dev-dashboard starting point (500 ms),
 // not a production SLO. Promotion must supply the approved environment value.
 // Shared Tracer arms cannot be created safely by this script: policy publication,
-// limits keyed by the ledger asset code, and mTLS producer identity are
-// administrative prerequisites.
+// limits keyed by the ledger asset code, the producer identity (M2M application
+// or client certificate) and the tenant association are administrative
+// prerequisites.
 // WITH_TRACER=1 therefore requires TRACER_SEED pointing to JSON shaped as:
 // {"tracer":{"org":"...","ledger":"...","src":"@...","dst":"@..."},
 //  "feesTracer":{"org":"...","ledger":"...","src":"@...","dst":"@..."}}
