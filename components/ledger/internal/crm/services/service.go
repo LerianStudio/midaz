@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
@@ -23,6 +24,10 @@ type UseCase struct {
 	// Redis infrastructure. A nil value disables the feature: claims become
 	// no-op passthroughs (mirroring the streaming nil-emitter guard).
 	Idempotency IdempotencyRepo
+
+	// Encryptor seals the entity stored in an idempotency slot, which carries the
+	// decrypted personal fields of the create response.
+	Encryptor encryption.FieldEncryptor
 
 	// LedgerAccounts verifies an instrument's body-supplied ledger/account
 	// references exist within the request organization before the instrument is

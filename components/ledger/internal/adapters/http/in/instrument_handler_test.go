@@ -139,6 +139,7 @@ func TestCreateInstrument_IdempotentReplay(t *testing.T) {
 		InstrumentRepo: instrumentRepo,
 		HolderRepo:     holderRepo,
 		Idempotency:    newFakeCRMIdempotencyRepo(),
+		Encryptor:      newTestFieldEncryptor(t),
 		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
 	}}
 
@@ -466,7 +467,6 @@ func TestCreateInstrument_HolderNotFound_Canonical404(t *testing.T) {
 	handler := &InstrumentHandler{Service: &services.UseCase{
 		InstrumentRepo: instrumentRepo,
 		HolderRepo:     holderRepo,
-		Idempotency:    newFakeCRMIdempotencyRepo(),
 		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
 	}}
 
@@ -692,7 +692,6 @@ func TestCreateInstrument_InvalidAccountType_SameStatusAsRelatedPartyRole(t *tes
 	handler := &InstrumentHandler{Service: &services.UseCase{
 		InstrumentRepo: instrumentrepo.NewMockRepository(ctrl),
 		HolderRepo:     holderrepo.NewMockRepository(ctrl),
-		Idempotency:    newFakeCRMIdempotencyRepo(),
 		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
 	}}
 
