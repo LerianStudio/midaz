@@ -1812,6 +1812,92 @@ func outOfBandPackage(packEntity *pack.Package) *pack.Package {
 	return packEntity
 }
 
+// selectorScopedFlatPackage builds the flat-100 package a client restricted to
+// the metadata pairs in selector.
+func selectorScopedFlatPackage(packID uuid.UUID, selector map[string]string) *pack.Package {
+	packEntity := segScopingFlatPackage(packID, nil)
+	packEntity.MetadataSelector = selector
+
+	return packEntity
+}
+
+// TestCalculateFee_MetadataSelector proves, at the seam the money moves, that a
+// package scoped to metadata pairs is charged only on a payment whose metadata
+// carries every pair, and outranks the unscoped package when it does.
+func TestCalculateFee_MetadataSelector(t *testing.T) {
+	t.Parallel()
+
+	const (
+		originalValue = int64(1000)
+		chargedValue  = int64(1100)
+	)
+
+	routeID := uuid.New().String()
+	selector := map[string]string{"fee_context": "ted_salario", "fee_tier": "premium"}
+
+	tests := []struct {
+		name           string
+		packages       []*pack.Package
+		metadata       map[string]any
+		wantChargedIdx int
+	}{
+		{
+			name: "the package scoped to the pairs the payment carries is charged rather than the unscoped one",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				selectorScopedFlatPackage(uuid.New(), selector),
+			},
+			metadata:       map[string]any{"fee_context": "ted_salario", "fee_tier": "premium"},
+			wantChargedIdx: 1,
+		},
+		{
+			name: "the unscoped package is charged when the payment carries only one of the pairs",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				selectorScopedFlatPackage(uuid.New(), selector),
+			},
+			metadata:       map[string]any{"fee_context": "ted_salario"},
+			wantChargedIdx: 0,
+		},
+		{
+			name:           "a package scoped to pairs is charged nothing when it stands alone and the payment carries none",
+			packages:       []*pack.Package{selectorScopedFlatPackage(uuid.New(), selector)},
+			wantChargedIdx: -1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockPackRepo := pack.NewMockRepository(ctrl)
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			feeSvc := &UseCase{packageRepo: mockPackRepo}
+
+			feeInput := routedFeeInput(ledgerID, routeID)
+			feeInput.Transaction.Metadata = tc.metadata
+
+			mockPackRepo.EXPECT().
+				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+				Return(tc.packages, nil)
+
+			require.NoError(t, feeSvc.CalculateFee(context.Background(), feeInput, orgID))
+
+			if tc.wantChargedIdx < 0 {
+				assert.Equal(t, originalValue, feeInput.Transaction.Send.Value.IntPart())
+				assert.Nil(t, feeInput.Transaction.Metadata["packageAppliedID"])
+
+				return
+			}
+
+			assert.Equal(t, chargedValue, feeInput.Transaction.Send.Value.IntPart())
+			assert.Equal(t, tc.packages[tc.wantChargedIdx].ID.String(), feeInput.Transaction.Metadata["packageAppliedID"])
+		})
+	}
+}
+
 // TestCalculateFee_RouteScoping proves at the fee service entry point, the seam
 // every payment travels, which package a routed payment is charged and how much
 // it is charged. Every fixture here is the same flat 100 over a transfer of

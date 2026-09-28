@@ -240,7 +240,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 	// applied only on that route, and a package carrying no segment constraint
 	// goes on being charged on a payment whose source resolves into a segment.
 	// The amount band is re-checked below on whatever comes back.
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, routeIDOf(cf.Transaction), cf.SegmentID, cf.Transaction.Metadata, sendModel.Value)
 	if errFilterPack != nil {
 		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
@@ -281,7 +281,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 	validationResultFromSize, validationResultToSize int,
 	organizationID uuid.UUID,
 ) error {
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, cf.Transaction.Metadata, sendModel.Value)
 	if errFilterPack != nil {
 		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
