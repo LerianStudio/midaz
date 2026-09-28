@@ -19,7 +19,7 @@ import (
 //
 // A package applies only when every scope constraint it carries matches the
 // transaction and the amount is inside its band; a constraint it does not carry
-// constrains nothing. Both callers re-check the band on whatever comes back.
+// constrains nothing.
 //
 // Among the packages that apply, the one carrying the most constraints wins.
 // Packages tied on that count are ambiguous and the transaction is refused

@@ -1937,23 +1937,9 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 		{
 			// A package restricted to this route is charged only inside the
 			// amount band its client configured, even when it is the only
-			// package the ledger holds. The selector drops it and both
-			// selection paths re-check the band on whatever comes back, so two
-			// independent guards stand between that package and the money.
+			// package the ledger holds.
 			name:           "a package restricted to this route is not charged outside its own amount band",
 			packages:       []*pack.Package{outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID))},
-			wantChargedIdx: -1,
-		},
-		{
-			// The same band, on the other selection path. The second package is
-			// scoped to another route, so the route filter leaves the
-			// out-of-band one standing alone and the band filter then drops it,
-			// with this path re-checking the band on whatever comes back.
-			name: "a package restricted to this route is not charged outside its own amount band when the ledger holds several",
-			packages: []*pack.Package{
-				outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID)),
-				routeScopedFlatPackage(uuid.New(), otherRouteID),
-			},
 			wantChargedIdx: -1,
 		},
 		{

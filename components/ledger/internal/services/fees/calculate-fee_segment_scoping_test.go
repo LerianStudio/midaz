@@ -75,9 +75,8 @@ func segScopingFlatPackage(packID uuid.UUID, segmentID *uuid.UUID) *pack.Package
 
 // TestCalculateFee_SinglePackage_UnscopedStillApplied is the regression guard for
 // fix B: a single UNSCOPED package (nil segment, nil route) must still be selected
-// and applied exactly as before, even though the single-package path now runs
-// through FindPackageToCalculateFee. The resolver reports the source as
-// unsegmented, which leaves cf.SegmentID nil — the unscoped package survives.
+// and applied. The resolver reports the source as unsegmented, which leaves
+// cf.SegmentID nil — the unscoped package survives.
 func TestCalculateFee_SinglePackage_UnscopedStillApplied(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -110,9 +109,9 @@ func TestCalculateFee_SinglePackage_UnscopedStillApplied(t *testing.T) {
 	assert.Equal(t, packID.String(), feeInput.Transaction.Metadata["packageAppliedID"])
 }
 
-// TestCalculateFee_SinglePackage_SegmentScoped_Matches proves fix A+B+C together
-// on the single-package path: a sole segment-scoped package is applied when the
-// resolved source segment matches the package's segment.
+// TestCalculateFee_SinglePackage_SegmentScoped_Matches proves fix A+B+C together:
+// a sole segment-scoped package is applied when the resolved source segment
+// matches the package's segment.
 func TestCalculateFee_SinglePackage_SegmentScoped_Matches(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

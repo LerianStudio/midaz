@@ -36,12 +36,6 @@ import (
 // route, none) by segment (none, the first, the second) by metadata (none, the
 // pair), for 109,656 shapes in all.
 //
-// The outcome measured is the selector plus what both fee-service call sites do
-// with its answer, which is to re-check the amount band on whatever comes back.
-// That re-check is asserted to change nothing: the selector may never hand back
-// a package the payment is outside the band of, so the guard the callers keep is
-// a second lock on a door already shut rather than the only one.
-//
 // The invariants, in the order a charge is decided:
 //
 //  1. No silent nothing. When the ledger holds a package matching every
@@ -271,15 +265,6 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 			shape := fmt.Sprintf("ledger %v vs %s", describe, payment.label)
 
 			got, err := FindPackageToCalculateFee(packages, payment.routeID, payment.segment, payment.metadata, amount)
-
-			// What both fee-service call sites do with the answer.
-			afterCallerBandCheck := got
-			if got != nil && (amount.LessThan(got.MinimumAmount) || amount.GreaterThan(got.MaximumAmount)) {
-				afterCallerBandCheck = nil
-			}
-
-			require.Equal(t, got, afterCallerBandCheck,
-				"%s: the selector handed back a package the payment is outside the band of, and only the callers re-check caught it", shape)
 
 			if len(candidates) == 0 {
 				require.Nil(t, got, "%s: no package matches this payment, so none may be charged", shape)

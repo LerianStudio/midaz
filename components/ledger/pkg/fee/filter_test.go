@@ -298,10 +298,7 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 		{
 			// A package outside its own amount band is not selected, even
 			// when it is the only one the route filter leaves standing. The
-			// ledger used to hand that lone survivor back unfiltered and lean
-			// on both callers re-checking the band; the band filter now runs
-			// on it like any other package, and the callers still re-check.
-			// The money was the same either way: the seam row
+			// seam row
 			// a_package_restricted_to_this_route_is_not_charged_outside_its_own_amount_band
 			// in components/ledger/internal/services/fees pins it.
 			name:     "a route-scoped package outside its own amount band is not selected",
