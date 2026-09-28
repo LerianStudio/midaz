@@ -80,6 +80,11 @@ func (uc *UseCase) CRMIdempotencyToken(ctx context.Context, organizationID, body
 		return "", fmt.Errorf("failed to derive idempotency token: %w", err)
 	}
 
+	// An empty token would put every request body of the organization in one slot.
+	if token == "" {
+		return "", errors.New("failed to derive idempotency token: empty keyed hash")
+	}
+
 	return token, nil
 }
 
