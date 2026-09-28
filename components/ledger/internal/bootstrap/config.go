@@ -1052,7 +1052,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.FeeApplier = fees.useCase
 	commandUseCase.TracerReserver = tracerReserver
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
-	commandUseCase.FeeDebtRecorder = feeMgo.feeDebtRepo
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	// Transaction handlers
@@ -1213,7 +1212,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		recoveryMongo = txnMgo.mongoManager
 	}
 
-	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo, cfg.BulkRecorderMaxRowsPerInsert); err != nil {
+	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo, feeMgo.feeDebtRepo, cfg.BulkRecorderMaxRowsPerInsert); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure engine finalization: %w", err)
