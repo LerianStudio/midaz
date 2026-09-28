@@ -5,6 +5,7 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -387,6 +388,94 @@ func TestValidateCode(t *testing.T) {
 			t.Parallel()
 
 			err := ValidateCode(tt.code)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, tt.errorCode, err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateAssetCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		code        string
+		expectError bool
+		errorCode   string
+	}{
+		{
+			name:        "invalid code - empty string",
+			code:        "",
+			expectError: true,
+			errorCode:   "0033",
+		},
+		{
+			name:        "invalid code - longer than max length",
+			code:        strings.Repeat("A", MaxAssetCodeLength+1),
+			expectError: true,
+			errorCode:   "0033",
+		},
+		{
+			name:        "invalid code - lowercase",
+			code:        "usd",
+			expectError: true,
+			errorCode:   "0004",
+		},
+		{
+			name:        "invalid code - with digit",
+			code:        "USD1",
+			expectError: true,
+			errorCode:   "0033",
+		},
+		{
+			name:        "invalid code - with hyphen",
+			code:        "US-D",
+			expectError: true,
+			errorCode:   "0033",
+		},
+		{
+			name:        "valid code - USD",
+			code:        "USD",
+			expectError: false,
+		},
+		{
+			name:        "valid code - BTC",
+			code:        "BTC",
+			expectError: false,
+		},
+		{
+			name:        "valid code - max length",
+			code:        strings.Repeat("A", MaxAssetCodeLength),
+			expectError: false,
+		},
+		{
+			name:        "valid code - non-ASCII uppercase letters",
+			code:        "ÉUR",
+			expectError: false,
+		},
+		{
+			name:        "valid code - max length counts characters, not bytes",
+			code:        strings.Repeat("É", MaxAssetCodeLength),
+			expectError: false,
+		},
+		{
+			name:        "invalid code - non-ASCII lowercase letter",
+			code:        "éUR",
+			expectError: true,
+			errorCode:   "0004",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateAssetCode(tt.code)
 
 			if tt.expectError {
 				assert.Error(t, err)

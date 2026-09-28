@@ -7,6 +7,7 @@ package utils
 import (
 	"slices"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -80,6 +81,21 @@ func ValidateCode(code string) error {
 	}
 
 	return nil
+}
+
+// MaxAssetCodeLength bounds an asset code in characters; it matches
+// CreateAssetInput's max=100, which counts runes.
+const MaxAssetCodeLength = 100
+
+// ValidateAssetCode applies the ledger asset code rule: non-empty, at most
+// MaxAssetCodeLength characters, uppercase letters only. It returns
+// constant.ErrInvalidCodeFormat or constant.ErrCodeUppercaseRequirement.
+func ValidateAssetCode(code string) error {
+	if code == "" || utf8.RuneCountInString(code) > MaxAssetCodeLength {
+		return constant.ErrInvalidCodeFormat
+	}
+
+	return ValidateCode(code)
 }
 
 // ValidateCurrency validate if code contains in currencies list using ISO 4217
