@@ -467,7 +467,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 			&item.input,
 			item.organizationID,
 			item.ledgerID,
-			item.input.Pending,
+			item.status == constant.NOTED,
 			item.honoredFeeSkip,
 		); err != nil {
 			return err
