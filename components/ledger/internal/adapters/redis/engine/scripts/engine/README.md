@@ -168,3 +168,277 @@ a new execution cannot reuse that now-missing grant.
   failure as potentially applied. Only a validated receipt replay, confirmed
   NOSCRIPT fallback, precommit normalization pass, or projection recovery may be
   repeated automatically.
+
+## Fee-debt protocol (frozen contract)
+
+This section is the frozen wire contract of pending fees: an unfunded deferrable
+fee opens a debt, and later credits to the payer settle it oldest first. The Go
+names live in `internal/domain/accounting`; `contract_test.go` locks their JSON.
+Lua emits object keys sorted, so no reader depends on key order. An execution
+that declares no fee-debt key, sets none of the fields below and has no
+`collect` or `refund` posting is byte-identical to today in request, response,
+receipt and recovery record.
+
+### Live state
+
+One key per debtor balance: `utils.FeeDebtInternalKey(org, ledger, "alias#key")`,
+i.e. `fee-debt:{transactions}:<org>:<ledger>:<alias#key>`, behind the same
+tenant prefix as the balance keys. Absent means the debtor never had a debt. No
+TTL and never deleted, so `seq` is never reused. Lua writes a changed value with
+`SET` (no `EX`) only in `commitPreparedExecution`, after the balances and before
+the receipt, charging it to the prepared-byte budget. Go's copy (`FeeDebtItem`,
+only `id` and `creditRef`) is a seed; Lua always reads the live key.
+
+```json
+{"v":1,"nextSeq":"4","items":[
+  {"id":"<originTx>:<debitPostingRef>","creditRef":"@fees#default","remaining":"40",
+   "opened":"70","originTransactionId":"<uuid>","seq":"3","assetCode":"BRL"}]}
+```
+
+- `v` is the JSON number 1; anything else is `invalid_protocol`.
+- `nextSeq` and `seq` are decimal integer strings; `nextSeq` starts at `"1"`.
+- `items` (possibly `[]`) is in settlement order and `seq` strictly ascends
+  along it. `id` is the identity and is unique in the list.
+- `opened` is the amount the debt opened with and never changes;
+  `0 < remaining <= opened`, both canonical decimals.
+- An opened item is appended with `seq = nextSeq`, then `nextSeq` advances.
+- A deferrable debit with a shortfall on a payer whose list already holds 256
+  items is refused with `insufficient_funds`. Reopening ignores the cap.
+
+### Request
+
+Top level, omitted when empty:
+
+```json
+"feeDebts":[{"organizationId":"<uuid>","ledgerId":"<uuid>","balanceRef":"@payer#default","keyIndex":57}]
+```
+
+- It is the union of every transaction's `feeDebtRefs`, once per
+  `(organizationId, ledgerId, balanceRef)`, in first-appearance order over the
+  transactions and then their refs.
+- Its keys are the LAST block of `KEYS`, one per entry in the same order, so
+  `#KEYS = 7 + 3*balances + grants + 3*accounts + 5*extraScopes + #feeDebts`
+  and no existing index moves. `keyIndex` is the 1-based `KEYS` index, as for
+  balances. Each key ends with the unprefixed `FeeDebtInternalKey` of its entry.
+- A declared debtor need not appear in `balances`. On a revert Go declares
+  every revert destination.
+
+Per transaction, omitted when empty:
+
+```json
+"reopenFeeDebts":[{"debtId":"<O>:<debitPostingRef>","debtorRef":"@payer#default",
+  "creditRef":"@fees#default","amount":"12.5","opened":"70","seq":"3"}]
+```
+
+Per posting, each omitted when false or empty: `deferShortfall` (bool, debit
+only), `fundedByRef` (string, credit only), `items` (array of debt ids, collect
+only) and `refunds` (array, refund only). Go appends a collect posting right
+after each eligible credit, with the seed's item ids of the credited balance,
+oldest first:
+
+```json
+{"ref":"<creditPostingRef>:collect","balanceRef":"<the credited balance>","type":"collect",
+ "amount":"<the credit amount>","drawPolicy":"forbidden","overdraftAmount":"0",
+ "items":["<O>:<debitPostingRef>"]}
+```
+
+On a revert of a transaction whose metadata carries `feeDebtOpenings` (see
+"Revert"), Go appends after every other posting one refund posting per debtor
+of that list, `n` counting them from 0, its entries in list order:
+
+```json
+{"ref":"fee-refund:<n>","balanceRef":"<the debtor>","type":"refund","amount":"<sum of opened>",
+ "drawPolicy":"forbidden","overdraftAmount":"0",
+ "refunds":[{"debtId":"<O>:<debitPostingRef>","creditRef":"@fees#default","opened":"70","seq":"3"}]}
+```
+
+Collect and refund postings count toward the existing posting limit.
+`request.lua` is the only owner of the deferral pairing (Go does not check it)
+and refuses with `invalid_protocol` when:
+
+- `deferShortfall` is on a non-debit or in a transaction whose `action` is not
+  `direct`, or its payer `(scope, balanceRef)` is not declared in `feeDebts`;
+- `fundedByRef` is on a non-credit or does not name an earlier `deferShortfall`
+  debit of the same transaction with the same amount and asset; two credits name
+  one debit; or a `deferShortfall` debit is named by no credit;
+- `items` is on a non-collect; a collect has no items or a duplicate, or its
+  debtor key is not declared;
+- `reopenFeeDebts` appears when `action` is not `revert`; a `debtId` repeats
+  within its transaction; a reopen names an undeclared debtor key, a `debtId`
+  whose first 36 characters are not a UUID followed by `:`, a non-positive
+  amount, opened or seq, an amount above its opened, or a `creditRef` that no
+  debit posting of the same transaction debits;
+- `refunds` is on a non-refund; a refund posting appears when `action` is not
+  `revert`, has no entries, an amount other than the sum of their `opened`, or
+  an undeclared debtor key; an entry has a non-positive `opened` or seq, a
+  `creditRef` outside its scope's pool, or a `debtId` not starting with
+  `<parentTransactionId>:`; a `debtId` repeats across the transaction's refund
+  entries;
+- `feeDebts` repeats an entry, or an entry's key index or key suffix is wrong.
+
+### Execution
+
+`take(available, owed) = min(max(available, 0), owed)`. Per transaction, before
+its first posting:
+
+1. Cancel (only when `action` is `revert`): every item whose
+   `originTransactionId` is the transaction's `parentTransactionId`, in any
+   declared list of its scope, is removed; one `canceled` change each, oldest
+   first per list, amount = its `remaining`, remembered per debt for the refund.
+2. Reopen, in array order: a live item with that `debtId` gains `amount` on its
+   `remaining` (its `seq`, `creditRef` and `opened` must match, and `remaining`
+   stays at most `opened`); otherwise the item is inserted where `seq` keeps
+   ascending, with `remaining = amount`, the entry's `opened`, the UUID that
+   leads `debtId` as `originTransactionId` and the `creditRef` balance's asset,
+   and its `seq` must be below `nextSeq`. A mismatch is a technical error. One
+   `reopened` change each.
+
+Then the posting loop:
+
+- `deferShortfall` debit on an internal balance whose direction is not debit:
+  `paid = take(available, amount)`, `shortfall = amount - paid`. It moves `paid`
+  and never draws overdraft, whatever `drawPolicy` says. Every other check
+  (status, blocks, `allowSending`, asset) is unchanged. On any other balance it
+  is an ordinary debit with shortfall 0.
+- Its `fundedByRef` credit moves the debit's `paid`. When `shortfall > 0` it
+  appends an item to the payer's list (`id = <txId>:<debitRef>`,
+  `creditRef` = this credit's balance) and emits one `opened` change whose
+  `postingRef` is the debit's ref.
+- Collect: `budget = take(debtor.available, amount)`, then it walks the live
+  list from its head. It never calls `touch`, never refuses and ignores
+  account-block exceptions. It stops softly, settling nothing more, when the
+  debtor is external, debit-direction, deleted, live-blocked,
+  `allowSending = false`, closing/closed or an unconfirmed seed; when the budget
+  is 0; or at the FIRST live item whose id is not in `items` or whose creditor is
+  outside the pool, not credit-direction, the debtor itself, external, deleted,
+  live-blocked, `allowReceiving = false`, closing/closed, an unconfirmed seed,
+  `overdraftUsed > 0`, or of another asset. Each settled item moves
+  `take(budget, remaining)`, is removed at 0, and emits one `settled` change.
+- Refund: the debtor's list must exist with `nextSeq` above every entry's
+  `seq`; otherwise the execution fails with a technical error and refunds
+  nothing, so a lost list (a Redis failover) holds the revert for an operator
+  instead of refunding the whole `opened`. Then, per entry in order,
+  `refund = opened - canceled`, where `canceled` is what step 1 of this
+  transaction removed of that debt (0 when it was no longer live, i.e. fully
+  settled). A positive refund debits the entry's `creditRef` as
+  an ordinary debit (touch, no overdraft draw) and refuses the execution exactly
+  as that debit would; an external or non-credit-direction creditor refuses with
+  `insufficient_funds`. It is never partial. The debtor is credited the total as
+  an ordinary credit, and each positive refund emits one `refunded` change. So
+  the payer always gets back what later credits settled and never owes what was
+  still open, whatever the order of the settlements.
+
+No movement of amount 0 is ever recorded.
+
+### Movements
+
+A collect posting yields one `fee_debt_debit` movement on its debtor (type
+`debit`, ordinal 0, the total settled) followed by one `fee_debt_credit` per
+settled item on that item's `creditRef` (type `credit`, ordinal = the item id's
+0-based index in `items`, amount = its settlement), all with
+`overdraftDelta = "0"`. Several credits may land on one creditor. A refund
+posting mirrors it: one `fee_debt_refund_credit` on its debtor (type `credit`,
+ordinal 0, the total refunded) followed by one `fee_debt_refund_debit` per
+positive refund on its entry's `creditRef` (type `debit`, ordinal = the entry's
+0-based index in `refunds`), all with `overdraftDelta = "0"`. Every ref keeps
+the form `<txId>:<len(postingRef)>:<postingRef>:<role>:<ordinal>`; primary,
+companion, `fee_debt_debit` and `fee_debt_refund_credit` use ordinal 0.
+Movements follow posting order and, within a posting, sub 0 (primary,
+`fee_debt_debit` or `fee_debt_refund_credit`), then sub 1 (companion) or the
+per-item movements in ascending ordinal; readers order by `(postingIndex, sub)`.
+
+### Response, receipt and recovery
+
+The response envelope gains `"feeDebt":[...]`, omitted when empty; the receipt
+stores that response verbatim, so replay returns it, and receipt validation
+accepts the four new roles and their ordinals. Each recovery record's
+`record.result` gains the same array holding only that transaction's changes,
+omitted when empty. Changes keep execution order. One change:
+
+```json
+{"transactionId":"<uuid>","postingRef":"fee-debit","kind":"opened",
+ "debtId":"<originTx>:fee-debit","debtorRef":"@payer#default","creditRef":"@fees#default",
+ "originTransactionId":"<uuid>","seq":"3","assetCode":"BRL","amount":"70","opened":"70"}
+```
+
+`kind` is `opened|settled|canceled|reopened|refunded`; `postingRef` is the
+deferrable debit (opened), the collect posting (settled), the refund posting
+(refunded) or `""` (canceled, reopened); `opened` is the debt's opened amount
+and `0 < amount <= opened`. A result with fee-debt changes and no movement is
+invalid in this release: an execution without movements stays a no-op, and the
+early return and the receipt's "no movements" refusal are unchanged.
+
+The adapter checks, per `deferShortfall` debit, that its primary amount (0 when
+absent) plus its opened amount equals the posting amount and that the opened
+`creditRef` is its credit's balance; per collect posting, that `fee_debt_debit`
+is on the posting's balance, each `fee_debt_credit` pairs with one `settled`
+change of the item at its ordinal, on that change's `creditRef` and for its
+amount, and the total equals the debit and does not exceed the posting amount;
+per refund posting, that `fee_debt_refund_credit` is on the posting's balance,
+each `fee_debt_refund_debit` pairs with one `refunded` change of the entry at
+its ordinal, on its `creditRef` and for its `opened` minus that debt's
+`canceled` amount in the same transaction, and the total equals the credit.
+
+### Completion (Go)
+
+Collect movements persist as `FEE_SETTLEMENT` rows and refund movements as
+`FEE_REFUND` rows. Their completion contexts have an empty `OriginRef` and match
+a movement by `(PostingRef, Role, ordinal)` with `BalanceRef` checked. Rows carry
+no fee-debt metadata.
+
+`BuildTransactionWriteSet` derives two reserved transaction metadata keys from
+the result alone, so a recovery replay writes the same bytes. Each holds a JSON
+array in result order and is absent when the result has no change of its kind:
+
+- `feeDebtOpenings`: one `command.FeeDebtOpening` (`debtId`, `debtorRef`,
+  `creditRef`, `opened`, `seq`) per `opened` change.
+- `feeDebtSettlements`: one `command.FeeDebtSettlement` (`debtId`, `debtorRef`,
+  `creditRef`, `amount`, `opened`, `seq`) per `settled` change.
+
+A pending commit's completion merges them into the transaction's existing
+metadata and never replaces it. `TransactionRevert` copies the parent's metadata
+onto the reversal, so completion of a revert R removes both keys as inherited
+and writes only the values computed from R's own result; an inherited
+`feeDeferPair` on a reversal leg stays, like `feeLeg`, and translation ignores it
+outside `direct`. Completion is the only writer of every reserved fee-debt key,
+and each survives any client update of transaction or operation metadata,
+including one that sends no metadata.
+
+Completion projects the result's changes through `FeeDebtRecorder` after the
+metadata is confirmed and before any event. Production always wires it; a nil
+recorder exists only in tests and skips the projection.
+
+### Revert
+
+A revert R of transaction P reads P's `feeDebtOpenings` and `feeDebtSettlements`
+from the reversal payload's metadata, which `TransactionRevert` copies from P.
+That holds on both routes that resolve P and for a grouped revert:
+`prepareRevertTransaction`, which the cross-ledger group revert calls per
+member, resolves P through `loadLifecycleResolution`, from engine evidence (a
+lookup built by `BuildTransactionWriteSet` from plan and result) or from the
+primary with P's Mongo metadata, and completion confirms that metadata before
+the evidence is reaped. Rows are not the source: the primary route loads
+operations without metadata, and an unpaid fee writes none. The Fees `fee_debt`
+documents are not either: they lag completion and round past 34 digits.
+
+- P opened debts: the payer gets the whole fee back. The row reversal returns
+  what P paid, one refund posting per debtor of `feeDebtOpenings` returns what
+  later credits settled, and step 1 cancels what is still open.
+- P settled debts: each `feeDebtSettlements` entry becomes one `reopenFeeDebts`
+  entry with its `amount`, `opened` and `seq`, unless the debt's origin is
+  already reverted. Go learns that with `GetParentByTransactionID` on the origin
+  (the UUID leading `debtId`) in the debtor's scope, the same read the revert
+  gate uses.
+- C, a credit that settled an O debt, reverted before O: C's revert reopened
+  the debt, so O's revert cancels `opened` and refunds 0.
+- C reverted after O: Go reopens no debt whose origin is already reverted, and
+  C's revert takes that settlement back from the debtor, not from the fee
+  account that O's refund already charged, reading its `debtId` and
+  `creditRef` from `feeDebtSettlements`.
+- Both reverts in flight at once is an accepted ceiling: when O's executes
+  first but C's read O as not reverted, C reopens the debt and charges the fee
+  account again; the reopened debt converges when a later collect settles it.
+- Ceiling: one entry per debt the transaction opened or settled, about 150
+  characters per opening and 170 per settlement with typical aliases. The
+  2000-character metadata limit is a request-body validator and stored values
+  are never re-validated, so a longer value is stored and read unchanged.

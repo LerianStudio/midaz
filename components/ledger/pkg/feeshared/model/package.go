@@ -32,6 +32,10 @@ type Fee struct {
 	CreditAccount    string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
 	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
 	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
+	// Deferrable turns an unfunded non-deductible fee into a fee debt instead of a
+	// refusal. It is off every JSON surface, the package cache included, until
+	// packages persist it.
+	Deferrable bool `json:"-"`
 }
 
 func (f *Fee) GetIsDeductibleFrom() bool {

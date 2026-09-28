@@ -43,3 +43,10 @@ type BalanceState struct {
 	OverdraftUsed decimal.Decimal `json:"overdraftUsed"`
 	Version       int64           `json:"version"`
 }
+
+// FeeDebtItem is one open debt of a debtor balance as read before execution: the
+// two fields Go reads of a live item. It is a seed only; the engine re-reads the list.
+type FeeDebtItem struct {
+	ID        string `json:"id"`
+	CreditRef string `json:"creditRef"`
+}

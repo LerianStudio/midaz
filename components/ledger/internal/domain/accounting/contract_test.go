@@ -129,8 +129,9 @@ func TestContractVocabulary(t *testing.T) {
 	postings := map[PostingType]string{
 		PostingDebit: "debit", PostingCredit: "credit", PostingReserve: "reserve",
 		PostingUnreserve: "unreserve", PostingHold: "hold", PostingRelease: "release",
+		PostingCollect: "collect", PostingRefund: "refund",
 	}
-	if len(postings) != 6 {
+	if len(postings) != 8 {
 		t.Fatal("posting types must remain distinct")
 	}
 	for got, want := range postings {
@@ -149,8 +150,22 @@ func TestContractVocabulary(t *testing.T) {
 			t.Errorf("draw policy = %q, want %q", got, want)
 		}
 	}
-	if RolePrimary != "primary" || RoleOverdraftCompanion != "overdraft_companion" {
+	if RolePrimary != "primary" || RoleOverdraftCompanion != "overdraft_companion" ||
+		RoleFeeDebtDebit != "fee_debt_debit" || RoleFeeDebtCredit != "fee_debt_credit" ||
+		RoleFeeDebtRefundCredit != "fee_debt_refund_credit" || RoleFeeDebtRefundDebit != "fee_debt_refund_debit" {
 		t.Fatal("movement roles changed")
+	}
+	kinds := map[FeeDebtChangeKind]string{
+		FeeDebtOpened: "opened", FeeDebtSettled: "settled", FeeDebtCanceled: "canceled", FeeDebtReopened: "reopened",
+		FeeDebtRefunded: "refunded",
+	}
+	if len(kinds) != 5 {
+		t.Fatal("fee debt change kinds must remain distinct")
+	}
+	for got, want := range kinds {
+		if string(got) != want {
+			t.Errorf("fee debt change kind = %q, want %q", got, want)
+		}
 	}
 }
 
@@ -196,6 +211,82 @@ func TestFailureContract(t *testing.T) {
 	preselection := Failure{Code: FailureBalanceMissing, TransactionIndex: -1, PostingIndex: -1}
 	if got := contractRoundTrip(t, preselection); got != preselection {
 		t.Fatalf("preselection failure indices changed: %#v", got)
+	}
+}
+
+func TestFeeDebtRequestContractShape(t *testing.T) {
+	t.Parallel()
+
+	origin := uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe")
+	transaction := Transaction{
+		OrganizationID: uuid.MustParse("139c4166-2139-4f17-b282-fba78e8c4c2a"),
+		LedgerID:       uuid.MustParse("c029e784-535d-4554-aae3-65b6e713687f"),
+		ID:             uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14"),
+		Postings: []Posting{
+			{Ref: "fee-debit", BalanceRef: "@payer#default", Type: PostingDebit, Amount: decimal.NewFromInt(100), DrawPolicy: DrawForbidden, DeferShortfall: true},
+			{Ref: "fee-credit", BalanceRef: "@fees#default", Type: PostingCredit, Amount: decimal.NewFromInt(100), DrawPolicy: DrawForbidden, FundedByRef: "fee-debit"},
+			{Ref: "fee-credit:collect", BalanceRef: "@payer#default", Type: PostingCollect, Amount: decimal.NewFromInt(200), DrawPolicy: DrawForbidden, Items: []string{origin.String() + ":fee-debit"}},
+			{Ref: "fee-refund:0", BalanceRef: "@payer#default", Type: PostingRefund, Amount: decimal.NewFromInt(70), DrawPolicy: DrawForbidden, Refunds: []FeeDebtRefund{{
+				DebtID: origin.String() + ":fee-debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3,
+			}}},
+		},
+		FeeDebtRefs: []string{"@payer#default"},
+		ReopenFeeDebts: []FeeDebtReopen{{
+			DebtID: origin.String() + ":fee-debit", DebtorRef: "@payer#default", CreditRef: "@fees#default",
+			Amount: decimal.RequireFromString("12.5"), Opened: decimal.NewFromInt(70), Seq: 7,
+		}},
+	}
+
+	want := `{"organizationId":"139c4166-2139-4f17-b282-fba78e8c4c2a","ledgerId":"c029e784-535d-4554-aae3-65b6e713687f","id":"1a2cf884-cf82-4520-9833-07d85c73bc14","rejectBlockedBalances":false,"balanceRequirements":null,"postings":[` +
+		`{"ref":"fee-debit","balanceRef":"@payer#default","type":"debit","amount":"100","drawPolicy":"forbidden","overdraftAmount":"0","deferShortfall":true},` +
+		`{"ref":"fee-credit","balanceRef":"@fees#default","type":"credit","amount":"100","drawPolicy":"forbidden","overdraftAmount":"0","fundedByRef":"fee-debit"},` +
+		`{"ref":"fee-credit:collect","balanceRef":"@payer#default","type":"collect","amount":"200","drawPolicy":"forbidden","overdraftAmount":"0","items":["6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit"]},` +
+		`{"ref":"fee-refund:0","balanceRef":"@payer#default","type":"refund","amount":"70","drawPolicy":"forbidden","overdraftAmount":"0","refunds":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","creditRef":"@fees#default","opened":"70","seq":"3"}]}],` +
+		`"feeDebtRefs":["@payer#default"],` +
+		`"reopenFeeDebts":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","debtorRef":"@payer#default","creditRef":"@fees#default","amount":"12.5","opened":"70","seq":"7"}]}`
+	assertContractJSON(t, transaction, want)
+
+	plain := Posting{Ref: "debit", BalanceRef: "@payer#default", Type: PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: DrawAllowed}
+	assertContractJSON(t, plain, `{"ref":"debit","balanceRef":"@payer#default","type":"debit","amount":"1","drawPolicy":"allowed","overdraftAmount":"0"}`)
+}
+
+func TestFeeDebtResultContractShape(t *testing.T) {
+	t.Parallel()
+
+	change := FeeDebtChange{
+		TransactionID: uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14"), PostingRef: "fee-debit", Kind: FeeDebtOpened,
+		DebtID: "1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit", DebtorRef: "@payer#default", CreditRef: "@fees#default",
+		OriginTransactionID: uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14"), Seq: 3, AssetCode: "BRL",
+		Amount: decimal.RequireFromString("70.0000000000000000001"), Opened: decimal.RequireFromString("70.0000000000000000001"),
+	}
+	assertContractJSON(t, ExecutionResult{Movements: []Movement{}, Final: []BalanceSnapshot{}, FeeDebt: []FeeDebtChange{change}},
+		`{"movements":[],"final":[],"feeDebt":[{"transactionId":"1a2cf884-cf82-4520-9833-07d85c73bc14","postingRef":"fee-debit","kind":"opened",`+
+			`"debtId":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","debtorRef":"@payer#default","creditRef":"@fees#default",`+
+			`"originTransactionId":"1a2cf884-cf82-4520-9833-07d85c73bc14","seq":"3","assetCode":"BRL","amount":"70.0000000000000000001","opened":"70.0000000000000000001"}]}`)
+	assertContractJSON(t, ExecutionResult{Movements: []Movement{}, Final: []BalanceSnapshot{}, FeeDebt: []FeeDebtChange{}}, `{"movements":[],"final":[]}`)
+
+	assertContractJSON(t, FeeDebtItem{ID: change.DebtID, CreditRef: "@fees#default"},
+		`{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default"}`)
+}
+
+// assertContractJSON locks field names, order, count and encodings, then proves
+// the golden decodes and re-encodes to itself.
+func assertContractJSON[T any](t *testing.T, value T, want string) {
+	t.Helper()
+
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal contract: %v", err)
+	}
+	if string(encoded) != want {
+		t.Fatalf("contract JSON changed:\ngot:  %s\nwant: %s", encoded, want)
+	}
+	var decoded T
+	if err := json.Unmarshal([]byte(want), &decoded); err != nil {
+		t.Fatalf("unmarshal contract: %v", err)
+	}
+	if reencoded, err := json.Marshal(decoded); err != nil || string(reencoded) != want {
+		t.Fatalf("contract round trip changed JSON: %s (%v)", reencoded, err)
 	}
 }
 

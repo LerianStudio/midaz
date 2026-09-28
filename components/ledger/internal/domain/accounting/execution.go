@@ -36,6 +36,24 @@ type Transaction struct {
 	AccountBlockException *AccountBlockException `json:"accountBlockException,omitempty"`
 	BalanceRequirements   []BalanceRequirement   `json:"balanceRequirements"`
 	Postings              []Posting              `json:"postings"`
+	// FeeDebtRefs lists, once each, every balance of this transaction's scope whose
+	// fee-debt list it may open, settle, cancel or reopen; none need be in Balances.
+	FeeDebtRefs []string `json:"feeDebtRefs,omitempty"`
+	// ReopenFeeDebts (revert only) restore settled debts after the parent's debts
+	// are canceled and before any posting.
+	ReopenFeeDebts []FeeDebtReopen `json:"reopenFeeDebts,omitempty"`
+}
+
+// FeeDebtReopen restores Amount of the debt DebtID, with its original identity,
+// that the reverted transaction paid to CreditRef. DebtID is unique in the
+// transaction; a posting of the same transaction must debit CreditRef.
+type FeeDebtReopen struct {
+	DebtID    string          `json:"debtId"`
+	DebtorRef string          `json:"debtorRef"`
+	CreditRef string          `json:"creditRef"`
+	Amount    decimal.Decimal `json:"amount"`
+	Opened    decimal.Decimal `json:"opened"`
+	Seq       int64           `json:"seq,string"`
 }
 
 // Execution is one ordered accounting operation whose organization and ledger
