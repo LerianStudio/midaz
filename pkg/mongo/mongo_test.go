@@ -161,6 +161,60 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantSet:        bson.M{"metadata.key2": "v2"},
 			wantUnset:      bson.M{"metadata.key1": ""},
 		},
+		{
+			name:           "search token removal is ignored",
+			updateDocument: bson.M{},
+			fieldsToRemove: []string{"search.document", "search", "searchKeyVersion"},
+			wantSet:        nil,
+			wantUnset:      nil,
+		},
+		{
+			name:           "instrument account link removal is ignored",
+			updateDocument: bson.M{},
+			fieldsToRemove: []string{"accountId", "ledgerId", "holderId"},
+			wantSet:        nil,
+			wantUnset:      nil,
+		},
+		{
+			name: "managed fields are never unset while declared fields still are",
+			updateDocument: bson.M{
+				"name":       "Jane",
+				"updated_at": "2026-01-01T00:00:00Z",
+			},
+			fieldsToRemove: []string{
+				"search.document", "createdAt", "updatedAt", "accountId", "ledgerId", "holderId",
+				"_id", "type", "document", "deletedAt", "searchKeyVersion",
+				"externalId", "metadata.x",
+			},
+			wantSet:   bson.M{"name": "Jane", "updated_at": "2026-01-01T00:00:00Z"},
+			wantUnset: bson.M{"external_id": "externalId", "metadata.x": ""},
+		},
+		{
+			name:           "managed field children are never unset",
+			updateDocument: bson.M{},
+			fieldsToRemove: []string{"document.number", "createdAt.seconds", "_id.x"},
+			wantSet:        nil,
+			wantUnset:      nil,
+		},
+		{
+			name:           "managed field match ignores letter case and underscores",
+			updateDocument: bson.M{},
+			fieldsToRemove: []string{"CreatedAt", "createdat", "SEARCH.document", "AccountId", "created_At", "LEDGER_ID", "ID"},
+			wantSet:        nil,
+			wantUnset:      nil,
+		},
+		{
+			name:           "names that only start like a managed field are still unset",
+			updateDocument: bson.M{},
+			fieldsToRemove: []string{"searchable", "documents", "typeDetails", "createdAtLabel"},
+			wantSet:        nil,
+			wantUnset: bson.M{
+				"searchable":       "searchable",
+				"documents":        "documents",
+				"type_details":     "typeDetails",
+				"created_at_label": "createdAtLabel",
+			},
+		},
 	}
 
 	for _, tt := range tests {
