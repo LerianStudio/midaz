@@ -43,6 +43,7 @@ type TransactionCompletionService struct {
 	store     TransactionWriteStore
 	metadata  engineMetadataRepository
 	publisher AppliedTransactionEventPublisher
+	feeDebt   FeeDebtRecorder
 }
 
 // TransactionEvidenceViews are the three caller-owned representations derived
@@ -84,6 +85,14 @@ func NewTransactionCompletionServiceWithEvents(
 	}
 
 	return &TransactionCompletionService{store: store, metadata: metadata, publisher: publisher}, nil
+}
+
+// WithFeeDebtRecorder sets the recorder that projects a result's fee-debt changes
+// after metadata is confirmed and before any event is published.
+func (service *TransactionCompletionService) WithFeeDebtRecorder(recorder FeeDebtRecorder) *TransactionCompletionService {
+	service.feeDebt = recorder
+
+	return service
 }
 
 // Complete returns the durable status and a caller-owned copy of the

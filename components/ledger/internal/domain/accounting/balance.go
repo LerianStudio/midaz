@@ -43,3 +43,15 @@ type BalanceState struct {
 	OverdraftUsed decimal.Decimal `json:"overdraftUsed"`
 	Version       int64           `json:"version"`
 }
+
+// FeeDebtItem is one open debt of a debtor balance as read before execution. It
+// is a seed only: the engine re-reads the live list. Seq ascends along the list
+// and is never reused for the debtor.
+type FeeDebtItem struct {
+	ID                  string          `json:"id"`
+	CreditRef           string          `json:"creditRef"`
+	Remaining           decimal.Decimal `json:"remaining"`
+	OriginTransactionID uuid.UUID       `json:"originTransactionId"`
+	Seq                 int64           `json:"seq,string"`
+	AssetCode           string          `json:"assetCode"`
+}

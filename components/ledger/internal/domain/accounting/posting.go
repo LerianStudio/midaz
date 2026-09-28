@@ -34,6 +34,10 @@ const (
 	// a positive OverdraftAmount permits capped repayment on a non-external,
 	// credit-direction account. On-hold underflow and the directional floor apply.
 	PostingRelease PostingType = "release"
+	// PostingCollect settles the balance's open fee debts oldest first, moving at
+	// most min(available, Amount) to their creditors. It never refuses and stops at
+	// the first live debt outside Items or that it cannot settle.
+	PostingCollect PostingType = "collect"
 )
 
 // DrawPolicy describes path and route permission, not cached account settings.
@@ -59,6 +63,15 @@ type Posting struct {
 	Amount          decimal.Decimal `json:"amount"`
 	DrawPolicy      DrawPolicy      `json:"drawPolicy"`
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount"`
+	// DeferShortfall (debit only) moves at most the payer's available funds and
+	// opens the unfunded rest as a fee debt instead of refusing.
+	DeferShortfall bool `json:"deferShortfall,omitempty"`
+	// FundedByRef (credit only) names the earlier DeferShortfall debit whose
+	// moved part this credit receives; both carry the same Amount.
+	FundedByRef string `json:"fundedByRef,omitempty"`
+	// Items (collect only) are the prepared debt ids, oldest first; the index of an
+	// id is the ordinal of its fee_debt_credit movement.
+	Items []string `json:"items,omitempty"`
 }
 
 // BalancePermission identifies the transaction-side permission that must be

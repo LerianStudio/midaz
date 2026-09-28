@@ -115,7 +115,7 @@ type TransactionV2 struct {
 	// recognise them; the doc tag, not this comment, is what the OpenAPI generator publishes.
 	//
 	// All three are reserved, so what a client reads here is the ledger's own word about the
-	// charge. IsReservedMetadataKey answers all four fee keys, and the guard runs on every body
+	// charge. IsReservedMetadataKey answers every reserved fee key, and the guard runs on every body
 	// that carries transaction metadata: the creates, the metadata update, and the fee estimate,
 	// which reads the keys back off the map it was handed. Refusing beats stripping for the same
 	// reason it does on the operation mark: a stripped key looks identical on the wire to a

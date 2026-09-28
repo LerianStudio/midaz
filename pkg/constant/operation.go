@@ -18,6 +18,9 @@ const (
 	// UNBLOCK is the public/persisted operation type for system-generated
 	// account-unblock companion rows. Direction still carries debit/credit semantics.
 	UNBLOCK = "UNBLOCK"
+	// FEE_SETTLEMENT is the persisted operation type for the rows of a fee-debt
+	// settlement. Direction still carries debit/credit semantics.
+	FEE_SETTLEMENT = "FEE_SETTLEMENT"
 
 	DirectionDebit  = "debit"
 	DirectionCredit = "credit"
