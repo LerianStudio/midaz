@@ -15,7 +15,7 @@
 #     its terminal): the merged count is the sum whichever was registered first.
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteTableGolden -update-route-table
-DELETE	/v1/organizations/:id	4
+DELETE	/v1/organizations/:organization_id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id	4
@@ -26,7 +26,7 @@ DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfol
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
 DELETE	/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key	3
-DELETE	/v2/organizations/:id	4
+DELETE	/v2/organizations/:organization_id	4
 DELETE	/v2/organizations/:organization_id/holders/:holder_id	4
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	3
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	1
@@ -50,8 +50,8 @@ GET	/health	1
 GET	/readyz	1
 GET	/v1/organizations	2
 GET	/v1/organizations	1
-GET	/v1/organizations/:id	3
-GET	/v1/organizations/:id	1
+GET	/v1/organizations/:organization_id	3
+GET	/v1/organizations/:organization_id	1
 GET	/v1/organizations/:organization_id/ledgers	3
 GET	/v1/organizations/:organization_id/ledgers	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id	3
@@ -125,8 +125,8 @@ GET	/v1/settings/metadata-indexes	3
 GET	/v1/streaming/manifest	3
 GET	/v2/organizations	2
 GET	/v2/organizations	1
-GET	/v2/organizations/:id	3
-GET	/v2/organizations/:id	1
+GET	/v2/organizations/:organization_id	3
+GET	/v2/organizations/:organization_id	1
 GET	/v2/organizations/:organization_id/encryption/status	4
 GET	/v2/organizations/:organization_id/holders	3
 GET	/v2/organizations/:organization_id/holders	1
@@ -239,7 +239,7 @@ HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	4
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	4
 HEAD	/v2/organizations/metrics/count	3
-PATCH	/v1/organizations/:id	4
+PATCH	/v1/organizations/:organization_id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	3
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	1
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id	4
@@ -254,7 +254,7 @@ PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/settings	1
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	4
-PATCH	/v2/organizations/:id	4
+PATCH	/v2/organizations/:organization_id	4
 PATCH	/v2/organizations/:organization_id/holders/:holder_id	4
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	3

@@ -43,7 +43,7 @@ func RegisterOrganizationV2Routes(api huma.API, h *OrganizationHandler, opSuffix
 func registerOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{organization_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Organizations"
 	)
@@ -141,7 +141,7 @@ func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *m
 // authz tuples and tenant resolution therefore apply on whichever version group it is
 // mounted on — no organization route becomes public.
 //
-// ParseUUIDPathParameters("organization") is attached ONLY on the three ":id" ops
+// ParseUUIDPathParameters("organization") is attached ONLY on the three ":organization_id" ops
 // (patch/get-by-id/delete); create, list and count carry no path UUID, so none needs it.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
@@ -150,7 +150,7 @@ func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *m
 func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:organization_id"
 		countPath = listPath + "/metrics/count"
 	)
 
