@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -28,13 +29,18 @@ import (
 // overdraftPendingBody builds a persisted transaction body whose submitted
 // destination is a single account, plus a system-managed overdraft companion
 // and an alias carrying a "#balanceKey" suffix. It exercises the alias-parity
-// contract of the Body-derived destination: the companion must be filtered
-// (mirrors filterCompanionAliases) and the "#key" suffix stripped (mirrors
+// contract of the Body-derived legs: the companion must be filtered (mirrors
+// filterCompanionAliases) and the "#key" suffix stripped (mirrors
 // getAliasWithoutKey), yielding exactly the bare submitted alias.
 func overdraftPendingBody() mtransaction.Transaction {
 	return mtransaction.Transaction{
 		Pending: true,
 		Send: mtransaction.Send{
+			Asset: "USD",
+			Value: decimal.NewFromInt(100),
+			Source: mtransaction.Source{
+				From: []mtransaction.FromTo{{AccountAlias: "@alice", BalanceKey: constant.DefaultBalanceKey}},
+			},
 			Distribute: mtransaction.Distribute{
 				To: []mtransaction.FromTo{
 					{AccountAlias: "@merchant", BalanceKey: constant.DefaultBalanceKey},
@@ -46,13 +52,12 @@ func overdraftPendingBody() mtransaction.Transaction {
 	}
 }
 
-// TestGetOperationsByTransaction_PendingOverdraftDerivesDestinationFromBody pins
-// the fix for the cache-vs-DB divergence: a PENDING overdraft transaction has
-// only source-side operations (DEBIT + ON_HOLD + OVERDRAFT) and NO CREDIT leg,
-// so operation-based reconstruction yields an empty Destination. The read path
-// must fall back to the submitted destination persisted in the body, in the same
-// bare-alias form the write path caches.
-func TestGetOperationsByTransaction_PendingOverdraftDerivesDestinationFromBody(t *testing.T) {
+// TestGetOperationsByTransaction_PendingOverdraftAnswersTheSubmittedLegs pins
+// the cache-vs-DB parity of a PENDING overdraft transaction: its operations are
+// all source-side (DEBIT + ON_HOLD + OVERDRAFT), and the read answers the
+// submitted legs persisted in the body, in the same bare-alias form the write
+// path caches.
+func TestGetOperationsByTransaction_PendingOverdraftAnswersTheSubmittedLegs(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -117,22 +122,21 @@ func TestGetOperationsByTransaction_PendingOverdraftDerivesDestinationFromBody(t
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	// Source is reconstructed from the DEBIT leg exactly as before.
 	assert.Equal(t, []string{"@alice"}, result.Source)
 
-	// Destination is derived from the submitted body: the overdraft companion is
+	// The overdraft companion is
 	// filtered and the "#default" suffix stripped, matching the cache-hit format.
 	assert.Equal(t, []string{"@merchant", "@suffixed"}, result.Destination)
 	assert.NotContains(t, result.Destination, "@companion", "overdraft companion must be filtered")
 	assert.NotContains(t, result.Destination, "@suffixed#default", "alias key suffix must be stripped")
 }
 
-// TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysEmpty
-// pins the empty branch of the Body-derived fallback: when the reconstructed
-// destination is empty AND the submitted body carries no usable destination
-// (either an empty To list or only the system-managed overdraft companion), the
-// read path must NOT fabricate a destination — Destination stays empty.
-func TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysEmpty(t *testing.T) {
+// TestGetOperationsByTransaction_NoSubmittedDestinationStaysEmpty pins the empty
+// branch of the body-derived legs: when the submitted body carries no usable
+// destination (either an empty To list or only the system-managed overdraft
+// companion), the read path must NOT fabricate a destination, and the source
+// still comes from the body.
+func TestGetOperationsByTransaction_NoSubmittedDestinationStaysEmpty(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -148,6 +152,9 @@ func TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysE
 			body: mtransaction.Transaction{
 				Pending: true,
 				Send: mtransaction.Send{
+					Asset:      "USD",
+					Value:      decimal.NewFromInt(100),
+					Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "@alice", BalanceKey: constant.DefaultBalanceKey}}},
 					Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{}},
 				},
 			},
@@ -157,6 +164,9 @@ func TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysE
 			body: mtransaction.Transaction{
 				Pending: true,
 				Send: mtransaction.Send{
+					Asset:  "USD",
+					Value:  decimal.NewFromInt(100),
+					Source: mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "@alice", BalanceKey: constant.DefaultBalanceKey}}},
 					Distribute: mtransaction.Distribute{
 						To: []mtransaction.FromTo{
 							{AccountAlias: "@companion", BalanceKey: constant.OverdraftBalanceKey},
@@ -180,12 +190,10 @@ func TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysE
 			mockOpRepo := operation.NewMockRepository(ctrl)
 			mockMetaRepo := mongodb.NewMockRepository(ctrl)
 
-			// Source-only legs: reconstruction produces no destination, so the
-			// Body-derived fallback is exercised on an input that yields nothing.
+			// A hold without route validation persists only its ON_HOLD leg, so
+			// only the body can name the source.
 			ops := []*operation.Operation{
-				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.DEBIT, AccountAlias: "@alice"},
-				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.ONHOLD, AccountAlias: "@alice"},
-				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.OVERDRAFT, AccountAlias: "@alice"},
+				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.ONHOLD, Direction: constant.DirectionDebit, AccountAlias: "@alice"},
 			}
 
 			mockOpRepo.EXPECT().
@@ -223,7 +231,8 @@ func TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysE
 
 // TestTransactionReadsByIDDeriveTheSameLegAliases pins that the by-id read served
 // from the primary and the by-id read assembled from paginated operations
-// classify the same persisted legs onto the same source and destination aliases.
+// answer the same source and destination aliases: the submitted legs when the
+// row keeps its body, the classified operations otherwise.
 func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 	t.Parallel()
 
@@ -234,6 +243,23 @@ func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 	leg := func(opType, direction, alias string) *operation.Operation {
 		return &operation.Operation{ID: uuid.New().String(), Type: opType, Direction: direction, AccountAlias: alias}
 	}
+
+	holdBody := func(from, to []mtransaction.FromTo) mtransaction.Transaction {
+		return mtransaction.Transaction{
+			Pending: true,
+			Send: mtransaction.Send{
+				Asset:      "USD",
+				Value:      decimal.NewFromInt(100),
+				Source:     mtransaction.Source{From: from},
+				Distribute: mtransaction.Distribute{To: to},
+			},
+		}
+	}
+
+	indexedHoldBody := holdBody(
+		[]mtransaction.FromTo{{AccountAlias: "0#@src#default", BalanceKey: constant.DefaultBalanceKey}},
+		[]mtransaction.FromTo{{AccountAlias: "0#@dst#default", BalanceKey: constant.DefaultBalanceKey}},
+	)
 
 	tests := []struct {
 		name                string
@@ -276,44 +302,108 @@ func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 			expectedDestination: []string{"@merchant", "@suffixed"},
 		},
 		{
-			name:   "pending hold takes the bare aliases from indexed body entries",
+			name:   "pending hold without route validation names the submitted source its operations do not",
 			status: constant.PENDING,
-			body: mtransaction.Transaction{
-				Pending: true,
-				Send: mtransaction.Send{
-					Distribute: mtransaction.Distribute{
-						To: []mtransaction.FromTo{
-							{AccountAlias: "0#@dst#default", BalanceKey: constant.DefaultBalanceKey},
-							{AccountAlias: "1#@dst#overdraft", BalanceKey: constant.OverdraftBalanceKey},
-							{AccountAlias: "12#@b#savings", BalanceKey: "savings"},
-						},
-					},
-				},
-			},
+			body:   indexedHoldBody,
 			operations: func() []*operation.Operation {
-				return []*operation.Operation{leg(constant.ONHOLD, constant.DirectionCredit, "@src")}
+				return []*operation.Operation{leg(constant.ONHOLD, constant.DirectionDebit, "@src")}
+			},
+			expectedSource:      []string{"@src"},
+			expectedDestination: []string{"@dst"},
+		},
+		{
+			name:   "canceled hold without route validation names the submitted legs",
+			status: constant.CANCELED,
+			body:   indexedHoldBody,
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{
+					leg(constant.ONHOLD, constant.DirectionDebit, "@src"),
+					leg(constant.RELEASE, constant.DirectionCredit, "@src"),
+				}
+			},
+			expectedSource:      []string{"@src"},
+			expectedDestination: []string{"@dst"},
+		},
+		{
+			name:   "canceled route-validated hold answers the submitted destination, not the source credited back",
+			status: constant.CANCELED,
+			body:   indexedHoldBody,
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{
+					leg(constant.ONHOLD, constant.DirectionCredit, "@src"),
+					leg(constant.DEBIT, constant.DirectionDebit, "@src"),
+					leg(constant.CREDIT, constant.DirectionCredit, "@src"),
+					leg(constant.RELEASE, constant.DirectionDebit, "@src"),
+				}
+			},
+			expectedSource:      []string{"@src"},
+			expectedDestination: []string{"@dst"},
+		},
+		{
+			name:   "committed hold answers each submitted leg once, never merged with its operations",
+			status: constant.APPROVED,
+			body:   indexedHoldBody,
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{
+					leg(constant.ONHOLD, constant.DirectionDebit, "@src"),
+					leg(constant.DEBIT, constant.DirectionDebit, "@src"),
+					leg(constant.CREDIT, constant.DirectionCredit, "@dst"),
+				}
+			},
+			expectedSource:      []string{"@src"},
+			expectedDestination: []string{"@dst"},
+		},
+		{
+			name:   "body entries answer bare aliases in submitted order, repeats kept and overdraft skipped on both sides",
+			status: constant.PENDING,
+			body: holdBody(
+				[]mtransaction.FromTo{
+					{AccountAlias: "1#@second#default", BalanceKey: constant.DefaultBalanceKey},
+					{AccountAlias: "@first", BalanceKey: constant.DefaultBalanceKey},
+					{AccountAlias: "2#@second#savings", BalanceKey: "savings"},
+					{AccountAlias: "3#@first#overdraft", BalanceKey: constant.OverdraftBalanceKey},
+				},
+				[]mtransaction.FromTo{
+					{AccountAlias: "0#@dst#default", BalanceKey: constant.DefaultBalanceKey},
+					{AccountAlias: "1#@dst#overdraft", BalanceKey: constant.OverdraftBalanceKey},
+					{AccountAlias: "12#@b#savings", BalanceKey: "savings"},
+				},
+			),
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{
+					leg(constant.DEBIT, constant.DirectionDebit, "@first"),
+					leg(constant.ONHOLD, constant.DirectionCredit, "@first"),
+				}
+			},
+			expectedSource:      []string{"@second", "@first", "@second"},
+			expectedDestination: []string{"@dst", "@b"},
+		},
+		{
+			name:   "canceled hold whose body was not kept falls back to its operations, which name no leg",
+			status: constant.CANCELED,
+			operations: func() []*operation.Operation {
+				return []*operation.Operation{
+					leg(constant.ONHOLD, constant.DirectionDebit, "@src"),
+					leg(constant.RELEASE, constant.DirectionCredit, "@src"),
+				}
 			},
 			expectedSource:      []string{},
-			expectedDestination: []string{"@dst", "@b"},
+			expectedDestination: []string{},
 		},
 		{
 			name:   "digits-only aliases in body entries are read as the alias, not as an index",
 			status: constant.PENDING,
-			body: mtransaction.Transaction{
-				Pending: true,
-				Send: mtransaction.Send{
-					Distribute: mtransaction.Distribute{
-						To: []mtransaction.FromTo{
-							{AccountAlias: "0#123#default", BalanceKey: constant.DefaultBalanceKey},
-							{AccountAlias: "123#default", BalanceKey: constant.DefaultBalanceKey},
-						},
-					},
+			body: holdBody(
+				[]mtransaction.FromTo{{AccountAlias: "0#456#default", BalanceKey: constant.DefaultBalanceKey}},
+				[]mtransaction.FromTo{
+					{AccountAlias: "0#123#default", BalanceKey: constant.DefaultBalanceKey},
+					{AccountAlias: "123#default", BalanceKey: constant.DefaultBalanceKey},
 				},
-			},
+			),
 			operations: func() []*operation.Operation {
-				return []*operation.Operation{leg(constant.ONHOLD, constant.DirectionCredit, "@src")}
+				return []*operation.Operation{leg(constant.ONHOLD, constant.DirectionDebit, "456")}
 			},
-			expectedSource:      []string{},
+			expectedSource:      []string{"456"},
 			expectedDestination: []string{"123", "123"},
 		},
 		{
@@ -378,15 +468,18 @@ func TestTransactionReadsByIDDeriveTheSameLegAliases(t *testing.T) {
 	}
 }
 
-// TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody is the listing
-// counterpart: GET-listing and GET-individual must agree, so the same Body-derived
-// fallback applies when a listed PENDING overdraft transaction has no CREDIT leg.
-func TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody(t *testing.T) {
+// TestGetAllTransactions_PendingTransactionsAnswerTheSubmittedLegs is the
+// listing counterpart: GET-listing and GET-individual must agree, so listed
+// PENDING transactions answer their submitted legs even when no operation names
+// them — an overdraft hold has no CREDIT leg, and a hold without route
+// validation has no DEBIT leg.
+func TestGetAllTransactions_PendingTransactionsAnswerTheSubmittedLegs(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	transactionID := uuid.New()
+	holdID := uuid.New()
 	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
 	mockCur := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
 
@@ -411,6 +504,24 @@ func TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody(t *testin
 			Operations:     ops,
 			Body:           overdraftPendingBody(),
 		},
+		{
+			ID:             holdID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.PENDING},
+			Operations: []*operation.Operation{
+				{ID: uuid.New().String(), TransactionID: holdID.String(), Type: constant.ONHOLD, Direction: constant.DirectionDebit, AccountAlias: "@src"},
+			},
+			Body: mtransaction.Transaction{
+				Pending: true,
+				Send: mtransaction.Send{
+					Asset:      "USD",
+					Value:      decimal.NewFromInt(100),
+					Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@src#default", BalanceKey: constant.DefaultBalanceKey}}},
+					Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "0#@dst#default", BalanceKey: constant.DefaultBalanceKey}}},
+				},
+			},
+		},
 	}
 
 	mockTransactionRepo.EXPECT().
@@ -419,14 +530,14 @@ func TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody(t *testin
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String()}).
+		FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String(), holdID.String()}).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
 		FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil).
-		Times(1)
+		Times(2)
 
 	uc := UseCase{
 		TransactionRepo:         mockTransactionRepo,
@@ -436,70 +547,11 @@ func TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody(t *testin
 	result, _, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
 	assert.NoError(t, err)
-	assert.Len(t, result, 1)
+	assert.Len(t, result, 2)
 	assert.Equal(t, []string{"@alice"}, result[0].Source)
 	assert.Equal(t, []string{"@merchant", "@suffixed"}, result[0].Destination)
-}
-
-// TestGetOperationsByTransaction_CreditDestinationNotOverwrittenByBody is the
-// non-regression guard: an APPROVED transaction carries a real CREDIT leg, so the
-// Destination must be reconstructed from that operation and NEVER overwritten or
-// duplicated by the submitted body — even when the body is present.
-func TestGetOperationsByTransaction_CreditDestinationNotOverwrittenByBody(t *testing.T) {
-	t.Parallel()
-
-	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	transactionID := uuid.New()
-	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockOpRepo := operation.NewMockRepository(ctrl)
-	mockMetaRepo := mongodb.NewMockRepository(ctrl)
-
-	ops := []*operation.Operation{
-		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.DEBIT, AccountAlias: "@alice"},
-		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.CREDIT, AccountAlias: "@merchant"},
-	}
-
-	mockOpRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
-		Return(ops, libHTTP.CursorPagination{}, nil).
-		Times(1)
-
-	mockMetaRepo.EXPECT().
-		FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
-		Return(nil, nil).
-		Times(1)
-
-	uc := UseCase{
-		OperationRepo:           mockOpRepo,
-		TransactionMetadataRepo: mockMetaRepo,
-	}
-
-	tran := &transaction.Transaction{
-		ID:             transactionID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Status:         transaction.Status{Code: constant.APPROVED},
-		// A stale/foreign body must not leak onto a committed destination.
-		Body: mtransaction.Transaction{
-			Send: mtransaction.Send{
-				Distribute: mtransaction.Distribute{
-					To: []mtransaction.FromTo{{AccountAlias: "@ghost", BalanceKey: constant.DefaultBalanceKey}},
-				},
-			},
-		},
-	}
-
-	result, err := uc.GetOperationsByTransaction(context.Background(), organizationID, ledgerID, tran, filter)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, []string{"@merchant"}, result.Destination, "credit-derived destination must win over the body")
-	assert.NotContains(t, result.Destination, "@ghost", "body must not overwrite a reconstructed destination")
+	assert.Equal(t, []string{"@src"}, result[1].Source, "listed hold without route validation")
+	assert.Equal(t, []string{"@dst"}, result[1].Destination, "listed hold without route validation")
 }
 
 func TestGetAllTransactions(t *testing.T) {

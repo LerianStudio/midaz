@@ -482,15 +482,12 @@ func TestGetAllMetadataTransactionsWithMixedOperations(t *testing.T) {
 	assert.NotContains(t, result[0].Source, "unblock-destination")
 }
 
-// TestGetAllMetadataTransactions_PendingOverdraftDerivesDestinationFromBody pins
-// the Body-derived destination fallback in the metadata read path so it agrees
-// with the listing and individual paths: a PENDING overdraft transaction carries
-// only source-side operations (DEBIT + ON_HOLD + OVERDRAFT) and no CREDIT leg, so
-// operation-based reconstruction yields an empty Destination and the read path
-// must fall back to the submitted destination persisted in the body, in the same
-// bare-alias form the write path caches. Reverting the resolveDestination call in
-// GetAllMetadataTransactions makes this test fail.
-func TestGetAllMetadataTransactions_PendingOverdraftDerivesDestinationFromBody(t *testing.T) {
+// TestGetAllMetadataTransactions_PendingOverdraftAnswersTheSubmittedLegs pins
+// the body-derived legs in the metadata read path so it agrees with the listing
+// and individual paths: a PENDING overdraft transaction's operations are all
+// source-side (DEBIT + ON_HOLD + OVERDRAFT), and the read answers the submitted
+// legs persisted in the body, in the same bare-alias form the write path caches.
+func TestGetAllMetadataTransactions_PendingOverdraftAnswersTheSubmittedLegs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -557,10 +554,9 @@ func TestGetAllMetadataTransactions_PendingOverdraftDerivesDestinationFromBody(t
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 
-	// Source is reconstructed from the DEBIT leg exactly as before.
 	assert.Equal(t, []string{"@alice"}, result[0].Source)
 
-	// Destination is derived from the submitted body: the overdraft companion is
+	// The overdraft companion is
 	// filtered and the "#default" suffix stripped, matching the cache-hit format.
 	assert.Equal(t, []string{"@merchant", "@suffixed"}, result[0].Destination)
 	assert.NotContains(t, result[0].Destination, "@companion", "overdraft companion must be filtered")
