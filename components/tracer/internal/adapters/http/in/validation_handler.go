@@ -121,6 +121,11 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 		}
 	}
 
+	if _, err := pkgHTTP.RefuseOutOfBoundTokens(rawBody, (*model.ValidationRequest)(nil)); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request body out of bounds", err)
+		return nil, err
+	}
+
 	var request model.ValidationRequest
 	if err := json.Unmarshal(rawBody, &request); err != nil {
 		logger.With(

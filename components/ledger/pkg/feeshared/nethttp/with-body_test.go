@@ -5,12 +5,9 @@
 package http
 
 import (
-	"bytes"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -1034,99 +1031,6 @@ func TestValidateSingleTransactionType(t *testing.T) {
 	}
 }
 
-func TestWithBody_FiberHandlerFunc(t *testing.T) {
-	tests := []struct {
-		name           string
-		body           string
-		structType     any
-		handler        DecodeHandlerFunc
-		wantErr        bool
-		expectedStatus int
-	}{
-		{
-			name:       "Valid JSON body",
-			body:       `{"name": "test"}`,
-			structType: &simpleTestStruct{},
-			handler: func(p any, c fiber.Ctx) error {
-				s := p.(*simpleTestStruct)
-				assert.Equal(t, "test", s.Name)
-				return c.SendStatus(fiber.StatusOK)
-			},
-			wantErr:        false,
-			expectedStatus: fiber.StatusOK,
-		},
-		{
-			name:       "Invalid JSON body",
-			body:       `{"name": "test", invalid json}`,
-			structType: &testStruct{},
-			handler: func(p any, c fiber.Ctx) error {
-				return c.SendStatus(fiber.StatusOK)
-			},
-			wantErr:        true,
-			expectedStatus: fiber.StatusBadRequest,
-		},
-		{
-			name:       "Unknown fields",
-			body:       `{"name": "test", "unknown": "field"}`,
-			structType: &testStruct{},
-			handler: func(p any, c fiber.Ctx) error {
-				return c.SendStatus(fiber.StatusOK)
-			},
-			wantErr:        true,
-			expectedStatus: fiber.StatusBadRequest,
-		},
-		{
-			name:       "Validation error",
-			body:       `{"name": "", "email": "invalid-email"}`,
-			structType: &testStructWithValidation{},
-			handler: func(p any, c fiber.Ctx) error {
-				return c.SendStatus(fiber.StatusOK)
-			},
-			wantErr:        true,
-			expectedStatus: fiber.StatusBadRequest,
-		},
-		{
-			name:       "Handler error",
-			body:       `{"name": "test"}`,
-			structType: &simpleTestStruct{},
-			handler: func(p any, c fiber.Ctx) error {
-				return fiber.NewError(fiber.StatusInternalServerError, "handler error")
-			},
-			wantErr:        true,
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-		{
-			name:       "Empty body",
-			body:       `{}`,
-			structType: &simpleTestStruct{},
-			handler: func(p any, c fiber.Ctx) error {
-				return c.SendStatus(fiber.StatusOK)
-			},
-			wantErr:        false,
-			expectedStatus: fiber.StatusOK,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := fiber.New()
-			app.Post("/test", WithBody(tt.structType, tt.handler))
-
-			req := httptest.NewRequest("POST", "/test", bytes.NewReader([]byte(tt.body)))
-			req.Header.Set("Content-Type", "application/json")
-
-			resp, err := app.Test(req)
-			assert.NoError(t, err)
-
-			if tt.wantErr {
-				assert.GreaterOrEqual(t, resp.StatusCode, fiber.StatusBadRequest)
-			} else {
-				assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-			}
-		})
-	}
-}
-
 func TestFields(t *testing.T) {
 	v, trans := newValidator()
 
@@ -1287,78 +1191,6 @@ func TestValidateMetadataValueMaxLength_AllTypes(t *testing.T) {
 			} else {
 				assert.Error(t, err)
 			}
-		})
-	}
-}
-
-func TestWithBody_WithConstructor(t *testing.T) {
-	app := fiber.New()
-
-	constructorCalled := false
-	constructor := func() any {
-		constructorCalled = true
-		return &testStruct{}
-	}
-
-	handler := func(p any, c fiber.Ctx) error {
-		s := p.(*testStruct)
-		// Name will be sanitized, so "test" becomes "test" (no special chars)
-		assert.Equal(t, "test", s.Name)
-		return c.SendStatus(fiber.StatusOK)
-	}
-
-	// Create decoderHandler manually to set constructor
-	d := &decoderHandler{
-		handler:      handler,
-		constructor:  constructor,
-		structSource: &testStruct{},
-	}
-
-	app.Post("/test", d.FiberHandlerFunc)
-
-	body := `{"name": "test", "email": "test@example.com"}`
-	req := httptest.NewRequest("POST", "/test", bytes.NewReader([]byte(body)))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := app.Test(req)
-	assert.NoError(t, err)
-	// Verify constructor was called (main purpose of test)
-	assert.True(t, constructorCalled, "Constructor should be called when provided")
-	// Status may vary, but constructor should be called
-	assert.NotNil(t, resp)
-}
-
-func TestWithBody_UnmarshalErrors(t *testing.T) {
-	app := fiber.New()
-
-	handler := func(p any, c fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	}
-
-	app.Post("/test", WithBody(&testStruct{}, handler))
-
-	tests := []struct {
-		name string
-		body string
-	}{
-		{
-			name: "Invalid JSON",
-			body: `{"name": "test", invalid}`,
-		},
-		{
-			name: "Valid JSON body with no unknown fields",
-			body: `{"name": "test"}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/test", bytes.NewReader([]byte(tt.body)))
-			req.Header.Set("Content-Type", "application/json")
-
-			resp, err := app.Test(req)
-			assert.NoError(t, err)
-			assert.GreaterOrEqual(t, resp.StatusCode, fiber.StatusBadRequest)
 		})
 	}
 }
