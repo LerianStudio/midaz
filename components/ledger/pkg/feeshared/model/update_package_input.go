@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
@@ -90,7 +91,7 @@ func (up *UpdatePackageInput) EffectiveMinimumAmount(storedMinAmount decimal.Dec
 		return storedMinAmount, nil
 	}
 
-	minAmount, err := parseAmountDecimal(*up.MinAmount)
+	minAmount, err := safe.ParseDecimal(*up.MinAmount)
 	if err != nil {
 		return storedMinAmount, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 	}
@@ -201,14 +202,14 @@ func (up *UpdatePackageInput) ValidateMinAndMaxAmount() error {
 	)
 
 	if up.MinAmount != nil {
-		minRealValue, err = parseAmountDecimal(*up.MinAmount)
+		minRealValue, err = safe.ParseDecimal(*up.MinAmount)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 		}
 	}
 
 	if up.MaxAmount != nil {
-		maxRealValue, err = parseAmountDecimal(*up.MaxAmount)
+		maxRealValue, err = safe.ParseDecimal(*up.MaxAmount)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 		}
@@ -238,7 +239,7 @@ func (up *UpdatePackageInput) ValidateMinAndMaxAmountValue() error {
 
 // ValidateMinAmountUpdate Validate minimum amount value that will be updated
 func (up *UpdatePackageInput) ValidateMinAmountUpdate(maxAmountData decimal.Decimal) error {
-	minAmountConverted, err := parseAmountDecimal(*up.MinAmount)
+	minAmountConverted, err := safe.ParseDecimal(*up.MinAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 	}
@@ -252,7 +253,7 @@ func (up *UpdatePackageInput) ValidateMinAmountUpdate(maxAmountData decimal.Deci
 
 // ValidateMaxAmountUpdate Validate maximum amount value that will be updated
 func (up *UpdatePackageInput) ValidateMaxAmountUpdate(minAmountData decimal.Decimal) error {
-	maxAmountConverted, err := parseAmountDecimal(*up.MaxAmount)
+	maxAmountConverted, err := safe.ParseDecimal(*up.MaxAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 	}
@@ -434,7 +435,7 @@ func (f *Fee) validateDeductibleFromCalculations(hasUpdatedCalculationModel bool
 
 // validateDeductibleCalculation validates a single calculation for deductible fees
 func (f *Fee) validateDeductibleCalculation(calc Calculation, minAmount decimal.Decimal, feeKey string) error {
-	valueCalc, err := parseAmountDecimal(calc.Value)
+	valueCalc, err := safe.ParseDecimal(calc.Value)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 	}
@@ -579,7 +580,7 @@ func (f *Fee) validateCalculationType(calc Calculation) error {
 
 // validateCalculationValue validates calculation value based on deductible status
 func (f *Fee) validateCalculationValue(calc Calculation, existingFees map[string]Fee, updateDeductibleFrom *bool, feeKey string, minAmount decimal.Decimal) error {
-	valueCalc, err := parseAmountDecimal(calc.Value)
+	valueCalc, err := safe.ParseDecimal(calc.Value)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 	}

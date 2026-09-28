@@ -16,6 +16,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libMid "github.com/LerianStudio/lib-observability/v4/middleware"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -103,6 +104,10 @@ func DecodeAndValidate(bodyBytes []byte, s any) (map[string]any, error) {
 // details are an ordered, platform-neutral projection for callers that need to
 // aggregate several request-body failures before rendering them.
 func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pkg.FieldError, error) {
+	if details, err := RefuseOutOfBoundTokens(bodyBytes, s); err != nil {
+		return nil, details, err
+	}
+
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
 		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
@@ -1204,13 +1209,14 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 // request is rejected; this projection exists for ordered aggregate responses.
 func findUnknownFieldDetails(original, marshaled map[string]any) []pkg.FieldError {
 	details := make([]pkg.FieldError, 0)
-	collectUnknownFieldDetails(original, marshaled, "", &details)
+	collectUnknownFieldDetails(original, marshaled, nil, &details)
 	sortFieldErrors(details)
 
 	return details
 }
 
-func collectUnknownFieldDetails(original, marshaled any, path string, details *[]pkg.FieldError) {
+// collectUnknownFieldDetails renders path only when it records a detail.
+func collectUnknownFieldDetails(original, marshaled any, path []scanFrame, details *[]pkg.FieldError) {
 	switch originalValue := original.(type) {
 	case map[string]any:
 		marshaledMap, ok := marshaled.(map[string]any)
@@ -1229,7 +1235,7 @@ func collectUnknownFieldDetails(original, marshaled any, path string, details *[
 
 		for _, key := range keys {
 			value := originalValue[key]
-			fieldPath := joinJSONFieldPath(path, key)
+			fieldPath := append(path, scanFrame{key: key, object: true})
 
 			marshaledValue, exists := marshaledMap[key]
 			if !exists {
@@ -1254,7 +1260,7 @@ func collectUnknownFieldDetails(original, marshaled any, path string, details *[
 		}
 
 		for index, value := range originalValue {
-			itemPath := path + "[" + strconv.Itoa(index) + "]"
+			itemPath := append(path, scanFrame{index: index})
 			if index >= len(marshaledArray) {
 				appendUnknownFieldDetail(itemPath, details)
 
@@ -1308,7 +1314,8 @@ func unknownStringValuesEqual(original string, marshaled any) bool {
 	return ok && areDatesEqual(original, marshaledString)
 }
 
-func appendUnknownFieldDetail(path string, details *[]pkg.FieldError) {
+func appendUnknownFieldDetail(frames []scanFrame, details *[]pkg.FieldError) {
+	path := renderPath(frames)
 	if path == "" {
 		return
 	}
@@ -1346,7 +1353,7 @@ func isDecimalEqual(a, b any) bool {
 
 	switch valA := a.(type) {
 	case string:
-		decimalA, err = decimal.NewFromString(valA)
+		decimalA, err = safe.ParseDecimal(valA)
 		if err != nil {
 			return false
 		}
@@ -1358,7 +1365,7 @@ func isDecimalEqual(a, b any) bool {
 
 	switch valB := b.(type) {
 	case string:
-		decimalB, err = decimal.NewFromString(valB)
+		decimalB, err = safe.ParseDecimal(valB)
 		if err != nil {
 			return false
 		}
@@ -1372,7 +1379,7 @@ func isDecimalEqual(a, b any) bool {
 }
 
 func isStringNumeric(s string) bool {
-	_, err := decimal.NewFromString(s)
+	_, err := safe.ParseDecimal(s)
 	return err == nil
 }
 

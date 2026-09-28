@@ -7,6 +7,7 @@ package in
 import (
 	"strconv"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -215,11 +216,11 @@ func validateTransactionV2AccountBlockExceptionSurface(pending bool, exceptionID
 }
 
 // normalizeTransactionV2Amount parses a required monetary string without using
-// float64 and rejects malformed, zero, and negative values with the released
-// singular business error.
+// float64 and rejects malformed, out-of-bound, zero, and negative values with the
+// released singular business error.
 func normalizeTransactionV2Amount(raw string) (decimal.Decimal, error) {
-	value, err := decimal.NewFromString(raw)
-	if err != nil || value.LessThanOrEqual(decimal.Zero) {
+	value, err := safe.ParseDecimal(raw)
+	if err != nil || !value.IsPositive() {
 		return decimal.Zero, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 	}
 

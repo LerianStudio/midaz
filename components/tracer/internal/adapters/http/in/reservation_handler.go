@@ -107,6 +107,11 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		}
 	}
 
+	if _, err := pkgHTTP.RefuseOutOfBoundTokens(rawBody, (*ReserveRequest)(nil)); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request body out of bounds", err)
+		return nil, err
+	}
+
 	var request ReserveRequest
 	if err := json.Unmarshal(rawBody, &request); err != nil {
 		logger.With(
