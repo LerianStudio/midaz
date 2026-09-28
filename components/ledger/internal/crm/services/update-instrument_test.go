@@ -64,6 +64,11 @@ func TestUpdateInstrumentByID(t *testing.T) {
 				},
 			},
 			mockSetup: func() {
+				// A branch patch reads the stored bank account first; it holds none, so no search follows.
+				mockInstrumentRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(&mmodel.Instrument{ID: &id}, nil)
+
 				mockInstrumentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
@@ -153,7 +158,7 @@ func TestUpdateInstrumentByID(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockInstrumentRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(nil, cn.ErrInstrumentNotFound)
 			},
 			expectedErr:    cn.ErrInstrumentNotFound,
