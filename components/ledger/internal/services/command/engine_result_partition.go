@@ -13,7 +13,8 @@ import (
 // PartitionEngineResult derives one ordered completion result per prepared
 // transaction from the engine's compact global result. Movement order is never
 // reconstructed from maps: each transaction owns one contiguous range and each
-// final set follows that transaction's first-touch order.
+// final set follows that transaction's first-touch order. Fee-debt changes keep
+// execution order within their transaction.
 func PartitionEngineResult(prepared PreparedEngineExecution, result accounting.ExecutionResult) ([]accounting.ExecutionResult, error) {
 	if err := validatePreparedEngineExecution(prepared); err != nil {
 		return nil, err
@@ -22,6 +23,7 @@ func PartitionEngineResult(prepared PreparedEngineExecution, result accounting.E
 	return partitionValidatedEngineResult(prepared, result)
 }
 
+//nolint:gocyclo // one flat pass validating every movement and change of the engine result.
 func partitionValidatedEngineResult(prepared PreparedEngineExecution, result accounting.ExecutionResult) ([]accounting.ExecutionResult, error) {
 	if result.Movements == nil || result.Final == nil {
 		return nil, invalidTransactionCompletionRecord("engine result arrays must not be null")
@@ -98,6 +100,10 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 		}
 
 		transactionLast[transactionIndex][balanceKey] = movement.After
+	}
+
+	if err := partitionFeeDebt(partitions, transactionIndices, result.FeeDebt); err != nil {
+		return nil, err
 	}
 
 	finals, err := validateGlobalEngineFinal(request, result.Final, globalTouches, globalLast, balances)
@@ -202,4 +208,17 @@ func sameEngineBalanceIdentity(request accounting.Execution, left, right account
 	return left.BalanceRef == right.BalanceRef && left.ID == right.ID && left.AccountID == right.AccountID &&
 		leftOrganizationID == rightOrganizationID && leftLedgerID == rightLedgerID &&
 		left.AccountType == right.AccountType && left.AssetCode == right.AssetCode && left.Alias == right.Alias && left.Key == right.Key
+}
+
+func partitionFeeDebt(partitions []accounting.ExecutionResult, transactionIndices map[uuid.UUID]int, changes []accounting.FeeDebtChange) error {
+	for _, change := range changes {
+		transactionIndex, exists := transactionIndices[change.TransactionID]
+		if !exists {
+			return invalidTransactionCompletionRecord("engine fee-debt change belongs to an unknown transaction")
+		}
+
+		partitions[transactionIndex].FeeDebt = append(partitions[transactionIndex].FeeDebt, change)
+	}
+
+	return nil
 }

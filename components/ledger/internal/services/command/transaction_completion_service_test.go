@@ -94,6 +94,7 @@ type finalizationMetadataStub struct {
 	calls     *[]string
 	data      map[string]*mongodb.Metadata
 	createErr error
+	updateErr error
 	create    func(string) error
 	findErr   error
 	find      func(*mongodb.Metadata) *mongodb.Metadata
@@ -161,6 +162,15 @@ func (repo *concurrentFinalizationMetadata) FindByEntity(_ context.Context, coll
 	return &cloned, nil
 }
 
+func (repo *concurrentFinalizationMetadata) Update(_ context.Context, collection, id string, data map[string]any) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if stored := repo.data[collection+":"+id]; stored != nil {
+		stored.Data = maps.Clone(data)
+	}
+	return nil
+}
+
 func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
 	*publisher.calls = append(*publisher.calls, "publish")
 	publisher.transactions = append(publisher.transactions, tran)
@@ -200,6 +210,32 @@ func (repo *finalizationMetadataStub) Create(_ context.Context, collection strin
 	}
 
 	repo.data[key] = decoded.ToEntity()
+
+	return nil
+}
+
+func (repo *finalizationMetadataStub) Update(_ context.Context, collection, id string, data map[string]any) error {
+	*repo.calls = append(*repo.calls, "update:"+collection)
+	if repo.updateErr != nil {
+		return repo.updateErr
+	}
+
+	stored := repo.data[collection+":"+id]
+	if stored == nil {
+		return errors.New("metadata document not found")
+	}
+
+	encoded, err := bson.Marshal(bson.M{"metadata": data})
+	if err != nil {
+		return err
+	}
+
+	var decoded mongodb.MetadataMongoDBModel
+	if err := bson.Unmarshal(encoded, &decoded); err != nil {
+		return err
+	}
+
+	stored.Data = decoded.ToEntity().Data
 
 	return nil
 }

@@ -6,6 +6,7 @@ package command
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -610,27 +611,34 @@ func validateCompletionPostings(transaction accounting.Transaction, projections 
 		postings[posting.Ref] = posting
 	}
 
-	primaries := make(map[string]bool, len(postings))
+	anchors := make(map[string]bool, len(postings))
 	for _, spec := range projections {
 		posting, exists := postings[spec.PostingRef]
 		if !exists {
 			return invalidTransactionCompletionRecord("spec references an unrelated posting")
 		}
 
-		if spec.Role == accounting.RolePrimary {
+		if spec.Role == cmp.Or(postingAnchorRoles[posting.Type], accounting.RolePrimary) {
 			if spec.BalanceRef != posting.BalanceRef {
 				return invalidTransactionCompletionRecord("spec balance does not match posting")
 			}
 
-			primaries[spec.PostingRef] = true
+			anchors[spec.PostingRef] = true
 		}
 	}
 
-	if len(primaries) != len(postings) {
+	if len(anchors) != len(postings) {
 		return invalidTransactionCompletionRecord("posting has no primary spec context")
 	}
 
 	return nil
+}
+
+// postingAnchorRoles names the role a collect or refund posting's context holds on its own
+// debtor balance; every other posting anchors on its primary.
+var postingAnchorRoles = map[accounting.PostingType]string{
+	accounting.PostingCollect: accounting.RoleFeeDebtDebit,
+	accounting.PostingRefund:  accounting.RoleFeeDebtRefundCredit,
 }
 
 // EncodeTransactionCompletionRecord validates a completed execution record.
@@ -873,7 +881,7 @@ func validOptionalCompletionScope(organizationID, ledgerID *uuid.UUID) bool {
 }
 
 func validOperationRecordRole(role string) bool {
-	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion
+	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion || feeDebtOperationRole(role)
 }
 
 func validCompletionParent(transactionID uuid.UUID, parentID *uuid.UUID) bool {

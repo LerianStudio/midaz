@@ -6,12 +6,16 @@ package command
 
 import (
 	"maps"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -59,16 +63,17 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 		}
 
 		before, after, amount := movement.Before, movement.After, movement.Amount
-		lifecycle := lifecycles[key]
 
-		switch context.CompatibilityPath {
-		case OperationRecordValidatedCancelRelease:
-			before, after, amount = projectValidatedCancelRelease(context, lifecycle.Before)
-		case OperationRecordValidatedCancelCredit:
-			before, after, amount = projectValidatedCancelCredit(context, lifecycle.Before)
+		if lifecycle, grouped := lifecycles[key]; grouped {
+			switch context.CompatibilityPath {
+			case OperationRecordValidatedCancelRelease:
+				before, after, amount = projectValidatedCancelRelease(context, lifecycle.Before)
+			case OperationRecordValidatedCancelCredit:
+				before, after, amount = projectValidatedCancelCredit(context, lifecycle.Before)
+			}
+
+			before.OverdraftUsed, after.OverdraftUsed = lifecycle.Before.OverdraftUsed, lifecycle.After.OverdraftUsed
 		}
-
-		before.OverdraftUsed, after.OverdraftUsed = lifecycle.Before.OverdraftUsed, lifecycle.After.OverdraftUsed
 
 		id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, context.PostingRef, context.Role, context.Ordinal)
 		if err != nil {
@@ -93,7 +98,7 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 			RouteID: routeID, RouteCode: projectedOptionalText(context.RouteCode), RouteDescription: projectedOptionalText(context.RouteDescription),
 			BalanceAffected: true, Direction: context.Direction,
 			CreatedAt: payload.TransactionDate, UpdatedAt: payload.OperationUpdatedAt, RecordedAt: recordedAt,
-			Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: lifecycle.Before.OverdraftUsed.String(), OverdraftUsedAfter: lifecycle.After.OverdraftUsed.String()},
+			Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: before.OverdraftUsed.String(), OverdraftUsedAfter: after.OverdraftUsed.String()},
 		})
 	}
 
@@ -170,6 +175,10 @@ func operationLifecycles(payload TransactionCompletionPlan, movements []accounti
 	byContext := make(map[operationMovementKey]operationLifecycle, len(contexts))
 
 	for _, context := range payload.OperationSpecs {
+		if feeDebtOperationRole(context.Role) {
+			continue
+		}
+
 		key := operationMovementKey{context.PostingRef, context.Role, context.Ordinal}
 		if context.Role == accounting.RoleOverdraftCompanion {
 			context = contexts[operationMovementKey{PostingRef: context.PostingRef, Role: accounting.RolePrimary}]
@@ -195,19 +204,22 @@ func validateOperationMovementResult(payload TransactionCompletionPlan, result a
 		return nil, err
 	}
 
+	deferred, err := deferredFeePostings(payload.TransactionID, contexts, result.FeeDebt)
+	if err != nil {
+		return nil, err
+	}
+
 	movements := make(map[operationMovementKey]accounting.Movement, len(result.Movements))
 	ordinals := make(map[operationMovementKey]uint32)
 	last := make(map[string]accounting.BalanceState)
 	seen := make(map[string]bool)
 
 	for _, movement := range result.Movements {
-		base := operationMovementKey{PostingRef: movement.PostingRef, Role: movement.Role}
-		key := base
-		key.Ordinal = ordinals[base]
-		ordinals[base]++
+		ordinal, ordinalKnown := operationMovementOrdinal(movement, ordinals)
+		key := operationMovementKey{PostingRef: movement.PostingRef, Role: movement.Role, Ordinal: ordinal}
 
 		context, exists := contexts[key]
-		if !exists || movement.TransactionID != payload.TransactionID || movement.Ref == "" || seen[movement.Ref] || context.BalanceRef != movement.BalanceRef {
+		if !exists || !ordinalKnown || movement.TransactionID != payload.TransactionID || movement.Ref == "" || seen[movement.Ref] || context.BalanceRef != movement.BalanceRef {
 			return nil, invalidTransactionCompletionRecord("invalid per-transaction movement correlation")
 		}
 
@@ -224,7 +236,7 @@ func validateOperationMovementResult(payload TransactionCompletionPlan, result a
 		movements[key] = movement
 	}
 
-	if err := validateOperationRecordCompleteness(contexts, movements); err != nil {
+	if err := validateOperationRecordCompleteness(contexts, movements, deferred); err != nil {
 		return nil, err
 	}
 
@@ -267,9 +279,78 @@ func validateOperationMovement(movement accounting.Movement, requested decimal.D
 	return nil
 }
 
-func validateOperationRecordCompleteness(contexts map[operationMovementKey]OperationRecordSpec, movements map[operationMovementKey]accounting.Movement) error {
+// operationMovementOrdinal counts primary and companion movements per posting and role; a
+// fee-debt movement's ordinal is the tail of its ref <txId>:<len(postingRef)>:<postingRef>:<role>:<ordinal>.
+func operationMovementOrdinal(movement accounting.Movement, counted map[operationMovementKey]uint32) (uint32, bool) {
+	if !feeDebtOperationRole(movement.Role) {
+		key := operationMovementKey{PostingRef: movement.PostingRef, Role: movement.Role}
+		counted[key]++
+
+		return counted[key] - 1, true
+	}
+
+	prefix := movement.TransactionID.String() + ":" + strconv.Itoa(len(movement.PostingRef)) + ":" + movement.PostingRef + ":" + movement.Role + ":"
+
+	digits, found := strings.CutPrefix(movement.Ref, prefix)
+	if !found {
+		return 0, false
+	}
+
+	ordinal, err := strconv.ParseUint(digits, 10, 32)
+	if err != nil || strconv.FormatUint(ordinal, 10) != digits {
+		return 0, false
+	}
+
+	return uint32(ordinal), true
+}
+
+// deferredFeePostings names the postings of each deferrable fee pair that opened a debt: the
+// payer debit an opened change names, and the fee credit whose context carries the same
+// feeDeferPair token. They alone may lack a movement, when the payer had nothing to pay.
+func deferredFeePostings(transactionID uuid.UUID, contexts map[operationMovementKey]OperationRecordSpec, changes []accounting.FeeDebtChange) (map[string]bool, error) {
+	deferred := make(map[string]bool)
+	tokens := make(map[string]bool)
+
+	for _, change := range changes {
+		if change.TransactionID != transactionID {
+			return nil, invalidTransactionCompletionRecord("fee-debt change belongs to another transaction")
+		}
+
+		if change.Kind != accounting.FeeDebtOpened {
+			continue
+		}
+
+		deferred[change.PostingRef] = true
+
+		debit := contexts[operationMovementKey{PostingRef: change.PostingRef, Role: accounting.RolePrimary}]
+		if token, _ := debit.Metadata[constant.MetadataKeyFeeDeferPair].(string); token != "" {
+			tokens[token] = true
+		}
+	}
+
 	for key, context := range contexts {
-		if _, exists := movements[key]; !exists && context.Role == accounting.RolePrimary {
+		if token, _ := context.Metadata[constant.MetadataKeyFeeDeferPair].(string); key.Role == accounting.RolePrimary && tokens[token] {
+			deferred[context.PostingRef] = true
+		}
+	}
+
+	return deferred, nil
+}
+
+// feeDebtOperationRole reports a collect or refund movement role; its context has no origin and
+// its movement ref carries its ordinal.
+func feeDebtOperationRole(role string) bool {
+	switch role {
+	case accounting.RoleFeeDebtDebit, accounting.RoleFeeDebtCredit, accounting.RoleFeeDebtRefundCredit, accounting.RoleFeeDebtRefundDebit:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateOperationRecordCompleteness(contexts map[operationMovementKey]OperationRecordSpec, movements map[operationMovementKey]accounting.Movement, deferred map[string]bool) error {
+	for key, context := range contexts {
+		if _, exists := movements[key]; !exists && context.Role == accounting.RolePrimary && !deferred[context.PostingRef] {
 			return invalidTransactionCompletionRecord("primary operation spec has no movement")
 		}
 
