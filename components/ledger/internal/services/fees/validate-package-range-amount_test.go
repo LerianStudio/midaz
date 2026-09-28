@@ -36,6 +36,7 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 		transactionRoute string
 		segmentID        *uuid.UUID
 		packageID        *uuid.UUID
+		metadataSelector map[string]string
 		mockSetup        func(*pack.MockRepository)
 		wantErr          bool
 		errCode          string
@@ -134,6 +135,29 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 					MaximumAmount:    decimal.NewFromInt(1000),
 					TransactionRoute: stringPtr("debitoted"),
 					SegmentID:        &segmentID,
+				}
+				mockRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any()).
+					Return([]*pack.Package{existingPackage}, nil)
+			},
+			wantErr: true,
+			errCode: constant.ErrPackageRange.Error(),
+		},
+		{
+			name:             "Range overlap - identical metadata selector",
+			maxAmount:        "500",
+			minAmount:        "50",
+			transactionRoute: "debitoted",
+			segmentID:        &segmentID,
+			metadataSelector: map[string]string{"fee_context": "ted_salario"},
+			mockSetup: func(mockRepo *pack.MockRepository) {
+				existingPackage := &pack.Package{
+					ID:               uuid.New(),
+					MinimumAmount:    decimal.NewFromInt(100),
+					MaximumAmount:    decimal.NewFromInt(1000),
+					TransactionRoute: stringPtr("debitoted"),
+					SegmentID:        &segmentID,
+					MetadataSelector: map[string]string{"fee_context": "ted_salario"},
 				}
 				mockRepo.EXPECT().
 					FindList(gomock.Any(), gomock.Any()).
@@ -256,17 +280,26 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 
 			err := uc.ValidatePackageMaxAndMinAmountRange(
 				ctx, nil,
-				tt.maxAmount, tt.minAmount, tt.transactionRoute, nil,
+				tt.maxAmount, tt.minAmount, tt.transactionRoute, tt.metadataSelector,
 				orgID, ledgerID,
 				tt.segmentID, tt.packageID,
 			)
 
 			if tt.wantErr {
 				assert.Error(t, err)
-				if tt.errCode != "" {
-					if validationErr, ok := err.(*pkg.ValidationError); ok {
-						assert.Contains(t, validationErr.Code, tt.errCode)
-					}
+
+				var conflictErr pkg.EntityConflictError
+
+				var validationErr pkg.ValidationError
+
+				switch {
+				case tt.errCode == "":
+				case errors.As(err, &conflictErr):
+					assert.Equal(t, tt.errCode, conflictErr.Code)
+				case errors.As(err, &validationErr):
+					assert.Equal(t, tt.errCode, validationErr.Code)
+				default:
+					t.Errorf("error %v carries no business code, want %s", err, tt.errCode)
 				}
 			} else {
 				assert.NoError(t, err)
