@@ -7,10 +7,13 @@ package command
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -143,6 +146,50 @@ func TestUpdateTransactionMetadata(t *testing.T) {
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedMetadata, result)
 			}
+		})
+	}
+}
+
+func TestUpdateTransactionMetadataKeepsReservedKeys(t *testing.T) {
+	transactionStored := map[string]any{
+		"purpose": "client", constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`,
+		"feeApplied": "true", "packageAppliedID": "package-1",
+	}
+	transactionReserved := map[string]any{
+		constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`, "feeApplied": "true", "packageAppliedID": "package-1",
+	}
+	operationStored := map[string]any{"note": "client", constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}
+
+	for _, scenario := range []struct {
+		name, entity   string
+		stored, sent   map[string]any
+		want           map[string]any
+		readsNoStorage bool
+	}{
+		{name: "cleared transaction", entity: constant.EntityTransaction, stored: transactionStored, want: transactionReserved},
+		{name: "cleared operation", entity: constant.EntityOperation, stored: operationStored, want: map[string]any{constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}},
+		{name: "cleared transaction without document", entity: constant.EntityTransaction, want: map[string]any{}},
+		{name: "merged transaction", entity: constant.EntityTransaction, stored: transactionStored, sent: map[string]any{"purpose": "edited"}, want: map[string]any{
+			"purpose": "edited", constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`, "feeApplied": "true", "packageAppliedID": "package-1",
+		}},
+		{name: "cleared route is not read", entity: constant.EntityTransactionRoute, want: map[string]any{}, readsNoStorage: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			repo := mongodb.NewMockRepository(gomock.NewController(t))
+			if !scenario.readsNoStorage {
+				var document *mongodb.Metadata
+				if scenario.stored != nil {
+					document = &mongodb.Metadata{Data: maps.Clone(scenario.stored)}
+				}
+
+				repo.EXPECT().FindByEntity(gomock.Any(), scenario.entity, "id").Return(document, nil)
+			}
+
+			repo.EXPECT().Update(gomock.Any(), scenario.entity, "id", scenario.want).Return(nil)
+
+			updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), scenario.entity, "id", scenario.sent)
+			require.NoError(t, err)
+			assert.Equal(t, scenario.want, updated)
 		})
 	}
 }
