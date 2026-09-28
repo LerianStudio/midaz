@@ -133,16 +133,16 @@ func TestDecodeKeepsNumericTextOutsideDecimalFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, long, named.Name)
 
-	body := []byte(`{"metadata":{"commit":"12e45678"},"send":{"asset":"BRL","value":"1",` +
-		`"source":{"from":[{"accountAlias":"1E2024","amount":{"asset":"BRL","value":"1"}}]},` +
+	body := []byte(`{"metadata":{"commit":"12e1001"},"send":{"asset":"BRL","value":"1",` +
+		`"source":{"from":[{"accountAlias":"1E1001","amount":{"asset":"BRL","value":"1"}}]},` +
 		`"distribute":{"to":[{"accountAlias":"@b","amount":{"asset":"BRL","value":"1"}}]}}}`)
 
 	var tx mtransaction.Transaction
 
 	_, err = DecodeAndValidate(body, &tx)
 	require.NoError(t, err)
-	require.Equal(t, "12e45678", tx.Metadata["commit"])
-	require.Equal(t, "1E2024", tx.Send.Source.From[0].AccountAlias)
+	require.Equal(t, "12e1001", tx.Metadata["commit"])
+	require.Equal(t, "1E1001", tx.Send.Source.From[0].AccountAlias)
 }
 
 func TestDecodeRefusesKeysLongerThanTheBound(t *testing.T) {
