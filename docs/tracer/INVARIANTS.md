@@ -133,8 +133,7 @@ read-only repeatable-read transaction fetches the participating accounts in one
 snapshot, rejecting missing, deleted or ambiguous records with 0533/503.
 External entries carry their asset code without fictitious accounts. The Ledger
 context coordinator loads these facts after off/skip gates and propagates the
-admission deadline. Bootstrap installs it together with durable recovery when
-`TRACER_CONTEXT_ENABLED=true`. A consistent snapshot does not freeze facts
+admission deadline. Bootstrap installs it when `TRACER_CONTEXT_ENABLED=true`. A consistent snapshot does not freeze facts
 against later updates. Tracer trusts the verified producer's attestation, as for
 Reserve facts; it neither queries nor replicates the Midaz asset registry.
 
@@ -218,7 +217,7 @@ validates verified identity and the content fingerprint before returning a
 detached stored snapshot; it never evaluates current rules or repeats capacity
 or audit writes. Conflicting identity reuse is canonical error `0529` (409).
 Reads use the primary, including the repeated lookup available inside the caller's
-transaction. Parsing/storage bounds must continue to cover recoverable records.
+transaction. Parsing/storage bounds must continue to cover replayable records.
 
 The decision repository only writes through the caller's transaction. The
 reservation use case must combine the decision, capacity and mandatory audit,
@@ -234,14 +233,18 @@ transaction within the tenant database. `ReserveOperationRepository.LockWithTx`
 creates an OPEN marker if absent and holds its row lock until the caller's
 transaction ends. Acquire this lock before account, counter and audit locks,
 then repeat the decision lookup. `CompleteWithTx` records CONFIRMED or RELEASED
-even before the first decision exists. Same-outcome replay preserves the original
-timestamp; a contradictory completion returns canonical error `0530` (409).
-OPEN is not proof that accounting failed: there is no TTL-driven transition.
+even before the first decision exists, or EXPIRED when the reaper closes the
+operation. Same-outcome replay preserves the original timestamp; a contradictory
+completion returns canonical error `0530` (409), including a confirm or release
+that arrives after EXPIRED. OPEN expires by TTL: once the operation's
+reservations pass their expiry, the reaper moves it to EXPIRED. EXPIRED returns
+held capacity; it is not proof that accounting failed.
 
 A database trigger takes the same operation lock before a decision insert and
 rejects an already completed operation with `0530`. This is defense in depth,
 not a substitute for acquiring the lock before capacity/audit work. An existing
-decision remains replayable after completion. Backfill marks old decisions OPEN
+decision remains replayable after a CONFIRMED or RELEASED completion; replaying a
+decision whose operation EXPIRED returns `0530`, because its capacity was returned. Backfill marks old decisions OPEN
 without inferring an accounting outcome. Triggers forbid reopening, rewriting or
 removing completed operations, and migration rollback refuses any operation
 history. Upgrade is atomic; empty rollback fails promptly on active writers.
@@ -250,8 +253,9 @@ The operation repository does not move capacity, write audit or commit. The
 enclosing use case must settle existing decision-owned reservations and append
 mandatory audit in the same transaction as completion. No completion result is
 durable before commit, and an unknown commit result must not be retried blindly.
-Shared Reserve and completion commands compose this repository; the Ledger worker
-retries completion by transaction identity after a durable local outcome.
+Shared Reserve, completion and expiry commands compose this repository; the
+Ledger retries an undelivered completion by transaction identity from memory,
+within a bounded budget.
 
 Migration `000030` adds nullable `decision_id` to `usage_reservations`. Legacy
 rows retain their transaction/limit/scope/period uniqueness through a partial
@@ -260,7 +264,9 @@ requires the decision and reservation transaction IDs to match. A deferred
 constraint trigger requires an ALLOW response naming each owned reservation.
 This permits provisional capacity before the final decision within one transaction
 and rollback to a savepoint for DENY/REVIEW; it cannot commit orphaned capacity.
-Ownership and coordinates are immutable, and new rows cannot expire or be removed.
+Ownership and coordinates are immutable, and rows cannot be removed. A row moves
+from RESERVED to CONFIRMED, RELEASED or EXPIRED only; EXPIRED is reached only
+together with its operation.
 
 `ReserveForDecisionWithTx` inserts and reserves exact positive amounts using the
 existing combined current-plus-reserved guard. Duplicate insertion conflicts;
@@ -271,8 +277,24 @@ the resolved decision's capacity. Identical repeats do not move it again;
 contradictory terminal states conflict. Authentication, operation locking and
 mandatory audit remain responsibilities of the enclosing transaction owner.
 
-Legacy by-ID/by-transaction settlement and the TTL reaper select only rows with
-NULL `decision_id`. Counter cleanup preserves nonzero `reserved_usage`, checking
+Legacy by-ID/by-transaction settlement selects only rows with NULL
+`decision_id`. The TTL reaper selects every RESERVED row past its expiry: a
+legacy row expires alone, while a decision-owned row is grouped by its operation
+and expired through `ExpireReserveOperationCommand`, once per operation. A sweep
+reads at most `RESERVATION_REAPER_BATCH_SIZE` rows (default 500) in
+`(reservation_expires_at, id)` order; the rest wait for a later sweep. After a
+full page the next sweep resumes strictly past its last row, whatever that
+page's outcome; a short page, or an empty page past the resume position, returns
+the walk to the oldest expiry. An operation that fails to expire on every sweep
+(for example a decision above a lowered `CONTEXT_MAX_RULES` or
+`CONTEXT_RESERVE_MAX_RESERVATIONS`) is therefore retried once per pass instead
+of holding the head of every sweep, and newer decision and legacy rows still
+expire. The resume position is per-worker memory; a restart begins again at the
+oldest expiry. The cap may split an operation's rows across sweeps, but the
+operation still expires whole, and the sweep counts the rows the expiry moved,
+so no row is counted twice.
+
+Counter cleanup preserves nonzero `reserved_usage`, checking
 both expiry and held capacity on the DELETE target after a concurrent writer's
 lock wait. This guard also protects legacy holds. It does not reconstruct counters
 already removed by older binaries or prove the outcome of expired legacy holds.
@@ -293,8 +315,8 @@ by integration/transaction without requiring its request ID, querying today's
 policy/settings or re-evaluating limits. Every expected reservation must move;
 missing, duplicate or unrelated capacity aborts the transaction.
 
-Migration `000031` adds RESERVE_OPERATION_CONFIRMED/RELEASED audit events and the
-`reserve_operation` resource type. This distinct resource avoids legacy audit
+Migration `000031` adds RESERVE_OPERATION_CONFIRMED/RELEASED/EXPIRED audit events
+and the `reserve_operation` resource type. This distinct resource avoids legacy audit
 deduplication by transaction ID alone, which would suppress another integration's
 event. The command appends one hash-chained event per first completion, with the
 verified producer, optional evaluation ID and exact before/after reservation
@@ -313,11 +335,18 @@ evaluation ID, while ALLOW without applicable limits still has its evaluation ID
 The shared JSON completion decoder requires an explicit supported revision and
 rejects unknown/duplicate fields; empty legacy bodies are a transport concern.
 
-HTTP/gRPC shared-contract completion and Ledger durable recovery now use this
-command; Ledger recovery requires its runtime to remain enabled.
-The legacy reaper still commits releases separately from its batch audit; waiting
-for its whole cycle in the cadence test is not proof of atomic legacy shutdown.
-New decision-owned reservations never enter that TTL path.
+HTTP/gRPC shared-contract completion uses this command.
+`ExpireReserveOperationCommand` shares its settlement and audit: in one tenant
+transaction it records EXPIRED, returns every reservation the decision holds and
+appends one hash-chained `RESERVE_OPERATION_EXPIRED` event. An operation already
+terminal, including one a completion reached first, is left untouched without
+another event. Decision reservations receive a 5-minute TTL, or
+`RESERVATION_LONG_LIVED_TTL_HOURS` (default 720 hours) when the request sets
+`longLived`. The reaper expires them even when `CONTEXT_RESERVE_ENABLED` is off,
+and it must stay enabled while Reserve is on: `check-integration-profile` rejects
+`RESERVATION_REAPER_ENABLED=false` in that Tracer environment.
+Legacy reaper releases still commit separately from their batch audit; waiting for
+its whole cycle in the cadence test is not proof of atomic legacy shutdown.
 
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.
@@ -357,7 +386,7 @@ resource and POLICY_PUBLISHED/POLICY_BOUND event filters.
 
 These administrative endpoints do not activate context evaluation in Reserve.
 `CONTEXT_RESERVE_ENABLED` independently mounts native mTLS identity, policy
-selection and durable decision coordination on Reserve. Policy administration
+selection and persisted decision coordination on Reserve. Policy administration
 records configuration; admission records the resulting transaction decision.
 
 ### Producer identity for shared-context reservations
@@ -407,9 +436,11 @@ identity source and deployment wiring. No identity header is trusted implicitly.
 ### Context Reserve admission
 
 `ReserveAdmissionCommand` performs authenticated structural validation and primary
-replay before checking freshness or the current policy. A miss opens one tenant
-transaction, locks the operation and checks replay again before rejecting a known
-terminal outcome. Only the winner evaluates the policy and attempts capacity.
+replay before checking freshness or the current policy. A stored decision whose
+content does not match is rejected there; every other request opens one tenant
+transaction, locks the operation and checks replay again. Under the lock a
+matching decision is returned unless its operation EXPIRED, which returns `0530`;
+without a decision, a known terminal outcome is rejected. Only the winner evaluates the policy and attempts capacity.
 Policy resolution uses that same transaction connection, avoiding pool exhaustion
 when every request already owns an operation lock. Immutable compiled programs
 remain shared; mutable bindings and decisions are not cached.
@@ -427,10 +458,11 @@ The resource is `reserve_operation`, so legacy transaction-only audit deduplicat
 cannot discard another integration's event. The result is ALLOW/DENY/REVIEW, with
 fingerprint, policy/binding/rule revisions and reservation handles in audit context.
 Replay does not duplicate audit or capacity, including after known completion,
-policy removal, restart or the timestamp window. Audit/commit failures return no
+policy removal, restart or the timestamp window; after expiry it conflicts instead. Audit/commit failures return no
 successful decision and are never retried internally. Existing completion settles
-the saved handles without reevaluating policy. The reservation expiry column is
-informational for this profile; TTL never proves an accounting outcome.
+the saved handles without reevaluating policy. The reservation expiry column
+drives TTL expiry for this profile; expiry returns capacity but never proves an
+accounting outcome.
 
 The REST and gRPC adapters share this command and the contract codecs. Bootstrap
 is opt-in through `CONTEXT_RESERVE_ENABLED`; body, fact, limit, reservation, CEL
@@ -455,8 +487,8 @@ opposite outcomes conflict. Foreign producer, tenant and legacy reservation IDs
 cannot resolve to a new operation. Empty-revision legacy lifecycle calls retain
 their old individual/transaction semantics and cannot mutate coordinated records.
 
-Shared-contract Ledger HTTP/gRPC clients, transaction coordination, official-facts
-loading and durable recovery are composed under `TRACER_CONTEXT_ENABLED`. Activation
+Shared-contract Ledger HTTP/gRPC clients, transaction coordination and
+official-facts loading are composed under `TRACER_CONTEXT_ENABLED`. Activation
 requires native mTLS and explicit identity/resource configuration; local composition
 does not prove migration or deployment readiness. The old Ledger gRPC Reserve DTO is rejected locally rather than
 inventing missing facts; legacy completion remains available for draining old

@@ -122,7 +122,7 @@ not certify the remote Tracer's version, policies or readiness.
    replicas, verify their readiness and shared Reserve contract, and then enable
    `TRACER_CONTEXT_ENABLED=true` on compatible Ledger replicas. Do not let a legacy
    caller reach the context-enabled reservation route during this transition.
-   Verify completion/recovery and the checker again against the deployed values;
+   Verify completion and the checker again against the deployed values;
    only then resume traffic and move selected ledgers from `off` to `advisory`.
    Restore `enforce` only after the advisory evidence passes its acceptance gates.
    Shared resource keys may use the documented defaults when absent, but the two
@@ -138,16 +138,6 @@ not certify the remote Tracer's version, policies or readiness.
    concurrent account contention, deadlines, restarts and lost acknowledgements.
    Database-only averages do not establish an end-to-end p95/p99. Per-ledger and
    client deadlines both apply; 250 ms is a default budget, not a proven SLO.
-
-   The local process-restart gate kills a test process after the accounting
-   projection is durable but while its obligation is still `EXECUTING`. A fresh
-   process must infer `CONFIRMED` from the primary, deliver it once and leave a
-   third process with no work. Run it with:
-
-   ```bash
-   go test -race -tags integration ./components/ledger/internal/services/command \
-     -run '^TestTracerRecoverySurvivesProcessCrashAfterAccounting$' -count=1
-   ```
 
    The opt-in admission gate uses the existing Tracer architectural references
    (p50 <35 ms, p99 <80 ms and no observation >=100 ms) under its documented
@@ -177,10 +167,11 @@ not certify the remote Tracer's version, policies or readiness.
    incompatibility is intentional and covered by the migration regression. A
    rollout rehearsal must instead prove admission is paused, old replicas are
    zero, migrations finish within the lock bound, only compatible replicas start,
-   and recovery drains before credentials or routing are removed.
+   and every admitted reservation is confirmed, released or expired before
+   credentials or routing are removed.
 
-Ledger's activation verifier checks local composition, including recovery. It
-does not query every remote policy or certify a deployed artifact. The checks
+Ledger's activation verifier checks local composition. It does not query every
+remote policy or certify a deployed artifact. The checks
 above must precede enabling advisory/enforce for a selected ledger. Advisory
 continues accounting after DENY/REVIEW and may consume real capacity: load tests
 must not be replayed against production accounts.
@@ -192,16 +183,15 @@ errors block accounting in every posture. HTTP clients inspect canonical error
 codes before classifying a 503 as unavailability; gRPC policy/configuration errors
 use FailedPrecondition. Existing error classes remain distinct: malformed context
 is 400, oversized messages 413, CEL budget exhaustion 422, and missing trusted
-configuration 503. A 503 response alone does not authorize fail-open. Uncertain
-journal writes continue to block regardless of posture.
+configuration 503. A 503 response alone does not authorize fail-open.
 
-## Observe and recover
+## Observe and complete
 
 ### Resource defaults and alignment
 
 Absent resource variables receive bootstrap defaults, using a shared profile
 for 128 accounts, 512 entries, 256-byte text, 128 integer/significant fractional
-digits, a 1 MiB body and 1024 reservations. Additional CEL/cache/recovery defaults
+digits, a 1 MiB body and 1024 reservations. Additional CEL and cache defaults
 are listed in each `.env.example`. These are technical ceilings, not a currency
 scale, business limit, workload guarantee or measured SLO. Values outside them
 are rejected explicitly, never rounded. In particular, do not choose eight
@@ -223,9 +213,8 @@ The command applies the same shared defaults to absent resource keys and exits
 nonzero when resource profiles differ. A key rendered with an empty value is
 explicit and fails validation; it does not receive the absent-key default. The
 checker also requires both context activation
-flags to be explicitly true, verifies that a Tracer producer binding with the
-`reserve` purpose matches the Ledger `TRACER_INTEGRATION_ID`, and checks
-that recovery can cover the configured transaction batch size.
+flags to be explicitly true and verifies that `CONTEXT_PRODUCER_BINDINGS` holds
+at least one binding with the `reserve` purpose.
 
 Each `CONTEXT_PRODUCER_BINDINGS` entry accepts only `uri`, `integrationId` and
 `purposes`. Tracer refuses to boot when an entry carries any other key, so
@@ -235,39 +224,65 @@ readiness or prove deployed manifests match those files. Run it on the actual
 rendered files in the deployment gate; comparing only examples is not environment
 evidence.
 
-Before setting `TRACER_CONTEXT_ENABLED=false`, stop new admissions and drain
-all obligations while recovery remains enabled. Keep `TRACER_INTEGRATION_ID`
-configured during the disabled boot: it marks that the shared profile was
-previously used and activates the drain guard. Remove it only after the guarded
-boot succeeds. The default configuration and a legacy
-REST-only integration do not query the tenant catalog at boot.
+### Completion
 
-The guard checks the transaction primary for every eligible active tenant and
-refuses to start disabled if an obligation is undelivered or a participating
-database cannot be inspected. Invalid/inactive catalog rows and tenants without
-transaction storage are skipped consistently with the recovery worker. The check
-has a 30-second overall deadline. An absent journal is accepted for installations
-predating the migration. This guard cannot prevent writes from old running pods
-after the check, inspect tenants removed from the active catalog, or protect a
-rollback to a binary without the guard; coordinated drainage remains mandatory.
+The Ledger confirms or releases inline, by transaction ID, once the accounting
+engine answers: a direct APPROVED transaction confirms, a transaction the engine
+provably did not apply releases, and a PENDING transaction keeps its reservation
+until `/v2` commit (confirm) or cancel (release). When admission is rejected after
+Reserve was sent, the Ledger releases by transaction before answering. An engine
+outcome that stays unknown makes no completion call and leaves the reservation to
+the Tracer TTL; for a singular create and for an atomic batch the Ledger also logs
+a Warn naming the transaction. A completion the Tracer does not acknowledge is
+handed to an in-memory retrier with a bounded budget; it never fails the request,
+because accounting has already run. The Ledger keeps no reservation state between
+admission and completion: a process restart loses any retry in flight, and
+graceful shutdown logs the transitions it abandons.
 
-Use `tracer_coordination_total`, `tracer_coordination_duration_ms` and
-`tracer_obligation_age_ms` with their bounded labels. Age observations cover
-claimed records; they do not prove a tenant's complete backlog is empty.
-The following read-only query on each authorized tenant's Ledger transaction
-primary gives a separate backlog check without returning financial payloads:
+Completion goes only through the context client; there is no fallback to the
+legacy client. PENDING transactions created under the legacy contract must reach
+commit or cancel before the context contract is activated on their ledger.
+Otherwise their reservations are left to the Tracer long-lived TTL.
 
-```sql
-SELECT state, count(*) AS outstanding,
-       min(created_at) AS oldest_created_at
-FROM tracer_reservation_obligation
-WHERE delivered_at IS NULL
-GROUP BY state;
-```
+### TTL semantics
 
-An empty result means no undelivered shared obligations in that database at that
-instant. It says nothing about other tenants or legacy holds. For the Tracer
-tenant primary, inspect both ownership classes separately:
+Every decision reservation carries a TTL. A direct transaction's reservation
+expires 5 minutes after admission; a PENDING transaction, which Reserve receives
+with `longLived`, uses `RESERVATION_LONG_LIVED_TTL_HOURS` (default 720 hours).
+The Tracer reaper expires an operation whose reservation passed its TTL without
+a completion: in one tenant transaction it sets `reserve_operations.status` and
+every owned `usage_reservations.status` to `EXPIRED`, returns the held capacity
+and appends one `RESERVE_OPERATION_EXPIRED` audit event. The reaper runs even
+when `CONTEXT_RESERVE_ENABLED=false`, so disabling admission does not strand held
+capacity. A confirm or release that arrives after expiry is answered with `0530`
+(409). The Ledger treats `0530` as terminal and does not retry it. A confirm logs
+one Error naming the transaction and the uncounted spend. A release is already
+settled, because the capacity was returned at expiry, so it is logged at Info
+only. No money moves.
+
+Expiry does not prove that accounting failed. Under `enforce`, a confirm lost for
+longer than the TTL means a transaction that did post frees its limit capacity at
+expiry instead of counting as consumption, so the limit under-enforces by that
+amount. Monitor `RESERVE_OPERATION_EXPIRED` through
+`GET /v1/audit-events?event_type=RESERVE_OPERATION_EXPIRED` and correlate each
+event's transaction with the Ledger: an expired operation whose transaction is
+APPROVED is a lost confirm, while one without an APPROVED transaction is an
+ordinary abandoned hold. The direct TTL is a fixed 5-minute Tracer constant, not
+a setting: before enabling `enforce`, keep the engine's end-to-end p99 under load
+well below 5 minutes.
+
+### Diagnostics
+
+Use `tracer_coordination_total` and `tracer_coordination_duration_ms` with their
+bounded `operation` (`admission`, `confirm`, `release`) and `result` labels. A
+`confirm`/`failed` or `release`/`failed` observation marks an inline completion
+that did not land: a terminal rejection, or a completion handed to the retrier,
+including one skipped inline because admission failed for availability. A
+release answered with `0530` is settled and counts as `delivered`.
+
+For the Tracer tenant primary, inspect both ownership
+classes separately; `EXPIRED` is a terminal class of its own, distinct from
+`CONFIRMED` and `RELEASED`:
 
 ```sql
 SELECT CASE WHEN decision_id IS NULL THEN 'legacy' ELSE 'shared' END AS owner,
@@ -280,64 +295,32 @@ FROM reserve_operations
 GROUP BY status;
 ```
 
-Recovery discovers active tenants from Tenant Manager and resolves a pool per
-cycle. A suspended/deleted tenant cannot be drained through an active-only catalog:
-drain before removal or restore authorized access. Do not change integration ID
-or contract revision while their obligations still need this worker.
-
-Recovery prioritizes due CONFIRMED/RELEASED obligations over unresolved work.
-Attempts are persisted before delivery. Failed or unresolved attempts use bounded
-exponential backoff with jitter (at least the poll interval, capped by
-`TRACER_RECOVERY_MAX_RETRY_INTERVAL_MS`, default 300000 ms). Recording a new
-accounting outcome resets the delay and attempt count. Scheduling uses the claimed
-state and attempt number, so an old worker cannot postpone a newer outcome.
-Transport failures remain retryable; an incompatible owner, contract or malformed
-record is quarantined without changing its outcome or acknowledging delivery.
-Quarantined records still prevent disabling recovery and require intervention:
-
-```sql
-SELECT organization_id, ledger_id, transaction_id, state, recovery_attempts
-FROM tracer_reservation_obligation
-WHERE delivered_at IS NULL AND recovery_quarantined;
-```
-
-Restore the correct producer configuration/compatible worker and investigate the
-record before resuming it. Never edit immutable intent or infer a financial outcome
-from age. An authorized operator can clear `recovery_quarantined` and set
-`next_attempt_at` for the exact inspected primary key in its tenant database.
-Migration 000037 must precede the new worker; use the coordinated maintenance
-window. Its downgrade is blocked to avoid silently discarding quarantine state.
-
-PREPARED can expire only before it acquires accounting dispatch ownership.
-EXECUTING requires authoritative outcome evidence: APPROVED confirms and CANCELED
-releases; missing/PENDING stays unresolved. A lost fence commit can leave an
-EXECUTING obligation without a transaction row. Current automatic recovery does
-not prove that case aborted. Preserve it and investigate engine receipt/recovery
-evidence; do not delete the journal, reset counters or retry accounting.
-
-Atomic-batch refusal also retains protection if checking/cleaning its execution
-identity fails or finds a receipt. That safeguard applies even when the immediate
-engine call returned a refusal. There is no automatic administrative override in
-this delivery that infers an outcome from timeout alone.
+`OPEN` operations are admitted decisions still inside their TTL or awaiting the
+next reaper sweep. `EXPIRED` operations are the ones the TTL closed. Never edit
+immutable decisions or operations, reset counters or retry accounting to change
+these results; a correction is a new explicit Ledger transaction.
 
 ## Stop admission or reverse deployment
 
-Set participating ledgers to mode off to stop new evaluations while keeping the
-runtime, endpoint, credentials and recovery worker available. Let PENDING reach
-its genuine commit/cancel outcome and retry terminal completion until acknowledged.
-Check every tenant and both legacy/shared Tracer ownership classes with admissions
-stopped before removing routing or credentials.
+Mode off stops completion as well as admission: a `/v2` commit or cancel on a
+ledger in mode off sends no confirm or release. Before switching a ledger off,
+let its PENDING transactions reach their commit/cancel outcome through `/v2`
+while the mode is still advisory or enforce, so completion reaches the Tracer;
+a PENDING transaction completed after the switch, like any reservation left
+without a completion, is released only by its TTL. Check
+every tenant and both legacy/shared Tracer ownership classes with admissions
+stopped before removing routing or credentials: no shared operation should
+remain `OPEN` past its TTL.
 
-Do not set `TRACER_CONTEXT_ENABLED=false`, remove the Tracer endpoint or roll back
-to a worker-less binary while shared obligations remain. Recovery must stay
-compatible with stored identity and completion contracts. A forward-compatible
-binary correction is preferable to abandoning stored state.
+Setting `TRACER_CONTEXT_ENABLED=false` or removing the Tracer endpoint stops
+completion calls; the reaper then expires outstanding reservations at their TTL.
+Disable only after PENDING transactions admitted through the shared profile are
+committed or canceled, or accept that their capacity is released at expiry.
 
-An empty backlog does not authorize schema rollback: delivered decision/operation
-and journal history remains immutable, and down migrations may refuse any history,
-including completed records. Never force-drop it to make a rollback succeed.
-Runtime recovery tests and this procedure do not replace a rehearsed deployment
-and reversal in the target environment.
+Delivered decision/operation history remains immutable, and down migrations may
+refuse any history, including completed and expired records. Never force-drop it
+to make a rollback succeed. Runtime tests and this procedure do not replace a
+rehearsed deployment and reversal in the target environment.
 
 ## Business date and admission freshness
 

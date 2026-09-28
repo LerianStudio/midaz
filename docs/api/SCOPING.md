@@ -214,11 +214,10 @@ account body.
 profile, `/v1` completion does not call the reservation seam for a PENDING created
 on `/v2`; its TTL can release capacity instead of recording consumption.
 
-The shared profile persists a separate reservation obligation. Recovery reads the
-transaction outcome and delivers confirm/release even when completion used `/v1`.
-This is asynchronous recovery, not new admission on `/v1`. Decision reservations
-are not released by the TTL reaper. Keep recovery and the original producer identity
-available until all obligations are delivered; unknown/PENDING outcomes retain capacity.
+The shared profile has the same gap: `/v1` commit and cancel make no completion
+call, so a PENDING created on `/v2` and completed on `/v1` keeps its reservation
+until the Tracer TTL (`RESERVATION_LONG_LIVED_TTL_HOURS`, default 720 hours)
+expires it. Expiry releases the capacity; it never counts the consumption.
 
 ### Singular create idempotency applies to both contracts
 

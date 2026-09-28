@@ -27,7 +27,7 @@
 
 ---
 
-For migration, draining and deployment reversal, follow the
+For migration, completion, TTL expiry and deployment reversal, follow the
 [shared reservation rollout procedure](ledger-tracer-rollout.md).
 
 ## Shared-context profile settings
@@ -41,96 +41,84 @@ Combined controls can be configured while `mode=off`. Enabling advisory/enforce
 requires the context integration's activation verifier; absent readiness returns
 canonical `0534`/503 before settings are persisted. Disabling the profile remains
 possible when that verifier is absent. The verifier belongs to the complete
-integration composition, including durable recovery; its presence is not inferred
-from a legacy client or from `/version`. It must perform a local readiness check,
+integration composition; its presence is not inferred from a legacy client or
+from `/version`. It must perform a local readiness check,
 not a financial Reserve probe under the settings database lock.
 
 The shared HTTP/gRPC clients independently reject replies without the expected
 contract revision, transaction identity and completed controls. The legacy anchor
 cannot satisfy `rules-and-limits`: it reports a deterministic contract failure
 and rejects before accounting in every posture, with no fallback Reserve call.
-Bootstrap installs the coordinator, activation verifier and recovery worker together when
+Bootstrap installs the coordinator and activation verifier together when
 `TRACER_CONTEXT_ENABLED=true`; adding the settings field alone does not enable
-the profile. This requires native mTLS, a Tracer producer binding for the
-Ledger's `TRACER_INTEGRATION_ID`, aligned resource bounds and the transaction
-journal migration. Accounts and entries carry the Ledger's stored asset code;
+the profile. This requires native mTLS, a Tracer producer binding with the
+`reserve` purpose for the Ledger's client certificate and aligned resource bounds. Accounts and entries carry the Ledger's stored asset code;
 Tracer limits require codes following the Ledger asset code rule (uppercase
 letters, 1–100) and match them by exact code, so a non-conforming stored code
 is never limited.
 
-The new coordinator is connected to engine-backed v2 creation (including the
+The coordinator is connected to engine-backed v2 creation (including the
 shared revert path, PENDING creation/termination and atomic batches). It projects
-fee-inclusive logical entries, preserves pending
-credit destinations, loads official facts and commits an immutable coordination
-record before Reserve. A separate, exclusive `PREPARED` to `EXECUTING` transition
-must succeed before the engine runs. An uncertain coordination write cannot be
-bypassed by fail-open or advisory; those settings govern validation availability,
-not ownership of accounting dispatch.
+fee-inclusive logical entries, preserves pending credit destinations, loads
+official facts and calls Reserve immediately before the engine runs. It keeps no
+state between admission and completion: nothing is persisted on the Ledger side
+for the reservation.
 
 In enforce, `DENY` retains code `0177`/422; its explanation covers rules and
 usage limits. `REVIEW` returns `0535`/422 and creates neither accounting entries
-nor a pending hold. Advisory observes both decisions. Successful direct execution
-records confirmation for asynchronous delivery; PENDING retains its obligation
-until a terminal accounting outcome is proven. Recovery reads the tenant primary:
-APPROVED confirms, CANCELED releases, and missing/PENDING remains unresolved. It
-never reruns the accounting engine. Off/authorized skip precedes context loading.
+nor a pending hold. Advisory observes both decisions. When admission is rejected
+after Reserve was sent, the Ledger releases by transaction before answering.
+Off/authorized skip precedes context loading.
 
-Recovery runs independently of current ledger settings. In multi-tenant mode it
-discovers active tenants from Tenant Manager, including on a cold restart, and
-resolves the transaction pool for each unit of work. It does not rely on the
-request-populated tenant cache or retain pools across cycles. Catalog size,
-tenants per cycle, claimed rows and cycle/tenant/attempt durations are bounded
-explicitly. Tenants rotate across cycles; a failed tenant does not prevent later
-tenants from being attempted within the remaining cycle budget.
+Completion is inline and addressed by transaction ID. After the engine answers,
+a direct APPROVED transaction confirms and a transaction the engine provably did
+not apply releases; a PENDING transaction confirms on `/v2` commit and releases
+on `/v2` cancel. A ledger in mode off sends no completion, so a PENDING
+transaction committed or canceled after its ledger was switched off is left to
+the TTL. An engine outcome that stays unknown makes no completion call; a
+singular create and an atomic batch also log a Warn naming the transaction. An
+admission that failed for availability skips the inline completion and hands it
+straight to the retrier. Completion goes only through the context client, with
+no fallback to the legacy client, so a PENDING created under the legacy contract
+must be committed or canceled before activation or its reservation is left to the
+TTL. An operation conflict (`0530`, for example a confirm after TTL expiry) or a
+response that contradicts the request is terminal and is not retried: one Error
+log names the transaction and the consequence. A release answered with `0530` is
+already settled and is logged at Info only.
+Any other completion the Tracer does not acknowledge goes to the in-memory retrier
+(`transaction_reservation_retry.go`): bounded attempts, backoff with jitter, a
+wall-clock budget sized just above the direct reservation TTL, and a
+process-wide cap on concurrent sequences. The retrier never blocks the request
+and never fails it, because accounting has already run; a restart loses the
+retries in flight, and graceful shutdown logs the ones it abandons.
 
-Suspended/removed tenants are not discoverable through the active catalog: drain
-their obligations before removal, or restore authorized access for recovery.
-Setting ledger mode off stops new admission but preserves recovery; globally
-disabling this runtime, removing its endpoint, or rolling back to a binary without
-the journal worker does not. Drain obligations before those operations. Unknown
-accounting outcomes remain unresolved until authoritative evidence exists; neither
-TTL nor a missing transaction row authorizes releasing an executing obligation.
-Runtime construction tests are not proof of a completed production rollout.
+The Tracer TTL is the backstop for every completion the Ledger does not deliver.
+A direct reservation expires after 5 minutes; a PENDING one, sent with
+`longLived`, after `RESERVATION_LONG_LIVED_TTL_HOURS` (default 720 hours). The
+Tracer reaper then marks the operation and its reservations `EXPIRED`, returns
+the held capacity and appends one `RESERVE_OPERATION_EXPIRED` audit event; a
+later confirm or release answers `0530`. Expiry does not prove that accounting
+failed, so under `enforce` a lost confirm frees limit capacity at expiry. Runtime
+construction tests are not proof of a completed production rollout.
 
 ### Coordination diagnostics
 
 The shared Ledger path emits `tracer_coordination_total` and
 `tracer_coordination_duration_ms` through the existing metrics factory. Labels
-are restricted to `operation` (`admission`, `confirm`, `release`, `recovery`) and
-`result` (`allow`, `deny`, `review`, `fail_open`, `unavailable`, `context_invalid`,
-`coordination_uncertain`, `delivered`, `failed`, `unresolved`); unexpected labels
-become `unknown`. No account, asset, transaction, policy, amount or error text is
-attached as an application metric label.
+are restricted to `operation` (`admission`, `confirm`, `release`) and `result`
+(`allow`, `deny`, `review`, `fail_open`, `unavailable`, `context_invalid`,
+`delivered`, `failed`); unexpected labels become `unknown`. No account, asset,
+transaction, policy, amount or error text is attached as an application metric
+label.
 
-Admission duration includes logical projection, official facts, journal creation
-and Reserve. It excludes accounting execution. DENY/REVIEW measure the Tracer
-decision even in advisory mode; `fail_open` measures an admission error that the
-Ledger permits through, including advisory availability failures. Uncertain
-journal ownership is counted separately and still prevents dispatch. Off and
-honored skip produce no admission metric or downstream call.
-
-`tracer_obligation_age_ms` observes time since durable creation for each claimed
-record, using only the bounded state label. It is a sampled age distribution,
-not the age of every outstanding obligation; future/missing timestamps are omitted.
-
-Recovery metrics count attempts per claimed obligation, not unique transactions
-or backlog size. Repeated remote success followed by a lost local acknowledgement
-is reported as failed until a later attempt durably acknowledges delivery. Use
-`recovery/unresolved` to observe missing accounting evidence; do not infer that
-such obligations are safe to release. Discovery/claim failures appear on worker
-spans and its single warning boundary; they do not fabricate per-record metrics.
-
-The journal survives lost replies and process restarts, including acknowledgements
-lost after remote success. Claimed recovery work contains bounded scalar identities,
-so lowering admission payload limits does not strand existing obligations. Its
-migration refuses rollback while any coordination history remains. Atomic batches
-share a preparation deadline and acquire every dispatch fence in one SQL transaction
-with deterministic lock order. Failure or an unknown commit never dispatches a
-partial batch. Pending termination consults create-time coordination independently
-of current settings; only proven absence permits a legacy completion call, and a
-lookup failure retains recovery ownership instead of falling back. Installing the
-independent worker and validating the combined deployment remain prerequisites
-for activation.
+Admission duration includes logical projection, official facts and Reserve. It
+excludes accounting execution. DENY/REVIEW measure the Tracer decision even in
+advisory mode; `fail_open` measures an admission error that the Ledger permits
+through, including advisory availability failures. Off and honored skip produce
+no admission metric or downstream call. Completion metrics measure the inline
+attempt only: `failed` means the transition was handed to the retrier or
+rejected as terminal, which the Error log distinguishes. Track expiries on the Tracer through `RESERVE_OPERATION_EXPIRED`
+audit events.
 
 ## 1. Product segregation matrix
 
@@ -222,19 +210,19 @@ collapsing the two into one failure/scale unit.
   the status read under the lock, so re-delivering a confirm whose response was lost moves no counter
   twice.
 
-  The budget deliberately outlasts the tracer's own five-minute hold, because a confirm that arrives
-  after the hold expired is still worth delivering — the tracer counts the spend without disturbing
-  the capacity its expiry sweep already returned.
+  The budget deliberately outlasts the tracer's own five-minute hold. On the legacy profile a
+  confirm that arrives after the hold expired is still worth delivering — the tracer counts the spend
+  without disturbing the capacity its expiry sweep already returned. On the shared context profile
+  the expiry is terminal: the operation is `EXPIRED` and a late confirm or release answers `0530` on
+  every attempt, so the spend is never counted.
 
   Two failures remain and both are reported at Error naming the transaction, the reservation and the
   amount: a sequence that exhausts its budget, and a transition turned away because the concurrency
-  cap is full. The expiry sweep is no longer the durability story for a confirm; it is the backstop
-  for the CAPACITY only, and it returns capacity without ever counting the spend.
+  cap is full. The expiry sweep is the backstop for the CAPACITY only, and it returns capacity
+  without ever counting the spend.
 
-  Residual, and deliberately not solved here: the retry is in-process, so a ledger restart with
-  sequences in flight loses them. Closing that needs durable state for the pending transition (the
-  `outbox` primitives in lib-commons, or reservation state on the transaction row) plus a sweeper —
-  a persistence decision, not a defect fix.
+  The retry is in-process, so a ledger restart with sequences in flight loses them; the Tracer TTL
+  then returns their capacity at expiry.
 
 Net: the tracer can stay a small replica set and tolerate occasional saturation on the post-commit path,
 while the pre-commit reserve path is the only latency-sensitive RPC — which is what co-scheduling (§2)
@@ -432,7 +420,7 @@ truth for their **existence and semantics**.
 |---|---|---|---|
 | `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration; empty → disabled | `config.go:285-304, 1548-1554` |
 | `TRACER_TRANSPORT` | ledger | `grpc`\|`rest`; empty → `grpc` | `config.go:294-297, 1569-1588` |
-| `TRACER_TIMEOUT_MS` | ledger | shared admission cap (facts, journal and Reserve); client RPC cap | bootstrap context configuration and client |
+| `TRACER_TIMEOUT_MS` | ledger | shared admission cap (facts and Reserve); client RPC cap | bootstrap context configuration and client |
 | `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `config.go:298-303` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `tls_seam.go:67-77` |
 | `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `config.go:310`, `tls_seam.go:87-90` |
@@ -443,7 +431,7 @@ truth for their **existence and semantics**.
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example:283-292` |
 
 The Ledger and Tracer `.env.example` files expose the transport and mTLS
-variables. The Ledger template additionally lists the shared coordinator/recovery
+variables. The Ledger template additionally lists the shared coordinator
 settings; the Tracer template lists producer bindings and shared Reserve budgets.
 The shared reservation profile requires native mTLS even though older seam
 configuration also supports mesh mode. Absent resource keys use the shared technical
@@ -452,7 +440,7 @@ measure the chosen values before enabling the profile; they are not workload SLO
 
 Official fact loading uses a local deadline bounded by the per-ledger `timeoutMs`
 and global `TRACER_TIMEOUT_MS` cap. A local fact timeout is a deterministic facts
-failure and never follows the remote fail posture. After facts load, journal
-persistence and Reserve receive a fresh admission deadline with the same bound;
-the caller deadline still caps the whole operation. Completion and recovery retain
-their separate operational timeout.
+failure and never follows the remote fail posture. After facts load, Reserve
+receives a fresh admission deadline with the same bound; the caller deadline
+still caps the whole operation. Completion ignores the caller's cancellation and
+is bounded by the per-ledger `timeoutMs` instead.
