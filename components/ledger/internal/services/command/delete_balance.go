@@ -112,6 +112,12 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		if err = uc.refuseCachedBalanceFunds(ctx, span, logger, organizationID, ledgerID, balance); err != nil {
 			return err
 		}
+
+		if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, []*mmodel.Balance{balance}); err != nil {
+			recordCommandError(ctx, span, logger, "Balance cannot be deleted while it owes pending fees", err)
+
+			return err
+		}
 	}
 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
@@ -179,6 +185,29 @@ func (uc *UseCase) refuseCachedBalanceFunds(ctx context.Context, span trace.Span
 			logger.Log(ctx, libLog.LevelWarn, "Error deleting balance", libLog.Err(err))
 
 			return err
+		}
+	}
+
+	return nil
+}
+
+// refuseOpenFeeDebt refuses the delete when any balance still owes a deferred fee. Callers
+// hold the balances' delete markers, which the engine honors on every posting that could
+// open a debt, so the answer cannot go stale before the delete commits.
+func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	refs := make([]string, 0, len(balances))
+	for _, balance := range balances {
+		refs = append(refs, balance.Alias+"#"+balance.Key)
+	}
+
+	debts, err := uc.TransactionReader.GetFeeDebtSeeds(ctx, organizationID, ledgerID, refs)
+	if err != nil {
+		return fmt.Errorf("failed to read balance fee debts: %w", err)
+	}
+
+	for _, ref := range refs {
+		if len(debts[ref]) > 0 {
+			return pkg.ValidateBusinessError(constant.ErrBalanceHasOpenFeeDebt, constant.EntityBalance)
 		}
 	}
 

@@ -55,6 +55,7 @@ func newProtectionMocks(t *testing.T) *protectionMocks {
 		BalanceRepo:          mocks.balance,
 		AccountRepo:          mocks.account,
 		TransactionRedisRepo: mocks.redis,
+		TransactionReader:    &feeDebtReader{},
 	}
 
 	return mocks
