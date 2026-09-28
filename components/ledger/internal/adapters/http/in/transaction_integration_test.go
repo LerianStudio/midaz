@@ -2343,14 +2343,14 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	t.Logf("Idempotency replay test passed: transaction %s, balance %s", txID.String(), sourceBalance.String())
 }
 
-// TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerBody is the
-// runtime proof that the Redis-backed idempotency replay returns the FIRST
-// transaction's outcome regardless of what the replayer sent: the second request
-// carries a DIFFERENT description under the same key and is answered with the first
-// transaction, not a second one built from its own body.
+// TestIntegration_TransactionHandler_IdempotencyKeyReusedWithAnotherBodyConflicts is
+// the runtime proof that a replayer cannot push a different body through a key
+// another request already owns: the second request carries a DIFFERENT description
+// under the same key and is answered 409 0084, neither replayed as the first
+// transaction nor posted as a second one.
 //
 // The persisted audit columns are asserted alongside the response because they are the
-// durable half of the same claim: the replay writes nothing, so fees_skipped and
+// durable half of the same claim: the conflict writes nothing, so fees_skipped and
 // tracer_skipped stay exactly as the first outcome left them.
 //
 // The per-call skip controls are NOT exercised here: they live on the /v2 create input
@@ -2358,7 +2358,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 // TestCreateTransactionV2_SkipWithoutOptInRejects and
 // TestCreateTransactionV2_SkipWithOptInProceeds in services/command, and the input
 // scoping by TestV1CreateRejectsSkipAsUnknownField / TestV2CreateAcceptsSkip.
-func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerBody(t *testing.T) {
+func TestIntegration_TransactionHandler_IdempotencyKeyReusedWithAnotherBodyConflicts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -2441,8 +2441,9 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerBody(t 
 	// feesSkipped is withheld from the /v1 body (v2-only audit flag); the persisted
 	// audit state is asserted against the DB columns below.
 
-	// Wait for the async goroutine to write the idempotency outcome to Redis.
-	time.Sleep(200 * time.Millisecond)
+	// Wait for the first outcome to be stored, so the conflict below comes from the
+	// stored request and not from the in-flight placeholder.
+	waitForIdempotencyStored(t, context.Background(), infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
 	// Second POST: same key, different body.
 	req2 := httptest.NewRequest("POST",
@@ -2458,23 +2459,14 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerBody(t 
 	body2, err := io.ReadAll(resp2.Body)
 	require.NoError(t, err, "should read second response body")
 
-	// MANDATORY assertion: the replay returns the FIRST outcome; the replayer's
-	// differing body is IGNORED.
-	require.Equal(t, 201, resp2.StatusCode,
-		"replay must return 201 (first outcome); got %d: %s",
+	// MANDATORY assertion: the replayer's differing body is refused, not replayed.
+	require.Equal(t, 409, resp2.StatusCode,
+		"a reused key with a different body must conflict; got %d: %s",
 		resp2.StatusCode, string(body2))
+	requireProblemCode(t, body2, "0084")
 
-	replayed2 := resp2.Header.Get("X-Idempotency-Replayed")
-	assert.Equal(t, "true", replayed2,
-		"second request should be flagged as a replay, got %q", replayed2)
-
-	var result2 map[string]any
-	require.NoError(t, json.Unmarshal(body2, &result2), "second response should be valid JSON")
-
-	assert.Equal(t, result1["id"], result2["id"],
-		"replay must return the same transaction id as the first request")
-	assert.Equal(t, "first", result2["description"],
-		"replay must return the FIRST body's description, not the replayer's")
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"the conflicting request must not post a second transaction")
 
 	// Confirm the persisted audit state is the first outcome (fees_skipped=false).
 	txID, err := uuid.Parse(result1["id"].(string))

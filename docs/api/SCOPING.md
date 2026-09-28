@@ -217,6 +217,34 @@ reservation seam: the reservation stays RESERVED until the TTL reaper releases i
 committed amount is never counted against the usage limit. Commit and cancel a transaction on the
 same contract that created it. Closing this needs create-time reservation state persisted on the
 transaction row for the `/v1` pipeline to read.
+
+### Singular create idempotency applies to both contracts
+
+A singular create on `/v1` or `/v2` stores a fingerprint of the request next to the
+transaction in its idempotency slot. A later request that reuses the slot replays the stored
+transaction (`X-Idempotency-Replayed: true`) only when its fingerprint matches; a different
+request under the same key answers `0084` (HTTP 409) and posts nothing. The effective key of a
+request without `X-Idempotency` is unchanged, so a retry that straddles a deploy still finds its
+original slot, and a slot written before fingerprints existed keeps replaying until its TTL
+(default 300 s, `X-TTL` up to 604800 s) runs out.
+
+- **`/v2`** fingerprints the body canonically (whitespace and property order ignored) together
+  with the action, so direct, hold, block, and unblock never replay one another.
+- **`/v1`** fingerprints the canonical transaction together with its status and operation-type
+  override. `json`, `annotation`, `block`, and `unblock` accept the same body, so a byte-identical
+  body posted to two of them within the TTL answers `0084` even without a key.
+- **`/v1` and `/v2`** fingerprints never match each other, so one key cannot cross versions.
+
+`RevertTransactionV1` and `RevertTransactionV2` go through the same check. A revert sends no
+idempotency key, so its slot is still keyed on the reversal hash and is not scoped by origin. Its
+fingerprint is derived the way `/v1`'s is, from the reversal with status `CREATED` and no override.
+A matching fingerprint replays the stored reversal, so two reverts that share a slot still replay
+each other. A differing fingerprint answers `0084` (HTTP 409); that happens only when the slot was
+created by another kind of request with the same serialized reversal, such as a `/v1` annotation.
+The atomic batch and the cross-ledger request keep their own fingerprint rules; see
+[Atomic transaction batch](atomic-transaction-batch.md) and
+[Cross-ledger transactions](cross-ledger-transactions.md).
+
 ## The holder seam is `/v2`-only
 
 The same contract-versus-scope split applies to accounts. The **holder seam** on account create —

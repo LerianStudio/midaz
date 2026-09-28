@@ -29,6 +29,26 @@ func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, ove
 	return libCommons.StructToJSONString(transactionInput)
 }
 
+// derivedRequestFingerprintDomain separates fingerprints derived from the decoded
+// transaction from the ones the /v2 transport computes over the canonical body.
+const derivedRequestFingerprintDomain = "midaz.transaction.request.input" + IdempotencyDiscriminatorSep
+
+// deriveTransactionRequestFingerprint identifies a request by its canonical
+// serialized transaction plus the two inputs the serialization leaves out: the
+// status (NOTED marks an annotation) and the operation-type override (BLOCK,
+// UNBLOCK). Without them, modes that accept the same body would share an identity.
+func deriveTransactionRequestFingerprint(transactionInput mtransaction.Transaction, status string) (string, error) {
+	canonical, err := libCommons.StructToJSONString(transactionInput)
+	if err != nil {
+		return "", err
+	}
+
+	return libCommons.HashSHA256(derivedRequestFingerprintDomain +
+		status + IdempotencyDiscriminatorSep +
+		transactionInput.OperationTypeOverride + IdempotencyDiscriminatorSep +
+		canonical), nil
+}
+
 // resolveTransactionSkips resolves the two per-call control skips (fees, tracer)
 // off the already-read ledger settings, with no extra I/O. Each skip is honored
 // only when the request asks for it AND the ledger opts in via its override; a
