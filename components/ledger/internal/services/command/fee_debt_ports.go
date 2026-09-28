@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
@@ -29,4 +30,15 @@ type FeeDebtRecord struct {
 // Kind), so replays and out-of-order completions converge.
 type FeeDebtRecorder interface {
 	Apply(ctx context.Context, record FeeDebtRecord) error
+}
+
+// FeeDebtOpening is one element of the feeDebtOpenings transaction metadata, written
+// by completion from the result's opened changes in their order. A revert of that
+// transaction turns each into an accounting.FeeDebtRefund of the refund posting.
+type FeeDebtOpening struct {
+	DebtID    string          `json:"debtId"`
+	DebtorRef string          `json:"debtorRef"`
+	CreditRef string          `json:"creditRef"`
+	Opened    decimal.Decimal `json:"opened"`
+	Seq       int64           `json:"seq,string"`
 }

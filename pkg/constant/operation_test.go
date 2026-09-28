@@ -15,6 +15,7 @@ func TestBlockUnblockOperationTypes(t *testing.T) {
 		{name: "BLOCK", got: BLOCK, want: "BLOCK"},
 		{name: "UNBLOCK", got: UNBLOCK, want: "UNBLOCK"},
 		{name: "FEE_SETTLEMENT", got: FEE_SETTLEMENT, want: "FEE_SETTLEMENT"},
+		{name: "FEE_REFUND", got: FEE_REFUND, want: "FEE_REFUND"},
 	}
 
 	for _, tt := range tests {

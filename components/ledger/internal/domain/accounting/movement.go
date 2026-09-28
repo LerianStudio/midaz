@@ -19,6 +19,11 @@ const (
 	// RoleFeeDebtCredit is a collect posting's movement on one settled debt's creditor;
 	// its ordinal is the debt's index in the posting's Items.
 	RoleFeeDebtCredit = "fee_debt_credit"
+	// RoleFeeDebtRefundCredit is a refund posting's one movement on its debtor (ordinal 0).
+	RoleFeeDebtRefundCredit = "fee_debt_refund_credit"
+	// RoleFeeDebtRefundDebit is a refund posting's movement on one entry's creditor;
+	// its ordinal is the entry's index in the posting's Refunds.
+	RoleFeeDebtRefundDebit = "fee_debt_refund_debit"
 )
 
 // FeeDebtChangeKind names how a change moved a debt's remaining amount.
@@ -29,11 +34,12 @@ const (
 	FeeDebtSettled  FeeDebtChangeKind = "settled"
 	FeeDebtCanceled FeeDebtChangeKind = "canceled"
 	FeeDebtReopened FeeDebtChangeKind = "reopened"
+	FeeDebtRefunded FeeDebtChangeKind = "refunded"
 )
 
-// FeeDebtChange is one applied change to one debt, in the debtor's (transaction)
-// scope. Amount is positive; remaining = opened - settled - canceled + reopened.
-// PostingRef is empty for canceled and reopened changes.
+// FeeDebtChange is one applied change to one debt, in the debtor's (transaction) scope.
+// Amount is positive; remaining = opened - settled - canceled + reopened, and refunded
+// only returns money. Canceled and reopened changes carry no PostingRef.
 type FeeDebtChange struct {
 	TransactionID       uuid.UUID         `json:"transactionId"`
 	PostingRef          string            `json:"postingRef"`

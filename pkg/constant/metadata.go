@@ -26,12 +26,17 @@ const MetadataKeyFeeDeferPair = "feeDeferPair"
 // (alias#key) whose debt that row settled.
 const MetadataKeyFeeDebtDebtor = "feeDebtDebtor"
 
-// MetadataKeyFeeDebtID and MetadataKeyFeeDebtSeq name, on the same row, the settled
-// debt's id and its seq as a decimal integer string.
+// MetadataKeyFeeDebtID, MetadataKeyFeeDebtSeq and MetadataKeyFeeDebtOpened name, on the
+// same row, the settled debt's id, its seq and its opened amount, as text.
 const (
-	MetadataKeyFeeDebtID  = "feeDebtId"
-	MetadataKeyFeeDebtSeq = "feeDebtSeq"
+	MetadataKeyFeeDebtID     = "feeDebtId"
+	MetadataKeyFeeDebtSeq    = "feeDebtSeq"
+	MetadataKeyFeeDebtOpened = "feeDebtOpened"
 )
+
+// MetadataKeyFeeDebtOpenings holds, on a transaction that opened fee debts, the JSON
+// array of those debts in opening order; a revert of it refunds them.
+const MetadataKeyFeeDebtOpenings = "feeDebtOpenings"
 
 // MetadataKeyFeeDebtCollection marks, with the string true, a transaction created by a
 // standalone fee-debt collection.
@@ -50,18 +55,18 @@ const MetadataKeyFeeDebtCollection = "feeDebtCollection"
 // its own word about a record, which is what makes a caller-written copy a lie rather than a
 // collision.
 //
-// Nine keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. Three are the
+// Eleven keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. Three are the
 // transaction-level statements the fee engine writes about a charge: whether a fee was actually
 // charged, which fee package the engine applied, and which exemption it recorded. They are spelled
 // literally here because the wire spelling is the contract a client reads, and this refusal has to
 // match what the client can send rather than what the engine happens to name its writes. The last
-// five are the fee-debt marks: the deferrable pair, the collection marker, and the debtor, id and
-// seq of the debt a settlement row settled.
+// seven are the fee-debt marks: the deferrable pair, the collection marker, the debts a transaction
+// opened, and the debtor, id, seq and opened amount of the debt a settlement row settled.
 func IsReservedMetadataKey(key string) bool {
 	switch key {
 	case MetadataKeyFeeLeg, "feeApplied", "packageAppliedID", "feeExemption",
 		MetadataKeyFeeDeferPair, MetadataKeyFeeDebtDebtor, MetadataKeyFeeDebtID, MetadataKeyFeeDebtSeq,
-		MetadataKeyFeeDebtCollection:
+		MetadataKeyFeeDebtOpened, MetadataKeyFeeDebtOpenings, MetadataKeyFeeDebtCollection:
 		return true
 	default:
 		return false

@@ -51,6 +51,7 @@ type FeeDebtItem struct {
 	ID                  string          `json:"id"`
 	CreditRef           string          `json:"creditRef"`
 	Remaining           decimal.Decimal `json:"remaining"`
+	Opened              decimal.Decimal `json:"opened"`
 	OriginTransactionID uuid.UUID       `json:"originTransactionId"`
 	Seq                 int64           `json:"seq,string"`
 	AssetCode           string          `json:"assetCode"`

@@ -129,9 +129,9 @@ func TestContractVocabulary(t *testing.T) {
 	postings := map[PostingType]string{
 		PostingDebit: "debit", PostingCredit: "credit", PostingReserve: "reserve",
 		PostingUnreserve: "unreserve", PostingHold: "hold", PostingRelease: "release",
-		PostingCollect: "collect",
+		PostingCollect: "collect", PostingRefund: "refund",
 	}
-	if len(postings) != 7 {
+	if len(postings) != 8 {
 		t.Fatal("posting types must remain distinct")
 	}
 	for got, want := range postings {
@@ -151,11 +151,16 @@ func TestContractVocabulary(t *testing.T) {
 		}
 	}
 	if RolePrimary != "primary" || RoleOverdraftCompanion != "overdraft_companion" ||
-		RoleFeeDebtDebit != "fee_debt_debit" || RoleFeeDebtCredit != "fee_debt_credit" {
+		RoleFeeDebtDebit != "fee_debt_debit" || RoleFeeDebtCredit != "fee_debt_credit" ||
+		RoleFeeDebtRefundCredit != "fee_debt_refund_credit" || RoleFeeDebtRefundDebit != "fee_debt_refund_debit" {
 		t.Fatal("movement roles changed")
 	}
 	kinds := map[FeeDebtChangeKind]string{
 		FeeDebtOpened: "opened", FeeDebtSettled: "settled", FeeDebtCanceled: "canceled", FeeDebtReopened: "reopened",
+		FeeDebtRefunded: "refunded",
+	}
+	if len(kinds) != 5 {
+		t.Fatal("fee debt change kinds must remain distinct")
 	}
 	for got, want := range kinds {
 		if string(got) != want {
@@ -221,20 +226,24 @@ func TestFeeDebtRequestContractShape(t *testing.T) {
 			{Ref: "fee-debit", BalanceRef: "@payer#default", Type: PostingDebit, Amount: decimal.NewFromInt(100), DrawPolicy: DrawForbidden, DeferShortfall: true},
 			{Ref: "fee-credit", BalanceRef: "@fees#default", Type: PostingCredit, Amount: decimal.NewFromInt(100), DrawPolicy: DrawForbidden, FundedByRef: "fee-debit"},
 			{Ref: "fee-credit:collect", BalanceRef: "@payer#default", Type: PostingCollect, Amount: decimal.NewFromInt(200), DrawPolicy: DrawForbidden, Items: []string{origin.String() + ":fee-debit"}},
+			{Ref: "refund:0", BalanceRef: "@payer#default", Type: PostingRefund, Amount: decimal.NewFromInt(70), DrawPolicy: DrawForbidden, Refunds: []FeeDebtRefund{{
+				DebtID: origin.String() + ":fee-debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3,
+			}}},
 		},
 		FeeDebtRefs: []string{"@payer#default"},
 		ReopenFeeDebts: []FeeDebtReopen{{
 			DebtID: origin.String() + ":fee-debit", OriginTransactionID: origin, DebtorRef: "@payer#default",
-			CreditRef: "@fees#default", Amount: decimal.RequireFromString("12.5"), Seq: 7,
+			CreditRef: "@fees#default", Amount: decimal.RequireFromString("12.5"), Opened: decimal.NewFromInt(70), Seq: 7,
 		}},
 	}
 
 	want := `{"organizationId":"139c4166-2139-4f17-b282-fba78e8c4c2a","ledgerId":"c029e784-535d-4554-aae3-65b6e713687f","id":"1a2cf884-cf82-4520-9833-07d85c73bc14","rejectBlockedBalances":false,"balanceRequirements":null,"postings":[` +
 		`{"ref":"fee-debit","balanceRef":"@payer#default","type":"debit","amount":"100","drawPolicy":"forbidden","overdraftAmount":"0","deferShortfall":true},` +
 		`{"ref":"fee-credit","balanceRef":"@fees#default","type":"credit","amount":"100","drawPolicy":"forbidden","overdraftAmount":"0","fundedByRef":"fee-debit"},` +
-		`{"ref":"fee-credit:collect","balanceRef":"@payer#default","type":"collect","amount":"200","drawPolicy":"forbidden","overdraftAmount":"0","items":["6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit"]}],` +
+		`{"ref":"fee-credit:collect","balanceRef":"@payer#default","type":"collect","amount":"200","drawPolicy":"forbidden","overdraftAmount":"0","items":["6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit"]},` +
+		`{"ref":"refund:0","balanceRef":"@payer#default","type":"refund","amount":"70","drawPolicy":"forbidden","overdraftAmount":"0","refunds":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","creditRef":"@fees#default","opened":"70","seq":"3"}]}],` +
 		`"feeDebtRefs":["@payer#default"],` +
-		`"reopenFeeDebts":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","originTransactionId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe","debtorRef":"@payer#default","creditRef":"@fees#default","amount":"12.5","seq":"7"}]}`
+		`"reopenFeeDebts":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","originTransactionId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe","debtorRef":"@payer#default","creditRef":"@fees#default","amount":"12.5","opened":"70","seq":"7"}]}`
 	assertContractJSON(t, transaction, want)
 
 	plain := Posting{Ref: "debit", BalanceRef: "@payer#default", Type: PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: DrawAllowed}
@@ -257,10 +266,10 @@ func TestFeeDebtResultContractShape(t *testing.T) {
 	assertContractJSON(t, ExecutionResult{Movements: []Movement{}, Final: []BalanceSnapshot{}, FeeDebt: []FeeDebtChange{}}, `{"movements":[],"final":[]}`)
 
 	item := FeeDebtItem{
-		ID: change.DebtID, CreditRef: "@fees#default", Remaining: decimal.NewFromInt(70),
+		ID: change.DebtID, CreditRef: "@fees#default", Remaining: decimal.NewFromInt(70), Opened: decimal.NewFromInt(100),
 		OriginTransactionID: change.OriginTransactionID, Seq: 3, AssetCode: "BRL",
 	}
-	assertContractJSON(t, item, `{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default","remaining":"70",`+
+	assertContractJSON(t, item, `{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default","remaining":"70","opened":"100",`+
 		`"originTransactionId":"1a2cf884-cf82-4520-9833-07d85c73bc14","seq":"3","assetCode":"BRL"}`)
 }
 

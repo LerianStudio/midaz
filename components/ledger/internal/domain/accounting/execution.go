@@ -53,6 +53,7 @@ type FeeDebtReopen struct {
 	DebtorRef           string          `json:"debtorRef"`
 	CreditRef           string          `json:"creditRef"`
 	Amount              decimal.Decimal `json:"amount"`
+	Opened              decimal.Decimal `json:"opened"`
 	Seq                 int64           `json:"seq,string"`
 }
 
