@@ -28771,6 +28771,9 @@
             "maxLength": 256,
             "type": "string"
           },
+          "annualGrossRevenue": {
+            "$ref": "#/components/schemas/MonetaryAmount"
+          },
           "foundingDate": {
             "examples": [
               "2025-01-01"
@@ -28794,6 +28797,9 @@
             ],
             "maxLength": 100,
             "type": "string"
+          },
+          "totalAssets": {
+            "$ref": "#/components/schemas/MonetaryAmount"
           },
           "tradeName": {
             "examples": [
@@ -28872,6 +28878,38 @@
         ],
         "type": "object"
       },
+      "MonetaryAmount": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "examples": [
+              "BRL"
+            ],
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "referenceDate": {
+            "examples": [
+              "2026-06-30"
+            ],
+            "format": "date",
+            "type": "string"
+          },
+          "value": {
+            "examples": [
+              "12500.50"
+            ],
+            "pattern": "^[0-9]{1,20}(\\.[0-9]{1,10})?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "currency",
+          "referenceDate"
+        ],
+        "type": "object"
+      },
       "NaturalPerson": {
         "additionalProperties": false,
         "properties": {
@@ -28909,6 +28947,9 @@
             ],
             "maxLength": 100,
             "type": "string"
+          },
+          "monthlyGrossIncome": {
+            "$ref": "#/components/schemas/MonetaryAmount"
           },
           "motherName": {
             "examples": [

@@ -96,7 +96,7 @@ func initCRMMultiTenant(opts *Options, cfg *Config, metricsFactory *metrics.Metr
 		return nil, err
 	}
 
-	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, instrumentRepo)
+	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, instrumentRepo, crmEnc.fieldEncryptor)
 
 	return &crmComponents{
 		encryption:        crmEnc,
@@ -149,7 +149,7 @@ func initCRMSingleTenant(multiTenantEnabled bool, cfg *Config, metricsFactory *m
 		return nil, err
 	}
 
-	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, instrumentRepo)
+	holderHandler, instrumentHandler := buildCRMHandlers(holderRepo, instrumentRepo, crmEnc.fieldEncryptor)
 
 	return &crmComponents{
 		connection:        mongoConnection,
@@ -239,10 +239,11 @@ func buildCRMRepositories(connection *libMongo.Client, fieldEncryptor encryption
 }
 
 // buildCRMHandlers assembles the CRM use cases and HTTP handlers.
-func buildCRMHandlers(holderRepo *holder.MongoDBRepository, instrumentRepo *instrument.MongoDBRepository) (*httpin.HolderHandler, *httpin.InstrumentHandler) {
+func buildCRMHandlers(holderRepo *holder.MongoDBRepository, instrumentRepo *instrument.MongoDBRepository, fieldEncryptor encryption.FieldEncryptor) (*httpin.HolderHandler, *httpin.InstrumentHandler) {
 	useCases := &crmservices.UseCase{
 		HolderRepo:     holderRepo,
 		InstrumentRepo: instrumentRepo,
+		Encryptor:      fieldEncryptor,
 	}
 
 	return &httpin.HolderHandler{Service: useCases}, &httpin.InstrumentHandler{Service: useCases}

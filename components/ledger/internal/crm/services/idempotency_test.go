@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +67,18 @@ func (f *fakeIdempotencyRepo) Set(_ context.Context, key, value string, _ time.D
 	return nil
 }
 
+// newTestReplayEncryptor is the production legacy-mode field encryptor (KMS_VENDOR=none).
+func newTestReplayEncryptor(t *testing.T) encryption.FieldEncryptor {
+	t.Helper()
+
+	metrics := encryption.NewProtectionMetrics(nil)
+	resolver := encryption.NewProtectionStateResolver(nil, metrics)
+
+	return encryption.NewFieldEncryptorAdapter(encryption.NewEncryptionService(resolver, nil, nil, testutils.SetupCrypto(t), metrics))
+}
+
 const (
+	testIdempotencyOrg  = "org-1"
 	testIdempotencyKey  = "idempotency:crm:holder:org-1:key-1"
 	testIdempotencyHash = "hash-1"
 	testIdempotencyTTL  = 300 * time.Second
@@ -74,7 +87,7 @@ const (
 func TestCreateOrCheckCRMIdempotency_FreshClaim(t *testing.T) {
 	uc := &UseCase{Idempotency: newFakeIdempotencyRepo()}
 
-	res, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	res, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
 
 	require.NoError(t, err)
 	assert.Nil(t, res.Replay)
@@ -82,20 +95,38 @@ func TestCreateOrCheckCRMIdempotency_FreshClaim(t *testing.T) {
 
 func TestCreateOrCheckCRMIdempotency_ReplayHit(t *testing.T) {
 	repo := newFakeIdempotencyRepo()
-	uc := &UseCase{Idempotency: repo}
+	uc := &UseCase{Idempotency: repo, Encryptor: newTestReplayEncryptor(t)}
+	entity := `{"id":"abc","name":"Maria Silva","document":"91315026015"}`
 
 	// First call claims the slot.
-	first, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	first, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
 	require.NoError(t, err)
 	require.Nil(t, first.Replay)
 
 	// Store the created entity value, then retry with the same key.
-	uc.SetCRMIdempotencyValue(context.Background(), testIdempotencyKey, `{"id":"abc"}`, testIdempotencyTTL)
+	uc.SetCRMIdempotencyValue(context.Background(), testIdempotencyOrg, testIdempotencyKey, entity, testIdempotencyTTL)
 
-	second, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	stored := repo.store[testIdempotencyKey]
+	require.NotEmpty(t, stored)
+	assert.NotContains(t, stored, "Maria Silva", "the cached entity must not hold personal data in clear")
+	assert.NotContains(t, stored, "91315026015", "the cached entity must not hold personal data in clear")
+
+	second, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
 	require.NoError(t, err)
 	require.NotNil(t, second.Replay)
-	assert.Equal(t, `{"id":"abc"}`, *second.Replay)
+	assert.Equal(t, entity, *second.Replay)
+}
+
+func TestCreateOrCheckCRMIdempotency_UnreadableReplayFails(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	repo.store[testIdempotencyKey] = `{"id":"abc"}`
+	uc := &UseCase{Idempotency: repo, Encryptor: newTestReplayEncryptor(t)}
+
+	res, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+
+	require.Error(t, err)
+	assert.False(t, pkg.IsBusinessError(err))
+	assert.Nil(t, res.Replay)
 }
 
 func TestCreateOrCheckCRMIdempotency_InFlight(t *testing.T) {
@@ -103,12 +134,12 @@ func TestCreateOrCheckCRMIdempotency_InFlight(t *testing.T) {
 	uc := &UseCase{Idempotency: repo}
 
 	// First call claims the slot but stores no value yet (in-flight).
-	first, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	first, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
 	require.NoError(t, err)
 	require.Nil(t, first.Replay)
 
 	// Second concurrent call sees a claimed-but-empty slot.
-	second, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	second, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
 	require.Error(t, err)
 	assert.Nil(t, second.Replay)
 	assert.True(t, pkg.IsBusinessError(err))
@@ -123,7 +154,7 @@ func TestCreateOrCheckCRMIdempotency_InFlight(t *testing.T) {
 func TestCreateOrCheckCRMIdempotency_DisabledPassthrough(t *testing.T) {
 	uc := &UseCase{Idempotency: nil}
 
-	res, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	res, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
 
 	require.NoError(t, err)
 	assert.Nil(t, res.Replay)
@@ -133,7 +164,7 @@ func TestSetCRMIdempotencyValue_DisabledNoOp(t *testing.T) {
 	uc := &UseCase{Idempotency: nil}
 
 	// Must not panic and must not error.
-	uc.SetCRMIdempotencyValue(context.Background(), testIdempotencyKey, `{"id":"abc"}`, testIdempotencyTTL)
+	uc.SetCRMIdempotencyValue(context.Background(), testIdempotencyOrg, testIdempotencyKey, `{"id":"abc"}`, testIdempotencyTTL)
 }
 
 func TestCRMIdempotencyKeyBuilders(t *testing.T) {
