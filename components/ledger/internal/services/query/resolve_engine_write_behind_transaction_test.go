@@ -235,7 +235,7 @@ func TestResolveEngineWriteBehindTransactionReturnsRowWithoutPersistedOperations
 	require.Equal(t, map[string]any{"memo": "annotation"}, resolved.Transaction.Metadata)
 }
 
-func TestResolveEngineWriteBehindTransactionTakesDestinationFromBodyWhenOperationsAreNotPersisted(t *testing.T) {
+func TestResolveEngineWriteBehindTransactionTakesLegsFromBodyWhenOperationsAreNotPersisted(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	transactionRepo := postgres.NewMockRepository(ctrl)
 	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
@@ -244,9 +244,16 @@ func TestResolveEngineWriteBehindTransactionTakesDestinationFromBodyWhenOperatio
 		Status: postgres.Status{Code: constant.PENDING},
 		Body: mtransaction.Transaction{
 			Pending: true,
-			Send: mtransaction.Send{Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{
-				{AccountAlias: "@dst#default", BalanceKey: constant.DefaultBalanceKey},
-			}}},
+			Send: mtransaction.Send{
+				Asset: "USD",
+				Value: decimal.NewFromInt(100),
+				Source: mtransaction.Source{From: []mtransaction.FromTo{
+					{AccountAlias: "0#@src#default", BalanceKey: constant.DefaultBalanceKey},
+				}},
+				Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{
+					{AccountAlias: "@dst#default", BalanceKey: constant.DefaultBalanceKey},
+				}},
+			},
 		},
 	}
 	fake := &engineWriteBehindRepositoryFake{indexErr: redis.ErrEngineWriteBehindNotFound}
@@ -262,8 +269,7 @@ func TestResolveEngineWriteBehindTransactionTakesDestinationFromBodyWhenOperatio
 	require.Equal(t, EngineTransactionResolutionPrimary, resolved.Source)
 	require.NotNil(t, resolved.Transaction.Operations)
 	require.Empty(t, resolved.Transaction.Operations)
-	require.NotNil(t, resolved.Transaction.Source, "no persisted leg names a source, and the body is not a source fallback")
-	require.Empty(t, resolved.Transaction.Source)
+	require.Equal(t, []string{"@src"}, resolved.Transaction.Source, "the submitted source survives in the body")
 	require.Equal(t, []string{"@dst"}, resolved.Transaction.Destination, "the submitted destination survives in the body")
 }
 
