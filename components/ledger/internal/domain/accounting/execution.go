@@ -37,7 +37,8 @@ type Transaction struct {
 	BalanceRequirements   []BalanceRequirement   `json:"balanceRequirements"`
 	Postings              []Posting              `json:"postings"`
 	// FeeDebtRefs lists, once each, every balance of this transaction's scope whose
-	// fee-debt list it may open, settle, cancel or reopen; none need be in Balances.
+	// fee-debt list it may open, settle, cancel or reopen; a reopen debtor is also a
+	// touched balance, and a cancel-only debtor need not be in Balances.
 	FeeDebtRefs []string `json:"feeDebtRefs,omitempty"`
 	// ReopenFeeDebts (revert only) restore settled debts after the parent's debts
 	// are canceled and before any posting.
