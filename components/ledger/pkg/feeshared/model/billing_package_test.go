@@ -7,10 +7,12 @@ package model
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newValidEventFilter() *EventFilter {
@@ -210,6 +212,21 @@ func TestBillingPackage_Validate_EventFilterContent(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.wantErrCode)
 		})
 	}
+}
+
+func TestEventFilter_Validate_Status(t *testing.T) {
+	t.Parallel()
+
+	ef := &EventFilter{TransactionRoute: "route", Status: "approved"}
+	require.NoError(t, ef.Validate())
+	assert.Equal(t, constant.APPROVED, ef.Status)
+
+	var vErr pkg.ValidationKnownFieldsError
+
+	err := (&EventFilter{TransactionRoute: "route", Status: "all"}).Validate()
+	require.ErrorAs(t, err, &vErr)
+	assert.Equal(t, constant.ErrBadRequest.Error(), vErr.Code)
+	assert.Contains(t, vErr.Fields, "eventFilter.status")
 }
 
 func TestBillingPackage_Validate_InvalidType(t *testing.T) {

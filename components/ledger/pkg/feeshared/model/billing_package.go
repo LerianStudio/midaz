@@ -7,6 +7,7 @@ package model
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -111,7 +112,8 @@ type EventFilter struct {
 	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"CREATED,APPROVED,PENDING,CANCELED,NOTED"`
 }
 
-// Validate checks that EventFilter has a non-blank route and a non-blank status.
+// Validate checks that EventFilter has a non-blank route and a status that is a
+// transaction status, upper-casing the status because transactions store it so.
 func (ef *EventFilter) Validate() error {
 	if strings.TrimSpace(ef.TransactionRoute) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.transactionRoute is required")
@@ -119,6 +121,13 @@ func (ef *EventFilter) Validate() error {
 
 	if strings.TrimSpace(ef.Status) == "" {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "BillingPackage", "eventFilter.status is required")
+	}
+
+	ef.Status = strings.ToUpper(ef.Status)
+	if !slices.Contains(constant.TransactionStatuses, ef.Status) {
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{
+			"eventFilter.status": "must be one of " + strings.Join(constant.TransactionStatuses, ", "),
+		}, "BillingPackage", map[string]any{})
 	}
 
 	return nil

@@ -6,6 +6,7 @@ package billing_package
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
@@ -92,7 +93,7 @@ func (m *BillingPackageMongoDBModel) ToEntity() (*model.BillingPackage, error) {
 	if m.EventFilter != nil {
 		bp.EventFilter = &model.EventFilter{
 			TransactionRoute: m.EventFilter.TransactionRoute,
-			Status:           m.EventFilter.Status,
+			Status:           strings.ToUpper(m.EventFilter.Status),
 		}
 	}
 
@@ -199,7 +200,7 @@ func (m *BillingPackageMongoDBModel) FromEntity(bp *model.BillingPackage) {
 	if bp.EventFilter != nil {
 		m.EventFilter = &EventFilterModel{
 			TransactionRoute: bp.EventFilter.TransactionRoute,
-			Status:           bp.EventFilter.Status,
+			Status:           strings.ToUpper(bp.EventFilter.Status),
 		}
 	}
 
