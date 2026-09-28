@@ -88,18 +88,26 @@ recompilation.
 
 The new environment exposes `accounts`, `entries` and `debits`. The Tracer
 computes gross internal debits per account and asset; credits never offset them
-and external entries never create account counters. Asset identity is namespace
-plus ID; its code is descriptive. Prepared facts are detached snapshots.
+and external entries never create account counters. Asset identity is the code.
+The contract carries the Ledger's stored asset code as a fact: non-empty safe
+text of at most 100 characters, which may predate the Ledger's uppercase rule.
+Limits require codes following the Ledger asset code rule (uppercase letters,
+1–100) and match reservations by exact code equality, so a non-conforming
+stored code is never limited. In `accounts`, `entries` and `debits` the `asset`
+field is that code as a string. Prepared facts are detached snapshots.
 
 `ContextReservationResolver` prepares account-only limit reservations from a
-complete trusted active snapshot with explicit `AssetRef` associations. It keeps
-existing limit IDs and `acct:<UUID>`/period counter keys, computes gross exact
-debits, and sorts accounts and counter coordinates deterministically. One limit
-covering multiple accounts produces independent account counters, not a combined
-allowance. Unsupported scopes, missing associations, contradictory asset codes,
-and limits associated with a participating account's wrong asset return
+complete trusted active snapshot. It keeps existing limit IDs and
+`acct:<UUID>`/period counter keys, computes gross exact debits, and sorts
+accounts and counter coordinates deterministically. A limit applies to a debit
+whose asset code equals the limit's asset code. One limit covering multiple
+accounts produces independent account counters, not a combined allowance.
+Among scope mismatches, only unsupported (non-account) scopes return
 configuration error 0531/503; none is silently dropped or converted into DENY.
-The complete snapshot is validated before checking caps or active windows.
+A scope account debited in a code other than the limit's asset code is outside
+that limit and is skipped, not rejected. Invalid limit definitions, duplicate
+limit IDs and snapshots over the reservation bounds also return 0531/503. The complete snapshot is validated
+before checking caps or active windows.
 
 Periods and window checks use a single injected server time. Counter retention
 is derived from that period, not a stale stored reset date or a reservation TTL.
@@ -108,68 +116,58 @@ reservations. A non-denied plan still requires atomic current+reserved checks,
 policy precedence, decision persistence and mandatory audit. This resolver does
 not load limits, prove snapshot completeness, lock accounts or write capacity.
 `ContextLimitRepository` supplies that candidate snapshot only through a caller's
-tenant-primary transaction. It retains unresolved associations and unsupported
-broad scopes, filters mapped foreign namespaces, and refuses overflow instead of
-paginating. Scope JSON and reference text are bounded before decoding; unknown
+tenant-primary transaction. It retains unsupported broad scopes and refuses
+overflow instead of paginating. Scope JSON is bounded before decoding; unknown
 scope fields are rejected. It locks selected limit rows FOR SHARE in UUID order,
 after the caller's operation/account locks and before counters/audit. The SQL
 statement defines the selected set; it does not prevent subsequent insertions.
 
-Migration 000032 adds immutable `limit_asset_references`, preserving limit IDs,
-usage counters and reservations. Its composite foreign key requires the existing
-asset code and prevents later code changes. No code-only identity backfill is
-performed. Binding requires the caller's transaction. Duplicate binding returns
-0532/409. Down is allowed only with no stored association and no conflicting
-active locks.
+Activating a limit for the shared profile requires account-only scopes within
+the configured scope bounds and an asset code that passes the shared rule.
+Broad scopes stay ineligible.
 
-`BindLimitAssetCommand` requires both verified integration identity and a user or
-system administrative principal; neither identity substitutes for the other, and
-API-key principals are refused. Multi-tenant calls require tenant and resolved
-pool context. The command locks the current limit, requires producer-attested
-facts for exactly every account scope and one matching asset, then commits the
-association and mandatory audit together. DRAFT/INACTIVE limits stay inactive;
-no usage or reservation is moved. Repeated bindings conflict without extra audit,
-and commit uncertainty is returned without retry. Resource-level authorization
-is enforced by the opt-in `PUT /v1/limits/{id}/asset-reference` transport through
-Access Manager (`tracer:limit-asset-references:put`), in addition to native mTLS
-producer verification. Bootstrap rejects mesh/plaintext, disabled plugin auth,
-missing/ambiguous producer registry and absent explicit bounds. The same route
-mount is exercised by real TLS tests; a validation API key cannot administer.
-`CONTEXT_LIMIT_ADMIN_ENABLED` is independent of policy administration and does
-not enable Reserve. Operators still need to run the association/migration workflow.
+Ledger projects each account and entry asset as the asset code it already holds;
+it does not read the asset registry to build the context. The Ledger
+`OfficialContextLoader` uses a bounded batch reader on the tenant primary: a
+read-only repeatable-read transaction fetches the participating accounts in one
+snapshot, rejecting missing, deleted or ambiguous records with 0533/503.
+External entries carry their asset code without fictitious accounts. The Ledger
+context coordinator loads these facts after off/skip gates and propagates the
+admission deadline. Bootstrap installs it together with durable recovery when
+`TRACER_CONTEXT_ENABLED=true`. A consistent snapshot does not freeze facts
+against later updates. Tracer trusts the verified producer's attestation, as for
+Reserve facts; it neither queries nor replicates the Midaz asset registry.
 
-The shared `AccountAsset` fact contains only account UUID and `AssetRef`. Ledger's
-`BuildAccountAssets` maps already loaded official records, resolving the asset
-UUID within the organization/ledger and rejecting missing or ambiguous records.
-The separate Ledger `OfficialContextLoader` now uses a bounded batch reader
-on the tenant primary: a read-only repeatable-read transaction fetches accounts
-and assets in one snapshot, rejecting missing, deleted or ambiguous records
-with 0533/503. It includes external entry assets without fictitious accounts.
-The Ledger context coordinator loads these facts after off/skip gates and
-propagates the admission deadline. Bootstrap installs it together with durable
-recovery when `TRACER_CONTEXT_ENABLED=true`.
-A consistent snapshot does not freeze facts against later updates. Tracer trusts
-the verified producer's attestation, as for Reserve facts; it neither queries nor replicates the Midaz asset registry.
+Limit administration, legacy reservations and synchronous validations accept
+asset codes under the Ledger rule, without uppercasing or trimming: `BTC` and
+`LERIANPOINTS` are accepted, `usd` is rejected with "Asset code must contain
+only uppercase letters (1-100).". Repository asset filters match exact case.
+Three migrations widen the stored asset columns to `VARCHAR(100)` in place,
+preserving IDs, counters and reservations, each with a CHECK constraint that
+restricts the ASCII range to `A-Z`; whether a non-ASCII character is an
+uppercase letter depends on the database locale, so that part of the rule stays
+with the application:
 
-Binding uses the existing LIMIT_UPDATED event, retaining its CRUD snapshot and
-adding assetRef, integrationId, ordered accountAssets and the operation marker
-asset_reference_binding. All limit UPDATE audit writes must insert exactly one
-row; silent suppression is an error and rolls back the enclosing transaction.
-The existing transaction-validation audit deduplication remains separate.
+- `000032_native_asset_codes` widens `limits.asset` from `VARCHAR(3)`, a
+  metadata-only change, and adds its CHECK validated inline.
+- `000033_widen_validation_asset_codes` changes `transaction_validations.asset`
+  from `CHAR(3)`. The types are not binary-coercible, so the table and its
+  indexes are rewritten under an ACCESS EXCLUSIVE lock that blocks validation
+  writes for a duration proportional to the table size. Its CHECK is added
+  `NOT VALID`, so new rows are checked immediately.
+- `000034_validate_validation_asset_codes` validates the existing validation
+  rows under SHARE UPDATE EXCLUSIVE, which does not block writes. A stored code
+  outside the rule fails it with SQLSTATE 23514.
 
-Limit administration accepts exact native codes (1–256 UTF-8 bytes), without
-uppercasing or trimming; surrounding whitespace and NUL are rejected. Codes
-remain descriptive and cannot replace AssetRef identity. Migration 000033 widens
-limits.asset in place; IDs, references, counters and reservations are preserved.
-Its downgrade takes exclusive NOWAIT locks and refuses any code outside the
-previous validator's frozen ISO list, including three-letter BTC. It never
-truncates a code or erases history to permit rollback. Repository asset filters
-match exact case. Synchronous validations retain their separate contract. Shared Reserve uses
-explicit asset references; accepting native limit codes alone does not establish
-a valid reference or enable native-asset evaluation.
-Unmapped broad limits can block the new account-only profile and must be inventoried
+Each migration sets a five-second lock timeout. Each downgrade refuses, with
+SQLSTATE 23514, while its table stores a code that does not have exactly three
+characters; the `000032` downgrade also refuses a three-character limit code
+outside the frozen ISO 4217 list the previous binary accepted. No downgrade
+truncates or pads a code, or erases history, to permit rollback. Validation rows are immutable, so one such code blocks the
+`000033` downgrade permanently. The `000034` downgrade has nothing to undo.
+Broad or malformed limits block the account-only profile and must be inventoried
 before activation. The batch loader and admission are composed in the shared
-runtime. Reference migration and integrated performance checks remain deployment
+runtime. Limit inventory and integrated performance checks remain deployment
 prerequisites; see the [rollout procedure](../architecture/ledger-tracer-rollout.md).
 
 Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
@@ -179,8 +177,7 @@ comparisons are `equal`, `lessThan`, `lessOrEqual`, `greaterThan` and
 string, integer or float, or monetary arithmetic operators. For example:
 
 ```cel
-debits.exists(d, d.asset.namespace == "producer" && d.asset.id == "asset-id" &&
-  d.amount.greaterThan(decimal("100.01")))
+debits.exists(d, d.asset == "BTC" && d.amount.greaterThan(decimal("100.01")))
 ```
 
 Every adapter requires explicit input, numeric, expression-length and cost
@@ -365,33 +362,34 @@ records configuration; admission records the resulting transaction decision.
 
 ### Producer identity for shared-context reservations
 
-The `seamidentity` registry maps an exact URI SAN to an integration ID and its
-asset namespace. It requires a completed native TLS handshake and a verified
-chain matching the actual peer leaf. A certificate must contain exactly one URI
-SAN. Trusting its CA alone is insufficient: the URI must also be registered.
-Common names, DNS SANs, forwarded certificate headers and payload fields cannot
-select the integration or namespace. HTTP and gRPC use the same resolver.
+The `seamidentity` registry maps an exact URI SAN to an integration ID. It
+carries no asset data. It requires a completed native TLS handshake and a
+verified chain matching the actual peer leaf. A certificate must contain exactly
+one URI SAN. Trusting its CA alone is insufficient: the URI must also be
+registered. Common names, DNS SANs, forwarded certificate headers and payload
+fields cannot select the integration. HTTP and gRPC use the same resolver.
 Unknown or ambiguous peers return 403/PermissionDenied; missing configuration
 returns 503/Unavailable. Diagnostic responses do not disclose certificate data.
 
-Configuration is copied at construction. A namespace has one integration owner,
-and an integration has one namespace. Multiple exact URI registrations may map
-to that same pair for certificate/workload identity rotation. The registry checks
-the explicit context namespace byte bound, without normalization or wildcards.
-The context Reserve bootstrap consumes this registry only in native mTLS mode.
+Configuration is copied at construction. Each URI is registered once, and every
+binding declares its purposes explicitly; `reserve` is the only purpose.
+Multiple exact URI registrations may map to the same integration for
+certificate/workload identity rotation. The registry applies no normalization
+or wildcards. The context Reserve bootstrap consumes this registry only in
+native mTLS mode.
 
 `ResolveContextPolicyQuery` receives the opaque producer-derived context ID and
 reads the integration identity from authenticated request context. It returns
-only the exact binding, immutable policy revision, binding version and configured
-namespace, preserving the tenant context. Missing/invalid policy configuration is
+only the exact binding, immutable policy revision and binding version, preserving
+the tenant context. Missing/invalid policy configuration is
 an error, with no implicit ALLOW/DENY or hierarchical fallback. Tenant and database
 pool resolution must precede this query; producer authentication must precede
 trusting the tenant forwarded by that producer. This does not give an arbitrary
 end user permission to select another tenant or context.
 
 `CompiledContextPolicyQuery` resolves that binding on every request, then reuses
-only the immutable compiled revision. Keys include tenant, producer, namespace,
-context and policy revision. Compiler settings are immutable for the cache's
+only the immutable compiled revision. Keys include tenant, producer, context and
+policy revision. Compiler settings are immutable for the cache's
 lifetime; reconfiguration creates a new compiler/cache. Explicit entry and
 concurrent-compilation bounds prevent unbounded retained programs or work.
 Concurrent requests share compilation; FIFO eviction only removes programs.
@@ -443,7 +441,7 @@ HTTP completion without a revision body additionally requires the legacy guard.
 
 The protobuf Reserve replacement intentionally removes its old fields and reserves
 their numbers/names. Its RPC and HTTP URLs do not change. An absent/unknown revision,
-legacy payload, missing explicit boolean or contradictory namespace is rejected;
+legacy payload or missing explicit boolean is rejected;
 clients require the revision and completed-control echo and reject legacy replies.
 The protobuf breaking check therefore reports the approved removals; it is not
 silently disabled. Coordinated deployment must prevent old and new admission

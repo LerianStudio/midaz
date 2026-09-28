@@ -51,8 +51,12 @@ cannot satisfy `rules-and-limits`: it reports a deterministic contract failure
 and rejects before accounting in every posture, with no fallback Reserve call.
 Bootstrap installs the coordinator, activation verifier and recovery worker together when
 `TRACER_CONTEXT_ENABLED=true`; adding the settings field alone does not enable
-the profile. This requires native mTLS, authenticated integration/asset namespace
-configuration, aligned resource bounds and the transaction journal migration.
+the profile. This requires native mTLS, a Tracer producer binding for the
+Ledger's `TRACER_INTEGRATION_ID`, aligned resource bounds and the transaction
+journal migration. Accounts and entries carry the Ledger's stored asset code;
+Tracer limits require codes following the Ledger asset code rule (uppercase
+letters, 1–100) and match them by exact code, so a non-conforming stored code
+is never limited.
 
 The new coordinator is connected to engine-backed v2 creation (including the
 shared revert path, PENDING creation/termination and atomic batches). It projects

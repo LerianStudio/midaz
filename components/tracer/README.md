@@ -824,13 +824,17 @@ The synchronous validation examples above retain their own context and enums.
 Shared reservation policies instead receive `accounts`, `entries` and Tracer's
 computed `debits`. Account classifications come from the producer's official
 facts, without translating them into the checking/savings/credit taxonomy.
-`AssetRef { namespace, id, code }` identifies an asset by namespace plus ID;
-code is descriptive. Decimal expressions use exact values, for example:
+An asset is identified by its code. The contract carries the Ledger's stored
+asset code; limits require codes following the Ledger asset code rule (1–100
+uppercase letters) and match debits by exact code, so a non-conforming stored
+code is never limited. Decimal
+expressions use exact values, for example:
 
 ```cel
 accounts.exists(a, a.type == "deposit" && a.status == "ACTIVE" && !a.blocked)
 entries.exists(e, e.direction == "DEBIT" && e.amount.equal(decimal("0.00000001")))
 entries.exists(e, e.external && !has(e.accountId))
+debits.exists(d, d.asset == "BTC" && d.amount.greaterThan(decimal("100.01")))
 ```
 
 Rules and limits execute in one reservation admission. Gross debits include fees;

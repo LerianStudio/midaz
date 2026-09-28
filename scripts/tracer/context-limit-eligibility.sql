@@ -1,17 +1,18 @@
 -- Read-only preflight for each Tracer tenant primary before enabling shared Reserve.
 -- A successful preflight returns zero rows. Compare scope_count and scope_bytes
 -- with the rendered CONTEXT_LIMIT_MAX_SCOPES and CONTEXT_LIMIT_MAX_SCOPE_BYTES.
+--
+-- Each ACTIVE limit must be scoped to distinct accounts and carry an asset code
+-- that follows the ledger rule (1-100 uppercase letters). The asset predicate is
+-- the limits_asset_code_format CHECK plus explicit character bounds, so rows
+-- restored from a dump taken without that constraint are reported too.
 WITH active_limits AS (
     SELECT
         l.id,
         l.name,
-        l.scopes,
-        a.limit_id AS mapped_limit_id,
-        a.asset_namespace,
-        a.asset_id,
-        a.asset_code
+        l.asset,
+        l.scopes
     FROM limits l
-    LEFT JOIN limit_asset_references a ON a.limit_id = l.id
     WHERE l.status = 'ACTIVE'
       AND l.deleted_at IS NULL
 ),
@@ -45,33 +46,40 @@ scope_facts AS (
     FROM active_limits l
     LEFT JOIN scope_rows s ON s.id = l.id
     GROUP BY l.id, l.scopes
+),
+limit_facts AS (
+    SELECT
+        l.id,
+        l.name,
+        l.scopes,
+        f.scope_count,
+        f.scope_bytes,
+        f.account_scoped,
+        f.accounts_unique,
+        coalesce(
+            char_length(l.asset) BETWEEN 1 AND 100
+            AND l.asset ~ '^[^\x01-\x40\x5B-\x7F]{1,100}$',
+            false
+        ) AS asset_well_formed
+    FROM active_limits l
+    JOIN scope_facts f ON f.id = l.id
 )
 SELECT
     l.id,
     l.name,
-    l.asset_namespace,
-    l.asset_id,
-    l.asset_code,
-    f.scope_count,
-    f.scope_bytes,
+    l.scope_count,
+    l.scope_bytes,
     array_remove(ARRAY[
-        CASE WHEN l.mapped_limit_id IS NULL THEN 'missing_asset_reference' END,
-        CASE WHEN coalesce(l.asset_namespace, '') = '' THEN 'missing_asset_namespace' END,
-        CASE WHEN coalesce(l.asset_id, '') = '' THEN 'missing_asset_id' END,
-        CASE WHEN coalesce(l.asset_code, '') = '' THEN 'missing_asset_code' END,
+        CASE WHEN NOT l.asset_well_formed THEN 'malformed_asset_code' END,
         CASE WHEN jsonb_typeof(l.scopes) IS DISTINCT FROM 'array' THEN 'scopes_not_array' END,
-        CASE WHEN f.scope_count = 0 THEN 'empty_scopes' END,
-        CASE WHEN NOT f.account_scoped THEN 'non_account_or_invalid_scope' END,
-        CASE WHEN NOT f.accounts_unique THEN 'duplicate_account_scope' END
+        CASE WHEN l.scope_count = 0 THEN 'empty_scopes' END,
+        CASE WHEN NOT l.account_scoped THEN 'non_account_or_invalid_scope' END,
+        CASE WHEN NOT l.accounts_unique THEN 'duplicate_account_scope' END
     ], NULL) AS reasons
-FROM active_limits l
-JOIN scope_facts f ON f.id = l.id
-WHERE l.mapped_limit_id IS NULL
-   OR coalesce(l.asset_namespace, '') = ''
-   OR coalesce(l.asset_id, '') = ''
-   OR coalesce(l.asset_code, '') = ''
+FROM limit_facts l
+WHERE NOT l.asset_well_formed
    OR jsonb_typeof(l.scopes) IS DISTINCT FROM 'array'
-   OR f.scope_count = 0
-   OR NOT f.account_scoped
-   OR NOT f.accounts_unique
+   OR l.scope_count = 0
+   OR NOT l.account_scoped
+   OR NOT l.accounts_unique
 ORDER BY l.id;

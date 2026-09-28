@@ -33,54 +33,74 @@ not certify the remote Tracer's version, policies or readiness.
    Apply the forward Tracer and Ledger transaction migrations using the normal
    runner, then start only compatible Tracer instances and verify their configured
    transport/profile. Keep participating ledgers in `mode=off` and transaction
-   admission paused until the activation sequence in step 7 completes. Preserve
+   admission paused until the activation sequence in step 6 completes. Preserve
    reservation, limit and counter IDs. Migration 000030 bounds lock acquisition to five seconds; if it
    times out, investigate remaining database users rather than retrying against
    live traffic. Index construction still requires the maintenance window.
    Rehearse with existing usage and pending holds; an empty database is
    insufficient evidence. Zero-downtime rollout requires a separate
    expand/contract migration design, not an exception to this procedure.
-4. While participating ledgers remain `mode=off`, provision separate producer
-   bindings for `asset-admin` and `reserve`. Enable `CONTEXT_LIMIT_ADMIN_ENABLED`
-   with native mTLS and the required Access Manager permission, but keep
-   `CONTEXT_RESERVE_ENABLED=false` and `TRACER_CONTEXT_ENABLED=false`. Verify the
-   administrative certificate before changing financial data. Then resolve each
-   participating account's official asset within its Ledger scope.
-   Associate eligible limits through `PUT /v1/limits/{id}/asset-reference`, using
-   verified producer mTLS plus the required administrative permission. Its body
-   contains official `accountAssets`; the certificate fixes the namespace.
-   Never infer identity from a code such as USD. A contradictory or already-bound
-   association conflicts rather than rewriting existing accounting history.
-   After association, account scopes are immutable (migration 000034); updates
-   return an asset-reference conflict. To change the covered account set, create
-   and attest a new limit and coordinate its activation with the existing usage.
-   Never transfer a binding or reset consumption to bypass this protection.
-5. Inspect all candidate limits, including unmapped and broad scopes. The shared
+
+   Asset codes are widened by three Tracer migrations. `000032_native_asset_codes`
+   widens `limits.asset` to `VARCHAR(100)` without rewriting the table.
+   `000033_widen_validation_asset_codes` changes `transaction_validations.asset`
+   from `CHAR(3)` to `VARCHAR(100)` and adds its code CHECK as `NOT VALID`.
+   That type change rewrites the table and its indexes under an ACCESS EXCLUSIVE
+   lock and blocks `/v1/validations` writes and dashboard reads for a duration
+   proportional to the table size, and needs free disk of about twice the table
+   size. Run it in a maintenance window for large audit trails; in multi-tenant
+   deployments it runs once per tenant database. Reserve
+   admission does not wait on it, because `limits` is migrated separately.
+   `000034_validate_validation_asset_codes` then validates existing rows without
+   blocking writes; a stored code outside the rule fails it with SQLSTATE 23514
+   and must be investigated, not deleted, because validation rows are immutable.
+   Rolling back `000033` rewrites the table again with the same blocking and is
+   refused while any stored validation code does not have exactly three
+   characters; rolling back `000032` is likewise refused for such a limit code,
+   and also while any limit holds a three-character code that is not an ISO 4217
+   code, because the previous schema's application accepted only ISO codes.
+
+   Before deploying, run this read-only pre-flight query on every tenant
+   primary; `000034` succeeds only when it returns zero rows:
+
+   ```sql
+   SELECT id, asset FROM transaction_validations
+    WHERE asset !~ '^[^\x01-\x40\x5B-\x7F]{1,100}$';
+   ```
+
+   If `000034` fails with SQLSTATE 23514, do not try to correct the rows.
+   `transaction_validations` rows are immutable: the table's `DO INSTEAD
+   NOTHING` rules silently swallow UPDATE and DELETE, so an UPDATE "fix"
+   reports `UPDATE 0` and changes nothing. Do not drop those compliance rules.
+   The sanctioned remediation is to leave the constraint `NOT VALID` (new rows
+   are still checked), force the migration version to `34`, which the failed
+   run leaves dirty, and record the exception with the offending row IDs for
+   audit.
+4. Inventory limits: run the eligibility script; unsupported scopes and
+   malformed codes must be resolved. While participating ledgers remain
+   `mode=off`, run the read-only `scripts/tracer/context-limit-eligibility.sql`
+   report on every tenant primary. It reports each ACTIVE limit whose asset code
+   does not follow the shared ledger rule (1–100 uppercase letters) and each
+   limit with null, invalid, duplicate or broad (non-account) scopes. A passing
+   tenant returns zero rows. Compare its `scope_count` and `scope_bytes` columns
+   with that tenant's rendered `CONTEXT_LIMIT_MAX_SCOPES` and
+   `CONTEXT_LIMIT_MAX_SCOPE_BYTES`. Limits match reservations by exact asset
+   code: a limit on `BTC` applies to debits whose Ledger asset code is `BTC`, so
+   confirm each limit names the code its accounts actually hold. The contract
+   carries each account's stored code, so an account whose code predates the
+   Ledger rule (for example `usdt`) is admitted but never limited. The shared
    profile supports account limits; unsupported aggregation must be resolved
    before activation. Admission also rejects invalid candidate configurations;
-   this runtime check is not a substitute for a complete tenant inventory.
-   With `CONTEXT_RESERVE_ENABLED=false`, limit creation accepts only canonical
-   uppercase ISO currencies; list asset filters normalize to uppercase. Exact
-   native codes are enabled with the shared Reserve profile, including when
-   preparing new native limits before Ledger admissions are enabled. The legacy
-   validation API does not gain native AssetRef semantics from this flag.
-   Shared-profile creation and updates validate account-only scopes, scope byte
-   limits and significant amount digits before persistence. Activation locks the
-   current definition and requires a valid AssetRef and the same admission
-   invariants; a draft must be associated before activation. These guards do not
-   repair already-active legacy data. Before enabling the profile, run the
-   read-only `scripts/tracer/context-limit-eligibility.sql` report on every tenant
-   primary. It reports unmapped assets, nil/invalid/duplicate accounts and
-   unsupported scopes. A passing tenant returns zero rows. Compare its
-   `scope_count` and `scope_bytes` columns with that tenant's rendered resource
-   bounds, and verify every reported namespace/asset ID against the Ledger's
-   official ownership inventory. The Tracer database alone cannot prove that
-   external ownership. Resolve every candidate and archive the zero-row result
-   per tenant before traffic. Never silently exclude a broad or unmapped active
-   limit to make Reserve pass. Alert on any increase of
+   this runtime check is not a substitute for a complete tenant inventory. With
+   `CONTEXT_RESERVE_ENABLED=true`, limit creation and updates additionally
+   validate account-only scopes, scope byte limits and significant amount digits
+   before persistence, and activation requires the same invariants. These guards
+   do not repair already-active legacy data. Resolve every candidate and archive
+   the zero-row result per tenant before traffic. Never silently exclude a broad
+   or malformed active limit to make Reserve pass. Alert on any increase of
    `tracer_context_limit_eligibility_failures_total`; a nonzero increase means
    the inventory gate missed an active limit or incompatible data was restored.
-6. Rewrite affected expressions against `accounts`, `entries` and `debits`, using
+5. Rewrite affected expressions against `accounts`, `entries` and `debits`, using
    exact Decimal operations. Classifications are native producer facts. There is
    no generic metadata, merchant, portfolio or segment fallback in this profile.
    Publish complete immutable revisions using `POST /v1/policies`, then bind the
@@ -95,8 +115,8 @@ not certify the remote Tracer's version, policies or readiness.
    also increase static cost. Do not reduce budgets on a live binding without
    this check and a coordinated replacement; bootstrap alone does not scan all
    tenant policies or certify compatibility after reconfiguration.
-7. Render the final Tracer and Ledger environments with matching integration,
-   namespace and resource settings, then run `check-integration-profile` against
+6. Render the final Tracer and Ledger environments with matching integration
+   and resource settings, then run `check-integration-profile` against
    those rendered files. Keep transaction admission paused and every participating
    ledger in `mode=off`. Enable `CONTEXT_RESERVE_ENABLED=true` on compatible Tracer
    replicas, verify their readiness and shared Reserve contract, and then enable
@@ -114,7 +134,7 @@ not certify the remote Tracer's version, policies or readiness.
    advisory/enforce ledger across all served tenants. Prepare their complete
    policy/limit inventory before enabling it; this flag is not a per-ledger
    canary. Ledgers already off remain off.
-8. In isolation, verify the supported transaction shapes, precision, rule count,
+7. In isolation, verify the supported transaction shapes, precision, rule count,
    concurrent account contention, deadlines, restarts and lost acknowledgements.
    Database-only averages do not establish an end-to-end p95/p99. Per-ledger and
    client deadlines both apply; 250 ms is a default budget, not a proven SLO.
@@ -147,8 +167,9 @@ not certify the remote Tracer's version, policies or readiness.
    thresholds. The functional race suites remain separate.
 
    End-to-end load uses `scripts/k6/bench-transaction-fees-tracer.js`. Every arm
-   calls `/v2`; `WITH_TRACER=1` requires `TRACER_SEED` with pre-attested ledgers,
-   policies, limits and funded accounts. `LEDGER_P99_MS` must carry the approved
+   calls `/v2`; `WITH_TRACER=1` requires `TRACER_SEED` with pre-provisioned
+   ledgers, published policies, limits keyed by the ledger asset code, and funded
+   accounts. `LEDGER_P99_MS` must carry the approved
    environment threshold; its 500 ms default is only the existing development
    dashboard starting point. The test fails on any HTTP error or p99 violation.
 
@@ -187,8 +208,7 @@ are rejected explicitly, never rounded. In particular, do not choose eight
 fraction digits merely because Bitcoin has that denomination: fee calculations
 may legitimately retain more precision. Explicit zero/empty values are preserved
 for validation; zero fractional digits means integer-only quantities. Identity,
-namespace, certificates, policies and activation flags receive no permissive
-defaults.
+certificates, policies and activation flags receive no permissive defaults.
 
 Before activation, compare the **rendered deployment** settings, after resolving
 GitOps/environment overlays, with:
@@ -204,18 +224,22 @@ nonzero when resource profiles differ. A key rendered with an empty value is
 explicit and fails validation; it does not receive the absent-key default. The
 checker also requires both context activation
 flags to be explicitly true, verifies that a Tracer producer binding with the
-`reserve` purpose matches the Ledger integration and asset namespace, and checks
-that recovery can cover the configured transaction batch size. It does not print
+`reserve` purpose matches the Ledger `TRACER_INTEGRATION_ID`, and checks
+that recovery can cover the configured transaction batch size.
+
+Each `CONTEXT_PRODUCER_BINDINGS` entry accepts only `uri`, `integrationId` and
+`purposes`. Tracer refuses to boot when an entry carries any other key, so
+remove extra keys from rendered bindings before deploying. It does not print
 credentials, connect to remote services, establish certificate/policy/data
 readiness or prove deployed manifests match those files. Run it on the actual
 rendered files in the deployment gate; comparing only examples is not environment
 evidence.
 
 Before setting `TRACER_CONTEXT_ENABLED=false`, stop new admissions and drain
-all obligations while recovery remains enabled. Keep `TRACER_INTEGRATION_ID` or
-`TRACER_ASSET_NAMESPACE` configured during the disabled boot: either value marks
-that the shared profile was previously used and activates the drain guard. Remove
-both only after the guarded boot succeeds. The default configuration and a legacy
+all obligations while recovery remains enabled. Keep `TRACER_INTEGRATION_ID`
+configured during the disabled boot: it marks that the shared profile was
+previously used and activates the drain guard. Remove it only after the guarded
+boot succeeds. The default configuration and a legacy
 REST-only integration do not query the tenant catalog at boot.
 
 The guard checks the transaction primary for every eligible active tenant and
@@ -258,8 +282,8 @@ GROUP BY status;
 
 Recovery discovers active tenants from Tenant Manager and resolves a pool per
 cycle. A suspended/deleted tenant cannot be drained through an active-only catalog:
-drain before removal or restore authorized access. Do not change integration ID,
-namespace or contract revision while their obligations still need this worker.
+drain before removal or restore authorized access. Do not change integration ID
+or contract revision while their obligations still need this worker.
 
 Recovery prioritizes due CONFIRMED/RELEASED obligations over unresolved work.
 Attempts are persisted before delivery. Failed or unresolved attempts use bounded
