@@ -1099,8 +1099,8 @@ func parseMetadata(s any, originalMap map[string]any) {
 // populateNullFields detects fields explicitly sent as null in the JSON request
 // and populates the NullFields slice for downstream processing.
 // This enables RFC 7396 JSON Merge Patch semantics for nullable fields.
-// Only keys declared by the target struct reach it: the decode pipeline refuses
-// an undeclared null key before this step.
+// It assumes every key in originalMap is declared on s; undeclared keys are not
+// filtered here.
 func populateNullFields(s any, originalMap map[string]any) {
 	if s == nil {
 		return
@@ -1413,7 +1413,9 @@ func unknownFieldLeaf(err error) (string, bool) {
 // undeclaredNullFieldDetails maps the decoder leaf to the null keys that name
 // it. When several keys share the leaf, each one is probed alone so a declared
 // key with the same name is not reported; an undecided probe reports every
-// candidate. With no candidate it falls back to the bare leaf.
+// candidate. No candidate means the decoder named a key that no null path
+// renders, as a change in the encoding/json error text would cause; the bare
+// leaf is reported so the request is still refused rather than accepted.
 func undeclaredNullFieldDetails(leaf string, nullPaths []nullPath, probe nullKeyProbe) (pkg.UnknownFields, []pkg.FieldError) {
 	candidates := pkg.UnknownFields{}
 
