@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 
@@ -94,7 +95,21 @@ func (r *Repository) Apply(ctx context.Context, record command.FeeDebtRecord) er
 
 		_, spanUpsert := tracer.Start(ctx, "repository.fee_debt.apply.upsert")
 
-		if err := applyChange(ctx, coll, change.DebtID, seed, filter, update); err != nil {
+		// The seed filters on _id alone, so a racing insert of the same debt is the only
+		// duplicate key it can meet: MongoDB retries it itself, DocumentDB does not, and
+		// one retry finds the debt and turns the seed into a no-op.
+		byID := bson.D{{Key: "_id", Value: change.DebtID}}
+
+		_, err = coll.UpdateOne(ctx, byID, seed, options.UpdateOne().SetUpsert(true))
+		if mongo.IsDuplicateKeyError(err) {
+			_, err = coll.UpdateOne(ctx, byID, seed, options.UpdateOne().SetUpsert(true))
+		}
+
+		if err == nil {
+			_, err = coll.UpdateOne(ctx, filter, update)
+		}
+
+		if err != nil {
 			libOpentelemetry.HandleSpanError(spanUpsert, "Failed to record fee debt change", err)
 			spanUpsert.End()
 
@@ -169,19 +184,14 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 		{Key: "organization_id", Value: organizationID.String()},
 		{Key: "ledger_id", Value: ledgerID.String()},
 	}
+	key := "_id"
 
 	if query.DebtorBalanceRef != "" {
 		filter = append(filter, bson.E{Key: "debtor_balance_ref", Value: query.DebtorBalanceRef})
-	}
-
-	key := "_id"
-	if query.DebtorBalanceRef != "" {
 		key = "seq"
 	}
 
-	isFirstPage := query.Cursor == ""
-	direction := libHTTP.CursorDirectionNext
-	sortOrder := 1
+	isFirstPage, direction, sortOrder := query.Cursor == "", libHTTP.CursorDirectionNext, 1
 
 	if !isFirstPage {
 		bound, cursorDirection, order, err := cursorBound(query.Cursor, key)
@@ -195,9 +205,26 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 		direction, sortOrder = cursorDirection, order
 	}
 
-	debts, err := r.find(ctx, filter, bson.D{{Key: key, Value: sortOrder}}, query.Limit)
+	coll, err := r.collection(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to list fee debts", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve fee debt database", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	_, spanFind := tracer.Start(ctx, "repository.fee_debt.find_all.find")
+	defer spanFind.End()
+
+	cur, err := coll.Find(ctx, filter, options.Find().SetSort(bson.D{{Key: key, Value: sortOrder}}).SetLimit(int64(query.Limit)+1))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to list fee debts", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	var debts []*model.FeeDebt
+	if err := cur.All(ctx, &debts); err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to decode fee debts", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -219,37 +246,6 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 	span.SetAttributes(attribute.Int("db.rows_returned", len(debts)))
 
 	return debts, pagination, nil
-}
-
-// find reads up to limit+1 debts in sort order, the extra one telling whether more remain.
-func (r *Repository) find(ctx context.Context, filter, sort bson.D, limit int) ([]*model.FeeDebt, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	coll, err := r.collection(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	_, spanFind := tracer.Start(ctx, "repository.fee_debt.find_all.find")
-	defer spanFind.End()
-
-	opts := options.Find().SetSort(sort).SetLimit(int64(limit) + 1)
-
-	cur, err := coll.Find(ctx, filter, opts)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find fee debts", err)
-
-		return nil, err
-	}
-
-	debts := make([]*model.FeeDebt, 0, limit+1)
-	if err := cur.All(ctx, &debts); err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to decode fee debts", err)
-
-		return nil, err
-	}
-
-	return debts, nil
 }
 
 // collection is the fee_debt collection of the tenant's fee database in multi-tenant
@@ -274,7 +270,7 @@ func (r *Repository) collection(ctx context.Context) (*mongo.Collection, error) 
 }
 
 // cursorBound decodes a listing cursor into the keyset bound on key, the page direction
-// and the sort order. A seq cursor that is not a number is libHTTP.ErrInvalidCursor.
+// and the sort order. A cursor another listing issued is libHTTP.ErrInvalidCursor.
 func cursorBound(cursor, key string) (bson.E, string, int, error) {
 	decoded, err := libHTTP.DecodeCursor(cursor)
 	if err != nil {
@@ -286,10 +282,15 @@ func cursorBound(cursor, key string) (bson.E, string, int, error) {
 		return bson.E{}, "", 0, err
 	}
 
-	var value any = decoded.ID
+	raw, ok := strings.CutPrefix(decoded.ID, key+":")
+	if !ok {
+		return bson.E{}, "", 0, fmt.Errorf("%w: not a %s cursor", libHTTP.ErrInvalidCursor, key)
+	}
+
+	var value any = raw
 
 	if key == "seq" {
-		if value, err = strconv.ParseInt(decoded.ID, 10, 64); err != nil {
+		if value, err = strconv.ParseInt(raw, 10, 64); err != nil {
 			return bson.E{}, "", 0, fmt.Errorf("%w: seq: %w", libHTTP.ErrInvalidCursor, err)
 		}
 	}
@@ -306,26 +307,14 @@ func cursorBound(cursor, key string) (bson.E, string, int, error) {
 	return bson.E{Key: key, Value: bson.D{{Key: mongoOperator, Value: value}}}, decoded.Direction, sortOrder, nil
 }
 
-// position is a debt's cursor value on the listing key.
+// position is a debt's cursor value on the listing key, prefixed with the key so a
+// cursor cannot be replayed on the other listing.
 func position(key string, debt *model.FeeDebt) string {
 	if key == "seq" {
-		return strconv.FormatInt(debt.Seq, 10)
+		return "seq:" + strconv.FormatInt(debt.Seq, 10)
 	}
 
-	return debt.ID
-}
-
-// applyChange seeds the debt, then records the change unless its entry is already
-// there. The seed filters on _id alone, so MongoDB retries a concurrent seed's
-// duplicate-key insert as a no-op update instead of failing it.
-func applyChange(ctx context.Context, coll *mongo.Collection, id string, seed, filter, update bson.D) error {
-	if _, err := coll.UpdateOne(ctx, bson.D{{Key: "_id", Value: id}}, seed, options.UpdateOne().SetUpsert(true)); err != nil {
-		return err
-	}
-
-	_, err := coll.UpdateOne(ctx, filter, update)
-
-	return err
+	return "_id:" + debt.ID
 }
 
 // changeUpdate builds the seed that creates a debt from whichever of its changes lands
@@ -344,14 +333,14 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 		return nil, nil, nil, fmt.Errorf("unknown fee debt change kind %q", change.Kind)
 	}
 
-	increment, err := bson.ParseDecimal128(delta.String())
+	increment, err := decimal128(delta)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("fee debt change amount: %w", err)
+		return nil, nil, nil, err
 	}
 
-	opened, err := bson.ParseDecimal128(change.Opened.String())
+	opened, err := decimal128(change.Opened)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("fee debt opened amount: %w", err)
+		return nil, nil, nil, err
 	}
 
 	seed := bson.D{{Key: "$setOnInsert", Value: bson.D{
@@ -364,7 +353,6 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 		{Key: "seq", Value: change.Seq},
 		{Key: "opened_amount", Value: opened},
 		{Key: "remaining", Value: opened},
-		{Key: "entries", Value: bson.A{}},
 		{Key: "created_at", Value: record.AppliedAt},
 		{Key: "updated_at", Value: record.AppliedAt},
 	}}}
@@ -404,4 +392,19 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 	}
 
 	return seed, filter, update, nil
+}
+
+// decimal128 rounds d to the 34 significant digits a Decimal128 holds; the entry
+// keeps the exact amount as text.
+func decimal128(d decimal.Decimal) (bson.Decimal128, error) {
+	if excess := len(new(big.Int).Abs(d.Coefficient()).String()) - 34; excess > 0 {
+		d = d.Round(-d.Exponent() - int32(excess))
+	}
+
+	value, ok := bson.ParseDecimal128FromBigInt(d.Coefficient(), int(d.Exponent()))
+	if !ok {
+		return bson.Decimal128{}, fmt.Errorf("fee debt amount %s is out of Decimal128 range", d)
+	}
+
+	return value, nil
 }

@@ -8,7 +8,6 @@ package fee_debt_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -145,31 +144,18 @@ func TestApply_ReplayLeavesIdenticalDocument(t *testing.T) {
 		[]string{first.Entries[0].Kind, first.Entries[1].Kind, first.Entries[2].Kind, first.Entries[3].Kind})
 }
 
-func TestApply_OutOfOrderConverges(t *testing.T) {
-	container := mongotestutil.SetupReusableContainer(t)
-	reversedDB := mongotestutil.CreateOwnedDatabase(t, container)
-	scenario := newDebtScenario()
-	ctx := context.Background()
-
-	inOrder := staticRepository(t, container.Client, container.DBName, nil)
-	reversed := staticRepository(t, container.Client, reversedDB.Name(), nil)
-
-	records := scenario.records()
-	for i := range records {
-		require.NoError(t, inOrder.Apply(ctx, records[i]))
-		require.NoError(t, reversed.Apply(ctx, records[len(records)-1-i]))
-	}
-
-	assert.Equal(t, readDebt(t, container.Database, scenario.debtID), readDebt(t, reversedDB, scenario.debtID),
-		"a settled change landing before its opened must converge to the same document")
-}
-
 func TestApply_SettledBeforeOpenedNeverShowsNegativeRemaining(t *testing.T) {
 	container := mongotestutil.SetupReusableContainer(t)
+	inOrderDB := mongotestutil.CreateOwnedDatabase(t, container)
 	repo := staticRepository(t, container.Client, container.DBName, nil)
+	inOrder := staticRepository(t, container.Client, inOrderDB.Name(), nil)
 	scenario := newDebtScenario()
 	ctx := context.Background()
 	records := scenario.records()
+
+	for _, r := range records {
+		require.NoError(t, inOrder.Apply(ctx, r))
+	}
 
 	// Both settlements and the refund land before the opening they depend on.
 	for _, step := range []struct {
@@ -186,9 +172,33 @@ func TestApply_SettledBeforeOpenedNeverShowsNegativeRemaining(t *testing.T) {
 		assert.Equal(t, "70", debt.OpenedAmount.String(), "every change carries the opened amount")
 	}
 
+	assert.Equal(t, readDebt(t, inOrderDB, scenario.debtID), readDebt(t, container.Database, scenario.debtID),
+		"changes landing before their opening must converge to the in-order document")
+}
+
+func TestApply_RoundsAmountsPastDecimal128Precision(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := staticRepository(t, container.Client, container.DBName, nil)
+	scenario := newDebtScenario()
+	scenario.opened = "70.000000000000000000000000000000001" // 35 significant digits
+	ctx := context.Background()
+
+	records := []command.FeeDebtRecord{
+		record(t0, "", scenario.change(scenario.origin, "from:1:debit", accounting.FeeDebtOpened, scenario.opened)),
+		record(t0.Add(time.Minute), "", scenario.change(scenario.credit1, "to:0:credit:collect", accounting.FeeDebtSettled, "30.000000000000000000000000000000005")),
+	}
+
+	for pass := 0; pass < 2; pass++ {
+		for _, r := range records {
+			require.NoError(t, repo.Apply(ctx, r), "pass %d: an amount past 34 digits must round, not fail", pass)
+		}
+	}
+
 	debt := readDebt(t, container.Database, scenario.debtID)
-	assert.True(t, debt.OpenedAt.Equal(t0), "the opening still records when it happened")
-	assert.Equal(t, "pkg-1", debt.FeePackageID)
+	assert.Equal(t, "70.00000000000000000000000000000000", debt.OpenedAmount.String())
+	assert.Equal(t, "39.99999999999999999999999999999999", debt.Remaining.String())
+	require.Len(t, debt.Entries, 2)
+	assert.Equal(t, "30.000000000000000000000000000000005", debt.Entries[1].Amount, "the entry keeps the exact amount")
 }
 
 func TestApply_CancelAndReopenMoveRemaining(t *testing.T) {
@@ -354,13 +364,6 @@ func TestFindAll_OldestFirstWithCursor(t *testing.T) {
 	back, _, err := repo.FindAll(ctx, orgID, ledgerID, fee_debt.ListQuery{Limit: 2, Cursor: cursor3.Prev})
 	require.NoError(t, err)
 	assert.Equal(t, ids[2:4], debtIDs(back), "a prev page reads oldest first too")
-
-	payer, _, err := repo.FindAll(ctx, orgID, ledgerID, fee_debt.ListQuery{Limit: 10, DebtorBalanceRef: "@payer#default"})
-	require.NoError(t, err)
-	assert.Equal(t, []string{ids[0], ids[2], ids[4]}, debtIDs(payer))
-
-	_, _, err = repo.FindAll(ctx, orgID, ledgerID, fee_debt.ListQuery{Limit: 2, Cursor: "not-a-cursor"})
-	assert.True(t, errors.Is(err, libHTTP.ErrInvalidCursor), "got %v", err)
 }
 
 func TestFindAll_DebtorListingFollowsSeq(t *testing.T) {
@@ -398,12 +401,16 @@ func TestFindAll_DebtorListingFollowsSeq(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ids, debtIDs(all), "the ledger-wide listing stays in debt id order")
 
-	notSeq, err := libHTTP.EncodeCursor(libHTTP.Cursor{ID: ids[0], Direction: libHTTP.CursorDirectionNext})
+	_, ledgerCursor, err := repo.FindAll(ctx, orgID, ledgerID, fee_debt.ListQuery{Limit: 1})
 	require.NoError(t, err)
 
-	debtor.Cursor = notSeq
-	_, _, err = repo.FindAll(ctx, orgID, ledgerID, debtor)
-	assert.ErrorIs(t, err, libHTTP.ErrInvalidCursor)
+	for _, replay := range []fee_debt.ListQuery{
+		{Limit: 2, DebtorBalanceRef: "@payer#default", Cursor: ledgerCursor.Next},
+		{Limit: 2, Cursor: cursor1.Next},
+	} {
+		_, _, err = repo.FindAll(ctx, orgID, ledgerID, replay)
+		assert.ErrorIs(t, err, libHTTP.ErrInvalidCursor, "a cursor replayed on the other listing is invalid")
+	}
 }
 
 func TestFindByID_ScopedToTheLedger(t *testing.T) {
