@@ -106,10 +106,9 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 	assetRateRepo := assetrate.NewMockRepository(ctrl)
 	metadataRepo := txmongodb.NewMockRepository(ctrl)
 
-	// New-record path: no existing pair -> Create. The shared body pipeline
-	// (DecodeAndValidate -> parseMetadata) initializes Metadata to a non-nil empty
-	// map when the body carries no "metadata" key, so the service persists it via
-	// TransactionMetadataRepo.Create.
+	// New-record path: no existing pair -> Create. The body carries no "metadata"
+	// key; the decode path fills it with an empty map for PATCH merge semantics,
+	// and an empty map persists no document.
 	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").Return(nil, nil).Times(1)
 	assetRateRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
@@ -117,7 +116,7 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 			ar.UpdatedAt = fixedTestTime
 			return ar, nil
 		}).Times(1)
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAssetRate, gomock.Any()).Return(nil).Times(1)
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAssetRate, gomock.Any()).Times(0)
 
 	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetRateRepo, TransactionMetadataRepo: metadataRepo}}
 

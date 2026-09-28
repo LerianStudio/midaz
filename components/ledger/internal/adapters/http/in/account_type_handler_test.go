@@ -115,10 +115,9 @@ func TestCreateAccountType_Success(t *testing.T) {
 			at.UpdatedAt = fixedTestTime
 			return at, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it.
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAccountType, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAccountType, gomock.Any()).Times(0)
 
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accountTypeRepo,

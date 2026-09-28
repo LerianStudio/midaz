@@ -103,7 +103,9 @@ func TestCreateOperationRoute_Success(t *testing.T) {
 			or.UpdatedAt = fixedTestTime
 			return or, nil
 		}).Times(1)
-	metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Times(0)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{
 		OperationRouteRepo:      orRepo,

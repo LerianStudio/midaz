@@ -118,7 +118,9 @@ func TestCreateLedger_Success(t *testing.T) {
 			l.UpdatedAt = fixedTestTime
 			return l, nil
 		}).Times(1)
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityLedger, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityLedger, gomock.Any()).Times(0)
 
 	handler := &LedgerHandler{Command: &command.UseCase{
 		LedgerRepo:             ledgerRepo,

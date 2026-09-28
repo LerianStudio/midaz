@@ -108,10 +108,9 @@ func TestCreatePortfolio_Success(t *testing.T) {
 			p.UpdatedAt = fixedTestTime
 			return p, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it — faithful to the Fiber WithBody path.
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Times(0)
 
 	handler := &PortfolioHandler{Command: &command.UseCase{
 		PortfolioRepo:          portfolioRepo,
