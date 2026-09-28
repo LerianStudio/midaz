@@ -200,3 +200,72 @@ func TestCreateOnboardingMetadata_DecodedBody(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateOnboardingMetadata_WriteFailure pins how a failing metadata write
+// interacts with the create: filled metadata propagates the repository error,
+// while nil or empty metadata never reaches the repository and succeeds.
+func TestCreateOnboardingMetadata_WriteFailure(t *testing.T) {
+	t.Parallel()
+
+	writeErr := errors.New("failed to create metadata")
+
+	tests := []struct {
+		name        string
+		metadata    map[string]any
+		wantCreate  bool
+		expectedErr error
+	}{
+		{
+			name:        "filled metadata propagates the write error",
+			metadata:    map[string]any{"k": "v"},
+			wantCreate:  true,
+			expectedErr: writeErr,
+		},
+		{
+			name:        "empty metadata does not attempt a write",
+			metadata:    map[string]any{},
+			wantCreate:  false,
+			expectedErr: nil,
+		},
+		{
+			name:        "nil metadata does not attempt a write",
+			metadata:    nil,
+			wantCreate:  false,
+			expectedErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Without a registered Create expectation, any write attempt fails the test.
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+			if tt.wantCreate {
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), "Ledger", gomock.Any()).
+					Return(writeErr).
+					Times(1)
+			}
+
+			uc := &UseCase{
+				OnboardingMetadataRepo: mockMetadataRepo,
+			}
+
+			result, err := uc.CreateOnboardingMetadata(context.Background(), "Ledger", "entity-id", tt.metadata)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Nil(t, result)
+			}
+		})
+	}
+}
