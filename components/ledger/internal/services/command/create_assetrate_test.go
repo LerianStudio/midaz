@@ -186,7 +186,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				Scale:      2,
 				TTL:        libPointers.Int(3600),
 				ExternalID: libPointers.String(uuid.Must(libCommons.GenerateUUIDv7()).String()),
-				// No Metadata - so UpdateMetadata skips FindByEntity, only calls Update
+				// No Metadata: the stored document is read and cleared.
 			},
 			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
 				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
@@ -216,7 +216,12 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-				// When metadata is nil, UpdateMetadata skips FindByEntity and only calls Update
+				// Nil metadata clears the existing document.
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "AssetRate", existingID).
+					Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+					Times(1)
+
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), "AssetRate", existingID, gomock.Any()).
 					Return(nil).
