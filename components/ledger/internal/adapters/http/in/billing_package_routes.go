@@ -111,11 +111,11 @@ func registerBillingPackageRoutesToApp(group fiber.Router, api huma.API, auth *m
 
 	billingPackageParse := pkgHTTP.ParseUUIDPathParameters("billing-packages")
 
-	routePost(group, billingPackagesPath, protectedMidaz(auth, "billing-packages", "post", routeOptions, billingPackageParse))
-	routeGet(group, billingPackagesPath, protectedMidaz(auth, "billing-packages", "get", routeOptions, billingPackageParse))
-	routeGet(group, billingPackageIDPath, protectedMidaz(auth, "billing-packages", "get", routeOptions, billingPackageParse))
-	routePatch(group, billingPackageIDPath, protectedMidaz(auth, "billing-packages", "patch", routeOptions, billingPackageParse))
-	routeDelete(group, billingPackageIDPath, protectedMidaz(auth, "billing-packages", "delete", routeOptions, billingPackageParse))
+	routePost(group, billingPackagesPath, protectedMidaz(auth, billingPackagesPath, "billing-packages", "post", routeOptions, billingPackageParse))
+	routeGet(group, billingPackagesPath, protectedMidaz(auth, billingPackagesPath, "billing-packages", "get", routeOptions, billingPackageParse))
+	routeGet(group, billingPackageIDPath, protectedMidaz(auth, billingPackageIDPath, "billing-packages", "get", routeOptions, billingPackageParse))
+	routePatch(group, billingPackageIDPath, protectedMidaz(auth, billingPackageIDPath, "billing-packages", "patch", routeOptions, billingPackageParse))
+	routeDelete(group, billingPackageIDPath, protectedMidaz(auth, billingPackageIDPath, "billing-packages", "delete", routeOptions, billingPackageParse))
 
 	RegisterBillingPackageRoutes(api, h, opSuffix)
 }

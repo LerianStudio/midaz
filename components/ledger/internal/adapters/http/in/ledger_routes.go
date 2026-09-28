@@ -158,14 +158,14 @@ func registerLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middlewar
 
 	parse := pkgHTTP.ParseUUIDPathParameters("ledger")
 
-	routePost(group, listPath, protectedMidaz(auth, "ledgers", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "ledgers", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "ledgers", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "ledgers", "get", routeOptions, parse))
-	routeGet(group, settingsPath, protectedMidaz(auth, "ledgers", "get", routeOptions, parse))
-	routePatch(group, settingsPath, protectedMidaz(auth, "ledgers", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "ledgers", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, "ledgers", "head", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "ledgers", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "ledgers", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "ledgers", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "ledgers", "get", routeOptions, parse))
+	routeGet(group, settingsPath, protectedMidaz(auth, settingsPath, "ledgers", "get", routeOptions, parse))
+	routePatch(group, settingsPath, protectedMidaz(auth, settingsPath, "ledgers", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "ledgers", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, countPath, "ledgers", "head", routeOptions, parse))
 
 	RegisterLedgerRoutes(api, h, opSuffix)
 }

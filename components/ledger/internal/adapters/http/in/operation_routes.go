@@ -100,11 +100,11 @@ func registerOperationRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	parse := pkgHTTP.ParseUUIDPathParameters("operation")
 
 	// Two READ ops — ("operations","get").
-	routeGet(group, listPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "operations", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "operations", "get", routeOptions, parse))
 
 	// PATCH (money-write leg) — ("operations","patch").
-	routePatch(group, patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse))
+	routePatch(group, patchPath, protectedMidaz(auth, patchPath, "operations", "patch", routeOptions, parse))
 
 	RegisterOperationRoutes(api, oh, opSuffix)
 }

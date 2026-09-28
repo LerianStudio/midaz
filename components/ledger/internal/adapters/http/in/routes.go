@@ -39,8 +39,16 @@ const (
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
-	return http.ProtectedRouteChain(auth.Authorize(midazName, resource, action), routeOptions, handlers...)
+// protectedMidaz builds the guard chain for one route: the lib-auth authorization
+// middleware followed by the shared post-auth handlers.
+//
+// path is the route's OWN Fiber path, and it is what carries the "where" half of the
+// authorization question — see midazScopeDeclarations. It must be the same expression
+// passed to the routeXxx call that mounts the chain: a path copied from a neighbouring
+// route still compiles, still answers 200, and authorizes against the wrong instance.
+func protectedMidaz(auth *middleware.AuthClient, path, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
+	return http.ProtectedRouteChain(
+		auth.Authorize(midazName, resource, action, midazScopeDeclarations(path)...), routeOptions, handlers...)
 }
 
 // registerRoute registers a protected handler chain on a Fiber v3 router. Fiber

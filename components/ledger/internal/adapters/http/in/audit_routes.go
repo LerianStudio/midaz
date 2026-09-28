@@ -55,7 +55,7 @@ func RegisterAuditV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 func registerAuditRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AuditHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const auditPath = "/organizations/:organization_id/protection/audit"
 
-	routeGet(group, auditPath, protectedMidaz(auth, "protection", "get", routeOptions, pkgHTTP.ParseUUIDPathParameters("organization")))
+	routeGet(group, auditPath, protectedMidaz(auth, auditPath, "protection", "get", routeOptions, pkgHTTP.ParseUUIDPathParameters("organization")))
 
 	RegisterAuditRoutes(api, h, opSuffix)
 }

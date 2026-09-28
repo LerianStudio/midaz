@@ -127,9 +127,9 @@ func registerDashboardRoutesToApp(group fiber.Router, api huma.API, auth *middle
 
 	parse := pkgHTTP.ParseUUIDPathParameters("dashboard")
 
-	routeGet(group, base+"/metrics", protectedMidaz(auth, dashboardResource, "get", routeOptions, parse))
-	routeGet(group, base+"/volume", protectedMidaz(auth, dashboardResource, "get", routeOptions, parse))
-	routeGet(group, base+"/assets", protectedMidaz(auth, dashboardResource, "get", routeOptions, parse))
+	routeGet(group, base+"/metrics", protectedMidaz(auth, base+"/metrics", dashboardResource, "get", routeOptions, parse))
+	routeGet(group, base+"/volume", protectedMidaz(auth, base+"/volume", dashboardResource, "get", routeOptions, parse))
+	routeGet(group, base+"/assets", protectedMidaz(auth, base+"/assets", dashboardResource, "get", routeOptions, parse))
 
 	RegisterDashboardRoutes(api, dh, opSuffix)
 }
