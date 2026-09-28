@@ -62,9 +62,17 @@ func TestMidazScopeDims_DerivesFromPath(t *testing.T) {
 			want: [][3]any{orgDim, ledgerDim},
 		},
 		{
-			name: "an identifier the route names its own way is not the organization",
+			// ":id" is a RESOURCE's own identifier — an account's, an asset's — on
+			// every surface that still spells it that way. Reading it as the
+			// organization would forward an account id as the organization id.
+			name: "a bare :id is never the organization",
 			path: "/organizations/:id",
 			want: [][3]any{},
+		},
+		{
+			name: "a resource :id alongside the real parameters adds nothing",
+			path: "/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
+			want: [][3]any{orgDim, ledgerDim},
 		},
 	}
 

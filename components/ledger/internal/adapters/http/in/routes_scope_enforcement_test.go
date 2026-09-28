@@ -172,14 +172,25 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			want:     orgOnly,
 		},
 		{
-			// The organization's own identifier is spelled ":id" on this surface,
-			// not ":organization_id". The derivation reads path parameter NAMES, so
-			// it sends nothing here rather than guessing.
-			name:     "get one organization sends no identifier",
+			name:     "get one organization carries the organization",
 			register: organizationRegistrar,
 			method:   fiber.MethodGet,
 			path:     "/v1/organizations/" + orgID,
-			want:     nil,
+			want:     orgOnly,
+		},
+		{
+			name:     "update one organization carries the organization",
+			register: organizationRegistrar,
+			method:   fiber.MethodPatch,
+			path:     "/v1/organizations/" + orgID,
+			want:     orgOnly,
+		},
+		{
+			name:     "delete one organization carries the organization",
+			register: organizationRegistrar,
+			method:   fiber.MethodDelete,
+			path:     "/v1/organizations/" + orgID,
+			want:     orgOnly,
 		},
 		{
 			name:     "list organizations sends no identifier",

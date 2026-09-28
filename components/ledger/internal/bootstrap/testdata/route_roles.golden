@@ -8,7 +8,7 @@
 # resource or action moves neither path, count nor role, and no gate in this repository covers it.
 # Generated — do not hand-edit. Regenerate with:
 #   go test ./components/ledger/internal/bootstrap/ -run TestRouteRoles -update-route-roles
-DELETE	/v1/organizations/:id	onboarding
+DELETE	/v1/organizations/:organization_id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
@@ -19,7 +19,7 @@ DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id	onbo
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
 DELETE	/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key	ledger
-DELETE	/v2/organizations/:id	onboarding
+DELETE	/v2/organizations/:organization_id	onboarding
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id	crm
 DELETE	/v2/organizations/:organization_id/holders/:id	crm-holder-delete
@@ -38,7 +38,7 @@ DELETE	/v2/organizations/:organization_id/operation-routes/:operation_route_id	t
 DELETE	/v2/organizations/:organization_id/transaction-routes/:transaction_route_id	transaction
 DELETE	/v2/settings/metadata-indexes/entities/:entity_name/key/:index_key	ledger
 GET	/v1/organizations	onboarding
-GET	/v1/organizations/:id	onboarding
+GET	/v1/organizations/:organization_id	onboarding
 GET	/v1/organizations/:organization_id/ledgers	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
@@ -76,7 +76,7 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions	transacti
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 GET	/v1/settings/metadata-indexes	ledger
 GET	/v2/organizations	onboarding
-GET	/v2/organizations/:id	onboarding
+GET	/v2/organizations/:organization_id	onboarding
 GET	/v2/organizations/:organization_id/encryption/status	crm
 GET	/v2/organizations/:organization_id/holders	crm
 GET	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
@@ -142,7 +142,7 @@ HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/coun
 HEAD	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count	transaction
 HEAD	/v2/organizations/:organization_id/ledgers/metrics/count	onboarding
 HEAD	/v2/organizations/metrics/count	onboarding
-PATCH	/v1/organizations/:id	onboarding
+PATCH	/v1/organizations/:organization_id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
@@ -155,7 +155,7 @@ PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/settings	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id	transaction
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id	transaction
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id	transaction
-PATCH	/v2/organizations/:id	onboarding
+PATCH	/v2/organizations/:organization_id	onboarding
 PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 PATCH	/v2/organizations/:organization_id/holders/:id	crm
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding

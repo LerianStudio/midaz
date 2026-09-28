@@ -43,7 +43,7 @@ func RegisterOrganizationV2Routes(api huma.API, h *OrganizationHandler, opSuffix
 func registerOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{organization_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Organizations"
 	)
@@ -147,7 +147,7 @@ func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *m
 func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:organization_id"
 		countPath = listPath + "/metrics/count"
 	)
 

@@ -265,14 +265,14 @@ paths:
       summary: Count total organizations
       tags:
         - Midaz_Ledger_API_Organizations (v1)
-  /v1/organizations/{id}:
+  /v1/organizations/{organization_id}:
     delete:
       deprecated: true
       operationId: deleteOrganization
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -309,7 +309,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -350,7 +350,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6027,13 +6027,13 @@ paths:
       summary: Count total organizations
       tags:
         - Midaz_Ledger_API_Organizations (v2)
-  /v2/organizations/{id}:
+  /v2/organizations/{organization_id}:
     delete:
       operationId: deleteOrganizationV2
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6069,7 +6069,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6109,7 +6109,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
