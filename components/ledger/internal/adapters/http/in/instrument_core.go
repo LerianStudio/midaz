@@ -60,16 +60,21 @@ func (handler *InstrumentHandler) createInstrument(ctx context.Context, organiza
 		return nil, false, err
 	}
 
-	hash := libCommons.HashSHA256(body)
+	token, err := handler.Service.CRMIdempotencyToken(ctx, organizationID.String(), body)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to derive instrument idempotency token", err)
+
+		return nil, false, err
+	}
 
 	key := clientKey
 	if key == "" {
-		key = hash
+		key = token
 	}
 
 	internalKey := services.InstrumentIdempotencyKey(organizationID.String(), holderID.String(), key)
 
-	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, hash, ttl)
+	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, token, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to claim instrument idempotency", err)
 

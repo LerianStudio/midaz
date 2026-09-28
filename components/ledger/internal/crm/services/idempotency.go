@@ -21,8 +21,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// idempotencyReplayField names the stored entity in its ciphertext binding.
-const idempotencyReplayField = "idempotency_replay"
+const (
+	// idempotencyReplayField names the stored entity in its ciphertext binding.
+	idempotencyReplayField = "idempotency_replay"
+	// idempotencyBodyField names the request body in its keyed-hash token.
+	idempotencyBodyField = "idempotency_body"
+)
 
 // IdempotencyRepo is the narrow CRM-local port over the shared Redis
 // infrastructure. It is satisfied structurally by the transaction
@@ -58,6 +62,27 @@ func InstrumentIdempotencyKey(organizationID, holderID, key string) string {
 	return fmt.Sprintf("idempotency:crm:instrument:%s:%s:%s", organizationID, holderID, key)
 }
 
+// CRMIdempotencyToken derives the token that names a request body in its
+// idempotency slot key and conflict message, with the organization's keyed hash so
+// the body's personal data cannot be recovered from it. A nil Idempotency repo
+// returns an empty token.
+func (uc *UseCase) CRMIdempotencyToken(ctx context.Context, organizationID, body string) (string, error) {
+	if uc.Idempotency == nil {
+		return "", nil
+	}
+
+	token, _, err := uc.Encryptor.GenerateSearchToken(ctx, encryption.SearchTokenContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		FieldName:      idempotencyBodyField,
+	}, body)
+	if err != nil {
+		return "", fmt.Errorf("failed to derive idempotency token: %w", err)
+	}
+
+	return token, nil
+}
+
 // CreateOrCheckCRMIdempotency atomically claims an idempotency slot in Redis
 // under the already-namespaced internalKey.
 //
@@ -69,7 +94,7 @@ func InstrumentIdempotencyKey(organizationID, holderID, key string) string {
 //
 // A nil Idempotency repo means the feature is disabled: the call returns a
 // zero result (no claim), mirroring the streaming nil-emitter guard.
-func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, organizationID, internalKey, hash string, ttl time.Duration) (*CRMIdempotencyResult, error) {
+func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, organizationID, internalKey, token string, ttl time.Duration) (*CRMIdempotencyResult, error) {
 	if uc.Idempotency == nil {
 		return &CRMIdempotencyResult{}, nil
 	}
@@ -117,7 +142,7 @@ func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, organization
 		return &CRMIdempotencyResult{Replay: &entity}, nil
 	}
 
-	businessErr := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckCRMIdempotency", hash)
+	businessErr := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckCRMIdempotency", token)
 	recordSpanError(span, "Idempotency key already in use", businessErr)
 	logger.Log(ctx, libLog.LevelWarn, "Idempotency key already in use", libLog.Err(businessErr))
 

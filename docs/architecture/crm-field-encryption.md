@@ -77,7 +77,8 @@ instrument `document`, `banking_details.account`, `banking_details.iban`,
 **Idempotency slots.** A holder or instrument create caches its full response for replay in Valkey.
 That response is encrypted as one field (`RecordID` = the slot key, `FieldName` =
 `idempotency_replay`) and decrypted on replay, so the cached response holds no personal data in
-clear. The slot key embeds the caller's `X-Idempotency` value as sent.
+clear. The slot key embeds the caller's `X-Idempotency` value as sent; without one, it embeds the
+search-token keyed hash of the request body (`GenerateSearchToken`, field `idempotency_body`).
 
 ---
 
