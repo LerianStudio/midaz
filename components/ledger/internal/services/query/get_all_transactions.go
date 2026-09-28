@@ -27,30 +27,19 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-// resolveDestination returns the operation-reconstructed destination when it is
-// non-empty; otherwise it falls back to the submitted destination derived from
-// the body. A reconstructed destination is never overwritten, and a transaction
-// with no submitted destination stays empty. Keeping this decision in one place
-// keeps GET-listing and GET-individual reads consistent.
-func resolveDestination(reconstructed []string, body mtransaction.Transaction) []string {
-	if len(reconstructed) > 0 {
-		return reconstructed
-	}
-
-	if derived := deriveDestinationFromBody(body); len(derived) > 0 {
-		return derived
-	}
-
-	return reconstructed
-}
-
-// transactionLegAliases classifies a transaction's persisted operations into the
-// source and destination alias lists every transaction read answers. DEBIT legs
-// are sources and CREDIT legs destinations; BLOCK and UNBLOCK carry a normal
-// accounting Direction and are classified by it; every other type is ignored.
-// The destination falls back to the submitted body when no leg names one (see
-// resolveDestination); the source has no body fallback. Both lists are non-nil.
+// transactionLegAliases answers the source and destination alias lists every
+// transaction read returns. A row that kept its submitted body answers the
+// body's legs, so a read names the same accounts the create and the pending
+// transition answered; the lists describe what was submitted, and the
+// operations carry what each balance actually moved. A row without a body
+// classifies its operations: DEBIT legs are sources and CREDIT legs
+// destinations; BLOCK and UNBLOCK carry a normal accounting Direction and are
+// classified by it; every other type is ignored. Both lists are non-nil.
 func transactionLegAliases(operations []*operation.Operation, body mtransaction.Transaction) (source, destination []string) {
+	if len(body.Send.Source.From) > 0 || len(body.Send.Distribute.To) > 0 {
+		return submittedLegAliases(body.Send.Source.From), submittedLegAliases(body.Send.Distribute.To)
+	}
+
 	source = make([]string, 0)
 	destination = make([]string, 0)
 
@@ -70,38 +59,25 @@ func transactionLegAliases(operations []*operation.Operation, body mtransaction.
 		}
 	}
 
-	return source, resolveDestination(destination, body)
+	return source, destination
 }
 
-// deriveDestinationFromBody returns the submitted destination aliases from a
-// persisted transaction body, in the same bare-alias form the write path caches
-// via getAliasWithoutKey(filterCompanionAliases(...)): the system-managed
-// overdraft companion is skipped, and each entry answers its bare alias whether
-// it is stored as "alias", "alias#balanceKey", or "index#alias#balanceKey".
-//
-// It is the canonical fallback when operation-based reconstruction yields no
-// destination — typically a pre-commit overdraft, whose persisted legs are all
-// source-side (DEBIT + ON_HOLD + OVERDRAFT) with no CREDIT leg, so the submitted
-// destination survives only in the body. Keeping the alias treatment identical
-// to the cache path avoids trading a cache-vs-DB emptiness gap for a cache-vs-DB
-// format gap.
-func deriveDestinationFromBody(body mtransaction.Transaction) []string {
-	to := body.Send.Distribute.To
-	if len(to) == 0 {
-		return nil
-	}
+// submittedLegAliases returns the aliases of a persisted body's legs in
+// submitted order, as the bare alias whether an entry is stored as "alias",
+// "alias#balanceKey", or "index#alias#balanceKey". Entries on the
+// system-managed overdraft balance are skipped: they are not client legs.
+func submittedLegAliases(entries []mtransaction.FromTo) []string {
+	aliases := make([]string, 0, len(entries))
 
-	destination := make([]string, 0, len(to))
-
-	for _, entry := range to {
+	for _, entry := range entries {
 		if entry.BalanceKey == constant.OverdraftBalanceKey {
 			continue
 		}
 
-		destination = append(destination, mtransaction.BareAlias(entry.AccountAlias))
+		aliases = append(aliases, mtransaction.BareAlias(entry.AccountAlias))
 	}
 
-	return destination
+	return aliases
 }
 
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) (_ []*transaction.Transaction, _ libHTTP.CursorPagination, err error) {

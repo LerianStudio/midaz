@@ -116,6 +116,11 @@ test:
 # API documentation is generated from the repo root: `make generate-docs`
 # (scripts/openapi/generate-docs.sh covers ledger and tracer).
 
+# The shared PR workflow probes each changed component for this opt-in target.
+.PHONY: check-api-spec
+check-api-spec:
+	@$(MAKE) -C $(MIDAZ_ROOT) CHECK_DOCS_REGEN=1 check-docs
+
 #-------------------------------------------------------
 # Database Migrations (two-DB: onboarding + transaction)
 #-------------------------------------------------------

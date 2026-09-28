@@ -138,6 +138,12 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	if err = uc.validateBankAccountUnique(ctx, organizationID, instrumentID, instrument.BankingDetails); err != nil {
+		recordSpanError(span, "Failed to validate instrument bank account", err)
+
+		return nil, err
+	}
+
 	createdInstrument, err := uc.InstrumentRepo.Create(ctx, organizationID, instrument)
 	if err != nil {
 		recordSpanError(span, "Failed to create instrument", err)

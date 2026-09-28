@@ -10,6 +10,7 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -19,6 +20,7 @@ import (
 	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -37,14 +39,26 @@ func TestGetAtomicTransactionBatchProjections_ReadsBoundedPrimarySnapshotOnce(t 
 	thirdOperationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000117").String()
 	transactions := []*transactionPostgres.Transaction{
 		{
+			// A held batch item without route validation persists only its
+			// ON_HOLD leg; its legs survive in the submitted body.
 			ID:             transactionIDs[1].String(),
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations: []*operation.Operation{{
 				ID:           thirdOperationID,
-				Type:         constant.CREDIT,
-				AccountAlias: "@destination-1",
+				Type:         constant.ONHOLD,
+				Direction:    constant.DirectionDebit,
+				AccountAlias: "@source-1",
 			}},
+			Body: mtransaction.Transaction{
+				Pending: true,
+				Send: mtransaction.Send{
+					Asset:      "USD",
+					Value:      decimal.NewFromInt(100),
+					Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@source-1#default", BalanceKey: constant.DefaultBalanceKey}}},
+					Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "0#@destination-1#default", BalanceKey: constant.DefaultBalanceKey}}},
+				},
+			},
 		},
 		{
 			ID:             transactionIDs[0].String(),
@@ -107,6 +121,8 @@ func TestGetAtomicTransactionBatchProjections_ReadsBoundedPrimarySnapshotOnce(t 
 		result[1].Operations[0].ID,
 		result[1].Operations[1].ID,
 	})
+	assert.Equal(t, []string{"@source-1"}, result[0].Source, "a held item answers its submitted source")
+	assert.Equal(t, []string{"@destination-1"}, result[0].Destination, "a held item answers its submitted destination")
 	assert.Equal(t, []string{"@source-0"}, result[1].Source)
 	assert.Equal(t, []string{"@destination-0"}, result[1].Destination)
 	assert.Equal(t, map[string]any{"transaction": "metadata"}, result[1].Metadata)

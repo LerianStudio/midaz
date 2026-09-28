@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -227,6 +228,7 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 	if err := validateAtomicTransactionBatchReceipt(
 		receipt,
 		*record,
+		tmcore.GetTenantIDContext(ctx),
 		receiptOrganizationID,
 		receiptLedgerID,
 		executionID,
@@ -260,6 +262,7 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 func validateAtomicTransactionBatchReceipt(
 	receipt atomicTransactionBatchReceipt,
 	record AtomicTransactionBatchIdempotencyRecord,
+	tenantID string,
 	organizationID, ledgerID, executionID, transactionID uuid.UUID,
 ) error {
 	protection := receipt.Protection
@@ -270,7 +273,7 @@ func validateAtomicTransactionBatchReceipt(
 		protection.RetentionSeconds > 604800 || len(protection.Transactions) == 0 ||
 		len(protection.Transactions) != len(record.TransactionIDs) ||
 		len(protection.RecoveryFields) != len(record.TransactionIDs) ||
-		(protection.FormatVersion == 2 && (receipt.TenantID == "" || len(protection.IndexFields) != len(record.TransactionIDs))) ||
+		(protection.FormatVersion == 2 && (receipt.TenantID != tenantID || len(protection.IndexFields) != len(record.TransactionIDs))) ||
 		protection.Acknowledged == nil || protection.TerminalCompletedAtMS == nil {
 		return errors.New("atomic transaction batch execution receipt is invalid")
 	}

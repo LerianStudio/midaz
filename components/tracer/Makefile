@@ -162,6 +162,9 @@ pre-merge:
 
 # API docs/OpenAPI generation is single-sourced at the repo root
 # (`make generate-docs`); the `check-docs` parity guardrail lives there too.
+.PHONY: check-api-spec
+check-api-spec:
+	@$(MAKE) -C $(MIDAZ_ROOT) CHECK_DOCS_REGEN=1 check-docs
 
 # Git hooks are a monorepo-wide concern: the root Makefile's setup-git-hooks
 # target runs `git config core.hooksPath .githooks`, which applies repo-wide and
