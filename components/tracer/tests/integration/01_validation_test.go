@@ -952,16 +952,16 @@ func TestValidation_InvalidAsset(t *testing.T) {
 		asset string
 	}{
 		{
-			name:  "invalid asset code",
-			asset: "INVALID",
+			name:  "lowercase asset code",
+			asset: "usd",
 		},
 		{
-			name:  "too short asset code",
-			asset: "US",
+			name:  "asset code with a digit",
+			asset: "US1",
 		},
 		{
-			name:  "too long asset code",
-			asset: "BRLL",
+			name:  "asset code with a hyphen",
+			asset: "U-S",
 		},
 		{
 			name:  "numeric asset code",
