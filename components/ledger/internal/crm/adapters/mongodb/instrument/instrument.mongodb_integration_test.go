@@ -913,3 +913,40 @@ func TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
 	assert.Len(t, indexes, len(indexModels())+2,
 		"collection should have the 11 modeled indexes, the bank-account index and the implicit _id_ index")
 }
+
+// ============================================================================
+// Managed Field Protection Tests
+// ============================================================================
+
+func TestIntegration_AliasRepo_ManagedFieldRemoval_AccountLinkPersists(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-managed-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+	holderID := uuid.New()
+	sharedAccountID := "account-managed-link"
+
+	instrument := mongotestutil.CreateTestInstrumentSimple(t, holderID, sharedAccountID, "73737373737")
+	_, err := repo.Create(ctx, organizationID, instrument)
+	require.NoError(t, err)
+
+	before := findRawInstrument(t, container, organizationID, *instrument.ID)
+
+	// Act - an internal caller bypassing the transport asks to remove the
+	// account and ledger links.
+	_, err = repo.Update(ctx, organizationID, holderID, *instrument.ID, &mmodel.Instrument{}, []string{"accountId", "ledgerId"})
+	require.NoError(t, err)
+
+	// Assert
+	after := findRawInstrument(t, container, organizationID, *instrument.ID)
+	assert.Equal(t, before.Lookup("account_id"), after.Lookup("account_id"), "account_id survives the patch")
+	assert.Equal(t, before.Lookup("ledger_id"), after.Lookup("ledger_id"), "ledger_id survives the patch")
+
+	duplicate := mongotestutil.CreateTestInstrumentSimple(t, holderID, sharedAccountID, "84848484848")
+	_, err = repo.Create(ctx, organizationID, duplicate)
+
+	var conflictErr pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflictErr, "a second instrument for the same account must still be refused")
+	assert.Equal(t, "CRM-0013", conflictErr.Code)
+}

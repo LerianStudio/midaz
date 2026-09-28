@@ -5,7 +5,9 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"testing"
 
@@ -1183,4 +1185,281 @@ func TestPopulateNullFields_NilInputNoOp(t *testing.T) {
 
 	// Should not panic - just no-op for nil input
 	populateNullFields(nil, originalMap)
+}
+
+type nullBarrierContact struct {
+	PrimaryEmail *string `json:"primaryEmail,omitempty"`
+}
+
+type nullBarrierItem struct {
+	Name *string `json:"name,omitempty"`
+}
+
+type nullBarrierRequest struct {
+	Name       *string             `json:"name,omitempty"`
+	ExternalID *string             `json:"externalId,omitempty"`
+	Contact    *nullBarrierContact `json:"contact,omitempty"`
+	Items      []nullBarrierItem   `json:"items,omitempty"`
+	Tags       []*string           `json:"tags,omitempty"`
+	Metadata   map[string]any      `json:"metadata,omitempty"`
+	NullFields []string            `json:"-"`
+}
+
+func TestDecodeAndValidate_RejectsUndeclaredNullKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		location string
+	}{
+		{name: "dotted root key", body: `{"search.document": null}`, location: "search.document"},
+		{name: "undeclared root key", body: `{"createdAt": null}`, location: "createdAt"},
+		{name: "undeclared nested key", body: `{"contact": {"bogus": null}}`, location: "contact.bogus"},
+		{name: "undeclared key inside array item", body: `{"items": [{"name": "a"}, {"bogus": null}]}`, location: "items[1].bogus"},
+		{name: "internal control field sent as null", body: `{"NullFields": null}`, location: "NullFields"},
+		{name: "internal control field sent with a value", body: `{"NullFields": ["x"]}`, location: "NullFields"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input nullBarrierRequest
+			originalMap, err := DecodeAndValidate([]byte(tc.body), &input)
+			require.Error(t, err)
+			assert.Nil(t, originalMap)
+
+			var unknownErr pkg.ValidationUnknownFieldsError
+			require.ErrorAs(t, err, &unknownErr)
+			assert.Equal(t, "0053", unknownErr.Code)
+			assert.Contains(t, unknownErr.Fields, tc.location)
+
+			var detailedInput nullBarrierRequest
+			_, details, detailedErr := DecodeAndValidateWithDetails([]byte(tc.body), &detailedInput)
+			require.Error(t, detailedErr)
+			assert.Contains(t, details, pkg.FieldError{Location: tc.location, Message: "unexpected field"})
+		})
+	}
+}
+
+func TestDecodeAndValidate_AcceptsDeclaredNullKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		body      string
+		nilFields []string
+	}{
+		{name: "declared root null", body: `{"name": "Jane", "externalId": null}`, nilFields: []string{"externalId"}},
+		{name: "declared nested null", body: `{"contact": {"primaryEmail": null}}`, nilFields: []string{"contact.primaryEmail"}},
+		{name: "declared null inside array item", body: `{"items": [{"name": null}]}`, nilFields: []string{}},
+		{name: "null element of a declared slice", body: `{"tags": ["a", null]}`, nilFields: []string{}},
+		{name: "open map accepts any null key", body: `{"metadata": {"anything.here": null}}`, nilFields: []string{"metadata.anything.here"}},
+		{name: "body without any null", body: `{"name": "Jane", "items": [{"name": "a"}]}`, nilFields: []string{}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input nullBarrierRequest
+			originalMap, err := DecodeAndValidate([]byte(tc.body), &input)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tc.nilFields, FindNilFields(originalMap, ""))
+		})
+	}
+}
+
+func TestCollectNullPaths_SkipsBodiesWithoutNull(t *testing.T) {
+	t.Parallel()
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal([]byte(`{"name": "Jane", "contact": {"primaryEmail": "a"}, "items": [{"name": "a"}]}`), &body))
+
+	assert.Empty(t, collectNullPaths(body))
+}
+
+func TestCollectNullPaths_RendersMapAndArrayPaths(t *testing.T) {
+	t.Parallel()
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal([]byte(`{"a": null, "b": {"c": null}, "d": [null, {"e": null}]}`), &body))
+
+	assert.Equal(t, []nullPath{
+		{path: "a", objectKey: true},
+		{path: "b.c", objectKey: true},
+		{path: "d[0]", objectKey: false},
+		{path: "d[1].e", objectKey: true},
+	}, collectNullPaths(body))
+}
+
+func TestUnknownNullFieldLeaf_LocksStdlibFormat(t *testing.T) {
+	t.Parallel()
+
+	dec := json.NewDecoder(bytes.NewReader([]byte(`{"contact": {"bo\"gus": null}}`)))
+	dec.DisallowUnknownFields()
+
+	err := dec.Decode(&nullBarrierRequest{})
+	require.Error(t, err)
+
+	leaf, ok := unknownFieldLeaf(err)
+	require.True(t, ok, "encoding/json unknown-field text changed: %q", err.Error())
+	assert.Equal(t, `bo"gus`, leaf)
+}
+
+func TestUnknownNullFieldLeaf_RefusesOtherErrors(t *testing.T) {
+	t.Parallel()
+
+	_, ok := unknownFieldLeaf(errors.New("json: cannot unmarshal number into Go struct field"))
+	assert.False(t, ok)
+
+	_, ok = unknownFieldLeaf(errors.New(jsonUnknownFieldPrefix + "unquoted"))
+	assert.False(t, ok)
+}
+
+func TestUnknownNullFieldDetails_ReportsSingleCandidateWithoutProbing(t *testing.T) {
+	t.Parallel()
+
+	probe := func(string) (bool, bool) {
+		t.Fatal("a single candidate must not be probed")
+
+		return false, false
+	}
+
+	fields, details := undeclaredNullFieldDetails("bogus", []nullPath{
+		{path: "contact.bogus", objectKey: true},
+		{path: "notbogus", objectKey: true},
+		{path: "contact.name", objectKey: true},
+	}, probe)
+
+	assert.Equal(t, pkg.UnknownFields{"contact.bogus": nil}, fields)
+	assert.Equal(t, []pkg.FieldError{{Location: "contact.bogus", Message: "unexpected field"}}, details)
+}
+
+func TestUnknownNullFieldDetails_FallsBackToLeaf(t *testing.T) {
+	t.Parallel()
+
+	fields, details := undeclaredNullFieldDetails("bogus", []nullPath{{path: "contact.name", objectKey: true}}, nil)
+
+	assert.Equal(t, pkg.UnknownFields{"bogus": nil}, fields)
+	assert.Equal(t, []pkg.FieldError{{Location: "bogus", Message: "unexpected field"}}, details)
+}
+
+func TestUnknownNullFieldDetails_SkipsNullArrayElements(t *testing.T) {
+	t.Parallel()
+
+	fields, _ := undeclaredNullFieldDetails("bogus", []nullPath{
+		{path: "bogus", objectKey: false},
+		{path: "items[0].bogus", objectKey: true},
+	}, nil)
+
+	assert.Equal(t, pkg.UnknownFields{"items[0].bogus": nil}, fields)
+}
+
+func TestUnknownNullFieldDetails_ReportsEveryCandidateWhenProbeCannotDecide(t *testing.T) {
+	t.Parallel()
+
+	probe := func(path string) (bool, bool) {
+		return path == "bogus", path == "bogus"
+	}
+
+	fields, details := undeclaredNullFieldDetails("bogus", []nullPath{
+		{path: "bogus", objectKey: true},
+		{path: "contact.bogus", objectKey: true},
+	}, probe)
+
+	assert.Equal(t, pkg.UnknownFields{"bogus": nil, "contact.bogus": nil}, fields)
+	assert.Equal(t, []pkg.FieldError{
+		{Location: "bogus", Message: "unexpected field"},
+		{Location: "contact.bogus", Message: "unexpected field"},
+	}, details)
+}
+
+func TestNullKeyRefused_CannotDecideOnOtherDecodeFailures(t *testing.T) {
+	t.Parallel()
+
+	originalMap := map[string]any{"name": 1.0, "zbogus": nil}
+
+	refused, ok := nullKeyRefused(originalMap, "zbogus", &nullBarrierRequest{}, "zbogus")
+	assert.False(t, refused)
+	assert.False(t, ok)
+}
+
+func TestDecodeAndValidate_DisambiguatesNullKeysSharingALeaf(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		body   string
+		fields pkg.UnknownFields
+	}{
+		{
+			name:   "declared root key shares the leaf of an undeclared nested key",
+			body:   `{"name": null, "contact": {"name": null}}`,
+			fields: pkg.UnknownFields{"contact.name": nil},
+		},
+		{
+			name:   "every candidate undeclared",
+			body:   `{"bogus": null, "contact": {"bogus": null}}`,
+			fields: pkg.UnknownFields{"bogus": nil, "contact.bogus": nil},
+		},
+		{
+			name:   "two of three candidates undeclared",
+			body:   `{"primaryEmail": null, "contact": {"primaryEmail": null}, "items": [{"primaryEmail": null}]}`,
+			fields: pkg.UnknownFields{"primaryEmail": nil, "items[0].primaryEmail": nil},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input nullBarrierRequest
+			_, details, err := DecodeAndValidateWithDetails([]byte(tc.body), &input)
+			require.Error(t, err)
+
+			var unknownErr pkg.ValidationUnknownFieldsError
+			require.ErrorAs(t, err, &unknownErr)
+			assert.Equal(t, "0053", unknownErr.Code)
+			assert.Equal(t, tc.fields, unknownErr.Fields)
+			assert.Equal(t, unknownFieldDetailsFallback(tc.fields), details)
+		})
+	}
+}
+
+func TestUnknownNullFields_ReturnsUnmarshallingErrorForOtherDecodeFailures(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"name": 1, "bogus": null}`)
+
+	var originalMap map[string]any
+	require.NoError(t, json.Unmarshal(body, &originalMap))
+
+	fields, details, err := findUndeclaredNullFields(body, &nullBarrierRequest{}, originalMap)
+	require.Error(t, err)
+	assert.Nil(t, fields)
+	assert.Nil(t, details)
+
+	var responseErr pkg.ResponseError
+	assert.ErrorAs(t, err, &responseErr)
+}
+
+func TestDecodeAndValidate_NullFieldsReceiveOnlyDeclaredKeys(t *testing.T) {
+	t.Parallel()
+
+	var rejected StructWithNullFields
+	_, err := DecodeAndValidate([]byte(`{"segmentId": null, "bogus": null}`), &rejected)
+	require.Error(t, err)
+
+	var unknownErr pkg.ValidationUnknownFieldsError
+	require.ErrorAs(t, err, &unknownErr)
+	assert.Equal(t, "0053", unknownErr.Code)
+	assert.Equal(t, pkg.UnknownFields{"bogus": nil}, unknownErr.Fields)
+	assert.Empty(t, rejected.NullFields)
+
+	var accepted StructWithNullFields
+	_, err = DecodeAndValidate([]byte(`{"segmentId": null}`), &accepted)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"segmentId"}, accepted.NullFields)
 }
