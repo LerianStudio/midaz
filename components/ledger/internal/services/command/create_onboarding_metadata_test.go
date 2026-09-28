@@ -11,7 +11,10 @@ import (
 	"time"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -113,6 +116,87 @@ func TestCreateMetadata(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedMeta, result)
 			}
+		})
+	}
+}
+
+// TestCreateOnboardingMetadata_DecodedBody builds the metadata through the real
+// HTTP decode path, so the input reaching the use case is exactly what a create
+// handler passes: an absent key, an explicit null and an empty object all persist
+// no document, and only a non-empty object is written.
+func TestCreateOnboardingMetadata_DecodedBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		body         string
+		wantCreate   bool
+		expectedMeta map[string]any
+	}{
+		{
+			name:         "absent metadata key writes no document",
+			body:         `{"name":"Ledger"}`,
+			wantCreate:   false,
+			expectedMeta: nil,
+		},
+		{
+			name:         "null metadata writes no document",
+			body:         `{"name":"Ledger","metadata":null}`,
+			wantCreate:   false,
+			expectedMeta: nil,
+		},
+		{
+			name:         "empty metadata object writes no document",
+			body:         `{"name":"Ledger","metadata":{}}`,
+			wantCreate:   false,
+			expectedMeta: nil,
+		},
+		{
+			name:         "non-empty metadata writes one document",
+			body:         `{"name":"Ledger","metadata":{"k":"v"}}`,
+			wantCreate:   true,
+			expectedMeta: map[string]any{"k": "v"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+			uc := &UseCase{
+				OnboardingMetadataRepo: mockMetadataRepo,
+			}
+
+			payload := new(mmodel.CreateLedgerInput)
+
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tt.body), payload)
+			require.NoError(t, err)
+
+			if tt.wantCreate {
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), "Ledger", gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ string, meta *mongodb.Metadata) error {
+						assert.Equal(t, "entity-id", meta.EntityID)
+						assert.Equal(t, mongodb.JSON(tt.expectedMeta), meta.Data)
+
+						return nil
+					}).
+					Times(1)
+			} else {
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			}
+
+			result, err := uc.CreateOnboardingMetadata(context.Background(), "Ledger", "entity-id", payload.Metadata)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedMeta, result)
 		})
 	}
 }
