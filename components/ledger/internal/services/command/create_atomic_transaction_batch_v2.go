@@ -513,9 +513,14 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 ) error {
 	readCtx := readrouting.WithPrimaryRead(ctx)
 	refs, aliasesByRef := firstSeenAtomicTransactionBatchAliasesByLedger(run)
+	debtByRef, err := atomicTransactionBatchFeeDebtRefs(run)
+	if err != nil {
+		return err
+	}
+
 	pools := make(map[atomicTransactionBatchLedgerRef]EngineSnapshotPool, len(refs))
 	for _, ref := range refs {
-		pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, ref.organizationID, ref.ledgerID, aliasesByRef[ref])
+		pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, ref.organizationID, ref.ledgerID, aliasesByRef[ref], debtByRef[ref])
 		if err != nil {
 			return err
 		}
@@ -524,7 +529,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 
 	for index := range run.items {
 		item := &run.items[index]
-		preparation := createEnginePreparationInput(run.createTransactionRun(item))
+		preparation := createEnginePreparationInput(run.createTransactionRun(item), true)
 		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
 		var err error
 		if run.crossLedgerGroup {
@@ -581,7 +586,7 @@ func firstSeenAtomicTransactionBatchAliasesByLedger(run *atomicTransactionBatchR
 			seenAliases[ref] = make(map[string]struct{})
 			refs = append(refs, ref)
 		}
-		preparation := createEnginePreparationInput(run.createTransactionRun(item))
+		preparation := createEnginePreparationInput(run.createTransactionRun(item), true)
 		for _, alias := range enginePreparationAliases(preparation) {
 			if _, exists := seenAliases[ref][alias]; exists {
 				continue
