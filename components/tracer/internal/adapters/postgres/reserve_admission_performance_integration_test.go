@@ -82,6 +82,10 @@ func TestIntegrationReserveAdmissionMeasuredEnvelope(t *testing.T) {
 }
 
 // Request latencies include SQL pool waits and hot-account lock contention.
+// Each profile primes its immutable policy program before opening the measured
+// window. Startup/cache-cold behavior belongs to a separate availability proof;
+// mixing four singleflight waiters into 200 steady-state samples makes the p99
+// depend on runner startup noise instead of admission-path regressions.
 // This is the admission command, not network or end-to-end Ledger latency.
 func TestIntegrationReserveAdmissionLatencyUnderContention(t *testing.T) {
 	if os.Getenv("TRACER_MEASURE_ADMISSION") != "true" {
@@ -105,6 +109,16 @@ func TestIntegrationReserveAdmissionLatencyUnderContention(t *testing.T) {
 				}
 				admissionPolicy(t, db, policies, model.DecisionAllow, rules...)
 				limit := admissionLimit(t, db, request, 89649, "1000000000000")
+
+				warmup := request
+				warmup.TransactionID = uuid.NewSHA1(request.TransactionID, []byte("latency-warmup-transaction"))
+				warmup.RequestID = uuid.NewSHA1(request.RequestID, []byte("latency-warmup-request"))
+				warmupResponse, err := admission.Execute(completionContext(t.Context(), "producer"), warmup)
+				require.NoError(t, err)
+				require.NotNil(t, warmupResponse)
+				require.Equal(t, tracercontract.DecisionAllow, warmupResponse.Decision)
+				require.Len(t, warmupResponse.ReservationIDs, 1)
+
 				type observation struct {
 					duration time.Duration
 					err      error
@@ -158,14 +172,14 @@ func TestIntegrationReserveAdmissionLatencyUnderContention(t *testing.T) {
 				var decisions, reservations int
 				require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM reserve_decisions").Scan(&decisions))
 				require.NoError(t, db.QueryRowContext(t.Context(), "SELECT count(*) FROM usage_reservations").Scan(&reservations))
-				require.Equal(t, requests, decisions)
-				require.Equal(t, requests, reservations)
+				require.Equal(t, requests+1, decisions)
+				require.Equal(t, requests+1, reservations)
 				var completePolicies int
 				require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM reserve_decisions WHERE jsonb_array_length(policy_snapshot->'evaluatedRules')=$1 AND jsonb_array_length(policy_snapshot->'matchedRules')=$1 AND policy_snapshot->>'defaultUsed'='false'`, ruleCount).Scan(&completePolicies))
-				require.Equal(t, requests, completePolicies, "every measured decision must evaluate and match the complete policy")
+				require.Equal(t, requests+1, completePolicies, "warm-up and every measured decision must evaluate and match the complete policy")
 				current, held := readCounterDecimal(t, db, limit, "acct:"+request.Context.Accounts[0].ID.String(), testutil.FixedTime().Format("2006-01-02"))
 				require.True(t, current.IsZero())
-				require.Equal(t, "2025", held.String(), "200 exact debits of 10.125, with no lost updates")
+				require.Equal(t, "2035.125", held.String(), "warm-up plus 200 exact debits of 10.125, with no lost updates")
 			})
 		}
 	}

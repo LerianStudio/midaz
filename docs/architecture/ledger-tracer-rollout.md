@@ -131,8 +131,12 @@ not certify the remote Tracer's version, policies or readiness.
 
    The opt-in admission gate uses the existing Tracer architectural references
    (p50 <35 ms, p99 <80 ms and no observation >=100 ms) under its documented
-   synthetic profiles. It includes primary PostgreSQL, locks, exact counters,
-   policy evaluation and synchronous audit, but excludes transport and Ledger:
+   synthetic profiles. Every profile first verifies one cache-cold admission to
+   compile the immutable policy program, then opens the measured steady-state
+   window. The percentiles therefore cover primary PostgreSQL, locks, exact
+   counters, cached policy evaluation and synchronous audit without folding
+   runner startup noise into a 200-request sample. They exclude transport and
+   Ledger:
 
    ```bash
    make test-tracer-admission-latency
