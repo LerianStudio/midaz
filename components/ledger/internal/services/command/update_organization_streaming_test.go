@@ -39,6 +39,10 @@ func newUpdateOrganizationStreamingTestUseCase(t *testing.T, ctrl *gomock.Contro
 		}).AnyTimes()
 
 	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
+
+	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 

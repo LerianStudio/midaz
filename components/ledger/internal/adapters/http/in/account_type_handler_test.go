@@ -387,10 +387,10 @@ func TestUpdateAccountType_Success(t *testing.T) {
 
 	accountTypeRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, accountTypeID, gomock.Any()).
 		Return(&mmodel.AccountType{ID: accountTypeID, Name: "Renamed", KeyValue: "current_assets"}, nil).Times(1)
-	// The shared body pipeline initializes Metadata to a non-nil empty map, so
-	// UpdateOnboardingMetadata takes the FindByEntity + Update path.
+	// The body carries no "metadata" key, so the stored metadata is read for the
+	// response and nothing is written.
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).Return(nil, nil).Times(1)
-	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), gomock.Any()).Return(nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), gomock.Any()).Times(0)
 
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accountTypeRepo,

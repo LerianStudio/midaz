@@ -96,6 +96,12 @@ func TestUpdateLedgerByID_EmptyNameSkipsUniquenessCheck(t *testing.T) {
 	ledgerRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(&mmodel.Ledger{ID: ledgerID.String(), Name: "Alpha", Status: mmodel.Status{Code: "INACTIVE"}}, nil)
+	// Nil metadata clears the existing document.
+	metadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	metadataRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
@@ -127,6 +133,12 @@ func TestUpdateLedgerByID_OwnNameResentProceeds(t *testing.T) {
 	ledgerRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(&mmodel.Ledger{ID: ledgerID.String(), Name: "Alpha"}, nil)
+	// Nil metadata clears the existing document.
+	metadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	metadataRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
