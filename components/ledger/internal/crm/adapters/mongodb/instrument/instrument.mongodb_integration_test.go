@@ -908,7 +908,8 @@ func TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
 	var indexes []bson.M
 	require.NoError(t, cursor.All(context.Background(), &indexes))
 
-	// indexModels() defines 11 indexes; MongoDB adds the implicit _id_ index, for 12 total.
-	assert.Len(t, indexes, len(indexModels())+1,
-		"collection should have the 11 modeled indexes plus the implicit _id_ index")
+	// indexModels() defines 11 indexes, the bank-account unique index is built apart, and MongoDB
+	// adds the implicit _id_ index, for 13 total.
+	assert.Len(t, indexes, len(indexModels())+2,
+		"collection should have the 11 modeled indexes, the bank-account index and the implicit _id_ index")
 }

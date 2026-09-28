@@ -116,6 +116,12 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 		}
 	}
 
+	if err := uc.validateBankAccountPatch(ctx, organizationID, holderID, id, uai.BankingDetails, fieldsToRemove); err != nil {
+		recordSpanError(span, "Failed to validate instrument bank account", err)
+
+		return nil, err
+	}
+
 	updatedInstrument, err := uc.InstrumentRepo.Update(ctx, organizationID, holderID, id, instrument, fieldsToRemove)
 	if err != nil {
 		recordSpanError(span, "Failed to update instrument", err)

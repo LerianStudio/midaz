@@ -55,7 +55,7 @@ The three deploy units form one core banking platform in one monorepo:
 - [Infrastructure](components/infra/): Single Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, OTEL
 - [Shared Packages](pkg/): Cross-component libraries
   - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.
-  - [Error Constants](pkg/constant/errors.go): Ledger numeric codes (0001+, gap at 0130, incl. overdraft 0167–0175) + 29 CRM-00xx domain codes (CRM-0006..CRM-0042, incl. the field-encryption/KMS family CRM-0031..CRM-0041)
+  - [Error Constants](pkg/constant/errors.go): Ledger numeric codes (0001+, gap at 0130, incl. overdraft 0167–0175) + 30 CRM-00xx domain codes (CRM-0006..CRM-0043, incl. the field-encryption/KMS family CRM-0031..CRM-0041)
   - [Error Types](pkg/errors.go): Typed errors — EntityNotFound, Validation, Conflict, Unauthorized, Forbidden, etc.
   - [Transaction Utilities](pkg/mtransaction/): Transaction validation and processing helpers
   - [Streaming](pkg/streaming/): lib-streaming CloudEvents event modeling

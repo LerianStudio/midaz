@@ -3,10 +3,11 @@
 # RUNBOOK (this comment block is the runbook — no tracked .md, by design).
 #
 # PURPOSE
-#   PRs to this repo are gated by the REQUIRED check-docs job (pr-validation.yml):
-#   it runs `CHECK_DOCS_REGEN=1 make check-docs`, which regenerates the docs via
-#   generate-docs.sh and fails if any committed doc artifact changed. So a PR that
-#   changes ledger/tracer routes without refreshing the committed Huma dumps or the
+#   The shared Go PR Analysis workflow probes each changed component for the
+#   `check-api-spec` Make target. Ledger and tracer expose that target and forward
+#   to `CHECK_DOCS_REGEN=1 make check-docs` at the repo root, which regenerates the
+#   docs via generate-docs.sh and fails if any committed doc artifact changed. So
+#   a PR that changes routes without refreshing the committed Huma dumps or the
 #   consolidated api/ hub spec fails. The `Commit & push fix-up` step below carries
 #   the pathspec this workflow keeps in step with that gate. DIRECT pushes
 #   bypass that gate — gandalf-at-lerian pushes straight to develop. This workflow
