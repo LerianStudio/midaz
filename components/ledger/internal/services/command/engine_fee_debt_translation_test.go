@@ -111,15 +111,32 @@ func TestTranslateFeeDebtCollectFollowsEligibleCredits(t *testing.T) {
 	}
 }
 
-func TestTranslateFeeDebtCollectRefusesAnUnloadedCreditor(t *testing.T) {
+func TestTranslateFeeDebtCollectStopsAtTheFirstUnpooledCreditor(t *testing.T) {
 	t.Parallel()
 
-	input := feeDebtFreeCases()["direct"]
-	input.FeeDebtEligible = true
-	input.FeeDebtSeeds = map[string][]accounting.FeeDebtItem{"@payee#default": {{ID: feeDebtOriginO + ":from:1:debit", CreditRef: "@missing#default"}}}
+	pooled := accounting.FeeDebtItem{ID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default"}
+	missing := accounting.FeeDebtItem{ID: feeDebtOriginX + ":from:1:debit", CreditRef: "@deleted-fees#default"}
+	after := accounting.FeeDebtItem{ID: feeDebtOriginY + ":from:1:debit", CreditRef: "@fees#default"}
 
-	_, _, err := TranslateEngineTransaction(input)
-	require.ErrorIs(t, err, ErrInvalidEngineTranslation)
+	for name, seed := range map[string][]accounting.FeeDebtItem{"truncated": {pooled, missing, after}, "empty": {missing, pooled}} {
+		input := feeDebtFreeCases()["direct"]
+		input.FeeDebtEligible = true
+		input.FeeDebtSeeds = map[string][]accounting.FeeDebtItem{"@payee#default": seed}
+
+		transaction, projection, err := TranslateEngineTransaction(input)
+		require.NoError(t, err, name)
+
+		if name == "empty" {
+			assert.NotContains(t, feeDebtPostingRefs(transaction), "to:0:credit:collect")
+			assert.Empty(t, transaction.FeeDebtRefs)
+
+			continue
+		}
+
+		assert.Equal(t, []string{pooled.ID}, feeDebtPosting(t, transaction, "to:0:credit:collect").Items)
+		assert.Equal(t, "@fees#default", feeDebtContext(t, projection, "to:0:credit:collect", accounting.RoleFeeDebtCredit, 0).BalanceRef)
+		assert.Equal(t, []string{"@payee#default"}, transaction.FeeDebtRefs)
+	}
 }
 
 func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {

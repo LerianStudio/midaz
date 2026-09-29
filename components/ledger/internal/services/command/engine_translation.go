@@ -205,9 +205,7 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 			appendCompanionContext(projection, input, balances, leg, balance, postingRef, originRef, side, item.operationDirection, routeID, amount.Value)
 		}
 
-		if err := debt.appendCollect(transaction, projection, posting); err != nil {
-			return err
-		}
+		debt.appendCollect(transaction, projection, posting)
 	}
 
 	return nil

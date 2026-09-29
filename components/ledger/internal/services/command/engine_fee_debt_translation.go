@@ -61,15 +61,15 @@ func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, p
 
 // appendCollect follows a /v2 credit with a collect of the credited balance's
 // open debts, named oldest first, when its seed holds any.
-func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, projection *[]OperationRecordSpec, credit accounting.Posting) error {
+func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, projection *[]OperationRecordSpec, credit accounting.Posting) {
 	if !c.input.FeeDebtEligible || credit.Type != accounting.PostingCredit ||
 		(c.input.Action != constant.ActionDirect && c.input.Action != constant.ActionCommit && c.input.Action != constant.ActionRevert) {
-		return nil
+		return
 	}
 
 	seed := c.input.FeeDebtSeeds[credit.BalanceRef]
 	if len(seed) == 0 {
-		return nil
+		return
 	}
 
 	ref := credit.Ref + ":collect"
@@ -78,15 +78,20 @@ func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, 
 
 	var ordinal uint32
 
+	// Lua stops the collect at the first creditor outside the pool, so the items end there.
 	for _, item := range seed {
-		creditor, exists := c.balances[item.CreditRef]
-		if !exists {
-			return invalidEngineTranslation("fee debt creditor has no balance in scoped pool")
+		creditor, pooled := c.balances[item.CreditRef]
+		if !pooled {
+			break
 		}
 
 		contexts = append(contexts, c.spec(ref, creditor, accounting.RoleFeeDebtCredit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionCredit, credit.Amount))
 		items = append(items, item.ID)
 		ordinal++
+	}
+
+	if len(items) == 0 {
+		return
 	}
 
 	transaction.Postings = append(transaction.Postings, accounting.Posting{
@@ -96,8 +101,6 @@ func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, 
 	*projection = append(*projection, contexts...)
 
 	c.declare(transaction, credit.BalanceRef)
-
-	return nil
 }
 
 // appendRevert composes, on any revert, the refunds of the debts the parent
