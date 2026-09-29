@@ -224,7 +224,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 	transactionReverted, err := uc.reverseTransaction(readCtx, in, tran)
 	if err != nil {
-		spanattr.HandleSpanByErrorClass(span, "Transaction can't be reverted", err)
+		spanattr.HandleSpanByErrorClass(span, "Failed to build the reversal of the transaction", err)
 
 		return mtransaction.Transaction{}, tran, err
 	}
