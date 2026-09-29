@@ -357,12 +357,14 @@ Then the posting loop:
   creditor, is removed at 0, and emits one `settled` change.
 - Refund: per entry, `refund = opened - canceled`, where `canceled` is what
   step 1 of this transaction removed of that debt (0 when it was no longer
-  live, i.e. fully settled). The execution fails with `fee_debt_conflict` and
-  refunds nothing when the debtor's list is missing, its `nextSeq` is not above
-  an entry's `seq`, or a refund differs from the entry's `expectedRefund`. A
-  lost list that a later deferral recreated past the entry's `seq` cancels
-  nothing, so only `expectedRefund` stops it from refunding the whole `opened`
-  of a debt still open; the revert holds for an operator instead. Each positive
+  live, i.e. fully settled). The execution refunds nothing and fails with
+  `fee_debt_conflict` when the debtor's list is missing or its `nextSeq` is not
+  above an entry's `seq`, and with `fee_debt_record_pending` when a refund
+  differs from the entry's `expectedRefund`, which a retry clears once the
+  record catches up. A lost list that a later deferral recreated past the
+  entry's `seq` cancels nothing, so only `expectedRefund` stops it from
+  refunding the whole `opened` of a debt still open; that revert holds for an
+  operator instead. Each positive
   refund then debits the entry's `creditRef` as an ordinary debit (touch, no
   overdraft draw) and refuses the execution exactly as that debit would; an
   external or non-credit-direction creditor refuses with `insufficient_funds`.
@@ -477,7 +479,7 @@ operations without metadata, and an unpaid fee writes none. The Fees `fee_debt`
 documents are not either: they lag completion and round `remaining` past 34
 digits. They source only each refund's `expectedRefund`, which the revert reads
 through `FeeDebtRecorder.Settled` from the exact entries, so a lag makes the
-revert refuse with `fee_debt_conflict`, never refund the wrong amount.
+revert refuse with `fee_debt_record_pending`, never refund the wrong amount.
 
 - Declared lists: the debtors of P's `feeDebtOpenings` (refund and cancel) and
   `feeDebtSettlements` (reopen) and, on `/v2`, each debtor that gets a collect.

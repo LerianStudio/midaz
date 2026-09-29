@@ -196,7 +196,7 @@ func metricFailureCode(code string) string {
 		"execution_outcome_unknown", "invalid_receipt", "unknown_technical_failure",
 		"invalid_normalization_failure", "normalization_required", "script_runtime",
 		"normalization_read_failed", "normalization_balance_missing",
-		"normalization_invalid_balance", "normalization_repair_failed":
+		"normalization_invalid_balance", "normalization_repair_failed", "fee_debt_record_pending":
 		return code
 	default:
 		return "unknown"

@@ -115,14 +115,15 @@ func TestIntegrationFeeDebtRevertRefundsWhatWasSettled(t *testing.T) {
 	})
 
 	// The list was lost and a later deferral recreated it past P's seq, so cancel
-	// finds nothing and only the expected refund shows nothing was settled.
+	// finds nothing and only the expected refund shows nothing was settled: the
+	// same refusal as a record that lags.
 	t.Run("a recreated list holds a revert that would refund unsettled debt", func(t *testing.T) {
 		f := newRefundFixture(t, container.Client, 100, 50)
 		refund := &f.input.Execution.Transactions[0].Postings[2]
 		refund.Amount, refund.Refunds = decimal.NewFromInt(70), refund.Refunds[:1]
 		refund.Refunds[0].ExpectedRefund = decimal.Zero
 		f.seedFeeDebts(t, "@source#default", 2, feeDebt(revertOther, "fee-debit", "@fees#default", "50", "50", 1))
-		f.requireUnchanged(t, "fee_debt_conflict")
+		f.requireUnchanged(t, "fee_debt_record_pending")
 	})
 
 	t.Run("a refund repays the debtor's overdraft first", func(t *testing.T) {
