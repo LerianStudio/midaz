@@ -1960,7 +1960,7 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 
 				// Command.UpdateMetadata then writes while the document is unchanged
 				metadataRepo.EXPECT().
-					UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any()).
+					UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).
 					Times(1)
 
@@ -2075,7 +2075,7 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 
 				// UpdateMetadata then writes while the document is unchanged
 				metadataRepo.EXPECT().
-					UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any()).
+					UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, nil).
 					Times(1)
 

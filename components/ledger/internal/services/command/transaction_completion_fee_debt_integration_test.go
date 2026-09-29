@@ -118,6 +118,24 @@ func TestIntegrationFeeDebtMetadataOnMongo(t *testing.T) {
 		assert.Equal(t, want, stored(t, ctx, repo), "clearing drops only client keys")
 	})
 
+	t.Run("update interleaved with the first completion keeps its frozen keys", func(t *testing.T) {
+		ctx, repo, complete := setup(t)
+		commit, _, resolver := feeDebtLifecycleFixture(t)
+		predecessor := commit.Dependencies[0]
+		_, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"note": "client"})
+		require.NoError(t, err)
+		var once sync.Once
+		first := func() {
+			complete(resolver.records[transactionCompletionEvidenceIdentity(predecessor.TransactionID, predecessor.ExecutionID)])
+		}
+		uc := &UseCase{TransactionMetadataRepo: interleavedMetadata{Repository: repo, between: func() { once.Do(first) }}}
+
+		_, err = uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"extra": "client"})
+		require.NoError(t, err)
+		assert.Equal(t, mongodb.JSON{"note": "client", "extra": "client", "purpose": "fee debt", "packageAppliedID": "package-1"}, stored(t, ctx, repo),
+			"the frozen keys the completion added after the read survive the update")
+	})
+
 	for _, sent := range []map[string]any{nil, {"note": "client"}} {
 		t.Run("update interleaved with the commit keeps its fee-debt keys", func(t *testing.T) {
 			ctx, repo, complete := setup(t)

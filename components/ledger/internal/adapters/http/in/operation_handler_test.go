@@ -514,7 +514,7 @@ func TestUpdateOperation_Success(t *testing.T) {
 			EntityName: constant.EntityOperation,
 			Data:       map[string]any{"reason": "Purchase refund"},
 		}, nil).AnyTimes()
-	metaRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any(), gomock.Any()).
+	metaRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(true, nil).AnyTimes()
 
 	handler := &OperationHandler{
@@ -611,7 +611,7 @@ func TestUpdateOperation_QueryError_500(t *testing.T) {
 
 	metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
 		Return(&txMongodb.Metadata{Data: txMongodb.JSON{}}, nil).AnyTimes()
-	metaRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any(), gomock.Any()).
+	metaRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(true, nil).AnyTimes()
 
 	handler := &OperationHandler{

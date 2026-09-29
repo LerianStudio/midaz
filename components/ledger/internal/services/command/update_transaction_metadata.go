@@ -62,8 +62,8 @@ func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, en
 }
 
 // updateLedgerWrittenMetadata merges into the stored document read on each attempt, or keeps only
-// its reserved keys for a nil body, and writes only while its fee-debt keys still hold what was
-// read: a concurrent completion writing one makes it read and merge again.
+// its reserved keys for a nil body, and writes only while its entity name and fee-debt keys still
+// hold what was read: a concurrent completion writing any of them makes it read and merge again.
 func (uc *UseCase) updateLedgerWrittenMetadata(
 	ctx context.Context, span trace.Span, logger libLog.Logger, entityName, entityID string, metadata map[string]any,
 ) (map[string]any, error) {
@@ -104,7 +104,7 @@ func (uc *UseCase) updateLedgerWrittenMetadata(
 			guard[key] = stored.Data[key]
 		}
 
-		updated, err := uc.TransactionMetadataRepo.UpdateIfUnchanged(ctx, entityName, entityID, merged, guard)
+		updated, err := uc.TransactionMetadataRepo.UpdateIfUnchanged(ctx, entityName, entityID, stored.EntityName, merged, guard)
 		if err != nil {
 			recordCommandError(ctx, span, logger, "Failed to update metadata on mongodb", err)
 

@@ -167,7 +167,7 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 			want: map[string]any{"feeApplied": "true"},
 			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
 				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(pending), nil)
-				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, absent).Return(true, nil)
+				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", "", want, absent).Return(true, nil)
 			},
 		},
 		{
@@ -177,9 +177,9 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
 				gomock.InOrder(
 					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(pending), nil),
-					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", gomock.Any(), absent).Return(false, nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", "", gomock.Any(), absent).Return(false, nil),
 					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(settled), nil),
-					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", want, written).Return(true, nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", "", want, written).Return(true, nil),
 				)
 			},
 		},
@@ -191,7 +191,7 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(nil, nil),
 					repo.Create(gomock.Any(), constant.EntityTransaction, gomock.Any()).Return(nil),
 					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(mongodb.JSON{}), nil),
-					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, absent).Return(true, nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", "", want, absent).Return(true, nil),
 				)
 			},
 		},

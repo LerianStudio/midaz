@@ -76,7 +76,7 @@ func TestUpdateOperation(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					UpdateIfUnchanged(gomock.Any(), "Operation", operationID.String(), map[string]any{
+					UpdateIfUnchanged(gomock.Any(), "Operation", operationID.String(), "", map[string]any{
 						"key1": "value1",
 						"key2": "value2",
 					}, gomock.Any()).
@@ -162,7 +162,7 @@ func TestUpdateOperation(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					UpdateIfUnchanged(gomock.Any(), "Operation", operationID.String(), map[string]any{
+					UpdateIfUnchanged(gomock.Any(), "Operation", operationID.String(), "", map[string]any{
 						"key1": "value1",
 					}, gomock.Any()).
 					Return(false, errors.New("mongodb connection error")).

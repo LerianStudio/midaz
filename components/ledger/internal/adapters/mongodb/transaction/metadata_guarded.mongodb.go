@@ -44,9 +44,10 @@ func (mmr *MetadataMongoDBRepository) SetKeys(ctx context.Context, collection, i
 	return nil
 }
 
-// UpdateIfUnchanged replaces an existing document's metadata only while each guard key still
-// holds the value read, a nil value meaning absent, and reports whether it did.
-func (mmr *MetadataMongoDBRepository) UpdateIfUnchanged(ctx context.Context, collection, id string, metadata, guard map[string]any) (bool, error) {
+// UpdateIfUnchanged replaces an existing document's metadata only while its entity name and each
+// guard key still hold the values read, an empty name or a nil value meaning absent, and reports
+// whether it did.
+func (mmr *MetadataMongoDBRepository) UpdateIfUnchanged(ctx context.Context, collection, id, entityName string, metadata, guard map[string]any) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata_if_unchanged")
@@ -59,7 +60,10 @@ func (mmr *MetadataMongoDBRepository) UpdateIfUnchanged(ctx context.Context, col
 		return false, err
 	}
 
-	filter := bson.D{{Key: "entity_id", Value: id}}
+	filter := bson.D{{Key: "entity_id", Value: id}, {Key: "entity_name", Value: entityName}}
+	if entityName == "" {
+		filter[1].Value = bson.D{{Key: "$exists", Value: false}}
+	}
 
 	for key, value := range guard {
 		if value == nil {
