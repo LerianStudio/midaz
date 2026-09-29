@@ -8,8 +8,11 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func TestSafeIntToInt32(t *testing.T) {
@@ -139,10 +142,15 @@ func TestIsValidAssetCode(t *testing.T) {
 		{"tab character", "\t\t\t", false},
 		{"newline", "US\n", false},
 
-		// Unicode edge cases
-		{"non-ASCII char", "ÜSD", false},
+		// Unicode: any uppercase letter is valid, exactly as the ledger accepts.
+		{"uppercase Latin-1 letter", "ÜSD", true},
+		{"uppercase Cyrillic letter", "UЅD", true},
+		{"100 multi-byte runes", strings.Repeat("Ü", 100), true},
+		{"101 multi-byte runes", strings.Repeat("Ü", 101), false},
+		{"lowercase non-ASCII letter", "ÜSß", false},
+		{"titlecase letter", "Uǅ", false},
 		{"emoji", "US😃", false},
-		{"cyrillic lookalike", "UЅD", false},
+		{"invalid UTF-8", "US\xff", false},
 	}
 
 	for _, tt := range tests {
@@ -151,5 +159,27 @@ func TestIsValidAssetCode(t *testing.T) {
 
 			assert.Equal(t, tt.expected, IsValidAssetCode(tt.code))
 		})
+	}
+}
+
+// TestIsValidAssetCode_LedgerParity locks IsValidAssetCode to the ledger's asset
+// code rule: non-empty, at most MaxAssetCodeLength runes, and every rune accepted
+// by utils.ValidateCode. A code the ledger creates must be one the tracer accepts.
+func TestIsValidAssetCode_LedgerParity(t *testing.T) {
+	t.Parallel()
+
+	codes := []string{
+		"", "USD", "usd", "Usd", "BTC", "USDT", "POINTS", "U", "ÜSD", "ÉURO", "ΔΣ", "ЖЁ",
+		"ÜSß", "Uǅ", "US1", "US D", "US-D", "US_D", "US😃", "日本", "US\xff",
+		strings.Repeat("A", MaxAssetCodeLength), strings.Repeat("A", MaxAssetCodeLength+1),
+		strings.Repeat("Ü", MaxAssetCodeLength), strings.Repeat("Ü", MaxAssetCodeLength+1),
+	}
+
+	for _, code := range codes {
+		ledgerAccepts := code != "" &&
+			utf8.RuneCountInString(code) <= MaxAssetCodeLength &&
+			utils.ValidateCode(code) == nil
+
+		assert.Equal(t, ledgerAccepts, IsValidAssetCode(code), "asset code %q", code)
 	}
 }

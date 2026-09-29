@@ -186,6 +186,22 @@ func TestCreateLimitInput_AssetValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "valid - non-ASCII uppercase letter",
+			asset:   "ÜSD",
+			wantErr: false,
+		},
+		{
+			name:    "valid - 100 multi-byte letters",
+			asset:   strings.Repeat("Ü", 100),
+			wantErr: false,
+		},
+		{
+			name:    "invalid - 101 multi-byte letters",
+			asset:   strings.Repeat("Ü", 101),
+			wantErr: true,
+			errMsg:  "asset must be a maximum of 100 characters",
+		},
+		{
 			name:    "invalid - longer than 100 letters",
 			asset:   strings.Repeat("A", 101),
 			wantErr: true,

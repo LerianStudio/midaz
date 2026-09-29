@@ -7,6 +7,9 @@ package pkg
 import (
 	"errors"
 	"math"
+	"unicode/utf8"
+
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // SafeIntToInt32 Function to safely convert int to int32 with overflow check
@@ -18,21 +21,16 @@ func SafeIntToInt32(val int) (int32, error) {
 	return int32(val), nil
 }
 
-// MaxAssetCodeLength is the longest asset code the Midaz ledger accepts.
+// MaxAssetCodeLength is the longest asset code the Midaz ledger accepts, in runes.
 const MaxAssetCodeLength = 100
 
-// IsValidAssetCode reports whether code is 1..100 uppercase ASCII letters — the
-// same vocabulary the Midaz ledger accepts for an asset code.
+// IsValidAssetCode reports whether code is an asset code the Midaz ledger
+// accepts: non-empty, at most MaxAssetCodeLength runes, every rune an uppercase
+// letter (utils.ValidateCode, the ledger's own rule).
 func IsValidAssetCode(code string) bool {
-	if code == "" || len(code) > MaxAssetCodeLength {
+	if code == "" || utf8.RuneCountInString(code) > MaxAssetCodeLength {
 		return false
 	}
 
-	for i := 0; i < len(code); i++ {
-		if code[i] < 'A' || code[i] > 'Z' {
-			return false
-		}
-	}
-
-	return true
+	return utils.ValidateCode(code) == nil
 }
