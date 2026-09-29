@@ -321,6 +321,7 @@ func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 		uncertain bool
 	}{
 		{"execution_guard_conflict", false},
+		{"transaction_already_reverted", false},
 		{"execution_fingerprint_conflict", false},
 		{"script_runtime_failed", false},
 		{"execution_outcome_unknown", true},

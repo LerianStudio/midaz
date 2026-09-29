@@ -36,8 +36,9 @@ The entrypoint tells one ordered story:
 2. `prepareExecutionProtection` calls `storedReceipt` first. A valid receipt
    returns the exact prior response without loading balances. A new execution
    validates shared key types, lifecycle guards, recovery conflicts, and bounded
-   causal references against the current transaction-state index, then prepares
-   protection coordinators in memory.
+   causal references against the current transaction-state index, refuses a
+   revert whose origin already carries the `<originId>:reverted` guard field
+   (`transaction_already_reverted`), then prepares protection coordinators in memory.
 3. `loadBalancePool` reads live cache values. A valid Redis value is
    authoritative; a request snapshot is only an in-memory seed for a cache miss.
    Noncanonical legacy limits request a separate precommit repair.
