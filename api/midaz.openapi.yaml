@@ -16193,7 +16193,6 @@ components:
         - ttl
         - createdAt
         - updatedAt
-        - metadata
       type: object
     AtomicTransactionBatchV2Transaction:
       additionalProperties: false
