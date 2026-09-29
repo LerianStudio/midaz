@@ -301,7 +301,9 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 // Original CREDIT operations become sources (from) and original DEBIT operations
 // become destinations (to). Direction is intentionally omitted because
 // CalculateTotal re-derives it via DetermineOperation based on IsFrom.
-func (t Transaction) TransactionRevert() mtransaction.Transaction {
+// keptSettlements is, per alias#key, the signed fee-debt settlement (credit
+// positive) the reversal leaves in place; see foldFeeSettlements.
+func (t Transaction) TransactionRevert(keptSettlements map[string]decimal.Decimal) mtransaction.Transaction {
 	if t.Amount == nil {
 		return mtransaction.Transaction{}
 	}
@@ -336,6 +338,8 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		}
 	}
 
+	froms = t.foldFeeSettlements(froms, keptSettlements)
+
 	send := mtransaction.Send{
 		Asset: t.AssetCode,
 		Value: *t.Amount,
@@ -358,6 +362,86 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 	}
 
 	return transaction
+}
+
+// foldFeeSettlements reverses each alias#key's net fee-debt settlement, less kept,
+// inside the sources: totals never change, a source folded to zero is dropped and
+// refund rows are never reversed.
+func (t Transaction) foldFeeSettlements(froms []mtransaction.FromTo, kept map[string]decimal.Decimal) []mtransaction.FromTo {
+	net := make(map[string]decimal.Decimal)
+	first := make(map[string]*operation.Operation)
+	refs := make([]string, 0)
+
+	for _, op := range t.Operations {
+		if op.Type != pkgConstant.FEE_SETTLEMENT || op.Amount.Value == nil {
+			continue
+		}
+
+		ref := mtransaction.AliasKey(mtransaction.BareAlias(op.AccountAlias), op.BalanceKey)
+		if _, seen := first[ref]; !seen {
+			first[ref] = op
+			refs = append(refs, ref)
+		}
+
+		if op.Direction == pkgConstant.DirectionCredit {
+			net[ref] = net[ref].Add(*op.Amount.Value)
+		} else {
+			net[ref] = net[ref].Sub(*op.Amount.Value)
+		}
+	}
+
+	for _, ref := range refs {
+		amount := net[ref].Sub(kept[ref])
+
+		switch {
+		case amount.IsPositive():
+			froms = takeBackSettlement(froms, ref, amount, t.reversalLeg(first[ref], true))
+		case amount.IsNegative():
+			froms = keepReversedCredit(froms, ref, amount.Neg())
+		}
+	}
+
+	return froms
+}
+
+// takeBackSettlement adds amount to the source of ref, or appends leg for it.
+func takeBackSettlement(froms []mtransaction.FromTo, ref string, amount decimal.Decimal, leg mtransaction.FromTo) []mtransaction.FromTo {
+	for _, from := range froms {
+		if reversalRef(from) == ref {
+			from.Amount.Value = from.Amount.Value.Add(amount)
+			return froms
+		}
+	}
+
+	leg.Amount.Value = amount
+
+	return append(froms, leg)
+}
+
+// keepReversedCredit takes amount off the sources of ref, in order, dropping a
+// source it leaves at zero.
+func keepReversedCredit(froms []mtransaction.FromTo, ref string, amount decimal.Decimal) []mtransaction.FromTo {
+	kept := froms[:0]
+
+	for _, from := range froms {
+		if reversalRef(from) == ref && amount.IsPositive() {
+			taken := decimal.Min(from.Amount.Value, amount)
+			from.Amount.Value = from.Amount.Value.Sub(taken)
+			amount = amount.Sub(taken)
+
+			if from.Amount.Value.IsZero() {
+				continue
+			}
+		}
+
+		kept = append(kept, from)
+	}
+
+	return kept
+}
+
+func reversalRef(leg mtransaction.FromTo) string {
+	return mtransaction.AliasKey(mtransaction.BareAlias(leg.AccountAlias), leg.BalanceKey)
 }
 
 // reversalLegSide reports whether an operation reconstructs as a reversal source

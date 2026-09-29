@@ -44,6 +44,11 @@ type EngineTranslationInput struct {
 	AccountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
 	Balances                   []*mmodel.Balance
 	RouteCache                 *mmodel.TransactionRouteCache
+	// FeeDebtEligible is the /v2 marker: it enables deferrable fees and collects.
+	// Refunds and reopens of a revert are composed on every version.
+	FeeDebtEligible bool
+	// FeeDebtSeeds maps a debtor balance ref to its open debts, oldest first.
+	FeeDebtSeeds map[string][]accounting.FeeDebtItem
 }
 
 // TranslateEngineTransaction converts command-layer transaction intent
@@ -69,6 +74,7 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 		Postings:              make([]accounting.Posting, 0),
 	}
 	projection := make([]OperationRecordSpec, 0)
+	debt := newFeeDebtComposition(input, balances)
 
 	for index, leg := range input.TransactionInput.Send.Source.From {
 		amount, exists := input.Validate.From[leg.AccountAlias]
@@ -76,7 +82,7 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 			return accounting.Transaction{}, nil, invalidEngineTranslation("missing validated source leg")
 		}
 
-		if err := appendLegTranslation(&transaction, &projection, input, balances, leg, amount, OperationSpecSideFrom, index); err != nil {
+		if err := appendLegTranslation(&transaction, &projection, debt, leg, amount, OperationSpecSideFrom, index); err != nil {
 			return accounting.Transaction{}, nil, err
 		}
 	}
@@ -87,9 +93,13 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 			return accounting.Transaction{}, nil, invalidEngineTranslation("missing validated destination leg")
 		}
 
-		if err := appendLegTranslation(&transaction, &projection, input, balances, leg, amount, OperationSpecSideTo, index); err != nil {
+		if err := appendLegTranslation(&transaction, &projection, debt, leg, amount, OperationSpecSideTo, index); err != nil {
 			return accounting.Transaction{}, nil, err
 		}
+	}
+
+	if err := debt.appendRevert(&transaction, &projection); err != nil {
+		return accounting.Transaction{}, nil, err
 	}
 
 	transaction.AccountBlockException, err = bindEngineAccountBlockException(
@@ -134,7 +144,9 @@ func engineRequirements(input EngineTranslationInput) []accounting.BalanceRequir
 	return requirements
 }
 
-func appendLegTranslation(transaction *accounting.Transaction, projection *[]OperationRecordSpec, input EngineTranslationInput, balances map[string]*mmodel.Balance, leg mtransaction.FromTo, amount mtransaction.Amount, side string, index int) error {
+func appendLegTranslation(transaction *accounting.Transaction, projection *[]OperationRecordSpec, debt *feeDebtComposition, leg mtransaction.FromTo, amount mtransaction.Amount, side string, index int) error {
+	input, balances := debt.input, debt.balances
+
 	if !amount.Value.IsPositive() {
 		return invalidEngineTranslation("posting amount must be positive")
 	}
@@ -179,30 +191,40 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 			}
 		}
 
-		transaction.Postings = append(transaction.Postings, accounting.Posting{
+		posting := accounting.Posting{
 			Ref: postingRef, BalanceRef: balanceRef, Type: item.postingType, Amount: amount.Value,
 			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap,
-		})
+		}
+		debt.markDeferral(transaction, &posting, leg.Metadata)
+		transaction.Postings = append(transaction.Postings, posting)
 
 		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
 		*projection = append(*projection, primary)
 
-		if !item.mayAffectOverdraft {
-			continue
+		if item.mayAffectOverdraft {
+			appendCompanionContext(projection, input, balances, leg, balance, postingRef, originRef, side, item.operationDirection, routeID, amount.Value)
 		}
 
-		companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
-		if companion, ok := balances[companionRef]; ok {
-			companionContext := newOperationRecordSpec(input, leg, companion, postingRef, originRef, side, constant.OVERDRAFT, item.operationDirection, routeID, amount.Value, OperationRecordStandard)
-			companionContext.Role = accounting.RoleOverdraftCompanion
-			companionContext.ChartOfAccounts = ""
-			companionContext.Metadata = map[string]any{}
-			companionContext.RouteCode, companionContext.RouteDescription = translationRubric(input.RouteCache, routeID, constant.ActionOverdraft, item.operationDirection)
-			*projection = append(*projection, companionContext)
-		}
+		debt.appendCollect(transaction, projection, posting)
 	}
 
 	return nil
+}
+
+func appendCompanionContext(projection *[]OperationRecordSpec, input EngineTranslationInput, balances map[string]*mmodel.Balance, leg mtransaction.FromTo, balance *mmodel.Balance, postingRef, originRef, side, direction, routeID string, amount decimal.Decimal) {
+	companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
+
+	companion, ok := balances[companionRef]
+	if !ok {
+		return
+	}
+
+	companionContext := newOperationRecordSpec(input, leg, companion, postingRef, originRef, side, constant.OVERDRAFT, direction, routeID, amount, OperationRecordStandard)
+	companionContext.Role = accounting.RoleOverdraftCompanion
+	companionContext.ChartOfAccounts = ""
+	companionContext.Metadata = map[string]any{}
+	companionContext.RouteCode, companionContext.RouteDescription = translationRubric(input.RouteCache, routeID, constant.ActionOverdraft, direction)
+	*projection = append(*projection, companionContext)
 }
 
 func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromTo, balance *mmodel.Balance, postingRef, originRef, side, rowType, direction, routeID string, requestedAmount decimal.Decimal, compatibilityPath string) OperationRecordSpec {

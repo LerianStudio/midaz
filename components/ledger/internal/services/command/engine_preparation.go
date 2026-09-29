@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -43,9 +44,13 @@ func (uc *UseCase) prepareEngineTransaction(ctx context.Context, input enginePre
 	}
 
 	ctx = readrouting.WithPrimaryRead(ctx)
-	aliases := enginePreparationAliases(input)
 
-	pool, err := loadPreparedEngineSnapshots(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
+	debtRefs, err := feeDebtPreparationRefs(input)
+	if err != nil {
+		return enginePreparedTransaction{}, err
+	}
+
+	pool, err := loadPreparedEngineSnapshots(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, enginePreparationAliases(input), debtRefs)
 	if err != nil {
 		return enginePreparedTransaction{}, err
 	}
@@ -127,6 +132,7 @@ func translatePreparedEngineTransaction(
 
 	input.translation.Balances = itemPool.Balances
 	input.translation.RouteCache = routeCache
+	input.translation.FeeDebtSeeds = itemPool.FeeDebtSeeds
 
 	translated, projection, err := TranslateEngineTransaction(input.translation)
 	if err != nil {
@@ -179,16 +185,98 @@ func selectEnginePreparationPool(input enginePreparationInput, shared EngineSnap
 		ExplicitBalances: explicit,
 		Balances:         shared.Balances,
 		Snapshots:        shared.Snapshots,
+		FeeDebtSeeds:     shared.FeeDebtSeeds,
 	}, nil
 }
 
-func loadPreparedEngineSnapshots(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (EngineSnapshotPool, error) {
+// loadPreparedEngineSnapshots loads the pool of aliases plus what fee-debt
+// composition needs: the seeds of debt.debtors in one read, the balances debt
+// names and every creditor a seed names. Without debt refs it loads aliases only.
+func loadPreparedEngineSnapshots(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string, debt feeDebtPoolRefs) (EngineSnapshotPool, error) {
+	var seeds map[string][]accounting.FeeDebtItem
+
+	if len(debt.debtors) > 0 {
+		var err error
+
+		seeds, err = reader.GetFeeDebtSeeds(ctx, organizationID, ledgerID, debt.debtors)
+		if err != nil {
+			return EngineSnapshotPool{}, fmt.Errorf("load fee debt seeds: %w", err)
+		}
+	}
+
+	aliases = appendMissingRefs(slices.Clip(aliases), debt.balances)
+	for _, debtor := range debt.debtors {
+		for _, item := range seeds[debtor] {
+			aliases = appendMissingRefs(aliases, []string{item.CreditRef})
+		}
+	}
+
 	explicitBalances, executionBalances, err := reader.GetEngineBalances(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
 		return EngineSnapshotPool{}, fmt.Errorf("load engine balances: %w", err)
 	}
 
-	return BuildEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, executionBalances)
+	pool, err := BuildEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, executionBalances)
+	if err != nil {
+		return EngineSnapshotPool{}, err
+	}
+
+	pool.FeeDebtSeeds = seeds
+
+	return pool, nil
+}
+
+// feeDebtPoolRefs names what fee-debt composition reads beyond a transaction's
+// legs: the debtors whose seeds a collect needs, and the balances a revert's
+// refunds and reopens touch.
+type feeDebtPoolRefs struct {
+	debtors  []string
+	balances []string
+}
+
+func feeDebtPreparationRefs(input enginePreparationInput) (feeDebtPoolRefs, error) {
+	var refs feeDebtPoolRefs
+
+	translation := input.translation
+
+	switch translation.Action {
+	case constant.ActionDirect, constant.ActionCommit, constant.ActionRevert:
+		if translation.FeeDebtEligible {
+			for _, leg := range translation.TransactionInput.Send.Distribute.To {
+				refs.debtors = appendMissingRefs(refs.debtors, []string{mtransaction.SplitAliasWithKey(leg.AccountAlias)})
+			}
+		}
+	}
+
+	if translation.Action != constant.ActionRevert {
+		return refs, nil
+	}
+
+	openings, settlements, err := feeDebtRevertFacts(translation.TransactionInput.Metadata)
+	if err != nil {
+		return feeDebtPoolRefs{}, err
+	}
+
+	for _, opening := range openings {
+		refs.balances = appendMissingRefs(refs.balances, []string{opening.DebtorRef, opening.CreditRef})
+	}
+
+	for _, settlement := range settlements {
+		refs.balances = appendMissingRefs(refs.balances, []string{settlement.DebtorRef})
+	}
+
+	return refs, nil
+}
+
+// appendMissingRefs appends each ref not already in refs, keeping order.
+func appendMissingRefs(refs, more []string) []string {
+	for _, ref := range more {
+		if !slices.Contains(refs, ref) {
+			refs = append(refs, ref)
+		}
+	}
+
+	return refs
 }
 
 // orderedEngineValidationOperations preserves the existing route DTO's

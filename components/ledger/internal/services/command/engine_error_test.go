@@ -197,3 +197,36 @@ func errorCode(err error) string {
 	}
 	return fmt.Sprint(field.Interface())
 }
+
+func TestMapEngineError_FeeDebtBalances(t *testing.T) {
+	t.Parallel()
+
+	request := accounting.Execution{Transactions: []accounting.Transaction{{
+		Postings: []accounting.Posting{{
+			Ref: "fee-refund:0", BalanceRef: "@debtor#default", Type: accounting.PostingRefund, DrawPolicy: accounting.DrawForbidden,
+			Refunds: []accounting.FeeDebtRefund{{CreditRef: "@fees#default"}, {CreditRef: "@other-fees#default"}},
+		}},
+		ReopenFeeDebts: []accounting.FeeDebtReopen{{DebtorRef: "@payee#default"}},
+	}}}
+
+	for _, test := range []struct {
+		name, code, balanceRef, want string
+		postingIndex                 int
+	}{
+		{name: "refund creditor short of funds", code: "insufficient_funds", balanceRef: "@other-fees#default", want: "0018"},
+		{name: "refund creditor deleted", code: "balance_deleted", balanceRef: "@fees#default", want: "0019"},
+		{name: "reopen debtor deleted", code: accounting.FailureBalanceDeleted, balanceRef: "@payee#default", postingIndex: -1, want: "0019"},
+		{name: "reopen debtor blocked", code: accounting.FailureAccountBlocked, balanceRef: "@payee#default", postingIndex: -1, want: "0502"},
+		{name: "unrelated balance", code: "insufficient_funds", balanceRef: "@stranger#default", want: ""},
+		{name: "undeclared balance outside every posting", code: accounting.FailureBalanceDeleted, balanceRef: "@stranger#default", postingIndex: -1, want: ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			failure := &accounting.Failure{Code: test.code, TransactionIndex: 0, PostingIndex: test.postingIndex, BalanceRef: test.balanceRef}
+			if got := errorCode(MapEngineError(request, failure)); got != test.want {
+				t.Fatalf("fee debt failure code = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

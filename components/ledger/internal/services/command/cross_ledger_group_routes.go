@@ -68,7 +68,12 @@ func (uc *UseCase) prepareCrossLedgerGroupPart(
 
 	readCtx := readrouting.WithPrimaryRead(ctx)
 
-	pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, input.organizationID, input.ledgerID, enginePreparationAliases(input))
+	debtRefs, err := feeDebtPreparationRefs(input)
+	if err != nil {
+		return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
+	}
+
+	pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, input.organizationID, input.ledgerID, enginePreparationAliases(input), debtRefs)
 	if err != nil {
 		return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
 	}

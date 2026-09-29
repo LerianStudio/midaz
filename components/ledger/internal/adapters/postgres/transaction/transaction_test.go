@@ -870,7 +870,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.transaction.TransactionRevert()
+			result := tt.transaction.TransactionRevert(nil)
 
 			tt.validate(t, result)
 		})
@@ -893,7 +893,7 @@ func TestTransactionRevert_NilAmount(t *testing.T) {
 		},
 	}
 
-	result := txn.TransactionRevert()
+	result := txn.TransactionRevert(nil)
 
 	assert.Empty(t, result.Send.Asset, "should return empty transaction when Amount is nil")
 	assert.Empty(t, result.Send.Source.From, "should return empty froms when Amount is nil")
@@ -926,7 +926,7 @@ func TestTransactionRevert_PreservesBalanceKey(t *testing.T) {
 		},
 	}
 
-	reverted := txn.TransactionRevert()
+	reverted := txn.TransactionRevert(nil)
 
 	require.Len(t, reverted.Send.Source.From, 1)
 	assert.Equal(t, "voucher", reverted.Send.Source.From[0].BalanceKey)
@@ -969,7 +969,7 @@ func TestTransactionRevert_FoldsOverdraftCompanionIntoDefaultLeg(t *testing.T) {
 		},
 	}
 
-	reverted := txn.TransactionRevert()
+	reverted := txn.TransactionRevert(nil)
 
 	require.Len(t, reverted.Send.Source.From, 1)
 	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
@@ -1019,7 +1019,7 @@ func TestTransactionRevert_FoldsOverdraftCompanionRegardlessOfOperationOrder(t *
 		},
 	}
 
-	reverted := txn.TransactionRevert()
+	reverted := txn.TransactionRevert(nil)
 
 	require.Len(t, reverted.Send.Source.From, 1)
 	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
@@ -1074,7 +1074,7 @@ func TestTransactionRevert_DoesNotDoubleCountCommittedPendingOverdraftCompanion(
 		},
 	}
 
-	reverted := txn.TransactionRevert()
+	reverted := txn.TransactionRevert(nil)
 
 	require.Len(t, reverted.Send.Source.From, 1)
 	assert.Equal(t, "@destination", reverted.Send.Source.From[0].AccountAlias)
@@ -1114,7 +1114,7 @@ func TestTransactionRevert_DirectionNotSet(t *testing.T) {
 		},
 	}
 
-	result := txn.TransactionRevert()
+	result := txn.TransactionRevert(nil)
 
 	require.Len(t, result.Send.Source.From, 1)
 	from := result.Send.Source.From[0]
@@ -1278,7 +1278,7 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.transaction.TransactionRevert()
+			result := tt.transaction.TransactionRevert(nil)
 
 			tt.validate(t, result)
 		})

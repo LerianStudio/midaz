@@ -108,6 +108,9 @@ type Amount struct {
 	// off every wire a caller can write, and a movement built from a caller payload carries it
 	// false.
 	FeeLeg bool `json:"-" swaggerignore:"true"`
+	// FeeDeferPair is the token the fee engine gives both legs of one deferrable fee; it
+	// travels to the legs' metadata and, like FeeLeg, never on a caller-writable wire.
+	FeeDeferPair string `json:"-" swaggerignore:"true"`
 }
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -358,6 +361,9 @@ type Transaction struct {
 	// (for example BLOCK/UNBLOCK) without changing accounting direction or amount.
 	// Internal field; populated during processing and excluded from the API contract.
 	OperationTypeOverride string `json:"-" swaggerignore:"true"`
+	// FeeDebtRevertedOrigins, on a reversal, lists the fee-debt origins already reverted
+	// when it was built; a settlement of such a debt is taken back, never reopened.
+	FeeDebtRevertedOrigins []string `json:"-" swaggerignore:"true"`
 } // @name TransactionInput
 
 // TransactionSkip carries per-call control opt-outs requested on the transaction

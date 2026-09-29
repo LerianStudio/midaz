@@ -7,6 +7,7 @@ package command
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -85,6 +86,10 @@ func mapEngineProtectionFailure(err engineTechnicalError) error {
 func mapEngineRequirementFailure(request accounting.Execution, failure *accounting.Failure, cause error) error {
 	requirement, balance, ok := engineFailureRequirement(request, failure)
 	if !ok {
+		if engineFailureReopensDebt(request, failure) {
+			return mapEnginePostingFailure(accounting.Posting{}, failure, cause)
+		}
+
 		return fmt.Errorf("malformed engine requirement failure: %w", cause)
 	}
 
@@ -200,11 +205,24 @@ func engineFailurePosting(request accounting.Execution, failure *accounting.Fail
 		return accounting.Posting{}, false
 	}
 
-	if failure.BalanceRef != posting.BalanceRef && !isOverdraftCompanion(request, posting.BalanceRef, failure.BalanceRef) {
+	refundsCreditor := slices.ContainsFunc(posting.Refunds, func(refund accounting.FeeDebtRefund) bool { return refund.CreditRef == failure.BalanceRef })
+	if failure.BalanceRef != posting.BalanceRef && !refundsCreditor && !isOverdraftCompanion(request, posting.BalanceRef, failure.BalanceRef) {
 		return accounting.Posting{}, false
 	}
 
 	return posting, true
+}
+
+// engineFailureReopensDebt reports whether a failure outside every posting names
+// a debtor its transaction reopens, which the engine touches like a leg.
+func engineFailureReopensDebt(request accounting.Execution, failure *accounting.Failure) bool {
+	if failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) {
+		return false
+	}
+
+	return slices.ContainsFunc(request.Transactions[failure.TransactionIndex].ReopenFeeDebts, func(reopen accounting.FeeDebtReopen) bool {
+		return reopen.DebtorRef == failure.BalanceRef
+	})
 }
 
 func isOverdraftCompanion(request accounting.Execution, postingRef, failureRef string) bool {

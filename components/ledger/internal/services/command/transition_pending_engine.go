@@ -90,6 +90,7 @@ func (uc *UseCase) transitionPendingWithEngine(
 			TransactionInput:           transition.input,
 			Validate:                   transition.validate,
 			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
+			FeeDebtEligible:            tracerEligible,
 		},
 	})
 	if err != nil {

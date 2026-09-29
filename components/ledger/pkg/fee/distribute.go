@@ -239,6 +239,10 @@ func generatedFeeLeg(key string, amount transaction.Amount, originalByKey map[st
 		metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
 	}
 
+	if amount.FeeDeferPair != "" {
+		metadata[constant.MetadataKeyFeeDeferPair] = amount.FeeDeferPair
+	}
+
 	leg := transaction.FromTo{
 		AccountAlias: trimFeeSuffix(key),
 		Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
@@ -509,6 +513,10 @@ func emitNonDeductibleLeg(
 	// Both halves of the pair are minted here, so both are marked here, from one flag on the
 	// amount the two writes below copy.
 	resultAmount.FeeLeg = true
+	if feeModel.Deferrable {
+		resultAmount.FeeDeferPair = strconv.Itoa(feeIndex) + ":" + key
+	}
+
 	updateAmount[debitLegKey] = resultAmount
 
 	if updateAmountToStruct == nil {
