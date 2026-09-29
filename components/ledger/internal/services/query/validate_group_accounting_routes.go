@@ -44,6 +44,8 @@ func (uc *UseCase) ValidateGroupPartAccountingRules(ctx context.Context, organiz
 		return nil, err
 	}
 
+	validate, operations = withoutFeeDebtLegs(validate, operations)
+
 	actionRoutes, err := resolveActionRoutes(transactionRouteCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve action routes", err)
@@ -95,8 +97,9 @@ func (uc *UseCase) ValidateGroupPartAccountingRules(ctx context.Context, organiz
 //   - a bidirectional route used on both sides has a debit and a credit
 //     somewhere in the group.
 //
-// Bridge legs are ignored: they are never part of a template. Cancel is
-// source-only and, as for a single transaction, has no group-wide rule.
+// Bridge legs and fee-debt take-backs are ignored: neither is part of a template,
+// and a take-back voids the count. Cancel is source-only and, as for a single
+// transaction, has no group-wide rule.
 func (uc *UseCase) ValidateGroupAccountingRoutes(ctx context.Context, organizationID uuid.UUID, transactionRoute string, uses []mmodel.AccountingRouteUse, action string) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -121,9 +124,11 @@ func (uc *UseCase) ValidateGroupAccountingRoutes(ctx context.Context, organizati
 	}
 
 	clientUses := make([]mmodel.AccountingRouteUse, 0, len(uses))
+	takesBack := false
 
 	for _, use := range uses {
-		if !isCrossLedgerBridgeRoute(transactionRouteCache, use.RouteID) {
+		takesBack = takesBack || use.FeeDebtTakeBack
+		if !use.FeeDebtTakeBack && !isCrossLedgerBridgeRoute(transactionRouteCache, use.RouteID) {
 			clientUses = append(clientUses, use)
 		}
 	}
@@ -135,7 +140,7 @@ func (uc *UseCase) ValidateGroupAccountingRoutes(ctx context.Context, organizati
 		return err
 	}
 
-	if err := validateGroupRouteCountAndCounterparts(actionRoutes, clientUses); err != nil {
+	if err := validateGroupRouteCountAndCounterparts(actionRoutes, clientUses, takesBack); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Group route count or counterpart validation failed", err)
 		logger.Log(ctx, libLog.LevelWarn, "Group route count or counterpart validation failed", libLog.String("action", action), libLog.Err(err))
 
@@ -256,7 +261,7 @@ func validateGroupRouteMembership(routes actionRoutesResult, uses []mmodel.Accou
 // validateGroupRouteCountAndCounterparts is validateRouteCountAndCounterparts
 // over the legs of several transactions: routes are counted once per side
 // however many parts use them, and counterparts are looked for across parts.
-func validateGroupRouteCountAndCounterparts(routes actionRoutesResult, uses []mmodel.AccountingRouteUse) error {
+func validateGroupRouteCountAndCounterparts(routes actionRoutesResult, uses []mmodel.AccountingRouteUse, takesBack bool) error {
 	fromRoutes := make(map[string]bool)
 	toRoutes := make(map[string]bool)
 
@@ -283,7 +288,7 @@ func validateGroupRouteCountAndCounterparts(routes actionRoutesResult, uses []mm
 	totalCacheRoutes := sourceCount + destinationCount + bidirectionalCount
 	totalUsedRoutes := len(fromRoutes) + len(toRoutes) - len(sharedBidirectionalRoutes)
 
-	if totalUsedRoutes != totalCacheRoutes || len(fromRoutes) < sourceCount || len(toRoutes) < destinationCount {
+	if !takesBack && (totalUsedRoutes != totalCacheRoutes || len(fromRoutes) < sourceCount || len(toRoutes) < destinationCount) {
 		return pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, constant.EntityTransactionRoute, len(fromRoutes), len(toRoutes), sourceCount, destinationCount, bidirectionalCount)
 	}
 
