@@ -18,7 +18,6 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/shopspring/decimal"
-	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -524,6 +523,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
+// persistMetadata inserts the frozen metadata only when no document exists. A stored
+// document is the client-editable truth, so only its presence under the entity id
+// is confirmed.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -534,11 +536,11 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return fmt.Errorf("verify recovered metadata: %w", err)
 	}
 
-	if actual == nil || actual.EntityID != expected.EntityID || actual.EntityName != expected.EntityName {
+	if actual == nil || actual.EntityID != expected.EntityID {
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
-	return compareFrozenMetadata(expected.Data, actual.Data)
+	return nil
 }
 
 func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
@@ -568,43 +570,6 @@ func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
 	}
 
 	return normalized, nil
-}
-
-func compareFrozenMetadata(expected, actual mongodb.JSON) error {
-	if len(expected) != len(actual) {
-		return metadataConflict("stored metadata differs from frozen content")
-	}
-
-	for key, value := range expected {
-		other, exists := actual[key]
-		if !exists {
-			return metadataConflict("stored metadata is missing a frozen field")
-		}
-
-		left, leftNumeric, err := canonicalMetadataNumber(value)
-		if err != nil {
-			return err
-		}
-
-		right, rightNumeric, err := canonicalMetadataNumber(other)
-		if err != nil {
-			return err
-		}
-
-		if leftNumeric || rightNumeric {
-			if !leftNumeric || !rightNumeric || left != right {
-				return metadataConflict("stored metadata number differs from frozen content")
-			}
-
-			continue
-		}
-
-		if !metadataScalar(value) || !metadataScalar(other) || value != other {
-			return metadataConflict("stored metadata differs from frozen content")
-		}
-	}
-
-	return nil
 }
 
 func metadataScalar(value any) bool {
@@ -660,8 +625,6 @@ func metadataNumberText(value any) (string, bool, error) {
 		return metadataFloatText(float64(number), 32)
 	case float64:
 		return metadataFloatText(number, 64)
-	case bson.Decimal128:
-		return number.String(), true, nil
 	default:
 		return "", false, nil
 	}

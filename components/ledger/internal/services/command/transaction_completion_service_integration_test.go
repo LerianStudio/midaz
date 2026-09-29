@@ -206,7 +206,7 @@ func finalizerOperationIDs(t *testing.T, envelope *command.TransactionCompletion
 
 func assertFinalizerMetadataCount(t *testing.T, db *mongo.Database, entity, id string, expected int64) {
 	t.Helper()
-	count, err := db.Collection(strings.ToLower(entity)).CountDocuments(context.Background(), bson.M{"entity_id": id, "entity_name": entity})
+	count, err := db.Collection(strings.ToLower(entity)).CountDocuments(context.Background(), bson.M{"entity_id": id})
 	require.NoError(t, err)
 	assert.Equal(t, expected, count)
 }
@@ -357,12 +357,24 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 		require.NoError(t, metadata.Create(ctx, constant.EntityTransaction, &mongodb.Metadata{
 			EntityID: envelope.TransactionID.String(), EntityName: constant.EntityTransaction, Data: mongodb.JSON{"purpose": "authorized later edit"}, CreatedAt: date, UpdatedAt: date,
 		}))
-		require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), command.ErrEngineMetadataConflict)
+		require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
 		actual, err := metadata.FindByEntity(ctx, constant.EntityTransaction, envelope.TransactionID.String())
 		require.NoError(t, err)
 		require.NotNil(t, actual)
 		assert.Equal(t, mongodb.JSON{"purpose": "authorized later edit"}, actual.Data)
 		assertFinalizerSQLCounts(t, pg.DB, envelope.TransactionID, 1, 1)
+	})
+
+	t.Run("metadata patched before completion keeps one document", func(t *testing.T) {
+		envelope := finalizerIntegrationEnvelope(t, t.Name(), "", false, false, false)
+		id := envelope.TransactionID.String()
+		require.NoError(t, metadata.Update(ctx, constant.EntityTransaction, id, map[string]any{"client": "patched"}))
+		require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
+		assertFinalizerMetadataCount(t, mongoContainer.Database, constant.EntityTransaction, id, 1)
+		actual, err := metadata.FindByEntity(ctx, constant.EntityTransaction, id)
+		require.NoError(t, err)
+		require.NotNil(t, actual)
+		assert.Equal(t, mongodb.JSON{"client": "patched"}, actual.Data)
 	})
 
 	for _, emptyMetadata := range []bool{false, true} {
