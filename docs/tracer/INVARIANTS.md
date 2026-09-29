@@ -123,7 +123,21 @@ statement defines the selected set; it does not prevent subsequent insertions.
 
 Activating a limit for reservations requires account-only scopes within
 the configured scope bounds and an asset code that passes the shared rule.
-Broad scopes stay ineligible.
+Broad scopes stay ineligible. The rule applies wherever reservations can read
+the limit: in single-tenant mode while `TRACER_PLATFORM_PRODUCERS` is set, and
+in multi-tenant mode per tenant, only while the tenant-manager lists the
+tenant as active for the ledger (the cached association set below). A tenant
+that uses the ledger therefore cannot keep non-account-scoped limits; a
+validations-only tenant keeps any scope. When the association cannot be
+decided, the limit write is refused with 503 `0161`; it never proceeds without
+the rule.
+
+The rule governs limit writes, not stored limits. A tenant that becomes
+ledger-associated while it holds ACTIVE non-account-scoped limits keeps them,
+and every reservation debiting in such a limit's asset code fails closed with
+`0531`, which the Ledger rejects in every `tracer.mode` that calls the Tracer,
+until those limits are deactivated or re-scoped. Operators review a tenant's
+active limits before associating it with the ledger.
 
 Ledger projects each account and entry asset as the asset code it already holds;
 it does not read the asset registry to build the context. The Ledger
@@ -420,8 +434,30 @@ Each transport has its own credential, and both resolve to the same
   route, the request is first authorized through the Access Manager by lib-auth
   `Authorize("tracer", "reservations", "post")`. That round-trip is the trust
   anchor; the token's claims are read only after it succeeds. The authorized
-  token must be an application token (`type=application`) whose `azp` is looked
-  up exactly in `TRACER_PLATFORM_PRODUCERS` (`clientId`). With the platform
+  token must be an application token (`type=application`). In single-tenant
+  mode its `azp` is looked up exactly in `TRACER_PLATFORM_PRODUCERS`
+  (`clientId`). In multi-tenant mode no client id is consulted: the token must
+  be the per-tenant application the tenant-manager provisions for the producer
+  (`ledger-m2m-tracer-<tenant>`, random client id), and it must carry the
+  platform attributes only the tenant-manager can write — `isInternal` exactly
+  `"true"`, a `sourceService` in the roster, and a valid `tenantId`. This is
+  a deployment invariant, not a check the Tracer can make alone: the
+  tenant-manager writes `tenantId`, `tenantSlug`, `isInternal` and
+  `sourceService` as platform-owned token attributes on the per-tenant
+  Casdoor application and drops declared attributes with reserved names
+  (tenant-manager `internal/adapters/caradhras/m2m_provisioner.go`); the
+  Access Manager refuses client-supplied `isInternal` and `sourceService` on
+  application CRUD, never writes `isInternal`, and sets `sourceService` itself
+  for its own permission declarations (plugin-access-manager
+  `components/identity/pkg/model/application.go`), so `isInternal="true"` is
+  what separates a tenant-manager application from an operator-created one;
+  and the claims are read only after the Access Manager authorized the same
+  token, since lib-auth keys its decision cache by a SHA-256 digest of the
+  token (lib-auth `auth/middleware/decisioncache.go`). A deployment that lets
+  any other writer set Casdoor token attributes breaks the producer check.
+  See the [rollout guide](../architecture/ledger-tracer-rollout.md). `tenantId` is
+  the tenant of the request; an `X-Tenant-Id` header, if sent, must name the
+  same tenant (403 `0043` otherwise), and is otherwise ignored. With the platform
   default `AUTH_M2M_INVERSION_ENABLED=false`, lib-auth authorizes an
   application token as the fabricated role `admin/tracer-editor-role`, which the
   seed grants `tracer/reservations:post`: the Access Manager validates the token
@@ -432,13 +468,16 @@ Each transport has its own credential, and both resolve to the same
   `application/problem+json`: a missing token is 401 `0042`, a token the Access
   Manager denies is 403 `0043`, and an Access Manager that cannot decide is 503
   `0525`, which the Ledger treats as Tracer unavailability. An authorized token
-  that is not an application token, or whose `azp` is unmapped, is 403 `0043`. A
+  that is not an application token, whose `azp` is unmapped (single-tenant), or
+  that lacks a platform attribute (multi-tenant) is 403 `0043`. A missing
+  `tenantId` is 403 `0043` rather than 401, because the token itself was
+  authorized: it is simply not a producer credential for any tenant. A
   bearer token without `sub` is 401 `0474` from the route guard, in the flat
   guard body, so the Ledger's client-credentials token must carry `sub`. Tokens
   are never echoed. The HTTP listener never asks for a client certificate.
-  The claim fallback that reads `type` and `azp` without verifying the
-  signature is reachable only through the chain that mounts the guard in front
-  of it, because the Access Manager introspects the token on `/v1/authorize`.
+  The claim fallback that reads `type`, `azp` and the platform attributes
+  without verifying the signature is reachable only through the chain that
+  mounts the guard in front of it, because the Access Manager introspects the token on `/v1/authorize`.
   Both read the token with the same extraction, so a bare token without the
   `Bearer` scheme is authorized and resolved as one token. Every HTTP
   reservation, confirm and release makes one Access Manager authorization call;
@@ -466,8 +505,13 @@ info, query, fragment, wildcard or space. Any violation refuses boot. The map is
 copied at construction and applies no normalization or wildcards; rotation adds
 a second entry for the same service.
 
-`TRACER_PLATFORM_PRODUCERS` enables the reservation surface. Empty or unset, the
-Tracer serves validations only: the reservation routes are not mounted (404),
+In multi-tenant mode the reservation surface is always mounted, and the
+tenant-manager enables it per tenant. `TRACER_PLATFORM_PRODUCERS` is optional
+and serves gRPC only: it may carry `certUri` entries, a `clientId` entry refuses
+boot, and a `TRACER_GRPC_PORT` without a `certUri` refuses boot.
+
+In single-tenant mode `TRACER_PLATFORM_PRODUCERS` enables the reservation
+surface. Empty or unset, the Tracer serves validations only: the reservation routes are not mounted (404),
 `TRACER_GRPC_PORT` refuses boot because the gRPC listener serves only
 reservations, limits accept any scope (the account-only definition policy is
 not installed), none of the reservation settings is read, and boot logs one
@@ -515,12 +559,18 @@ to three times that:
 Boot warms every set in the background; a failure logs a Warn and requests
 refresh on demand. Warm-up and background refreshes run under `SafeGo`.
 
-After identity, both transports authorize the tenant in a fixed order:
+After identity, both transports authorize the tenant in a fixed order. The
+tenant is the token's `tenantId` on multi-tenant HTTP and the `x-tenant-id`
+metadata on gRPC. On multi-tenant HTTP the tenant pool is then bound by the
+same lib-commons tenant middleware (`WithTenantDB` over the tracer pool
+manager) as every other tenant route, and the bound tenant must be the token
+tenant:
 
 | Situation | Result |
 |---|---|
 | Single-tenant | tenant header ignored; no tenant-manager lookup |
-| Multi-tenant, `X-Tenant-Id` / `x-tenant-id` missing or malformed | 400 `0487` (gRPC `InvalidArgument`) |
+| Multi-tenant HTTP, `X-Tenant-Id` present and naming another tenant | 403 `0043` |
+| Multi-tenant gRPC, `x-tenant-id` missing or malformed | `InvalidArgument` `0487` |
 | Tenant absent from a fresh active set for the producer service | 403 `0043` (gRPC `PermissionDenied`) |
 | Active set cannot be refreshed and does not admit the tenant as described above | 503 `0161` (gRPC `Unavailable`, message `0161`) |
 | The tracer pool of the tenant is not found or suspended | 403 `0043` (gRPC `PermissionDenied`) |
@@ -528,6 +578,7 @@ After identity, both transports authorize the tenant in a fixed order:
 | The caller cancelled | 503 `0330` (gRPC `Canceled`, no code in the message) |
 | The deadline passed | 504 `0422` (gRPC `DeadlineExceeded`, no code in the message) |
 | Missing producer, or authorizer and resolver disagree on multi-tenancy | 503 `0537` (gRPC `Unavailable`, message `0537`) |
+| Multi-tenant HTTP: inactive authorizer, or a bound tenant other than the token tenant | 503 `0537` |
 | Otherwise | context carries the tenant, its pool and the producer's integration ID |
 
 `0161`, `0330` and `0422` are availability failures: the Ledger handles them as
@@ -816,5 +867,5 @@ Kubernetes `ClusterIP` Service, NetworkPolicy, or equivalent firewall — never 
 public ingress. Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`.
 Everything else requires auth (API Key `X-API-Key` with constant-time comparison, plus the
 Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`), except
-`/v1/reservations`, which accepts only a platform producer's M2M token and takes its tenant
-from `X-Tenant-Id` (see "Producer identity for reservations").
+`/v1/reservations`, which accepts only a platform producer's M2M token and, in multi-tenant
+mode, takes its tenant from that token (see "Producer identity for reservations").

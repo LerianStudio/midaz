@@ -497,7 +497,7 @@ X-API-Key: your-api-key
 ```
 
 `/v1/reservations` accepts only a platform producer's M2M access token
-(`Authorization: Bearer`) plus `X-Tenant-Id`; see
+(`Authorization: Bearer`); under multi-tenancy the token names the tenant. See
 [Ledger reservation integration](#ledger-reservation-integration).
 
 ### Date/Time Format
@@ -776,10 +776,16 @@ Every caller is a platform producer (the roster is `{ledger}`):
 
 - **HTTP**: an Access Manager M2M token, authorized through the Access Manager
   as `tracer/reservations:post` like every other Tracer route, then required to
-  be an application token whose `azp` is mapped. A missing token is 401 `0042`,
-  a denied one 403 `0043`, and an Access Manager that cannot decide 503 `0525`;
-  an authorized token that is not an application token, or whose `azp` is
-  unmapped, is 403 `0043`. All are `application/problem+json`. With the
+  be an application token. Single-tenant, its `azp` must be mapped.
+  Multi-tenant, no client id is mapped: the token must be the per-tenant
+  application the tenant-manager provisions for the ledger
+  (`ledger-m2m-tracer-<tenant>`), carrying the attributes only the
+  tenant-manager writes: `isInternal` `"true"`, `sourceService` `"ledger"` and
+  `tenantId`, which is the tenant of the request. A missing token is 401
+  `0042`, a denied one 403 `0043`, and an Access Manager that cannot decide 503
+  `0525`; an authorized token that is not an application token, whose `azp` is
+  unmapped (single-tenant), or that lacks a platform attribute (multi-tenant),
+  is 403 `0043`. All are `application/problem+json`. With the
   platform default `AUTH_M2M_INVERSION_ENABLED=false`, lib-auth authorizes an
   application token as the fabricated role `admin/tracer-editor-role`, so the
   Access Manager validates the token but not the application's own grant and
@@ -790,17 +796,46 @@ Every caller is a platform producer (the roster is `{ledger}`):
 
 Both maps live in `TRACER_PLATFORM_PRODUCERS`, e.g.
 `[{"service":"ledger","clientId":"<azp>","certUri":"spiffe://example.test/ledger"}]`
-(at most 64 KiB; an unknown entry key refuses boot). `TRACER_PLATFORM_PRODUCERS`
-enables the reservation surface: empty or unset, the Tracer serves validations
-only, the reservation routes return 404, `TRACER_GRPC_PORT` refuses boot, and
-limits accept any scope. When it is set, limits must be account-only, and
-`PLUGIN_AUTH_ENABLED=true` is required unless `DEPLOYMENT_MODE=local`,
-whichever transports are served. Under `local` with plugin auth disabled no
-caller is verified and every HTTP reservation is attributed to the ledger;
-plugin auth disabled together with `MULTI_TENANT_ENABLED=true` refuses boot.
+(at most 64 KiB; an unknown entry key refuses boot).
 
-In multi-tenant mode the tenant from `X-Tenant-Id` (REST) or `x-tenant-id`
-metadata (gRPC) must be in the cached set of
+Single-tenant, `TRACER_PLATFORM_PRODUCERS` enables the reservation surface:
+empty or unset, the Tracer serves validations only, the reservation routes
+return 404, `TRACER_GRPC_PORT` refuses boot, and limits accept any scope. When
+it is set, limits must be account-only, and `PLUGIN_AUTH_ENABLED=true` is
+required unless `DEPLOYMENT_MODE=local`, whichever transports are served. Under
+`local` with plugin auth disabled no caller is verified and every HTTP
+reservation is attributed to the ledger; plugin auth disabled together with
+`MULTI_TENANT_ENABLED=true` refuses boot.
+
+Multi-tenant, the reservation surface is always mounted and the tenant-manager
+enables it per tenant: a tenant takes part while it holds an active `ledger`
+association. `TRACER_PLATFORM_PRODUCERS` is optional and serves gRPC only: it
+may carry `certUri` entries, and a `clientId` entry refuses boot. The same
+per-tenant decision governs limit administration: limits of a tenant with an
+active ledger association must be account-only (422 `0531`), limits of any
+other tenant accept any scope, and a tenant-manager that cannot answer refuses
+the limit write with 503 `0161`. A tenant that uses the ledger therefore cannot
+keep non-account-scoped limits. The rule governs limit writes, not stored
+limits: a tenant associated with the ledger while it holds ACTIVE
+non-account-scoped limits has every reservation in those limits' asset codes
+fail closed with `0531`, rejected by the Ledger in every `tracer.mode` that
+calls the Tracer, until the limits are deactivated or re-scoped. Review a
+tenant's active limits before associating it with the ledger.
+
+**Upgrading a multi-tenant Tracer.** Every multi-tenant Tracer mounts the
+reservation surface, so its boot requires `PLUGIN_AUTH_ENABLED=true` (in every
+`DEPLOYMENT_MODE`, `local` included) and valid `CONTEXT_*` resource bounds and
+CEL cost settings (`CONTEXT_CEL_COST_LIMIT`, `CONTEXT_CEL_TOTAL_COST_LIMIT`).
+`TRACER_PLATFORM_PRODUCERS` is optional and holds `certUri` entries for gRPC
+only; a `clientId` entry refuses boot. The producer check relies on a
+deployment invariant: only the tenant-manager writes the `isInternal` claim
+onto a token the Access Manager authorizes. That invariant and the per-tenant
+provisioning prerequisites are in the
+[rollout guide](../../docs/architecture/ledger-tracer-rollout.md).
+
+In multi-tenant mode the tenant — the token's `tenantId` on REST, where an
+`X-Tenant-Id` header, if sent, must name the same tenant (403 `0043`
+otherwise), or `x-tenant-id` metadata on gRPC — must be in the cached set of
 tenants active for the producer's service, which the Tracer reads from the
 tenant-manager (`GET /v1/tenants/active?service=ledger`) without fetching any
 Ledger credentials. `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list that
@@ -814,10 +849,11 @@ still admitted, and every other tenant gets 503 `0161`. An empty list while the
 previous set is non-empty and usable is ignored and logged once as an Error.
 Each failed list call logs one Warn, with a permission hint for a 4xx, so a 401
 or 403 on the list leaves members of a usable set admitted and answers every
-other tenant with `0161`. A tenant pool that cannot be resolved is
-also 503 `0161`, a cancelled call 503 `0330` and a passed deadline 504 `0422`:
+other tenant with `0161`. On REST the tenant pool is then bound by the same
+lib-commons tenant middleware as every other tenant route. A tenant pool that
+cannot be resolved is also 503 `0161`, a cancelled call 503 `0330` and a passed deadline 504 `0422`:
 availability failures under the Ledger's `failPosture`. A missing or malformed
-tenant is 400 `0487`, and a missing or unusable configuration is 503 `0537`;
+gRPC tenant is `InvalidArgument` `0487`, and a missing or unusable configuration is 503 `0537`;
 the Ledger rejects both, like `0043`, in every posture. On REST a 401 makes the
 Ledger discard its cached token and retry once, and a persistent 401 counts as
 unavailability. The Ledger treats an answer as a refusal only by its canonical

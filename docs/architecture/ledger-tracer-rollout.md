@@ -20,7 +20,85 @@ checks do not certify the remote Tracer's version, policies or readiness.
    tenant coverage. `/version` identifies an artifact; it does not advertise
    capabilities. The response contract verifies controls on each call.
 2. Provision the producer identity for the chosen transport.
-   - **REST** (`TRACER_TRANSPORT=rest`): create the Ledger's M2M application in
+   - **REST, multi-tenant** (`TRACER_TRANSPORT=rest`, `MULTI_TENANT_ENABLED=true`
+     on both sides): nothing is mapped in the Tracer. The tenant-manager
+     provisions, per tenant, the Ledger's M2M application in Casdoor
+     (`ledger-m2m-tracer-<tenant id without dashes>`, random client id) whose
+     tokens carry `type=application` and the platform attributes only the
+     tenant-manager writes: `tenantId`, `tenantSlug`, `isInternal="true"` and
+     `sourceService="ledger"`. The Tracer authorizes the token through the
+     Access Manager as `tracer/reservations:post`, requires those attributes,
+     takes the tenant from `tenantId` (an `X-Tenant-Id` header, if sent, must
+     match), requires the tenant's active `ledger` association, and binds its
+     pool with the same tenant middleware as every other route.
+
+     The producer check rests on a deployment invariant: no writer other than
+     the tenant-manager can put `isInternal="true"` on a token the Access
+     Manager authorizes. The tenant-manager writes `tenantId`, `tenantSlug`,
+     `isInternal` and `sourceService` as platform-owned token attributes on the
+     per-tenant Casdoor application and drops any declared attribute with a
+     reserved name (tenant-manager `internal/adapters/caradhras/m2m_provisioner.go`,
+     `buildM2MTokenAttributes`). The Access Manager's application CRUD strips
+     client-supplied `isInternal` and `sourceService`, never writes
+     `isInternal`, and sets `sourceService` itself, from catalogued service
+     slugs, for its own permission declarations (plugin-access-manager
+     `components/identity/pkg/model/application.go`). An application created
+     through the Access Manager can therefore carry `sourceService="ledger"`
+     and its own organization as `tenantId`, but never `isInternal="true"`,
+     and is refused with 403 `0043`. The Tracer reads these claims without
+     verifying the signature, and only after the Access Manager has authorized
+     the same token: lib-auth keys its decision cache by a SHA-256 digest of
+     the token (lib-auth `auth/middleware/decisioncache.go`), so a cached
+     decision never covers another token. Keep the invariant: grant no tenant,
+     operator or integration direct write access to Casdoor token attributes,
+     and never mount the reservation routes behind a guard that skips the
+     Access Manager.
+
+     Prerequisites, per environment:
+     - the tenant-manager's `ledger` service record lists `tracer` in its
+       `targetServices`, so associating a tenant with the ledger provisions the
+       ledger→tracer application and its credentials;
+     - tenants associated with the ledger before `tracer` was a target get
+       their M2M application recreated (the association's
+       `m2m/recreate/stream` operation), because no application or secret
+       exists for them;
+     - the tenant RBAC template grants `tracer/reservations:post` to
+       `tracer-editor-role`. The template's `tracer-editor-permission` covers
+       `tracer-rules` and `tracer-limits` only; without the grant every
+       reservation is 403 `0043` from the Access Manager;
+     - the Ledger's workload identity can read
+       `tenants/{env}/*/ledger/m2m/tracer/credentials` in AWS Secrets Manager,
+       where the tenant-manager stores each tenant's client credentials;
+     - the AWS SDK default chain resolves the Ledger's region and identity
+       (`AWS_REGION` or a shared-config region, and IRSA on EKS). An
+       unresolved region refuses boot: Secrets Manager is regional and no
+       region is guessed;
+     - the Ledger runs with `PLUGIN_AUTH_ENABLED=true` and `PLUGIN_AUTH_HOST`
+       (or service discovery). `IDP_M2M_CLIENT_ID` is not used for the
+       Tracer, and a `clientId` entry in the Tracer's
+       `TRACER_PLATFORM_PRODUCERS` refuses its boot.
+
+     The Ledger reads each tenant's credentials from
+     `tenants/{ENV_NAME}/{tenant}/{APPLICATION_NAME}/m2m/tracer/credentials`
+     (an empty `ENV_NAME` omits that segment), with `{tenant}` in the
+     canonical dashless form the tenant-manager uses when it provisions the
+     secret (`stringutil.DashlessUUID`, the same value it writes as the
+     token's `tenantId`). Credentials are cached in process memory, per pod,
+     for 30 seconds, and an absent, denied or unusable secret for 5 seconds.
+     There is no shared cache, deliberately, so no client secret is written to
+     a shared store; plugin-fees caches its M2M credentials the same way. A
+     revoked or rotated credential therefore stops being used pod by pod: when
+     that pod's cache entry expires and the next read finds it absent or
+     changed, or when plugin-auth refuses the mint. A transient custody
+     failure keeps serving the tenant's current token source, whose
+     credentials were valid when last read.
+
+     A tenant takes part in reservations only while it holds an active
+     `ledger` association: a tenant without one is 403 `0043`, and a
+     tenant-manager that cannot answer is 503 `0161` (the Ledger's
+     `failPosture` decides). Provisioning defects are refusals, not outages;
+     see [Per-tenant provisioning failures](#per-tenant-provisioning-failures).
+   - **REST, single-tenant** (`TRACER_TRANSPORT=rest`): create the Ledger's M2M application in
      the Access Manager and give its client credentials to the Ledger as
      `IDP_M2M_CLIENT_ID` / `IDP_M2M_CLIENT_SECRET`, with `PLUGIN_AUTH_ENABLED=true`
      and `PLUGIN_AUTH_HOST` (or a plugin-auth address that service discovery
@@ -59,14 +137,32 @@ checks do not certify the remote Tracer's version, policies or readiness.
      `TRACER_PLATFORM_PRODUCERS` (`certUri`). Both sides run
      `TRACER_TLS_MODE=mtls`, and the Tracer sets `TRACER_GRPC_PORT`.
 
-   An entry may carry both a `clientId` and a `certUri`, so one Tracer serves
-   both transports. The Ledger's integration ID is its `APPLICATION_NAME`
-   (unset means `ledger`) and must equal the entry's `service`.
-   `TRACER_PLATFORM_PRODUCERS` enables the Tracer's reservation surface; empty,
-   the Tracer serves validations only, mounts no reservation route, refuses a
-   `TRACER_GRPC_PORT`, and accepts limits of any scope. Once it is set, limits
-   must be account-only, and outside `DEPLOYMENT_MODE=local` the Tracer
-   requires `PLUGIN_AUTH_ENABLED=true`, even when only gRPC is used.
+   In single-tenant mode an entry may carry both a `clientId` and a `certUri`,
+   so one Tracer serves both transports. The Ledger's integration ID is its
+   `APPLICATION_NAME` (unset means `ledger`) and must equal the entry's
+   `service`. Single-tenant, `TRACER_PLATFORM_PRODUCERS` enables the Tracer's
+   reservation surface; empty, the Tracer serves validations only, mounts no
+   reservation route, refuses a `TRACER_GRPC_PORT`, and accepts limits of any
+   scope. Once it is set, limits must be account-only, and outside
+   `DEPLOYMENT_MODE=local` the Tracer requires `PLUGIN_AUTH_ENABLED=true`, even
+   when only gRPC is used. Multi-tenant, the surface is always mounted and the
+   tenant-manager enables it per tenant; `TRACER_PLATFORM_PRODUCERS` is
+   optional, holds `certUri` entries for gRPC only, and refuses a `clientId`.
+   The account-only limit rule then applies per tenant: to a tenant with an
+   active `ledger` association, and to no other. A tenant that uses the ledger
+   cannot keep non-account-scoped limits: the single-tenant deployment rule
+   applied to one tenant. A limit write the tenant-manager cannot decide is
+   refused with 503 `0161`.
+
+   Associating a tenant with the ledger carries a transition risk: limits
+   already ACTIVE keep their scopes, because the rule governs limit writes,
+   not stored limits. While such a tenant holds an ACTIVE non-account-scoped
+   limit, every reservation that debits in that limit's asset code fails
+   closed with `0531`, which the Ledger rejects in every `tracer.mode` that
+   calls the Tracer, `advisory` included, until those limits are deactivated
+   or re-scoped to accounts. Before associating
+   a tenant with the ledger for the Tracer, review the tenant's active limits
+   and deactivate or re-scope every one that is not account-scoped.
    `TRACER_PLATFORM_PRODUCERS` is at most 64 KiB and rejects an unknown entry
    key. Under `DEPLOYMENT_MODE=local` with plugin auth disabled the Tracer
    verifies no caller and attributes every HTTP reservation to the ledger;
@@ -313,6 +409,28 @@ span attribute `app.tracer.failure_cause=token_unavailable` separates them from 
 Tracer outage. The REST client never follows redirects, so the bearer token is
 never sent to a redirect target.
 
+### Per-tenant provisioning failures
+
+Under multi-tenancy a per-tenant provisioning defect is a deterministic
+refusal in every `tracer.mode` that calls the Tracer, `advisory` included, and
+never follows `failPosture`: fail-open would otherwise admit, unchecked, every
+transaction of a tenant nobody provisioned. The refusals are:
+
+- on the Tracer, 403 `0043`: a tenant without an active `ledger` association,
+  or a token missing a platform claim or naming another producer
+  (`isInternal`, `sourceService`, `tenantId`);
+- on the Ledger, before anything is sent: a tenant M2M credential that is
+  absent, denied to the Ledger or unusable as stored, and a mint plugin-auth
+  refuses (a 400, 401 or 403 carrying a client-credentials refusal code). The
+  Ledger rejects the transaction as it rejects a refusal before evaluation,
+  with span attribute `app.tracer.failure_cause=tenant_identity_unprovisioned`.
+
+Only transient failures follow `failPosture`: a tenant-manager, secret store
+or plugin-auth that cannot answer (5xx, 429, a connection failure), and a
+timeout or cancellation. They surface as `0161` from the Tracer, or as a
+missing token (`0536`, `app.tracer.failure_cause=token_unavailable`) on the
+Ledger.
+
 HTTP and gRPC clients inspect the canonical code, the problem `code` or the gRPC
 status message, before classifying any failure, a 503 or `Unavailable`
 included. The Tracer answers evaluation-time policy and configuration errors
@@ -361,9 +479,10 @@ reaper:
 - The Ledger sets `TRACER_BASE_URL`.
 - The Ledger's `APPLICATION_NAME` (unset means `ledger`) is in the producer
   roster.
-- The Tracer's `TRACER_PLATFORM_PRODUCERS` is set (empty leaves a
-  validations-only Tracer), parses under the Tracer's own boot rules, and maps
-  a `clientId` or `certUri` onto that service.
+- Single-tenant, the Tracer's `TRACER_PLATFORM_PRODUCERS` is set (empty leaves
+  a validations-only Tracer), parses under the Tracer's own boot rules, and maps
+  a `clientId` or `certUri` onto that service. Multi-tenant, it is optional; if
+  set it parses and carries no `clientId`.
 - The Ledger's `TRACER_TRANSPORT` is `grpc` (the default when empty) or `rest`;
   any other value fails.
 - For `rest`:
@@ -377,9 +496,11 @@ reaper:
     checker.
   - The Ledger sets `PLUGIN_AUTH_ENABLED=true`, and `PLUGIN_AUTH_HOST` unless
     `SD_ENABLED=true` resolves plugin-auth.
-  - The Ledger sets `IDP_M2M_CLIENT_ID` and a non-empty
+  - Single-tenant, the Ledger sets `IDP_M2M_CLIENT_ID` and a non-empty
     `IDP_M2M_CLIENT_SECRET`, and `TRACER_PLATFORM_PRODUCERS` maps that client
-    ID onto the Ledger's service.
+    ID onto the Ledger's service. Multi-tenant, no client id is checked: the
+    per-tenant credentials are the tenant-manager's, and the checker cannot
+    see them.
 - For `grpc`:
   - Both sides run `TRACER_TLS_MODE=mtls`.
   - The Tracer sets `TRACER_GRPC_PORT`.
