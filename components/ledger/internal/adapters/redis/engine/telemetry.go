@@ -190,7 +190,7 @@ func metricFailureCode(code string) string {
 		"connection_unavailable", "unsupported_transport", "invalid_response", "transport",
 		"invalid_failure", "invalid_technical_failure", "invalid_json", "invalid_protocol",
 		"invalid_balance", "balance_identity_mismatch", "wrong_key_type",
-		"execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow",
+		"execution_fingerprint_conflict", "execution_guard_conflict", "transaction_already_reverted", "version_overflow",
 		"invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded",
 		"serialization_failed", "script_runtime_failed", "indeterminate",
 		"execution_outcome_unknown", "invalid_receipt", "unknown_technical_failure",
