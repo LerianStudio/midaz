@@ -14,12 +14,14 @@ const (
 	RolePrimary = "primary"
 	// RoleOverdraftCompanion identifies its generated debt-account movement.
 	RoleOverdraftCompanion = "overdraft_companion"
-	// RoleFeeDebtDebit is a collect posting's one movement on its debtor (ordinal 0).
+	// RoleFeeDebtDebit is a collect posting's movement on its debtor for one settled
+	// debt; its ordinal is the debt's index in the posting's Items.
 	RoleFeeDebtDebit = "fee_debt_debit"
 	// RoleFeeDebtCredit is a collect posting's movement on one settled debt's creditor;
 	// its ordinal is the debt's index in the posting's Items.
 	RoleFeeDebtCredit = "fee_debt_credit" // #nosec G101 -- accounting role name, not a credential
-	// RoleFeeDebtRefundCredit is a refund posting's one movement on its debtor (ordinal 0).
+	// RoleFeeDebtRefundCredit is a refund posting's movement on its debtor for one
+	// entry; its ordinal is the entry's index in the posting's Refunds.
 	RoleFeeDebtRefundCredit = "fee_debt_refund_credit" // #nosec G101 -- accounting role name, not a credential
 	// RoleFeeDebtRefundDebit is a refund posting's movement on one entry's creditor;
 	// its ordinal is the entry's index in the posting's Refunds.

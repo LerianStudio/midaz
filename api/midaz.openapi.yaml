@@ -16543,13 +16543,12 @@ components:
             feeDebtOpenings, feeDebtSettlements, feeDebtCollection or
             feeDeferPair is refused with 400 naming the offending key, on every
             body that carries transaction metadata: a create, a metadata update
-            and a fee estimate, and a metadata update, including one that clears
-            the metadata, never changes them. So a value present here is always
-            the ledger's own word about the charge and never one a caller
-            supplied. feeLeg and feeDeferPair, on operation metadata, are
-            reserved the same way. Transaction-level metadata is additive, so
-            caller-supplied keys on this field are preserved alongside the
-            ledger keys.
+            and a fee estimate. A metadata update, including one that clears the
+            metadata, never changes them. So a value present here is always the
+            ledger's own word about the charge and never one a caller supplied.
+            feeLeg and feeDeferPair, on operation metadata, are reserved the
+            same way. Transaction-level metadata is additive, so caller-supplied
+            keys on this field are preserved alongside the ledger keys.
           type: object
         operations:
           items:
@@ -20932,13 +20931,12 @@ components:
             feeDebtOpenings, feeDebtSettlements, feeDebtCollection or
             feeDeferPair is refused with 400 naming the offending key, on every
             body that carries transaction metadata: a create, a metadata update
-            and a fee estimate, and a metadata update, including one that clears
-            the metadata, never changes them. So a value present here is always
-            the ledger's own word about the charge and never one a caller
-            supplied. feeLeg and feeDeferPair, on operation metadata, are
-            reserved the same way. Transaction-level metadata is additive, so
-            caller-supplied keys on this field are preserved alongside the
-            ledger keys.
+            and a fee estimate. A metadata update, including one that clears the
+            metadata, never changes them. So a value present here is always the
+            ledger's own word about the charge and never one a caller supplied.
+            feeLeg and feeDeferPair, on operation metadata, are reserved the
+            same way. Transaction-level metadata is additive, so caller-supplied
+            keys on this field are preserved alongside the ledger keys.
           type: object
         operations:
           items:
