@@ -12,7 +12,15 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
+// initContextLimitDefinitionPolicy returns the account-only definition policy
+// limits must satisfy while the reservation surface is enabled, and nil (any
+// scope accepted) on a validations-only Tracer, where no reservation reads
+// limits by account.
 func initContextLimitDefinitionPolicy(cfg *Config) (*command.ContextLimitDefinitionPolicy, error) {
+	if !reservationSurfaceEnabled(cfg) {
+		return nil, nil
+	}
+
 	facts, err := loadContextFactBounds(cfg)
 	if err != nil {
 		return nil, err

@@ -100,7 +100,7 @@ func TestContextReservationConfigRefusesInvalidProducerIdentity(t *testing.T) {
 			c.ContextM2MIssuer = testM2MIssuer
 			c.ContextM2MJWKSURL = "http://access-manager.internal/.well-known/jwks"
 		}, reason: "invalid CONTEXT_M2M_JWKS_URL"},
-		{name: "producer map missing", mutate: func(c *Config) { c.TracerPlatformProducers = "" }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
+		{name: "producer map lists no producer", mutate: func(c *Config) { c.TracerPlatformProducers = "[]" }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
 		{name: "producer outside roster", mutate: func(c *Config) { c.TracerPlatformProducers = `[{"service":"fees","clientId":"fees"}]` }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
 		{name: "producer map malformed", mutate: func(c *Config) { c.TracerPlatformProducers = `{"service":"ledger"}` }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
 		{name: "gRPC without mtls", mutate: func(c *Config) { c.TracerGRPCPort = ":4021" }, reason: "TRACER_GRPC_PORT requires TRACER_TLS_MODE=mtls"},
@@ -125,6 +125,50 @@ func TestContextReservationConfigRefusesInvalidProducerIdentity(t *testing.T) {
 			require.Nil(t, result)
 		})
 	}
+}
+
+func TestContextReservationSurfaceDisabledWithoutProducers(t *testing.T) {
+	t.Parallel()
+
+	for _, producers := range []string{"", " \t "} {
+		// Outside local mode, multi-tenant, with no JWKS, issuer or bounds: a
+		// validations-only Tracer reads none of the reservation settings.
+		cfg := &Config{TracerPlatformProducers: producers, DeploymentMode: "saas", MultiTenantEnabled: true}
+		logger := testutil.NewMockLogger()
+
+		result, err := loadContextReservationConfig(cfg, logger)
+		require.NoError(t, err)
+		require.Nil(t, result)
+		require.Equal(t, 1, reservationDisabledInfos(logger))
+
+		runtime, err := initContextReservation(cfg, nil, nil, nil, nil, nil, libLog.NewNop())
+		require.NoError(t, err)
+		require.Nil(t, runtime, "no reservation runtime is built, so no reservation route is mounted")
+	}
+}
+
+func TestContextReservationSurfaceDisabledRefusesGRPCPort(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{TracerGRPCPort: ":4021", TracerTLSMode: "mtls"}
+	logger := testutil.NewMockLogger()
+
+	result, err := loadContextReservationConfig(cfg, logger)
+	require.ErrorContains(t, err, "TRACER_GRPC_PORT requires TRACER_PLATFORM_PRODUCERS")
+	require.Nil(t, result)
+	require.Zero(t, reservationDisabledInfos(logger))
+}
+
+func reservationDisabledInfos(logger *testutil.MockLogger) int {
+	count := 0
+
+	for _, call := range logger.Snapshot() {
+		if call.Level == "info" && call.Message == "reservation integration disabled (TRACER_PLATFORM_PRODUCERS empty)" {
+			count++
+		}
+	}
+
+	return count
 }
 
 func TestContextReservationConfigLocalModeNeedsNoJWKS(t *testing.T) {

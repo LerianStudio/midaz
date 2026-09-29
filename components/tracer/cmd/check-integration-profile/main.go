@@ -162,6 +162,10 @@ func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 		return fmt.Errorf("ledger APPLICATION_NAME is not a platform producer; the ledger acts as %q", producerauth.ServiceLedger)
 	}
 
+	if strings.TrimSpace(tracerEnv["TRACER_PLATFORM_PRODUCERS"]) == "" {
+		return fmt.Errorf("tracer TRACER_PLATFORM_PRODUCERS must be set: without it the tracer serves validations only and mounts no reservation surface")
+	}
+
 	registry, err := producerauth.ParsePlatformProducers(tracerEnv["TRACER_PLATFORM_PRODUCERS"])
 	if err != nil {
 		return fmt.Errorf("invalid TRACER_PLATFORM_PRODUCERS (contents suppressed)")

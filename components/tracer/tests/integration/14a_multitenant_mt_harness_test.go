@@ -369,10 +369,10 @@ func bootServiceInMTMode(t *testing.T, h *mtHarness, extra map[string]string) fu
 
 	env := map[string]string{
 		"MULTI_TENANT_ENABLED": "true",
-		// Multi-tenancy refuses DEPLOYMENT_MODE=local, which skips producer
-		// token verification on the reservation seam. byoc verifies tokens;
-		// the JWKS is fetched lazily, so its unreachable suite URL does not
-		// block the boot.
+		// A reservation surface under multi-tenancy refuses
+		// DEPLOYMENT_MODE=local, which skips producer token verification, so
+		// the MT boot runs as byoc with an issuer for a test that adds a
+		// producer roster.
 		"DEPLOYMENT_MODE":              "byoc",
 		"CONTEXT_M2M_ISSUER":           "https://access-manager.example.test",
 		"MULTI_TENANT_URL":             h.URL(),

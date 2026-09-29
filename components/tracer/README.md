@@ -783,9 +783,12 @@ Every caller is a platform producer (the roster is `{ledger}`):
 
 Both maps live in `TRACER_PLATFORM_PRODUCERS`, e.g.
 `[{"service":"ledger","clientId":"<azp>","certUri":"spiffe://example.test/ledger"}]`
-(at most 64 KiB; an unknown entry key refuses boot). Every boot requires
-`TRACER_PLATFORM_PRODUCERS`, whichever transports are served, and, outside
-`DEPLOYMENT_MODE=local`, `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`. Under
+(at most 64 KiB; an unknown entry key refuses boot). `TRACER_PLATFORM_PRODUCERS`
+enables the reservation surface: empty or unset, the Tracer serves validations
+only, the reservation routes return 404, `TRACER_GRPC_PORT` refuses boot, and
+limits accept any scope. When it is set, limits must be account-only, and
+outside `DEPLOYMENT_MODE=local` `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`
+are required, whichever transports are served. Under
 `local` producer tokens are not verified and every HTTP reservation is
 attributed to the ledger; `local` together with `MULTI_TENANT_ENABLED=true`
 refuses boot.

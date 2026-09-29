@@ -74,8 +74,8 @@ type Config struct {
 	// TracerGRPCPort is the listen address for the reservation gRPC seam (e.g.
 	// ":4021"). When empty (the default) the gRPC server is not started. A set
 	// port requires TracerTLSMode=mtls and a certUri mapping in
-	// TRACER_PLATFORM_PRODUCERS, because the gRPC seam identifies producers
-	// only by client certificate.
+	// TRACER_PLATFORM_PRODUCERS, because the gRPC seam serves only
+	// reservations and identifies producers only by client certificate.
 	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
 	// TracerTLSMode selects how the tracer's listeners are secured. "mtls"
 	// makes the app load its own cert/key/CA: the gRPC listener requires and
@@ -211,11 +211,13 @@ type Config struct {
 	// CEL Expression Engine
 	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
-	// Reservation producer identity. CONTEXT_M2M_JWKS_URL is the JWKS the
-	// producer access tokens are verified against; CONTEXT_M2M_ISSUER pins
-	// their "iss" claim and is required outside DEPLOYMENT_MODE=local.
-	// TRACER_PLATFORM_PRODUCERS maps token authorized parties and client
-	// certificate URIs onto the platform producer roster.
+	// Reservation producer identity. TRACER_PLATFORM_PRODUCERS maps token
+	// authorized parties and client certificate URIs onto the platform
+	// producer roster; a non-empty value enables the reservation surface, and
+	// an empty one leaves a validations-only Tracer that reads none of the
+	// settings below. CONTEXT_M2M_JWKS_URL is the JWKS the producer access
+	// tokens are verified against; CONTEXT_M2M_ISSUER pins their "iss" claim.
+	// Both are required outside DEPLOYMENT_MODE=local.
 	ContextM2MJWKSURL       string `env:"CONTEXT_M2M_JWKS_URL"`
 	ContextM2MIssuer        string `env:"CONTEXT_M2M_ISSUER"`
 	TracerPlatformProducers string `env:"TRACER_PLATFORM_PRODUCERS"`
@@ -1284,7 +1286,7 @@ func initHTTPServer(
 	// Past this point the reservation runtime owns a running JWKS refresher; a
 	// server that is never built must stop it.
 	defer func() {
-		if err != nil {
+		if err != nil && contextReservations != nil {
 			err = closeOnFailure(err, contextReservations.config)
 		}
 	}()
@@ -1365,33 +1367,39 @@ func initHTTPServer(
 	// handler closure that receives ctx per-request via c.Context();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
 	// individual request lifecycles).
-	httpApp, err := in.NewRoutes(in.RoutesDeps{
-		ContextPolicyService:                  contextPolicyService,
-		ContextPolicyMaxRules:                 cfg.ContextMaxRules,
-		ContextPolicyMaxBodyBytes:             cfg.ContextPolicyMaxBodyBytes,
-		Logger:                                logger,
-		Telemetry:                             telemetry,
-		HealthChecker:                         healthChecker,
-		Cfg:                                   routeConfig,
-		RuleService:                           ruleService,
-		LimitService:                          limitDeps.service,
-		ValidationService:                     validationService,
-		ContextReservation:                    contextReservations.handler,
-		ContextReservationM2M:                 contextReservations.config.m2m,
-		ContextReservationProducers:           contextReservations.config.producers,
-		ContextReservationUnverifiedProducers: contextReservations.config.unverifiedProducers,
-		ContextReservationTenants:             reservationTenantAuthorizer(mtComponents),
-		TransactionValidationService:          transactionValidationService,
-		AuditEventService:                     auditEventService,
-		DashboardService:                      dashboardService,
-		Guard:                                 authGuard,
-		Clock:                                 clk,
-		MultiTenantEnabled:                    cfg.MultiTenantEnabled,
-		PgManager:                             pgManager,
-		Supervisor:                            workerSupervisor,
-		StreamingManifestHandler:              streamingManifestHandler,
-		ServiceName:                           cfg.OtelServiceName,
-	})
+	routesDeps := in.RoutesDeps{
+		ContextPolicyService:         contextPolicyService,
+		ContextPolicyMaxRules:        cfg.ContextMaxRules,
+		ContextPolicyMaxBodyBytes:    cfg.ContextPolicyMaxBodyBytes,
+		Logger:                       logger,
+		Telemetry:                    telemetry,
+		HealthChecker:                healthChecker,
+		Cfg:                          routeConfig,
+		RuleService:                  ruleService,
+		LimitService:                 limitDeps.service,
+		ValidationService:            validationService,
+		TransactionValidationService: transactionValidationService,
+		AuditEventService:            auditEventService,
+		DashboardService:             dashboardService,
+		Guard:                        authGuard,
+		Clock:                        clk,
+		MultiTenantEnabled:           cfg.MultiTenantEnabled,
+		PgManager:                    pgManager,
+		Supervisor:                   workerSupervisor,
+		StreamingManifestHandler:     streamingManifestHandler,
+		ServiceName:                  cfg.OtelServiceName,
+	}
+
+	// A nil runtime leaves the reservation routes unmounted.
+	if contextReservations != nil {
+		routesDeps.ContextReservation = contextReservations.handler
+		routesDeps.ContextReservationM2M = contextReservations.config.m2m
+		routesDeps.ContextReservationProducers = contextReservations.config.producers
+		routesDeps.ContextReservationUnverifiedProducers = contextReservations.config.unverifiedProducers
+		routesDeps.ContextReservationTenants = reservationTenantAuthorizer(mtComponents)
+	}
+
+	httpApp, err := in.NewRoutes(routesDeps)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create routes: %w", err)
 	}

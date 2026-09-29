@@ -50,6 +50,7 @@ var envVarNames = []string{
 	"READYZ_DRAIN_GRACE_SECONDS",
 	"CONTEXT_M2M_JWKS_URL",
 	"TRACER_PLATFORM_PRODUCERS",
+	"DEPLOYMENT_MODE",
 }
 
 // savedEnvVars stores original environment variable values for restoration.
@@ -159,11 +160,12 @@ func SetupTestSuite(m *testing.M) int {
 	// we use 1s here — long enough to exercise the drain path, short enough
 	// to fit comfortably inside the 10s shutdown context.
 	os.Setenv("READYZ_DRAIN_GRACE_SECONDS", "1")
-	// The reservation runtime always loads its producer verifier. The suite
-	// runs in local deployment mode, where token verification is disabled and
-	// the JWKS URL is validated but never fetched.
-	os.Setenv("CONTEXT_M2M_JWKS_URL", "http://127.0.0.1:1/.well-known/jwks")
-	os.Setenv("TRACER_PLATFORM_PRODUCERS", `[{"service":"ledger","clientId":"ledger-m2m-client","certUri":"spiffe://example.test/service/ledger"}]`)
+	// The suite exercises a validations-only Tracer: with no producer roster
+	// the reservation surface stays unmounted and limits accept any scope. A
+	// test that needs reservations sets its own roster on restart.
+	os.Setenv("DEPLOYMENT_MODE", "local")
+	os.Unsetenv("CONTEXT_M2M_JWKS_URL")
+	os.Unsetenv("TRACER_PLATFORM_PRODUCERS")
 
 	// Initialize local env config
 	pkg.InitLocalEnvConfig()

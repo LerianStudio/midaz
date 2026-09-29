@@ -50,10 +50,28 @@ type contextReservationRuntime struct {
 	config                *contextReservationConfig
 }
 
+// reservationSurfaceEnabled reports whether TRACER_PLATFORM_PRODUCERS names a
+// producer roster, which is what enables the reservation surface. Without one
+// the Tracer serves validations only.
+func reservationSurfaceEnabled(cfg *Config) bool {
+	return cfg != nil && strings.TrimSpace(cfg.TracerPlatformProducers) != ""
+}
+
 // loadContextReservationConfig validates the reservation runtime settings and
-// builds the producer credential verifiers. On success the caller owns the
-// returned config and must close it when the process stops.
+// builds the producer credential verifiers. It returns nil, nil when the
+// reservation surface is disabled. On success the caller owns the returned
+// config and must close it when the process stops.
 func loadContextReservationConfig(cfg *Config, logger libLog.Logger) (*contextReservationConfig, error) {
+	if !reservationSurfaceEnabled(cfg) {
+		if strings.TrimSpace(cfg.TracerGRPCPort) != "" {
+			return nil, fmt.Errorf("TRACER_GRPC_PORT requires TRACER_PLATFORM_PRODUCERS: the gRPC listener serves only the reservation contract")
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "reservation integration disabled (TRACER_PLATFORM_PRODUCERS empty)")
+
+		return nil, nil
+	}
+
 	if strings.TrimSpace(cfg.TracerGRPCPort) != "" && !strings.EqualFold(strings.TrimSpace(cfg.TracerTLSMode), tlsModeMTLS) {
 		return nil, fmt.Errorf("TRACER_GRPC_PORT requires TRACER_TLS_MODE=mtls: the gRPC reservation seam identifies producers only by client certificate")
 	}
@@ -98,9 +116,11 @@ func loadContextReservationConfig(cfg *Config, logger libLog.Logger) (*contextRe
 	}, nil
 }
 
+// initContextReservation builds the reservation runtime, or returns nil when
+// the reservation surface is disabled.
 func initContextReservation(cfg *Config, conn pgdb.Connection, tx pgdb.TxBeginner, audit command.AuditEventRepository, capacity *postgres.UsageReservationRepository, clk clock.Clock, logger libLog.Logger) (runtime *contextReservationRuntime, err error) {
 	config, err := loadContextReservationConfig(cfg, logger)
-	if err != nil {
+	if err != nil || config == nil {
 		return nil, err
 	}
 
@@ -263,8 +283,8 @@ func closeKeySourceOnFailure(cause error, source libAuth.KeySource) error {
 }
 
 // initReserveOperationExpiry builds the reaper's expiry of decision-owned
-// operations whether or not Reserve is enabled: capacity held by an earlier
-// decision must still return when its TTL elapses.
+// operations whether or not the reservation surface is enabled: capacity held
+// by an earlier decision must still return when its TTL elapses.
 func initReserveOperationExpiry(cfg *Config, conn pgdb.Connection, tx pgdb.TxBeginner, audit command.AuditEventRepository, capacity *postgres.UsageReservationRepository) (workers.ReserveOperationExpirer, error) {
 	decisions, err := postgres.NewReserveDecisionRepository(conn, cfg.ContextMaxRules, cfg.ContextReserveMaxReservations)
 	if err != nil {
