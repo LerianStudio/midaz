@@ -421,7 +421,7 @@ func TestRevertTransactionV2ReopenDebtorRefusalReleasesClaimAndReservation(t *te
 		},
 	}
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 	reader := &revertEngineReader{
 		revertReader: &revertReader{origin: origin, versionReader: versionReader{settings: settings}},
 		balances: []*mmodel.Balance{
@@ -433,11 +433,10 @@ func TestRevertTransactionV2ReopenDebtorRefusalReleasesClaimAndReservation(t *te
 	executor := &createEngineErrorExecutor{err: &accounting.Failure{
 		Code: accounting.FailureBalanceDeleted, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@payee#default",
 	}}
-	reservationID := uuid.MustParse("67777777-7777-4777-8777-777777777777")
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	reserver := &stubContextTracer{}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{}, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{}, ContextTracer: reserver.coordinatorFor(t),
 	}
 
 	_, _, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
@@ -451,7 +450,8 @@ func TestRevertTransactionV2ReopenDebtorRefusalReleasesClaimAndReservation(t *te
 	for _, posting := range engineTransaction.Postings {
 		require.NotEqual(t, "@payee#default", posting.BalanceRef, "the reopen debtor must not be a leg")
 	}
-	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
+	require.Len(t, reserver.reserves(), 1)
+	assert.Equal(t, []uuid.UUID{reserver.reserves()[0].TransactionID}, reserver.releasedTransactions())
 }
 
 func revertEngineOrigin(organizationID, ledgerID, originID uuid.UUID) *transaction.Transaction {
