@@ -12,6 +12,7 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -350,6 +351,16 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 	} else {
 		tran.Source = frozenAccountAliases(payload.TransactionInput.Send.Source.From)
 		tran.Destination = frozenAccountAliases(payload.TransactionInput.Send.Distribute.To)
+	}
+
+	if isFeeDebtCollection(payload.TransactionInput) {
+		tran.Destination = nil
+
+		for _, change := range result.FeeDebt {
+			if alias := strings.Split(change.CreditRef, "#")[0]; change.Kind == accounting.FeeDebtSettled && !slices.Contains(tran.Destination, alias) {
+				tran.Destination = append(tran.Destination, alias)
+			}
+		}
 	}
 
 	expectedStatus := ""

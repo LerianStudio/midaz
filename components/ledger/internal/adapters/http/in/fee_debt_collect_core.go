@@ -8,31 +8,25 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // collectFeeDebt runs one standalone collection of a debtor balance's open fee debts.
 // No span attribute carries the alias or an amount.
-func (handler *TransactionHandler) collectFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, accountAlias, balanceKey string, maxAmount *decimal.Decimal) (*FeeDebtCollectOutput, error) {
+func (handler *TransactionHandler) collectFeeDebt(ctx context.Context, in command.CollectFeeDebtInput) (*CollectFeeDebtResponse, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.collect_fee_debt")
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.organization_id", in.OrganizationID.String()),
+		attribute.String("app.request.ledger_id", in.LedgerID.String()),
 	)
 
-	result, err := handler.Command.CollectFeeDebt(ctx, command.CollectFeeDebtInput{
-		OrganizationID: organizationID, LedgerID: ledgerID,
-		BalanceRef: mtransaction.AliasKey(accountAlias, balanceKey), MaxAmount: maxAmount,
-	})
+	result, err := handler.Command.CollectFeeDebt(ctx, in)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to collect fee debt", err)
 
@@ -44,5 +38,5 @@ func (handler *TransactionHandler) collectFeeDebt(ctx context.Context, organizat
 		out.TransactionID = &result.Transaction.ID
 	}
 
-	return out, nil
+	return &CollectFeeDebtResponse{IdempotencyReplayed: replayedHeader(result.Replayed), Body: out}, nil
 }

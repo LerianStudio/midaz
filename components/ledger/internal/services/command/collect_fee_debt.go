@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -25,27 +24,35 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// feeDebtCollectionDescription describes the transaction of a standalone collection.
-const feeDebtCollectionDescription = "Fee debt collection"
+const (
+	// feeDebtCollectionDescription describes the transaction of a standalone collection.
+	feeDebtCollectionDescription = "Fee debt collection"
+	// feeDebtCollectionFingerprintDomain keeps a collection's idempotency fingerprint
+	// apart from every transaction create sharing the ledger's key space.
+	feeDebtCollectionFingerprintDomain = "midaz.fee_debt.collect" + IdempotencyDiscriminatorSep
+)
 
 // CollectFeeDebtInput names the debtor balance ("alias#key") of a standalone
-// collection; a nil MaxAmount collects up to everything the debtor owes.
+// collection; a nil MaxAmount collects up to everything the debtor owes. An empty
+// IdempotencyKey has no body-hash fallback: identical keyless collects stay distinct.
 type CollectFeeDebtInput struct {
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
 	BalanceRef     string
 	MaxAmount      *decimal.Decimal
+	IdempotencyKey string
+	IdempotencyTTL time.Duration
 }
 
 // CollectFeeDebtResult is what a collection settled and the transaction recording it,
-// nil when it settled nothing.
+// nil when it settled nothing; Replayed marks the first answer of a reused key.
 type CollectFeeDebtResult struct {
 	Collected   decimal.Decimal
 	Transaction *transaction.Transaction
+	Replayed    bool
 }
 
 // CollectFeeDebt settles the debtor's open fee debts, oldest first, from its live
@@ -68,7 +75,32 @@ func (uc *UseCase) CollectFeeDebt(ctx context.Context, in CollectFeeDebtInput) (
 		attribute.String("app.request.ledger_id", in.LedgerID.String()),
 	)
 
-	result, err := uc.collectFeeDebt(ctx, logger, in)
+	run := &createTransactionRun{organizationID: in.OrganizationID, ledgerID: in.LedgerID, idempotencyKey: in.IdempotencyKey, idempotencyTTL: in.IdempotencyTTL}
+	if run.idempotencyKey != "" {
+		maxAmount := ""
+		if in.MaxAmount != nil {
+			maxAmount = in.MaxAmount.String()
+		}
+
+		fingerprint := libCommons.HashSHA256(feeDebtCollectionFingerprintDomain + in.BalanceRef + IdempotencyDiscriminatorSep + maxAmount)
+
+		replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, fingerprint, fingerprint)
+		if err != nil {
+			recordCommandError(ctx, span, logger, "Failed to claim fee debt collection idempotency", err)
+
+			return nil, err
+		}
+
+		if replay != nil {
+			return &CollectFeeDebtResult{Collected: *replay.Amount, Transaction: replay, Replayed: true}, nil
+		}
+	}
+
+	result, committed, err := uc.collectFeeDebt(ctx, logger, in, run)
+	if !committed {
+		uc.rollbackCreateClaim(ctx, run)
+	}
+
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to collect fee debt", err)
 	}
@@ -76,32 +108,30 @@ func (uc *UseCase) CollectFeeDebt(ctx context.Context, in CollectFeeDebtInput) (
 	return result, err
 }
 
-func (uc *UseCase) collectFeeDebt(ctx context.Context, logger libLog.Logger, in CollectFeeDebtInput) (*CollectFeeDebtResult, error) {
+// collectFeeDebt reports committed once balances moved or may have moved; only then
+// does the idempotency claim outlive the call.
+func (uc *UseCase) collectFeeDebt(ctx context.Context, logger libLog.Logger, in CollectFeeDebtInput, run *createTransactionRun) (*CollectFeeDebtResult, bool, error) {
 	ctx, admissions := accountprotection.ContextWithSink(ctx)
 	defer admissions.Release(ctx)
-
-	if isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
-		return nil, fmt.Errorf("applied transaction completer is not configured")
-	}
 
 	pool, err := loadPreparedEngineSnapshots(readrouting.WithPrimaryRead(ctx), uc.TransactionReader, in.OrganizationID, in.LedgerID,
 		[]string{in.BalanceRef}, feeDebtPoolRefs{debtors: []string{in.BalanceRef}})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	run, prepared, err := composeFeeDebtCollection(in, pool)
+	prepared, owed, err := composeFeeDebtCollection(in, pool, run)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	if run == nil {
-		return &CollectFeeDebtResult{Collected: decimal.Zero}, nil
+	if !owed {
+		return &CollectFeeDebtResult{Collected: decimal.Zero}, false, nil
 	}
 
 	executionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		return nil, fmt.Errorf("generate engine execution id: %w", err)
+		return nil, false, fmt.Errorf("generate engine execution id: %w", err)
 	}
 
 	_, _, headerID, _ := libObservability.NewTrackingFromContext(ctx)
@@ -113,7 +143,7 @@ func (uc *UseCase) collectFeeDebt(ctx context.Context, logger libLog.Logger, in 
 
 	execution, err := uc.buildCreateEngineExecution(run, frozen, prepared)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	outcome, err := ExecutePreparedEngine(ctx, uc.Engine, execution)
@@ -121,36 +151,36 @@ func (uc *UseCase) collectFeeDebt(ctx context.Context, logger libLog.Logger, in 
 
 	if err != nil {
 		if !outcome.Executed {
-			return nil, err
+			return nil, false, err
 		}
 
-		return nil, MapEngineError(execution.Execution.Execution, err)
+		return nil, !confirmedPrecommitEngineFailure(execution.Execution.Execution, err), MapEngineError(execution.Execution.Execution, err)
 	}
 
 	if len(outcome.Result.Movements) == 0 {
-		return &CollectFeeDebtResult{Collected: decimal.Zero}, nil
+		return &CollectFeeDebtResult{Collected: decimal.Zero}, false, nil
 	}
 
 	tran, err := uc.finalizeCreateEngineResult(ctx, logger, run, outcome)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 
-	return &CollectFeeDebtResult{Collected: *tran.Amount, Transaction: tran}, nil
+	return &CollectFeeDebtResult{Collected: *tran.Amount, Transaction: tran}, true, nil
 }
 
-// composeFeeDebtCollection builds a direct transaction holding one collect of the
-// debtor's seeded debts, capped at the lesser of in.MaxAmount and their remaining
-// total; a nil run means the seed names nothing to collect.
-func composeFeeDebtCollection(in CollectFeeDebtInput, pool EngineSnapshotPool) (*createTransactionRun, enginePreparedTransaction, error) {
+// composeFeeDebtCollection fills run with a direct transaction holding one collect of
+// the debtor's seeded debts, capped at the lesser of in.MaxAmount and their remaining
+// total; owed is false when the seed names nothing to collect.
+func composeFeeDebtCollection(in CollectFeeDebtInput, pool EngineSnapshotPool, run *createTransactionRun) (_ enginePreparedTransaction, owed bool, _ error) {
 	balances, err := indexTranslationBalances(pool.Balances)
 	if err != nil {
-		return nil, enginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, false, err
 	}
 
 	debtor, exists := balances[in.BalanceRef]
 	if !exists {
-		return nil, enginePreparedTransaction{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
+		return enginePreparedTransaction{}, false, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 	}
 
 	ceiling := decimal.Zero
@@ -163,12 +193,12 @@ func composeFeeDebtCollection(in CollectFeeDebtInput, pool EngineSnapshotPool) (
 	}
 
 	if !ceiling.IsPositive() {
-		return nil, enginePreparedTransaction{}, nil
+		return enginePreparedTransaction{}, false, nil
 	}
 
 	transactionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		return nil, enginePreparedTransaction{}, fmt.Errorf("generate transaction id: %w", err)
+		return enginePreparedTransaction{}, false, fmt.Errorf("generate transaction id: %w", err)
 	}
 
 	input := mtransaction.Transaction{
@@ -184,21 +214,12 @@ func composeFeeDebtCollection(in CollectFeeDebtInput, pool EngineSnapshotPool) (
 
 	composition := newFeeDebtComposition(EngineTranslationInput{TransactionID: transactionID, TransactionInput: input, FeeDebtSeeds: pool.FeeDebtSeeds}, balances)
 	if !composition.collect(&engineTransaction, &projection, "collect", in.BalanceRef, ceiling) {
-		return nil, enginePreparedTransaction{}, nil
+		return enginePreparedTransaction{}, false, nil
 	}
 
-	validate := &mtransaction.Responses{Sources: []string{in.BalanceRef}}
-	for _, spec := range projection {
-		if spec.Role == accounting.RoleFeeDebtCredit && !slices.Contains(validate.Destinations, spec.BalanceRef) {
-			validate.Destinations = append(validate.Destinations, spec.BalanceRef)
-		}
-	}
+	run.transactionID, run.transactionDate, run.input = transactionID, time.Now(), input
+	run.validate = &mtransaction.Responses{Sources: []string{in.BalanceRef}}
+	run.status, run.action = constant.CREATED, constant.ActionDirect
 
-	run := &createTransactionRun{
-		organizationID: in.OrganizationID, ledgerID: in.LedgerID, transactionID: transactionID,
-		transactionDate: time.Now(), input: input, validate: validate,
-		status: constant.CREATED, action: constant.ActionDirect, idempotencyTTL: pkgHTTP.ParseIdempotencyTTL(""),
-	}
-
-	return run, enginePreparedTransaction{pool: pool, transaction: engineTransaction, projection: projection}, nil
+	return enginePreparedTransaction{pool: pool, transaction: engineTransaction, projection: projection}, true, nil
 }

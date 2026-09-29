@@ -484,10 +484,13 @@ selectors are identical.
 
 `POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
 debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
-capped at `maxAmount` and at what the balance owes. It charges no fee, never originates a debt, and
-takes no `Idempotency-Key`: a repeat collects only what is still open. It stops at the first debt
-whose fee account is blocked, closed or cannot receive; a blocked debtor, or one that cannot send,
-collects nothing. It answers `200 {collected, transactionId?}`; nothing settled is
+capped at `maxAmount` and at what the balance owes. It charges no fee and never originates a debt.
+An optional `X-Idempotency` header makes a retry return the first answer; without it every call is a
+new collection. A debtor balance that is blocked, cannot send, closing, closed, deleted,
+debit-direction or external collects nothing; the collection stops at the first debt whose fee
+account is blocked, cannot receive, closing, closed, deleted, debit-direction, external, in
+overdraft or of another asset. It answers
+`200 {collected, transactionId?}`; nothing settled is
 `{"collected":"0"}` with no transaction. The transaction carries `metadata.feeDebtCollection =
 "true"`, its amount is what it settled, and reverting it is refused (`0089`). Authz is
 `midaz:fee-debts:post`.

@@ -750,7 +750,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger writes five fee keys on this field itself and reserves all five: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate, and a metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          description: "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate, and a metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -4997,7 +4997,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger writes five fee keys on this field itself and reserves all five: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate, and a metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          description: "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate, and a metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -15435,7 +15435,7 @@ paths:
         - Fee Debts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/collect:
     post:
-      description: Settles the balance's open fee debts oldest first from its available funds, up to maxAmount and never more than it owes, in one transaction. It charges no new fee. A debtor that is blocked or cannot send collects nothing, and a fee account that is blocked, closed or cannot receive stops the collection at its debt, both without an error. When nothing is settled the response is collected 0 and no transaction is created. A collection transaction cannot be reverted.
+      description: Settles the balance's open fee debts oldest first from its available funds, up to maxAmount and never more than it owes, in one transaction. It charges no new fee. Without an error, it collects nothing when the balance has no available funds or is blocked, cannot send, is closing or closed, deleted, debit-direction or external, and it stops at the first debt whose fee account is blocked, cannot receive, is closing or closed, deleted, debit-direction, external, in overdraft or of another asset. When nothing is settled the response is collected 0 and no transaction is created. With X-Idempotency a retry returns the first answer; without it every call is a new collection. A collection transaction cannot be reverted.
       operationId: collectFeeDebtsV2
       parameters:
         - description: Organization ID (UUID)
@@ -15452,6 +15452,18 @@ paths:
           schema:
             description: Ledger ID (UUID)
             type: string
+        - description: Idempotency key to safely retry the collection; a retry returns the first answer, another request under the same key answers 409 (0084). Without it every call is a new collection.
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the collection; a retry returns the first answer, another request under the same key answers 409 (0084). Without it every call is a new collection.
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
       requestBody:
         content:
           application/json:
@@ -15465,6 +15477,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/FeeDebtCollectOutput"
           description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
         "422":
           content:
             application/problem+json:

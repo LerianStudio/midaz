@@ -17,7 +17,16 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
+
+// isFeeDebtCollection reports a standalone collection: the reserved mark plus the
+// empty source only its composition produces, so a mark alone changes nothing.
+func isFeeDebtCollection(input mtransaction.Transaction) bool {
+	_, marked := input.Metadata[constant.MetadataKeyFeeDebtCollection]
+
+	return marked && len(input.Send.Source.From) == 0
+}
 
 // completedTransactionFeeDebt is the executed amount (the send less the debt opened, or what a
 // standalone collection settled) and the frozen metadata plus the fee-debt keys the result
@@ -48,7 +57,7 @@ func completedTransactionFeeDebt(payload TransactionCompletionPlan, changes []ac
 		}
 	}
 
-	if _, collection := payload.TransactionInput.Metadata[constant.MetadataKeyFeeDebtCollection]; collection {
+	if isFeeDebtCollection(payload.TransactionInput) {
 		amount = settled
 	}
 

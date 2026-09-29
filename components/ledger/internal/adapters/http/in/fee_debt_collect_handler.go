@@ -9,8 +9,10 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -33,12 +35,15 @@ type FeeDebtCollectOutput struct {
 type CollectFeeDebtRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the collection; a retry returns the first answer, another request under the same key answers 409 (0084). Without it every call is a new collection."`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
 // CollectFeeDebtResponse carries the collection result.
 type CollectFeeDebtResponse struct {
-	Body *FeeDebtCollectOutput
+	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
+	Body                *FeeDebtCollectOutput
 }
 
 // CollectFeeDebtV2 decodes and validates the body, then runs the collection.
@@ -58,10 +63,13 @@ func (handler *TransactionHandler) CollectFeeDebtV2(ctx context.Context, in *Col
 			map[string]string{"maxAmount": "maxAmount must be greater than zero"}, constant.EntityFeeDebt, nil))
 	}
 
-	out, err := handler.collectFeeDebt(ctx, orgID, ledgerID, payload.AccountAlias, payload.BalanceKey, payload.MaxAmount)
+	out, err := handler.collectFeeDebt(ctx, command.CollectFeeDebtInput{
+		OrganizationID: orgID, LedgerID: ledgerID, BalanceRef: mtransaction.AliasKey(payload.AccountAlias, payload.BalanceKey),
+		MaxAmount: payload.MaxAmount, IdempotencyKey: in.IdempotencyKey, IdempotencyTTL: pkgHTTP.ParseIdempotencyTTL(in.IdempotencyTTL),
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CollectFeeDebtResponse{Body: out}, nil
+	return out, nil
 }

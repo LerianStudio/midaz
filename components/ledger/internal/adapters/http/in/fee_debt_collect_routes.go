@@ -27,8 +27,10 @@ func RegisterFeeDebtCollectV2RoutesToApp(group fiber.Router, api huma.API, auth 
 		Path:        "/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/collect",
 		Summary:     "Collect a balance's open fee debts",
 		Description: "Settles the balance's open fee debts oldest first from its available funds, up to maxAmount and never more than it owes, in one transaction. " +
-			"It charges no new fee. A debtor that is blocked or cannot send collects nothing, and a fee account that is blocked, closed or cannot receive stops the collection at its debt, both without an error. " +
-			"When nothing is settled the response is collected 0 and no transaction is created. A collection transaction cannot be reverted.",
+			"It charges no new fee. Without an error, it collects nothing when the balance has no available funds or is blocked, cannot send, is closing or closed, deleted, debit-direction or external, " +
+			"and it stops at the first debt whose fee account is blocked, cannot receive, is closing or closed, deleted, debit-direction, external, in overdraft or of another asset. " +
+			"When nothing is settled the response is collected 0 and no transaction is created. With X-Idempotency a retry returns the first answer; without it every call is a new collection. " +
+			"A collection transaction cannot be reverted.",
 		Tags:             []string{"Fee Debts"},
 		Security:         secBillingBearer,
 		SkipValidateBody: true,

@@ -70,6 +70,24 @@ func (h *feeHarness) enableFeeDebtCollect(t *testing.T) *fee_debt.Repository {
 	return feeDebts
 }
 
+// owedByPayer is what @payer owes by the Fees record and by the live list.
+func (h *feeHarness) owedByPayer(t *testing.T, feeDebts *fee_debt.Repository) []string {
+	t.Helper()
+
+	recorded, err := feeDebts.OpenTotal(h.ctx(), h.orgID, h.ledgerID, "@payer#default")
+	require.NoError(t, err)
+
+	seeds, err := h.queryUC.GetFeeDebtSeeds(h.ctx(), h.orgID, h.ledgerID, []string{"@payer#default"})
+	require.NoError(t, err)
+
+	live := decimal.Zero
+	for _, item := range seeds["@payer#default"] {
+		live = live.Add(item.Remaining)
+	}
+
+	return []string{recorded.String(), live.String()}
+}
+
 // TestFeeDebtCollect proves a standalone collection settles the debt a /v1 credit left
 // open, keeps the Fees record in step with the live list, and cannot be reverted.
 func TestFeeDebtCollect(t *testing.T) {
@@ -93,45 +111,41 @@ func TestFeeDebtCollect(t *testing.T) {
 	require.Equalf(t, nethttp.StatusCreated, credit.status, "v1 credit: %s", credit.rawBody)
 
 	path := "/v2/organizations/" + h.orgID.String() + "/ledgers/" + h.ledgerID.String() + "/fee-debts/collect"
-	owed := func() (string, string) {
-		t.Helper()
+	require.Equal(t, []string{"10", "10"}, h.owedByPayer(t, feeDebts), "a /v1 credit settles no debt")
 
-		recorded, err := feeDebts.OpenTotal(h.ctx(), h.orgID, h.ledgerID, "@payer#default")
-		require.NoError(t, err)
+	capped, keyed := `{"accountAlias":"@payer","maxAmount":"4"}`, map[string]string{"X-Idempotency": "collect-once", "X-TTL": "60"}
+	first := h.post(t, collectApp, path, capped, keyed)
+	require.Equalf(t, nethttp.StatusOK, first.status, "capped collect: %s", first.rawBody)
+	require.Equal(t, []any{"4", "false"}, []any{first.body["collected"], first.replayed})
+	collectionID, _ := first.body["transactionId"].(string)
+	require.NotEmpty(t, collectionID)
 
-		seeds, err := h.queryUC.GetFeeDebtSeeds(h.ctx(), h.orgID, h.ledgerID, []string{"@payer#default"})
-		require.NoError(t, err)
-
-		live := decimal.Zero
-		for _, item := range seeds["@payer#default"] {
-			live = live.Add(item.Remaining)
-		}
-
-		return recorded.String(), live.String()
+	retry := h.post(t, collectApp, path, capped, keyed)
+	for attempt := 0; retry.status == nethttp.StatusConflict && attempt < 50; attempt++ {
+		time.Sleep(20 * time.Millisecond) // the first answer is stored asynchronously
+		retry = h.post(t, collectApp, path, capped, keyed)
 	}
 
-	recorded, live := owed()
-	require.Equal(t, []string{"10", "10"}, []string{recorded, live}, "a /v1 credit settles no debt")
-
-	status, out := driveFeeV2(t, collectApp, nethttp.MethodPost, path, `{"accountAlias":"@payer","maxAmount":"4"}`)
-	require.Equalf(t, nethttp.StatusOK, status, "capped collect: %v", out)
-	require.Equal(t, "4", out["collected"])
-	collectionID, _ := out["transactionId"].(string)
-	require.NotEmpty(t, collectionID)
+	require.Equalf(t, nethttp.StatusOK, retry.status, "keyed retry: %s", retry.rawBody)
+	require.Equal(t, []any{first.body, "true"}, []any{retry.body, retry.replayed}, "a keyed retry replays the first answer")
 
 	var amount string
 	require.NoError(t, h.db.QueryRow(`SELECT amount::text FROM transaction WHERE id = $1`, collectionID).Scan(&amount))
 	require.True(t, decimal.RequireFromString(amount).Equal(decimal.NewFromInt(4)), "the transaction amount is what it settled")
 
-	recorded, live = owed()
-	require.Equal(t, []string{"6", "6"}, []string{recorded, live}, "the Fees record keeps the live remaining")
+	require.Equal(t, []string{"6", "6"}, h.owedByPayer(t, feeDebts), "the Fees record keeps the live remaining")
 
-	status, out = driveFeeV2(t, collectApp, nethttp.MethodPost, path, `{"accountAlias":"@payer","balanceKey":"default"}`)
+	for range 2 {
+		status, out := driveFeeV2(t, collectApp, nethttp.MethodPost, path, `{"accountAlias":"@payer","maxAmount":"1"}`)
+		require.Equalf(t, nethttp.StatusOK, status, "keyless collect: %v", out)
+		require.Equal(t, "1", out["collected"], "identical keyless collects stay distinct")
+	}
+
+	status, out := driveFeeV2(t, collectApp, nethttp.MethodPost, path, `{"accountAlias":"@payer","balanceKey":"default"}`)
 	require.Equalf(t, nethttp.StatusOK, status, "full collect: %v", out)
-	require.Equal(t, "6", out["collected"])
+	require.Equal(t, "4", out["collected"])
 
-	recorded, live = owed()
-	require.Equal(t, []string{"0", "0"}, []string{recorded, live})
+	require.Equal(t, []string{"0", "0"}, h.owedByPayer(t, feeDebts))
 
 	status, out = driveFeeV2(t, collectApp, nethttp.MethodPost, path, `{"accountAlias":"@payer"}`)
 	require.Equalf(t, nethttp.StatusOK, status, "nothing owed: %v", out)
