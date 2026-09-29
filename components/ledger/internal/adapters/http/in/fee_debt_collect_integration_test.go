@@ -24,7 +24,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
-	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -62,11 +61,6 @@ func (h *feeHarness) enableFeeDebtCollect(t *testing.T) *fee_debt.Repository {
 	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: engineRedis}
 	h.commandUC.EngineRecoveryAcknowledger = &atomicBatchHTTPRecoveryAcknowledger{repository: engineRedis, completedAt: time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)}
 
-	resolver, err := feesservices.NewQueryResolver(h.queryUC)
-	require.NoError(t, err)
-	h.commandUC.FeeApplier, err = feesservices.NewUseCase(deferrablePackages{h.packageRepo}, resolver)
-	require.NoError(t, err)
-
 	return feeDebts
 }
 
@@ -99,7 +93,9 @@ func TestFeeDebtCollect(t *testing.T) {
 	h.seedBalance(t, "@receiver", "BRL", decimal.Zero, "deposit")
 	h.seedBalance(t, "@funder", "BRL", decimal.NewFromInt(1000), "deposit")
 	h.seedBalance(t, "@fees", "BRL", decimal.Zero, "deposit")
-	h.seedPackage(t, packageSpec{label: "deferred", metadataSelector: map[string]string{"fee": "deferred"}, fees: []feeSpec{flatFee("deferred_fee", "@fees", "10", false)}})
+	fee := flatFee("deferred_fee", "@fees", "10", false)
+	fee.deferrable = true
+	h.seedPackage(t, packageSpec{label: "deferred", metadataSelector: map[string]string{"fee": "deferred"}, fees: []feeSpec{fee}})
 
 	body := h.v2WithMetadata(h.v2Body("defer", "BRL", "100", []string{h.v2Leg("@payer", "100")}, []string{h.v2Leg("@receiver", "100")}), `{"fee":"deferred"}`)
 	created := h.createV2Direct(t, v2App, body, nil)
