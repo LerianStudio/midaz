@@ -228,6 +228,43 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 	}
 }
 
+// TestTranslateFeeDebtRefundCollectsTheDebtorsOtherDebts follows a /v2 refund with a
+// collect of exactly what it refunds, and a debtor refunded nothing with no collect.
+func TestTranslateFeeDebtRefundCollectsTheDebtorsOtherDebts(t *testing.T) {
+	t.Parallel()
+
+	for _, v2 := range []bool{false, true} {
+		input := feeDebtFreeCases()["revert"]
+		input.FeeDebtEligible = v2
+		input.FeeDebtSeeds = map[string][]accounting.FeeDebtItem{
+			"@payer#default":  {{ID: feeDebtOriginX + ":from:1:debit", CreditRef: "@other-fees#default"}},
+			"@debtor#default": {{ID: feeDebtOriginY + ":from:1:debit", CreditRef: "@fees#default"}},
+		}
+		input.TransactionInput.FeeDebtExpectedRefunds = map[string]decimal.Decimal{feeDebtOriginO + ":from:1:debit": decimal.NewFromInt(25)}
+		input.TransactionInput.Metadata = feeDebtRevertMetadata(t, []FeeDebtOpening{
+			{DebtID: feeDebtOriginO + ":from:1:debit", DebtorRef: "@payer#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3},
+			{DebtID: feeDebtOriginO + ":from:2:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(10), Seq: 1},
+		}, nil)
+		input.Balances = append(input.Balances, feeDebtBalance("@other-fees"), feeDebtBalance("@debtor"))
+
+		transaction, _, err := TranslateEngineTransaction(input)
+		require.NoError(t, err)
+
+		refs := feeDebtPostingRefs(transaction)
+		if !v2 {
+			assert.NotContains(t, refs, "fee-refund:0:collect", "a /v1 revert collects nothing")
+
+			continue
+		}
+
+		assert.Equal(t, []string{"fee-refund:0", "fee-refund:0:collect", "fee-refund:1"}, refs[len(refs)-3:])
+		assert.Equal(t, accounting.Posting{
+			Ref: "fee-refund:0:collect", BalanceRef: "@payer#default", Type: accounting.PostingCollect, Amount: decimal.NewFromInt(25),
+			DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero, Items: []string{feeDebtOriginX + ":from:1:debit"},
+		}, feeDebtPosting(t, transaction, "fee-refund:0:collect"))
+	}
+}
+
 func TestFeeDebtRouteViewTakesBackOnlyLiveSettlements(t *testing.T) {
 	t.Parallel()
 
