@@ -114,8 +114,8 @@ func (service *TransactionCompletionService) recordFeeDebts(ctx context.Context,
 	return nil
 }
 
-// feeDebtMetadataKeys are the only keys written onto a stored metadata document after creation:
-// a commit settles its pending's debt on the transaction the two records share.
+// feeDebtMetadataKeys are the reserved keys completion writes onto a stored document that lacks
+// them, as a commit does on the transaction it shares with its pending.
 var feeDebtMetadataKeys = [...]string{constant.MetadataKeyFeeDebtOpenings, constant.MetadataKeyFeeDebtSettlements}
 
 // missingFeeDebtMetadata holds each fee-debt key the frozen document holds and the stored one
@@ -135,20 +135,6 @@ func missingFeeDebtMetadata(expected, actual mongodb.JSON) map[string]any {
 	}
 
 	return missing
-}
-
-// withoutUnfrozenFeeDebt is the stored document without the fee-debt keys its frozen content
-// lacks, so a pending still confirms after its commit wrote them.
-func withoutUnfrozenFeeDebt(expected, actual mongodb.JSON) mongodb.JSON {
-	stored := maps.Clone(actual)
-
-	for _, key := range feeDebtMetadataKeys {
-		if _, frozen := expected[key]; !frozen {
-			delete(stored, key)
-		}
-	}
-
-	return stored
 }
 
 // postingAnchorRole is the role a posting's context holds on the posting's own balance: a collect

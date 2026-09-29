@@ -543,39 +543,30 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-// persistMetadata creates the frozen document or confirms the stored one. After creation only
-// the reserved fee-debt keys are ever written, field by field, by the commit that settles its
-// pending's debt; every other stored key must equal the frozen content.
+// persistMetadata inserts the frozen metadata only when no document exists. A stored
+// document is the client-editable truth, so only its identity is confirmed, and it gets each
+// fee-debt key this completion computed and it lacks.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
 	}
 
-	actual, err := service.storedMetadata(ctx, expected)
+	actual, err := service.metadata.FindByEntity(ctx, expected.EntityName, expected.EntityID)
 	if err != nil {
-		return err
+		return fmt.Errorf("verify recovered metadata: %w", err)
+	}
+
+	if actual == nil || actual.EntityID != expected.EntityID || actual.EntityName != expected.EntityName {
+		return metadataConflict("metadata identity is not confirmed")
 	}
 
 	if missing := missingFeeDebtMetadata(expected.Data, actual.Data); missing != nil {
-		if actual, err = service.metadata.UpdateFields(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
+		if _, err := service.metadata.UpdateFields(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
 			return fmt.Errorf("merge fee-debt metadata: %w", err)
 		}
 	}
 
-	return compareFrozenMetadata(expected.Data, withoutUnfrozenFeeDebt(expected.Data, actual.Data))
-}
-
-func (service *TransactionCompletionService) storedMetadata(ctx context.Context, expected *mongodb.Metadata) (*mongodb.Metadata, error) {
-	actual, err := service.metadata.FindByEntity(ctx, expected.EntityName, expected.EntityID)
-	if err != nil {
-		return nil, fmt.Errorf("verify recovered metadata: %w", err)
-	}
-
-	if actual == nil || actual.EntityID != expected.EntityID || actual.EntityName != expected.EntityName {
-		return nil, metadataConflict("metadata identity is not confirmed")
-	}
-
-	return actual, nil
+	return nil
 }
 
 func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
@@ -605,43 +596,6 @@ func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
 	}
 
 	return normalized, nil
-}
-
-func compareFrozenMetadata(expected, actual mongodb.JSON) error {
-	if len(expected) != len(actual) {
-		return metadataConflict("stored metadata differs from frozen content")
-	}
-
-	for key, value := range expected {
-		other, exists := actual[key]
-		if !exists {
-			return metadataConflict("stored metadata is missing a frozen field")
-		}
-
-		left, leftNumeric, err := canonicalMetadataNumber(value)
-		if err != nil {
-			return err
-		}
-
-		right, rightNumeric, err := canonicalMetadataNumber(other)
-		if err != nil {
-			return err
-		}
-
-		if leftNumeric || rightNumeric {
-			if !leftNumeric || !rightNumeric || left != right {
-				return metadataConflict("stored metadata number differs from frozen content")
-			}
-
-			continue
-		}
-
-		if !metadataScalar(value) || !metadataScalar(other) || value != other {
-			return metadataConflict("stored metadata differs from frozen content")
-		}
-	}
-
-	return nil
 }
 
 func metadataScalar(value any) bool {
