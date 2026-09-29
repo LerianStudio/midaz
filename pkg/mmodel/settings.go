@@ -139,7 +139,10 @@ type TracerSettings struct {
 	// Default: "open".
 	FailPosture string `json:"failPosture" example:"open"`
 
-	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
+	// TimeoutMs is the deadline, in milliseconds, of each tracer reserve call.
+	// It applies to the reserve only; confirm and release run off the critical
+	// path under the client timeout. The client timeout (TRACER_TIMEOUT_MS)
+	// remains the ceiling, so the shorter of the two wins.
 	// Accepted range: 1..30000. Default: 250.
 	TimeoutMs int `json:"timeoutMs" example:"250"`
 }

@@ -151,7 +151,7 @@ func TestReserveHandleCarriesTheIdentityItWillNeedToReport(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		transactionID, decimal.RequireFromString("42.50"), "USD", fixedReserveAccountID,
+		transactionID, decimal.RequireFromString("42.50"), "USD", fixedReserveAccount, nil,
 		fixedReserveTimestamp, reservationTTLDefault, false)
 
 	require.Equal(t, reservationProceed, out.Kind)

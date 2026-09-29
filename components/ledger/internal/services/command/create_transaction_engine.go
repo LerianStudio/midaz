@@ -113,7 +113,8 @@ func (uc *UseCase) executeCreateEngine(
 	if tracerEligible {
 		reservation = uc.reserveTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.transactionID,
 			run.input.Send.Value, run.input.Send.Asset,
-			firstSourceAccountID(run.validate.Sources, engineState.pool.ExplicitBalances),
+			firstSourceAccount(run.validate.Sources, engineState.pool.ExplicitBalances),
+			run.input.Metadata,
 			run.transactionDate, reservationTTLForStatus(run.status), run.honoredTracerSkip)
 		if reservation.Kind == reservationReject {
 			uc.rollbackCreateClaim(ctx, run)

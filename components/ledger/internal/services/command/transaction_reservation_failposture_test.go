@@ -98,7 +98,7 @@ func TestTracerFailOpenSkipped(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must COMMIT (proceed) when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs, "no reservation is held when the reserve call never succeeded")
@@ -119,7 +119,7 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	require.Equal(t, reservationReject, out.Kind)
 
@@ -129,6 +129,31 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	assert.False(t, spanHasSkippedMarker(ended()),
 		"fail-closed rejects; it must NOT record the SKIPPED marker")
+}
+
+// TestTracerRejectionBypassesFailPosture: a tracer that answered and refused the
+// request is not unavailable, so the fail-open escape must not let an enforce
+// ledger commit unchecked. The refusal rejects with its own 422 and records no
+// SKIPPED marker.
+func TestTracerRejectionBypassesFailPosture(t *testing.T) {
+	ctx, span, ended := recordingSpan(t)
+
+	logger := &libLog.NopLogger{}
+	reserver := &stubReserver{reserveErr: fmt.Errorf("%w: invalid asset", tracer.ErrTracerRejected)}
+	uc := &UseCase{TracerReserver: reserver}
+
+	out := uc.reserveTransaction(ctx, span, logger,
+		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, false)
+
+	require.Equal(t, reservationReject, out.Kind, "fail-open must not swallow a tracer refusal")
+
+	var unprocessable pkg.UnprocessableOperationError
+	require.ErrorAs(t, out.Err, &unprocessable)
+	assert.Equal(t, constant.ErrTransactionReservationRejected.Error(), unprocessable.Code)
+
+	assert.False(t, spanHasSkippedMarker(ended()),
+		"a refusal must not be recorded as a skipped reservation")
 }
 
 // ---- Gate 5 (fail-closed): structural proof of the call-site mechanics --------
