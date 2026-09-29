@@ -32,7 +32,7 @@ import (
 // depends on. Interface defined locally per Ring pattern; satisfied by
 // *services.ReservationService.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, longLived bool) (*services.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -142,7 +142,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		attribute.String("app.request.asset", request.Asset),
 	)
 
-	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
+	result, err := h.service.Reserve(ctx, request.TransactionID, &request.ValidationRequest, request.LongLived)
 	if err != nil {
 		return nil, classifyReservationServiceError(span, err)
 	}
@@ -151,6 +151,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		libLog.String("operation", "handler.reservations.reserve"),
 		libLog.String("transaction_id", request.TransactionID.String()),
 		libLog.Bool("denied", result.Denied),
+		libLog.String("decision", reserveDecision(result)),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
@@ -158,6 +159,9 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		TransactionID:  request.TransactionID,
 		Denied:         result.Denied,
 		ReservationIDs: reservationIDsOrEmpty(result.ReservationIDs),
+		Decision:       reserveDecision(result),
+		Reason:         result.Reason,
+		MatchedRuleIDs: matchedRuleIDsOrEmpty(result.MatchedRuleIDs),
 	}, nil
 }
 
@@ -317,4 +321,19 @@ func reservationIDsOrEmpty(ids []uuid.UUID) []uuid.UUID {
 	}
 
 	return ids
+}
+
+// reserveDecision is the decision the reserve response carries. The service's
+// Decision wins when set; otherwise it is derived from Denied, so the response
+// always names a decision.
+func reserveDecision(result *services.ReserveResult) string {
+	if result.Decision != "" {
+		return string(result.Decision)
+	}
+
+	if result.Denied {
+		return string(model.DecisionDeny)
+	}
+
+	return string(model.DecisionAllow)
 }

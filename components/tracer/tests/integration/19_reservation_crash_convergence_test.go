@@ -185,6 +185,7 @@ func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, a
 		resolver,
 		resRepo,
 		audit,
+		nil, // no rule step: these proofs exercise the limit lifecycle only
 		nil, // RealClock for reserve/confirm/release timestamps
 	)
 	require.NoError(t, err, "failed to wire reservation service")
@@ -235,22 +236,13 @@ func resSpecDec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount
 	}
 }
 
-// resCheckInput is a minimal valid CheckLimitsInput. The stub resolver ignores
+// resCheckInput is a minimal valid reserve request. The stub resolver ignores
 // its contents, but ReservationService.Reserve forwards it and a nil input is
 // rejected, so the proofs pass a well-formed one.
-func resCheckInput(t *testing.T) *model.CheckLimitsInput {
+func resCheckInput(t *testing.T) *model.ValidationRequest {
 	t.Helper()
 
-	input, err := model.NewCheckLimitsInput(
-		decimal.NewFromInt(100),
-		"USD",
-		testutil.MustDeterministicUUID(900001),
-		nil, nil, nil, nil, nil,
-		testutil.TestNow(),
-	)
-	require.NoError(t, err)
-
-	return input
+	return resCheckInputForAccount(t, testutil.MustDeterministicUUID(900001))
 }
 
 // ---------------------------------------------------------------------------

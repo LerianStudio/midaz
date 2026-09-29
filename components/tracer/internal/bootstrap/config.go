@@ -1211,7 +1211,7 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("failed to parse reservation long-lived TTL: %w", err)
 	}
 
-	reservationService, err := services.NewReservationServiceWithLongLivedTTL(txBeginner, limitChecker, reservationRepo, auditWriter, clk, longLivedTTL)
+	reservationService, err := services.NewReservationServiceWithLongLivedTTL(txBeginner, limitChecker, reservationRepo, auditWriter, evaluateRulesQuery, clk, longLivedTTL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create reservation service: %w", err)
 	}

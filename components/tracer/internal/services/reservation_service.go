@@ -77,7 +77,12 @@ var (
 	ErrNilReservationAuditWriter  = errors.New("reservation: audit writer cannot be nil")
 	ErrNilReservationRequest      = errors.New("reservation: request cannot be nil")
 	ErrNilReservationTransationID = errors.New("reservation: transaction id is required")
+	ErrNilRuleEvaluationResult    = errors.New("reservation: rule evaluation returned nil result")
 )
+
+// reserveReasonLimitExceeded is the reason a reserve carries when a limit, not a
+// rule, refused it — the same reason the synchronous validate path reports.
+const reserveReasonLimitExceeded = "limit_exceeded"
 
 // LimitResolver resolves the applicable limits for a transaction ONCE and computes
 // the per-limit reservation parameters. Implemented by query.LimitCheckerService.
@@ -138,24 +143,29 @@ type ReserveResult struct {
 	ReservationIDs []uuid.UUID
 }
 
-// ReservationService owns the two-phase reservation lifecycle: it resolves limits
-// once and reserves capacity (phase one), then confirms or releases (phase two).
+// ReservationService owns the two-phase reservation lifecycle: it evaluates rules,
+// resolves limits once and reserves capacity (phase one), then confirms or
+// releases (phase two).
 // Each method runs in its own transaction so the counter move, the reservation-row
 // flip, and the audit row commit atomically.
 type ReservationService struct {
-	conn         pgdb.TxBeginner
-	resolver     LimitResolver
-	repo         ReservationRepository
-	auditWriter  ReservationAuditWriter
-	clock        clock.Clock
-	longLivedTTL time.Duration
+	conn        pgdb.TxBeginner
+	resolver    LimitResolver
+	repo        ReservationRepository
+	auditWriter ReservationAuditWriter
+	// ruleEvaluator runs the CEL rules before any limit is resolved. nil skips the
+	// rule step; production wiring always injects it.
+	ruleEvaluator RuleEvaluator
+	clock         clock.Clock
+	longLivedTTL  time.Duration
 	// retrySleep waits out the transient-retry backoff, honouring ctx cancellation.
 	// Injected so tests drive the retry loop deterministically without wall-clock sleeps.
 	retrySleep func(ctx context.Context, d time.Duration) error
 }
 
 // NewReservationService constructs a ReservationService with dependency
-// validation. clk may be nil — a RealClock is used. The long-lived TTL defaults
+// validation. ruleEvaluator may be nil — the rule step is skipped. clk may be
+// nil — a RealClock is used. The long-lived TTL defaults
 // to defaultLongLivedReservationTTL (30 days); use
 // NewReservationServiceWithLongLivedTTL to override it from configuration.
 func NewReservationService(
@@ -163,9 +173,10 @@ func NewReservationService(
 	resolver LimitResolver,
 	repo ReservationRepository,
 	auditWriter ReservationAuditWriter,
+	ruleEvaluator RuleEvaluator,
 	clk clock.Clock,
 ) (*ReservationService, error) {
-	return NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, clk, 0)
+	return NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, ruleEvaluator, clk, 0)
 }
 
 // NewReservationServiceWithLongLivedTTL is the full constructor. longLivedTTL is
@@ -177,6 +188,7 @@ func NewReservationServiceWithLongLivedTTL(
 	resolver LimitResolver,
 	repo ReservationRepository,
 	auditWriter ReservationAuditWriter,
+	ruleEvaluator RuleEvaluator,
 	clk clock.Clock,
 	longLivedTTL time.Duration,
 ) (*ReservationService, error) {
@@ -205,19 +217,25 @@ func NewReservationServiceWithLongLivedTTL(
 	}
 
 	return &ReservationService{
-		conn:         conn,
-		resolver:     resolver,
-		repo:         repo,
-		auditWriter:  auditWriter,
-		clock:        clk,
-		longLivedTTL: longLivedTTL,
-		retrySleep:   libBackoff.WaitContext,
+		conn:          conn,
+		resolver:      resolver,
+		repo:          repo,
+		auditWriter:   auditWriter,
+		ruleEvaluator: ruleEvaluator,
+		clock:         clk,
+		longLivedTTL:  longLivedTTL,
+		retrySleep:    libBackoff.WaitContext,
 	}, nil
 }
 
-// Reserve resolves the applicable limits ONCE, holds capacity for each
-// counter-backed limit, and returns a handle the ledger uses to confirm or release.
-// This is the ALLOW-path persistence of the two-phase model.
+// Reserve evaluates the CEL rules, then resolves the applicable limits ONCE, holds
+// capacity for each counter-backed limit, and returns a handle the ledger uses to
+// confirm or release. This is the ALLOW-path persistence of the two-phase model.
+//
+// Rules run first, with the same evaluator as the synchronous Validate path. A
+// rule DENY or REVIEW refuses the reserve (Denied=true) before any limit is
+// resolved or counter touched: like the synchronous path, a REVIEW does not
+// consume limit capacity.
 //
 // Resolution and reservation share ONE transaction so the per-limit reserves are
 // all-or-nothing: if any limit's guard denies, the whole transaction rolls back and
@@ -233,7 +251,7 @@ func NewReservationServiceWithLongLivedTTL(
 // short reservationTTL so the reaper converges quickly; true (PENDING transaction,
 // R18) uses the configured long-lived TTL so a reservation backing a still-valid
 // pending does not expire before the pending commits or cancels.
-func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*ReserveResult, error) {
+func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, longLived bool) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.reservation.reserve")
@@ -246,10 +264,27 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		return nil, ErrNilReservationTransationID
 	}
 
-	if input == nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil reserve input", ErrNilReservationRequest)
+	if req == nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil reserve request", ErrNilReservationRequest)
 		return nil, ErrNilReservationRequest
 	}
+
+	refused, err := s.evaluateRules(ctx, span, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if refused != nil {
+		logger.With(
+			libLog.String("operation", "service.reservation.reserve"),
+			libLog.String("transaction_id", transactionID.String()),
+			libLog.String("decision", string(refused.Decision)),
+		).Log(ctx, libLog.LevelWarn, "Reservation refused by rule")
+
+		return s.decided(span, refused), nil
+	}
+
+	input := req.ToCheckLimitsInput()
 
 	specs, denied, err := s.resolver.ResolveReservations(ctx, input)
 	if err != nil {
@@ -260,12 +295,12 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	// Denied by a PER_TRANSACTION cap or the amount-alone pre-check: no capacity
 	// to hold, return the limit-exceeded decision without opening a transaction.
 	if denied {
-		return &ReserveResult{Denied: true}, nil
+		return s.limitDenied(ctx, span, logger, transactionID), nil
 	}
 
 	// No applicable counter-backed limits: nothing to reserve, allow.
 	if len(specs) == 0 {
-		return &ReserveResult{}, nil
+		return s.decided(span, &ReserveResult{Decision: model.DecisionAllow}), nil
 	}
 
 	ttl := reservationTTL
@@ -279,7 +314,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	// Serialize reserves that could contend on the same account's counter rows on a
 	// stable per-account key, taken BEFORE any counter row is locked. Computed once,
 	// outside the closure, so every transient-retry attempt reuses the same key.
-	scopeLockKey := reserveScopeLockKey(input.AccountID)
+	scopeLockKey := reserveScopeLockKey(req.Account.ID)
 
 	guardDenied := false
 
@@ -352,7 +387,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		if guardDenied {
 			// Limit-exceeded is a business decision, not a service failure: the
 			// rollback already released any partial holds.
-			return &ReserveResult{Denied: true}, nil
+			return s.limitDenied(ctx, span, logger, transactionID), nil
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to reserve capacity", txErr)
@@ -366,7 +401,59 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		libLog.Int("reservations", len(reservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reserved capacity")
 
-	return &ReserveResult{ReservationIDs: reservationIDs}, nil
+	return s.decided(span, &ReserveResult{Decision: model.DecisionAllow, ReservationIDs: reservationIDs}), nil
+}
+
+// evaluateRules runs the rule step of a reserve. It returns a non-nil result only
+// when a rule refuses the reserve (DENY or REVIEW); nil means proceed to limits.
+func (s *ReservationService) evaluateRules(ctx context.Context, span trace.Span, req *model.ValidationRequest) (*ReserveResult, error) {
+	if s.ruleEvaluator == nil {
+		return nil, nil
+	}
+
+	evalResult, err := s.ruleEvaluator.Execute(ctx, req)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Rule evaluation failed", err)
+		return nil, fmt.Errorf("rule evaluation failed: %w", err)
+	}
+
+	if evalResult == nil {
+		libOpentelemetry.HandleSpanError(span, "Rule evaluation returned nil", ErrNilRuleEvaluationResult)
+		return nil, ErrNilRuleEvaluationResult
+	}
+
+	switch evalResult.Decision {
+	case model.DecisionDeny, model.DecisionReview:
+		return &ReserveResult{
+			Denied:         true,
+			Decision:       evalResult.Decision,
+			Reason:         evalResult.Reason,
+			MatchedRuleIDs: evalResult.MatchedRuleIDs,
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
+// limitDenied is the result of a reserve a limit refused, with no capacity held.
+func (s *ReservationService) limitDenied(ctx context.Context, span trace.Span, logger libLog.Logger, transactionID uuid.UUID) *ReserveResult {
+	logger.With(
+		libLog.String("operation", "service.reservation.reserve"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("decision", string(model.DecisionDeny)),
+	).Log(ctx, libLog.LevelWarn, "Reservation refused by limit")
+
+	return s.decided(span, &ReserveResult{Denied: true, Decision: model.DecisionDeny, Reason: reserveReasonLimitExceeded})
+}
+
+// decided records the reserve decision on the span and hands the result back.
+func (s *ReservationService) decided(span trace.Span, result *ReserveResult) *ReserveResult {
+	span.SetAttributes(
+		attribute.String("app.tracer.decision", string(result.Decision)),
+		attribute.Int("app.tracer.matched_rule_count", len(result.MatchedRuleIDs)),
+	)
+
+	return result
 }
 
 // Confirm commits a reservation: the held amount moves reserved_usage ->

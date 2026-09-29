@@ -126,6 +126,117 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			},
 		},
 		{
+			name:        "denied by rule - DENY returns 201 with decision, reason and matched rule ids",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Return(&services.ReserveResult{
+						Denied:         true,
+						Decision:       model.DecisionDeny,
+						Reason:         "blocked by rule",
+						MatchedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(20)},
+					}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.True(t, resp.Denied)
+				assert.Equal(t, string(model.DecisionDeny), resp.Decision)
+				assert.Equal(t, "blocked by rule", resp.Reason)
+				assert.Equal(t, []uuid.UUID{testutil.MustDeterministicUUID(20)}, resp.MatchedRuleIDs)
+				assert.Contains(t, string(body), `"reservationIds":[]`)
+			},
+		},
+		{
+			name:        "review by rule - REVIEW returns 201 with denied=true and decision REVIEW",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Return(&services.ReserveResult{
+						Denied:         true,
+						Decision:       model.DecisionReview,
+						Reason:         "needs review",
+						MatchedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(21)},
+					}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.True(t, resp.Denied)
+				assert.Equal(t, string(model.DecisionReview), resp.Decision)
+				assert.Equal(t, "needs review", resp.Reason)
+				assert.Equal(t, []uuid.UUID{testutil.MustDeterministicUUID(21)}, resp.MatchedRuleIDs)
+			},
+		},
+		{
+			name:        "allow - decision ALLOW, no reason, matchedRuleIds serializes as []",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Return(&services.ReserveResult{Decision: model.DecisionAllow, ReservationIDs: []uuid.UUID{reservationID}}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.False(t, resp.Denied)
+				assert.Equal(t, string(model.DecisionAllow), resp.Decision)
+				assert.NotContains(t, string(body), `"reason"`)
+				assert.Contains(t, string(body), `"matchedRuleIds":[]`)
+			},
+		},
+		{
+			name:        "legacy result - decision derived from denied when the service leaves it empty",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&services.ReserveResult{Denied: true}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				assert.Equal(t, string(model.DecisionDeny), resp.Decision)
+				assert.Contains(t, string(body), `"matchedRuleIds":[]`)
+			},
+		},
+		{
+			name: "rule context - account type and metadata reach the service",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.Account.Type = "deposit"
+				r.Metadata = map[string]any{"channel": "app"}
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Cond(func(req *model.ValidationRequest) bool {
+						return req != nil &&
+							req.RequestID == testutil.MustDeterministicUUID(2) &&
+							req.Account.Type == "deposit" &&
+							req.Metadata["channel"] == "app"
+					}), false).
+					Return(&services.ReserveResult{Decision: model.DecisionAllow}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+		},
+		{
 			name: "bad input - missing transactionId returns 400, service not called",
 			requestBody: func() any {
 				r := newValidReserveRequest()

@@ -68,7 +68,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(3)
 	reservationID := testutil.MustDeterministicUUID(4)
 
-	t.Run("allow maps proto to the same CheckLimitsInput and returns reservation ids", func(t *testing.T) {
+	t.Run("allow maps proto to the same limit input and returns reservation ids", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		svc := mocks.NewMockReservationService(ctrl)
 		clk := testutil.NewMockClock(now)
@@ -77,9 +77,13 @@ func TestReservationServer_Reserve(t *testing.T) {
 
 		svc.EXPECT().
 			Reserve(gomock.Any(), transactionID, gomock.Any(), false).
-			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotInput *model.CheckLimitsInput, _ bool) (*services.ReserveResult, error) {
-				// The gRPC server must hand the use case the SAME CheckLimitsInput
-				// the REST path produces (no fork).
+			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotReq *model.ValidationRequest, _ bool) (*services.ReserveResult, error) {
+				// The gRPC server must hand the use case the validation request whose
+				// limit input is the SAME one the REST path produces (no fork).
+				require.NotNil(t, gotReq)
+				require.Equal(t, requestID, gotReq.RequestID)
+
+				gotInput := gotReq.ToCheckLimitsInput()
 				require.True(t, gotInput.Amount.Equal(expected.Amount))
 				require.Equal(t, expected.Asset, gotInput.Asset)
 				require.Equal(t, expected.AccountID, gotInput.AccountID)
@@ -391,6 +395,45 @@ func TestReservationServer_ToValidationRequest_AccountTypeAndMetadata(t *testing
 		require.Equal(t, uuid.Nil, validationReq.Account.ID)
 		require.Equal(t, "deposit", validationReq.Account.Type)
 	})
+}
+
+func TestReservationServer_Reserve_ForwardsRuleContext(t *testing.T) {
+	now := testutil.FixedTime()
+	transactionID := testutil.MustDeterministicUUID(1)
+	requestID := testutil.MustDeterministicUUID(2)
+	accountID := testutil.MustDeterministicUUID(3)
+	ruleID := testutil.MustDeterministicUUID(5)
+
+	ctrl := gomock.NewController(t)
+	svc := mocks.NewMockReservationService(ctrl)
+
+	svc.EXPECT().
+		Reserve(gomock.Any(), transactionID, gomock.Cond(func(req *model.ValidationRequest) bool {
+			return req != nil &&
+				req.Account.Type == "deposit" &&
+				req.Metadata["channel"] == "app"
+		}), false).
+		Return(&services.ReserveResult{
+			Denied:         true,
+			Decision:       model.DecisionDeny,
+			Reason:         "blocked by rule",
+			MatchedRuleIDs: []uuid.UUID{ruleID},
+		}, nil)
+
+	server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+	require.NoError(t, err)
+
+	req := newReserveRequest(now, transactionID, requestID, accountID)
+	req.Account.Type = "deposit"
+	req.Metadata = map[string]string{"channel": "app"}
+
+	result, err := server.Reserve(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, result.GetDenied())
+	require.Equal(t, string(model.DecisionDeny), result.GetDecision())
+	require.Equal(t, "blocked by rule", result.GetReason())
+	require.Equal(t, []string{ruleID.String()}, result.GetMatchedRuleIds())
+	require.Empty(t, result.GetReservationIds())
 }
 
 func TestReservationServer_Reserve_InvalidMetadataKey(t *testing.T) {

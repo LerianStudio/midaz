@@ -17,9 +17,9 @@ import (
 // request shape (amount, asset, account/segment/portfolio/merchant context,
 // transaction type and timestamp) and adds the ledger transactionId — the
 // correlation handle the two-phase reservation lifecycle is keyed on. The embedded
-// ValidationRequest carries the scope fields and reuses its NormalizeAndValidate
-// and ToCheckLimitsInput logic so the reserve path never drifts from the
-// synchronous validate path's input contract.
+// ValidationRequest carries the scope fields and is handed to the reservation
+// service as-is, so rules and limits see the same input contract as the
+// synchronous validate path.
 type ReserveRequest struct {
 	// TransactionID is the ledger transaction correlation id. It is the
 	// idempotency grain for retried reserves and the handle the ledger later
@@ -50,13 +50,6 @@ func (r *ReserveRequest) NormalizeAndReserveValidate(now time.Time) error {
 	}
 
 	return r.NormalizeAndValidateForReserve(now)
-}
-
-// ToReserveInput builds the CheckLimitsInput the reservation service resolves
-// against. It delegates to the embedded ValidationRequest so the scope-key inputs
-// are identical to the synchronous validate path.
-func (r *ReserveRequest) ToReserveInput() *model.CheckLimitsInput {
-	return r.ToCheckLimitsInput()
 }
 
 // ReserveResponse is the handle returned on a successful reserve. Denied is the

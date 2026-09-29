@@ -39,7 +39,7 @@ func newRetryService(t *testing.T) (*ReservationService, *pgdbMocks.MockTxBeginn
 	repo := servicesMocks.NewMockReservationRepository(ctrl)
 	audit := servicesMocks.NewMockReservationAuditWriter(ctrl)
 
-	svc, err := NewReservationService(conn, resolver, repo, audit, testutil.NewMockClock(testutil.FixedTime()))
+	svc, err := NewReservationService(conn, resolver, repo, audit, nil, testutil.NewMockClock(testutil.FixedTime()))
 	require.NoError(t, err)
 
 	sleeps := 0

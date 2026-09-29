@@ -40,7 +40,7 @@ import (
 // (reservation_handler.go), satisfied by *services.ReservationService, so the
 // two transports cannot drift apart in behavior.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, longLived bool) (*services.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -114,7 +114,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		attribute.String("app.request.asset", validationReq.Asset),
 	)
 
-	result, err := s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
+	result, err := s.service.Reserve(ctx, transactionID, validationReq, req.GetLongLived())
 	if err != nil {
 		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}

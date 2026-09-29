@@ -94,6 +94,7 @@ func resWireServiceRealAudit(t *testing.T, db *sql.DB, resolver services.LimitRe
 		resolver,
 		resRepo,
 		auditWriter,
+		nil, // no rule step: these proofs exercise the limit lifecycle only
 		nil, // RealClock
 	)
 	require.NoError(t, err, "failed to wire reservation service with real audit writer")
@@ -141,19 +142,16 @@ func resSettledDeadlockCount(t *testing.T, db *sql.DB, before int64) int64 {
 
 // resCheckInputForAccount is resCheckInput with a caller-chosen account id, so the
 // distinct-account proof gives each reserve its own per-account advisory-lock key.
-func resCheckInputForAccount(t *testing.T, accountID uuid.UUID) *model.CheckLimitsInput {
+func resCheckInputForAccount(t *testing.T, accountID uuid.UUID) *model.ValidationRequest {
 	t.Helper()
 
-	input, err := model.NewCheckLimitsInput(
-		decimal.NewFromInt(100),
-		"USD",
-		accountID,
-		nil, nil, nil, nil, nil,
-		testutil.TestNow(),
-	)
-	require.NoError(t, err)
-
-	return input
+	return &model.ValidationRequest{
+		RequestID:            uuid.New(),
+		Amount:               decimal.NewFromInt(100),
+		Asset:                "USD",
+		TransactionTimestamp: testutil.TestNow(),
+		Account:              model.AccountContext{ID: accountID},
+	}
 }
 
 // TestIntegration_ReservationConcurrentSameAccount_NoDeadlock is the primary
@@ -301,7 +299,7 @@ func TestIntegration_ReservationConcurrentDistinctAccounts_Parallelizes(t *testi
 	// call require.NoError, whose FailNow (runtime.Goexit) must run on the test
 	// goroutine. Each worker has its own account/scope, so one per index.
 	svcs := make([]*services.ReservationService, goroutines)
-	inputs := make([]*model.CheckLimitsInput, goroutines)
+	inputs := make([]*model.ValidationRequest, goroutines)
 
 	for i := range goroutines {
 		// Full UUID, not a prefix: MustDeterministicUUID encodes the seed in the
