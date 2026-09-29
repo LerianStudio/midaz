@@ -35,6 +35,13 @@ local function validateIndexedDependency(request, dependency)
     end
 end
 
+-- revertMarkerField names the guard-hash field recording that a revert's origin
+-- is reverted, or nil for any other transaction. An origin is reverted at most once.
+local function revertMarkerField(transaction)
+    if transaction.action ~= "revert" then return nil end
+    return transaction.parentTransactionId .. ":reverted"
+end
+
 -- prepareExecutionProtection establishes replay and concurrency safety before
 -- reading balances. It returns a saved response when this exact execution is
 -- complete; otherwise it validates guards and prepares coordinator updates in memory.
@@ -80,6 +87,10 @@ local function prepareExecutionProtection(request)
         local current = redis.call("HGET", KEYS[scopeKeys.guardKeyIndex], transaction.guardField)
         if (current or "") ~= transaction.expectedGuard then
             technical("execution_guard_conflict", "transaction execution guard has changed")
+        end
+        local marker = revertMarkerField(transaction)
+        if marker and redis.call("HEXISTS", KEYS[scopeKeys.guardKeyIndex], marker) == 1 then
+            technical("transaction_already_reverted", "origin transaction is already reverted")
         end
         if redis.call("HEXISTS", KEYS[2], transaction.recoveryField) == 1 then
             technical("execution_outcome_unknown", "recovery exists without a complete execution receipt")
@@ -691,6 +702,7 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         charge(transaction.nextGuard)
         charge(transaction.recoveryField)
         charge(transaction.id)
+        charge(revertMarkerField(transaction) or "")
     end
 
     return response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt, preparedExpirations, prepareFeeDebtWrites(feeDebts, charge)
@@ -714,6 +726,8 @@ local function commitPreparedExecution(request, preparedBalances, preparedFeeDeb
     for _, transaction in ipairs(request.transactions) do
         local scopeKeys = request.scopeKeyMap[transaction.organizationId .. ":" .. transaction.ledgerId]
         redis.call("HSET", KEYS[scopeKeys.guardKeyIndex], transaction.guardField, transaction.nextGuard)
+        local marker = revertMarkerField(transaction)
+        if marker then redis.call("HSET", KEYS[scopeKeys.guardKeyIndex], marker, transaction.id) end
     end
     for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", KEYS[coordinator.keyIndex], coordinator.field, coordinator.value) end
     for _, index in ipairs(preparedIndexes) do redis.call("HSET", KEYS[index.keyIndex], index.field, index.value) end

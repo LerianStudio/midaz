@@ -229,6 +229,8 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
+	transactionReverted.Metadata = flattenLegacyFeeExemption(transactionReverted.Metadata)
+
 	// Validate bidirectional routes: operations with a route_id require
 	// the referenced OperationRoute to have OperationType "bidirectional".
 	for _, op := range tran.Operations {

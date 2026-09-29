@@ -169,6 +169,10 @@ func (repo *concurrentFinalizationMetadata) SetKeys(_ context.Context, collectio
 	return nil
 }
 
+func (*concurrentFinalizationMetadata) Update(context.Context, string, string, map[string]any) error {
+	return nil
+}
+
 func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
 	*publisher.calls = append(*publisher.calls, "publish")
 	publisher.transactions = append(publisher.transactions, tran)
@@ -235,6 +239,13 @@ func (repo *finalizationMetadataStub) FindByEntity(_ context.Context, collection
 	}
 
 	return actual, nil
+}
+
+func (repo *finalizationMetadataStub) Update(_ context.Context, collection, id string, metadata map[string]any) error {
+	*repo.calls = append(*repo.calls, "update:"+collection)
+	repo.data[collection+":"+id].Data = metadata
+
+	return nil
 }
 
 func finalizationFixture(t testing.TB) (context.Context, *TransactionCompletionRecord) {
@@ -876,20 +887,11 @@ func TestTransactionCompletionServiceRepairsMetadataAfterSQLReplay(t *testing.T)
 	}, *calls)
 }
 
-func TestTransactionCompletionServiceRejectsUnconfirmedMetadata(t *testing.T) {
-	for _, scenario := range []struct {
-		name string
-		find func(*mongodb.Metadata) *mongodb.Metadata
-	}{
-		{"missing document", func(*mongodb.Metadata) *mongodb.Metadata { return nil }},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			ctx, envelope := finalizationFixture(t)
-			finalizer, _, metadata, _ := finalizationDependencies()
-			metadata.find = scenario.find
-			require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
-		})
-	}
+func TestTransactionCompletionServiceRejectsMissingMetadata(t *testing.T) {
+	ctx, envelope := finalizationFixture(t)
+	finalizer, _, metadata, _ := finalizationDependencies()
+	metadata.find = func(*mongodb.Metadata) *mongodb.Metadata { return nil }
+	require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
 }
 
 func TestTransactionCompletionServiceDoesNotOverwriteExistingMetadata(t *testing.T) {

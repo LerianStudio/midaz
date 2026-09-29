@@ -476,7 +476,7 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 		// write, so a movement they refuse is certain not to have been applied.
 		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed",
 			"account_closed", "account_closing_in_progress", "admission_not_confirmed", "account_protection_unreadable",
-			"dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict",
+			"transaction_already_reverted", "dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict",
 			"fee_debt_conflict", "fee_debt_record_pending":
 			return technical(failure.Code, false, err)
 		case "indeterminate", "execution_outcome_unknown", "invalid_receipt":

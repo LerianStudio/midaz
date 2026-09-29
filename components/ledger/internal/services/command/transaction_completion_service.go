@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/shopspring/decimal"
-	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -35,6 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
+	Update(context.Context, string, string, map[string]any) error
 	SetKeys(context.Context, string, string, map[string]any) error
 }
 
@@ -530,7 +531,7 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 		return nil
 	}
 
-	if err := appendMetadata(constant.EntityTransaction, tran.ID, tran.Metadata); err != nil {
+	if err := appendMetadata(constant.EntityTransaction, tran.ID, flattenLegacyFeeExemption(tran.Metadata)); err != nil {
 		return nil, err
 	}
 
@@ -543,9 +544,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-// persistMetadata inserts the frozen metadata only when no document exists. A stored
-// document is the client-editable truth, so only its identity is confirmed, and it gets each
-// fee-debt key this completion computed and it lacks.
+// persistMetadata inserts the frozen metadata when no document exists. A document a PATCH wrote
+// first has no entity name and gets the frozen keys under its own; any other stored document is
+// the client-editable truth and gets only the fee-debt keys this completion computed and it lacks.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -558,6 +559,15 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 
 	if actual == nil {
 		return metadataConflict("metadata identity is not confirmed")
+	}
+
+	if actual.EntityName == "" {
+		merged := libCommons.MergeMaps(actual.Data, maps.Clone(expected.Data))
+		if err := service.metadata.Update(ctx, expected.EntityName, expected.EntityID, merged); err != nil {
+			return fmt.Errorf("restore frozen metadata: %w", err)
+		}
+
+		return nil
 	}
 
 	if missing := missingFeeDebtMetadata(expected.Data, actual.Data); missing != nil {
@@ -651,8 +661,6 @@ func metadataNumberText(value any) (string, bool, error) {
 		return metadataFloatText(float64(number), 32)
 	case float64:
 		return metadataFloatText(number, 64)
-	case bson.Decimal128:
-		return number.String(), true, nil
 	default:
 		return "", false, nil
 	}

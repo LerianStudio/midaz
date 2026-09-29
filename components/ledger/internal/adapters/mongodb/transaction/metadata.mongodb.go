@@ -92,7 +92,7 @@ func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.D
 }
 
 // Create inserts a new metadata entity into mongodb using upsert for idempotency.
-// If metadata for the same entity_id already exists, the operation is a no-op.
+// If metadata for the same entity_id already exists in the collection, the operation is a no-op.
 // This ensures that duplicate calls (e.g., from retries or bulk processing) do not create duplicate documents.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)

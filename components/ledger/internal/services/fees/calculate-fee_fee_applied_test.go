@@ -51,7 +51,7 @@ func TestUpdateFeeMetadataIfNeeded_ExemptionOnlyOmitsFeeApplied(t *testing.T) {
 
 	cf := &model.FeeCalculate{
 		Transaction: transaction.Transaction{
-			Metadata: map[string]any{"feeExemption": map[string]any{}},
+			Metadata: map[string]any{"feeExemption": `{"exempt":true}`},
 		},
 	}
 
