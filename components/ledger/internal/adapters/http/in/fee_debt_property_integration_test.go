@@ -182,11 +182,6 @@ func newFeeDebtPropertyHarness(t *testing.T) (*feeHarness, *fee_debt.Repository,
 
 	h.commandUC.FeeDebts = debts
 	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo).WithFeeDebtRecorder(debts)
-	resolver, err := feesservices.NewQueryResolver(h.queryUC)
-	require.NoError(t, err)
-	h.feeUC, err = feesservices.NewUseCase(deferrablePackages{h.packageRepo}, resolver)
-	require.NoError(t, err)
-	h.commandUC.FeeApplier = h.feeUC
 
 	reads := fiber.New()
 	apiV2 := reads.Group("/v2")
@@ -223,10 +218,9 @@ func newFeeDebtRun(t *testing.T, h *feeHarness, debts *fee_debt.Repository, txAp
 	}
 
 	for pkg, fee := range feeDebtPropertyFees {
-		h.seedPackage(t, packageSpec{
-			label: r.tier(pkg), metadataSelector: map[string]string{"feeTier": r.tier(pkg)},
-			fees: []feeSpec{flatFee(r.tier(pkg)+"_fee", r.fees[pkg], strconv.FormatInt(fee, 10), false)},
-		})
+		spec := flatFee(r.tier(pkg)+"_fee", r.fees[pkg], strconv.FormatInt(fee, 10), false)
+		spec.deferrable = true
+		h.seedPackage(t, packageSpec{label: r.tier(pkg), metadataSelector: map[string]string{"feeTier": r.tier(pkg)}, fees: []feeSpec{spec}})
 	}
 
 	return r
