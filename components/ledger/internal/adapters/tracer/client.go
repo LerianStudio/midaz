@@ -59,11 +59,20 @@ const (
 // business outcome the anchor handles separately.
 var ErrTracerUnavailable = errors.New("tracer reservation service unavailable")
 
-// ReserveAccount is the account scope the tracer matches limits against. It
-// serializes to the tracer's AccountContext shape ({"accountId": "..."}). The
-// ledger populates AccountID with the source balance's account UUID; Type and
-// Status are left empty (the ledger does not carry the tracer's card-account
-// taxonomy), which the tracer treats as unconstrained optional fields.
+// ErrTracerRejected is the typed error returned when the tracer refuses the
+// reserve request itself — a REST 400/422 or a gRPC InvalidArgument /
+// FailedPrecondition. The tracer is up and answered; the request it received
+// cannot be evaluated. It is distinct from ErrTracerUnavailable so the anchor
+// does not route a refusal through tracer.failPosture, and distinct from a
+// denied decision, which is a successful response.
+var ErrTracerRejected = errors.New("tracer rejected the reservation request")
+
+// ReserveAccount is the account scope the tracer matches limits and rules
+// against. It serializes to the tracer's AccountContext shape
+// ({"accountId": "...", "type": "..."}). The ledger populates AccountID with the
+// source balance's account UUID and Type with that account's free-form type;
+// the tracer's account status is left empty, which it treats as an
+// unconstrained optional field.
 type ReserveAccount struct {
 	// AccountID is omitempty: when the ledger has no internal source account
 	// (an external-only source), the account object serializes as {} rather than
@@ -71,6 +80,8 @@ type ReserveAccount struct {
 	// uuid.UUID parse; an absent key parses cleanly to uuid.Nil, which the
 	// relaxed reserve validation accepts.
 	AccountID string `json:"accountId,omitempty"`
+	// Type is the ledger account type, verbatim. Optional.
+	Type string `json:"type,omitempty"`
 }
 
 // ReserveRequest is the wire body of POST /v1/reservations. It is typed
@@ -107,15 +118,23 @@ type ReserveRequest struct {
 	// overload of transactionType=pending-long-lived, which polluted the
 	// transaction-type field and broke the tracer's reserve validation.
 	LongLived bool `json:"longLived,omitempty"`
+	// Metadata is the transaction's flat metadata. The tracer accepts keys
+	// matching ^[a-zA-Z0-9_]+$, at most 64 characters, and at most 50 entries.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // ReserveResult is the handle returned by a successful reserve. Denied is the
-// limit-exceeded decision (no capacity held, ReservationIDs empty). Otherwise
+// refusal flag (no capacity held, ReservationIDs empty). Otherwise
 // ReservationIDs holds one id per counter-backed limit the ledger must later
-// confirm or release.
+// confirm or release. Decision (ALLOW, DENY or REVIEW), Reason and
+// MatchedRuleIDs refine Denied; a tracer that predates them leaves them zero,
+// and Denied stays authoritative either way.
 type ReserveResult struct {
 	TransactionID  uuid.UUID   `json:"transactionId"`
 	Denied         bool        `json:"denied"`
+	Decision       string      `json:"decision"`
+	Reason         string      `json:"reason,omitempty"`
+	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds"`
 	ReservationIDs []uuid.UUID `json:"reservationIds"`
 }
 
@@ -181,7 +200,8 @@ func NewTracerClient(baseURL string, opts ...TracerClientOption) (*TracerClient,
 // parses the reservation handle (including a denied=true decision, which is a
 // successful response, not a transport failure). A timeout, transport error,
 // or non-201 status returns an error; availability failures are
-// ErrTracerUnavailable so the anchor can apply tracer.failPosture.
+// ErrTracerUnavailable so the anchor can apply tracer.failPosture, and a 400 or
+// 422 is ErrTracerRejected.
 func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -204,6 +224,13 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 
 	defer func() { _ = resp.Body.Close() }()
 
+	if isRejectedStatus(resp.StatusCode) {
+		err := fmt.Errorf("%w: %w", ErrTracerRejected, c.statusError("reserve", resp))
+		libOpentelemetry.HandleSpanError(span, "Reserve request rejected by tracer", err)
+
+		return nil, err
+	}
+
 	if resp.StatusCode != http.StatusCreated {
 		err := c.statusError("reserve", resp)
 		libOpentelemetry.HandleSpanError(span, "Reserve returned unexpected status", err)
@@ -221,6 +248,7 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		ctx, libLog.LevelDebug, "Reservation processed",
 		libLog.String("transaction_id", req.TransactionID.String()),
 		libLog.Bool("denied", result.Denied),
+		libLog.String("decision", result.Decision),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	)
 
@@ -380,6 +408,12 @@ func (c *TracerClient) injectTenant(ctx context.Context, req *http.Request) {
 	if tenant := tmcore.GetTenantIDContext(ctx); tenant != "" {
 		req.Header.Set(TenantHeader, tenant)
 	}
+}
+
+// isRejectedStatus reports whether a reserve status means the tracer refused the
+// request itself rather than failed to serve it.
+func isRejectedStatus(code int) bool {
+	return code == http.StatusBadRequest || code == http.StatusUnprocessableEntity
 }
 
 // statusError builds the error for a non-success status. The body is read

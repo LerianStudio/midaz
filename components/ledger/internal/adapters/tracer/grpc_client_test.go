@@ -455,17 +455,19 @@ func TestMapGRPCError(t *testing.T) {
 		name            string
 		err             error
 		wantUnavailable bool
+		wantRejected    bool
 	}{
-		{"nil", nil, false},
-		{"unavailable", status.Error(codes.Unavailable, "x"), true},
-		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "x"), true},
-		{"canceled", status.Error(codes.Canceled, "x"), true},
-		{"context deadline", context.DeadlineExceeded, true},
-		{"context canceled", context.Canceled, true},
-		{"not found", status.Error(codes.NotFound, "x"), false},
-		{"internal", status.Error(codes.Internal, "x"), false},
-		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false},
-		{"plain error", errors.New("x"), false},
+		{"nil", nil, false, false},
+		{"unavailable", status.Error(codes.Unavailable, "x"), true, false},
+		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "x"), true, false},
+		{"canceled", status.Error(codes.Canceled, "x"), true, false},
+		{"context deadline", context.DeadlineExceeded, true, false},
+		{"context canceled", context.Canceled, true, false},
+		{"not found", status.Error(codes.NotFound, "x"), false, false},
+		{"internal", status.Error(codes.Internal, "x"), false, false},
+		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false, true},
+		{"failed precondition", status.Error(codes.FailedPrecondition, "x"), false, true},
+		{"plain error", errors.New("x"), false, false},
 	}
 
 	for _, tt := range tests {
@@ -479,6 +481,124 @@ func TestMapGRPCError(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.wantUnavailable, errors.Is(got, ErrTracerUnavailable))
+			assert.Equal(t, tt.wantRejected, errors.Is(got, ErrTracerRejected))
+			assert.Equal(t, status.Code(tt.err), status.Code(got), "the gRPC status code must survive the wrap")
 		})
 	}
+}
+
+func TestTracerGRPCClient_Reserve_NewContractFields(t *testing.T) {
+	t.Parallel()
+
+	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ruleID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+
+	t.Run("account type and metadata reach the proto request", func(t *testing.T) {
+		t.Parallel()
+
+		var captured *reservationv1.ReserveRequest
+
+		stub := &stubReservationServer{
+			reserveFn: func(req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				captured = req
+
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String(), Decision: "ALLOW"}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		_, err := client.Reserve(context.Background(), ReserveRequest{
+			TransactionID: transactionID,
+			Account:       ReserveAccount{AccountID: "acc-1", Type: "deposit"},
+			Metadata:      map[string]string{"channel": "app"},
+		})
+		require.NoError(t, err)
+
+		require.NotNil(t, captured)
+		assert.Equal(t, "acc-1", captured.GetAccount().GetAccountId())
+		assert.Equal(t, "deposit", captured.GetAccount().GetType())
+		assert.Equal(t, map[string]string{"channel": "app"}, captured.GetMetadata())
+	})
+
+	t.Run("decision, reason and matched rules are mapped back", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				return &reservationv1.ReserveResult{
+					TransactionId:  transactionID.String(),
+					Denied:         true,
+					Decision:       "REVIEW",
+					Reason:         "manual review required",
+					MatchedRuleIds: []string{ruleID.String()},
+				}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
+		require.NoError(t, err)
+		assert.True(t, result.Denied)
+		assert.Equal(t, "REVIEW", result.Decision)
+		assert.Equal(t, "manual review required", result.Reason)
+		assert.Equal(t, []uuid.UUID{ruleID}, result.MatchedRuleIDs)
+		assert.Empty(t, result.ReservationIDs)
+	})
+
+	t.Run("a tracer without the decision fields maps to zero values", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String(), Denied: true}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
+		require.NoError(t, err)
+		assert.True(t, result.Denied)
+		assert.Empty(t, result.Decision)
+		assert.Empty(t, result.MatchedRuleIDs)
+	})
+
+	t.Run("malformed matched rule id from tracer is a contract error", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				return &reservationv1.ReserveResult{
+					TransactionId:  transactionID.String(),
+					Denied:         true,
+					Decision:       "DENY",
+					MatchedRuleIds: []string{"not-a-uuid"},
+				}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.NotErrorIs(t, err, ErrTracerUnavailable)
+		assert.NotErrorIs(t, err, ErrTracerRejected)
+	})
+
+	t.Run("invalid argument is a rejection, not unavailability", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				return nil, status.Error(codes.InvalidArgument, "bad metadata key")
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, ErrTracerRejected)
+		assert.NotErrorIs(t, err, ErrTracerUnavailable)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	})
 }

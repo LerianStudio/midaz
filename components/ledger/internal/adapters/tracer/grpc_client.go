@@ -293,20 +293,21 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 		RequestId:            req.RequestID,
 		Amount:               req.Amount,
 		Asset:                req.Asset,
-		Account:              &reservationv1.ReserveAccount{AccountId: req.Account.AccountID},
+		Account:              &reservationv1.ReserveAccount{AccountId: req.Account.AccountID, Type: req.Account.Type},
 		SegmentId:            req.SegmentID,
 		PortfolioId:          req.PortfolioID,
 		MerchantId:           req.MerchantID,
 		TransactionType:      req.TransactionType,
 		TransactionTimestamp: req.TransactionTimestamp,
 		LongLived:            req.LongLived,
+		Metadata:             req.Metadata,
 	}
 }
 
 // fromProtoReserveResult maps the proto reserve response back onto the REST
-// result type the TracerReserver port speaks. Reservation ids are parsed back to
-// uuid.UUID; a malformed id from the tracer is a contract violation, surfaced as
-// an error rather than silently dropped.
+// result type the TracerReserver port speaks. Reservation and matched rule ids
+// are parsed back to uuid.UUID; a malformed id from the tracer is a contract
+// violation, surfaced as an error rather than silently dropped.
 func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, error) {
 	if resp == nil {
 		return nil, errors.New("nil reserve result from tracer")
@@ -317,31 +318,51 @@ func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, 
 		return nil, fmt.Errorf("parse reserve result transaction id: %w", err)
 	}
 
-	ids := make([]uuid.UUID, 0, len(resp.GetReservationIds()))
+	ids, err := parseProtoIDs(resp.GetReservationIds())
+	if err != nil {
+		return nil, fmt.Errorf("parse reservation id: %w", err)
+	}
 
-	for _, raw := range resp.GetReservationIds() {
-		id, err := uuid.Parse(raw)
-		if err != nil {
-			return nil, fmt.Errorf("parse reservation id: %w", err)
-		}
-
-		ids = append(ids, id)
+	ruleIDs, err := parseProtoIDs(resp.GetMatchedRuleIds())
+	if err != nil {
+		return nil, fmt.Errorf("parse matched rule id: %w", err)
 	}
 
 	return &ReserveResult{
 		TransactionID:  transactionID,
 		Denied:         resp.GetDenied(),
+		Decision:       resp.GetDecision(),
+		Reason:         resp.GetReason(),
+		MatchedRuleIDs: ruleIDs,
 		ReservationIDs: ids,
 	}, nil
+}
+
+// parseProtoIDs parses a repeated proto id field. It always returns a non-nil
+// slice so an absent field and an empty one read alike.
+func parseProtoIDs(raw []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(raw))
+
+	for _, value := range raw {
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, nil
 }
 
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
 // Availability-class status codes (Unavailable, DeadlineExceeded, Canceled) and
 // a context deadline / cancellation are folded into ErrTracerUnavailable so the
 // reserve anchor's fail-posture branch handles them, matching the REST client's
-// transport-failure normalisation. Other status codes (e.g. NotFound, Internal,
-// InvalidArgument) are returned verbatim — they are non-availability outcomes the
-// caller surfaces as-is.
+// transport-failure normalisation. InvalidArgument and FailedPrecondition mean the
+// tracer refused the request itself and are wrapped in ErrTracerRejected. Other
+// status codes (e.g. NotFound, Internal) are returned verbatim. Every wrap keeps
+// the original status reachable through errors.As.
 func mapGRPCError(err error) error {
 	if err == nil {
 		return nil
@@ -354,6 +375,8 @@ func mapGRPCError(err error) error {
 	switch status.Code(err) {
 	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled:
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
+	case codes.InvalidArgument, codes.FailedPrecondition:
+		return fmt.Errorf("%w: %w", ErrTracerRejected, err)
 	default:
 		return err
 	}

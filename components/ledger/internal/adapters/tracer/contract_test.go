@@ -58,9 +58,17 @@ import (
 type tracerReserveEndpoint struct {
 	now            time.Time
 	denied         bool
+	decision       string
+	reason         string
+	matchedRuleIDs []uuid.UUID
 	reservationIDs []uuid.UUID
+	// rejectStatus, when non-zero, answers every well-formed body with this
+	// status, standing in for a tracer-side refusal the relaxed validation in
+	// this package cannot reproduce.
+	rejectStatus int
 
-	parsed bool // set true once a body successfully parsed + validated
+	parsed   bool // set true once a body successfully parsed + validated
+	received tracerReserveBody
 }
 
 // tracerReserveBody mirrors the tracer's internal ReserveRequest wrapper: the
@@ -94,13 +102,22 @@ func (e *tracerReserveEndpoint) handler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if e.rejectStatus != 0 {
+		writeTracerError(w, e.rejectStatus, "0001", "reserve refused")
+		return
+	}
+
 	e.parsed = true
+	e.received = body
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(ReserveResult{
 		TransactionID:  body.TransactionID,
 		Denied:         e.denied,
+		Decision:       e.decision,
+		Reason:         e.reason,
+		MatchedRuleIDs: e.matchedRuleIDs,
 		ReservationIDs: e.reservationIDs,
 	})
 }
@@ -244,4 +261,93 @@ func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
 	assert.GreaterOrEqual(t, resp.StatusCode, 400, "the original buggy ledger shape MUST be rejected by the tracer")
 	assert.Less(t, resp.StatusCode, 500, "rejection is a 4xx client error, not a 5xx")
 	assert.False(t, endpoint.parsed, "the tracer must NOT have accepted the buggy body")
+
+	// The current ledger shape carries the account type and flat metadata; both
+	// must land on the tracer's real model fields, not be silently dropped.
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	req := ledgerStyleReserveRequest(
+		uuid.MustParse("88888888-8888-8888-8888-888888888888"),
+		uuid.MustParse("99999999-9999-9999-9999-999999999990"),
+		now,
+	)
+	req.Account.Type = "checking"
+	req.Metadata = map[string]string{"channel": "app"}
+
+	_, err = client.Reserve(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, endpoint.parsed)
+	assert.Equal(t, "checking", endpoint.received.Account.Type)
+	assert.Equal(t, map[string]any{"channel": "app"}, endpoint.received.Metadata)
+
+	// A metadata key the tracer refuses is a 4xx the client classifies as a
+	// rejection of the request, never as an unavailable tracer.
+	endpoint.parsed = false
+	req.Metadata = map[string]string{"bad-key": "app"}
+
+	_, err = client.Reserve(context.Background(), req)
+	require.Error(t, err)
+	assert.False(t, endpoint.parsed)
+	assert.ErrorIs(t, err, ErrTracerRejected)
+	assert.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
+// TestReserveContract_RejectedIsNotUnavailable proves a tracer refusal of the
+// request (422) reaches the caller as ErrTracerRejected and never as
+// ErrTracerUnavailable, so the anchor does not route it through failPosture.
+func TestReserveContract_RejectedIsNotUnavailable(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+
+	endpoint := &tracerReserveEndpoint{now: now, rejectStatus: http.StatusUnprocessableEntity}
+	srv := httptest.NewServer(http.HandlerFunc(endpoint.handler))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(
+		uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+		uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+		now,
+	))
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, ErrTracerRejected)
+	assert.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
+// TestReserveContract_ReviewDecisionFlowsBack proves the refined decision, its
+// reason and the matched rule ids round-trip next to denied.
+func TestReserveContract_ReviewDecisionFlowsBack(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	ruleID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+
+	endpoint := &tracerReserveEndpoint{
+		now:            now,
+		denied:         true,
+		decision:       "REVIEW",
+		reason:         "manual review required",
+		matchedRuleIDs: []uuid.UUID{ruleID},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(endpoint.handler))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(
+		uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+		uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+		now,
+	))
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Denied)
+	assert.Equal(t, "REVIEW", result.Decision)
+	assert.Equal(t, "manual review required", result.Reason)
+	assert.Equal(t, []uuid.UUID{ruleID}, result.MatchedRuleIDs)
+	assert.Empty(t, result.ReservationIDs)
 }
