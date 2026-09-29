@@ -210,6 +210,10 @@ type UseCase struct {
 	// unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
 
+	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
+	// from it, and balance deletion and account closing read the debts owed to a balance.
+	FeeDebts FeeDebtRecorder
+
 	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
 	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
 	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware

@@ -568,7 +568,7 @@ func setupEngineWriteBehindHTTPIntegration(tb testing.TB) *engineWriteBehindHTTP
 
 	logger := &libLog.GoLogger{}
 	recovery := NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
-	require.NoError(t, configureAppliedTransactionCompletion(recovery, commandUseCase, false, nil))
+	require.NoError(t, configureAppliedTransactionCompletion(recovery, commandUseCase, false, nil, nil))
 	require.NoError(t, configureEngine(commandUseCase, integrationEngineClientProvider{client: redisContainer.Client}))
 	configuredEngine := commandUseCase.Engine
 

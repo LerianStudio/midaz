@@ -660,6 +660,20 @@ var (
 	// decided about the account, so a retry is valid once the holder concludes. A
 	// closing in progress is ErrAccountClosingInProgress (0522).
 	ErrAccountAdministrativeOperationInProgress = errors.New("0526")
+	// ErrBalanceHasOpenFeeDebt refuses deleting or closing what still owes a
+	// deferred fee: the debt is keyed by the balance alias, so a new account
+	// reusing the alias would pay the previous holder's fee.
+	ErrBalanceHasOpenFeeDebt = errors.New("0527")
+	// ErrBalanceOwedFeeDebt refuses deleting or closing a balance that open fee
+	// debts name as creditor: collecting them credits it.
+	ErrBalanceOwedFeeDebt = errors.New("0528")
+	// ErrFeeDebtRecordPending is returned when the live fee debts a transaction
+	// touches disagree with their record, which lags while completion projects it.
+	// Nothing moved, so a retry is valid once the record catches up.
+	ErrFeeDebtRecordPending = errors.New("0529")
+	// ErrDeferrableDeductibleFee refuses a fee both deducted from the payment and
+	// deferrable: fee debt defers only a fee charged on top of the payment.
+	ErrDeferrableDeductibleFee = errors.New("0530")
 )
 
 // List of CRM domain errors.

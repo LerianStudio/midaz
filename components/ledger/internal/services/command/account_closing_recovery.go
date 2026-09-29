@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -25,224 +26,212 @@ import (
 )
 
 const (
-	// accountClosingRecoveryScanCount is the COUNT hint of one recovery page. It is
-	// a hint, so a page may come back larger; the walk never drops what it receives.
-	accountClosingRecoveryScanCount = 200
+	// recoveryScanCount is the COUNT hint of one recovery page. It is a hint, so a
+	// page may come back larger; the walk never drops what it receives.
+	recoveryScanCount = 200
 
-	// maxAccountClosingRecoveryBytes bounds how much recovery payload one closing
-	// attempt reads. Exhausting it ends the walk WITHOUT proof of absence, which is
-	// refused rather than passed: the budget bounds the cost of the scan, never the
-	// strength of its conclusion. It is charged only after the page it paid for has
-	// been inspected, so evidence already in hand still decides.
-	maxAccountClosingRecoveryBytes = 16 << 20
+	// maxRecoveryWalkBytes bounds the recovery payload one walk reads. Spending it while
+	// pages remain leaves absence unproven, which is refused: the budget bounds the cost
+	// of the walk, never the strength of its conclusion.
+	maxRecoveryWalkBytes = 16 << 20
 )
 
-// accountClosingRecoverySources are the recovery origins a closing walks, each
-// with its own cursor. Fields are unique only inside one hash, so the two are
-// never merged; legacy payloads are accepted only where they are persisted.
-var accountClosingRecoverySources = []struct {
+// recoverySource is one recovery hash, walked with its own cursor because fields are
+// unique only inside one hash. Legacy payloads are accepted only where they persist.
+type recoverySource struct {
 	source      txRedis.RecoveryQueueSource
 	allowLegacy bool
-}{
-	{source: txRedis.RecoveryQueueSourceLegacyBackup, allowLegacy: true},
-	{source: txRedis.RecoveryQueueSourceEngineRecover, allowLegacy: false},
 }
 
-// verifyNoAccountClosingRecoveryPending refuses the closing while an execution
-// that touched the account is still waiting for its completion.
-//
-// Both recovery origins are walked to their terminal cursor under the caller's
-// deadline, reading records without changing their format, removing them or
-// touching an acknowledgment. A record still there means the completer has work
-// left on that execution, so the refusal is the temporary one: the existing
-// completer finishes it, and the closing never takes that job over or reapplies a
-// movement.
-//
-// One empty page proves nothing — HSCAN can pass a bucket without returning an
-// entry — so only a terminal cursor on EVERY origin concludes the walk. A record
-// that cannot be read, and a budget that runs out before the cursors terminate,
-// both leave absence unproven, and unproven absence is refused as indeterminate.
-// The page whose bytes exhaust the budget is inspected before the budget is
-// charged: its read is already paid for, so a conclusive record on it decides
-// rather than being lost to the weaker refusal.
-//
-// A record acknowledged while the walk is in flight simply stops appearing, which
-// under the current acknowledgment contract means its persistence concluded. The
-// SQL evidence is read AFTER this walk, so that conclusion is confirmed there
-// rather than assumed here.
-func (uc *UseCase) verifyNoAccountClosingRecoveryPending(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("verify account closing recovery: %w", err)
+var (
+	// engineRecoverySources hold the only records that carry fee-debt changes.
+	engineRecoverySources = []recoverySource{{source: txRedis.RecoveryQueueSourceEngineRecover}}
+	allRecoverySources    = []recoverySource{
+		{source: txRedis.RecoveryQueueSourceLegacyBackup, allowLegacy: true},
+		{source: txRedis.RecoveryQueueSourceEngineRecover},
 	}
+)
 
+// recoveryRecord is one record of the walked scope as persisted: the engine completion
+// record or, where its source keeps them, the legacy backup record.
+type recoveryRecord struct {
+	engine *TransactionCompletionRecord
+	legacy *mmodel.TransactionRedisQueue
+}
+
+// walkRecovery hands every in-scope record of sources to match and stops at its first
+// refusal. Only a terminal cursor on every source proves absence: a failed scan, an
+// unreadable record or a budget spent while pages remain is refused as 0520.
+func (uc *UseCase) walkRecovery(ctx context.Context, organizationID, ledgerID uuid.UUID, sources []recoverySource, match func(recoveryRecord) error) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "exec.verify_account_closing_recovery")
+	ctx, span := tracer.Start(ctx, "exec.walk_recovery_records")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_id", accountID.String()),
-	)
+	scanned, budget := 0, maxRecoveryWalkBytes
 
-	scanned, budget := 0, maxAccountClosingRecoveryBytes
-
-	for _, origin := range accountClosingRecoverySources {
-		for cursor, walked := uint64(0), false; !walked || cursor != 0; {
+	for _, origin := range sources {
+		for cursor, walked := uint64(0), false; !walked || cursor != 0; walked = true {
 			if err := ctx.Err(); err != nil {
-				return fmt.Errorf("verify account closing recovery: %w", err)
+				return refuseRecoveryWalk(ctx, span, logger, origin, err)
 			}
 
-			page, err := uc.TransactionRedisRepo.ScanRecoveryMessages(ctx, origin.source, cursor, accountClosingRecoveryScanCount)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(span, "Failed to scan the recovery records for closing", err)
-				logger.Log(ctx, libLog.LevelError, "Failed to scan the recovery records for closing",
-					libLog.String("recovery_source", string(origin.source)), libLog.Err(err))
-
-				return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
-			}
-
-			cursor, walked = page.Cursor, true
-			scanned += len(page.Records)
-
-			if err := inspectAccountClosingRecoveryPage(ctx, span, logger, page, origin.allowLegacy, organizationID, ledgerID, accountID); err != nil {
-				return err
-			}
-
-			budget -= page.Bytes
+			// Charged after a page is inspected and checked only before the next read, so
+			// evidence in hand still decides and a walk that reached its end concludes.
 			if budget < 0 {
-				exhausted := errors.New("recovery scan byte budget exhausted before the cursors terminated")
-
-				libOpentelemetry.HandleSpanError(span, "Recovery scan exceeded its byte budget before proving absence", exhausted)
-				logger.Log(ctx, libLog.LevelError, "Recovery scan exceeded its byte budget before proving absence",
-					libLog.String("recovery_source", string(origin.source)), libLog.Err(exhausted))
-
-				return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+				return refuseRecoveryWalk(ctx, span, logger, origin, errors.New("recovery byte budget spent before the cursors terminated"))
 			}
+
+			page, err := uc.TransactionRedisRepo.ScanRecoveryMessages(ctx, origin.source, cursor, recoveryScanCount)
+			if err == nil {
+				err = inspectRecoveryPage(page, origin.allowLegacy, organizationID, ledgerID, match)
+			}
+
+			if err != nil {
+				return refuseRecoveryWalk(ctx, span, logger, origin, err)
+			}
+
+			scanned += len(page.Records)
+			cursor, budget = page.Cursor, budget-page.Bytes
 		}
 	}
 
-	span.SetAttributes(attribute.Int("app.account_closing.recovery_records_scanned", scanned))
+	span.SetAttributes(attribute.Int("app.recovery.records_scanned", scanned))
 
 	return nil
 }
 
-// inspectAccountClosingRecoveryPage classifies one page against the account.
-func inspectAccountClosingRecoveryPage(
-	ctx context.Context,
-	span trace.Span,
-	logger libLog.Logger,
-	page txRedis.RecoveryScanPage,
-	allowLegacy bool,
-	organizationID, ledgerID, accountID uuid.UUID,
-) error {
-	for _, record := range page.Records {
-		touches, err := recoveryRecordTouchesAccount([]byte(record.Payload), allowLegacy, organizationID, ledgerID, accountID)
+// refuseRecoveryWalk ends a walk: a refusal of a record passes through, and any other
+// failure left absence unproven, which is refused as indeterminate (0520).
+func refuseRecoveryWalk(ctx context.Context, span trace.Span, logger libLog.Logger, origin recoverySource, err error) error {
+	if pkg.IsBusinessError(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "A recovery record refuses the operation", err)
+
+		return err
+	}
+
+	return refuseIndeterminate(ctx, span, logger, "The recovery walk could not prove absence", err,
+		libLog.String("recovery_source", string(origin.source)))
+}
+
+// refuseIndeterminate answers the retryable 0520 for a state that could not be established.
+// The cause ends here, so this is its one log (T8); callers pass the 0520 through.
+func refuseIndeterminate(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error, fields ...libLog.Field) error {
+	recordCommandError(ctx, span, logger, message, err, fields...)
+
+	return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+}
+
+func inspectRecoveryPage(page txRedis.RecoveryScanPage, allowLegacy bool, organizationID, ledgerID uuid.UUID, match func(recoveryRecord) error) error {
+	for _, entry := range page.Records {
+		record, err := readRecoveryRecord([]byte(entry.Payload), allowLegacy, organizationID, ledgerID)
+		if err == nil && record != nil {
+			err = match(*record)
+		}
+
 		if err != nil {
-			indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
-
-			libOpentelemetry.HandleSpanError(span, "Failed to read a recovery record while closing an account", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to read a recovery record while closing an account",
-				libLog.String("recovery_source", string(page.Source)), libLog.Err(err))
-
-			return indeterminate
+			return err
 		}
-
-		if !touches {
-			continue
-		}
-
-		pending := pkg.ValidateBusinessError(constant.ErrAccountClosingPersistencePending, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "An execution of this account is still in completion", pending)
-		logger.Log(ctx, libLog.LevelWarn, "An execution of this account is still in completion",
-			libLog.String("recovery_source", string(page.Source)))
-
-		return pending
 	}
 
 	return nil
 }
 
-// recoveryRecordTouchesAccount reports whether one recovery record describes work
-// over the given account inside the given scope.
-//
-// The two persisted shapes are read as they are: the versioned engine envelope
-// names its accounts through the balance snapshot of each projected operation,
-// while the legacy record names them on its balances and operations. Both are
-// decoded through the existing readers, so the formats stay untouched and a record
-// neither reader accepts is an error rather than a silent "does not touch".
-func recoveryRecordTouchesAccount(raw []byte, allowLegacy bool, organizationID, ledgerID, accountID uuid.UUID) (bool, error) {
+// readRecoveryRecord decodes one record through the existing readers, so the formats stay
+// untouched and a record neither accepts is an error rather than a silent "does not match".
+// A record of another scope answers nil.
+func readRecoveryRecord(raw []byte, allowLegacy bool, organizationID, ledgerID uuid.UUID) (*recoveryRecord, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return false, errors.New("recovery record is not a JSON object")
+		return nil, errors.New("recovery record is not a JSON object")
 	}
 
 	if _, versioned := fields["formatVersion"]; versioned {
-		return engineRecoveryRecordTouchesAccount(raw, organizationID, ledgerID, accountID)
+		envelope, err := DecodeTransactionWriteBehindEnvelope(raw)
+		if err != nil {
+			return nil, fmt.Errorf("decode engine recovery record: %w", err)
+		}
+
+		if envelope.Record.OrganizationID != organizationID || envelope.Record.LedgerID != ledgerID {
+			return nil, nil
+		}
+
+		return &recoveryRecord{engine: &envelope.Record}, nil
 	}
 
 	if !allowLegacy {
-		return false, errors.New("engine recovery record requires format version 2")
+		return nil, errors.New("engine recovery record requires format version 2")
 	}
 
-	return legacyRecoveryRecordTouchesAccount(raw, organizationID, ledgerID, accountID)
+	var legacy mmodel.TransactionRedisQueue
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return nil, fmt.Errorf("decode legacy recovery record: %w", err)
+	}
+
+	if legacy.TransactionID == uuid.Nil || legacy.OrganizationID == uuid.Nil || legacy.LedgerID == uuid.Nil {
+		return nil, errors.New("legacy recovery record has incomplete identity")
+	}
+
+	if legacy.OrganizationID != organizationID || legacy.LedgerID != ledgerID {
+		return nil, nil
+	}
+
+	return &recoveryRecord{legacy: &legacy}, nil
 }
 
-func engineRecoveryRecordTouchesAccount(raw []byte, organizationID, ledgerID, accountID uuid.UUID) (bool, error) {
-	writeBehind, err := DecodeTransactionWriteBehindEnvelope(raw)
-	if err != nil {
-		return false, fmt.Errorf("decode engine recovery record: %w", err)
+// owesFeeDebt reports whether the record changes a fee debt owed to one of creditRefs.
+func (r recoveryRecord) owesFeeDebt(creditRefs []string) bool {
+	if r.engine == nil {
+		return false
 	}
 
-	record := writeBehind.Record
-
-	if record.OrganizationID != organizationID || record.LedgerID != ledgerID {
-		return false, nil
+	for _, change := range r.engine.Result.FeeDebt {
+		if slices.Contains(creditRefs, change.CreditRef) {
+			return true
+		}
 	}
 
-	plan, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
+	return false
+}
+
+// touchesAccount reports whether the record describes work over accountID: the engine
+// record names accounts on the balance of each projected operation, the legacy record on
+// its balances and operations.
+func (r recoveryRecord) touchesAccount(accountID uuid.UUID) (bool, error) {
+	id := accountID.String()
+
+	if r.legacy != nil {
+		for _, balance := range slices.Concat(r.legacy.Balances, r.legacy.BalancesAfter) {
+			if strings.EqualFold(balance.AccountID, id) {
+				return true, nil
+			}
+		}
+
+		return slices.ContainsFunc(r.legacy.Operations, func(op mmodel.OperationRedis) bool {
+			return strings.EqualFold(op.AccountID, id)
+		}), nil
+	}
+
+	plan, err := DecodeTransactionCompletionPlan([]byte(r.engine.Payload))
 	if err != nil {
 		return false, fmt.Errorf("decode engine recovery plan: %w", err)
 	}
 
-	for _, spec := range plan.OperationSpecs {
-		if strings.EqualFold(spec.Balance.AccountID, accountID.String()) {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return slices.ContainsFunc(plan.OperationSpecs, func(spec OperationRecordSpec) bool {
+		return strings.EqualFold(spec.Balance.AccountID, id)
+	}), nil
 }
 
-func legacyRecoveryRecordTouchesAccount(raw []byte, organizationID, ledgerID, accountID uuid.UUID) (bool, error) {
-	var legacy mmodel.TransactionRedisQueue
-	if err := json.Unmarshal(raw, &legacy); err != nil {
-		return false, fmt.Errorf("decode legacy recovery record: %w", err)
-	}
-
-	if legacy.TransactionID == uuid.Nil || legacy.OrganizationID == uuid.Nil || legacy.LedgerID == uuid.Nil {
-		return false, errors.New("legacy recovery record has incomplete identity")
-	}
-
-	if legacy.OrganizationID != organizationID || legacy.LedgerID != ledgerID {
-		return false, nil
-	}
-
-	for _, balances := range [][]mmodel.BalanceRedis{legacy.Balances, legacy.BalancesAfter} {
-		for _, balance := range balances {
-			if strings.EqualFold(balance.AccountID, accountID.String()) {
-				return true, nil
-			}
+// refuseAccountInCompletion refuses a record of an execution over accountID still waiting
+// for its completion. The completer finishes it, so the refusal is the temporary one and
+// the caller never takes that job over or reapplies a movement.
+func refuseAccountInCompletion(accountID uuid.UUID) func(recoveryRecord) error {
+	return func(record recoveryRecord) error {
+		touches, err := record.touchesAccount(accountID)
+		if err != nil || !touches {
+			return err
 		}
-	}
 
-	for _, op := range legacy.Operations {
-		if strings.EqualFold(op.AccountID, accountID.String()) {
-			return true, nil
-		}
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingPersistencePending, constant.EntityAccount)
 	}
-
-	return false, nil
 }

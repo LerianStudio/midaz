@@ -12,11 +12,11 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/shopspring/decimal"
 
@@ -35,7 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
-	Update(context.Context, string, string, map[string]any) error
+	SetKeys(context.Context, string, string, map[string]any) error
 }
 
 // TransactionCompletionService durably materializes an applied accounting result
@@ -44,6 +44,7 @@ type TransactionCompletionService struct {
 	store     TransactionWriteStore
 	metadata  engineMetadataRepository
 	publisher AppliedTransactionEventPublisher
+	feeDebt   FeeDebtRecorder
 }
 
 // TransactionEvidenceViews are the three caller-owned representations derived
@@ -61,6 +62,7 @@ type preparedTransactionCompletion struct {
 	writeSet       TransactionWriteSet
 	callerWriteSet TransactionWriteSet
 	metadata       []*mongodb.Metadata
+	feeDebt        *FeeDebtRecord
 }
 
 // NewTransactionCompletionService uses the existing metadata repository with the
@@ -85,6 +87,14 @@ func NewTransactionCompletionServiceWithEvents(
 	}
 
 	return &TransactionCompletionService{store: store, metadata: metadata, publisher: publisher}, nil
+}
+
+// WithFeeDebtRecorder sets the recorder that projects a result's fee-debt changes
+// after metadata is confirmed and before any event is published.
+func (service *TransactionCompletionService) WithFeeDebtRecorder(recorder FeeDebtRecorder) *TransactionCompletionService {
+	service.feeDebt = recorder
+
+	return service
 }
 
 // Complete returns the durable status and a caller-owned copy of the
@@ -112,7 +122,7 @@ func (service *TransactionCompletionService) complete(ctx context.Context, recor
 		return TransactionCompletionResult{}, err
 	}
 
-	if err := service.persistPreparedMetadata(ctx, []preparedTransactionCompletion{prepared}); err != nil {
+	if err := service.persistPreparedProjections(ctx, []preparedTransactionCompletion{prepared}); err != nil {
 		return TransactionCompletionResult{}, err
 	}
 
@@ -176,7 +186,7 @@ func (service *TransactionCompletionService) CompleteBulk(ctx context.Context, r
 		}
 	}
 
-	if err := service.persistPreparedMetadata(ctx, prepared); err != nil {
+	if err := service.persistPreparedProjections(ctx, prepared); err != nil {
 		return nil, err
 	}
 
@@ -231,10 +241,15 @@ func prepareTransactionCompletion(ctx context.Context, record *TransactionComple
 		return preparedTransactionCompletion{}, err
 	}
 
-	return preparedTransactionCompletion{writeSet: writeSet, callerWriteSet: callerWriteSet, metadata: metadata}, nil
+	return preparedTransactionCompletion{
+		writeSet: writeSet, callerWriteSet: callerWriteSet, metadata: metadata,
+		feeDebt: feeDebtRecord(*plan, record.Result, writeSet.Transaction.Metadata),
+	}, nil
 }
 
-func (service *TransactionCompletionService) persistPreparedMetadata(ctx context.Context, prepared []preparedTransactionCompletion) error {
+// persistPreparedProjections confirms every unit's metadata, then records its fee debts, so
+// events wait for both.
+func (service *TransactionCompletionService) persistPreparedProjections(ctx context.Context, prepared []preparedTransactionCompletion) error {
 	for _, unit := range prepared {
 		for _, entry := range unit.metadata {
 			if err := ctx.Err(); err != nil {
@@ -247,7 +262,7 @@ func (service *TransactionCompletionService) persistPreparedMetadata(ctx context
 		}
 	}
 
-	return nil
+	return service.recordFeeDebts(ctx, prepared)
 }
 
 func validTransactionLifecyclePhase(phase string) bool {
@@ -301,7 +316,10 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		status = constant.APPROVED
 	}
 
-	amount := payload.TransactionInput.Send.Value
+	amount, metadata, err := completedTransactionFeeDebt(payload, result.FeeDebt)
+	if err != nil {
+		return TransactionWriteSet{}, err
+	}
 
 	tran := &transaction.Transaction{
 		ID: payload.TransactionID.String(), OrganizationID: payload.OrganizationID.String(), LedgerID: payload.LedgerID.String(),
@@ -311,7 +329,7 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		CreatedAt:                payload.TransactionCreatedAt, UpdatedAt: payload.TransactionUpdatedAt,
 		Route: payload.TransactionInput.Route, RouteID: payload.TransactionInput.RouteID, //nolint:staticcheck // Preserve the frozen legacy route column alongside its canonical ID.
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
-		Metadata: payload.TransactionInput.Metadata, Operations: rows,
+		Metadata: metadata, Operations: rows,
 	}
 	if payload.GroupID != nil {
 		groupID := payload.GroupID.String()
@@ -333,6 +351,16 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 	} else {
 		tran.Source = frozenAccountAliases(payload.TransactionInput.Send.Source.From)
 		tran.Destination = frozenAccountAliases(payload.TransactionInput.Send.Distribute.To)
+	}
+
+	if isFeeDebtCollection(payload.TransactionInput) {
+		tran.Destination = nil
+
+		for _, change := range result.FeeDebt {
+			if alias := strings.Split(change.CreditRef, "#")[0]; change.Kind == accounting.FeeDebtSettled && !slices.Contains(tran.Destination, alias) {
+				tran.Destination = append(tran.Destination, alias)
+			}
+		}
 	}
 
 	expectedStatus := ""
@@ -525,9 +553,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-// persistMetadata inserts the frozen metadata when no document exists. Only a PATCH
-// writes a document without an entity name, before the frozen keys landed, so those
-// keys are restored under the stored ones; any other stored document is kept as is.
+// persistMetadata inserts the frozen metadata when no document exists. A document only a PATCH
+// wrote has no entity name: it gets every frozen key it lacks and the name, which marks it
+// completed. A completed document gets only the fee-debt keys this completion computed and it lacks.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -542,13 +570,25 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
-	if actual.EntityName != "" {
+	var missing map[string]any
+
+	if actual.EntityName == "" {
+		missing = make(map[string]any, len(expected.Data))
+		for key, value := range expected.Data {
+			if _, stored := actual.Data[key]; !stored {
+				missing[key] = value
+			}
+		}
+	} else {
+		missing = missingFeeDebtMetadata(expected.Data, actual.Data)
+	}
+
+	if missing == nil {
 		return nil
 	}
 
-	merged := libCommons.MergeMaps(actual.Data, maps.Clone(expected.Data))
-	if err := service.metadata.Update(ctx, expected.EntityName, expected.EntityID, merged); err != nil {
-		return fmt.Errorf("restore frozen metadata: %w", err)
+	if err := service.metadata.SetKeys(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
+		return fmt.Errorf("merge frozen metadata: %w", err)
 	}
 
 	return nil

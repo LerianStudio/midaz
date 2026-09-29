@@ -95,7 +95,7 @@ func (uc *UseCase) executeCreateEngine(
 
 	recordEngineAccountBlockExceptionPresented(span, run.accountBlockExceptionGrant != nil)
 
-	engineState, err := uc.prepareCreateEngineExecution(ctx, run)
+	engineState, err := uc.prepareCreateEngineExecution(ctx, run, tracerEligible)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
@@ -222,7 +222,9 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog
 	}
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyFingerprint, *tran, run.idempotencyTTL)
+	if run.idempotencyKey != "" || run.idempotencyHash != "" {
+		go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyFingerprint, *tran, run.idempotencyTTL)
+	}
 
 	if shouldEmitEngineWriteBehindAudit(dispatched, projected) {
 		uc.sendLogTransactionAuditQueueAsync(bgCtx, tran.Operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
@@ -231,11 +233,13 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog
 	return tran, nil
 }
 
-func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *createTransactionRun) (enginePreparedTransaction, error) {
-	return uc.prepareEngineTransaction(ctx, createEnginePreparationInput(run))
+func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *createTransactionRun, feeDebtEligible bool) (enginePreparedTransaction, error) {
+	return uc.prepareEngineTransaction(ctx, createEnginePreparationInput(run, feeDebtEligible))
 }
 
-func createEnginePreparationInput(run *createTransactionRun) enginePreparationInput {
+// createEnginePreparationInput builds a create's preparation; feeDebtEligible is
+// the /v2 marker that enables deferrable fees and collects.
+func createEnginePreparationInput(run *createTransactionRun, feeDebtEligible bool) enginePreparationInput {
 	return enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
@@ -244,6 +248,7 @@ func createEnginePreparationInput(run *createTransactionRun) enginePreparationIn
 			RouteValidationEnabled: run.ledgerSettings.Accounting.ValidateRoutes,
 			TransactionInput:       run.input, Validate: run.validate,
 			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
+			FeeDebtEligible:            feeDebtEligible,
 		},
 	}
 }
@@ -402,7 +407,7 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 		if failure.PostingIndex == -1 {
 			_, _, valid := engineFailureRequirement(request, failure)
 
-			return valid
+			return valid || engineFailureReopensDebt(request, failure)
 		}
 
 		_, valid := engineFailurePosting(request, failure)

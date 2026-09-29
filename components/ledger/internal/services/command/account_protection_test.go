@@ -51,10 +51,14 @@ func newProtectionMocks(t *testing.T) *protectionMocks {
 		redis:   redis.NewMockRedisRepository(ctrl),
 	}
 
+	allowEmptyEngineRecovery(mocks.redis)
+
 	mocks.uc = &UseCase{
 		BalanceRepo:          mocks.balance,
 		AccountRepo:          mocks.account,
 		TransactionRedisRepo: mocks.redis,
+		TransactionReader:    &feeDebtReader{},
+		FeeDebts:             &owedFeeDebts{},
 	}
 
 	return mocks

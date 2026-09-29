@@ -79,6 +79,7 @@ type HumaMountDeps struct {
 	Fee              *FeeHandler
 	BillingPackage   *BillingPackageHandler
 	BillingCalculate *BillingCalculateHandler
+	FeeDebt          *FeeDebtHandler
 
 	// Composition handler.
 	Composition *CompositionHandler
@@ -265,6 +266,8 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterFeeEstimateV2RoutesToApp(group, api, d.Auth, d.Fee, d.FeesOptions)
 	RegisterBillingPackageV2RoutesToApp(group, api, d.Auth, d.BillingPackage, d.FeesOptions)
 	RegisterBillingCalculateV2RoutesToApp(group, api, d.Auth, d.BillingCalculate, d.FeesOptions)
+	RegisterFeeDebtV2RoutesToApp(group, api, d.Auth, d.FeeDebt, d.FeesOptions)
+	RegisterFeeDebtCollectV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 	RegisterOrganizationOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)

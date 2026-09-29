@@ -26,20 +26,15 @@ import (
 // red here instead of in production. The filter ORDER is the concrete case:
 // ranking the most specific package before the amount band rather than after it
 // keeps every named table in this package green while withdrawing the charge on
-// 422 of the 7,974 shapes below, measured against that mutant.
+// part of the corpus below.
 //
-// The corpus is generated rather than transcribed: stored packages come in 18
+// The corpus is generated rather than transcribed: stored packages come in 36
 // kinds, route (absent, blank, one route) by segment (absent, one segment, a
-// second) by band (payment inside, payment outside), and a ledger is any
-// multiset of one to three of them, which is 1,329 ledgers. Each is driven with
-// the 6 payment shapes, route (the one route, none) by segment (none, the first,
-// the second), for 7,974 shapes in all.
-//
-// The outcome measured is the selector plus what both fee-service call sites do
-// with its answer, which is to re-check the amount band on whatever comes back.
-// That re-check is asserted to change nothing: the selector may never hand back
-// a package the payment is outside the band of, so the guard the callers keep is
-// a second lock on a door already shut rather than the only one.
+// second) by metadata selector (absent, one pair) by band (payment inside,
+// payment outside), and a ledger is any multiset of one to three of them, which
+// is 9,138 ledgers. Each is driven with the 12 payment shapes, route (the one
+// route, none) by segment (none, the first, the second) by metadata (none, the
+// pair), for 109,656 shapes in all.
 //
 // The invariants, in the order a charge is decided:
 //
@@ -66,6 +61,7 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 	outBandMin, outBandMax := decimal.NewFromInt(1_000), decimal.NewFromInt(5_000)
 
 	blankRoute := ""
+	pair := map[string]string{"fee_context": "ted_salario"}
 
 	routes := []struct {
 		label string
@@ -85,6 +81,14 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 		{"segmentT", &segT},
 	}
 
+	selectors := []struct {
+		label string
+		value map[string]string
+	}{
+		{"selectorAbsent", nil},
+		{"selectorPair", pair},
+	}
+
 	bands := []struct {
 		label  string
 		inBand bool
@@ -94,28 +98,32 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 	}
 
 	type storedKind struct {
-		label   string
-		route   *string
-		segment *uuid.UUID
-		inBand  bool
+		label    string
+		route    *string
+		segment  *uuid.UUID
+		selector map[string]string
+		inBand   bool
 	}
 
 	var kinds []storedKind
 
 	for _, r := range routes {
 		for _, s := range segments {
-			for _, b := range bands {
-				kinds = append(kinds, storedKind{
-					label:   r.label + "/" + s.label + "/" + b.label,
-					route:   r.value,
-					segment: s.value,
-					inBand:  b.inBand,
-				})
+			for _, m := range selectors {
+				for _, b := range bands {
+					kinds = append(kinds, storedKind{
+						label:    r.label + "/" + s.label + "/" + m.label + "/" + b.label,
+						route:    r.value,
+						segment:  s.value,
+						selector: m.value,
+						inBand:   b.inBand,
+					})
+				}
 			}
 		}
 	}
 
-	require.Len(t, kinds, 18, "the stored-package kinds must be route x segment x band")
+	require.Len(t, kinds, 36, "the stored-package kinds must be route x segment x selector x band")
 
 	// A ledger is a MULTISET of kinds, built as a non-decreasing index tuple so
 	// two packages of the same kind are enumerated once rather than twice: a
@@ -134,22 +142,46 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 		}
 	}
 
-	require.Len(t, ledgers, 1329, "every multiset of one to three of the 18 kinds must be enumerated")
+	require.Len(t, ledgers, 9138, "every multiset of one to three of the 36 kinds must be enumerated")
 
-	payments := []struct {
-		label   string
-		routeID string
-		segment *uuid.UUID
-	}{
-		{"payment routeR/segmentAbsent", routeR, nil},
-		{"payment routeR/segmentS", routeR, &segS},
-		{"payment routeR/segmentT", routeR, &segT},
-		{"payment routeNone/segmentAbsent", "", nil},
-		{"payment routeNone/segmentS", "", &segS},
-		{"payment routeNone/segmentT", "", &segT},
+	type paymentShape struct {
+		label    string
+		routeID  string
+		segment  *uuid.UUID
+		metadata map[string]any
 	}
 
-	require.Len(t, payments, 6, "the payment shapes must be route x segment")
+	scopes := []paymentShape{
+		{label: "payment routeR/segmentAbsent", routeID: routeR},
+		{label: "payment routeR/segmentS", routeID: routeR, segment: &segS},
+		{label: "payment routeR/segmentT", routeID: routeR, segment: &segT},
+		{label: "payment routeNone/segmentAbsent"},
+		{label: "payment routeNone/segmentS", segment: &segS},
+		{label: "payment routeNone/segmentT", segment: &segT},
+	}
+
+	metadatas := []struct {
+		label string
+		value map[string]any
+	}{
+		{"metadataAbsent", nil},
+		{"metadataPair", map[string]any{"fee_context": "ted_salario"}},
+	}
+
+	var payments []paymentShape
+
+	for _, scope := range scopes {
+		for _, m := range metadatas {
+			payments = append(payments, paymentShape{
+				label:    scope.label + "/" + m.label,
+				routeID:  scope.routeID,
+				segment:  scope.segment,
+				metadata: m.value,
+			})
+		}
+	}
+
+	require.Len(t, payments, 12, "the payment shapes must be route x segment x metadata")
 
 	shapes := 0
 
@@ -172,6 +204,7 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 					ID:               uuid.New(),
 					TransactionRoute: k.route,
 					SegmentID:        k.segment,
+					MetadataSelector: k.selector,
 					MinimumAmount:    minAmount,
 					MaximumAmount:    maxAmount,
 				}
@@ -202,6 +235,18 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 					continue
 				}
 
+				carriesEveryPair := true
+
+				for key, want := range k.selector {
+					if got, ok := payment.metadata[key].(string); !ok || got != want {
+						carriesEveryPair = false
+					}
+				}
+
+				if !carriesEveryPair {
+					continue
+				}
+
 				candidates = append(candidates, n)
 			}
 
@@ -219,16 +264,7 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 
 			shape := fmt.Sprintf("ledger %v vs %s", describe, payment.label)
 
-			got, err := FindPackageToCalculateFee(packages, payment.routeID, payment.segment, amount)
-
-			// What both fee-service call sites do with the answer.
-			afterCallerBandCheck := got
-			if got != nil && (amount.LessThan(got.MinimumAmount) || amount.GreaterThan(got.MaximumAmount)) {
-				afterCallerBandCheck = nil
-			}
-
-			require.Equal(t, got, afterCallerBandCheck,
-				"%s: the selector handed back a package the payment is outside the band of, and only the callers re-check caught it", shape)
+			got, err := FindPackageToCalculateFee(packages, payment.routeID, payment.segment, payment.metadata, amount)
 
 			if len(candidates) == 0 {
 				require.Nil(t, got, "%s: no package matches this payment, so none may be charged", shape)
@@ -287,6 +323,6 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 		}
 	}
 
-	require.Equal(t, 7974, shapes, "every ledger must be driven with every payment shape")
+	require.Equal(t, 109656, shapes, "every ledger must be driven with every payment shape")
 	t.Logf("selector held to three invariants over %d shapes", shapes)
 }

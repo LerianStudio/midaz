@@ -47,7 +47,7 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID, le
 	// invalidated by its (org,ledger) key. Under organization scope the caller
 	// has no ledger to name, so the stored document is the only source. A miss
 	// here is best-effort: the cache only needs invalidation when caching is
-	// enabled, and a stale entry self-heals at the sentinel TTL.
+	// enabled, and a stale entry expires within packageCacheTTL.
 	cacheLedgerID, cacheLedgerKnown := uc.resolvePackageLedger(ctx, logger, id, organizationID)
 
 	// Resolve the package independently of the cache so the deleted event can

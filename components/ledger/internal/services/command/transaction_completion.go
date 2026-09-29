@@ -616,23 +616,23 @@ func validateCompletionPostings(transaction accounting.Transaction, projections 
 		postings[posting.Ref] = posting
 	}
 
-	primaries := make(map[string]bool, len(postings))
+	anchors := make(map[string]bool, len(postings))
 	for _, spec := range projections {
 		posting, exists := postings[spec.PostingRef]
 		if !exists {
 			return invalidTransactionCompletionRecord("spec references an unrelated posting")
 		}
 
-		if spec.Role == accounting.RolePrimary {
+		if spec.Role == postingAnchorRole(posting.Type) {
 			if spec.BalanceRef != posting.BalanceRef {
 				return invalidTransactionCompletionRecord("spec balance does not match posting")
 			}
 
-			primaries[spec.PostingRef] = true
+			anchors[spec.PostingRef] = true
 		}
 	}
 
-	if len(primaries) != len(postings) {
+	if len(anchors) != len(postings) {
 		return invalidTransactionCompletionRecord("posting has no primary spec context")
 	}
 
@@ -875,7 +875,7 @@ func validOptionalCompletionScope(organizationID, ledgerID *uuid.UUID) bool {
 }
 
 func validOperationRecordRole(role string) bool {
-	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion
+	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion || feeDebtOperationRole(role)
 }
 
 func validCompletionParent(transactionID uuid.UUID, parentID *uuid.UUID) bool {

@@ -122,6 +122,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Method:           http.MethodPost,
 		Path:             transactionsIDBasePath + "/revert",
 		Summary:          "Revert a Transaction (v2)",
+		Description:      "A revert whose pending fees have not finished being recorded is refused with 409 (0529); nothing moves, and a later retry may succeed.",
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // optional body decoded imperatively (http.DecodeAndValidate), like the create ops.

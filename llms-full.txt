@@ -445,7 +445,7 @@ Scoping is **path-based**: fee endpoints read the organization and ledger from t
 registry in `pkg/constant/errors.go` — the `FEE-` prefixed code family is retired). See
 `docs/api/SCOPING.md`.
 
-The twelve operations are served under the ledger-scoped `/v2` contract (`{base}` =
+The fifteen operations are served under the ledger-scoped `/v2` contract (`{base}` =
 `/v2/organizations/{organization_id}/ledgers/{ledger_id}`); the path names the ledger and a read
 reaches only what that ledger owns.
 
@@ -463,6 +463,9 @@ reaches only what that ledger owns.
 | PATCH | {base}/billing-packages/:id | Update billing package |
 | DELETE | {base}/billing-packages/:id | Delete billing package |
 | POST | {base}/billing/calculate | Calculate billing |
+| GET | {base}/fee-debts | List the ledger's fee debts, oldest first; `?status=open\|settled` filters, `?account_alias=` narrows to one debtor and adds `openTotal`, what it owes over all its open debts |
+| GET | {base}/fee-debts/:debt_id | Get fee debt |
+| POST | {base}/fee-debts/collect | Collect a debtor's open fee debt now (see below) |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
 `ledger_id` path value, `ledgerId` was removed from the create/estimate/calculate request bodies
@@ -470,6 +473,37 @@ On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is
 its `0234` code are retired), and `?ledgerId=` is refused on the two listings (`0235`) — its empty
 value would mean "every ledger", the one scope a ledger-scoped listing must not express. Authz is
 `plugin-fees` with the usual `(resource, verb)` tuples.
+
+A package is scoped by up to three create-only selectors plus its amount band: `transactionRoute`,
+`segmentId`, and `metadataSelector`, a flat map of key/value pairs the transaction's `metadata` must
+all carry as equal strings (a numeric metadata value never matches). A package applies to a
+transaction only when every selector it carries matches and the amount is inside its band; when
+several apply, the one carrying the most selectors wins, each metadata pair counting one, and a tie
+is refused (`0198`). Two packages on overlapping bands collide (`0184`/`0199`) only when their
+selectors are identical.
+
+A fee may set `deferrable` (optional, default `false`, returned on every read). When the payer
+cannot fund a deferrable fee, the unfunded share opens a fee debt that the payer's later credits
+settle, oldest first, instead of refusing the transaction with `0018`; the debt is listed on
+`{base}/fee-debts`. Deferral acts only on `/v2` direct transactions; `/v1` creates and `/v2`
+hold/commit still refuse with `0018`. Only a fee with `isDeductibleFrom: false` can be deferrable:
+create or update leaving a fee both deductible and deferrable is refused with `0530` (422). The
+transaction then records the send plus the fee, less the debt it opened (send 100, fee 10, payer
+holds 105: amount 105, debt 5). Enable it only once every ledger pod
+runs a release that knows fee debt (see `docs/architecture/engine.md`).
+
+`POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
+debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
+capped at `maxAmount` and at what the balance owes. It charges no fee and never originates a debt.
+An optional `X-Idempotency` header makes a retry return the first collection; an answer that settled
+nothing is not kept, and without the header every call is a new collection. A debtor balance that is blocked, cannot send, closing, closed, deleted,
+debit-direction or external collects nothing; the collection stops at the first debt whose fee
+account is blocked, cannot receive, closing, closed, deleted, debit-direction, external, in
+overdraft or of another asset. It answers
+`200 {collected, transactionId?}`; nothing settled is
+`{"collected":"0"}` with no transaction. The transaction carries `metadata.feeDebtCollection =
+"true"`, its amount is what it settled, and reverting it is refused (`0089`). Authz is
+`midaz:fee-debts:post`.
 
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.

@@ -197,7 +197,7 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 	// Spelled out here rather than reusing a production helper because there is no revert-side
 	// helper to reuse — the origin plays no part in this key, which is the known origin-scoping
 	// defect documented on revertTransaction.
-	reversal := origin.TransactionRevert()
+	reversal := origin.TransactionRevert(nil)
 	mtransaction.ApplyDefaultBalanceKeys(reversal.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(reversal.Send.Distribute.To)
 

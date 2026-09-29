@@ -6,6 +6,7 @@ package query
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 
@@ -64,6 +65,10 @@ import (
 // Reverts pass through this method with action "revert", which looks up revert-specific
 // route entries. Before reaching this point, the handler (RevertTransaction) pre-validates
 // that all operation routes are bidirectional — a requirement for reversals.
+//
+// # Fee-debt legs
+//
+// FeeDebtLegs name fee-debt take-backs, which match no transaction route and void the route count.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -74,6 +79,8 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	if err != nil || !enabled {
 		return nil, err
 	}
+
+	validate, operations = withoutFeeDebtLegs(validate, operations)
 
 	actionRoutes, err := resolveActionRoutes(transactionRouteCache, action)
 	if err != nil {
@@ -300,7 +307,7 @@ func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes 
 	totalCacheRoutes := sourceCount + destinationCount + bidirectionalCount
 	totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
 
-	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceCount || uniqueToCount < destinationCount {
+	if len(validate.FeeDebtLegs) == 0 && (totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceCount || uniqueToCount < destinationCount) {
 		return pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, constant.EntityTransactionRoute, uniqueFromCount, uniqueToCount, sourceCount, destinationCount, bidirectionalCount)
 	}
 
@@ -324,6 +331,32 @@ func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes 
 	}
 
 	return nil
+}
+
+// withoutFeeDebtLegs is validate and operations without the fee-debt legs, which
+// are sources.
+func withoutFeeDebtLegs(validate *mtransaction.Responses, operations []mmodel.BalanceOperation) (*mtransaction.Responses, []mmodel.BalanceOperation) {
+	if len(validate.FeeDebtLegs) == 0 {
+		return validate, operations
+	}
+
+	view := *validate
+	view.From, view.OperationRoutesFrom = maps.Clone(validate.From), maps.Clone(validate.OperationRoutesFrom)
+
+	for alias := range validate.FeeDebtLegs {
+		delete(view.From, alias)
+		delete(view.OperationRoutesFrom, alias)
+	}
+
+	kept := make([]mmodel.BalanceOperation, 0, len(operations))
+
+	for _, operation := range operations {
+		if !validate.FeeDebtLegs[operation.Alias] {
+			kept = append(kept, operation)
+		}
+	}
+
+	return &view, kept
 }
 
 // validateOperationRouteIDs checks that every operation entry has a non-empty
