@@ -6,9 +6,9 @@
 // two-phase reservation API (POST /v1/reservations and the per-id
 // confirm/release transitions). It offers an HTTP (REST) and a gRPC transport
 // behind the same TracerReserver port; the composition root selects one from
-// cfg.TracerTransport. Service identity is mutual TLS (Epic 1.3), so neither
+// cfg.TracerTransport. Service identity is mutual TLS, so neither
 // transport carries a static shared secret; the tenant travels as a trusted
-// X-Tenant-Id header / metadata (Phase 2) over the mTLS-verified connection.
+// X-Tenant-Id header / metadata over the mTLS-verified connection.
 package tracer
 
 import (
@@ -33,8 +33,8 @@ import (
 
 // Tracer reservation client timeout constants. The global timeout is the
 // http.Client safety net; the per-operation timeout is the budget the reserve
-// anchor (F3-T13) gates the request on and is overridable from the ledger's
-// tracer.timeoutMs setting (F3-T10).
+// anchor gates the request on and is overridable from the ledger's
+// tracer.timeoutMs setting.
 const (
 	// defaultGlobalHTTPTimeout is the safety-net timeout on the http.Client.
 	defaultGlobalHTTPTimeout = 30 * time.Second
@@ -45,14 +45,15 @@ const (
 	// fast rather than holding the transaction create path open.
 	defaultOperationTimeout = 250 * time.Millisecond
 
-	// maxErrorResponseSize limits how much of an error response body is read to
-	// prevent OOM from a misconfigured or hostile upstream.
+	// maxErrorResponseSize limits how much of an error response body is read
+	// (to extract its error code) to prevent OOM from a misconfigured or hostile
+	// upstream.
 	maxErrorResponseSize = 1 << 20 // 1 MB
 )
 
 // ErrTracerUnavailable is the typed error returned when the reservation
 // transport fails for an availability reason — a per-operation timeout, a
-// transport error, or an open circuit breaker. The reserve anchor (F3-T13)
+// transport error, or an open circuit breaker. The reserve anchor
 // branches on this with the ledger's tracer.failPosture: open proceeds
 // (records SKIPPED), closed rejects. It is intentionally distinct from a
 // reservation DENIED decision (a successful 201 with denied=true), which is a
@@ -162,7 +163,7 @@ func WithOperationTimeout(d time.Duration) TracerClientOption {
 	}
 }
 
-// WithTLSConfig secures the REST seam with mutual TLS (Epic 1.3): it installs an
+// WithTLSConfig secures the REST seam with mutual TLS: it installs an
 // http.Transport carrying the supplied *tls.Config, which presents the ledger's
 // client certificate and verifies the tracer's server certificate. A nil config
 // leaves the default plaintext transport (mesh mode, where a sidecar originates
@@ -230,7 +231,7 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 
 	if isRejectedStatus(resp.StatusCode) {
 		err := fmt.Errorf("%w: %w", ErrTracerRejected, c.statusError("reserve", resp))
-		libOpentelemetry.HandleSpanError(span, "Reserve request rejected by tracer", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve request rejected by tracer", err)
 
 		return nil, err
 	}
@@ -420,10 +421,34 @@ func isRejectedStatus(code int) bool {
 	return code == http.StatusBadRequest || code == http.StatusUnprocessableEntity
 }
 
-// statusError builds the error for a non-success status. The body is read
-// under a size cap for diagnostics; the message never carries request payload.
+// statusError builds the error for a non-success status. It names the status
+// and, when the body is a tracer error document (RFC 9457 problem or the legacy
+// envelope, both carrying a top-level "code"), that error code. The body itself
+// is never embedded: its detail/message text may echo request values.
 func (c *TracerClient) statusError(op string, resp *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseSize))
+	if code := tracerErrorCode(resp.Body); code != "" {
+		return fmt.Errorf("tracer %s returned status %d (code %s)", op, resp.StatusCode, code)
+	}
 
-	return fmt.Errorf("tracer %s returned status %d: %s", op, resp.StatusCode, string(body))
+	return fmt.Errorf("tracer %s returned status %d", op, resp.StatusCode)
+}
+
+// tracerErrorCode reads the top-level "code" field of a tracer error body under
+// the size cap. It returns "" when the body is not a JSON object carrying a
+// string code.
+func tracerErrorCode(body io.Reader) string {
+	raw, err := io.ReadAll(io.LimitReader(body, maxErrorResponseSize))
+	if err != nil {
+		return ""
+	}
+
+	var envelope struct {
+		Code string `json:"code"`
+	}
+
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return ""
+	}
+
+	return envelope.Code
 }

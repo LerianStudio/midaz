@@ -4,7 +4,7 @@
 
 package tracer
 
-// This is the F3 cross-component contract lock between the ledger's outbound
+// This is the cross-component contract lock between the ledger's outbound
 // reserve client and the tracer's reserve validation. It exists because the two
 // shapes drifted silently: the ledger sent `account` as a STRING and omitted
 // requestId / a valid transactionTimestamp, and the tracer's reserve endpoint —
@@ -37,6 +37,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -231,7 +232,7 @@ func TestReserveContract_AccountlessLedgerPayloadAccepted(t *testing.T) {
 // reconstructs the ORIGINAL buggy ledger wire shape (account as a STRING,
 // missing requestId / valid transactionTimestamp) and asserts the real tracer
 // validation REJECTS it with a 4xx. This proves the contract lock catches the
-// exact drift that caused the F3 gap — if someone reverts the ledger client to
+// exact drift that once broke the contract — if someone reverts the ledger client to
 // the old shape, the positive test above breaks and this test documents why.
 func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
@@ -349,4 +350,61 @@ func TestReserveContract_ReviewDecisionFlowsBack(t *testing.T) {
 	assert.Equal(t, "manual review required", result.Reason)
 	assert.Equal(t, []uuid.UUID{ruleID}, result.MatchedRuleIDs)
 	assert.Empty(t, result.ReservationIDs)
+}
+
+// legacyAccountTypes is the closed account-type enum a tracer released before
+// the free-form account type accepted on reserve.
+var legacyAccountTypes = map[string]bool{"checking": true, "savings": true, "credit": true}
+
+// TestReserveContract_LegacyTracerRejectsLedgerAccountType documents the deploy
+// order: the ledger now sends its own account type verbatim, which a tracer
+// still enforcing the legacy {checking, savings, credit} enum refuses with 400.
+// The ledger classifies that refusal as ErrTracerRejected — the tracer answered
+// — so it never falls back to failPosture. Upgrading the tracer first avoids
+// the refusal window.
+func TestReserveContract_LegacyTracerRejectsLedgerAccountType(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+
+	current := &tracerReserveEndpoint{now: now}
+
+	legacy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		var body tracerReserveBody
+		if err := json.Unmarshal(raw, &body); err == nil && body.Account.Type != "" && !legacyAccountTypes[body.Account.Type] {
+			writeTracerError(w, http.StatusBadRequest, "0003", "account type must be one of checking, savings, credit")
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+		current.handler(w, r)
+	})
+
+	srv := httptest.NewServer(legacy)
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	req := ledgerStyleReserveRequest(
+		uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+		uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+		now,
+	)
+	req.Account.Type = "deposit"
+
+	result, err := client.Reserve(context.Background(), req)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, ErrTracerRejected)
+	assert.NotErrorIs(t, err, ErrTracerUnavailable)
+	assert.False(t, current.parsed, "the legacy tracer must refuse before reserving")
+
+	// A legacy account type still passes the legacy tracer.
+	req.Account.Type = "checking"
+
+	_, err = client.Reserve(context.Background(), req)
+	require.NoError(t, err)
+	assert.True(t, current.parsed)
 }

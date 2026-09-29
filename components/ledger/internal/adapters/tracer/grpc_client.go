@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -49,7 +50,7 @@ type TracerGRPCClient struct {
 type TracerGRPCClientOption func(*tracerGRPCClientConfig)
 
 // tracerGRPCClientConfig collects optional construction inputs before they are
-// resolved into the persistent client. dialOptions lets Epic 1.3 inject mTLS
+// resolved into the persistent client. dialOptions injects mTLS
 // transport credentials; today the client defaults to insecure transport.
 type tracerGRPCClientConfig struct {
 	operationTimeout time.Duration
@@ -68,7 +69,7 @@ func WithGRPCOperationTimeout(d time.Duration) TracerGRPCClientOption {
 }
 
 // WithGRPCDialOptions appends dial options to the persistent connection. It is
-// the injection point for transport credentials (mTLS lands in Epic 1.3); when
+// the injection point for transport credentials (mTLS); when
 // no credentials are supplied the client dials with insecure transport.
 func WithGRPCDialOptions(opts ...grpc.DialOption) TracerGRPCClientOption {
 	return func(c *tracerGRPCClientConfig) {
@@ -100,7 +101,7 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 
 	// Default to insecure transport ONLY when no dial options are injected
 	// (mesh/empty mode). When mTLS credentials arrive via WithGRPCDialOptions
-	// (Epic 1.3) they carry their own transport credentials, and an unconditional
+	// they carry their own transport credentials, and an unconditional
 	// insecure default appended afterwards would be the last WithTransportCredentials
 	// and silently clobber them — dialing plaintext against the TLS server. Gating
 	// the insecure default on the absence of injected options keeps mesh mode
@@ -130,8 +131,9 @@ func (c *TracerGRPCClient) Close() error {
 }
 
 // Reserve holds limit capacity for a transaction (phase one). A DENIED decision
-// comes back as a successful ReserveResult with Denied=true (not an error); only
-// transport / availability failures return ErrTracerUnavailable.
+// comes back as a successful ReserveResult with Denied=true (not an error).
+// Transport / availability failures return ErrTracerUnavailable; a tracer
+// refusal of the request itself returns ErrTracerRejected.
 func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -146,7 +148,7 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 	resp, err := c.client.Reserve(ctx, toProtoReserveRequest(req))
 	if err != nil {
 		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reserve transport failed", mapped)
+		recordRPCFailure(span, "Reserve failed", mapped)
 
 		return nil, mapped
 	}
@@ -161,6 +163,7 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 		ctx, libLog.LevelDebug, "Reservation processed",
 		libLog.String("transaction_id", req.TransactionID.String()),
 		libLog.Bool("denied", result.Denied),
+		libLog.String("decision", result.Decision),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	)
 
@@ -182,7 +185,7 @@ func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID)
 	_, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation confirm transport failed", mapped)
+		recordRPCFailure(span, "Reservation confirm failed", mapped)
 
 		return mapped
 	}
@@ -205,7 +208,7 @@ func (c *TracerGRPCClient) Release(ctx context.Context, reservationID uuid.UUID)
 	_, err := c.client.ReleaseById(ctx, &reservationv1.ReleaseByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation release transport failed", mapped)
+		recordRPCFailure(span, "Reservation release failed", mapped)
 
 		return mapped
 	}
@@ -229,7 +232,7 @@ func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transaction
 	_, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation confirm-by-transaction transport failed", mapped)
+		recordRPCFailure(span, "Reservation confirm-by-transaction failed", mapped)
 
 		return mapped
 	}
@@ -253,12 +256,24 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 	_, err := c.client.ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
-		libOpentelemetry.HandleSpanError(span, "Reservation release-by-transaction transport failed", mapped)
+		recordRPCFailure(span, "Reservation release-by-transaction failed", mapped)
 
 		return mapped
 	}
 
 	return nil
+}
+
+// recordRPCFailure records a failed RPC onto its span by failure class: a
+// tracer rejection of the request (ErrTracerRejected) is a business outcome and
+// keeps the span out of error; every other failure is technical and marks it.
+func recordRPCFailure(span trace.Span, msg string, err error) {
+	if errors.Is(err, ErrTracerRejected) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err)
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, msg, err)
 }
 
 // tenantUnaryInterceptor propagates the request's tenant to the tracer as the
