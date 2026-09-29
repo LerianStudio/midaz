@@ -48,6 +48,10 @@ func (recorder *feeDebtRecorderStub) Apply(_ context.Context, record FeeDebtReco
 	return recorder.err
 }
 
+func (*feeDebtRecorderStub) HasOpenCreditor(context.Context, uuid.UUID, uuid.UUID, []string) (bool, error) {
+	return false, nil
+}
+
 func feeDebtRowBalance(alias string, index int) OperationBalanceContext {
 	return OperationBalanceContext{
 		ID: fmt.Sprintf("a1a1a1a1-0000-4000-8000-%012d", index), AccountID: fmt.Sprintf("b2b2b2b2-0000-4000-8000-%012d", index),

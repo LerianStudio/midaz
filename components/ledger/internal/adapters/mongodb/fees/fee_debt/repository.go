@@ -304,6 +304,47 @@ func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uui
 	return decimal.NewFromString(totals[0].Total.String())
 }
 
+// HasOpenCreditor reports whether an open debt of the ledger names one of creditRefs.
+func (r *Repository) HasOpenCreditor(ctx context.Context, organizationID, ledgerID uuid.UUID, creditRefs []string) (bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.fee_debt.has_open_creditor")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	coll, err := r.collection(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve fee debt database", err)
+
+		return false, err
+	}
+
+	_, spanFind := tracer.Start(ctx, "repository.fee_debt.has_open_creditor.find_one")
+	defer spanFind.End()
+
+	err = coll.FindOne(ctx, bson.D{
+		{Key: "organization_id", Value: organizationID.String()},
+		{Key: "ledger_id", Value: ledgerID.String()},
+		{Key: "credit_balance_ref", Value: bson.D{{Key: "$in", Value: creditRefs}}},
+		{Key: "remaining", Value: bson.D{{Key: "$gt", Value: zeroDecimal128}}},
+	}, options.FindOne().SetProjection(bson.D{{Key: "_id", Value: 1}})).Err()
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return false, nil
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find an open fee debt by creditor", err)
+
+		return false, err
+	}
+
+	return true, nil
+}
+
 // listFilter selects the listing's debts and names the key it pages on: seq within one
 // debtor, the debt id across the ledger.
 func listFilter(organizationID, ledgerID uuid.UUID, query ListQuery) (bson.D, string) {
