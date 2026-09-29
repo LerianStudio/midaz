@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -49,6 +50,9 @@ type EngineTranslationInput struct {
 	FeeDebtEligible bool
 	// FeeDebtSeeds maps a debtor balance ref to its open debts, oldest first.
 	FeeDebtSeeds map[string][]accounting.FeeDebtItem
+	// FeeDebtTakeBacks maps each creditor and route a revert takes back a fee-debt
+	// settlement from to that settlement's stored route; preparation fills it.
+	FeeDebtTakeBacks map[transactionPostgres.FeeSettlementGroup]*accounting.FeeDebtRoute
 }
 
 // TranslateEngineTransaction converts command-layer transaction intent
@@ -74,11 +78,7 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 		Postings:              make([]accounting.Posting, 0),
 	}
 	projection := make([]OperationRecordSpec, 0)
-
-	debt, err := newFeeDebtComposition(input, balances)
-	if err != nil {
-		return accounting.Transaction{}, nil, err
-	}
+	debt := newFeeDebtComposition(input, balances)
 
 	for index, leg := range input.TransactionInput.Send.Source.From {
 		amount, exists := input.Validate.From[leg.AccountAlias]

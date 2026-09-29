@@ -13,6 +13,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -29,18 +30,12 @@ type feeDebtComposition struct {
 	input    EngineTranslationInput
 	balances map[string]*mmodel.Balance
 	// pairs maps a feeDeferPair token to the ref of the payer debit it marked.
-	pairs     map[string]string
-	declared  map[string]struct{}
-	takeBacks map[[2]string]*accounting.FeeDebtRoute
+	pairs    map[string]string
+	declared map[string]struct{}
 }
 
-func newFeeDebtComposition(input EngineTranslationInput, balances map[string]*mmodel.Balance) (*feeDebtComposition, error) {
-	takeBacks, err := feeDebtTakeBacks(input)
-	if err != nil {
-		return nil, err
-	}
-
-	return &feeDebtComposition{input: input, balances: balances, pairs: map[string]string{}, declared: map[string]struct{}{}, takeBacks: takeBacks}, nil
+func newFeeDebtComposition(input EngineTranslationInput, balances map[string]*mmodel.Balance) *feeDebtComposition {
+	return &feeDebtComposition{input: input, balances: balances, pairs: map[string]string{}, declared: map[string]struct{}{}}
 }
 
 // bookTakeBack books a revert source that takes back a fee-debt settlement to the
@@ -50,7 +45,7 @@ func (c *feeDebtComposition) bookTakeBack(primary *OperationRecordSpec) {
 		return
 	}
 
-	if route := c.takeBacks[[2]string{primary.BalanceRef, *primary.RouteID}]; route != nil {
+	if route := c.input.FeeDebtTakeBacks[transactionPostgres.FeeSettlementGroup{Ref: primary.BalanceRef, RouteID: *primary.RouteID}]; route != nil {
 		primary.RouteCode, primary.RouteDescription = route.RevertCode, route.RevertDescription
 	}
 }
@@ -311,24 +306,25 @@ func feeDebtOrigin(debtID string) string {
 	return debtID[:min(len(debtID), feeDebtOriginLength)]
 }
 
-// feeDebtRouteView is the intent route validation reads: on a revert, it names the
-// sources taking back what the reverted credit settled.
-func feeDebtRouteView(translation EngineTranslationInput) (*mtransaction.Responses, error) {
-	takeBacks, err := feeDebtTakeBacks(translation)
+// feeDebtRouteView records on translation what a revert takes back of fee-debt
+// settlements and returns the intent route validation reads, naming those sources.
+func feeDebtRouteView(translation *EngineTranslationInput) (*mtransaction.Responses, error) {
+	takeBacks, err := feeDebtTakeBacks(*translation)
 	if err != nil || len(takeBacks) == 0 {
 		return translation.Validate, err
 	}
 
+	translation.FeeDebtTakeBacks = takeBacks
 	view := *translation.Validate
 	view.FeeDebtLegs = make(map[string]bool)
 
 	for _, leg := range translation.TransactionInput.Send.Source.From {
-		route := ""
+		group := transactionPostgres.FeeSettlementGroup{Ref: mtransaction.SplitAliasWithKey(leg.AccountAlias)}
 		if leg.RouteID != nil {
-			route = *leg.RouteID
+			group.RouteID = *leg.RouteID
 		}
 
-		if _, taken := takeBacks[[2]string{mtransaction.SplitAliasWithKey(leg.AccountAlias), route}]; taken {
+		if _, taken := takeBacks[group]; taken {
 			view.FeeDebtLegs[leg.AccountAlias] = true
 		}
 	}
@@ -336,9 +332,10 @@ func feeDebtRouteView(translation EngineTranslationInput) (*mtransaction.Respons
 	return &view, nil
 }
 
-// feeDebtTakeBacks maps each creditor ref and route a revert takes back a settlement
-// from to that settlement's stored route; empty outside a revert.
-func feeDebtTakeBacks(input EngineTranslationInput) (map[[2]string]*accounting.FeeDebtRoute, error) {
+// feeDebtTakeBacks maps each creditor and route a revert takes back a settlement
+// from to the settlement's stored route. A settlement whose origin is already
+// reverted stays with its creditor and is taken back from no one.
+func feeDebtTakeBacks(input EngineTranslationInput) (map[transactionPostgres.FeeSettlementGroup]*accounting.FeeDebtRoute, error) {
 	if input.Action != constant.ActionRevert {
 		return nil, nil
 	}
@@ -348,9 +345,11 @@ func feeDebtTakeBacks(input EngineTranslationInput) (map[[2]string]*accounting.F
 		return nil, err
 	}
 
-	takeBacks := make(map[[2]string]*accounting.FeeDebtRoute, len(settlements))
+	takeBacks := make(map[transactionPostgres.FeeSettlementGroup]*accounting.FeeDebtRoute, len(settlements))
 	for _, settlement := range settlements {
-		takeBacks[[2]string{settlement.CreditRef, feeDebtRouteID(settlement.CreditRoute)}] = settlement.CreditRoute
+		if !slices.Contains(input.TransactionInput.FeeDebtRevertedOrigins, feeDebtOrigin(settlement.DebtID)) {
+			takeBacks[transactionPostgres.FeeSettlementGroup{Ref: settlement.CreditRef, RouteID: feeDebtRouteID(settlement.CreditRoute)}] = settlement.CreditRoute
+		}
 	}
 
 	return takeBacks, nil

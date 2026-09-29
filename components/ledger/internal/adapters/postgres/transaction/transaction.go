@@ -384,7 +384,7 @@ func (t Transaction) foldFeeSettlements(froms []mtransaction.FromTo, kept map[Fe
 			continue
 		}
 
-		group := FeeSettlementGroup{Ref: mtransaction.AliasKey(mtransaction.BareAlias(op.AccountAlias), op.BalanceKey), RouteID: routeKey(op.RouteID)}
+		group := FeeSettlementGroup{Ref: mtransaction.AliasKey(mtransaction.BareAlias(op.AccountAlias), op.BalanceKey), RouteID: derefString(op.RouteID)}
 		if _, seen := first[group]; !seen {
 			first[group] = op
 			groups = append(groups, group)
@@ -414,7 +414,7 @@ func (t Transaction) foldFeeSettlements(froms []mtransaction.FromTo, kept map[Fe
 // takeBackSettlement adds amount to the source of group, or appends leg for it.
 func takeBackSettlement(froms []mtransaction.FromTo, group FeeSettlementGroup, amount decimal.Decimal, leg mtransaction.FromTo) []mtransaction.FromTo {
 	for _, from := range froms {
-		if reversalRef(from) == group.Ref && routeKey(from.RouteID) == group.RouteID {
+		if reversalRef(from) == group.Ref && derefString(from.RouteID) == group.RouteID {
 			from.Amount.Value = from.Amount.Value.Add(amount)
 			return froms
 		}
@@ -445,14 +445,6 @@ func keepReversedCredit(froms []mtransaction.FromTo, ref string, amount decimal.
 	}
 
 	return kept
-}
-
-func routeKey(routeID *string) string {
-	if routeID == nil {
-		return ""
-	}
-
-	return *routeID
 }
 
 func reversalRef(leg mtransaction.FromTo) string {

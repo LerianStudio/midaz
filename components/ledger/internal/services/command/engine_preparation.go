@@ -72,7 +72,7 @@ func (uc *UseCase) prepareEngineTransactionWithPool(
 		return enginePreparedTransaction{}, err
 	}
 
-	validate, err := feeDebtRouteView(input.translation)
+	validate, err := feeDebtRouteView(&input.translation)
 	if err != nil {
 		return enginePreparedTransaction{}, err
 	}

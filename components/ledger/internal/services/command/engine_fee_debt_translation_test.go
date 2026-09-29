@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -225,6 +226,23 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 		}, transaction.ReopenFeeDebts, "v2=%v", v2)
 		assert.Equal(t, []string{"@payer#default", "@debtor#default", "@payee#default"}, transaction.FeeDebtRefs, "v2=%v", v2)
 	}
+}
+
+func TestFeeDebtRouteViewTakesBackOnlyLiveSettlements(t *testing.T) {
+	t.Parallel()
+
+	input := feeDebtFreeCases()["revert"]
+	input.TransactionInput.FeeDebtRevertedOrigins = []string{feeDebtOriginY}
+	live := &accounting.FeeDebtRoute{ID: "x-to"}
+	input.TransactionInput.Metadata = feeDebtRevertMetadata(t, nil, []FeeDebtSettlement{
+		{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(5), Opened: decimal.NewFromInt(20), Seq: 7, CreditRoute: live},
+		{DebtID: feeDebtOriginY + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@kept-fees#default", Amount: decimal.NewFromInt(4), Opened: decimal.NewFromInt(9), Seq: 2, CreditRoute: &accounting.FeeDebtRoute{ID: "y-to"}},
+	})
+
+	_, err := feeDebtRouteView(&input)
+	require.NoError(t, err)
+	assert.Equal(t, map[transactionPostgres.FeeSettlementGroup]*accounting.FeeDebtRoute{{Ref: "@fees#default", RouteID: "x-to"}: live}, input.FeeDebtTakeBacks,
+		"a settlement whose origin is already reverted stays with its creditor")
 }
 
 func TestTranslateFeeDebtRevertRefusesMalformedMetadata(t *testing.T) {
