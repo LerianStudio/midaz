@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -117,7 +118,7 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 		companionProjection.Balance.Available, companionProjection.Balance.OverdraftUsed, companionProjection.Balance.Version = amount, decimal.Zero, 9
 		payload.OperationSpecs = append(payload.OperationSpecs, companionProjection)
 		result.Movements = append(result.Movements, accounting.Movement{
-			Ref: "companion:0", TransactionID: transactionID, PostingRef: projection.PostingRef, BalanceRef: companionProjection.BalanceRef, Role: accounting.RoleOverdraftCompanion,
+			Ref: fmt.Sprintf("%s:%d:%s:%s:0", transactionID, len(projection.PostingRef), projection.PostingRef, accounting.RoleOverdraftCompanion), TransactionID: transactionID, PostingRef: projection.PostingRef, BalanceRef: companionProjection.BalanceRef, Role: accounting.RoleOverdraftCompanion,
 			Type: accounting.PostingCredit, Amount: amount, Before: accounting.BalanceState{Available: amount, Version: 9}, After: accounting.BalanceState{Version: 10},
 		})
 		result.Final = append(result.Final, accounting.BalanceSnapshot{
