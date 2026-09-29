@@ -393,7 +393,11 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		return resolvedExecutionKeys{}, err
 	}
 
-	return resolved, resolveFeeDebtKeys(ctx, request, &resolved)
+	if err := resolveFeeDebtKeys(ctx, request, &resolved); err != nil {
+		return resolvedExecutionKeys{}, err
+	}
+
+	return resolved, nil
 }
 
 // resolveAccountProtectionKeys resolves the closing controls of every account of
@@ -847,7 +851,8 @@ func correlateMovement(wire resultMovement, transactionID uuid.UUID, ordinal int
 			return posting, target, order, nil
 		}
 
-		if ordinary && wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
+		companion := ordinary || ordinal == 0 && posting.Type == accounting.PostingRefund
+		if companion && wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
 			return posting, target, order + 1, nil
 		}
 

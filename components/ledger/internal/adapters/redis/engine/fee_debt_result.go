@@ -48,8 +48,7 @@ func movementOrdinal(ref, prefix string) (int, bool) {
 }
 
 // feeDebtMovementSub correlates a fee-debt movement with its collect or refund
-// posting and returns its sub-position: 0 on the debtor, 1 on the debtor's
-// overdraft companion (refund only), 2+ordinal per item.
+// posting and returns its sub-position: 0 on the debtor, 2+ordinal per item.
 func feeDebtMovementSub(role string, ordinal int, posting accounting.Posting, source, target accounting.BalanceSnapshot) (int64, bool) {
 	onDebtor := ordinal == 0 && target.BalanceRef == source.BalanceRef
 
@@ -58,8 +57,6 @@ func feeDebtMovementSub(role string, ordinal int, posting accounting.Posting, so
 		return 0, onDebtor
 	case role == accounting.RoleFeeDebtRefundCredit && posting.Type == accounting.PostingRefund:
 		return 0, onDebtor
-	case role == accounting.RoleOverdraftCompanion && posting.Type == accounting.PostingRefund:
-		return 1, ordinal == 0 && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef
 	case role == accounting.RoleFeeDebtCredit && posting.Type == accounting.PostingCollect:
 		return int64(ordinal) + 2, ordinal < len(posting.Items) && target.BalanceRef != source.BalanceRef
 	case role == accounting.RoleFeeDebtRefundDebit && posting.Type == accounting.PostingRefund:
