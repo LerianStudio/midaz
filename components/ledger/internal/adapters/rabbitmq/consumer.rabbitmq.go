@@ -6,6 +6,7 @@ package rabbitmq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -240,7 +241,7 @@ func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string,
 			return
 		}
 
-		messages, shouldRetry := cr.setupChannelAndConsume(ctx, queueName, &backoff)
+		messages, notifyClose, shouldRetry := cr.setupChannelAndConsume(ctx, queueName, &backoff)
 		if shouldRetry {
 			continue
 		}
@@ -248,9 +249,6 @@ func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string,
 		cr.Log(ctx, libLog.LevelInfo, "consuming started", libLog.String("queue", queueName))
 
 		backoff = utils.InitialBackoff
-
-		notifyClose := make(chan *amqp.Error, 1)
-		cr.conn.Channel.NotifyClose(notifyClose)
 
 		// Create channel-scoped context that cancels when channel closes.
 		// This ensures workers stop cleanly without acking stale delivery tags.
@@ -263,29 +261,43 @@ func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string,
 	}
 }
 
-// setupChannelAndConsume sets up the channel and starts consuming.
-// Returns the messages channel and whether retry is needed.
-func (cr *ConsumerRoutes) setupChannelAndConsume(ctx context.Context, queueName string, backoff *time.Duration) (<-chan amqp.Delivery, bool) {
+// setupChannelAndConsume ensures the connection's channel, snapshots it once, and sets
+// up the consume cycle on that snapshot: close notification, QoS, then Consume. The
+// snapshot is the only read of the connection's shared channel field, taken on the
+// supervisor goroutine that also writes it through EnsureChannel. A nil snapshot is a
+// setup failure retried with backoff.
+// Returns the deliveries, the close notification and whether retry is needed.
+func (cr *ConsumerRoutes) setupChannelAndConsume(ctx context.Context, queueName string, backoff *time.Duration) (<-chan amqp.Delivery, <-chan *amqp.Error, bool) {
 	if err := cr.conn.EnsureChannel(); err != nil {
 		cr.logAndSleep(ctx, "failed to ensure channel", "retrying EnsureChannel", queueName, err, backoff)
 
-		return nil, true
+		return nil, nil, true
 	}
 
-	if err := cr.conn.Channel.Qos(cr.NumbersOfPrefetch, 0, false); err != nil {
+	channel := cr.conn.ChannelSnapshot()
+	if channel == nil {
+		cr.logAndSleep(ctx, "failed to ensure channel", "retrying EnsureChannel", queueName, errors.New("rabbitmq channel is nil after ensure channel"), backoff)
+
+		return nil, nil, true
+	}
+
+	notifyClose := make(chan *amqp.Error, 1)
+	channel.NotifyClose(notifyClose)
+
+	if err := channel.Qos(cr.NumbersOfPrefetch, 0, false); err != nil {
 		cr.logAndSleep(ctx, "failed to set QoS", "retrying QoS", queueName, err, backoff)
 
-		return nil, true
+		return nil, nil, true
 	}
 
-	messages, err := cr.conn.Channel.Consume(queueName, "", false, false, false, false, nil)
+	messages, err := channel.Consume(queueName, "", false, false, false, false, nil)
 	if err != nil {
 		cr.logAndSleep(ctx, "failed to start consuming", "retrying Consume", queueName, err, backoff)
 
-		return nil, true
+		return nil, nil, true
 	}
 
-	return messages, false
+	return messages, notifyClose, false
 }
 
 // logAndSleep logs an error, sleeps with backoff, and updates the backoff value.
