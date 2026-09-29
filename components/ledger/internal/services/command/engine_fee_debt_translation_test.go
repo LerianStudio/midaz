@@ -166,7 +166,7 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 			[]FeeDebtOpening{
 				{
 					DebtID: feeDebtOriginO + ":from:1:debit", DebtorRef: "@payer#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3,
-					DebitRoute: &accounting.FeeDebtRoute{ID: "fee-from"}, CreditRoute: &accounting.FeeDebtRoute{ID: "fee-to"},
+					DebitRoute: &accounting.FeeDebtRoute{ID: "fee-from", RevertCode: "C-stored"}, CreditRoute: &accounting.FeeDebtRoute{ID: "fee-to", RevertCode: "D-stored"},
 				},
 				{DebtID: feeDebtOriginO + ":from:2:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(10), Seq: 1},
 				{DebtID: feeDebtOriginO + ":from:3:debit", DebtorRef: "@payer#default", CreditRef: "@other-fees#default", Opened: decimal.NewFromInt(30), Seq: 4},
@@ -206,9 +206,9 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 		refundCredit := feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundCredit, 0)
 		companion := feeDebtContext(t, projection, "fee-refund:0", accounting.RoleOverdraftCompanion, 0)
 		refundDebit := feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundDebit, 0)
-		assert.Equal(t, []string{"fee-from", "C-" + constant.ActionRevert}, []string{*refundCredit.RouteID, refundCredit.RouteCode})
+		assert.Equal(t, []string{"fee-from", "C-stored"}, []string{*refundCredit.RouteID, refundCredit.RouteCode}, "a refund books to the rubric its debt stored")
 		assert.Equal(t, []string{"@payer#overdraft", constant.DirectionCredit, "fee-from", "C-" + constant.ActionOverdraft}, []string{companion.BalanceRef, companion.Direction, *companion.RouteID, companion.RouteCode})
-		assert.Equal(t, []string{"@fees#default", "fee-to", "D-" + constant.ActionRevert}, []string{refundDebit.BalanceRef, *refundDebit.RouteID, refundDebit.RouteCode})
+		assert.Equal(t, []string{"@fees#default", "fee-to", "D-stored"}, []string{refundDebit.BalanceRef, *refundDebit.RouteID, refundDebit.RouteCode})
 		assert.Nil(t, feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundCredit, 1).RouteID, "an opening without a route refunds without one")
 		assert.Equal(t, "@other-fees#default", feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundDebit, 1).BalanceRef)
 

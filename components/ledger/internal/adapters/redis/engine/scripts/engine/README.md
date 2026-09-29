@@ -437,8 +437,8 @@ an empty `OriginRef` and match a movement by `(PostingRef, Role, ordinal)` with
 `BalanceRef` checked; every ordinal other than a primary's is read from the
 movement's ref. Rows carry no fee-debt metadata. Each row books under the fee's
 route: a settlement under the item's stored route and rubric, a refund under the
-opening's route with the rubric the revert resolves for it (overdraft for its
-companion). The chart of accounts is empty on every fee leg, so the rubric is
+opening's route with the revert rubric stored with the debt (its companion with
+the route's live overdraft rubric). The chart of accounts is empty on every fee leg, so the rubric is
 what classifies these rows.
 
 `BuildTransactionWriteSet` derives two reserved transaction metadata keys from

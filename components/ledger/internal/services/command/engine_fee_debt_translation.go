@@ -200,7 +200,7 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 				return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 			}
 
-			ordinal, credited := uint32(i), c.refundRoute(opening.DebitRoute, constant.DirectionCredit, false)
+			ordinal, credited := uint32(i), c.refundRoute(opening.DebitRoute, false)
 			posting.Amount = posting.Amount.Add(opening.Opened)
 			posting.Refunds = append(posting.Refunds, accounting.FeeDebtRefund{
 				DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq,
@@ -210,11 +210,11 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 
 			if hasCompanion {
 				*projection = append(*projection, c.spec(ref, companion, accounting.RoleOverdraftCompanion, ordinal, constant.FEE_REFUND, constant.DirectionCredit, opening.Opened,
-					c.refundRoute(opening.DebitRoute, constant.DirectionCredit, true)))
+					c.refundRoute(opening.DebitRoute, true)))
 			}
 
 			*projection = append(*projection, c.spec(ref, creditor, accounting.RoleFeeDebtRefundDebit, ordinal, constant.FEE_REFUND, constant.DirectionDebit, opening.Opened,
-				c.refundRoute(opening.CreditRoute, constant.DirectionDebit, false)))
+				c.refundRoute(opening.CreditRoute, false)))
 		}
 
 		transaction.Postings = append(transaction.Postings, posting)
@@ -234,19 +234,18 @@ func (c *feeDebtComposition) declare(transaction *accounting.Transaction, balanc
 	transaction.FeeDebtRefs = append(transaction.FeeDebtRefs, balanceRef)
 }
 
-// refundRoute is route with the rubric the revert resolves for a refund movement,
-// or for the overdraft its debtor credit repays; nil without a route.
-func (c *feeDebtComposition) refundRoute(route *accounting.FeeDebtRoute, direction string, overdraft bool) *accounting.FeeDebtRoute {
+// refundRoute is route booked to the revert rubric its debt stored, or, for the
+// overdraft its debtor credit repays, to the route's live overdraft rubric.
+func (c *feeDebtComposition) refundRoute(route *accounting.FeeDebtRoute, overdraft bool) *accounting.FeeDebtRoute {
 	if route == nil {
 		return nil
 	}
 
-	action := crossLedgerRubricAction(c.input.RouteCache, route.ID, c.input.routeAction())
-	if overdraft {
-		action = constant.ActionOverdraft
+	if !overdraft {
+		return &accounting.FeeDebtRoute{ID: route.ID, Code: route.RevertCode, Description: route.RevertDescription}
 	}
 
-	code, description := translationRubric(c.input.RouteCache, route.ID, action, direction)
+	code, description := translationRubric(c.input.RouteCache, route.ID, constant.ActionOverdraft, constant.DirectionCredit)
 
 	return &accounting.FeeDebtRoute{ID: route.ID, Code: code, Description: description}
 }
