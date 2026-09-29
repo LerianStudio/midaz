@@ -364,11 +364,9 @@ func (t Transaction) TransactionRevert(keptSettlements map[string]decimal.Decima
 	return transaction
 }
 
-// foldFeeSettlements reverses the transaction's fee-debt settlements inside its
-// sources, per alias#key: a balance that net received a settlement gives it back
-// as a source, and one that net paid it keeps that much of its reversed credits,
-// dropping a source that folds to zero. Totals are unchanged, so the reversal
-// stays balanced. Refund rows are never reversed: a reversal cannot be reverted.
+// foldFeeSettlements reverses each alias#key's net fee-debt settlement, less kept,
+// inside the sources: totals never change, a source folded to zero is dropped and
+// refund rows are never reversed.
 func (t Transaction) foldFeeSettlements(froms []mtransaction.FromTo, kept map[string]decimal.Decimal) []mtransaction.FromTo {
 	net := make(map[string]decimal.Decimal)
 	first := make(map[string]*operation.Operation)

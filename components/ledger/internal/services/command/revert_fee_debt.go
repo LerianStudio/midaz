@@ -12,13 +12,14 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// reverseTransaction builds the reversal of tran. A settlement of a debt whose
-// origin is already reverted is taken back from the debtor, not the creditor,
-// because the origin's refund already charged the creditor; the reversal
-// carries those origins so translation reopens none of their debts.
+// reverseTransaction builds the non-empty reversal of tran. A settlement of a debt
+// whose origin is already reverted stays with its creditor, whose refund paid it
+// back, and none of that origin's debts reopens.
 func (uc *UseCase) reverseTransaction(ctx context.Context, in RevertTransactionInput, tran *transaction.Transaction) (mtransaction.Transaction, error) {
 	_, settlements, err := feeDebtRevertFacts(tran.Metadata)
 	if err != nil {
@@ -61,6 +62,10 @@ func (uc *UseCase) reverseTransaction(ctx context.Context, in RevertTransactionI
 	}
 
 	reversal := tran.TransactionRevert(kept)
+	if reversal.IsEmpty() {
+		return mtransaction.Transaction{}, pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
+	}
+
 	reversal.FeeDebtRevertedOrigins = origins
 
 	return reversal, nil
