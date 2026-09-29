@@ -74,12 +74,9 @@ func TestIntegrationFeeDebtMetadataOnMongo(t *testing.T) {
 		documents, err := repo.FindByEntityIDs(ctx, constant.EntityTransaction, []string{feeDebtTransaction})
 		require.NoError(t, err)
 		require.Len(t, documents, 1)
-		committed := feeDebtCommittedMetadata()
-		assert.Equal(t, mongodb.JSON{
-			"note":                                 "client",
-			constant.MetadataKeyFeeDebtOpenings:    committed[constant.MetadataKeyFeeDebtOpenings],
-			constant.MetadataKeyFeeDebtSettlements: committed[constant.MetadataKeyFeeDebtSettlements],
-		}, documents[0].Data)
+		want := feeDebtCommittedMetadata()
+		want["note"] = "client"
+		assert.Equal(t, want, documents[0].Data, "the frozen and fee-debt keys land under the client's")
 	})
 
 	t.Run("client update keeps the fee-debt keys", func(t *testing.T) {
