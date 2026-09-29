@@ -1,0 +1,239 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+//go:build integration
+
+package in
+
+import (
+	"context"
+	"testing"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
+	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+)
+
+// deferrablePackages serves the stored packages with every fee deferrable, the flag
+// packages do not persist yet.
+type deferrablePackages struct{ pack.Repository }
+
+func (repo deferrablePackages) FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*pack.Package, error) {
+	packages, err := repo.Repository.FindByOrganizationIDAndLedgerID(ctx, organizationID, ledgerID)
+	for _, p := range packages {
+		for key, fee := range p.Fees {
+			fee.Deferrable = true
+			p.Fees[key] = fee
+		}
+	}
+
+	return packages, err
+}
+
+// feeDebtRoutes is a harness whose 50 fee, owed by @debt-payer to @debt-fee, is deferrable
+// and routed fee-from/fee-to; @debt-funder credits the payer under its own routes.
+type feeDebtRoutes struct {
+	*feeHarness
+	app                                *fiber.App
+	origin, credit                     uuid.UUID
+	payer, receiver, funder, from, to  uuid.UUID
+	originRoute, creditRoute, feeRoute uuid.UUID
+}
+
+func newFeeDebtRoutes(t *testing.T, validated bool) *feeDebtRoutes {
+	t.Helper()
+
+	h := setupFeeHarness(t)
+	h.enableAccountingEngine(t)
+	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
+
+	debts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
+	require.NoError(t, err)
+
+	h.commandUC.FeeDebts = debts
+	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo).WithFeeDebtRecorder(debts)
+	resolver, err := feesservices.NewQueryResolver(h.queryUC)
+	require.NoError(t, err)
+	h.feeUC, err = feesservices.NewUseCase(deferrablePackages{h.packageRepo}, resolver)
+	require.NoError(t, err)
+	h.commandUC.FeeApplier = h.feeUC
+
+	s := &feeDebtRoutes{feeHarness: h, app: h.newV2App()}
+	s.origin = postgrestestutil.CreateTestTransactionRouteSimple(t, h.db, h.orgID, h.ledgerID, "fee origin")
+	s.credit = postgrestestutil.CreateTestTransactionRouteSimple(t, h.db, h.orgID, h.ledgerID, "fee debt credit")
+	s.payer, s.receiver = h.seedBidirectionalRoute(t, "payer", s.origin), h.seedBidirectionalRoute(t, "receiver", s.origin)
+	s.from, s.to = h.seedBidirectionalRoute(t, "fee from", s.origin), h.seedBidirectionalRoute(t, "fee to", s.origin)
+	s.funder = h.seedBidirectionalRoute(t, "funder", s.credit)
+	postgrestestutil.CreateTestOperationTransactionRouteLink(t, h.db, s.payer, s.credit)
+
+	if validated {
+		postgrestestutil.SetLedgerSettings(t, h.db, h.ledgerID, map[string]any{"accounting": map[string]any{"validateRoutes": true}})
+	}
+
+	h.seedBalance(t, "@debt-payer", "BRL", decimal.NewFromInt(100), "deposit")
+	h.seedBalance(t, "@debt-receiver", "BRL", decimal.Zero, "deposit")
+	h.seedBalance(t, "@debt-fee", "BRL", decimal.Zero, "deposit")
+	h.seedBalance(t, "@debt-funder", "BRL", decimal.NewFromInt(1000), "deposit")
+
+	fee := flatFee("deferrable_fee", "@debt-fee", "50", false)
+	fee.routeFrom, fee.routeTo = routeString(s.from), routeString(s.to)
+	h.seedPackage(t, packageSpec{label: "fee_debt_routes", minAmount: decimal.NewFromInt(50), fees: []feeSpec{fee}})
+
+	return s
+}
+
+// open posts the 80 transfer whose 50 fee the payer (100) pays 20 of, owing 30.
+func (s *feeDebtRoutes) open(t *testing.T) uuid.UUID {
+	t.Helper()
+
+	return s.transfer(t, s.origin, "@debt-payer", s.payer, "@debt-receiver", s.receiver, "80")
+}
+
+// settle posts a 10 credit to the payer, which settles 10 of its debt.
+func (s *feeDebtRoutes) settle(t *testing.T) uuid.UUID {
+	t.Helper()
+
+	return s.transfer(t, s.credit, "@debt-funder", s.funder, "@debt-payer", s.payer, "10")
+}
+
+func (s *feeDebtRoutes) transfer(t *testing.T, route uuid.UUID, from string, fromRoute uuid.UUID, to string, toRoute uuid.UUID, amount string) uuid.UUID {
+	t.Helper()
+
+	body := s.v2RoutedBody("fee debt routes", "BRL", amount, route,
+		[]string{s.v2RoutedLeg(from, amount, fromRoute)}, []string{s.v2RoutedLeg(to, amount, toRoute)})
+	created := s.createV2Direct(t, s.app, body, map[string]string{"X-Idempotency": uuid.NewString()})
+	require.Equalf(t, 201, created.status, "create: %s", string(created.rawBody))
+
+	return mustTxID(t, created)
+}
+
+func (s *feeDebtRoutes) revert(t *testing.T, parent uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	reverted := s.post(t, s.app, s.v2StatePath(parent, "revert"), "", nil)
+	require.Equalf(t, 201, reverted.status, "revert: %s", string(reverted.rawBody))
+
+	return mustTxID(t, reverted)
+}
+
+// balances asserts the payer, receiver, fee account and funder, in that order.
+func (s *feeDebtRoutes) balances(t *testing.T, want ...string) {
+	t.Helper()
+
+	for i, alias := range []string{"@debt-payer", "@debt-receiver", "@debt-fee", "@debt-funder"} {
+		assertLiveBalance(t, s.feeHarness, alias, "default", want[i])
+	}
+}
+
+// rows reads a transaction's operation rows as "TYPE direction alias amount routeId code".
+func (s *feeDebtRoutes) rows(t *testing.T, txID uuid.UUID) []string {
+	t.Helper()
+
+	result, err := s.db.Query(`SELECT type, direction, account_alias, amount, route_id, COALESCE(route_code, '') FROM operation WHERE transaction_id = $1`, txID)
+	require.NoError(t, err)
+
+	defer func() { _ = result.Close() }()
+
+	var views []string
+
+	for result.Next() {
+		var (
+			kind, direction, alias, code string
+			amount                       decimal.Decimal
+			route                        *string
+		)
+
+		require.NoError(t, result.Scan(&kind, &direction, &alias, &amount, &route, &code))
+		require.NotNil(t, route, "%s %s %s has no route", kind, direction, alias)
+		views = append(views, kind+" "+direction+" "+alias+" "+amount.String()+" "+*route+" "+code)
+	}
+
+	require.NoError(t, result.Err())
+
+	return views
+}
+
+// row is the view of an expected row; its code is the route's rubric for side when the
+// ledger resolves rubrics, and empty when it does not.
+func row(kind, direction, alias, amount string, route uuid.UUID, code bool) string {
+	side := ""
+	if code {
+		side = route.String() + "-" + map[string]string{"debit": "D", "credit": "C"}[direction]
+	}
+
+	return kind + " " + direction + " " + alias + " " + amount + " " + route.String() + " " + side
+}
+
+// TestFeeDebtMovementsCarryTheFeeRoutes opens a 30 debt, settles 10, reverts the settling
+// credit, settles 10 again and reverts the origin, refunding the 10 paid, on a ledger that
+// does not validate routes: every fee-debt row, the take-back included, books under the
+// fee's own routes, and every step leaves the balances it must.
+func TestFeeDebtMovementsCarryTheFeeRoutes(t *testing.T) {
+	s := newFeeDebtRoutes(t, false)
+
+	origin := s.open(t)
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-payer", "80", s.payer, false), row("DEBIT", "debit", "@debt-payer", "20", s.from, false),
+		row("CREDIT", "credit", "@debt-receiver", "80", s.receiver, false), row("CREDIT", "credit", "@debt-fee", "20", s.to, false),
+	}, s.rows(t, origin), "the payer pays 20 of the 50 fee and owes 30")
+	s.balances(t, "0", "80", "20", "1000")
+
+	settlement := []string{
+		row("DEBIT", "debit", "@debt-funder", "10", s.funder, false), row("CREDIT", "credit", "@debt-payer", "10", s.payer, false),
+		row("FEE_SETTLEMENT", "debit", "@debt-payer", "10", s.from, false), row("FEE_SETTLEMENT", "credit", "@debt-fee", "10", s.to, false),
+	}
+	settling := s.settle(t)
+	assert.ElementsMatch(t, settlement, s.rows(t, settling), "the credit settles 10 under the fee's routes")
+	s.balances(t, "0", "80", "30", "990")
+
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-fee", "10", s.to, false), row("CREDIT", "credit", "@debt-funder", "10", s.funder, false),
+	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route")
+	s.balances(t, "0", "80", "20", "1000")
+
+	assert.ElementsMatch(t, settlement, s.rows(t, s.settle(t)), "the reopened debt settles again")
+	s.balances(t, "0", "80", "30", "990")
+
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-receiver", "80", s.receiver, false), row("DEBIT", "debit", "@debt-fee", "20", s.to, false),
+		row("CREDIT", "credit", "@debt-payer", "80", s.payer, false), row("CREDIT", "credit", "@debt-payer", "20", s.from, false),
+		row("FEE_REFUND", "credit", "@debt-payer", "10", s.from, false), row("FEE_REFUND", "debit", "@debt-fee", "10", s.to, false),
+	}, s.rows(t, s.revert(t, origin)), "the origin's revert refunds the 10 paid under the fee's routes")
+	s.balances(t, "110", "0", "0", "990")
+}
+
+// TestFeeDebtMovementsCarryTheFeeRubrics runs on a route-validating ledger, where each
+// fee-debt row also carries the rubric of the fee's route: the direct rubric stored at
+// opening on a settlement, the revert rubric on a refund.
+func TestFeeDebtMovementsCarryTheFeeRubrics(t *testing.T) {
+	s := newFeeDebtRoutes(t, true)
+
+	origin := s.open(t)
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-payer", "80", s.payer, true), row("DEBIT", "debit", "@debt-payer", "20", s.from, true),
+		row("CREDIT", "credit", "@debt-receiver", "80", s.receiver, true), row("CREDIT", "credit", "@debt-fee", "20", s.to, true),
+	}, s.rows(t, origin))
+
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-funder", "10", s.funder, true), row("CREDIT", "credit", "@debt-payer", "10", s.payer, true),
+		row("FEE_SETTLEMENT", "debit", "@debt-payer", "10", s.from, true), row("FEE_SETTLEMENT", "credit", "@debt-fee", "10", s.to, true),
+	}, s.rows(t, s.settle(t)))
+	s.balances(t, "0", "80", "30", "990")
+
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-receiver", "80", s.receiver, true), row("DEBIT", "debit", "@debt-fee", "20", s.to, true),
+		row("CREDIT", "credit", "@debt-payer", "80", s.payer, true), row("CREDIT", "credit", "@debt-payer", "20", s.from, true),
+		row("FEE_REFUND", "credit", "@debt-payer", "10", s.from, true), row("FEE_REFUND", "debit", "@debt-fee", "10", s.to, true),
+	}, s.rows(t, s.revert(t, origin)))
+	s.balances(t, "110", "0", "0", "990")
+}
