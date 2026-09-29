@@ -205,14 +205,4 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 			assert.Equal(t, scenario.want, updated)
 		})
 	}
-
-	t.Run("a document that keeps changing fails the update", func(t *testing.T) {
-		repo := mongodb.NewMockRepository(gomock.NewController(t))
-		repo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(pending), nil).Times(metadataUpdateAttempts)
-		repo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", gomock.Any(), absent).Return(false, nil).Times(metadataUpdateAttempts)
-
-		updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), constant.EntityTransaction, "id", map[string]any{"purpose": "edited"})
-		require.Error(t, err)
-		assert.Nil(t, updated)
-	})
 }

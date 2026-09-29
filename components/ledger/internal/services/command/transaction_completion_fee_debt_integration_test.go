@@ -65,6 +65,23 @@ func TestIntegrationFeeDebtMetadataOnMongo(t *testing.T) {
 		assert.Equal(t, feeDebtCommittedMetadata(), stored(t, ctx, repo))
 	})
 
+	t.Run("commit onto a document an update wrote without its entity name", func(t *testing.T) {
+		ctx, repo, complete := setup(t)
+		commit, _, _ := feeDebtLifecycleFixture(t)
+		require.NoError(t, repo.Update(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"note": "client"}))
+
+		complete(&commit)
+		documents, err := repo.FindByEntityIDs(ctx, constant.EntityTransaction, []string{feeDebtTransaction})
+		require.NoError(t, err)
+		require.Len(t, documents, 1)
+		committed := feeDebtCommittedMetadata()
+		assert.Equal(t, mongodb.JSON{
+			"note":                                 "client",
+			constant.MetadataKeyFeeDebtOpenings:    committed[constant.MetadataKeyFeeDebtOpenings],
+			constant.MetadataKeyFeeDebtSettlements: committed[constant.MetadataKeyFeeDebtSettlements],
+		}, documents[0].Data)
+	})
+
 	t.Run("client update keeps the fee-debt keys", func(t *testing.T) {
 		ctx, repo, complete := setup(t)
 		commit, _, _ := feeDebtLifecycleFixture(t)

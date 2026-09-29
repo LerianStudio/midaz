@@ -92,7 +92,7 @@ func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.D
 }
 
 // Create inserts a new metadata entity into mongodb using upsert for idempotency.
-// If metadata for the same entity_id and entity_name already exists, the operation is a no-op.
+// If metadata for the same entity_id already exists, the operation is a no-op.
 // This ensures that duplicate calls (e.g., from retries or bulk processing) do not create duplicate documents.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -121,10 +121,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	// Use upsert with $setOnInsert to ensure idempotency:
 	// - If no document exists for this entity_id, insert the full record
 	// - If a document already exists, do nothing (no update)
-	filter := bson.M{
-		"entity_id":   metadata.EntityID,
-		"entity_name": metadata.EntityName,
-	}
+	filter := bson.M{"entity_id": metadata.EntityID}
 
 	update := bson.M{
 		"$setOnInsert": record,
@@ -257,10 +254,7 @@ func (mmr *MetadataMongoDBRepository) insertMetadataChunk(ctx context.Context, c
 		}
 
 		// Use UpdateOne with upsert and $setOnInsert for idempotency
-		filter := bson.M{
-			"entity_id":   m.EntityID,
-			"entity_name": m.EntityName,
-		}
+		filter := bson.M{"entity_id": m.EntityID}
 
 		update := bson.M{
 			"$setOnInsert": record,

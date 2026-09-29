@@ -749,7 +749,7 @@ func TestTransactionCompletionServiceReturnsZeroOutcomeWhenCompletionFails(t *te
 		{name: "metadata find", metadataFn: func(metadata *finalizationMetadataStub) { metadata.findErr = failure }},
 		{name: "metadata identity", metadataFn: func(metadata *finalizationMetadataStub) {
 			metadata.find = func(actual *mongodb.Metadata) *mongodb.Metadata {
-				actual.EntityName = "changed"
+				actual.EntityID = "changed"
 
 				return actual
 			}
@@ -894,7 +894,6 @@ func TestTransactionCompletionServiceRejectsUnconfirmedMetadata(t *testing.T) {
 	}{
 		{"missing document", func(*mongodb.Metadata) *mongodb.Metadata { return nil }},
 		{"different identity", func(m *mongodb.Metadata) *mongodb.Metadata { m.EntityID = "different"; return m }},
-		{"different entity", func(m *mongodb.Metadata) *mongodb.Metadata { m.EntityName = "different"; return m }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx, envelope := finalizationFixture(t)

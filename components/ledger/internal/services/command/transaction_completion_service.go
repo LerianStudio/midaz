@@ -556,7 +556,7 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return fmt.Errorf("verify recovered metadata: %w", err)
 	}
 
-	if actual == nil || actual.EntityID != expected.EntityID || actual.EntityName != expected.EntityName {
+	if actual == nil || actual.EntityID != expected.EntityID {
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
