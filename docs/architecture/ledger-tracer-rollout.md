@@ -281,9 +281,15 @@ backend or a 404 from an older Tracer pod; the Tracer's `0161` (tenant-manager
 or tenant pool outage), `0330` (cancelled) or `0422` (deadline); and every gRPC
 status without a recognized message, including `PermissionDenied`,
 `InvalidArgument`, `NotFound`, `FailedPrecondition`, `Unimplemented`,
-`Unavailable`, `DeadlineExceeded` and `Canceled`. Fail-open/advisory permits
-only these admission failures. The ledger's `failPosture` then applies to
-admission, and an undelivered completion goes to the in-memory retrier.
+`Unavailable`, `DeadlineExceeded` and `Canceled`. On the Ledger side, an
+official-record store that cannot answer while facts load (database resolution,
+begin, query, iteration or commit failure) is unavailability too, and the Reserve
+is never sent; records that were read and found missing or invalid stay `0533`.
+Fail-open/advisory permits only these admission failures. The ledger's
+`failPosture` then applies to admission, and an undelivered completion goes to
+the in-memory retrier. Fact loading and Reserve share one deadline, the smaller
+of `tracer.timeoutMs` and the global admission timeout, so slow facts leave less
+time for the Reserve rather than extending the admission.
 
 A refusal before evaluation (`0043`, `0487`, `0537`) is deterministic. The
 Ledger rejects that Reserve in every mode, `advisory` included, with `0537` for

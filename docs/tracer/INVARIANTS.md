@@ -233,9 +233,13 @@ then repeat the decision lookup. `CompleteWithTx` records CONFIRMED or RELEASED
 even before the first decision exists, or EXPIRED when the reaper closes the
 operation. Same-outcome replay preserves the original timestamp; a contradictory
 completion returns canonical error `0540` (409), including a confirm or release
-that arrives after EXPIRED. OPEN expires by TTL: once the operation's
-reservations pass their expiry, the reaper moves it to EXPIRED. EXPIRED returns
-held capacity; it is not proof that accounting failed.
+that arrives after EXPIRED. OPEN expires by TTL: migration `000037` adds
+`expires_at`, which admission sets once, in the decision's transaction, to the
+decision time plus the reservation TTL (5 minutes, or
+`RESERVATION_LONG_LIVED_TTL_HOURS` when long-lived). Once it passes, the reaper
+moves the operation to EXPIRED, whether or not it holds reservations; DENY,
+REVIEW and an ALLOW that no limit applied to hold none. EXPIRED returns any held
+capacity; it is not proof that accounting failed.
 
 A database trigger takes the same operation lock before a decision insert and
 rejects an already completed operation with `0540`. This is defense in depth,
@@ -289,6 +293,17 @@ of holding the head of every sweep, and newer rows still expire. The resume posi
 oldest expiry. The cap may split an operation's rows across sweeps, but the
 operation still expires whole, and the sweep counts the rows the expiry moved,
 so no row is counted twice.
+
+Operations that hold no RESERVED row are unreachable from that walk, so each
+sweep also reads up to the same cap of OPEN operations past `expires_at` with no
+RESERVED row, in `(expires_at, integration_id, transaction_id)` order over the
+`idx_reserve_operations_expiry` partial index, with its own resume position and
+the same paging rules. Each expires through the same command: one
+RESERVE_OPERATION_EXPIRED event, no capacity moved, and a later confirm or
+release returns `0540`. A failed read of that page is reported without stopping
+the reservation page. Operations admitted before `000037` take the direct TTL
+from their decision time, because the decision does not record whether it was
+long-lived.
 
 Counter cleanup preserves nonzero `reserved_usage`, checking
 both expiry and held capacity on the DELETE target after a concurrent writer's
