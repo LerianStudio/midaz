@@ -19567,6 +19567,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
       "post": {
+        "description": "A revert whose pending fees have not finished being recorded is refused with 409 (0529); nothing moves, and a later retry may succeed.",
         "operationId": "revertTransactionV2",
         "parameters": [
           {
