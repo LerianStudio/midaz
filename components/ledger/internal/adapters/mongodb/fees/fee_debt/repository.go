@@ -590,7 +590,7 @@ var zeroDecimal128, _ = bson.ParseDecimal128("0") // a literal zero always parse
 // keeps the exact amount as text.
 func decimal128(d decimal.Decimal) (bson.Decimal128, error) {
 	if excess := len(new(big.Int).Abs(d.Coefficient()).String()) - 34; excess > 0 {
-		d = d.Round(-d.Exponent() - int32(excess))
+		d = d.Round(-d.Exponent() - int32(excess)) // #nosec G115 -- excess is a digit count, far below int32
 	}
 
 	value, ok := bson.ParseDecimal128FromBigInt(d.Coefficient(), int(d.Exponent()))

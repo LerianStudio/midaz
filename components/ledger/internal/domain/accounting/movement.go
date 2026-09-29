@@ -18,9 +18,9 @@ const (
 	RoleFeeDebtDebit = "fee_debt_debit"
 	// RoleFeeDebtCredit is a collect posting's movement on one settled debt's creditor;
 	// its ordinal is the debt's index in the posting's Items.
-	RoleFeeDebtCredit = "fee_debt_credit"
+	RoleFeeDebtCredit = "fee_debt_credit" // #nosec G101 -- accounting role name, not a credential
 	// RoleFeeDebtRefundCredit is a refund posting's one movement on its debtor (ordinal 0).
-	RoleFeeDebtRefundCredit = "fee_debt_refund_credit"
+	RoleFeeDebtRefundCredit = "fee_debt_refund_credit" // #nosec G101 -- accounting role name, not a credential
 	// RoleFeeDebtRefundDebit is a refund posting's movement on one entry's creditor;
 	// its ordinal is the entry's index in the posting's Refunds.
 	RoleFeeDebtRefundDebit = "fee_debt_refund_debit"
