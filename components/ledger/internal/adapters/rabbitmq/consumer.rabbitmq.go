@@ -170,6 +170,11 @@ func (cr *ConsumerRoutes) RegisterBulk(queueName string, handler BulkHandlerFunc
 }
 
 // RunConsumers init consume for all registry queues.
+//
+// One ConsumerRoutes over one RabbitMQConnection serves a single queue: every loop
+// consumes on the connection's shared channel, and EnsureChannel closes the channel it
+// replaces, so two loops on the same connection would keep tearing down each other's
+// channel. A second queue needs a channel per loop (OpenChannel) or its own connection.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	cr.lifecycleMu.Lock()
 	defer cr.lifecycleMu.Unlock()
