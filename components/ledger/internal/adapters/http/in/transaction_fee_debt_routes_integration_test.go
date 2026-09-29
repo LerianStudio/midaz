@@ -329,6 +329,10 @@ func TestFeeDebtGroupRevertKeepsASettlementOfARevertedOrigin(t *testing.T) {
 	s.revertGroup(t, group)
 	s.balances(t, "100", "0", "0", "1000")
 	assertLiveBalance(t, remote, "@debt-remote", "default", "1000")
+
+	open, err := s.commandUC.FeeDebts.(*fee_debt.Repository).OpenTotal(s.ctx(), s.orgID, s.ledgerID, "@debt-payer#default")
+	require.NoError(t, err)
+	assert.Truef(t, open.IsZero(), "the payer owes %s after the group revert", open)
 }
 
 // crossLedger enables cross-ledger, with the given route validation, on the harness
