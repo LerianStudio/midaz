@@ -166,11 +166,11 @@ func TestReservationService_Reserve(t *testing.T) {
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000))).
-			Return(nil).
+			Return(false, nil).
 			Times(1)
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000))).
-			Return(nil).
+			Return(false, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
@@ -206,10 +206,10 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				r.ID = owningID
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 
@@ -262,10 +262,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured decimal.Decimal
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.Amount
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -316,7 +316,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			Return(constant.ErrUsageCounterExceedsLimit).
+			Return(false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
 		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
@@ -392,10 +392,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -444,10 +444,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		repo.EXPECT().
 			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		auditWriter.EXPECT().
@@ -481,10 +481,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -548,13 +548,13 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 	tx1ReserveCalls := 0
 	deps.repo.EXPECT().
 		ReserveWithTx(gomock.Any(), tx1, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) error {
+		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) (bool, error) {
 			tx1ReserveCalls++
 			if tx1ReserveCalls == 2 {
-				return &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
+				return false, &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
 			}
 
-			return nil
+			return false, nil
 		}).
 		Times(2)
 	deps.auditWriter.EXPECT().
@@ -570,7 +570,7 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 		Times(1)
 	deps.repo.EXPECT().
 		ReserveWithTx(gomock.Any(), tx2, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
-		Return(nil).
+		Return(false, nil).
 		Times(2)
 	deps.auditWriter.EXPECT().
 		RecordReservationEventWithTx(gomock.Any(), tx2, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
@@ -638,7 +638,7 @@ func TestReservationService_Confirm(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(nil).
+			Return(model.StatusReserved, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, resID, gomock.Any()).
@@ -656,7 +656,7 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(constant.ErrReservationAlreadyTerminal).
+			Return(model.StatusConfirmed, constant.ErrReservationAlreadyTerminal).
 			Times(1)
 		// No audit call expected on the idempotent path.
 
@@ -670,7 +670,7 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(constant.ErrReservationNotFound).
+			Return(model.ReservationStatus(""), constant.ErrReservationNotFound).
 			Times(1)
 
 		err := svc.Confirm(context.Background(), resID)

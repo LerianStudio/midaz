@@ -77,7 +77,7 @@ const reserveInsertSQL = insertReservationReturningIDSQL
 // reserveInsertColumns is the row shape the reserve insert scans: the id of the
 // row that owns the capacity, and whether this call created it.
 func reserveInsertColumns() []string {
-	return []string{"id", "inserted"}
+	return []string{"id", "inserted", "status"}
 }
 
 func TestUsageReservationRepository_AcquireReserveScopeLock(t *testing.T) {
@@ -147,13 +147,13 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		// Reservation row insert (4-tuple ON CONFLICT grain) runs first; inserted=true
 		// means a new reservation and the returned id is the caller's own.
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true))
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true, "RESERVED"))
 		// A new row was inserted, so the reserve CTE (counter seed) follows and returns
 		// succeeded=true.
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
 
-		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.NoError(t, err)
 	})
 
@@ -172,16 +172,40 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		// the capacity. The counter CTE MUST NOT run, so the replay holds capacity
 		// exactly once. ExpectationsWereMet on cleanup asserts no stray counter query.
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(owningID, false))
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(owningID, false, "RESERVED"))
 
-		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		replayed, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.NoError(t, err)
+		assert.True(t, replayed, "an existing RESERVED row is a replay")
 
 		// The handle the caller keeps must address the row that owns the capacity, not
 		// the id it generated for this attempt — otherwise its confirm/release hits
 		// ErrReservationNotFound and the hold is never settled.
 		assert.Equal(t, owningID, res.ID,
 			"a replayed reserve must adopt the existing row's id")
+	})
+
+	t.Run("Replay onto a settled row is rejected without a counter move", func(t *testing.T) {
+		for _, status := range []model.ReservationStatus{model.StatusReleased, model.StatusExpired, model.StatusConfirmed} {
+			t.Run(string(status), func(t *testing.T) {
+				repo, db, mock, cleanup := setupUsageReservationRepository(t)
+				defer cleanup()
+
+				res := newTestReservation(t)
+				generatedID := res.ID
+				owningID := testutil.MustDeterministicUUID(8010)
+
+				// The 4-tuple exists but its hold is already gone or counted. The
+				// counter CTE MUST NOT run and the settled row's id MUST NOT be adopted.
+				mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+					WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(owningID, false, string(status)))
+
+				replayed, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+				require.ErrorIs(t, err, constant.ErrReservationAlreadySettled)
+				assert.False(t, replayed, "a rejected reserve is not a replay")
+				assert.Equal(t, generatedID, res.ID, "a rejected reserve must keep the caller's handle untouched")
+			})
+		}
 	})
 
 	t.Run("Replay - no owning row fails closed", func(t *testing.T) {
@@ -195,7 +219,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()))
 
-		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no owning reservation row")
 	})
@@ -236,7 +260,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 				sqlmock.AnyArg(),                   // $8 reservation_expires_at
 				sqlmock.AnyArg(),                   // $9 created_at
 			).
-			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true))
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true, "RESERVED"))
 		// A new row was inserted, so the reserve CTE follows. It binds the amount three
 		// times ($5 INSERT seed, $7 UPDATE increment, $9 WHERE-guard check) and the cap
 		// once ($10); the counter id, timestamps and expiry are non-deterministic. A
@@ -257,7 +281,8 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 			).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("10.5", true))
 
-		require.NoError(t, repo.ReserveWithTx(context.Background(), db, res, maxAmount))
+		_, err = repo.ReserveWithTx(context.Background(), db, res, maxAmount)
+		require.NoError(t, err)
 	})
 
 	t.Run("Guard denies - exceeds-limit error after row insert", func(t *testing.T) {
@@ -270,11 +295,11 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		// guard (succeeded=false) -> ErrUsageCounterExceedsLimit. The caller rolls the
 		// transaction back, which unwinds the row inserted above.
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
-			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true))
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true, "RESERVED"))
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("1000", false))
 
-		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit)
 	})
 
@@ -282,7 +307,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		repo, _, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		err := repo.ReserveWithTx(context.Background(), nil, newTestReservation(t), maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), nil, newTestReservation(t), maxAmountTest)
 		require.ErrorIs(t, err, pgdb.ErrNilConnection)
 	})
 
@@ -290,7 +315,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		repo, db, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		err := repo.ReserveWithTx(context.Background(), db, nil, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, nil, maxAmountTest)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reservation cannot be nil")
 	})
@@ -328,8 +353,9 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 		mock.ExpectExec(`UPDATE usage_reservations SET status`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.ConfirmWithTx(context.Background(), db, resID)
+		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.NoError(t, err)
+		assert.Equal(t, model.StatusReserved, found, "a settling confirm reports the status it locked")
 	})
 
 	t.Run("Idempotent double-confirm - terminal row, NO counter move", func(t *testing.T) {
@@ -345,8 +371,25 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 				txID, testutil.FixedTime(), testutil.FixedTime(), testutil.FixedTime(), nil,
 			))
 
-		err := repo.ConfirmWithTx(context.Background(), db, resID)
+		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+		assert.Equal(t, model.StatusConfirmed, found, "a terminal confirm reports the status it found")
+	})
+
+	t.Run("Confirm onto a released row - terminal, reports RELEASED", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT id, limit_id`).
+			WithArgs(resID).
+			WillReturnRows(sqlmock.NewRows(reservationLockColumns()).AddRow(
+				resID, limitID, "acct:8101", "2026-06", int64(400), "RELEASED",
+				txID, testutil.FixedTime(), testutil.FixedTime(), nil, testutil.FixedTime(),
+			))
+
+		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
+		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+		assert.Equal(t, model.StatusReleased, found, "the caller must be able to tell RELEASED from CONFIRMED")
 	})
 
 	t.Run("Not found - missing row maps to ErrReservationNotFound", func(t *testing.T) {
@@ -357,8 +400,56 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 			WithArgs(resID).
 			WillReturnError(sql.ErrNoRows)
 
-		err := repo.ConfirmWithTx(context.Background(), db, resID)
+		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.ErrorIs(t, err, constant.ErrReservationNotFound)
+		assert.Empty(t, found, "no status is reported for a row that does not exist")
+	})
+
+	t.Run("Nil db is rejected", func(t *testing.T) {
+		repo, _, _, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		_, err := repo.ConfirmWithTx(context.Background(), nil, resID)
+		require.ErrorIs(t, err, pgdb.ErrNilConnection)
+	})
+}
+
+func TestUsageReservationRepository_CountReleasedByTransaction(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	txID := testutil.MustDeterministicUUID(8201)
+
+	t.Run("Success - counts only RELEASED rows of the transaction", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT COUNT(*) FROM usage_reservations WHERE status = $1 AND transaction_id = $2`)).
+			WithArgs("RELEASED", txID).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+		count, err := repo.CountReleasedByTransactionWithTx(context.Background(), db, txID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("Query error is wrapped", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT COUNT`).
+			WithArgs("RELEASED", txID).
+			WillReturnError(assert.AnError)
+
+		_, err := repo.CountReleasedByTransactionWithTx(context.Background(), db, txID)
+		require.ErrorIs(t, err, assert.AnError)
+	})
+
+	t.Run("Nil db is rejected", func(t *testing.T) {
+		repo, _, _, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		_, err := repo.CountReleasedByTransactionWithTx(context.Background(), nil, txID)
+		require.ErrorIs(t, err, pgdb.ErrNilConnection)
 	})
 }
 

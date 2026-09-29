@@ -124,11 +124,21 @@ type ReservationRepository interface {
 	// lock — the interleaving that formed the lock-ordering deadlock cycle can no
 	// longer occur. The lock releases automatically at commit or rollback.
 	AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error
-	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error
-	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) error
+	// ReserveWithTx inserts the reservation row idempotently on its 4-tuple and
+	// holds its capacity on the counter. replayed is true when the row already
+	// existed in RESERVED and the handle adopted its id; a row in any other status
+	// returns constant.ErrReservationAlreadySettled and moves no counter.
+	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) (replayed bool, err error)
+	// ConfirmWithTx settles one reservation onto the counter and returns the
+	// status the row had under the lock. On a CONFIRMED or RELEASED row it returns
+	// that status together with constant.ErrReservationAlreadyTerminal.
+	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (model.ReservationStatus, error)
 	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
 	ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error)
 	ReleaseByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, status model.ReservationStatus) ([]*model.Reservation, error)
+	// CountReleasedByTransactionWithTx counts the transaction's rows in RELEASED
+	// status on the supplied handle.
+	CountReleasedByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) (int, error)
 }
 
 // ReservationAuditWriter records reservation lifecycle audit events inside the
@@ -403,7 +413,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return err
 			}
 
-			if err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount); err != nil {
+			if _, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount); err != nil {
 				// The reserve guard denied this limit: roll back the whole tx so no
 				// partial capacity is held, and surface the limit-exceeded decision.
 				if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
@@ -771,7 +781,7 @@ func (s *ReservationService) terminate(
 		var repoErr error
 
 		if terminalStatus == model.StatusConfirmed {
-			repoErr = s.repo.ConfirmWithTx(ctx, db, reservationID)
+			_, repoErr = s.repo.ConfirmWithTx(ctx, db, reservationID)
 		} else {
 			repoErr = s.repo.ReleaseWithTx(ctx, db, reservationID, terminalStatus)
 		}
