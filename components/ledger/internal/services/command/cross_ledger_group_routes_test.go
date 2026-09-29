@@ -626,12 +626,12 @@ func TestCrossLedgerRevertGroup_ValidatesTheReversalsAgainstTheRevertTemplate(t 
 		flow.reader.balances = append(flow.reader.balances,
 			atomicTransactionBatchTestBalance(flow.organizationID, flow.ledgerB, "0199b600-0000-7000-8000-0000000000b3", "@fees", "BRL"))
 
-		// @bob's 10 credit settled 4 of its fee debt, so the reversal takes 6 back from
-		// @bob and 4 from @fees under the fee's route.
+		// @bob's whole 10 credit settled its fee debt, so the reversal takes it all back
+		// from @fees under the fee's route, and @bob is only the settlement's debtor.
 		feeRoute := "0199b600-0000-7000-8000-0000000000fe"
 		settlements, err := json.Marshal([]FeeDebtSettlement{{
 			DebtID: "0199b600-0000-7000-8000-0000000000c1:from:0:debit", DebtorRef: "@bob#default", CreditRef: "@fees#default",
-			Amount: decimal.NewFromInt(4), Opened: decimal.NewFromInt(4), Seq: 1,
+			Amount: decimal.NewFromInt(10), Opened: decimal.NewFromInt(10), Seq: 1,
 			CreditRoute: &accounting.FeeDebtRoute{ID: feeRoute, RevertCode: "F-revert"},
 		}})
 		require.NoError(t, err)
@@ -639,10 +639,7 @@ func TestCrossLedgerRevertGroup_ValidatesTheReversalsAgainstTheRevertTemplate(t 
 		batch := revertBatch(t, flow)
 		for index := range batch.Transactions {
 			if reversal := &batch.Transactions[index].Transaction; batch.Transactions[index].LedgerID == flow.ledgerB {
-				bob := reversal.Send.Source.From[0]
-				bob.Amount = &mtransaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(6)}
-				fees := mtransaction.FromTo{AccountAlias: "@fees", Amount: &mtransaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(4)}, IsFrom: true, RouteID: &feeRoute}
-				reversal.Send.Source.From = []mtransaction.FromTo{bob, fees}
+				reversal.Send.Source.From[0].AccountAlias, reversal.Send.Source.From[0].RouteID = "@fees", &feeRoute
 				reversal.Metadata = map[string]any{constant.MetadataKeyFeeDebtSettlements: string(settlements)}
 			}
 		}
@@ -652,8 +649,7 @@ func TestCrossLedgerRevertGroup_ValidatesTheReversalsAgainstTheRevertTemplate(t 
 
 		for index := range run.items {
 			if run.items[index].ledgerID == flow.ledgerB {
-				assert.Equal(t, map[string]string{"@bob#default": "D-revert", "@fees#default": "F-revert", "@external/BRL#default": "X-credit"},
-					projectedRouteCodes(run.items[index]))
+				assert.Equal(t, map[string]string{"@fees#default": "F-revert", "@external/BRL#default": "X-credit"}, projectedRouteCodes(run.items[index]))
 			}
 		}
 	})

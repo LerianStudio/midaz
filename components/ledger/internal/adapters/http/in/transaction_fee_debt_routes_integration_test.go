@@ -9,8 +9,11 @@ package in
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -243,6 +246,34 @@ func TestFeeDebtSettlementRevertsOnARouteValidatingLedger(t *testing.T) {
 	s.balances(t, "0", "80", "20", "1000")
 
 	s.settle(t)
+	s.balances(t, "0", "80", "30", "990")
+}
+
+// enableAtomicBatches wires what the atomic batch create reads beyond a singular create.
+func (s *feeDebtRoutes) enableAtomicBatches(t *testing.T) {
+	t.Helper()
+
+	batches, ok := s.redisRepo.(command.AtomicTransactionBatchIdempotencyRepository)
+	require.True(t, ok, "Redis repository must expose the atomic batch state machine")
+
+	s.commandUC.AtomicTransactionBatchIdempotencyRepo = batches
+	s.commandUC.AtomicTransactionBatchProjectionReader = s.queryUC
+	s.commandUC.UUIDv7Generator, s.commandUC.Clock = libCommons.GenerateUUIDv7, time.Now
+	s.handler.TransactionBatchMaxSize = 50
+}
+
+// TestFeeDebtSettlesInsideAnAtomicBatch credits the indebted payer from an atomic batch
+// item: the collect's creditor is no leg of the item, and the batch still settles the debt.
+func TestFeeDebtSettlesInsideAnAtomicBatch(t *testing.T) {
+	s := newFeeDebtRoutes(t, false)
+	s.enableAtomicBatches(t)
+
+	s.open(t)
+	credit := s.v2RoutedBody("fee debt batch credit", "BRL", "10", s.credit,
+		[]string{s.v2RoutedLeg("@debt-funder", "10", s.funder)}, []string{s.v2RoutedLeg("@debt-payer", "10", s.payer)})
+	created := s.post(t, s.app, s.v2CreatePath("batch"), `{"transactions":[{"action":"direct","order":1,`+strings.TrimPrefix(credit, "{")+`]}`,
+		map[string]string{"X-Idempotency": uuid.NewString()})
+	require.Equalf(t, 201, created.status, "batch: %s", string(created.rawBody))
 	s.balances(t, "0", "80", "30", "990")
 }
 
