@@ -28,18 +28,15 @@ import (
 )
 
 // TracerGRPCClient is the ledger-side gRPC client for the tracer reservation
-// service. It implements the same TracerReserver port the REST client does, so
-// the reserve anchor stays transport-agnostic; buildTracerReserver selects which
-// concrete implementation to wire from cfg.TracerTransport. The connection is
-// persistent (one grpc.ClientConn for the client's lifetime) and instrumented
-// with the otelgrpc client stats handler so the ledger transaction-create trace
-// continues across the seam.
+// service. It implements the TracerReserver port the reserve anchor depends
+// on. The connection is persistent (one grpc.ClientConn for the client's
+// lifetime) and instrumented with the otelgrpc client stats handler so the
+// ledger transaction-create trace continues across the seam.
 //
 // Transport / availability failures (a dial error, an Unavailable / DeadlineExceeded
 // status, a cancelled context) are mapped to ErrTracerUnavailable so the reserve
-// anchor can apply tracer.failPosture, identically to the REST client. A business
-// DENIED decision is a successful Reserve return (ReserveResult.Denied=true), not
-// an error.
+// anchor can apply tracer.failPosture. A business DENIED decision is a
+// successful Reserve return (ReserveResult.Denied=true), not an error.
 type TracerGRPCClient struct {
 	conn             *grpc.ClientConn
 	client           reservationv1.ReservationServiceClient
@@ -59,7 +56,7 @@ type tracerGRPCClientConfig struct {
 
 // WithGRPCOperationTimeout sets the per-operation context timeout from the
 // ledger's tracer.timeoutMs setting. A non-positive value leaves the default in
-// place. It mirrors WithOperationTimeout on the REST client.
+// place.
 func WithGRPCOperationTimeout(d time.Duration) TracerGRPCClientOption {
 	return func(c *tracerGRPCClientConfig) {
 		if d > 0 {
@@ -277,12 +274,10 @@ func recordRPCFailure(span trace.Span, msg string, err error) {
 }
 
 // tenantUnaryInterceptor propagates the request's tenant to the tracer as the
-// trusted x-tenant-id outgoing metadata on every RPC, mirroring the REST
-// client's TenantHeader injection. The value is resolved from context via
-// tmcore.GetTenantIDContext; in single-tenant mode it is empty and nothing is
-// appended (the tracer then runs its single-tenant pass-through). The tenant
-// metadata key is the lower-cased TenantHeader (tenantMetadataKey) so the two
-// transports cannot drift. The tenant value is never logged.
+// trusted x-tenant-id outgoing metadata on every RPC. The value is resolved
+// from context via tmcore.GetTenantIDContext; in single-tenant mode it is empty
+// and nothing is appended (the tracer then runs its single-tenant
+// pass-through). The tenant value is never logged.
 func tenantUnaryInterceptor(
 	ctx context.Context,
 	method string,
@@ -298,10 +293,10 @@ func tenantUnaryInterceptor(
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
-// toProtoReserveRequest mirrors the REST ReserveRequest onto the proto message
+// toProtoReserveRequest maps the ReserveRequest onto the proto message
 // field-for-field. The account is always sent as a populated message; an empty
 // AccountID serializes to an empty account_id, which the tracer's relaxed reserve
-// validation treats the same way the REST {} body is treated.
+// validation treats as an absent account.
 func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 	return &reservationv1.ReserveRequest{
 		TransactionId:        req.TransactionID.String(),
@@ -320,8 +315,8 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 	}
 }
 
-// fromProtoReserveResult maps the proto reserve response back onto the REST
-// result type the TracerReserver port speaks. Reservation and matched rule ids
+// fromProtoReserveResult maps the proto reserve response back onto the
+// ReserveResult the TracerReserver port speaks. Reservation and matched rule ids
 // are parsed back to uuid.UUID; a malformed id from the tracer is a contract
 // violation, surfaced as an error rather than silently dropped.
 func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, error) {
@@ -374,8 +369,7 @@ func parseProtoIDs(raw []string) ([]uuid.UUID, error) {
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
 // Availability-class status codes (Unavailable, DeadlineExceeded, Canceled) and
 // a context deadline / cancellation are folded into ErrTracerUnavailable so the
-// reserve anchor's fail-posture branch handles them, matching the REST client's
-// transport-failure normalisation. InvalidArgument and FailedPrecondition mean the
+// reserve anchor's fail-posture branch handles them. InvalidArgument and FailedPrecondition mean the
 // tracer refused the request itself and are wrapped in ErrTracerRejected. Other
 // status codes (e.g. NotFound, Internal) are returned verbatim. Every wrap keeps
 // the original status reachable through errors.As.

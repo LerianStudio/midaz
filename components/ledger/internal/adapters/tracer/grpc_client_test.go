@@ -24,6 +24,13 @@ import (
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
+// fixedTransactionID and fixedReservationID are deterministic UUID literals
+// shared by this package's tests so they carry no uuid.New() randomness.
+var (
+	fixedTransactionID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	fixedReservationID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+)
+
 // stubReservationServer is an in-memory ReservationService used to exercise the
 // gRPC client's wire mapping. Each handler is a swappable func so a test case
 // can return a canned response or status error.
@@ -395,15 +402,15 @@ func TestTracerGRPCClient_ReleaseByTransaction(t *testing.T) {
 
 // TestTracerGRPCClient_PropagatesTenantMetadata pins trusted tenant propagation
 // on the gRPC transport: when the request context carries a tenant, the client
-// appends it to the outgoing metadata under the lower-cased TenantHeader key,
-// and when the context carries none it appends nothing.
+// appends it to the outgoing metadata under the x-tenant-id key, and when the
+// context carries none it appends nothing.
 func TestTracerGRPCClient_PropagatesTenantMetadata(t *testing.T) {
 	t.Parallel()
 
 	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 
-	// The gRPC metadata key MUST be the lower-cased REST TenantHeader so the two
-	// transports cannot drift.
+	// The gRPC metadata key MUST equal the key the tracer's seam tenant
+	// resolver reads; the tracer's own interceptor test pins the other end.
 	assert.Equal(t, "x-tenant-id", tenantMetadataKey)
 
 	t.Run("tenant in context lands on outgoing metadata", func(t *testing.T) {

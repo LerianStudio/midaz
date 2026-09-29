@@ -8,8 +8,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -21,10 +19,111 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
+	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
+
+// stallingReservationServer is a tracer reservation gRPC service that holds
+// the first stallFor transitions open until the client's deadline cancels them
+// and accepts every transition after that.
+type stallingReservationServer struct {
+	reservationv1.UnimplementedReservationServiceServer
+
+	mu       sync.Mutex
+	requests int32
+	stallFor int32
+}
+
+func (s *stallingReservationServer) ConfirmById(ctx context.Context, _ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ConfirmByIdResponse{}, nil
+}
+
+func (s *stallingReservationServer) ReleaseById(ctx context.Context, _ *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ReleaseByIdResponse{}, nil
+}
+
+func (s *stallingReservationServer) ConfirmByTransaction(ctx context.Context, _ *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ConfirmByTransactionResponse{}, nil
+}
+
+func (s *stallingReservationServer) ReleaseByTransaction(ctx context.Context, _ *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ReleaseByTransactionResponse{}, nil
+}
+
+// handle counts the call and, while the stall budget lasts, blocks until the
+// caller's deadline cancels the RPC.
+func (s *stallingReservationServer) handle(ctx context.Context) error {
+	s.mu.Lock()
+	s.requests++
+	stall := s.requests <= s.stallFor
+	s.mu.Unlock()
+
+	if stall {
+		<-ctx.Done()
+
+		return ctx.Err()
+	}
+
+	return nil
+}
+
+func (s *stallingReservationServer) count() int32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.requests
+}
+
+// startReservationServer serves handler on a loopback listener and returns the
+// address a tracer client dials. The server stops on cleanup.
+func startReservationServer(t *testing.T, handler reservationv1.ReservationServiceServer) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	server := grpc.NewServer()
+	reservationv1.RegisterReservationServiceServer(server, handler)
+
+	go func() { _ = server.Serve(listener) }()
+
+	t.Cleanup(server.Stop)
+
+	return listener.Addr().String()
+}
+
+// closedLoopbackAddr returns a loopback address nothing listens on, so a dial
+// against it is refused immediately.
+func closedLoopbackAddr(t *testing.T) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	addr := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	return addr
+}
 
 // fastRetryPolicy is the shipped policy compressed so a test finishes in
 // milliseconds. Only the durations change; the shape of the sequence does not.
@@ -181,34 +280,17 @@ func TestRetryDeliversAConfirmTheTransportRefused(t *testing.T) {
 		"a confirm that only landed on retry must say the limit was under-enforced in between")
 }
 
-// TestRetryDeliversAConfirmThatTimedOut uses the real HTTP client against a real
-// server, so the first attempts fail on the client's own 250ms per-operation
-// deadline rather than on a stubbed error. No synthetic load: the handler simply
-// waits for its request context to be cancelled.
+// TestRetryDeliversAConfirmThatTimedOut uses the real gRPC client against a
+// real server, so the first attempts fail on the client's own 250ms
+// per-operation deadline rather than on a stubbed error. No synthetic load: the
+// handler simply waits for its request context to be cancelled.
 func TestRetryDeliversAConfirmThatTimedOut(t *testing.T) {
-	var requests int32
+	server := &stallingReservationServer{stallFor: 2}
 
-	var mu sync.Mutex
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		requests++
-		stall := requests <= 2
-		mu.Unlock()
-
-		if stall {
-			// Hold the request open until the client's deadline cancels it.
-			<-r.Context().Done()
-
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	client, err := tracer.NewTracerClient(server.URL)
+	client, err := tracer.NewTracerGRPCClient(startReservationServer(t, server))
 	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
 
 	logger := &capturingLogger{}
 	retrier := newReservationRetrier(fastRetryPolicy())
@@ -218,11 +300,7 @@ func TestRetryDeliversAConfirmThatTimedOut(t *testing.T) {
 		retryTransition(), fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
-	mu.Lock()
-	got := requests
-	mu.Unlock()
-
-	assert.Equal(t, int32(3), got, "two timed-out attempts then one accepted")
+	assert.Equal(t, int32(3), server.count(), "two timed-out attempts then one accepted")
 	assert.GreaterOrEqual(t, time.Since(started), 500*time.Millisecond,
 		"each stalled attempt costs the client's 250ms per-operation budget, so two of them cost at least 500ms")
 
@@ -318,14 +396,10 @@ func TestShippedRetryBudgetOutlastsTheDirectHold(t *testing.T) {
 func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	// A closed port: the dial is refused immediately, so the sequence exhausts
 	// its attempts without waiting on any timeout.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	client, err := tracer.NewTracerGRPCClient(closedLoopbackAddr(t))
 	require.NoError(t, err)
 
-	closedAddr := listener.Addr().String()
-	require.NoError(t, listener.Close())
-
-	client, err := tracer.NewTracerClient("http://" + closedAddr)
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	logger := &capturingLogger{}
 	transition := retryTransition()
@@ -356,14 +430,10 @@ func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 // be counted" sends them hunting an uncounted spend that does not exist, while
 // the customer sits denied inside their own limit.
 func TestRetryReportsALostReleaseAsHeldCapacity(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	client, err := tracer.NewTracerGRPCClient(closedLoopbackAddr(t))
 	require.NoError(t, err)
 
-	closedAddr := listener.Addr().String()
-	require.NoError(t, listener.Close())
-
-	client, err := tracer.NewTracerClient("http://" + closedAddr)
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	logger := &capturingLogger{}
 
