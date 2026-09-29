@@ -94,3 +94,28 @@ local postingAlgebra = {
     hold = applyHoldPosting,
     release = applyReleasePosting
 }
+
+-- mirrorOverdraft records an overdraft draw (delta > 0) or repayment (delta < 0)
+-- of item's posting on its account's companion, so both sides of the debt stay
+-- explicit. It is called after item's own movement is recorded.
+local function mirrorOverdraft(step, postingIndex, posting, item, delta, ordinal)
+    if cmp_decimal(delta, "0") == 0 then return end
+    local transaction, txIndex, current = step.transaction, step.txIndex, item.current
+    local companion = step.companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, current.accountId)]
+    if not companion then refuse("overdraft_companion_missing", txIndex, postingIndex, posting.balanceRef) end
+    if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
+        technical("invalid_companion", "invalid overdraft companion")
+    end
+    step.touch(companion, txIndex, postingIndex, transaction.rejectBlockedBalances, step.exempt)
+    local companionNext, amount, companionType = clone(companion.current), delta, "debit"
+    if cmp_decimal(delta, "0") > 0 then
+        companionNext.available = add_decimal(companion.current.available, amount)
+    else
+        amount, companionType = sub_decimal("0", delta), "credit"
+        if cmp_decimal(companion.current.available, amount) < 0 then
+            refuse("insufficient_funds", txIndex, postingIndex, companion.current.balanceRef)
+        end
+        companionNext.available = sub_decimal(companion.current.available, amount)
+    end
+    step.record(companion, companionNext, posting, "overdraft_companion", companionType, amount, "0", ordinal)
+end

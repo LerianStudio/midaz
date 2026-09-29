@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -29,6 +30,10 @@ type TransactionReader interface {
 	// GetEngineBalances loads the explicitly requested balances separately
 	// from the complete set of balances required for engine execution.
 	GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, explicitAliases []string) (explicitBalances, executionBalances []*mmodel.Balance, err error)
+
+	// GetFeeDebtSeeds returns, per debtor balance ref (alias#key), its open fee debts
+	// oldest first; balances without debt are absent. The result is a seed only.
+	GetFeeDebtSeeds(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string) (map[string][]accounting.FeeDebtItem, error)
 
 	// ValidateAccountingRules enforces the ledger's accounting routes over the
 	// balance operations and returns the resolved route cache.

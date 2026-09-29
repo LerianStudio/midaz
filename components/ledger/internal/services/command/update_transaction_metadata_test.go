@@ -7,10 +7,13 @@ package command
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -247,6 +250,77 @@ func TestUpdateTransactionMetadata_Branches(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedMetadata, result)
+		})
+	}
+}
+
+func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) {
+	stored := func(data mongodb.JSON) *mongodb.Metadata { return &mongodb.Metadata{Data: maps.Clone(data)} }
+	pending := mongodb.JSON{"purpose": "client", "feeApplied": "true"}
+	settled := mongodb.JSON{"purpose": "client", "feeApplied": "true", constant.MetadataKeyFeeDebtSettlements: "[]"}
+	absent := map[string]any{constant.MetadataKeyFeeDebtOpenings: nil, constant.MetadataKeyFeeDebtSettlements: nil}
+	written := map[string]any{constant.MetadataKeyFeeDebtOpenings: nil, constant.MetadataKeyFeeDebtSettlements: "[]"}
+
+	for _, scenario := range []struct {
+		name, entity string
+		sent, want   map[string]any
+		expect       func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any)
+	}{
+		{
+			name: "clearing keeps only reserved keys", entity: constant.EntityTransaction,
+			want: map[string]any{"feeApplied": "true"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(pending), nil)
+				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", "", want, absent).Return(true, nil)
+			},
+		},
+		{
+			name: "a concurrent fee-debt write makes it merge again", entity: constant.EntityOperation,
+			sent: map[string]any{"purpose": "edited", "gone": nil},
+			want: map[string]any{"purpose": "edited", "feeApplied": "true", constant.MetadataKeyFeeDebtSettlements: "[]"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				gomock.InOrder(
+					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(pending), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", "", gomock.Any(), absent).Return(false, nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(settled), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", "", want, written).Return(true, nil),
+				)
+			},
+		},
+		{
+			name: "a missing document is created before the merge", entity: constant.EntityTransaction,
+			sent: map[string]any{"purpose": "first"}, want: map[string]any{"purpose": "first"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				gomock.InOrder(
+					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(nil, nil),
+					repo.Create(gomock.Any(), constant.EntityTransaction, gomock.Any()).Return(nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(mongodb.JSON{}), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", "", want, absent).Return(true, nil),
+				)
+			},
+		},
+		{
+			name: "nil input without a document writes nothing", entity: constant.EntityTransaction,
+			sent: nil, want: nil,
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, _ map[string]any) {
+				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(nil, nil)
+			},
+		},
+		{
+			name: "empty input with a document returns it unchanged without writing", entity: constant.EntityOperation,
+			sent: map[string]any{}, want: map[string]any(pending),
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, _ map[string]any) {
+				repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(pending), nil)
+			},
+		},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			repo := mongodb.NewMockRepository(gomock.NewController(t))
+			scenario.expect(repo.EXPECT(), scenario.want)
+
+			updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), scenario.entity, "id", scenario.sent)
+			require.NoError(t, err)
+			assert.Equal(t, scenario.want, updated)
 		})
 	}
 }

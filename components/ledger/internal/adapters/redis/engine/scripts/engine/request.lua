@@ -27,14 +27,40 @@ end
 
 local function positiveBudget(raw) return positiveLimit(raw, "byte budget") end
 
+-- optionalDebtRoute validates the route of one side of a fee debt: absent, or an
+-- object with a nonempty id and text code and description.
+local function optionalDebtRoute(route)
+    if route == nil then return end
+    requireObject(route)
+    text(route.id, false)
+    text(route.code, true)
+    text(route.description, true)
+end
+
+local postingTypes = { debit = true, credit = true, reserve = true, unreserve = true, hold = true, release = true, collect = true, refund = true }
+
 -- validPosting validates one declarative accounting mutation. It accepts only
--- the closed posting and draw-policy vocabularies and canonical positive money.
+-- the closed posting and draw-policy vocabularies and canonical positive money,
+-- and each fee-debt field only on the one posting type that may carry it.
 local function validPosting(posting)
     requireObject(posting)
     text(posting.ref, false)
     logicalRef(posting.balanceRef)
-    if posting.type ~= "debit" and posting.type ~= "credit" and posting.type ~= "reserve" and posting.type ~= "unreserve" and posting.type ~= "hold" and posting.type ~= "release" then
-        technical("invalid_protocol", "unknown posting type")
+    if not postingTypes[posting.type] then technical("invalid_protocol", "unknown posting type") end
+    if posting.deferShortfall ~= nil and bool(posting.deferShortfall) and posting.type ~= "debit" then
+        technical("invalid_protocol", "deferShortfall outside a debit")
+    end
+    if posting.fundedByRef ~= nil and (text(posting.fundedByRef, false) and posting.type ~= "credit") then
+        technical("invalid_protocol", "fundedByRef outside a credit")
+    end
+    optionalDebtRoute(posting.debtRoute)
+    if posting.debtRoute ~= nil and posting.deferShortfall ~= true and posting.fundedByRef == nil then
+        technical("invalid_protocol", "debtRoute outside a deferrable fee")
+    end
+    if posting.items ~= nil then requireArray(posting.items) end
+    if posting.refunds ~= nil then requireArray(posting.refunds) end
+    if (posting.type == "collect") ~= (posting.items ~= nil and #posting.items > 0) or (posting.type == "refund") ~= (posting.refunds ~= nil and #posting.refunds > 0) then
+        technical("invalid_protocol", "invalid fee-debt posting fields")
     end
     if posting.drawPolicy ~= "forbidden" and posting.drawPolicy ~= "allowed" and posting.drawPolicy ~= "route_denied" then
         technical("invalid_protocol", "unknown draw policy")
@@ -56,6 +82,108 @@ local function validBalanceRequirement(requirement)
         technical("invalid_protocol", "unknown balance permission")
     end
     bool(requirement.forbidExternal)
+end
+
+local maximumFeeDebtSeq = "9223372036854775807"
+
+-- positiveSeq validates a fee-debt sequence: a canonical positive integer string.
+local function positiveSeq(value)
+    if integerText(value, maximumFeeDebtSeq) == "0" then technical("invalid_protocol", "invalid fee-debt sequence") end
+    return value
+end
+
+-- validateFeeDebtTransaction owns the fee-debt pairing rules of one transaction:
+-- one funding credit per deferrable debit, declared debtors, and reopen and refund
+-- entries bound to the reverted parent.
+local function validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
+    local function scoped(ref) return scopedBalanceRef(transaction.organizationId, transaction.ledgerId, ref) end
+    local function invalid(message) technical("invalid_protocol", message) end
+    local parent = transaction.parentTransactionId
+    local revert = transaction.action == "revert" and parent ~= nil and parent ~= nullValue
+    local deferred, funded, debited, refundIds = {}, {}, {}, {}
+    for _, posting in ipairs(transaction.postings) do
+        local debtorDeclared = feeDebtKeys[scoped(posting.balanceRef)] ~= nil
+        if posting.type == "debit" then debited[posting.balanceRef] = true end
+        if posting.deferShortfall then
+            if transaction.action ~= "direct" or not debtorDeclared then invalid("invalid deferrable debit") end
+            deferred[posting.ref] = posting
+        end
+        if posting.fundedByRef ~= nil then
+            local debit = deferred[posting.fundedByRef]
+            if not debit or funded[posting.fundedByRef] or debit.amount ~= posting.amount or refs[scoped(debit.balanceRef)].assetCode ~= refs[scoped(posting.balanceRef)].assetCode then
+                invalid("invalid fee-debt funding credit")
+            end
+            funded[posting.fundedByRef] = true
+        end
+        if posting.type == "collect" then
+            local ids = {}
+            for _, id in ipairs(posting.items) do
+                if ids[text(id, false)] then invalid("duplicate collect item") end
+                ids[id] = true
+            end
+            if not debtorDeclared then invalid("undeclared collect debtor") end
+        end
+        if posting.type == "refund" then
+            if not revert or not debtorDeclared then invalid("invalid refund posting") end
+            local total = "0"
+            for _, entry in ipairs(posting.refunds) do
+                requireObject(entry)
+                text(entry.debtId, false)
+                positiveSeq(entry.seq)
+                local expected = canonicalMoney(entry.expectedRefund)
+                if refundIds[entry.debtId] or entry.debtId:sub(1, 37) ~= parent .. ":" or #entry.debtId == 37 or not refs[scoped(logicalRef(entry.creditRef))] or
+                    cmp_decimal(canonicalMoney(entry.opened), "0") <= 0 or cmp_decimal(expected, "0") < 0 or cmp_decimal(expected, entry.opened) > 0 then
+                    invalid("invalid refund entry")
+                end
+                refundIds[entry.debtId], total = true, add_decimal(total, entry.opened)
+            end
+            if total ~= posting.amount then invalid("refund amount differs from its entries") end
+        end
+    end
+    for ref in pairs(deferred) do
+        if not funded[ref] then invalid("unfunded deferrable debit") end
+    end
+    if transaction.reopenFeeDebts == nil then return end
+    requireArray(transaction.reopenFeeDebts)
+    if transaction.action ~= "revert" or #transaction.reopenFeeDebts == 0 then invalid("invalid fee-debt reopen") end
+    local reopenIds = {}
+    for _, entry in ipairs(transaction.reopenFeeDebts) do
+        requireObject(entry)
+        text(entry.debtId, false)
+        uuid(entry.debtId:sub(1, 36))
+        positiveSeq(entry.seq)
+        optionalDebtRoute(entry.debitRoute)
+        optionalDebtRoute(entry.creditRoute)
+        local amount, opened = canonicalMoney(entry.amount), canonicalMoney(entry.opened)
+        if reopenIds[entry.debtId] or entry.debtId:sub(37, 37) ~= ":" or #entry.debtId == 37 or not feeDebtKeys[scoped(logicalRef(entry.debtorRef))] or not refs[scoped(entry.debtorRef)] or
+            not debited[logicalRef(entry.creditRef)] or cmp_decimal(amount, "0") <= 0 or cmp_decimal(amount, opened) > 0 then
+            invalid("invalid fee-debt reopen entry")
+        end
+        reopenIds[entry.debtId] = true
+    end
+end
+
+-- decodeFeeDebtInventory validates the fee-debt keys that close KEYS at base, one
+-- live list per declared debtor, and with them the total key count.
+local function decodeFeeDebtInventory(request, base)
+    local feeDebts, feeDebtKeys = request.feeDebts or array(), {}
+    requireArray(feeDebts)
+    if request.feeDebts ~= nil and #feeDebts == 0 then technical("invalid_protocol", "empty fee-debt inventory") end
+    if #KEYS ~= base + #feeDebts then technical("invalid_protocol", "invalid execution cardinality") end
+    for i, entry in ipairs(feeDebts) do
+        requireObject(entry)
+        uuid(entry.organizationId)
+        uuid(entry.ledgerId)
+        logicalRef(entry.balanceRef)
+        local scoped = scopedBalanceRef(entry.organizationId, entry.ledgerId, entry.balanceRef)
+        local suffix = "fee-debt:" .. transaction_hash_tag .. ":" .. scoped
+        if feeDebtKeys[scoped] or smallInteger(entry.keyIndex, #KEYS) ~= base + i or KEYS[base + i]:sub(-#suffix) ~= suffix then
+            technical("invalid_protocol", "invalid fee-debt key inventory")
+        end
+        entry.keyIndex, feeDebtKeys[scoped] = base + i, entry
+    end
+    request.feeDebts = feeDebts
+    return feeDebtKeys
 end
 
 -- decodeRequest validates the entire Go-to-Lua contract before live state is
@@ -96,7 +224,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         if #declaredScopes < 2 then technical("invalid_protocol", "invalid scope key inventory") end
         extraScopes = #declaredScopes - 1
     end
-    if #KEYS ~= 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes then technical("invalid_protocol", "invalid execution cardinality") end
+    local feeDebtKeys = decodeFeeDebtInventory(request, 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes)
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -292,6 +420,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
             if postingRefs[posting.ref] or not refs[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)] then technical("invalid_protocol", "invalid posting reference") end
             postingRefs[posting.ref] = { posting = posting, index = postingIndex }
         end
+        validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
         if transaction.accountBlockException ~= nil then
             local grant = transaction.accountBlockException
             requireObject(grant)

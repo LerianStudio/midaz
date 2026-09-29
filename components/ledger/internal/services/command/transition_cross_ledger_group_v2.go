@@ -202,6 +202,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 				TransactionInput:           part.transition.input,
 				Validate:                   part.transition.validate,
 				AccountBlockExceptionGrant: part.run.accountBlockExceptionGrant,
+				FeeDebtEligible:            true,
 			},
 		}, part.transition.ledgerSettings.Accounting.ValidateRoutes)
 		if prepareErr != nil {

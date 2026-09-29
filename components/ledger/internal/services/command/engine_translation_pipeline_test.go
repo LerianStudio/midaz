@@ -127,7 +127,7 @@ func TestEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *testing.T)
 			After:  accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(10), Version: 9},
 		},
 		{
-			Ref: "companion", TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: accounting.RoleOverdraftCompanion,
+			Ref: movementRef(payload.TransactionID, "from:1:debit", accounting.RoleOverdraftCompanion, 0), TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: accounting.RoleOverdraftCompanion,
 			BalanceRef: "@source#overdraft", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(10),
 			Before: accounting.BalanceState{Version: 11}, After: accounting.BalanceState{Available: decimal.NewFromInt(10), Version: 12},
 		},

@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -123,6 +124,14 @@ var exemptionMessages = map[string]string{
 	"all_accounts_exempt":             "All accounts (source and destination) are exempt from fees.",
 }
 
+// feeExemption is the JSON object the feeExemption metadata key holds as a string:
+// transaction metadata is flat, so the ledger cannot store it as a nested value.
+type feeExemption struct {
+	Exempt  bool   `json:"exempt"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
 // setFeeExemptionMetadata sets the feeExemption metadata on the transaction when all accounts
 // on a given side (From or To) are exempt from fees. This allows API consumers to distinguish
 // between "no package found" and "package found but accounts are exempt".
@@ -133,26 +142,18 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 		f.Transaction.Metadata = make(map[string]any)
 	}
 
-	existing, hasExemption := f.Transaction.Metadata["feeExemption"]
-	if hasExemption {
-		exemptionMap, ok := existing.(map[string]any)
-		if ok {
-			existingReason, _ := exemptionMap["reason"].(string)
-			if existingReason != reason && existingReason != "all_accounts_exempt" {
-				reason = "all_accounts_exempt"
-			} else {
-				reason = existingReason
-			}
+	var existing feeExemption
+	if raw, ok := f.Transaction.Metadata["feeExemption"].(string); ok && json.Unmarshal([]byte(raw), &existing) == nil {
+		if existing.Reason != reason && existing.Reason != "all_accounts_exempt" {
+			reason = "all_accounts_exempt"
+		} else {
+			reason = existing.Reason
 		}
 	}
 
-	message := exemptionMessages[reason]
+	encoded, _ := json.Marshal(feeExemption{Exempt: true, Reason: reason, Message: exemptionMessages[reason]}) //nolint:errchkjson // a struct of strings and a bool always marshals
 
-	f.Transaction.Metadata["feeExemption"] = map[string]any{
-		"exempt":  true,
-		"reason":  reason,
-		"message": message,
-	}
+	f.Transaction.Metadata["feeExemption"] = string(encoded)
 }
 
 // updatedAmountsFromFee rebuilds one whole side of the payment from the amounts map. That map
@@ -237,6 +238,10 @@ func generatedFeeLeg(key string, amount transaction.Amount, originalByKey map[st
 	metadata := make(map[string]any)
 	if amount.FeeLeg {
 		metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
+	}
+
+	if amount.FeeDeferPair != "" {
+		metadata[constant.MetadataKeyFeeDeferPair] = amount.FeeDeferPair
 	}
 
 	leg := transaction.FromTo{
@@ -509,6 +514,10 @@ func emitNonDeductibleLeg(
 	// Both halves of the pair are minted here, so both are marked here, from one flag on the
 	// amount the two writes below copy.
 	resultAmount.FeeLeg = true
+	if feeModel.GetDeferrable() {
+		resultAmount.FeeDeferPair = strconv.Itoa(feeIndex) + ":" + key
+	}
+
 	updateAmount[debitLegKey] = resultAmount
 
 	if updateAmountToStruct == nil {

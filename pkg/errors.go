@@ -683,6 +683,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Administrative Operation In Progress Error",
 			Message:    "Another operation on this account is in progress. Please try again shortly.",
 		},
+		constant.ErrFeeDebtRecordPending: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrFeeDebtRecordPending.Error(),
+			Title:      "Fee Debt Record Pending Error",
+			Message:    "The pending fees this transaction touches have not finished being recorded. No transaction is reapplied; please try again shortly.",
+		},
+		constant.ErrBalanceHasOpenFeeDebt: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceHasOpenFeeDebt.Error(),
+			Title:      "Balance Has Open Fee Debt Error",
+			Message:    "A balance that still owes pending fees cannot be deleted, and its account cannot be deleted or closed. Please credit the balance so the pending fees are collected and try again.",
+		},
+		constant.ErrBalanceOwedFeeDebt: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceOwedFeeDebt.Error(),
+			Title:      "Balance Owed Fee Debt Error",
+			Message:    "A balance that other balances still owe pending fees to cannot be deleted, and its account cannot be deleted or closed. Please credit the balances that owe those fees so they are collected and try again.",
+		},
 		constant.ErrAccountBalanceNotZero: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceNotZero.Error(),
@@ -1871,7 +1889,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrDuplicatePackage.Error(),
 			Title:      "Package already exists",
-			Message:    "A package already exists with the same combination of organizationId, ledgerId, segmentId, transactionRoute, minimumAmount, and maximumAmount.",
+			Message:    "A package already exists in the same scope with the same minimumAmount and maximumAmount.",
 		},
 		constant.ErrFeeInvalidHeaderParameter: ValidationError{
 			EntityType: entityType,
@@ -1994,7 +2012,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrFilterPackage.Error(),
 			Title:      "Package filtering error",
-			Message:    fmt.Sprintf("More than one fee package matches this transaction on transactionRoute, segmentID and the amount range, and they are equally specific, so none of them can be applied. Re-scope one of these packages: %v.", args...),
+			Message:    fmt.Sprintf("More than one fee package matches this transaction at the same specificity, so none of them can be applied. Re-scope one of these packages: %v.", args...),
 		},
 		constant.ErrPackageRange: EntityConflictError{
 			EntityType: entityType,
@@ -2067,6 +2085,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrLedgerScopedQueryParameter.Error(),
 			Title:      "Query Parameter Not Accepted",
 			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
+		},
+		constant.ErrDeferrableDeductibleFee: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeferrableDeductibleFee.Error(),
+			Title:      "Deductible fee cannot be deferrable",
+			Message:    fmt.Sprintf("Fee %v is deducted from the payment (isDeductibleFrom true), so it cannot be deferrable. Set deferrable to false or isDeductibleFrom to false.", args...),
 		},
 		constant.ErrDuplicateFeeKey: ValidationError{
 			EntityType: entityType,

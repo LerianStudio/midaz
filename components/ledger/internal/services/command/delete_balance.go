@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -109,46 +110,14 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if balance != nil {
-		// The Redis snapshot may contain a newer balance than PostgreSQL while its
-		// transaction is waiting for asynchronous synchronization. A cache hit must
-		// therefore pass the same funds guard before the persisted row is deleted.
-		cacheKey := balanceCacheKeyFor(organizationID, ledgerID, balance)
-
-		cacheValue, cacheErr := uc.TransactionRedisRepo.Get(ctx, cacheKey)
-		if cacheErr != nil {
-			err = fmt.Errorf("failed to get balance cache value: %w", cacheErr)
-			libOpentelemetry.HandleSpanError(span, "Failed to get balance cache value on redis", err)
-			logger.Log(ctx, libLog.LevelError, "Error getting balance cache value", libLog.Err(err))
-
+		if err = uc.refuseCachedBalanceFunds(ctx, span, logger, organizationID, ledgerID, balance); err != nil {
 			return err
 		}
 
-		if cacheValue != "" {
-			cachedBalance := mmodel.BalanceRedis{}
-			if decodeErr := json.Unmarshal([]byte(cacheValue), &cachedBalance); decodeErr != nil {
-				err = fmt.Errorf("failed to decode balance cache value: %w", decodeErr)
-				libOpentelemetry.HandleSpanError(span, "Failed to decode balance cache value from redis", err)
-				logger.Log(ctx, libLog.LevelError, "Error decoding balance cache value", libLog.Err(err))
+		if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, []*mmodel.Balance{balance}, engineRecoverySources, nil); err != nil {
+			spanattr.HandleSpanByErrorClass(span, "Balance cannot be deleted while it owes or is owed pending fees", err)
 
-				return err
-			}
-
-			hasFunds, overdraftErr := balanceRedisHasFunds(cachedBalance)
-			if overdraftErr != nil {
-				err = fmt.Errorf("failed to parse overdraft used from balance cache: %w", overdraftErr)
-				libOpentelemetry.HandleSpanError(span, "Failed to parse overdraft used from balance cache", err)
-				logger.Log(ctx, libLog.LevelError, "Error parsing overdraft used from balance cache", libLog.Err(err))
-
-				return err
-			}
-
-			if hasFunds {
-				err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in its cache snapshot", err)
-				logger.Log(ctx, libLog.LevelWarn, "Error deleting balance", libLog.Err(err))
-
-				return err
-			}
+			return err
 		}
 	}
 
@@ -176,6 +145,104 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 func balanceHasFunds(balance *mmodel.Balance) bool {
 	return balance != nil &&
 		(!balance.Available.IsZero() || !balance.OnHold.IsZero() || !balance.OverdraftUsed.IsZero())
+}
+
+// refuseCachedBalanceFunds applies the funds guard to the balance's Redis snapshot, which may
+// be newer than PostgreSQL while its transaction waits for asynchronous synchronization.
+func (uc *UseCase) refuseCachedBalanceFunds(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) (err error) {
+	cacheKey := balanceCacheKeyFor(organizationID, ledgerID, balance)
+
+	cacheValue, cacheErr := uc.TransactionRedisRepo.Get(ctx, cacheKey)
+	if cacheErr != nil {
+		err = fmt.Errorf("failed to get balance cache value: %w", cacheErr)
+		libOpentelemetry.HandleSpanError(span, "Failed to get balance cache value on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting balance cache value", libLog.Err(err))
+
+		return err
+	}
+
+	if cacheValue != "" {
+		cachedBalance := mmodel.BalanceRedis{}
+		if decodeErr := json.Unmarshal([]byte(cacheValue), &cachedBalance); decodeErr != nil {
+			err = fmt.Errorf("failed to decode balance cache value: %w", decodeErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to decode balance cache value from redis", err)
+			logger.Log(ctx, libLog.LevelError, "Error decoding balance cache value", libLog.Err(err))
+
+			return err
+		}
+
+		hasFunds, overdraftErr := balanceRedisHasFunds(cachedBalance)
+		if overdraftErr != nil {
+			err = fmt.Errorf("failed to parse overdraft used from balance cache: %w", overdraftErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to parse overdraft used from balance cache", err)
+			logger.Log(ctx, libLog.LevelError, "Error parsing overdraft used from balance cache", libLog.Err(err))
+
+			return err
+		}
+
+		if hasFunds {
+			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, constant.EntityBalance)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in its cache snapshot", err)
+			logger.Log(ctx, libLog.LevelWarn, "Error deleting balance", libLog.Err(err))
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// refuseOpenFeeDebt refuses when a balance owes a deferred fee (0527) or is owed one
+// (0528), under a marker the engine honors on every debt change. refuse vets every other
+// in-scope record of sources, so a caller with its own recovery check walks them once.
+func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, sources []recoverySource, refuse func(recoveryRecord) error) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.refuse_open_fee_debt")
+	defer span.End()
+
+	refs := make([]string, 0, len(balances))
+	for _, balance := range balances {
+		refs = append(refs, balance.Alias+"#"+balance.Key)
+	}
+
+	debts, err := uc.TransactionReader.GetFeeDebtSeeds(ctx, organizationID, ledgerID, refs)
+	if err != nil {
+		return refuseIndeterminate(ctx, span, logger, "Failed to read balance fee debts", err)
+	}
+
+	for _, ref := range refs {
+		if len(debts[ref]) > 0 {
+			return pkg.ValidateBusinessError(constant.ErrBalanceHasOpenFeeDebt, constant.EntityBalance)
+		}
+	}
+
+	// A record leaves recovery only after its changes are projected, so the walk comes first.
+	err = uc.walkRecovery(ctx, organizationID, ledgerID, sources, func(record recoveryRecord) error {
+		if record.owesFeeDebt(refs) {
+			return pkg.ValidateBusinessError(constant.ErrBalanceOwedFeeDebt, constant.EntityBalance)
+		}
+
+		if refuse == nil {
+			return nil
+		}
+
+		return refuse(record)
+	})
+	if err != nil || len(refs) == 0 {
+		return err
+	}
+
+	owed, err := uc.FeeDebts.HasOpenCreditor(ctx, organizationID, ledgerID, refs)
+	if err != nil {
+		return refuseIndeterminate(ctx, span, logger, "Failed to read the fee debts owed to the balances", err)
+	}
+
+	if owed {
+		return pkg.ValidateBusinessError(constant.ErrBalanceOwedFeeDebt, constant.EntityBalance)
+	}
+
+	return nil
 }
 
 // balanceRedisHasFunds applies the same deletion guard to a Redis snapshot. BalanceRedis stores

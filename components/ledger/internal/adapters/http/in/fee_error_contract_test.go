@@ -162,6 +162,13 @@ func TestFeeErrorContract_CanonicalCodes(t *testing.T) {
 			expectedTitle:  "No active billing packages",
 		},
 		{
+			name:           "deferrable deductible fee emits 0530 (422)",
+			err:            pkg.ValidateBusinessError(constant.ErrDeferrableDeductibleFee, constant.EntityPackage, "fee1"),
+			expectedStatus: fiber.StatusUnprocessableEntity,
+			expectedCode:   "0530",
+			expectedTitle:  "Deductible fee cannot be deferrable",
+		},
+		{
 			name:           "invalid path parameter emits canonical 0065 (400) not FEE-0016",
 			err:            pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityPackage, "id"),
 			expectedStatus: fiber.StatusBadRequest,

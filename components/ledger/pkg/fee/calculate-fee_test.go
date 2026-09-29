@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -366,7 +367,7 @@ func TestFindPackageToCalculateFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := FindPackageToCalculateFee(tt.packages, tt.transactionRoute, tt.segmentID, tt.amount)
+			result, err := FindPackageToCalculateFee(tt.packages, tt.transactionRoute, tt.segmentID, nil, tt.amount)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -629,8 +630,7 @@ func TestCalculateFee_IsDeductibleFrom_ExemptSourceSkipsFee(t *testing.T) {
 
 	// feeExemption metadata should be set
 	assert.NotNil(t, feeCalc.Transaction.Metadata, "metadata should be set when all source accounts are exempt")
-	exemption, ok := feeCalc.Transaction.Metadata["feeExemption"].(map[string]any)
-	assert.True(t, ok, "feeExemption should be a map")
+	exemption := decodedFeeExemption(t, feeCalc.Transaction.Metadata)
 	assert.Equal(t, true, exemption["exempt"])
 	assert.Equal(t, "all_source_accounts_exempt", exemption["reason"])
 	assert.Equal(t, "All source accounts are exempt from fees.", exemption["message"])
@@ -774,8 +774,7 @@ func TestCalculateFee_NonDeductible_ExemptSourceSkipsFee(t *testing.T) {
 
 	// feeExemption metadata should be set
 	assert.NotNil(t, feeCalc.Transaction.Metadata, "metadata should be set when all source accounts are exempt")
-	exemption, ok := feeCalc.Transaction.Metadata["feeExemption"].(map[string]any)
-	assert.True(t, ok, "feeExemption should be a map")
+	exemption := decodedFeeExemption(t, feeCalc.Transaction.Metadata)
 	assert.Equal(t, true, exemption["exempt"])
 	assert.Equal(t, "all_source_accounts_exempt", exemption["reason"])
 	assert.Equal(t, "All source accounts are exempt from fees.", exemption["message"])
@@ -863,8 +862,7 @@ func TestCalculateFee_CombinedExemption_AllAccountsExempt(t *testing.T) {
 
 	// feeExemption metadata should be set
 	assert.NotNil(t, feeCalc.Transaction.Metadata)
-	exemption, ok := feeCalc.Transaction.Metadata["feeExemption"].(map[string]any)
-	assert.True(t, ok, "feeExemption should be a map")
+	exemption := decodedFeeExemption(t, feeCalc.Transaction.Metadata)
 	assert.Equal(t, true, exemption["exempt"])
 	// Both fees trigger source exemption, reason stays "all_source_accounts_exempt"
 	// since both sides are covered by the same waived list
@@ -2939,4 +2937,32 @@ func TestCalculateFee_MarksOnlyWhatTheEngineMinted(t *testing.T) {
 			assertMarks(t, "destination", feeCalc.Transaction.Send.Distribute.To, tc.wantTo)
 		})
 	}
+}
+
+// decodedFeeExemption reads the feeExemption metadata value, a string holding a JSON object.
+func decodedFeeExemption(t *testing.T, metadata map[string]any) map[string]any {
+	t.Helper()
+
+	raw, ok := metadata["feeExemption"].(string)
+	require.True(t, ok, "feeExemption should be a string: %#v", metadata["feeExemption"])
+
+	var exemption map[string]any
+	require.NoError(t, json.Unmarshal([]byte(raw), &exemption))
+
+	return exemption
+}
+
+func TestSetFeeExemptionMetadata_CombinesReasonsAcrossSides(t *testing.T) {
+	t.Parallel()
+
+	f := &model.FeeCalculate{}
+	setFeeExemptionMetadata(f, "all_source_accounts_exempt")
+	setFeeExemptionMetadata(f, "all_destination_accounts_exempt")
+
+	exemption := decodedFeeExemption(t, f.Transaction.Metadata)
+	assert.Equal(t, map[string]any{
+		"exempt":  true,
+		"reason":  "all_accounts_exempt",
+		"message": "All accounts (source and destination) are exempt from fees.",
+	}, exemption)
 }

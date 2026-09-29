@@ -34,6 +34,7 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 		{"live sending restriction", "refused", core.FailureSendingNotAllowed, fmt.Errorf("wrapper: %w", &core.Failure{Code: core.FailureSendingNotAllowed})},
 		{"invalid account-block exception", "refused", core.FailureAccountBlockExceptionInvalid, &core.Failure{Code: core.FailureAccountBlockExceptionInvalid}},
 		{"technical", "technical_error", "connection_unavailable", technical("connection_unavailable", false, errors.New("sensitive detail"))},
+		{"origin already reverted", "technical_error", "transaction_already_reverted", technical("transaction_already_reverted", false, nil)},
 		{"uncertain", "indeterminate", "transport", fmt.Errorf("wrapper: %w", technical("transport", true, errors.New("sensitive detail")))},
 		{"foreign error", "technical_error", "unknown", errors.New("sensitive detail")},
 		{"foreign refusal", "technical_error", "unknown", &core.Failure{Code: "@private-alias#default"}},

@@ -7,6 +7,7 @@ package command
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -61,8 +62,8 @@ func MapEngineError(request accounting.Execution, err error) error {
 // the caller can act on, rather than a failure of the engine itself. It answers
 // nil for everything else, which keeps its cause for the caller's boundary.
 //
-// Every one of them is decided in the preflight, so an indeterminate outcome can
-// never carry them: such a result may have moved money and must stay technical.
+// Every one of them is raised before the engine commits, so an indeterminate outcome
+// can never carry them: such a result may have moved money and must stay technical.
 func mapEngineProtectionFailure(err engineTechnicalError) error {
 	if err.OutcomeIndeterminate() {
 		return nil
@@ -71,12 +72,16 @@ func mapEngineProtectionFailure(err engineTechnicalError) error {
 	switch err.EngineFailureCode() {
 	case "execution_guard_conflict":
 		return pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, balanceValidationEntity)
+	case "transaction_already_reverted":
+		return pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
 	case "account_closed":
 		return pkg.ValidateBusinessError(constant.ErrAccountClosed, constant.EntityAccount)
 	case "account_closing_in_progress":
 		return pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
 	case "admission_not_confirmed", "account_protection_unreadable":
 		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	case "fee_debt_record_pending":
+		return pkg.ValidateBusinessError(constant.ErrFeeDebtRecordPending, constant.EntityTransaction)
 	default:
 		return nil
 	}
@@ -85,6 +90,10 @@ func mapEngineProtectionFailure(err engineTechnicalError) error {
 func mapEngineRequirementFailure(request accounting.Execution, failure *accounting.Failure, cause error) error {
 	requirement, balance, ok := engineFailureRequirement(request, failure)
 	if !ok {
+		if engineFailureReopensDebt(request, failure) {
+			return mapEnginePostingFailure(accounting.Posting{}, failure, cause)
+		}
+
 		return fmt.Errorf("malformed engine requirement failure: %w", cause)
 	}
 
@@ -200,11 +209,24 @@ func engineFailurePosting(request accounting.Execution, failure *accounting.Fail
 		return accounting.Posting{}, false
 	}
 
-	if failure.BalanceRef != posting.BalanceRef && !isOverdraftCompanion(request, posting.BalanceRef, failure.BalanceRef) {
+	refundsCreditor := slices.ContainsFunc(posting.Refunds, func(refund accounting.FeeDebtRefund) bool { return refund.CreditRef == failure.BalanceRef })
+	if failure.BalanceRef != posting.BalanceRef && !refundsCreditor && !isOverdraftCompanion(request, posting.BalanceRef, failure.BalanceRef) {
 		return accounting.Posting{}, false
 	}
 
 	return posting, true
+}
+
+// engineFailureReopensDebt reports whether a failure outside every posting names
+// a debtor its transaction reopens, which the engine touches like a leg.
+func engineFailureReopensDebt(request accounting.Execution, failure *accounting.Failure) bool {
+	if failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) {
+		return false
+	}
+
+	return slices.ContainsFunc(request.Transactions[failure.TransactionIndex].ReopenFeeDebts, func(reopen accounting.FeeDebtReopen) bool {
+		return reopen.DebtorRef == failure.BalanceRef
+	})
 }
 
 func isOverdraftCompanion(request accounting.Execution, postingRef, failureRef string) bool {

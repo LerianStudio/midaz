@@ -18,7 +18,7 @@ func TestConfigureAppliedTransactionCompletionSharesTenantAwareCompleter(t *test
 	uc := &command.UseCase{}
 	consumer := &RedisQueueConsumer{}
 	resolver := &recoveryMongoStub{}
-	require.NoError(t, configureAppliedTransactionCompletion(consumer, uc, true, resolver))
+	require.NoError(t, configureAppliedTransactionCompletion(consumer, uc, true, resolver, nil))
 
 	completer, ok := consumer.appliedTransactionCompleter.(*tenantAppliedTransactionCompleter)
 	require.True(t, ok)
@@ -38,6 +38,6 @@ func TestConfigureAppliedTransactionCompletionSharesTenantAwareCompleter(t *test
 }
 
 func TestConfigureAppliedTransactionCompletionRejectsMissingOwners(t *testing.T) {
-	require.Error(t, configureAppliedTransactionCompletion(nil, &command.UseCase{}, false, nil))
-	require.Error(t, configureAppliedTransactionCompletion(&RedisQueueConsumer{}, nil, false, nil))
+	require.Error(t, configureAppliedTransactionCompletion(nil, &command.UseCase{}, false, nil, nil))
+	require.Error(t, configureAppliedTransactionCompletion(&RedisQueueConsumer{}, nil, false, nil, nil))
 }

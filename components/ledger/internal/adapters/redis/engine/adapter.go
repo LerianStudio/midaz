@@ -307,7 +307,7 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 		Accounts:               make(map[uuid.UUID]resolvedAccountKeys, len(request.Balances)),
-		Coordination:           make(map[string]resolvedCoordinationKeys),
+		Coordination:           make(map[string]resolvedCoordinationKeys), FeeDebts: make(map[string]string),
 	}
 	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex, &resolved.Evidence} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
@@ -393,6 +393,10 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		return resolvedExecutionKeys{}, err
 	}
 
+	if err := resolveFeeDebtKeys(ctx, request, &resolved); err != nil {
+		return resolvedExecutionKeys{}, err
+	}
+
 	return resolved, nil
 }
 
@@ -472,7 +476,8 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 		// write, so a movement they refuse is certain not to have been applied.
 		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed",
 			"account_closed", "account_closing_in_progress", "admission_not_confirmed", "account_protection_unreadable",
-			"dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict":
+			"transaction_already_reverted", "dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict",
+			"fee_debt_conflict", "fee_debt_record_pending":
 			return technical(failure.Code, false, err)
 		case "indeterminate", "execution_outcome_unknown", "invalid_receipt":
 			return technical(failure.Code, true, err)
@@ -549,8 +554,16 @@ func validateRequirementFailure(failure accounting.Failure, request accounting.E
 	switch failure.Code {
 	case accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
 		accounting.FailureExternalHoldNotAllowed, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked:
-		for _, requirement := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
+		transaction := request.Transactions[failure.TransactionIndex]
+		for _, requirement := range transaction.BalanceRequirements {
 			if requirement.BalanceRef == failure.BalanceRef {
+				return nil
+			}
+		}
+
+		// A reopen touches its debtor before any posting.
+		for _, reopen := range transaction.ReopenFeeDebts {
+			if reopen.DebtorRef == failure.BalanceRef && (failure.Code == accounting.FailureBalanceDeleted || failure.Code == accounting.FailureAccountBlocked) {
 				return nil
 			}
 		}
@@ -568,6 +581,13 @@ func validatePostingFailure(failure accounting.Failure, request accounting.Execu
 	posting := postings[failure.PostingIndex]
 	if failure.BalanceRef == posting.BalanceRef {
 		return nil
+	}
+
+	// A refund refuses on the creditor that would pay it back.
+	for _, refund := range posting.Refunds {
+		if refund.CreditRef == failure.BalanceRef {
+			return nil
+		}
 	}
 
 	var origin *accounting.BalanceSnapshot
@@ -593,6 +613,7 @@ type resultEnvelope struct {
 	Movements          []json.RawMessage `json:"movements"`
 	Final              []json.RawMessage `json:"final"`
 	AppliedAtUnixMicro int64             `json:"appliedAtUnixMicro,omitempty"`
+	FeeDebt            []json.RawMessage `json:"feeDebt,omitempty"`
 }
 
 type resultState struct {
@@ -639,15 +660,15 @@ func DecodeResult(raw []byte, request accounting.Execution) (*accounting.Executi
 	}
 	last := make(map[string]accounting.BalanceState)
 	firstTouch := make([]string, 0, len(response.Final))
-	previousOrdinal := -1
+	previousOrder := int64(-1)
 
 	for _, rawMovement := range response.Movements {
-		movement, ordinal, movementScopeRef, err := decodeMovement(rawMovement, request)
+		movement, order, movementScopeRef, err := decodeMovement(rawMovement, request)
 		if err != nil {
 			return nil, err
 		}
 
-		if ordinal <= previousOrdinal {
+		if order <= previousOrder {
 			return nil, errors.New("unordered or repeated accounting movement")
 		}
 
@@ -655,7 +676,7 @@ func DecodeResult(raw []byte, request accounting.Execution) (*accounting.Executi
 			return nil, err
 		}
 
-		previousOrdinal = ordinal
+		previousOrder = order
 
 		if before, exists := last[movementScopeRef]; exists {
 			if !sameState(before, movement.Before) {
@@ -691,7 +712,7 @@ func DecodeResult(raw []byte, request accounting.Execution) (*accounting.Executi
 		result.Final = append(result.Final, balance)
 	}
 
-	return result, nil
+	return decodeFeeDebtResult(result, response.FeeDebt, request)
 }
 
 func validateCompanionSequence(movement accounting.Movement, previous []accounting.Movement) error {
@@ -708,7 +729,7 @@ func validateCompanionSequence(movement accounting.Movement, previous []accounti
 	}
 
 	primary := previous[len(previous)-1]
-	if primary.Role != accounting.RolePrimary || primary.TransactionID != movement.TransactionID || primary.PostingRef != movement.PostingRef || primary.OverdraftDelta.IsZero() || !movement.Amount.Equal(primary.OverdraftDelta.Abs()) {
+	if !requiresCompanion(primary) || primary.TransactionID != movement.TransactionID || primary.PostingRef != movement.PostingRef || !movement.Amount.Equal(primary.OverdraftDelta.Abs()) {
 		return errors.New("companion movement does not match primary debt change")
 	}
 
@@ -720,10 +741,12 @@ func validateCompanionSequence(movement accounting.Movement, previous []accounti
 }
 
 func requiresCompanion(movement accounting.Movement) bool {
-	return movement.Role == accounting.RolePrimary && !movement.OverdraftDelta.IsZero()
+	return (movement.Role == accounting.RolePrimary || movement.Role == accounting.RoleFeeDebtRefundCredit) && !movement.OverdraftDelta.IsZero()
 }
 
-func decodeMovement(raw []byte, request accounting.Execution) (accounting.Movement, int, string, error) {
+// decodeMovement returns the movement, its order key (posting position, then
+// sub-position within the posting) and its scoped balance reference.
+func decodeMovement(raw []byte, request accounting.Execution) (accounting.Movement, int64, string, error) {
 	var wire resultMovement
 	if err := decodeStrict(raw, &wire); err != nil {
 		return accounting.Movement{}, 0, "", err
@@ -734,7 +757,12 @@ func decodeMovement(raw []byte, request accounting.Execution) (accounting.Moveme
 		return accounting.Movement{}, 0, "", errors.New("invalid movement transaction ID")
 	}
 
-	posting, balance, ordinal, err := correlateMovement(wire, transactionID, request)
+	ordinal, ok := movementOrdinal(wire.Ref, transactionID.String()+":"+strconv.Itoa(len(wire.PostingRef))+":"+wire.PostingRef+":"+wire.Role+":")
+	if !ok || !validMovementType(wire.Type) {
+		return accounting.Movement{}, 0, "", errors.New("invalid movement identity or type")
+	}
+
+	posting, balance, order, err := correlateMovement(wire, transactionID, ordinal, request)
 	if err != nil {
 		return accounting.Movement{}, 0, "", err
 	}
@@ -742,11 +770,6 @@ func decodeMovement(raw []byte, request accounting.Execution) (accounting.Moveme
 	organizationID, ledgerID, ok := transactionScopeForID(request, transactionID)
 	if !ok {
 		return accounting.Movement{}, 0, "", errors.New("unknown movement transaction scope")
-	}
-
-	expectedRef := transactionID.String() + ":" + strconv.Itoa(len(posting.Ref)) + ":" + posting.Ref + ":" + wire.Role + ":0"
-	if wire.Ref != expectedRef || !validPostingType(wire.Type) {
-		return accounting.Movement{}, 0, "", errors.New("invalid movement identity or type")
 	}
 
 	before, err := decodeState(wire.Before)
@@ -774,7 +797,7 @@ func decodeMovement(raw []byte, request accounting.Execution) (accounting.Moveme
 		return accounting.Movement{}, 0, "", err
 	}
 
-	return movement, ordinal, scopedBalanceRef(organizationID, ledgerID, movement.BalanceRef), nil
+	return movement, order, scopedBalanceRef(organizationID, ledgerID, movement.BalanceRef), nil
 }
 
 func validateMovementTransition(movement accounting.Movement, posting accounting.Posting, balance accounting.BalanceSnapshot) error {
@@ -799,14 +822,20 @@ func validateMovementTransition(movement accounting.Movement, posting accounting
 		return errors.New("invalid companion movement correlation")
 	}
 
+	if !validFeeDebtMovement(movement) {
+		return errors.New("invalid fee-debt movement correlation")
+	}
+
 	return nil
 }
 
-func correlateMovement(wire resultMovement, transactionID uuid.UUID, request accounting.Execution) (accounting.Posting, accounting.BalanceSnapshot, int, error) {
-	posting, ordinal, found := findPosting(request, transactionID, wire.PostingRef)
+func correlateMovement(wire resultMovement, transactionID uuid.UUID, ordinal int, request accounting.Execution) (accounting.Posting, accounting.BalanceSnapshot, int64, error) {
+	posting, index, found := findPosting(request, transactionID, wire.PostingRef)
 	if !found {
 		return accounting.Posting{}, accounting.BalanceSnapshot{}, 0, errors.New("unknown movement origin")
 	}
+
+	order := int64(index) << 32
 
 	organizationID, ledgerID, hasScope := transactionScopeForID(request, transactionID)
 	if !hasScope {
@@ -817,28 +846,35 @@ func correlateMovement(wire resultMovement, transactionID uuid.UUID, request acc
 
 	target, targetExists := findBalance(request, organizationID, ledgerID, wire.BalanceRef)
 	if sourceExists && targetExists {
-		if wire.Role == accounting.RolePrimary && source.BalanceRef == target.BalanceRef {
-			return posting, target, ordinal, nil
+		ordinary := ordinal == 0 && posting.Type != accounting.PostingCollect && posting.Type != accounting.PostingRefund
+		if ordinary && wire.Role == accounting.RolePrimary && source.BalanceRef == target.BalanceRef {
+			return posting, target, order, nil
 		}
 
-		if wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
-			return posting, target, ordinal + 1, nil
+		companion := ordinary || posting.Type == accounting.PostingRefund && ordinal < len(posting.Refunds)
+		if companion && wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
+			return posting, target, order + 3*int64(ordinal) + 1, nil
+		}
+
+		if sub, ok := feeDebtMovementSub(wire.Role, ordinal, posting, source, target); ok {
+			return posting, target, order + sub, nil
 		}
 	}
 
 	return accounting.Posting{}, accounting.BalanceSnapshot{}, 0, errors.New("uncorrelated movement balance or role")
 }
 
+// findPosting returns the posting and its position across the execution.
 func findPosting(request accounting.Execution, transactionID uuid.UUID, postingRef string) (accounting.Posting, int, bool) {
-	ordinal := 0
+	index := 0
 
 	for _, transaction := range request.Transactions {
 		for _, posting := range transaction.Postings {
 			if transaction.ID == transactionID && posting.Ref == postingRef {
-				return posting, ordinal, true
+				return posting, index, true
 			}
 
-			ordinal += 2
+			index++
 		}
 	}
 

@@ -310,6 +310,57 @@ func TestCreatePackage(t *testing.T) {
 	}
 }
 
+// TestCreatePackage_MetadataSelector pins that a selector splits the scope: a
+// package on the same route, segment and band as a stored one is accepted when
+// its selector differs, and the selector reaches the persisted entity.
+func TestCreatePackage_MetadataSelector(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
+	packSvc := &UseCase{packageRepo: mockPackRepo, resolver: mockResolver}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	enable := true
+	selector := map[string]string{"fee_context": "ted_salario"}
+
+	input := &model.CreatePackageInput{
+		FeeGroupLabel:    "ted salario",
+		MinAmount:        "2000",
+		MaxAmount:        "3000",
+		Fee:              map[string]model.Fee{"teste": {FeeLabel: "Teste", ReferenceAmount: "afterFeesAmount", CreditAccount: "teste"}},
+		Enable:           &enable,
+		MetadataSelector: selector,
+	}
+
+	stored := &pack.Package{
+		ID:            uuid.New(),
+		LedgerID:      ledgerID,
+		MinimumAmount: decimal.NewFromInt(2000),
+		MaximumAmount: decimal.NewFromInt(3000),
+		Enable:        &enable,
+	}
+
+	mockResolver.EXPECT().
+		AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil)
+	mockPackRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		Return([]*pack.Package{stored}, nil)
+	mockPackRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), orgID).
+		DoAndReturn(func(_ context.Context, p *pack.Package, _ uuid.UUID) (*pack.Package, error) {
+			assert.Equal(t, selector, p.MetadataSelector, "the selector must reach the persisted entity")
+
+			return p, nil
+		})
+
+	_, err := packSvc.CreatePackage(context.Background(), input, orgID, ledgerID, uuid.Nil)
+	require.NoError(t, err, "a different selector on the same band must not collide")
+}
+
 // TestCreatePackage_EmitsFeesPackageCreated asserts a successful create emits
 // the fee_packages.created event through the mock emitter.
 func TestCreatePackage_EmitsFeesPackageCreated(t *testing.T) {

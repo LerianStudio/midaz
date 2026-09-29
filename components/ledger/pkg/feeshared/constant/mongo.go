@@ -7,4 +7,5 @@ package constant
 const (
 	PackageCollection        = "package"
 	BillingPackageCollection = "billing_package"
+	FeeDebtCollection        = "fee_debt"
 )

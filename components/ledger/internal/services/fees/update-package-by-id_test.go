@@ -399,3 +399,41 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 	assert.Equal(t, orgID.String(), payload["organizationId"])
 	assert.Equal(t, ledgerID.String(), payload["ledgerId"])
 }
+
+// TestSetAmountsDataToUpdate_KeepsStoredSelector pins that a band update on a
+// selector-scoped package is checked within its own scope: an unscoped package
+// on the same band is a different scope and must not collide with it.
+func TestSetAmountsDataToUpdate_KeepsStoredSelector(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	uc := &UseCase{packageRepo: mockPackRepo}
+
+	packageID := uuid.New()
+	ledgerID := uuid.New()
+	minAmount, maxAmount := "100", "1000"
+
+	unscopedSibling := &pack.Package{
+		ID:            uuid.New(),
+		LedgerID:      ledgerID,
+		MinimumAmount: decimal.NewFromInt(100),
+		MaximumAmount: decimal.NewFromInt(1000),
+	}
+
+	mockPackRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		Return([]*pack.Package{unscopedSibling}, nil)
+
+	stored := &model.AmountData{
+		MinAmount:        decimal.NewFromInt(10),
+		MaxAmount:        decimal.NewFromInt(50),
+		LedgerID:         ledgerID,
+		MetadataSelector: map[string]string{"fee_context": "ted_salario"},
+	}
+
+	err := uc.SetAmountsDataToUpdate(context.Background(), nil,
+		&model.UpdatePackageInput{MinAmount: &minAmount, MaxAmount: &maxAmount},
+		stored, uuid.New(), &packageID, bson.M{})
+	require.NoError(t, err, "a selector-scoped package must not collide with an unscoped one on its band")
+}

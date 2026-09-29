@@ -452,6 +452,16 @@ reservation and does not inherit the original transaction's tracer skip. Neither
 revert nor pending transitions rewrite the engine recover record through the
 legacy write-behind path.
 
+A standalone fee-debt collection (`CollectFeeDebt`) composes one execution
+with a single `collect` posting on the debtor balance and nothing else: no
+fees and no tracer. Its amount is the lesser of the caller's
+cap and the open total in the debtor's seed; Lua re-reads the live list, so the
+seed only bounds it. An execution that moves nothing writes nothing and
+completes nothing. Otherwise the completion projects the transaction amount as
+the sum of its `settled` changes, and the `feeDebtCollection` mark makes revert
+refuse it: the revert fold rebuilds settlements from credit legs, and a
+collection has none, so its reversal would not balance.
+
 The engine never indexes a NOTED annotation. When the index and the primary both
 answer not-found, commit, cancel, revert, and the by-id GET read the legacy
 write-behind entry the annotation path writes, so an unprojected annotation is
@@ -625,7 +635,10 @@ keys per balance (live value plus both deletion-marker forms), then one grant ke
 for each transaction that presents an account-block exception, in transaction
 order, and finally three account-protection keys — `closing`, `closed` and the
 administrative ownership — for each account of the declared balance pool, once per
-account in stable order. Balance-key bytes and the 24-hour balance-cache TTL are
+account in stable order. After the coordination keys of any additional scope, the
+inventory closes with one fee-debt list key per debtor the execution declares
+(`fee-debt:{transactions}:<org>:<ledger>:<alias#key>`, see the engine README's
+fee-debt protocol). Balance-key bytes and the 24-hour balance-cache TTL are
 unchanged.
 
 Before the first write, the engine must:
@@ -768,6 +781,26 @@ single-slot transport guarantees have not been implemented for that topology.
 Ring is not selected by the current service configuration. Deployments using the
 default engine must use a supported standalone or Sentinel connection.
 
+Fee-debt lists are the only live copy of a payer's receivables. A lost balance
+blob re-seeds from PostgreSQL on the next cache miss; a lost fee-debt list has no
+such source, because the Fees `fee_debt` documents lag completion, round past 34
+significant digits and are never read back as a seed. The `{transactions}` Redis
+must therefore be persistent and run with `maxmemory-policy` `noeviction` or a
+`volatile-*` policy: lists carry no TTL, so a `volatile-*` policy never selects
+them, while any `allkeys-*` policy evicts receivables. A flush, an eviction, or a
+failover to a replica that missed the last writes is data loss, not a cache miss:
+later credits stop settling the lost debts, and a revert that must refund one
+fails with `fee_debt_conflict` instead of refunding from a guess. Verify the
+production instance's persistence and eviction policy before enabling deferrable
+fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
+
+A fee defers only when its package sets `deferrable: true` on it, which only a
+non-deductible fee accepts; without it an unfunded fee is still refused with
+`0018`. A partly deferred fee books only the share the payer funded: the
+transaction stores the send plus the fee, less the debt it opened (send 100, fee
+10, payer holds 105: amount 105, debt 5). The difference is the transaction's
+`feeDebtOpenings` metadata and the open debt on `GET .../fee-debts`.
+
 Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the
 protocol prefix. Validate the code enum, transaction/posting index bounds, and
@@ -820,6 +853,7 @@ different failure window:
 | Cross-ledger lifecycle claim | Command layer under `group-commit:{groupId}` or `group-cancel:{groupId}` | Concurrent or repeated publication of a grouped commit/cancel that has no caller key | Durable projection of every member or the terminal group status label |
 | Engine receipt | Read first and written last by the accounting Lua execution | Re-executing the same execution ID after a lost response; replay returns the exact recorded result | SQL/MongoDB projection or event delivery |
 | Execution guard | Compared and advanced by Lua with the mutation | Competing lifecycle actions, especially commit versus cancel | Durable completion of the winning action |
+| Revert marker | Guard field `<originId>:reverted`, written by Lua with a revert's mutation | A second revert of one origin applying money before PostgreSQL records the first (refused as 0087) | Durable completion of the revert |
 | Recovery record | Written by Lua with balance changes, then exact-ACKed by recovery | Losing the information needed to complete an already-applied result | Permission to invoke the engine again |
 
 The receipt is therefore not redundant with the HTTP claim. The HTTP claim is a
@@ -939,7 +973,8 @@ score, receipt scope and membership, terminal acknowledgement proof, absence of
 every recovery member from both hashes, and every coordinator deadline in one atomic script. It
 removes only that receipt and its coordinator links. A transaction guard is
 removed only when no other execution remains linked to that transaction, so an
-earlier deadline cannot erase a newer transition's protection. Missing receipts
+earlier deadline cannot erase a newer transition's protection; a revert's origin
+marker goes with the revert's own guard. Missing receipts
 remove only their stale due-index member; changed deadlines are rescheduled.
 Malformed or inconsistent proofs fail without artifact writes.
 
@@ -1004,7 +1039,13 @@ single-tenant metadata fallback. Legacy tenant-readiness rules remain unchanged.
 The concrete `TransactionCompletionService` implements the
 `AppliedTransactionCompleter` port and persists or verifies transaction and operation rows
 atomically in the existing PostgreSQL tables, then creates or verifies metadata
-in MongoDB. Existing metadata is never overwritten to force replay equivalence.
+in MongoDB. Existing metadata is never compared with the frozen copy: it is the
+client-editable truth, and a stored key is never overwritten. Only a PATCH writes a
+document without an entity name, before the frozen keys landed; completion adds the
+frozen keys that document lacks, field by field, and sets the entity name, which marks
+it completed. A completed document gets only the fee-debt keys the completion computed
+and it lacks, so a key the client deleted after completion stays deleted. A frozen
+object `feeExemption` is written as its JSON string.
 A late pending-hold record after terminal completion is accepted only when every
 historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.
@@ -1083,6 +1124,12 @@ blob must carry the coordinated admission before the close route is exposed, and
 there is no key to backfill for the accounts that stay open. The procedure, the
 rollback that keeps `closed_at`, and the reconciliation an operator can run are in
 `docs/runbooks/account-closing-protection.md`.
+
+Deferrable fees are one-way for a rolling deploy. A completion record that carries
+fee debt fails the strict decoder of an older binary, which quarantines it instead
+of completing it. Set `deferrable` on a package only after every ledger pod runs a
+release that knows fee debt; rolling back to an older binary quarantines the fee
+debt records still in `recover` the same way.
 
 The active `GetBalances` query, Redis transaction `ListBalanceByKey`, and
 `GetBalancesByKeys` use the shared read-only `DecodeForRead` projection. The
