@@ -611,6 +611,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrTransactionReservationReview: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationReview.Error(),
+			Title:      "Transaction Reservation Review Error",
+			Message:    "The transaction was flagged for review by a transaction validation rule and this ledger is configured to reject flagged transactions. Review the rule or retry after manual approval.",
+		},
+		constant.ErrTransactionReservationRejected: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationRejected.Error(),
+			Title:      "Transaction Reservation Rejected Error",
+			Message:    "The usage-limit service rejected the reservation request for this transaction. Verify that the asset, account type and transaction date are accepted by the tracer configuration.",
+		},
 		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
