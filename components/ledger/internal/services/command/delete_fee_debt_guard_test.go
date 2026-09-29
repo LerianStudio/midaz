@@ -194,6 +194,9 @@ func TestRefuseOpenFeeDebt_OwedToTheBalance(t *testing.T) {
 
 		return &UseCase{TransactionRedisRepo: mock, TransactionReader: &feeDebtReader{}, FeeDebts: debts}
 	}
+	refuse := func(uc *UseCase, ledgerID uuid.UUID) error {
+		return uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, ledgerID, fees, engineRecoverySources, nil)
+	}
 	requireOwed := func(t *testing.T, err error) {
 		var unprocessable midazpkg.UnprocessableOperationError
 		require.ErrorAs(t, err, &unprocessable)
@@ -204,7 +207,7 @@ func TestRefuseOpenFeeDebt_OwedToTheBalance(t *testing.T) {
 		debts := &owedFeeDebts{}
 		uc := newUseCase(t, debts, closingPage(redis.RecoveryQueueSourceEngineRecover, 7), owedRecoveryPage(t, 0, "@fees#default"))
 
-		requireOwed(t, uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, recoveryScopeLedgerID, fees))
+		requireOwed(t, refuse(uc, recoveryScopeLedgerID))
 		assert.Nil(t, debts.refs)
 	})
 
@@ -219,7 +222,7 @@ func TestRefuseOpenFeeDebt_OwedToTheBalance(t *testing.T) {
 			debts := &owedFeeDebts{}
 			uc := newUseCase(t, debts, owedRecoveryPage(t, 0, scope.creditor))
 
-			require.NoError(t, uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, scope.ledgerID, fees), name)
+			require.NoError(t, refuse(uc, scope.ledgerID), name)
 			assert.Equal(t, []string{"@fees#default"}, debts.refs, name)
 		}
 	})
@@ -227,24 +230,22 @@ func TestRefuseOpenFeeDebt_OwedToTheBalance(t *testing.T) {
 	t.Run("a debt the projection holds refuses", func(t *testing.T) {
 		uc := newUseCase(t, &owedFeeDebts{owed: true}, redis.RecoveryScanPage{})
 
-		requireOwed(t, uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, recoveryScopeLedgerID, fees))
+		requireOwed(t, refuse(uc, recoveryScopeLedgerID))
 	})
 
-	t.Run("an unproven answer fails as a technical error", func(t *testing.T) {
+	t.Run("an unproven walk refuses as indeterminate and a failed projection read is technical", func(t *testing.T) {
 		readErr := errors.New("mongo down")
 		uc := newUseCase(t, &owedFeeDebts{err: readErr}, redis.RecoveryScanPage{})
-		require.ErrorIs(t, uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, recoveryScopeLedgerID, fees), readErr)
+		require.ErrorIs(t, refuse(uc, recoveryScopeLedgerID), readErr)
 
-		uc = newUseCase(t, &owedFeeDebts{}, redis.RecoveryScanPage{Cursor: 7, Bytes: maxAccountClosingRecoveryBytes + 1})
-		err := uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, recoveryScopeLedgerID, fees)
-		require.Error(t, err)
-		assert.False(t, midazpkg.IsBusinessError(err))
+		uc = newUseCase(t, &owedFeeDebts{}, redis.RecoveryScanPage{Cursor: 7, Bytes: maxRecoveryWalkBytes + 1})
+		requireClosingCode(t, refuse(uc, recoveryScopeLedgerID), constant.ErrAccountClosingProtectionIndeterminate)
 
-		scanErr := errors.New("redis down")
 		mock := redis.NewMockRedisRepository(gomock.NewController(t))
-		mock.EXPECT().ScanRecoveryMessages(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(redis.RecoveryScanPage{}, scanErr)
+		mock.EXPECT().ScanRecoveryMessages(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(redis.RecoveryScanPage{}, errors.New("redis down"))
 		uc = &UseCase{TransactionRedisRepo: mock, TransactionReader: &feeDebtReader{}, FeeDebts: &owedFeeDebts{}}
-		require.ErrorIs(t, uc.refuseOpenFeeDebt(ctx, recoveryScopeOrgID, recoveryScopeLedgerID, fees), scanErr)
+		requireClosingCode(t, refuse(uc, recoveryScopeLedgerID), constant.ErrAccountClosingProtectionIndeterminate)
 	})
 }
 
@@ -288,4 +289,21 @@ func TestDeleteAccountByID_RefusesABalanceOwedAFeeDebt(t *testing.T) {
 	var unprocessable midazpkg.UnprocessableOperationError
 	require.ErrorAs(t, err, &unprocessable)
 	assert.Equal(t, constant.ErrBalanceOwedFeeDebt.Error(), unprocessable.Code)
+}
+
+// TestDeleteAccountByID_AnswersAnIndeterminateStateAsRetryable proves an account deletion
+// whose balances could not be proven deletable answers the retryable 0520, not 0012.
+func TestDeleteAccountByID_AnswersAnIndeterminateStateAsRetryable(t *testing.T) {
+	m := newProtectionMocks(t)
+
+	m.account.EXPECT().Find(gomock.Any(), protectionOrgID, protectionLedgerID, nil, protectionAccountID, mmodel.HolderOffV1).
+		Return(&mmodel.Account{ID: protectionAccountID.String(), Type: "deposit"}, nil)
+	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
+		Return("", false, nil)
+	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID, gomock.Any()).
+		Return(false, errors.New("cache unavailable"))
+
+	err := m.uc.DeleteAccountByID(context.Background(), protectionOrgID, protectionLedgerID, nil, protectionAccountID, "token")
+
+	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 }

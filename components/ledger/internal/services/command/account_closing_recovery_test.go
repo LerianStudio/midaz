@@ -95,6 +95,12 @@ func closingPage(source txRedis.RecoveryQueueSource, cursor uint64, payloads ...
 	return page
 }
 
+// walkForClosing runs the closing's recovery walk over both origins.
+func (m *closingRecoveryMocks) walkForClosing() error {
+	return m.uc.walkRecovery(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID,
+		allRecoverySources, refuseAccountInCompletion(recoveryScopeAccountID))
+}
+
 // expectTerminalScan programs one origin answering a single terminal page.
 func (m *closingRecoveryMocks) expectTerminalScan(source txRedis.RecoveryQueueSource, payloads ...string) {
 	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), source, uint64(0), gomock.Any()).
@@ -143,7 +149,14 @@ func TestAccountClosingRecoveryRecordAttributionReadsBothPersistedFormats(t *tes
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			touches, err := recoveryRecordTouchesAccount([]byte(test.raw), test.allowLegacy, recoveryScopeOrgID, test.ledgerID, test.accountID)
+			touches, err := func() (bool, error) {
+				record, err := readRecoveryRecord([]byte(test.raw), test.allowLegacy, recoveryScopeOrgID, test.ledgerID)
+				if err != nil || record == nil {
+					return false, err
+				}
+
+				return record.touchesAccount(test.accountID)
+			}()
 
 			if test.fails {
 				require.Error(t, err)
@@ -174,7 +187,7 @@ func TestAccountClosingRecoveryWalksEveryCursorBeforeConcludingAbsence(t *testin
 
 	m.expectTerminalScan(txRedis.RecoveryQueueSourceEngineRecover)
 
-	require.NoError(t, m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID))
+	require.NoError(t, m.walkForClosing())
 }
 
 // TestAccountClosingRecoveryRefusesWhileACompletionIsStillOwed covers AS-08: an
@@ -186,7 +199,7 @@ func TestAccountClosingRecoveryRefusesWhileACompletionIsStillOwed(t *testing.T) 
 	m.expectTerminalScan(txRedis.RecoveryQueueSourceLegacyBackup)
 	m.expectTerminalScan(txRedis.RecoveryQueueSourceEngineRecover, string(recoveryInventoryEnvelope(t, constant.ActionCommit)))
 
-	err := m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID)
+	err := m.walkForClosing()
 
 	requireClosingCode(t, err, constant.ErrAccountClosingPersistencePending)
 }
@@ -207,7 +220,7 @@ func TestAccountClosingRecoveryTreatsAnAcknowledgedRecordAsGone(t *testing.T) {
 
 	m.expectTerminalScan(txRedis.RecoveryQueueSourceEngineRecover)
 
-	require.NoError(t, m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID))
+	require.NoError(t, m.walkForClosing())
 }
 
 // TestAccountClosingRecoveryRefusesUnprovenAbsence covers AS-10: a scan that fails
@@ -220,7 +233,7 @@ func TestAccountClosingRecoveryRefusesUnprovenAbsence(t *testing.T) {
 		m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
 			Return(txRedis.RecoveryScanPage{}, errors.New("cache unavailable"))
 
-		err := m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID)
+		err := m.walkForClosing()
 
 		requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 	})
@@ -230,7 +243,7 @@ func TestAccountClosingRecoveryRefusesUnprovenAbsence(t *testing.T) {
 
 		m.expectTerminalScan(txRedis.RecoveryQueueSourceLegacyBackup, `{"formatVersion":2,"payload":`)
 
-		err := m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID)
+		err := m.walkForClosing()
 
 		requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 	})
@@ -239,12 +252,12 @@ func TestAccountClosingRecoveryRefusesUnprovenAbsence(t *testing.T) {
 		m := newClosingRecoveryMocks(t)
 
 		oversized := closingPage(txRedis.RecoveryQueueSourceLegacyBackup, 3)
-		oversized.Bytes = maxAccountClosingRecoveryBytes + 1
+		oversized.Bytes = maxRecoveryWalkBytes + 1
 
 		m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
 			Return(oversized, nil)
 
-		err := m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID)
+		err := m.walkForClosing()
 
 		requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 	})
@@ -253,12 +266,12 @@ func TestAccountClosingRecoveryRefusesUnprovenAbsence(t *testing.T) {
 		m := newClosingRecoveryMocks(t)
 
 		oversized := closingPage(txRedis.RecoveryQueueSourceLegacyBackup, 3, closingLegacyRecoveryRecord(t, recoveryScopeAccountID))
-		oversized.Bytes = maxAccountClosingRecoveryBytes + 1
+		oversized.Bytes = maxRecoveryWalkBytes + 1
 
 		m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
 			Return(oversized, nil)
 
-		err := m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID)
+		err := m.walkForClosing()
 
 		requireClosingCode(t, err, constant.ErrAccountClosingPersistencePending)
 	})
@@ -275,5 +288,54 @@ func TestAccountClosingRecoveryIsolatesTheScopeOfEachOrigin(t *testing.T) {
 	m.expectTerminalScan(txRedis.RecoveryQueueSourceLegacyBackup, foreign)
 	m.expectTerminalScan(txRedis.RecoveryQueueSourceEngineRecover)
 
-	require.NoError(t, m.uc.verifyNoAccountClosingRecoveryPending(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID))
+	require.NoError(t, m.walkForClosing())
+}
+
+// TestRecoveryWalkChargesTheBudgetOnlyWhilePagesRemain proves a walk whose last terminal
+// page spends the budget still concludes, while a spent budget with a source left to walk
+// leaves absence unproven.
+func TestRecoveryWalkChargesTheBudgetOnlyWhilePagesRemain(t *testing.T) {
+	t.Run("the last terminal page concludes", func(t *testing.T) {
+		m := newClosingRecoveryMocks(t)
+
+		last := closingPage(txRedis.RecoveryQueueSourceEngineRecover, 0)
+		last.Bytes = maxRecoveryWalkBytes + 1
+
+		m.expectTerminalScan(txRedis.RecoveryQueueSourceLegacyBackup)
+		m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceEngineRecover, uint64(0), gomock.Any()).
+			Return(last, nil)
+
+		require.NoError(t, m.walkForClosing())
+	})
+
+	t.Run("a source left to walk refuses", func(t *testing.T) {
+		m := newClosingRecoveryMocks(t)
+
+		spent := closingPage(txRedis.RecoveryQueueSourceLegacyBackup, 0)
+		spent.Bytes = maxRecoveryWalkBytes + 1
+
+		m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
+			Return(spent, nil)
+
+		requireClosingCode(t, m.walkForClosing(), constant.ErrAccountClosingProtectionIndeterminate)
+	})
+}
+
+// TestAccountClosingRefusesAFeeDebtOwedInRecoveryInItsOnlyWalk proves the closing finds a
+// fee-debt change owed to its balance in the walk that looks for its executions in
+// completion: each origin is scanned once and the projection is never reached.
+func TestAccountClosingRefusesAFeeDebtOwedInRecoveryInItsOnlyWalk(t *testing.T) {
+	m := newClosingRecoveryMocks(t)
+	debts := &owedFeeDebts{}
+	m.uc.TransactionReader, m.uc.FeeDebts = &feeDebtReader{}, debts
+
+	m.expectTerminalScan(txRedis.RecoveryQueueSourceLegacyBackup)
+	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceEngineRecover, uint64(0), gomock.Any()).
+		Return(owedRecoveryPage(t, 0, "@fees#default"), nil)
+
+	states := []accountClosingBalanceState{{Persisted: &mmodel.Balance{Alias: "@fees", Key: "default"}}}
+	err := m.uc.verifyNoAccountClosingWorkOutstanding(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryOtherAccountID, states)
+
+	requireClosingCode(t, err, constant.ErrBalanceOwedFeeDebt)
+	assert.Nil(t, debts.refs)
 }

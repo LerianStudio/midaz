@@ -82,7 +82,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 			unprocessable pkg.UnprocessableOperationError
 		)
 
-		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) ||
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) || isAccountClosingIndeterminate(err) ||
 			(errors.As(err, &unprocessable) && (unprocessable.Code == constant.ErrBalanceHasOpenFeeDebt.Error() ||
 				unprocessable.Code == constant.ErrBalanceOwedFeeDebt.Error())) {
 			return err

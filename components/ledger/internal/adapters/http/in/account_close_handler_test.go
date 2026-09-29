@@ -144,7 +144,7 @@ func (m *closeRouteMocks) expectEligibleClosing() {
 	m.redis.EXPECT().ListBalanceByKey(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, gomock.Any()).
 		Return(nil, redis.Nil)
 	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), gomock.Any(), uint64(0), gomock.Any()).
-		Return(txRedis.RecoveryScanPage{Cursor: 0}, nil).Times(3)
+		Return(txRedis.RecoveryScanPage{Cursor: 0}, nil).Times(2)
 	m.operation.EXPECT().ListLatestByBalances(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, gomock.Any()).
 		Return(map[string]*operation.Operation{}, nil)
 	m.transaction.EXPECT().HasPendingByAccount(gomock.Any(), closeRouteOrgID, closeRouteLedgerID, closeRouteAccountID).

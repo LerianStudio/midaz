@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -21,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -115,7 +113,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 			return err
 		}
 
-		if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, []*mmodel.Balance{balance}); err != nil {
+		if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, []*mmodel.Balance{balance}, engineRecoverySources, nil); err != nil {
 			recordCommandError(ctx, span, logger, "Balance cannot be deleted while it owes or is owed pending fees", err)
 
 			return err
@@ -193,14 +191,10 @@ func (uc *UseCase) refuseCachedBalanceFunds(ctx context.Context, span trace.Span
 	return nil
 }
 
-// refuseOpenFeeDebt refuses when any balance still owes a deferred fee or is owed one.
-// Callers hold a marker the engine honors on every movement that could open, settle or
-// reopen a debt (delete or closing), so the answer cannot go stale before their write commits.
-func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
-	if len(balances) == 0 {
-		return nil
-	}
-
+// refuseOpenFeeDebt refuses when a balance owes a deferred fee (0527) or is owed one
+// (0528), under a marker the engine honors on every debt change. refuse vets every other
+// in-scope record of sources, so a caller with its own recovery check walks them once.
+func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, sources []recoverySource, refuse func(recoveryRecord) error) error {
 	refs := make([]string, 0, len(balances))
 	for _, balance := range balances {
 		refs = append(refs, balance.Alias+"#"+balance.Key)
@@ -217,11 +211,23 @@ func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledger
 		}
 	}
 
-	owed, err := uc.feeDebtChangeInRecovery(ctx, organizationID, ledgerID, refs)
-	if err == nil && !owed {
-		owed, err = uc.FeeDebts.HasOpenCreditor(ctx, organizationID, ledgerID, refs)
+	// A record leaves recovery only after its changes are projected, so the walk comes first.
+	err = uc.walkRecovery(ctx, organizationID, ledgerID, sources, func(record recoveryRecord) error {
+		if record.owesFeeDebt(refs) {
+			return pkg.ValidateBusinessError(constant.ErrBalanceOwedFeeDebt, constant.EntityBalance)
+		}
+
+		if refuse == nil {
+			return nil
+		}
+
+		return refuse(record)
+	})
+	if err != nil || len(refs) == 0 {
+		return err
 	}
 
+	owed, err := uc.FeeDebts.HasOpenCreditor(ctx, organizationID, ledgerID, refs)
 	if err != nil {
 		return fmt.Errorf("failed to read the fee debts owed to the balances: %w", err)
 	}
@@ -231,44 +237,6 @@ func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledger
 	}
 
 	return nil
-}
-
-// feeDebtChangeInRecovery reports whether a fee-debt change naming one of creditRefs
-// still waits in the engine recovery records: the Fees projection shows it only once
-// completion acknowledges it, so the projection is read after this walk.
-func (uc *UseCase) feeDebtChangeInRecovery(ctx context.Context, organizationID, ledgerID uuid.UUID, creditRefs []string) (bool, error) {
-	budget := maxAccountClosingRecoveryBytes
-
-	for cursor, walked := uint64(0), false; !walked || cursor != 0; walked = true {
-		page, err := uc.TransactionRedisRepo.ScanRecoveryMessages(ctx, txRedis.RecoveryQueueSourceEngineRecover, cursor, accountClosingRecoveryScanCount)
-		if err != nil {
-			return false, fmt.Errorf("scan engine recovery records: %w", err)
-		}
-
-		for _, record := range page.Records {
-			envelope, err := DecodeTransactionWriteBehindEnvelope([]byte(record.Payload))
-			if err != nil {
-				return false, fmt.Errorf("decode engine recovery record: %w", err)
-			}
-
-			if envelope.Record.OrganizationID != organizationID || envelope.Record.LedgerID != ledgerID {
-				continue
-			}
-
-			for _, change := range envelope.Record.Result.FeeDebt {
-				if slices.Contains(creditRefs, change.CreditRef) {
-					return true, nil
-				}
-			}
-		}
-
-		cursor, budget = page.Cursor, budget-page.Bytes
-		if budget < 0 {
-			return false, errors.New("engine recovery scan exceeded its byte budget")
-		}
-	}
-
-	return false, nil
 }
 
 // balanceRedisHasFunds applies the same deletion guard to a Redis snapshot. BalanceRedis stores

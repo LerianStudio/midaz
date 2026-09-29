@@ -242,7 +242,6 @@ func TestCloseAccount_PublishesNothingOnARefusedClosing(t *testing.T) {
 		m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 		m.expectProtectionTaken()
 		m.expectBalancesRead(closeEligibleBalance())
-		m.expectFeeDebtRecoveryWalked()
 
 		m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
 			Return(txRedis.RecoveryScanPage{

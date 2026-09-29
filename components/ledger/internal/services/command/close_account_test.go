@@ -178,16 +178,8 @@ func (m *closeAccountMocks) expectBalancesRead(balances ...*mmodel.Balance) {
 // expectRecoveryWalked programs both recovery origins returning an empty terminal
 // page, which is the shape of an account with no completion left to run.
 func (m *closeAccountMocks) expectRecoveryWalked() {
-	m.expectFeeDebtRecoveryWalked()
 	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), gomock.Any(), uint64(0), gomock.Any()).
 		Return(txRedis.RecoveryScanPage{Cursor: 0}, nil).Times(2)
-}
-
-// expectFeeDebtRecoveryWalked programs the engine recovery walk the fee-debt guard runs
-// before the closing's own, returning an empty terminal page.
-func (m *closeAccountMocks) expectFeeDebtRecoveryWalked() {
-	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceEngineRecover, uint64(0), gomock.Any()).
-		Return(txRedis.RecoveryScanPage{Cursor: 0}, nil)
 }
 
 // expectPersistenceProven programs the high-water-mark read that answers the
@@ -391,7 +383,7 @@ func TestCloseAccount_RefusesAFeeDebtOwedToIt(t *testing.T) {
 			m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 			m.expectProtectionTaken()
 			m.expectBalancesRead(creditor)
-			m.expectFeeDebtRecoveryWalked()
+			m.expectRecoveryWalked()
 			m.expectProtectionReleased()
 
 			_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
@@ -430,7 +422,6 @@ func TestCloseAccount_RefusesWhileCompletionIsPending(t *testing.T) {
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 	m.expectProtectionTaken()
 	m.expectBalancesRead(closeEligibleBalance())
-	m.expectFeeDebtRecoveryWalked()
 
 	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
 		Return(txRedis.RecoveryScanPage{
