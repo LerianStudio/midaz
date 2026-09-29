@@ -196,3 +196,73 @@ func toAny(handlers []fiber.Handler) []any {
 
 	return out
 }
+
+func TestAuthorizedCaller_ReadsPlatformAttributes(t *testing.T) {
+	t.Parallel()
+
+	base := jwt.MapClaims{
+		"type": "application", "sub": "admin/ledger-m2m-tracer-t1", "azp": "random-client",
+		"tenantId": "0195d3b45a0170008000000000000001", "sourceService": "ledger", "isInternal": "true",
+	}
+
+	for name, tc := range map[string]struct {
+		mutate func(jwt.MapClaims)
+		want   TokenCaller
+	}{
+		"tenant-manager application": {
+			want: TokenCaller{Type: TokenTypeApplication, ClientID: "random-client", TenantID: "0195d3b45a0170008000000000000001", SourceService: "ledger", Internal: true},
+		},
+		"isInternal false": {
+			mutate: func(c jwt.MapClaims) { c["isInternal"] = "false" },
+			want:   TokenCaller{Type: TokenTypeApplication, ClientID: "random-client", TenantID: "0195d3b45a0170008000000000000001", SourceService: "ledger"},
+		},
+		"isInternal as a JSON bool": {
+			mutate: func(c jwt.MapClaims) { c["isInternal"] = true },
+			want:   TokenCaller{Type: TokenTypeApplication, ClientID: "random-client", TenantID: "0195d3b45a0170008000000000000001", SourceService: "ledger"},
+		},
+		"padded isInternal": {
+			mutate: func(c jwt.MapClaims) { c["isInternal"] = " true" },
+			want:   TokenCaller{Type: TokenTypeApplication, ClientID: "random-client", TenantID: "0195d3b45a0170008000000000000001", SourceService: "ledger"},
+		},
+		"no platform attributes": {
+			mutate: func(c jwt.MapClaims) { delete(c, "tenantId"); delete(c, "sourceService"); delete(c, "isInternal") },
+			want:   TokenCaller{Type: TokenTypeApplication, ClientID: "random-client"},
+		},
+		"non-string attributes": {
+			mutate: func(c jwt.MapClaims) { c["tenantId"] = 7; c["sourceService"] = []string{"ledger"} },
+			want:   TokenCaller{Type: TokenTypeApplication, ClientID: "random-client", Internal: true},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			claims := jwt.MapClaims{}
+			for key, value := range base {
+				claims[key] = value
+			}
+
+			if tc.mutate != nil {
+				tc.mutate(claims)
+			}
+
+			signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("unverified"))
+			require.NoError(t, err)
+
+			var (
+				got TokenCaller
+				ok  bool
+			)
+
+			app := fiber.New()
+			app.Post("/", func(c fiber.Ctx) error {
+				got, ok = authorizedCaller(c)
+
+				return c.SendStatus(http.StatusNoContent)
+			})
+
+			require.Equal(t, http.StatusNoContent, callProbe(t, app, "Bearer "+signed))
+			require.True(t, ok)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}

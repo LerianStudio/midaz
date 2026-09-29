@@ -118,8 +118,9 @@ func checkTracerListenerTLS(tracerEnv map[string]string) error {
 
 // checkTenancy requires both services to agree on multi-tenancy, parsed as
 // each boot parses it, and a multi-tenant Tracer to reach the tenant-manager
-// and authorize producers through plugin-auth. Setting values are never
-// reported.
+// and authorize producers through plugin-auth. Unlike the single-tenant
+// surface, DEPLOYMENT_MODE=local does not waive plugin-auth under
+// multi-tenancy. Setting values are never reported.
 func checkTenancy(ledgerEnv, tracerEnv map[string]string) error {
 	tracerMT := bootBool(tracerEnv, "MULTI_TENANT_ENABLED")
 	if bootBool(ledgerEnv, "MULTI_TENANT_ENABLED") != tracerMT {
@@ -131,7 +132,7 @@ func checkTenancy(ledgerEnv, tracerEnv map[string]string) error {
 	}
 
 	if !bootBool(tracerEnv, "PLUGIN_AUTH_ENABLED") {
-		return fmt.Errorf("tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true: without plugin-auth the tracer verifies no producer, so any caller could name any tenant")
+		return fmt.Errorf("tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true in every DEPLOYMENT_MODE, local included: without plugin-auth the tracer verifies no producer, so any caller could name any tenant, and the tracer refuses to boot")
 	}
 
 	if strings.TrimSpace(tracerEnv["MULTI_TENANT_URL"]) == "" {
@@ -146,10 +147,13 @@ func checkTenancy(ledgerEnv, tracerEnv map[string]string) error {
 }
 
 // checkProducerIdentity verifies that the Tracer will recognize the Ledger as
-// a platform producer over the transport the Ledger selects: by its M2M client
-// id on REST, by its client certificate over native mTLS on gRPC. It then
-// requires the plugin-auth posture the Tracer's reservation surface boots
-// under. Messages name settings only, never their values.
+// a platform producer over the transport the Ledger selects: by its client
+// certificate over native mTLS on gRPC; on REST, single-tenant, by its M2M
+// client id, and multi-tenant by the platform claims the tenant-manager
+// writes onto the per-tenant M2M application it provisions, so no client id
+// is mapped. It then requires the plugin-auth posture the Tracer's
+// reservation surface boots under. Messages name settings only, never their
+// values.
 func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 	if strings.TrimSpace(ledgerEnv["TRACER_BASE_URL"]) == "" {
 		return fmt.Errorf("ledger TRACER_BASE_URL must be set: without it the ledger builds no tracer integration")
@@ -164,17 +168,15 @@ func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 		return fmt.Errorf("ledger APPLICATION_NAME is not a platform producer; the ledger acts as %q", producerauth.ServiceLedger)
 	}
 
-	if strings.TrimSpace(tracerEnv["TRACER_PLATFORM_PRODUCERS"]) == "" {
-		return fmt.Errorf("tracer TRACER_PLATFORM_PRODUCERS must be set: without it the tracer serves validations only and mounts no reservation surface")
-	}
+	multiTenant := bootBool(tracerEnv, "MULTI_TENANT_ENABLED")
 
-	registry, err := producerauth.ParsePlatformProducers(tracerEnv["TRACER_PLATFORM_PRODUCERS"])
+	registry, err := producerRegistry(tracerEnv, multiTenant)
 	if err != nil {
-		return fmt.Errorf("invalid TRACER_PLATFORM_PRODUCERS (contents suppressed)")
+		return err
 	}
 
 	clientIDs, certURIs := registry.Credentials(service)
-	if len(clientIDs) == 0 && len(certURIs) == 0 {
+	if !multiTenant && len(clientIDs) == 0 && len(certURIs) == 0 {
 		return fmt.Errorf("TRACER_PLATFORM_PRODUCERS maps no credential onto the ledger's APPLICATION_NAME")
 	}
 
@@ -183,10 +185,12 @@ func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 		transport = transportGRPC
 	}
 
-	switch transport {
-	case transportREST:
+	switch {
+	case transport == transportREST && multiTenant:
+		err = checkTenantTokenIdentity(ledgerEnv, tracerEnv)
+	case transport == transportREST:
 		err = checkTokenIdentity(ledgerEnv, tracerEnv, registry, service)
-	case transportGRPC:
+	case transport == transportGRPC:
 		err = checkCertificateIdentity(ledgerEnv, tracerEnv, certURIs)
 	default:
 		err = fmt.Errorf("ledger TRACER_TRANSPORT must be %q or %q", transportGRPC, transportREST)
@@ -197,6 +201,45 @@ func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 	}
 
 	return checkTokenAuthorization(tracerEnv)
+}
+
+// producerRegistry parses TRACER_PLATFORM_PRODUCERS as the Tracer boot does.
+// Single-tenant, it is the switch of the reservation surface and must be set.
+// Multi-tenant, the surface is always mounted and the tenant-manager decides
+// per tenant: the roster is optional, serves gRPC certificates only, and a
+// clientId entry refuses boot. A nil registry means no roster.
+func producerRegistry(tracerEnv map[string]string, multiTenant bool) (*producerauth.Registry, error) {
+	raw := tracerEnv["TRACER_PLATFORM_PRODUCERS"]
+	if strings.TrimSpace(raw) == "" {
+		if multiTenant {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("tracer TRACER_PLATFORM_PRODUCERS must be set: without it the tracer serves validations only and mounts no reservation surface")
+	}
+
+	registry, err := producerauth.ParsePlatformProducers(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid TRACER_PLATFORM_PRODUCERS (contents suppressed)")
+	}
+
+	if multiTenant && registry.HasClientIDMappings() {
+		return nil, fmt.Errorf("tracer MULTI_TENANT_ENABLED=true refuses clientId entries in TRACER_PLATFORM_PRODUCERS: multi-tenant REST reservations identify the ledger by the tenant-manager's token claims; keep only certUri entries, which serve gRPC")
+	}
+
+	return registry, nil
+}
+
+// checkTenantTokenIdentity requires the Ledger to reach the Tracer's REST
+// listener over the scheme it serves and to mint its per-tenant tokens from
+// plugin-auth. The per-tenant credentials are provisioned by the
+// tenant-manager, not configured, so no client id is checked.
+func checkTenantTokenIdentity(ledgerEnv, tracerEnv map[string]string) error {
+	if err := checkTokenTransport(ledgerEnv, tracerEnv); err != nil {
+		return err
+	}
+
+	return checkTokenMinter(ledgerEnv)
 }
 
 // checkTokenIdentity requires the Ledger to reach the Tracer's REST listener
@@ -252,12 +295,8 @@ func checkSaaSTokenTLS(ledgerEnv map[string]string) error {
 // reached statically or through service discovery, with a complete client
 // credential whose id the Tracer maps onto the Ledger's service.
 func checkTokenIssuance(ledgerEnv map[string]string, registry *producerauth.Registry, service string) error {
-	if !bootBool(ledgerEnv, "PLUGIN_AUTH_ENABLED") {
-		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires ledger PLUGIN_AUTH_ENABLED=true: the ledger obtains its tracer token from plugin-auth")
-	}
-
-	if strings.TrimSpace(ledgerEnv["PLUGIN_AUTH_HOST"]) == "" && !discoveryEnabled(ledgerEnv) {
-		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires ledger PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true resolves plugin-auth: the ledger obtains its tracer token from plugin-auth")
+	if err := checkTokenMinter(ledgerEnv); err != nil {
+		return err
 	}
 
 	clientID := ledgerEnv["IDP_M2M_CLIENT_ID"]
@@ -272,6 +311,20 @@ func checkTokenIssuance(ledgerEnv map[string]string, registry *producerauth.Regi
 	producer, ok := registry.ByClientID(clientID)
 	if !ok || producer.Service != service {
 		return fmt.Errorf("ledger IDP_M2M_CLIENT_ID is not a clientId that TRACER_PLATFORM_PRODUCERS maps onto the ledger's APPLICATION_NAME")
+	}
+
+	return nil
+}
+
+// checkTokenMinter requires the Ledger to reach plugin-auth, statically or
+// through service discovery, to mint its tracer tokens.
+func checkTokenMinter(ledgerEnv map[string]string) error {
+	if !bootBool(ledgerEnv, "PLUGIN_AUTH_ENABLED") {
+		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires ledger PLUGIN_AUTH_ENABLED=true: the ledger obtains its tracer token from plugin-auth")
+	}
+
+	if strings.TrimSpace(ledgerEnv["PLUGIN_AUTH_HOST"]) == "" && !discoveryEnabled(ledgerEnv) {
+		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires ledger PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true resolves plugin-auth: the ledger obtains its tracer token from plugin-auth")
 	}
 
 	return nil
@@ -295,7 +348,7 @@ func checkTokenAuthorization(tracerEnv map[string]string) error {
 		return nil
 	}
 
-	return fmt.Errorf("tracer TRACER_PLATFORM_PRODUCERS requires tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local: the tracer authorizes reservation callers through the Access Manager and otherwise refuses to boot")
+	return fmt.Errorf("tracer reservations require tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local: the tracer authorizes reservation callers through the Access Manager and otherwise refuses to boot")
 }
 
 // checkCertificateIdentity requires native mTLS on both sides, a Tracer gRPC

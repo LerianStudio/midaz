@@ -2,9 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-//go:build integration
-
-package bootstrap
+package testutil
 
 import (
 	"bufio"
@@ -26,23 +24,25 @@ const (
 	pgCancelRequestCode = 80877102
 )
 
-// fakePostgres speaks just enough of the PostgreSQL v3 wire protocol for the
+// FakePostgres speaks just enough of the PostgreSQL v3 wire protocol for the
 // tenant pool manager to open and ping a per-tenant pool: it trusts every
 // startup, answers every simple query with an empty result and rejects the
 // extended protocol. It lets the production pool manager resolve a tenant pool
-// without a database; nothing in these tests reads from the pool.
-type fakePostgres struct {
+// without a database; nothing reads from the pool. It speaks plaintext only,
+// so the pool dial needs ALLOW_INSECURE_TLS=true.
+type FakePostgres struct {
 	listener net.Listener
 	wg       sync.WaitGroup
 }
 
-func startFakePostgres(t *testing.T) *fakePostgres {
+// StartFakePostgres listens on a loopback port until the test ends.
+func StartFakePostgres(t *testing.T) *FakePostgres {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	server := &fakePostgres{listener: listener}
+	server := &FakePostgres{listener: listener}
 
 	server.wg.Add(1)
 
@@ -50,17 +50,19 @@ func startFakePostgres(t *testing.T) *fakePostgres {
 
 	t.Cleanup(func() {
 		_ = listener.Close()
+
 		server.wg.Wait()
 	})
 
 	return server
 }
 
-func (s *fakePostgres) port() int {
+// Port is the loopback port the fake listens on.
+func (s *FakePostgres) Port() int {
 	return s.listener.Addr().(*net.TCPAddr).Port
 }
 
-func (s *fakePostgres) accept() {
+func (s *FakePostgres) accept() {
 	defer s.wg.Done()
 
 	var conns sync.WaitGroup
@@ -207,7 +209,8 @@ func pgReadyForQuery() []byte {
 }
 
 func pgError(message string) []byte {
-	body := []byte{'S'}
+	body := make([]byte, 0, len("SERROR\x00C0A000\x00M")+len(message)+2)
+	body = append(body, 'S')
 	body = append(body, "ERROR"...)
 	body = append(body, 0, 'C')
 	body = append(body, "0A000"...)

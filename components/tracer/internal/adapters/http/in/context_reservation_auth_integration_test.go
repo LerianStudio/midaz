@@ -49,7 +49,7 @@ func TestContextReservationNativeProducerRoutes(t *testing.T) {
 			problem.Install()
 			routes := app.Group("/v1")
 			api := openapi.New(app, routes, openapi.Config{Title: "context reserve auth", Version: "test"})
-			registerReservationTransportRoutes(routes, api, tracerHumaHandlers{ContextReservation: handler, Guard: guard, ProducerAuth: NewProducerAuthMiddleware(guard, testProducerRegistry(t)), ResTenantMW: func(c fiber.Ctx) error { return c.Next() }})
+			registerReservationTransportRoutes(routes, api, tracerHumaHandlers{ContextReservation: handler, Guard: guard, ProducerAuth: NewProducerAuthMiddleware(guard, testProducerRegistry(t)), ReservationTenant: []fiber.Handler{func(c fiber.Ctx) error { return c.Next() }}})
 			token := producerToken(t, nil)
 			if scenario == "unknown producer" || scenario == "unbound completion" {
 				token = producerToken(t, func(claims jwt.MapClaims) { claims["azp"] = "unknown-producer" })

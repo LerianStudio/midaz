@@ -546,6 +546,15 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	case errors.Is(err, constant.ErrContextLimitsUnavailable):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for context admission", err)
 		return pkg.UnprocessableOperationError{EntityType: constant.EntityLimit, Code: constant.ErrContextLimitsUnavailable.Error(), Title: "Limit Not Eligible", Message: "The limit must use an account scope and a valid asset code before activation.", Err: constant.ErrContextLimitsUnavailable}
+	case errors.Is(err, constant.ErrTenantServiceUnavailable):
+		libOpentelemetry.HandleSpanError(span, "Tenant reservation association could not be resolved", err)
+		return tenantServiceUnavailableError(constant.EntityLimit)
+	case errors.Is(err, context.Canceled):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit request canceled", err)
+		return pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityLimit)
+	case errors.Is(err, context.DeadlineExceeded):
+		libOpentelemetry.HandleSpanError(span, "Limit request timed out", err)
+		return pkg.ValidateBusinessError(constant.ErrValidationTimeout, constant.EntityLimit)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}

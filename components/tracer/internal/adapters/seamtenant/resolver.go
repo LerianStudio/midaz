@@ -3,16 +3,21 @@
 // that can be found in the LICENSE file.
 
 // Package seamtenant binds the per-tenant PostgreSQL pool for the reservation
-// seam from the tenant id a platform producer requests, rather than from a JWT
-// claim.
+// seam and authorizes the tenant a platform producer acts for.
 //
-// The tenant id arrives as X-Tenant-Id (HTTP) or x-tenant-id (gRPC metadata)
-// and is not trusted on its own. AuthorizeTenant runs after the transport has
-// authenticated the producer (an M2M access token on HTTP, a mapped client
-// certificate on gRPC): it has producerauth.TenantAuthorizer confirm that the
-// tenant is active for that producer's service before any pool is resolved.
-// It is wired only onto the reservation routes and RPCs. User-facing tracer
-// routes keep their JWT-claim tenant path.
+// On gRPC, and on single-tenant HTTP, the tenant id arrives as x-tenant-id
+// metadata or the X-Tenant-Id header and is not trusted on its own.
+// AuthorizeTenant runs after the transport has authenticated the producer by
+// a mapped client certificate: it has producerauth.TenantAuthorizer confirm
+// that the tenant is active for that producer's service before any pool is
+// resolved. Single-tenant mode ignores the tenant.
+//
+// On multi-tenant HTTP the tenant is the "tenantId" claim of the producer's
+// authorized token, which only the tenant-manager writes; AuthorizeAssociation
+// confirms it is active for the producer's service, and the lib-commons tenant
+// middleware binds its pool exactly as it does for every other tenant route.
+// ClassifyTenantDBRefusal maps that middleware's refusals onto the same
+// sentinels.
 package seamtenant
 
 import (

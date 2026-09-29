@@ -578,3 +578,22 @@ func TestListFailureStatusReadsTheClientStatus(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, listFailureStatus(errors.New("tenant manager returned status 403 for service ledger")))
 	require.Zero(t, listFailureStatus(errors.New("failed to execute request: connection refused")))
 }
+
+func TestActiveTenantSetMatchesCanonicalTenantIDs(t *testing.T) {
+	t.Parallel()
+
+	lister := &fakeTenantLister{}
+	lister.set(
+		nil,
+		&tmclient.TenantSummary{ID: "0195D3B4-5A01-7000-8000-000000000007", Status: "active"},
+		&tmclient.TenantSummary{ID: "tenant-a", Status: "active"},
+	)
+
+	sets := newActiveTenantSets(lister, activeTenantSetConfig{}, producerauth.ServiceLedger)
+
+	for _, tenantID := range []string{"0195d3b45a0170008000000000000007", "0195d3b4-5a01-7000-8000-000000000007", "tenant-a"} {
+		require.NoError(t, sets.Lookup(t.Context(), tenantID, producerauth.ServiceLedger), tenantID)
+	}
+
+	require.ErrorIs(t, sets.Lookup(t.Context(), "tenant_a", producerauth.ServiceLedger), tmcore.ErrTenantNotFound, "a non-UUID tenant matches only itself")
+}

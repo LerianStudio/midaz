@@ -14,12 +14,29 @@ import (
 // access token.
 const TokenTypeApplication = "application"
 
+// Platform attribute claims the tenant-manager writes onto the per-tenant
+// machine-to-machine applications it provisions. Only the tenant-manager can
+// set them: the Access Manager refuses them from any other writer.
+const (
+	claimTenantID      = "tenantId"
+	claimSourceService = "sourceService"
+	claimIsInternal    = "isInternal"
+	isInternalTrue     = "true"
+)
+
 // TokenCaller is the caller identity carried by the request's bearer token.
 type TokenCaller struct {
 	// Type is the token "type" claim ("application" or "normal-user").
 	Type string
 	// ClientID is the token "azp" claim: the client the token was issued to.
 	ClientID string
+	// TenantID is the "tenantId" claim, verbatim.
+	TenantID string
+	// SourceService is the "sourceService" claim: the platform service the
+	// tenant-manager provisioned the application for.
+	SourceService string
+	// Internal is true only when the "isInternal" claim is the string "true".
+	Internal bool
 }
 
 // CallerResolver continues a request the guard admitted. ok is false when the
@@ -59,27 +76,35 @@ func (g *AuthGuard) WithAuthorizedCaller(resource, method string, resolve Caller
 	}
 }
 
-// authorizedCaller returns the identity of the request's bearer token. It
-// prefers the Principal lib-auth published, which lib-auth withholds for an
-// application token authorized under the legacy fabricated-role derivation;
-// for that token it reads the "type" and "azp" claims without verifying the
-// signature. Those claims are trusted only because the guard in front of it
-// authorized this same token: the Access Manager introspects the token on
-// /v1/authorize, so a forged or expired token never gets here. The token is
-// read with the extraction lib-auth Authorize uses, so both read the same
-// token. It reports false when no token can be read.
+// authorizedCaller returns the identity of the request's bearer token. Its
+// type and authorized party come from the Principal lib-auth published, which
+// lib-auth withholds for an application token authorized under the legacy
+// fabricated-role derivation; for that token they, and for every token the
+// platform attribute claims, are read without verifying the signature. Those
+// claims are trusted only because the guard in front of it authorized this
+// same token: the Access Manager introspects the token on /v1/authorize, so a
+// forged or expired token never gets here. The token is read with the
+// extraction lib-auth Authorize uses, so both read the same token. It reports
+// false when neither a Principal nor a readable token is present.
 func authorizedCaller(c fiber.Ctx) (TokenCaller, bool) {
+	var caller TokenCaller
+
+	claims, parsed := parseUnverifiedClaims(libHTTP.ExtractTokenFromHeader(c))
+	if parsed {
+		caller.Type, _ = claims["type"].(string)
+		caller.ClientID, _ = claims["azp"].(string)
+		caller.TenantID, _ = claims[claimTenantID].(string)
+		caller.SourceService, _ = claims[claimSourceService].(string)
+
+		internal, _ := claims[claimIsInternal].(string)
+		caller.Internal = internal == isInternalTrue
+	}
+
 	if principal, ok := authMiddleware.PrincipalFromContext(c.Context()); ok {
-		return TokenCaller{Type: principal.Type, ClientID: principal.ClientID}, true
+		caller.Type, caller.ClientID = principal.Type, principal.ClientID
+
+		return caller, true
 	}
 
-	claims, ok := parseUnverifiedClaims(libHTTP.ExtractTokenFromHeader(c))
-	if !ok {
-		return TokenCaller{}, false
-	}
-
-	kind, _ := claims["type"].(string)
-	clientID, _ := claims["azp"].(string)
-
-	return TokenCaller{Type: kind, ClientID: clientID}, true
+	return caller, parsed
 }

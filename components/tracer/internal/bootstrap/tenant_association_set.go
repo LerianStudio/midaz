@@ -229,7 +229,7 @@ func (s *activeTenantSet) observe(tenantID string) setView {
 		backoff:  !s.lastFailure.IsZero() && now.Sub(s.lastFailure) < s.cfg.MissRefreshInterval,
 		attempts: s.attempts,
 	}
-	_, view.member = s.tenants[tenantID]
+	_, view.member = s.tenants[tenantKey(tenantID)]
 
 	if view.usable && !view.member && !view.backoff &&
 		(s.lastMissRefresh.IsZero() || now.Sub(s.lastMissRefresh) >= s.cfg.MissRefreshInterval) {
@@ -251,7 +251,7 @@ func (s *activeTenantSet) isMember(tenantID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, member := s.tenants[tenantID]
+	_, member := s.tenants[tenantKey(tenantID)]
 
 	return member
 }
@@ -338,7 +338,7 @@ func (s *activeTenantSet) fetch(ctx context.Context, observed uint64) (err error
 	tenants := make(map[string]struct{}, len(summaries))
 	for _, summary := range summaries {
 		if summary != nil && summary.ID != "" && strings.EqualFold(summary.Status, activeTenantStatus) {
-			tenants[summary.ID] = struct{}{}
+			tenants[tenantKey(summary.ID)] = struct{}{}
 		}
 	}
 
@@ -405,4 +405,17 @@ func listFailureStatus(err error) int {
 	}
 
 	return status
+}
+
+// tenantKey is the set key of a tenant id: its canonical form, so a UUID
+// tenant matches whether the tenant-manager lists it or a caller names it
+// with or without dashes. An id that is not a valid tenant id is kept
+// verbatim, and matches only itself.
+func tenantKey(tenantID string) string {
+	canonical, err := tmcore.CanonicalTenantID(tenantID)
+	if err != nil {
+		return tenantID
+	}
+
+	return canonical
 }

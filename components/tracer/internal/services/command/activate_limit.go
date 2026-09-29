@@ -145,7 +145,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 	// Idempotency: if already active, return the limit (no-op)
 	if limit.Status == model.LimitStatusActive {
 		if err := c.ContextLimits.validateActivation(ctx, limit); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
+			recordDefinitionPolicyError(span, "Limit is not eligible for shared admission", err)
 			return nil, err
 		}
 
@@ -177,7 +177,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 	}
 
 	if err := c.ContextLimits.validateActivation(ctx, limit); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit is not eligible for shared admission", err)
+		recordDefinitionPolicyError(span, "Limit is not eligible for shared admission", err)
 		return nil, err
 	}
 

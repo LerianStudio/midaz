@@ -30,7 +30,9 @@ type contextReservationConfig struct {
 	// unverifiedProducers is true only when plugin auth is disabled under an
 	// explicit DEPLOYMENT_MODE=local: no caller is verified, and every HTTP
 	// reservation is attributed to the ledger. producers maps token authorized
-	// parties and certificate URIs onto the platform roster.
+	// parties and certificate URIs onto the platform roster; under
+	// multi-tenancy it maps certificate URIs only, and is nil when
+	// TRACER_PLATFORM_PRODUCERS is unset.
 	unverifiedProducers bool
 	producers           *producerauth.Registry
 	limits              postgres.ContextLimitRepositoryConfig
@@ -47,11 +49,13 @@ type contextReservationRuntime struct {
 	config                *contextReservationConfig
 }
 
-// reservationSurfaceEnabled reports whether TRACER_PLATFORM_PRODUCERS names a
-// producer roster, which is what enables the reservation surface. Without one
-// the Tracer serves validations only.
+// reservationSurfaceEnabled reports whether the reservation surface is
+// mounted. Under multi-tenancy it always is, and the tenant-manager decides
+// per tenant: a tenant takes part only while it holds an active ledger
+// association. In single-tenant mode TRACER_PLATFORM_PRODUCERS is the switch:
+// without a producer roster the Tracer serves validations only.
 func reservationSurfaceEnabled(cfg *Config) bool {
-	return cfg != nil && strings.TrimSpace(cfg.TracerPlatformProducers) != ""
+	return cfg != nil && (cfg.MultiTenantEnabled || strings.TrimSpace(cfg.TracerPlatformProducers) != "")
 }
 
 // loadContextReservationConfig validates the reservation runtime settings. It
@@ -181,19 +185,36 @@ func initContextReservation(cfg *Config, conn pgdb.Connection, tx pgdb.TxBeginne
 // loadPlatformProducers parses the producer roster and checks it against the
 // transports and tenancy it must serve: a gRPC listener needs a certificate
 // mapping, and multi-tenancy needs a verified caller, because an unverified
-// one could otherwise name any tenant.
+// one could otherwise name any tenant. Multi-tenant HTTP reservations
+// identify the producer by the platform claims the tenant-manager writes onto
+// its token, so under multi-tenancy the roster is optional, serves gRPC only,
+// and refuses a clientId it would never consult.
 func loadPlatformProducers(cfg *Config) (*producerauth.Registry, error) {
+	if cfg.MultiTenantEnabled && producerVerificationDisabled(cfg) {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true for reservations: without the Access Manager every reservation is attributed to the ledger, so any caller could name any tenant")
+	}
+
+	grpcEnabled := strings.TrimSpace(cfg.TracerGRPCPort) != ""
+
+	if cfg.MultiTenantEnabled && strings.TrimSpace(cfg.TracerPlatformProducers) == "" {
+		if grpcEnabled {
+			return nil, fmt.Errorf("TRACER_GRPC_PORT requires a certUri in TRACER_PLATFORM_PRODUCERS: the gRPC reservation seam identifies producers only by client certificate")
+		}
+
+		return nil, nil
+	}
+
 	producers, err := producerauth.ParsePlatformProducers(cfg.TracerPlatformProducers)
 	if err != nil {
 		return nil, fmt.Errorf("invalid TRACER_PLATFORM_PRODUCERS: %w", err)
 	}
 
-	if strings.TrimSpace(cfg.TracerGRPCPort) != "" && !producers.HasCertificateMappings() {
-		return nil, fmt.Errorf("TRACER_GRPC_PORT requires a certUri in TRACER_PLATFORM_PRODUCERS: the gRPC reservation seam identifies producers only by client certificate")
+	if cfg.MultiTenantEnabled && producers.HasClientIDMappings() {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true refuses clientId entries in TRACER_PLATFORM_PRODUCERS: multi-tenant HTTP reservations identify the producer by the platform claims the tenant-manager writes onto its token, never by a configured client id; keep only certUri entries, which serve gRPC")
 	}
 
-	if cfg.MultiTenantEnabled && producerVerificationDisabled(cfg) {
-		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true for reservations: without the Access Manager every reservation is attributed to the ledger, so any caller could name any tenant")
+	if grpcEnabled && !producers.HasCertificateMappings() {
+		return nil, fmt.Errorf("TRACER_GRPC_PORT requires a certUri in TRACER_PLATFORM_PRODUCERS: the gRPC reservation seam identifies producers only by client certificate")
 	}
 
 	return producers, nil

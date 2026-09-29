@@ -122,10 +122,10 @@ type RouteConfig struct {
 const reservationPathPrefix = "/v1/reservations"
 
 // isReservationPath reports whether the request path targets the reservation
-// service-to-service seam. Used to exempt those routes from the JWT-claim tenant
-// middleware: the seam resolves its tenant from the trusted X-Tenant-Id header
-// instead. Matches both the collection ("/v1/reservations") and its
-// sub-resources ("/v1/reservations/...").
+// service-to-service seam. Used to exempt those routes from the group-level
+// JWT-claim tenant middleware: the seam resolves its tenant in its own route
+// chain, after the producer is authenticated. Matches both the collection
+// ("/v1/reservations") and its sub-resources ("/v1/reservations/...").
 func isReservationPath(path string) bool {
 	return path == reservationPathPrefix || strings.HasPrefix(path, reservationPathPrefix+"/")
 }
@@ -153,20 +153,24 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 //   - ContextReservation: if nil, the /v1/reservations routes are not mounted.
 //     A build that has not wired the reservation runtime simply does not expose
 //     them. When set with MultiTenantEnabled, ContextReservationTenants must be
-//     active, or NewRoutes refuses.
+//     active and PgManager set, or NewRoutes refuses.
 type RoutesDeps struct {
 	ContextReservation *ContextReservationHandler
 	// ContextReservationProducers maps the authorized party of a token the
 	// Guard authorized onto the platform roster. It is required when
-	// ContextReservation is set, and so is a Guard that authorizes callers
-	// against the Access Manager unless ContextReservationUnverifiedProducers.
+	// ContextReservation is set in single-tenant mode, and so is a Guard that
+	// authorizes callers against the Access Manager unless
+	// ContextReservationUnverifiedProducers. Multi-tenant HTTP reservations
+	// identify the producer by the platform claims of its token instead and
+	// never consult it.
 	ContextReservationProducers *producerauth.Registry
 	// ContextReservationUnverifiedProducers attributes every reservation to
 	// the ledger producer without reading a token. Set only when plugin auth
-	// is disabled under DEPLOYMENT_MODE=local.
+	// is disabled under DEPLOYMENT_MODE=local; multi-tenancy refuses it.
 	ContextReservationUnverifiedProducers bool
-	// ContextReservationTenants authorizes the producer's requested tenant.
-	// Multi-tenant context reservations require an active authorizer.
+	// ContextReservationTenants confirms that the tenant of a multi-tenant
+	// reservation is active for the producer's service. Multi-tenant context
+	// reservations require an active authorizer.
 	ContextReservationTenants    *producerauth.TenantAuthorizer
 	ContextPolicyService         ContextPolicyAdminService
 	ContextPolicyMaxRules        int
@@ -373,7 +377,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		return nil, fmt.Errorf("failed to create validation handler: %w", err)
 	}
 
-	producerAuth, resTenantMW := buildReservationChain(deps)
+	producerAuth, reservationTenant := buildReservationChain(deps)
 
 	var contextPolicyHandler *ContextPolicyHandler
 	if deps.ContextPolicyService != nil {
@@ -397,7 +401,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Limit:                 NewLimitHandler(limitService),
 		TransactionValidation: NewTransactionValidationHandler(transactionValidationService),
 		Validation:            validationHandler,
-		ResTenantMW:           resTenantMW,
+		ReservationTenant:     reservationTenant,
 		AuditEvent:            NewAuditEventHandler(auditEventService),
 		Dashboard:             newDashboardHandlerOrNil(dashboardService, clk),
 	})
@@ -427,10 +431,14 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 // validateReservationDeps refuses a reservation surface that could not
 // authenticate its producer, and a multi-tenant one that could not authorize
-// the producer's tenant.
+// the producer's tenant or bind its pool.
 func validateReservationDeps(deps RoutesDeps) error {
 	if deps.ContextReservation == nil {
 		return nil
+	}
+
+	if deps.MultiTenantEnabled {
+		return validateMultiTenantReservationDeps(deps)
 	}
 
 	if deps.ContextReservationProducers == nil {
@@ -441,20 +449,41 @@ func validateReservationDeps(deps RoutesDeps) error {
 		return fmt.Errorf("context reservations require a guard that authorizes callers against the Access Manager")
 	}
 
-	if deps.MultiTenantEnabled && !deps.ContextReservationTenants.Active() {
+	return nil
+}
+
+func validateMultiTenantReservationDeps(deps RoutesDeps) error {
+	if deps.ContextReservationUnverifiedProducers || !deps.Guard.AuthorizesCallers() {
+		return fmt.Errorf("context reservations require a guard that authorizes callers against the Access Manager")
+	}
+
+	if !deps.ContextReservationTenants.Active() {
 		return fmt.Errorf("multi-tenant context reservations require the producer tenant authorizer")
+	}
+
+	if deps.PgManager == nil {
+		return fmt.Errorf("multi-tenant context reservations require the tenant pool manager")
 	}
 
 	return nil
 }
 
 // buildReservationChain returns the producer authentication chain and the
-// tenant middleware of the reservation routes, or nils when the reservation
-// surface is not mounted. In single-tenant mode the tenant middleware ignores
-// the requested tenant.
-func buildReservationChain(deps RoutesDeps) ([]fiber.Handler, fiber.Handler) {
+// tenant steps of the reservation routes, or nils when the reservation
+// surface is not mounted. Single-tenant mode identifies the producer by its
+// token's authorized party and ignores the requested tenant. Multi-tenant
+// mode identifies it by the platform claims of its token, takes the tenant
+// from the token, and binds the tenant pool with the same lib-commons tenant
+// middleware the other tenant routes run.
+func buildReservationChain(deps RoutesDeps) ([]fiber.Handler, []fiber.Handler) {
 	if deps.ContextReservation == nil {
 		return nil, nil
+	}
+
+	if deps.MultiTenantEnabled {
+		tenantDB := tmmiddleware.NewTenantMiddleware(tmmiddleware.WithPG(deps.PgManager), tmmiddleware.WithRefusalsToErrorHandler())
+
+		return NewTenantProducerAuthMiddleware(deps.Guard), reservationTokenTenantMiddleware(deps.ContextReservationTenants, tenantDB.WithTenantDB)
 	}
 
 	var options []ProducerAuthOption
@@ -465,7 +494,7 @@ func buildReservationChain(deps RoutesDeps) ([]fiber.Handler, fiber.Handler) {
 	producerAuth := NewProducerAuthMiddleware(deps.Guard, deps.ContextReservationProducers, options...)
 	tenantMW := reservationTenantMiddleware(deps.ContextReservationTenants, seamtenant.NewResolver(deps.PgManager, deps.MultiTenantEnabled))
 
-	return producerAuth, tenantMW
+	return producerAuth, []fiber.Handler{tenantMW}
 }
 
 func mountTenantMiddleware(api fiber.Router, enabled bool, pgManager *tmpostgres.Manager, supervisor WorkerEnsurer, logger libLog.Logger) {
@@ -528,15 +557,16 @@ func handleWorkerEnsureError(c fiber.Ctx, logger libLog.Logger, tenantID string,
 //
 // Zero-value semantics:
 //   - ContextReservation: if nil, the /v1/reservations routes are not mounted.
-//     ProducerAuth and ResTenantMW are only consulted when it is non-nil; an
-//     empty ProducerAuth fails every reservation request closed.
-//   - ResTenantMW: the reservation-scoped tenant Fiber middleware, built in
-//     NewRoutes from pgManager+multiTenantEnabled.
+//     ProducerAuth and ReservationTenant are only consulted when it is
+//     non-nil; an empty ProducerAuth fails every reservation request closed.
+//   - ReservationTenant: the reservation-scoped tenant steps, built in
+//     NewRoutes by buildReservationChain.
 type tracerHumaHandlers struct {
 	ContextReservation *ContextReservationHandler
-	// ProducerAuth is the NewProducerAuthMiddleware chain: it authorizes the
-	// caller and resolves its platform producer on the context reservation
-	// routes; ResTenantMW then authorizes its tenant.
+	// ProducerAuth is the NewProducerAuthMiddleware chain, or under
+	// multi-tenancy the NewTenantProducerAuthMiddleware chain: it authorizes
+	// the caller and resolves its platform producer on the context
+	// reservation routes; ReservationTenant then authorizes its tenant.
 	ProducerAuth          []fiber.Handler
 	ContextPolicy         *ContextPolicyHandler
 	Guard                 *middleware.AuthGuard
@@ -545,7 +575,7 @@ type tracerHumaHandlers struct {
 	Limit                 *LimitHandler
 	TransactionValidation *TransactionValidationHandler
 	Validation            *ValidationHandler
-	ResTenantMW           fiber.Handler
+	ReservationTenant     []fiber.Handler
 	AuditEvent            *AuditEventHandler
 
 	// Dashboard is the operator dashboard read handler. If nil, the
@@ -665,7 +695,7 @@ func newDashboardHandlerOrNil(service DashboardService, clk clock.Clock) *Dashbo
 // Huma handler each route runs the ProducerAuth chain, which authorizes the
 // caller against the Access Manager as the tracer's own "reservations"
 // resource and resolves the platform producer the authorized token belongs
-// to, and then ResTenantMW, which authorizes the tenant it asks for. The
+// to, and then ReservationTenant, which authorizes its tenant. The
 // by-transaction routes are declared before the "/reservations/:id/..." param
 // routes so Fiber matches the static "transaction" segment first.
 func registerReservationTransportRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
@@ -678,12 +708,14 @@ func registerReservationTransportRoutes(api fiber.Router, humaAPI huma.API, h tr
 		producerAuth = []fiber.Handler{producerAuthUnavailable}
 	}
 
-	chain := make([]any, 0, len(producerAuth))
+	chain := make([]any, 0, len(producerAuth)+len(h.ReservationTenant))
 	for _, handler := range producerAuth[1:] {
 		chain = append(chain, handler)
 	}
 
-	chain = append(chain, h.ResTenantMW)
+	for _, handler := range h.ReservationTenant {
+		chain = append(chain, handler)
+	}
 
 	for _, path := range []string{
 		"/reservations",

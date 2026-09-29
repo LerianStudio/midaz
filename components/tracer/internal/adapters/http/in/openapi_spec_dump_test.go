@@ -92,7 +92,7 @@ func buildTracerHumaAPI() huma.API {
 		TransactionValidation: &TransactionValidationHandler{},
 		Validation:            &ValidationHandler{},
 		ContextReservation:    &ContextReservationHandler{maxBodyBytes: 1 << 20},
-		ResTenantMW:           func(c fiber.Ctx) error { return c.Next() },
+		ReservationTenant:     []fiber.Handler{func(c fiber.Ctx) error { return c.Next() }},
 		AuditEvent:            &AuditEventHandler{},
 		Dashboard:             &DashboardHandler{},
 	})

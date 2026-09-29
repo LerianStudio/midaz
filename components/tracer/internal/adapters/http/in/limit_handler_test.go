@@ -6,8 +6,10 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +22,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
 
@@ -29,16 +34,118 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestClassifyLimitServiceErrorMapsContextEligibilityFailure(t *testing.T) {
+	t.Parallel()
+
 	ineligible := classifyLimitServiceError(trace.SpanFromContext(t.Context()), constant.ErrContextLimitsUnavailable)
 	var unprocessable pkg.UnprocessableOperationError
 	require.ErrorAs(t, ineligible, &unprocessable)
 	require.Equal(t, constant.ErrContextLimitsUnavailable.Error(), unprocessable.Code)
 }
 
+func TestClassifyLimitServiceErrorMapsCallerContextErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+		wantRed    bool
+	}{
+		{name: "canceled", err: context.Canceled, wantStatus: http.StatusServiceUnavailable, wantCode: constant.ErrContextCancelled.Error(), wantRed: false},
+		{name: "wrapped canceled", err: fmt.Errorf("tenant lookup: %w", context.Canceled), wantStatus: http.StatusServiceUnavailable, wantCode: constant.ErrContextCancelled.Error(), wantRed: false},
+		{name: "deadline exceeded", err: context.DeadlineExceeded, wantStatus: http.StatusGatewayTimeout, wantCode: constant.ErrValidationTimeout.Error(), wantRed: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			_, span := provider.Tracer("test").Start(t.Context(), "limit")
+
+			mapped := classifyLimitServiceError(span, tt.err)
+			span.End()
+
+			app := fiber.New()
+			app.Get("/", func(c fiber.Ctx) error { return pkgHTTP.WithError(c, mapped) })
+
+			resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/", nil))
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			raw, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var envelope struct {
+				Code       string `json:"code"`
+				EntityType string `json:"entityType"`
+			}
+
+			require.NoError(t, json.Unmarshal(raw, &envelope), string(raw))
+			assert.Equal(t, tt.wantStatus, resp.StatusCode, string(raw))
+			assert.Equal(t, tt.wantCode, envelope.Code)
+			assert.Equal(t, constant.EntityLimit, envelope.EntityType)
+
+			ended := recorder.Ended()
+			require.Len(t, ended, 1)
+
+			if tt.wantRed {
+				assert.Equal(t, codes.Error, ended[0].Status().Code, "a timeout is a technical failure")
+			} else {
+				assert.NotEqual(t, codes.Error, ended[0].Status().Code, "a caller that went away keeps the span green")
+			}
+		})
+	}
+}
+
+func TestLimitHandler_TenantAssociationOutageIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	service := NewMockLimitService(ctrl)
+	outage := fmt.Errorf("%w: active tenant list unavailable", constant.ErrTenantServiceUnavailable)
+	service.EXPECT().CreateLimit(gomock.Any(), gomock.Any()).Return(nil, outage)
+
+	app := fiber.New()
+	app.Post("/limits", NewLimitHandler(service).CreateLimit)
+
+	body, err := json.Marshal(map[string]any{
+		"name": "Merchant Limit", "limitType": "DAILY", "maxAmount": "1000.00", "asset": "BRL",
+		"scopes": []map[string]any{{"merchantId": "550e8400-e29b-41d4-a716-446655440000"}},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var envelope struct {
+		Code string `json:"code"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &envelope), string(raw))
+	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode, string(raw))
+	require.Equal(t, constant.ErrTenantServiceUnavailable.Error(), envelope.Code, "the write is refused, never admitted without its policy")
+	require.NotContains(t, string(raw), "active tenant list", "the cause never reaches the response")
+}
+
 func TestLimitHandler_CreateLimit(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		requestBody    any
@@ -248,6 +355,8 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -283,6 +392,8 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_GetLimit(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(10)
 
 	tests := []struct {
@@ -348,6 +459,8 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -372,6 +485,8 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 }
 
 func TestLimitHandler_ListLimits(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -709,6 +824,8 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -733,6 +850,8 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 }
 
 func TestLimitHandler_UpdateLimit(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(30)
 
 	tests := []struct {
@@ -850,6 +969,8 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -885,6 +1006,8 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_ActivateLimit(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(40)
 
 	tests := []struct {
@@ -948,6 +1071,8 @@ func TestLimitHandler_ActivateLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -968,6 +1093,8 @@ func TestLimitHandler_ActivateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_DeactivateLimit(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(50)
 
 	tests := []struct {
@@ -1018,6 +1145,8 @@ func TestLimitHandler_DeactivateLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -1038,6 +1167,8 @@ func TestLimitHandler_DeactivateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_DeleteLimit(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(60)
 
 	tests := []struct {
@@ -1084,6 +1215,8 @@ func TestLimitHandler_DeleteLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -1104,6 +1237,8 @@ func TestLimitHandler_DeleteLimit(t *testing.T) {
 }
 
 func TestLimitHandler_DraftLimit(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(65)
 
 	tests := []struct {
@@ -1189,6 +1324,8 @@ func TestLimitHandler_DraftLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := tt.mockSetup(ctrl)
@@ -1215,6 +1352,8 @@ func TestLimitHandler_DraftLimit(t *testing.T) {
 }
 
 func TestToCreateLimitServiceInput(t *testing.T) {
+	t.Parallel()
+
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	txType := model.TransactionTypeCard
 	desc := "Test Description"
@@ -1246,6 +1385,8 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 }
 
 func TestToUpdateLimitServiceInput(t *testing.T) {
+	t.Parallel()
+
 	name := "Updated Name"
 	amount := decimal.RequireFromString("2000")
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
@@ -1267,6 +1408,8 @@ func TestToUpdateLimitServiceInput(t *testing.T) {
 }
 
 func TestToListLimitsFilter(t *testing.T) {
+	t.Parallel()
+
 	input := &ListLimitsInput{
 		Limit:     testutil.Ptr(20),
 		Cursor:    "abc123",
@@ -1289,6 +1432,8 @@ func TestToListLimitsFilter(t *testing.T) {
 }
 
 func TestToListLimitsResponse(t *testing.T) {
+	t.Parallel()
+
 	result := &model.ListLimitsResult{
 		Limits: []model.Limit{
 			{ID: testutil.MustDeterministicUUID(70), Name: "Limit 1"},
@@ -1306,6 +1451,8 @@ func TestToListLimitsResponse(t *testing.T) {
 }
 
 func TestCreateLimitInput_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       CreateLimitInput
@@ -1357,6 +1504,8 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.input.Validate()
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1371,6 +1520,8 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 }
 
 func TestUpdateLimitInput_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       UpdateLimitInput
@@ -1399,6 +1550,8 @@ func TestUpdateLimitInput_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.input.Validate()
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1410,6 +1563,8 @@ func TestUpdateLimitInput_Validate(t *testing.T) {
 }
 
 func TestListLimitsInput_SetDefaults(t *testing.T) {
+	t.Parallel()
+
 	input := &ListLimitsInput{}
 	input.SetDefaults()
 
@@ -1419,6 +1574,8 @@ func TestListLimitsInput_SetDefaults(t *testing.T) {
 }
 
 func TestListLimitsInput_SetDefaults_WithCursor_DoesNotPopulateSortFields(t *testing.T) {
+	t.Parallel()
+
 	input := &ListLimitsInput{
 		Cursor: "some-cursor-value",
 	}
@@ -1430,6 +1587,8 @@ func TestListLimitsInput_SetDefaults_WithCursor_DoesNotPopulateSortFields(t *tes
 }
 
 func TestListLimitsInput_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       ListLimitsInput
@@ -1531,6 +1690,8 @@ func TestListLimitsInput_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.input.Validate()
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1542,6 +1703,8 @@ func TestListLimitsInput_Validate(t *testing.T) {
 }
 
 func TestUpdateLimitInput_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    UpdateLimitInput
@@ -1584,6 +1747,8 @@ func TestUpdateLimitInput_IsEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.input.IsEmpty()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -1591,6 +1756,8 @@ func TestUpdateLimitInput_IsEmpty(t *testing.T) {
 }
 
 func TestValidateScopeFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	// These tests trigger the scope field validation error formatting (formatScopeFieldError)
 	tests := []struct {
 		name        string
@@ -1653,6 +1820,8 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.input.Validate()
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1667,6 +1836,8 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 }
 
 func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(110)
 
 	tests := []struct {
@@ -1891,6 +2062,8 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := NewMockLimitService(ctrl)
@@ -1927,6 +2100,8 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 
 	// Test for deactivate with invalid status transition
 	t.Run("ErrLimitInvalidStatusChange on Deactivate", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 
 		mockService := NewMockLimitService(ctrl)
@@ -1949,6 +2124,8 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 }
 
 func TestLimitHandler_GetLimitUsage(t *testing.T) {
+	t.Parallel()
+
 	validID := testutil.MustDeterministicUUID(130)
 	// Use a fixed time for deterministic tests
 	resetAt := testutil.FixedTime().Add(24 * time.Hour)
@@ -2092,6 +2269,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 
 			mockService := NewMockLimitService(ctrl)

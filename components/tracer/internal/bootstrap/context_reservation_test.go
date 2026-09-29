@@ -97,9 +97,9 @@ func TestContextReservationSurfaceDisabledWithoutProducers(t *testing.T) {
 	t.Parallel()
 
 	for _, producers := range []string{"", " \t "} {
-		// Outside local mode, multi-tenant, without plugin auth or bounds: a
+		// Outside local mode, without plugin auth or bounds: a single-tenant
 		// validations-only Tracer reads none of the reservation settings.
-		cfg := &Config{TracerPlatformProducers: producers, DeploymentMode: "saas", MultiTenantEnabled: true}
+		cfg := &Config{TracerPlatformProducers: producers, DeploymentMode: "saas"}
 		logger := testutil.NewMockLogger()
 
 		result, err := loadContextReservationConfig(cfg, logger)
@@ -227,10 +227,85 @@ func TestContextReservationConfigRefusesUnverifiedProducersUnderMultiTenancy(t *
 
 	cfg.PluginAuthEnabled = true
 	cfg.DeploymentMode = "byoc"
+	cfg.TracerPlatformProducers = testCertificateProducers
 
 	result, err = loadTestContextReservationConfig(t, cfg)
 	require.NoError(t, err, "multi-tenancy boots once the Access Manager authorizes the caller")
 	require.False(t, result.unverifiedProducers)
+}
+
+const testCertificateProducers = `[{"service":"ledger","certUri":"spiffe://example.test/service/ledger"}]`
+
+// multiTenantReservationConfig is a multi-tenant configuration whose route
+// guard authorizes through plugin-auth, without TRACER_PLATFORM_PRODUCERS.
+func multiTenantReservationConfig() *Config {
+	cfg := validContextReservationConfig()
+	cfg.DeploymentMode = "byoc"
+	cfg.MultiTenantEnabled = true
+	cfg.TracerPlatformProducers = ""
+
+	return cfg
+}
+
+func TestContextReservationSurfaceIsEnabledUnderMultiTenancyWithoutProducers(t *testing.T) {
+	t.Parallel()
+
+	for _, producers := range []string{"", " \t "} {
+		cfg := multiTenantReservationConfig()
+		cfg.TracerPlatformProducers = producers
+		logger := testutil.NewMockLogger()
+
+		require.True(t, reservationSurfaceEnabled(cfg), "the tenant-manager decides per tenant")
+
+		result, err := loadContextReservationConfig(cfg, logger)
+		require.NoError(t, err)
+		require.NotNil(t, result, "the reservation runtime is built, so the HTTP reservation routes are mounted")
+		require.Nil(t, result.producers, "multi-tenant HTTP reservations consult no producer roster")
+		require.False(t, result.unverifiedProducers)
+		require.Zero(t, reservationDisabledInfos(logger))
+	}
+}
+
+func TestContextReservationConfigUnderMultiTenancyServesCertificatesOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		producers string
+		grpc      bool
+		reason    string
+	}{
+		{name: "clientId entry", producers: `[{"service":"ledger","clientId":"ledger-m2m-client"}]`, reason: "MULTI_TENANT_ENABLED=true refuses clientId entries in TRACER_PLATFORM_PRODUCERS"},
+		{name: "clientId beside a certUri", producers: testPlatformProducers, grpc: true, reason: "MULTI_TENANT_ENABLED=true refuses clientId entries in TRACER_PLATFORM_PRODUCERS"},
+		{name: "gRPC without producers", grpc: true, reason: "TRACER_GRPC_PORT requires a certUri in TRACER_PLATFORM_PRODUCERS"},
+		{name: "malformed producers", producers: `[{"service":"ledger"}]`, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
+		{name: "certUri with gRPC", producers: testCertificateProducers, grpc: true},
+		{name: "certUri without gRPC", producers: testCertificateProducers},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := multiTenantReservationConfig()
+			cfg.TracerPlatformProducers = tc.producers
+
+			if tc.grpc {
+				cfg.TracerGRPCPort = ":4021"
+				cfg.TracerTLSMode = "mtls"
+			}
+
+			result, err := loadTestContextReservationConfig(t, cfg)
+			if tc.reason != "" {
+				require.ErrorContains(t, err, tc.reason)
+				require.Nil(t, result)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.True(t, result.producers.HasCertificateMappings())
+			require.False(t, result.producers.HasClientIDMappings())
+		})
+	}
 }
 
 func TestReservationTenantAuthorizerFollowsTenancy(t *testing.T) {

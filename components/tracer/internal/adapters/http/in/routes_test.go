@@ -33,6 +33,9 @@ func TestMain(m *testing.M) {
 	// Skip telemetry middleware that causes data races in lib-commons ContextWithLogger.
 	// The race occurs when multiple goroutines call it concurrently (as happens in Fiber's app.Test).
 	os.Setenv("SKIP_LIB_COMMONS_TELEMETRY", "true")
+	// The multi-tenant route tests resolve tenant pools on a plaintext
+	// PostgreSQL wire fake.
+	os.Setenv("ALLOW_INSECURE_TLS", "true")
 	os.Exit(m.Run())
 }
 

@@ -103,6 +103,12 @@ func (r *Registry) ByClientID(clientID string) (Producer, bool) {
 	return Producer{Service: service, Via: ViaToken}, true
 }
 
+// HasClientIDMappings reports whether any producer can be resolved from an
+// access token's authorized party.
+func (r *Registry) HasClientIDMappings() bool {
+	return r != nil && len(r.byClientID) > 0
+}
+
 // HasCertificateMappings reports whether any producer can be resolved from a
 // client certificate.
 func (r *Registry) HasCertificateMappings() bool {

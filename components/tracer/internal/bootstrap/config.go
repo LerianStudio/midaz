@@ -1108,6 +1108,10 @@ type limitServiceDeps struct {
 	// operationExpirer lets the reaper expire decision-owned reservations with
 	// their operation. It needs the audit repository, so InitServers sets it.
 	operationExpirer workers.ReserveOperationExpirer
+	// reservationTenancy is the tenant association lookup the multi-tenant
+	// limit definition policy asks, bound once the multi-tenant components
+	// exist; nil in single-tenant mode.
+	reservationTenancy *deferredTenantLookup
 }
 
 // initLimitService creates the limit service with all its dependencies.
@@ -1132,7 +1136,17 @@ func initLimitStack(cfg *Config, pgConn pgdb.Connection, auditWriter command.Aud
 }
 
 func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
-	definitionPolicy, err := initContextLimitDefinitionPolicy(cfg)
+	var (
+		reservationTenancy *deferredTenantLookup
+		tenancy            command.ReservationTenancy
+	)
+
+	if cfg.MultiTenantEnabled {
+		reservationTenancy = &deferredTenantLookup{}
+		tenancy = producerauth.NewServiceTenancy(reservationTenancy.Lookup, producerauth.ServiceLedger)
+	}
+
+	definitionPolicy, err := initContextLimitDefinitionPolicy(cfg, tenancy)
 	if err != nil {
 		return nil, err
 	}
@@ -1202,11 +1216,12 @@ func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.A
 	reaperRepo := postgres.NewReservationReaperRepository(pgConn)
 
 	return &limitServiceDeps{
-		service:          service,
-		usageCounterRepo: usageCounterRepo,
-		limitRepo:        limitRepo,
-		reservationRepo:  reservationRepo,
-		reaperRepo:       reaperRepo,
+		service:            service,
+		usageCounterRepo:   usageCounterRepo,
+		limitRepo:          limitRepo,
+		reservationRepo:    reservationRepo,
+		reaperRepo:         reaperRepo,
+		reservationTenancy: reservationTenancy,
 	}, nil
 }
 
@@ -1560,7 +1575,8 @@ func initReaperWorker(
 }
 
 // buildMultiTenantStack assembles the multi-tenant metrics sink and the
-// multi-tenant components in a single call. In single-tenant mode the metrics
+// multi-tenant components in a single call, and binds the limit commands'
+// tenant association lookup to those components. In single-tenant mode the metrics
 // sink is a zero-cost no-op and mtComponents stays nil; both modes share the
 // same downstream wiring path. Extracted from InitServers to keep the main
 // flow under the gocyclo budget.
@@ -1591,6 +1607,14 @@ func buildMultiTenantStack(
 	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// The limit commands were built before the multi-tenant components, so
+	// their tenant association lookup is bound here, before any listener starts.
+	if limitDeps != nil {
+		if err := limitDeps.reservationTenancy.bind(mtComponents); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return mtComponents, mtMetrics, nil

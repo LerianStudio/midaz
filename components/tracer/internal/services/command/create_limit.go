@@ -254,7 +254,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	}
 
 	if err := c.ContextLimits.validate(ctx, limit); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid shared limit definition", err)
+		recordDefinitionPolicyError(span, "Invalid shared limit definition", err)
 		return nil, err
 	}
 

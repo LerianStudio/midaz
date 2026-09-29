@@ -33,10 +33,13 @@ import (
 // signal source for the /readyz tenant_manager probe. Both are wired into the
 // HealthChecker in the multi-tenant bootstrap path.
 //
-// tenantAuthorizer checks a platform producer's requested tenant against the
-// tenant-manager's list of tenants active for that producer's service, held in
-// tenantAssociations. The list carries tenant ids only, so no credential of a
-// producer service is ever fetched or cached by the Tracer.
+// tenantAuthorizer checks the tenant a platform producer acts for — named by
+// the gRPC tenant header, or by the tenantId claim of a multi-tenant HTTP
+// token — against the tenant-manager's list of tenants active for that
+// producer's service, held in tenantAssociations. The same list decides, per
+// tenant, whether the account-scoped limit definition policy applies. The list
+// carries tenant ids only, so no credential of a producer service is ever
+// fetched or cached by the Tracer.
 type componentsMT struct {
 	tmClient           *tmclient.Client
 	redisClient        redis.UniversalClient

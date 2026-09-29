@@ -36,6 +36,12 @@ const (
 	multiTenant   = "MULTI_TENANT_ENABLED=true\n"
 	tenantManager = "MULTI_TENANT_URL=https://tenant-manager.example.test\nMULTI_TENANT_SERVICE_API_KEY=svc-api-key\n"
 	httpsREST     = "TRACER_BASE_URL=https://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nPLUGIN_AUTH_HOST=https://plugin-auth:4000\n"
+
+	// tenantRESTLedger is a multi-tenant REST ledger: its per-tenant tracer
+	// credentials come from the tenant-manager, so it configures no client id.
+	tenantRESTLedger = "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + pluginAuth + multiTenant
+	tenantTracer     = tokenCheck + multiTenant + tenantManager
+	tenantGRPCTracer = "TRACER_TLS_MODE=mtls\n" + grpcPort + tokenCheck + certProducer + multiTenant + tenantManager
 )
 
 func writeProfiles(t *testing.T, ledger, tracer string) (string, string) {
@@ -95,7 +101,10 @@ func TestProfileCheckAcceptsBothTransports(t *testing.T) {
 		{name: "rest to a local tracer without plugin auth, mode case-insensitive", ledger: restLedger, tracer: "DEPLOYMENT_MODE= Local \n" + tokenProducer},
 		{name: "grpc to a local tracer without plugin auth", ledger: grpcLedger, tracer: "DEPLOYMENT_MODE=local\nTRACER_TLS_MODE=mtls\n" + grpcPort + certProducer},
 		{name: "rest to a local tracer with plugin auth", ledger: restLedger, tracer: "DEPLOYMENT_MODE=local\n" + tokenCheck + tokenProducer},
-		{name: "multi-tenant local tracer with plugin auth", ledger: restLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\n" + tokenCheck + tokenProducer + multiTenant + tenantManager},
+		{name: "multi-tenant local tracer with plugin auth", ledger: restLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\n" + tenantTracer},
+		{name: "multi-tenant rest without a producer roster or client id", ledger: tenantRESTLedger, tracer: tenantTracer},
+		{name: "multi-tenant rest beside a gRPC certificate roster", ledger: tenantRESTLedger, tracer: tenantTracer + certProducer},
+		{name: "multi-tenant rest resolving plugin auth through discovery", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\nPLUGIN_AUTH_ENABLED=true\nSD_ENABLED=true\n" + multiTenant, tracer: tenantTracer},
 		{name: "rest with plugin auth case-insensitive", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED= TRUE \nPLUGIN_AUTH_HOST=http://plugin-auth:4000\n", tracer: restTracer},
 		{name: "rest to a local tracer without token verification settings", ledger: restLedger, tracer: "DEPLOYMENT_MODE=local\n" + tokenProducer},
 		{name: "rest over https to an mtls tracer", ledger: "TRACER_BASE_URL=HTTPS://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + pluginAuth, tracer: grpcTracer},
@@ -104,8 +113,8 @@ func TestProfileCheckAcceptsBothTransports(t *testing.T) {
 		{name: "rest resolving plugin auth through discovery's legacy name", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSERVICE_DISCOVERY_ENABLED=true\n", tracer: restTracer},
 		{name: "reaper explicitly on", ledger: grpcLedger, tracer: grpcTracer + "RESERVATION_REAPER_ENABLED=true\n"},
 		{name: "unrelated ledger settings", ledger: grpcLedger + "TRANSACTION_BATCH_MAX_SIZE=50\n", tracer: grpcTracer},
-		{name: "both multi-tenant", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + tenantManager},
-		{name: "both multi-tenant as parsed at boot", ledger: grpcLedger + "MULTI_TENANT_ENABLED=1\n", tracer: grpcTracer + "MULTI_TENANT_ENABLED=TRUE\n" + tenantManager},
+		{name: "both multi-tenant", ledger: grpcLedger + multiTenant, tracer: tenantGRPCTracer},
+		{name: "both multi-tenant as parsed at boot", ledger: grpcLedger + "MULTI_TENANT_ENABLED=1\n", tracer: "TRACER_TLS_MODE=mtls\n" + grpcPort + tokenCheck + certProducer + "MULTI_TENANT_ENABLED=TRUE\n" + tenantManager},
 		{name: "both single-tenant as parsed at boot", ledger: grpcLedger + "MULTI_TENANT_ENABLED=yes\n", tracer: grpcTracer + "MULTI_TENANT_ENABLED=false\n"},
 		{name: "saas rest over https", ledger: httpsREST + "DEPLOYMENT_MODE=saas\n", tracer: grpcTracer + "DEPLOYMENT_MODE=saas\n"},
 		{name: "saas rest over http through an explicit mesh", ledger: restLedger + "DEPLOYMENT_MODE=SaaS\nTRACER_TLS_MODE=mesh\n", tracer: "TRACER_TLS_MODE=mesh\n" + restTracer},
@@ -171,6 +180,8 @@ func TestProfileCheckRejectsIdentityDrift(t *testing.T) {
 		// Service discovery enables only on the literal "true".
 		{name: "rest without a plugin auth host and discovery as 1", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSD_ENABLED=1\n", tracer: restTracer, reason: "PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true"},
 		{name: "grpc to a saas tracer without plugin auth", ledger: grpcLedger, tracer: "DEPLOYMENT_MODE=saas\nTRACER_TLS_MODE=mtls\n" + grpcPort + bothProducers, reason: "tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local"},
+		{name: "multi-tenant local tracer without plugin auth", ledger: tenantRESTLedger, tracer: "DEPLOYMENT_MODE=local\n" + multiTenant + tenantManager, reason: "tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true in every DEPLOYMENT_MODE, local included"},
+		{name: "multi-tenant local tracer with plugin auth disabled over grpc", ledger: grpcLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\nPLUGIN_AUTH_ENABLED=false\nTRACER_TLS_MODE=mtls\n" + grpcPort + certProducer + multiTenant + tenantManager, reason: "tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true in every DEPLOYMENT_MODE, local included"},
 		{name: "rest with only a certificate mapped", ledger: restLedger, tracer: certProducer, reason: "is not a clientId"},
 		{name: "rest without a client secret", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\nIDP_M2M_CLIENT_ID=" + ledgerClientID + "\nIDP_M2M_CLIENT_SECRET= \n" + pluginAuth, tracer: restTracer, reason: "requires IDP_M2M_CLIENT_SECRET"},
 		{name: "rest without a plugin auth host and discovery off", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSD_ENABLED=false\n", tracer: restTracer, reason: "PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true"},
@@ -185,6 +196,13 @@ func TestProfileCheckRejectsIdentityDrift(t *testing.T) {
 		{name: "multi-tenant tracer without a tenant-manager url", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + "MULTI_TENANT_SERVICE_API_KEY=svc-api-key\n", reason: "requires tracer MULTI_TENANT_URL"},
 		{name: "multi-tenant tracer without a service api key", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + "MULTI_TENANT_URL=https://tenant-manager.example.test\nMULTI_TENANT_SERVICE_API_KEY= \n", reason: "requires tracer MULTI_TENANT_SERVICE_API_KEY"},
 		{name: "multi-tenant local tracer without plugin auth", ledger: restLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\n" + tokenProducer + multiTenant + tenantManager, reason: "tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true"},
+		{name: "multi-tenant tracer with a clientId entry", ledger: tenantRESTLedger, tracer: tenantTracer + tokenProducer, reason: "MULTI_TENANT_ENABLED=true refuses clientId entries"},
+		{name: "multi-tenant tracer with a clientId beside a certUri", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + tenantManager, reason: "MULTI_TENANT_ENABLED=true refuses clientId entries"},
+		{name: "multi-tenant grpc without a producer roster", ledger: grpcLedger + multiTenant, tracer: "TRACER_TLS_MODE=mtls\n" + grpcPort + tenantTracer, reason: "requires a certUri"},
+		{name: "multi-tenant rest without ledger plugin auth", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + multiTenant, tracer: tenantTracer, reason: "requires ledger PLUGIN_AUTH_ENABLED=true"},
+		{name: "multi-tenant rest without a plugin auth host", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\nPLUGIN_AUTH_ENABLED=true\n" + multiTenant, tracer: tenantTracer, reason: "PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true"},
+		{name: "multi-tenant malformed producer roster", ledger: tenantRESTLedger, tracer: tenantTracer + "TRACER_PLATFORM_PRODUCERS='[{\"service\":\"ledger\"}]'\n", reason: "invalid TRACER_PLATFORM_PRODUCERS"},
+		{name: "multi-tenant rest to a plaintext-only tracer over ledger mtls", ledger: tenantRESTLedger + "TRACER_TLS_MODE=mtls\n", tracer: tenantTracer, reason: "requires tracer TRACER_TLS_MODE=mtls"},
 		{name: "saas tracer without a tls mode", ledger: grpcLedger, tracer: "DEPLOYMENT_MODE=saas\n" + grpcPort + tokenCheck + bothProducers, reason: "tracer DEPLOYMENT_MODE=saas requires tracer TRACER_TLS_MODE"},
 		{name: "saas ledger with an http tracer url", ledger: restLedger + "DEPLOYMENT_MODE=saas\n", tracer: restTracer, reason: "refuses an http:// TRACER_BASE_URL"},
 		{name: "saas ledger with an http tracer url and an empty tls mode", ledger: restLedger + "DEPLOYMENT_MODE= SAAS \nTRACER_TLS_MODE=\n", tracer: restTracer, reason: "refuses an http:// TRACER_BASE_URL"},

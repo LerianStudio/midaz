@@ -56,6 +56,8 @@ import (
 )
 
 const (
+	// sharedDeployClientID is an operator-configured client id: multi-tenant
+	// HTTP reservations never consult one.
 	sharedDeployClientID = "ledger-m2m-client"
 	// sharedDeployDeniedSub is the application subject plugin-auth refuses.
 	sharedDeployDeniedSub   = "unauthorized-application"
@@ -64,10 +66,12 @@ const (
 
 	// tenantAssociated is listed active for the ledger and has a tracer pool;
 	// tenantNotLedger has a tracer pool but is absent from the ledger list;
-	// tenantSuspended is listed for the ledger as suspended.
+	// tenantSuspended is listed for the ledger as suspended; tenantNoTracer is
+	// listed active for the ledger but has no tracer pool.
 	tenantAssociated = "tenant-a"
 	tenantNotLedger  = "tenant-b"
 	tenantSuspended  = "tenant-c"
+	tenantNoTracer   = "tenant-d"
 
 	sharedDeployLegacyReserveBody = `{
   "transactionId": "11111111-1111-4111-8111-111111111111",
@@ -93,6 +97,12 @@ const (
 // PostgreSQL wire fake, so the production pool manager resolves tenant pools
 // without Docker. Admission and completion are mocks: the test covers who may
 // reach them, not what they do.
+//
+// HTTP reservations identify the ledger by the platform claims the
+// tenant-manager writes onto the per-tenant M2M application it provisions, and
+// take the tenant from that token; gRPC identifies it by its client
+// certificate and takes the tenant from the header. Both require the tenant's
+// active ledger association.
 //
 // Cases run in order on the shared fixture. The tenant-manager outage boots a
 // deploy of its own, so no active-tenant list fetched by an earlier case can
@@ -133,32 +143,69 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 	})
 
 	t.Run("producer token plugin-auth refuses is forbidden", func(t *testing.T) {
-		token := deploy.applicationToken(t, sharedDeployDeniedSub, sharedDeployClientID)
+		token := deploy.tenantToken(t, tenantAssociated, func(c jwt.MapClaims) { c["sub"] = sharedDeployDeniedSub })
 		before := deploy.tenantManager.listCalls()
-		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", token, tenantHeader(tenantAssociated), deploy.reserveJSON)
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", token, nil, deploy.reserveJSON)
 		requireErrorCode(t, response, http.StatusForbidden, "0043")
 		require.NotContains(t, response.body, token, "the rejection never echoes the token")
 		require.Equal(t, before, deploy.tenantManager.listCalls(), "a refused token is rejected before any tenant lookup")
 	})
 
-	t.Run("producer token for an associated tenant reaches the handler", func(t *testing.T) {
+	t.Run("tenant-manager application token for an associated tenant reaches the handler", func(t *testing.T) {
 		before := deploy.pluginAuth.calls("reservations", "post")
 		deploy.expectAdmission(t, tenantAssociated, producerauth.ViaToken)
-		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantAssociated), deploy.reserveJSON)
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantAssociated, nil), nil, deploy.reserveJSON)
 		require.Equal(t, http.StatusCreated, response.status, response.body)
 		require.Equal(t, before+1, deploy.pluginAuth.calls("reservations", "post"), "plugin-auth decided tracer/reservations:post")
 	})
 
-	t.Run("producer token for a tenant without the ledger association is forbidden", func(t *testing.T) {
-		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantNotLedger), deploy.reserveJSON)
+	t.Run("a requested tenant equal to the token tenant is accepted", func(t *testing.T) {
+		deploy.expectAdmission(t, tenantAssociated, producerauth.ViaToken)
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantAssociated, nil), tenantHeader(tenantAssociated), deploy.reserveJSON)
+		require.Equal(t, http.StatusCreated, response.status, response.body)
+	})
+
+	t.Run("a requested tenant other than the token tenant is forbidden", func(t *testing.T) {
+		before := deploy.tenantManager.listCalls()
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantAssociated, nil), tenantHeader(tenantNotLedger), deploy.reserveJSON)
+		requireErrorCode(t, response, http.StatusForbidden, "0043")
+		require.Equal(t, before, deploy.tenantManager.listCalls(), "the mismatch is refused before any tenant lookup")
+		require.Zero(t, deploy.tenantManager.calls(tenantNotLedger, trcConstant.ApplicationName), "the header never selects a pool")
+	})
+
+	t.Run("tokens without the tenant-manager platform claims are forbidden", func(t *testing.T) {
+		for name, token := range map[string]string{
+			"isInternal missing":     deploy.tenantToken(t, tenantAssociated, func(c jwt.MapClaims) { delete(c, "isInternal") }),
+			"isInternal false":       deploy.tenantToken(t, tenantAssociated, func(c jwt.MapClaims) { c["isInternal"] = "false" }),
+			"another source service": deploy.tenantToken(t, tenantAssociated, func(c jwt.MapClaims) { c["sourceService"] = "fees" }),
+			"flowker source service": deploy.tenantToken(t, tenantAssociated, func(c jwt.MapClaims) { c["sourceService"] = "flowker" }),
+			"tenantId missing":       deploy.tenantToken(t, tenantAssociated, func(c jwt.MapClaims) { delete(c, "tenantId") }),
+			"operator-roster token":  deploy.applicationToken(t, "ledger-application", sharedDeployClientID),
+		} {
+			t.Run(name, func(t *testing.T) {
+				response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", token, tenantHeader(tenantAssociated), deploy.reserveJSON)
+				requireErrorCode(t, response, http.StatusForbidden, "0043")
+				require.NotContains(t, response.body, token, "the rejection never echoes the token")
+			})
+		}
+	})
+
+	t.Run("token tenant without the ledger association is forbidden", func(t *testing.T) {
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantNotLedger, nil), nil, deploy.reserveJSON)
 		requireErrorCode(t, response, http.StatusForbidden, "0043")
 		require.Zero(t, deploy.tenantManager.calls(tenantNotLedger, trcConstant.ApplicationName), "a denied tenant never resolves a tracer pool")
 	})
 
-	t.Run("producer token for a suspended tenant is forbidden", func(t *testing.T) {
-		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantSuspended), deploy.reserveJSON)
+	t.Run("token tenant suspended for the ledger is forbidden", func(t *testing.T) {
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantSuspended, nil), nil, deploy.reserveJSON)
 		requireErrorCode(t, response, http.StatusForbidden, "0043")
 		require.Zero(t, deploy.tenantManager.calls(tenantSuspended, trcConstant.ApplicationName), "a suspended tenant never resolves a tracer pool")
+	})
+
+	t.Run("token tenant associated with the ledger but without a tracer pool is forbidden", func(t *testing.T) {
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantNoTracer, nil), nil, deploy.reserveJSON)
+		requireErrorCode(t, response, http.StatusForbidden, "0043")
+		require.Equal(t, 1, deploy.tenantManager.calls(tenantNoTracer, trcConstant.ApplicationName), "the lib-commons tenant middleware asked for the pool")
 	})
 
 	t.Run("plugin-auth outage is an availability failure on HTTP", func(t *testing.T) {
@@ -168,7 +215,7 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 		// Neither a denial nor the policy-configuration code 0537: the ledger
 		// reads an unrecognized 503 as tracer unavailability, so its fail
 		// posture decides.
-		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantAssociated), deploy.reserveJSON)
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.tenantToken(t, tenantAssociated, nil), nil, deploy.reserveJSON)
 		requireErrorCode(t, response, http.StatusServiceUnavailable, "0525")
 	})
 
@@ -220,7 +267,7 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 		require.Equal(t, 1, cold.tenantManager.listOutages(), "the gRPC call reached the tenant-manager")
 
 		for range 2 {
-			response := cold.httpCall(t, http.MethodPost, "/v1/reservations", cold.producerToken(t), tenantHeader(tenantAssociated), cold.reserveJSON)
+			response := cold.httpCall(t, http.MethodPost, "/v1/reservations", cold.tenantToken(t, tenantAssociated, nil), nil, cold.reserveJSON)
 			requireErrorCode(t, response, http.StatusServiceUnavailable, "0161")
 		}
 
@@ -250,8 +297,8 @@ type sharedDeploy struct {
 func startSharedDeploy(t *testing.T) *sharedDeploy {
 	t.Helper()
 
-	pg := startFakePostgres(t)
-	tenantManager := startTenantManagerFake(t, pg.port())
+	pg := testutil.StartFakePostgres(t)
+	tenantManager := startTenantManagerFake(t, pg.Port())
 	pluginAuth := startPluginAuthFake(t)
 
 	mapped := testutil.GenerateMTLSFixture(t, sharedDeployCertURI)
@@ -386,7 +433,9 @@ func sharedDeployConfig(t *testing.T, mapped, unmapped testutil.MTLSFixture, plu
 	cfg.DeploymentMode = "byoc"
 	cfg.PluginAuthEnabled = true
 	cfg.PluginAuthAddress = pluginAuthURL
-	cfg.TracerPlatformProducers = `[{"service":"ledger","clientId":"` + sharedDeployClientID + `","certUri":"` + sharedDeployCertURI + `"}]`
+	// Multi-tenant HTTP reservations consult no client id, so the roster maps
+	// the gRPC certificate only.
+	cfg.TracerPlatformProducers = `[{"service":"ledger","certUri":"` + sharedDeployCertURI + `"}]`
 	cfg.TracerTLSMode = tlsModeMTLS
 	cfg.TracerTLSCertFile = certFile
 	cfg.TracerTLSKeyFile = keyFile
@@ -406,10 +455,22 @@ func sharedDeployConfig(t *testing.T, mapped, unmapped testutil.MTLSFixture, plu
 	return cfg
 }
 
-func (d *sharedDeploy) producerToken(t *testing.T) string {
+// tenantToken is the access token of the per-tenant M2M application the
+// tenant-manager provisions for the ledger in tenantID: a random client id
+// and the platform attributes only the tenant-manager can write. mutate may
+// alter its claims.
+func (d *sharedDeploy) tenantToken(t *testing.T, tenantID string, mutate func(jwt.MapClaims)) string {
 	t.Helper()
 
-	return d.applicationToken(t, "ledger-application", sharedDeployClientID)
+	claims := jwt.MapClaims{
+		"type": "application", "sub": "admin/ledger-m2m-tracer-" + tenantID, "azp": "c0ffee-" + tenantID, "owner": "admin",
+		"name": "ledger-m2m-tracer-" + tenantID, "tenantId": tenantID, "tenantSlug": tenantID, "isInternal": "true", "sourceService": producerauth.ServiceLedger,
+	}
+	if mutate != nil {
+		mutate(claims)
+	}
+
+	return d.sign(t, claims)
 }
 
 func (d *sharedDeploy) applicationToken(t *testing.T, sub, clientID string) string {
@@ -615,6 +676,7 @@ func startTenantManagerFake(t *testing.T, pgPort int) *tenantManagerFake {
 			writeJSON(w, http.StatusOK, []map[string]string{
 				{"id": tenantAssociated, "name": tenantAssociated, "status": "active"},
 				{"id": tenantSuspended, "name": tenantSuspended, "status": "suspended"},
+				{"id": tenantNoTracer, "name": tenantNoTracer, "status": "active"},
 			})
 
 			return
