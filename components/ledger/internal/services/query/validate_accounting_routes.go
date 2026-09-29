@@ -68,9 +68,7 @@ import (
 //
 // # Fee-debt legs
 //
-// Legs named in FeeDebtLegs take back fee-debt settlements the engine booked after route
-// validation: they are held to no transaction route, and the route count is skipped
-// because a take-back may consume the debtor's own leg and its route.
+// FeeDebtLegs name fee-debt take-backs, which match no transaction route and void the route count.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

@@ -174,10 +174,9 @@ local function openFeeDebt(step, posting)
     emitFeeDebtChange(step, "opened", posting.fundedByRef, deferral.payerRef, debt, deferral.shortfall)
 end
 
--- collectFeeDebts settles the debtor's list from its head with at most
--- take(available, amount), one debtor debit and one creditor credit per debt. It
--- never refuses: it stops at the first debt it may not settle, and settles nothing
--- when the debtor itself may not pay.
+-- collectFeeDebts settles the debtor's list from its head with at most take(available,
+-- amount), one debtor debit and one creditor credit per debt. It never refuses: it stops
+-- at the first debt it may not settle, and settles nothing when the debtor may not pay.
 local function collectFeeDebts(step, posting, debtor)
     local current, list = debtor.current, feeDebtList(step, posting.balanceRef)
     if current.direction == "debit" or not current.allowSending or not step.settleable(debtor) then return end

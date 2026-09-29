@@ -147,15 +147,15 @@ func (s *feeDebtRoutes) rows(t *testing.T, txID uuid.UUID) []string {
 	return views
 }
 
-// row is the view of an expected row; its code is the route's rubric for side when the
-// ledger resolves rubrics, and empty when it does not.
-func row(kind, direction, alias, amount string, route uuid.UUID, code bool) string {
-	side := ""
-	if code {
-		side = route.String() + "-" + map[string]string{"debit": "D", "credit": "C"}[direction]
-	}
+// row is the view of an expected row booked to code, empty on a ledger that resolves
+// no rubrics.
+func row(kind, direction, alias, amount string, route uuid.UUID, code string) string {
+	return kind + " " + direction + " " + alias + " " + amount + " " + route.String() + " " + code
+}
 
-	return kind + " " + direction + " " + alias + " " + amount + " " + route.String() + " " + side
+// rubric is the code the fixture's entries give route for the side of direction.
+func rubric(route uuid.UUID, direction string) string {
+	return route.String() + "-" + map[string]string{"debit": "D", "credit": "C"}[direction]
 }
 
 // TestFeeDebtMovementsCarryTheFeeRoutes opens a 30 debt, settles 10, reverts the settling
@@ -167,21 +167,21 @@ func TestFeeDebtMovementsCarryTheFeeRoutes(t *testing.T) {
 
 	origin := s.open(t)
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-payer", "80", s.payer, false), row("DEBIT", "debit", "@debt-payer", "20", s.from, false),
-		row("CREDIT", "credit", "@debt-receiver", "80", s.receiver, false), row("CREDIT", "credit", "@debt-fee", "20", s.to, false),
+		row("DEBIT", "debit", "@debt-payer", "80", s.payer, ""), row("DEBIT", "debit", "@debt-payer", "20", s.from, ""),
+		row("CREDIT", "credit", "@debt-receiver", "80", s.receiver, ""), row("CREDIT", "credit", "@debt-fee", "20", s.to, ""),
 	}, s.rows(t, origin), "the payer pays 20 of the 50 fee and owes 30")
 	s.balances(t, "0", "80", "20", "1000")
 
 	settlement := []string{
-		row("DEBIT", "debit", "@debt-funder", "10", s.funder, false), row("CREDIT", "credit", "@debt-payer", "10", s.payer, false),
-		row("FEE_SETTLEMENT", "debit", "@debt-payer", "10", s.from, false), row("FEE_SETTLEMENT", "credit", "@debt-fee", "10", s.to, false),
+		row("DEBIT", "debit", "@debt-funder", "10", s.funder, ""), row("CREDIT", "credit", "@debt-payer", "10", s.payer, ""),
+		row("FEE_SETTLEMENT", "debit", "@debt-payer", "10", s.from, ""), row("FEE_SETTLEMENT", "credit", "@debt-fee", "10", s.to, ""),
 	}
 	settling := s.settle(t)
 	assert.ElementsMatch(t, settlement, s.rows(t, settling), "the credit settles 10 under the fee's routes")
 	s.balances(t, "0", "80", "30", "990")
 
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-fee", "10", s.to, false), row("CREDIT", "credit", "@debt-funder", "10", s.funder, false),
+		row("DEBIT", "debit", "@debt-fee", "10", s.to, ""), row("CREDIT", "credit", "@debt-funder", "10", s.funder, ""),
 	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route")
 	s.balances(t, "0", "80", "20", "1000")
 
@@ -189,9 +189,9 @@ func TestFeeDebtMovementsCarryTheFeeRoutes(t *testing.T) {
 	s.balances(t, "0", "80", "30", "990")
 
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-receiver", "80", s.receiver, false), row("DEBIT", "debit", "@debt-fee", "20", s.to, false),
-		row("CREDIT", "credit", "@debt-payer", "80", s.payer, false), row("CREDIT", "credit", "@debt-payer", "20", s.from, false),
-		row("FEE_REFUND", "credit", "@debt-payer", "10", s.from, false), row("FEE_REFUND", "debit", "@debt-fee", "10", s.to, false),
+		row("DEBIT", "debit", "@debt-receiver", "80", s.receiver, ""), row("DEBIT", "debit", "@debt-fee", "20", s.to, ""),
+		row("CREDIT", "credit", "@debt-payer", "80", s.payer, ""), row("CREDIT", "credit", "@debt-payer", "20", s.from, ""),
+		row("FEE_REFUND", "credit", "@debt-payer", "10", s.from, ""), row("FEE_REFUND", "debit", "@debt-fee", "10", s.to, ""),
 	}, s.rows(t, s.revert(t, origin)), "the origin's revert refunds the 10 paid under the fee's routes")
 	s.balances(t, "110", "0", "0", "990")
 }
@@ -204,20 +204,20 @@ func TestFeeDebtMovementsCarryTheFeeRubrics(t *testing.T) {
 
 	origin := s.open(t)
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-payer", "80", s.payer, true), row("DEBIT", "debit", "@debt-payer", "20", s.from, true),
-		row("CREDIT", "credit", "@debt-receiver", "80", s.receiver, true), row("CREDIT", "credit", "@debt-fee", "20", s.to, true),
+		row("DEBIT", "debit", "@debt-payer", "80", s.payer, rubric(s.payer, "debit")), row("DEBIT", "debit", "@debt-payer", "20", s.from, rubric(s.from, "debit")),
+		row("CREDIT", "credit", "@debt-receiver", "80", s.receiver, rubric(s.receiver, "credit")), row("CREDIT", "credit", "@debt-fee", "20", s.to, rubric(s.to, "credit")),
 	}, s.rows(t, origin))
 
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-funder", "10", s.funder, true), row("CREDIT", "credit", "@debt-payer", "10", s.payer, true),
-		row("FEE_SETTLEMENT", "debit", "@debt-payer", "10", s.from, true), row("FEE_SETTLEMENT", "credit", "@debt-fee", "10", s.to, true),
+		row("DEBIT", "debit", "@debt-funder", "10", s.funder, rubric(s.funder, "debit")), row("CREDIT", "credit", "@debt-payer", "10", s.payer, rubric(s.payer, "credit")),
+		row("FEE_SETTLEMENT", "debit", "@debt-payer", "10", s.from, rubric(s.from, "debit")), row("FEE_SETTLEMENT", "credit", "@debt-fee", "10", s.to, rubric(s.to, "credit")),
 	}, s.rows(t, s.settle(t)))
 	s.balances(t, "0", "80", "30", "990")
 
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-receiver", "80", s.receiver, true), row("DEBIT", "debit", "@debt-fee", "20", s.to, true),
-		row("CREDIT", "credit", "@debt-payer", "80", s.payer, true), row("CREDIT", "credit", "@debt-payer", "20", s.from, true),
-		row("FEE_REFUND", "credit", "@debt-payer", "10", s.from, true), row("FEE_REFUND", "debit", "@debt-fee", "10", s.to, true),
+		row("DEBIT", "debit", "@debt-receiver", "80", s.receiver, rubric(s.receiver, "debit")), row("DEBIT", "debit", "@debt-fee", "20", s.to, rubric(s.to, "debit")),
+		row("CREDIT", "credit", "@debt-payer", "80", s.payer, rubric(s.payer, "credit")), row("CREDIT", "credit", "@debt-payer", "20", s.from, rubric(s.from, "credit")),
+		row("FEE_REFUND", "credit", "@debt-payer", "10", s.from, rubric(s.from, "credit")), row("FEE_REFUND", "debit", "@debt-fee", "10", s.to, rubric(s.to, "debit")),
 	}, s.rows(t, s.revert(t, origin)))
 	s.balances(t, "110", "0", "0", "990")
 }
@@ -238,7 +238,7 @@ func TestFeeDebtSettlementRevertsOnARouteValidatingLedger(t *testing.T) {
 	s.balances(t, "0", "80", "30", "990")
 
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-fee", "10", s.to, false) + s.to.String() + "-RD", row("CREDIT", "credit", "@debt-funder", "10", s.funder, true),
+		row("DEBIT", "debit", "@debt-fee", "10", s.to, s.to.String()+"-RD"), row("CREDIT", "credit", "@debt-funder", "10", s.funder, rubric(s.funder, "credit")),
 	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route and its revert debit rubric")
 	s.balances(t, "0", "80", "20", "1000")
 
