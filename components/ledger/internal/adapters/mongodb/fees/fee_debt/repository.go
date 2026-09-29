@@ -251,7 +251,9 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 	return debts, pagination, nil
 }
 
-// OpenTotal sums the remaining of the debtor's open debts, over every page of its listing.
+// OpenTotal sums the remaining of the debtor balance's open debts over every page, each
+// capped at its opened amount: a reopen recorded before the settlement it undoes lifts
+// remaining past opened for a while.
 func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uuid.UUID, debtorBalanceRef string) (decimal.Decimal, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -277,7 +279,7 @@ func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uui
 
 	cur, err := coll.Aggregate(ctx, mongo.Pipeline{
 		{{Key: "$match", Value: match}},
-		{{Key: "$group", Value: bson.D{{Key: "_id", Value: nil}, {Key: "total", Value: bson.D{{Key: "$sum", Value: "$remaining"}}}}}},
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: nil}, {Key: "total", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$min", Value: bson.A{"$remaining", "$opened_amount"}}}}}}}}},
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanAggregate, "Failed to sum open fee debts", err)
@@ -472,7 +474,7 @@ func changeUpdate(record command.FeeDebtRecord, change accounting.FeeDebtChange)
 	return seed, filter, update, nil
 }
 
-var zeroDecimal128 = bson.NewDecimal128(0, 0)
+var zeroDecimal128, _ = bson.ParseDecimal128("0") // a literal zero always parses
 
 // decimal128 rounds d to the 34 significant digits a Decimal128 holds; the entry
 // keeps the exact amount as text.

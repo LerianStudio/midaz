@@ -441,6 +441,10 @@ func TestFindAll_StatusAndOpenTotal(t *testing.T) {
 	settle(debts[3], 10)
 	settle(debts[3], 10) // a settlement recorded before the reopen it depends on
 
+	reopen := debts[0] // a reopen recorded before the settlement it undoes: remaining 20
+	reopen.TransactionID, reopen.PostingRef, reopen.Kind = uuid.Must(uuid.NewV7()), "fee-reopen:0", accounting.FeeDebtReopened
+	require.NoError(t, repo.Apply(ctx, record(t0.Add(time.Minute), "", reopen)))
+
 	foreign := record(t0, "", openedDebt(uuid.MustParse("01910000-0000-7000-8000-000000000001"), "@payer#default", 1))
 	foreign.LedgerID = uuid.MustParse("01920000-0000-7000-8000-0000000000ff")
 	require.NoError(t, repo.Apply(ctx, foreign))
@@ -466,7 +470,7 @@ func TestFindAll_StatusAndOpenTotal(t *testing.T) {
 
 	total, err := repo.OpenTotal(ctx, orgID, ledgerID, "@payer#default")
 	require.NoError(t, err)
-	assert.Equal(t, "16", total.String(), "open debts of this debtor and ledger only, below-zero ones excluded")
+	assert.Equal(t, "16", total.String(), "this debtor's open debts in this ledger, each at most its opened amount")
 
 	total, err = repo.OpenTotal(ctx, orgID, ledgerID, "@nobody#default")
 	require.NoError(t, err)

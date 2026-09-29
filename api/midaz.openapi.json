@@ -28030,7 +28030,7 @@
             "type": "string"
           },
           "openTotal": {
-            "description": "What the debtor owes over all its open debts, not only this page; present only with account_alias",
+            "description": "What this debtor balance (account_alias and balance_key) owes over all its open debts, not only this page, each counting at most its opened amount; present only with account_alias",
             "examples": [
               "25"
             ],

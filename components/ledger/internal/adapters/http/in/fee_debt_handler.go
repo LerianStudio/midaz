@@ -50,7 +50,7 @@ type FeeDebtListBody struct {
 	Limit      int              `json:"limit" example:"10"`
 	NextCursor string           `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
 	PrevCursor string           `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
-	OpenTotal  *decimal.Decimal `json:"openTotal,omitempty" doc:"What the debtor owes over all its open debts, not only this page; present only with account_alias" example:"25"`
+	OpenTotal  *decimal.Decimal `json:"openTotal,omitempty" doc:"What this debtor balance (account_alias and balance_key) owes over all its open debts, not only this page, each counting at most its opened amount; present only with account_alias" example:"25"`
 }
 
 // ListFeeDebtsV2Request binds the listing query; the core validates it.

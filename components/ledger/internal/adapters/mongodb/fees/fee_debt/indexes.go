@@ -32,6 +32,7 @@ func EnsureIndexes(ctx context.Context, mc *mmongoDB.MongoConnection) error {
 				{Key: "organization_id", Value: 1},
 				{Key: "ledger_id", Value: 1},
 				{Key: "_id", Value: 1},
+				{Key: "remaining", Value: 1},
 			},
 			Options: options.Index().SetName("idx_fd_org_ledger_id"),
 		},
@@ -52,14 +53,6 @@ func EnsureIndexes(ctx context.Context, mc *mmongoDB.MongoConnection) error {
 				{Key: "remaining", Value: 1},
 			},
 			Options: options.Index().SetName("idx_fd_org_ledger_debtor_remaining"),
-		},
-		{
-			Keys: bson.D{
-				{Key: "organization_id", Value: 1},
-				{Key: "ledger_id", Value: 1},
-				{Key: "remaining", Value: 1},
-			},
-			Options: options.Index().SetName("idx_fd_org_ledger_remaining"),
 		},
 	})
 

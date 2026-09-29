@@ -133,17 +133,14 @@ func (handler *FeeDebtHandler) getFeeDebt(ctx context.Context, organizationID, l
 	return view, nil
 }
 
-// feeDebtReadFailed records err on span and logs it once: Warn for a business error,
-// Error for a technical one.
+// feeDebtReadFailed records err on span and logs a technical one; a business error is
+// the caller's and stays on the span.
 func feeDebtReadFailed(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) error {
 	handleSpanByErrorClass(span, message, err)
 
-	level := libLog.LevelError
-	if pkg.IsBusinessError(err) {
-		level = libLog.LevelWarn
+	if !pkg.IsBusinessError(err) {
+		logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
 	}
-
-	logger.Log(ctx, level, message, libLog.Err(err))
 
 	return err
 }
