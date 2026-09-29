@@ -398,7 +398,7 @@ func validateOperationRecordCompleteness(contexts map[operationMovementKey]Opera
 			}
 		}
 
-		if (movement.Role != accounting.RolePrimary && movement.Role != accounting.RoleFeeDebtRefundCredit) || movement.OverdraftDelta.IsZero() {
+		if anchor, _ := overdraftAnchor(contexts, key); anchor != key || movement.OverdraftDelta.IsZero() {
 			continue
 		}
 

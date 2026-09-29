@@ -5,6 +5,8 @@
 package command
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
@@ -44,12 +46,8 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 		transactionLast[index] = make(map[string]accounting.BalanceState)
 	}
 
-	if err := partitionFeeDebt(partitions, transactionIndices, result.FeeDebt); err != nil {
-		return nil, err
-	}
-
 	balances, err := indexEngineResultBalances(request)
-	if err != nil {
+	if err = errors.Join(err, partitionFeeDebt(partitions, transactionIndices, result.FeeDebt)); err != nil {
 		return nil, err
 	}
 
@@ -112,8 +110,12 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 
 	for transactionIndex := range partitions {
 		for _, balanceRef := range transactionTouches[transactionIndex] {
-			snapshot, state := finals[balanceRef], transactionLast[transactionIndex][balanceRef]
-			snapshot.Available, snapshot.OnHold, snapshot.OverdraftUsed, snapshot.Version = state.Available, state.OnHold, state.OverdraftUsed, state.Version
+			snapshot := finals[balanceRef]
+			state := transactionLast[transactionIndex][balanceRef]
+			snapshot.Available = state.Available
+			snapshot.OnHold = state.OnHold
+			snapshot.OverdraftUsed = state.OverdraftUsed
+			snapshot.Version = state.Version
 			partitions[transactionIndex].Final = append(partitions[transactionIndex].Final, snapshot)
 		}
 
