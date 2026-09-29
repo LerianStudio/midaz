@@ -247,6 +247,7 @@ func (s *M2MTokenSource) snapshot() tokenState {
 
 	now := s.now()
 	state := tokenState{backingOff: now.Before(s.renewAfter)}
+
 	if state.backingOff {
 		state.renewErr = s.renewErr
 	}
