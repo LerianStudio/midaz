@@ -254,14 +254,17 @@ only), `fundedByRef` (string, credit only), `debtRoute` (route object, on a
 `deferShortfall` debit or its `fundedByRef` credit: the route that leg books
 under), `items` (array of debt ids, collect only) and `refunds` (array, refund
 only). Go appends a collect posting right
-after each eligible credit, with the seed's item ids of the credited balance,
-oldest first:
+after each eligible credit and each refund whose `expectedRefund` sum is positive,
+with the seed's item ids of the credited balance, oldest first:
 
 ```json
 {"ref":"<creditPostingRef>:collect","balanceRef":"<the credited balance>","type":"collect",
  "amount":"<the credit amount>","drawPolicy":"forbidden","overdraftAmount":"0",
  "items":["<O>:<debitPostingRef>"]}
 ```
+
+A refund's collect is `fee-refund:<n>:collect` and its amount is that sum, not
+the refund posting's `amount`.
 
 On a revert of a transaction whose metadata carries `feeDebtOpenings` (see
 "Revert"), Go appends after every other posting one refund posting per debtor
