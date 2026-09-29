@@ -14,8 +14,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// SetKeys sets each key inside an existing document's metadata and bumps updated_at, keeping
-// every other key. Keys must be flat names without '.' or a leading '$'.
+// SetKeys sets each key inside an existing document's metadata, stamps its entity name with
+// collection and bumps updated_at, keeping every other key. Keys must be flat names without '.'
+// or a leading '$'.
 func (mmr *MetadataMongoDBRepository) SetKeys(ctx context.Context, collection, id string, keys map[string]any) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -29,7 +30,7 @@ func (mmr *MetadataMongoDBRepository) SetKeys(ctx context.Context, collection, i
 		return err
 	}
 
-	set := bson.D{{Key: "updated_at", Value: time.Now()}}
+	set := bson.D{{Key: "entity_name", Value: collection}, {Key: "updated_at", Value: time.Now()}}
 	for key, value := range keys {
 		set = append(set, bson.E{Key: "metadata." + key, Value: value})
 	}

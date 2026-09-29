@@ -366,17 +366,47 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 		assertFinalizerSQLCounts(t, pg.DB, envelope.TransactionID, 1, 1)
 	})
 
-	t.Run("metadata patched before completion keeps the frozen keys", func(t *testing.T) {
-		envelope := finalizerIntegrationEnvelope(t, t.Name(), "", false, false, false)
-		id := envelope.TransactionID.String()
-		require.NoError(t, metadata.Update(ctx, constant.EntityTransaction, id, map[string]any{"client": "patched", "purpose": "edited"}))
-		require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
-		assertFinalizerMetadataCount(t, mongoContainer.Database, constant.EntityTransaction, id, 1)
-		actual, err := metadata.FindByEntity(ctx, constant.EntityTransaction, id)
-		require.NoError(t, err)
-		require.NotNil(t, actual)
-		assert.Equal(t, mongodb.JSON{"client": "patched", "purpose": "edited", "sequence": int64(9007199254740993), "fraction": 0.1}, actual.Data)
-	})
+	for _, scenario := range []struct {
+		name                           string
+		transaction, operation         map[string]any
+		wantTransaction, wantOperation mongodb.JSON
+	}{{
+		name:            "metadata patched before completion gets the frozen keys under the client's",
+		transaction:     map[string]any{"client": "patched", "purpose": "edited"},
+		operation:       map[string]any{"client": "patched"},
+		wantTransaction: mongodb.JSON{"client": "patched", "purpose": "edited", "sequence": int64(9007199254740993), "fraction": 0.1},
+		wantOperation:   mongodb.JSON{"client": "patched", "purpose": "primary"},
+	}, {
+		name:            "a key deleted before completion gets its frozen value",
+		transaction:     map[string]any{"client": "patched", "purpose": nil},
+		operation:       map[string]any{"purpose": nil},
+		wantTransaction: mongodb.JSON{"client": "patched", "purpose": "frozen", "sequence": int64(9007199254740993), "fraction": 0.1},
+		wantOperation:   mongodb.JSON{"purpose": "primary"},
+	}} {
+		t.Run(scenario.name, func(t *testing.T) {
+			envelope := finalizerIntegrationEnvelope(t, t.Name(), "", false, false, false)
+			id, operationID := envelope.TransactionID.String(), finalizerOperationIDs(t, envelope)[0]
+			patcher := &command.UseCase{TransactionMetadataRepo: metadata}
+			_, err := patcher.UpdateTransactionMetadata(ctx, constant.EntityTransaction, id, scenario.transaction)
+			require.NoError(t, err)
+			_, err = patcher.UpdateTransactionMetadata(ctx, constant.EntityOperation, operationID, scenario.operation)
+			require.NoError(t, err)
+
+			require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
+			require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
+			for _, stored := range []struct {
+				entity, id string
+				want       mongodb.JSON
+			}{{constant.EntityTransaction, id, scenario.wantTransaction}, {constant.EntityOperation, operationID, scenario.wantOperation}} {
+				assertFinalizerMetadataCount(t, mongoContainer.Database, stored.entity, stored.id, 1)
+				actual, err := metadata.FindByEntity(ctx, stored.entity, stored.id)
+				require.NoError(t, err)
+				require.NotNil(t, actual)
+				assert.Equal(t, stored.want, actual.Data)
+				assert.Equal(t, stored.entity, actual.EntityName, "completion marks the document completed")
+			}
+		})
+	}
 
 	for _, emptyMetadata := range []bool{false, true} {
 		name := "companion nil metadata"

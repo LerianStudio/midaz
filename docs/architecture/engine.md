@@ -1025,9 +1025,10 @@ atomically in the existing PostgreSQL tables, then creates or verifies metadata
 in MongoDB. Existing metadata is never compared with the frozen copy: it is the
 client-editable truth, and a stored key is never overwritten. Only a PATCH writes a
 document without an entity name, before the frozen keys landed; completion adds the
-frozen keys that document lacks. Any other stored document gets only the fee-debt
-keys the completion computed and it lacks. A frozen object `feeExemption` is written
-as its JSON string.
+frozen keys that document lacks, field by field, and sets the entity name, which marks
+it completed. A completed document gets only the fee-debt keys the completion computed
+and it lacks, so a key the client deleted after completion stays deleted. A frozen
+object `feeExemption` is written as its JSON string.
 A late pending-hold record after terminal completion is accepted only when every
 historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.

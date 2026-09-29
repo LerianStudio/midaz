@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/shopspring/decimal"
 
@@ -35,7 +34,6 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
-	Update(context.Context, string, string, map[string]any) error
 	SetKeys(context.Context, string, string, map[string]any) error
 }
 
@@ -544,9 +542,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-// persistMetadata inserts the frozen metadata when no document exists. A document a PATCH wrote
-// first has no entity name and gets the frozen keys under its own; any other stored document is
-// the client-editable truth and gets only the fee-debt keys this completion computed and it lacks.
+// persistMetadata inserts the frozen metadata when no document exists. A document only a PATCH
+// wrote has no entity name: it gets every frozen key it lacks and the name, which marks it
+// completed. A completed document gets only the fee-debt keys this completion computed and it lacks.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -561,19 +559,22 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
+	missing := missingFeeDebtMetadata(expected.Data, actual.Data)
 	if actual.EntityName == "" {
-		merged := libCommons.MergeMaps(actual.Data, maps.Clone(expected.Data))
-		if err := service.metadata.Update(ctx, expected.EntityName, expected.EntityID, merged); err != nil {
-			return fmt.Errorf("restore frozen metadata: %w", err)
+		missing = make(map[string]any, len(expected.Data))
+		for key, value := range expected.Data {
+			if _, stored := actual.Data[key]; !stored {
+				missing[key] = value
+			}
 		}
+	}
 
+	if missing == nil {
 		return nil
 	}
 
-	if missing := missingFeeDebtMetadata(expected.Data, actual.Data); missing != nil {
-		if err := service.metadata.SetKeys(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
-			return fmt.Errorf("merge fee-debt metadata: %w", err)
-		}
+	if err := service.metadata.SetKeys(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
+		return fmt.Errorf("merge frozen metadata: %w", err)
 	}
 
 	return nil

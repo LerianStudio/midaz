@@ -76,8 +76,9 @@ func (uc *UseCase) updateLedgerWrittenMetadata(
 		}
 
 		if stored == nil {
+			// No entity name: completion adds the frozen keys this document lacks and names it.
 			now := time.Now()
-			document := &mongodb.Metadata{EntityID: entityID, EntityName: entityName, Data: mongodb.JSON{}, CreatedAt: now, UpdatedAt: now}
+			document := &mongodb.Metadata{EntityID: entityID, Data: mongodb.JSON{}, CreatedAt: now, UpdatedAt: now}
 
 			if err := uc.TransactionMetadataRepo.Create(ctx, entityName, document); err != nil {
 				recordCommandError(ctx, span, logger, "Failed to create metadata on mongodb", err)

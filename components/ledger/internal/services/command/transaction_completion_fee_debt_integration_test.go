@@ -65,10 +65,12 @@ func TestIntegrationFeeDebtMetadataOnMongo(t *testing.T) {
 		assert.Equal(t, feeDebtCommittedMetadata(), stored(t, ctx, repo))
 	})
 
-	t.Run("commit onto a document an update wrote without its entity name", func(t *testing.T) {
+	t.Run("commit onto a document a client update wrote first", func(t *testing.T) {
 		ctx, repo, complete := setup(t)
 		commit, _, _ := feeDebtLifecycleFixture(t)
-		require.NoError(t, repo.Update(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"note": "client"}))
+		uc := &UseCase{TransactionMetadataRepo: repo}
+		_, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"note": "client"})
+		require.NoError(t, err)
 
 		complete(&commit)
 		documents, err := repo.FindByEntityIDs(ctx, constant.EntityTransaction, []string{feeDebtTransaction})
@@ -77,6 +79,24 @@ func TestIntegrationFeeDebtMetadataOnMongo(t *testing.T) {
 		want := feeDebtCommittedMetadata()
 		want["note"] = "client"
 		assert.Equal(t, want, documents[0].Data, "the frozen and fee-debt keys land under the client's")
+		assert.Equal(t, constant.EntityTransaction, documents[0].EntityName, "completion marks the document completed")
+	})
+
+	t.Run("a key deleted after completion stays deleted through a revert", func(t *testing.T) {
+		ctx, repo, complete := setup(t)
+		commit, revert, _ := feeDebtLifecycleFixture(t)
+		uc := &UseCase{TransactionMetadataRepo: repo}
+		_, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"note": "client"})
+		require.NoError(t, err)
+		complete(&commit)
+
+		_, err = uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, map[string]any{"purpose": nil})
+		require.NoError(t, err)
+		complete(&revert)
+		want := feeDebtCommittedMetadata()
+		want["note"] = "client"
+		delete(want, "purpose")
+		assert.Equal(t, want, stored(t, ctx, repo), "re-completing the origin adds no key the client deleted")
 	})
 
 	t.Run("client update keeps the fee-debt keys", func(t *testing.T) {

@@ -165,11 +165,8 @@ func (repo *concurrentFinalizationMetadata) FindByEntity(_ context.Context, coll
 func (repo *concurrentFinalizationMetadata) SetKeys(_ context.Context, collection, id string, keys map[string]any) error {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
+	repo.data[collection+":"+id].EntityName = collection
 	maps.Copy(repo.data[collection+":"+id].Data, keys)
-	return nil
-}
-
-func (*concurrentFinalizationMetadata) Update(context.Context, string, string, map[string]any) error {
 	return nil
 }
 
@@ -222,6 +219,7 @@ func (repo *finalizationMetadataStub) SetKeys(_ context.Context, collection, id 
 		return repo.updateErr
 	}
 
+	repo.data[collection+":"+id].EntityName = collection
 	maps.Copy(repo.data[collection+":"+id].Data, keys)
 
 	return nil
@@ -239,13 +237,6 @@ func (repo *finalizationMetadataStub) FindByEntity(_ context.Context, collection
 	}
 
 	return actual, nil
-}
-
-func (repo *finalizationMetadataStub) Update(_ context.Context, collection, id string, metadata map[string]any) error {
-	*repo.calls = append(*repo.calls, "update:"+collection)
-	repo.data[collection+":"+id].Data = metadata
-
-	return nil
 }
 
 func finalizationFixture(t testing.TB) (context.Context, *TransactionCompletionRecord) {
