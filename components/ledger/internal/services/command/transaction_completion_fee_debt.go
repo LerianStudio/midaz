@@ -17,13 +17,23 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// completedTransactionFeeDebt is the executed amount (the send less the debt opened) and the
-// frozen metadata plus the fee-debt keys the result derives, JSON array strings in result order.
-// A revert drops the keys it inherited; a result without fee debt keeps the frozen map.
+// isFeeDebtCollection reports a standalone collection: the reserved mark plus the
+// empty source only its composition produces, so a mark alone changes nothing.
+func isFeeDebtCollection(input mtransaction.Transaction) bool {
+	_, marked := input.Metadata[constant.MetadataKeyFeeDebtCollection]
+
+	return marked && len(input.Send.Source.From) == 0
+}
+
+// completedTransactionFeeDebt is the executed amount (the send less the debt opened, or what a
+// standalone collection settled) and the frozen metadata plus the fee-debt keys the result
+// derives, JSON array strings in result order. A revert drops the keys it inherited; a result
+// without fee debt keeps the frozen map.
 func completedTransactionFeeDebt(payload TransactionCompletionPlan, changes []accounting.FeeDebtChange) (decimal.Decimal, map[string]any, error) {
-	amount := payload.TransactionInput.Send.Value
+	amount, settled := payload.TransactionInput.Send.Value, decimal.Zero
 
 	var (
 		openings    []FeeDebtOpening
@@ -39,11 +49,16 @@ func completedTransactionFeeDebt(payload TransactionCompletionPlan, changes []ac
 				DebitRoute: change.DebitRoute, CreditRoute: change.CreditRoute,
 			})
 		case accounting.FeeDebtSettled:
+			settled = settled.Add(change.Amount)
 			settlements = append(settlements, FeeDebtSettlement{
 				DebtID: change.DebtID, DebtorRef: change.DebtorRef, CreditRef: change.CreditRef, Amount: change.Amount, Opened: change.Opened, Seq: change.Seq,
 				DebitRoute: change.DebitRoute, CreditRoute: change.CreditRoute,
 			})
 		}
+	}
+
+	if isFeeDebtCollection(payload.TransactionInput) {
+		amount = settled
 	}
 
 	if payload.Action != constant.ActionRevert && openings == nil && settlements == nil {

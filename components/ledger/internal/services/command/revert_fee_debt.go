@@ -20,8 +20,13 @@ import (
 
 // reverseTransaction builds the non-empty reversal of tran. A settlement of a debt
 // whose origin is already reverted stays with its creditor, whose refund paid it
-// back, and none of that origin's debts reopens.
+// back, and none of that origin's debts reopens. A standalone collection has no
+// reversal: nothing it settled was credited to its debtor.
 func (uc *UseCase) reverseTransaction(ctx context.Context, in RevertTransactionInput, tran *transaction.Transaction) (mtransaction.Transaction, error) {
+	if _, collection := tran.Metadata[constant.MetadataKeyFeeDebtCollection]; collection {
+		return mtransaction.Transaction{}, pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
+	}
+
 	openings, settlements, err := feeDebtRevertFacts(tran.Metadata)
 	if err != nil {
 		return mtransaction.Transaction{}, err

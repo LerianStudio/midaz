@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 const (
@@ -236,6 +237,24 @@ func TestFeeDebtWriteSetRowsAmountAndMetadata(t *testing.T) {
 		constant.MetadataKeyFeeDebtOpenings: feeDebtOpeningsGolden, constant.MetadataKeyFeeDebtSettlements: feeDebtSettledGolden,
 	}, writeSet.Transaction.Metadata)
 	assert.Len(t, payload.TransactionInput.Metadata, 2, "the frozen plan metadata is not mutated")
+}
+
+func TestFeeDebtCollectionNeedsItsEmptySource(t *testing.T) {
+	payload, result := deferredFeeFixture(t)
+	payload.TransactionInput.Metadata[constant.MetadataKeyFeeDebtCollection] = "true"
+	payload.TransactionInput.Send.Source.From = []mtransaction.FromTo{{AccountAlias: "@payer#default"}}
+	payload.Validate = &mtransaction.Responses{Destinations: []string{"@dest#default", "@idle#default"}}
+
+	writeSet, err := BuildTransactionWriteSet(payload, result)
+	require.NoError(t, err)
+	assert.Equal(t, "50", writeSet.Transaction.Amount.String(), "the mark alone keeps a client transaction's executed amount")
+	assert.Equal(t, []string{"@dest", "@idle"}, writeSet.Transaction.Destination)
+
+	payload.TransactionInput.Send.Source.From = nil
+	writeSet, err = BuildTransactionWriteSet(payload, result)
+	require.NoError(t, err)
+	assert.Equal(t, "30", writeSet.Transaction.Amount.String(), "a collection's amount is what it settled")
+	assert.Equal(t, []string{"@fees"}, writeSet.Transaction.Destination, "only fee accounts a settlement credited")
 }
 
 func TestFeeDebtCompletionRelaxesOnlyTheOpenedPair(t *testing.T) {

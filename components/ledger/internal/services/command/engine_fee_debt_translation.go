@@ -87,20 +87,21 @@ func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, p
 }
 
 // appendCollect follows a /v2 credit with a collect of the credited balance's
-// open debts, named oldest first, when its seed holds any. Each debt books its
-// debtor debit and creditor credit under the routes it stored.
+// open debts, bounded by the credit amount.
 func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, projection *[]OperationRecordSpec, credit accounting.Posting) {
 	if !c.input.FeeDebtEligible || credit.Type != accounting.PostingCredit ||
 		(c.input.Action != constant.ActionDirect && c.input.Action != constant.ActionCommit && c.input.Action != constant.ActionRevert) {
 		return
 	}
 
-	seed := c.input.FeeDebtSeeds[credit.BalanceRef]
-	if len(seed) == 0 {
-		return
-	}
+	c.collect(transaction, projection, credit.Ref+":collect", credit.BalanceRef, credit.Amount)
+}
 
-	ref, debtor := credit.Ref+":collect", c.balances[credit.BalanceRef]
+// collect appends a collect of balanceRef's seeded debts, named oldest first, when
+// the seed names any, and reports whether it did. Each debt books its debtor debit
+// and creditor credit under the routes it stored.
+func (c *feeDebtComposition) collect(transaction *accounting.Transaction, projection *[]OperationRecordSpec, ref, balanceRef string, amount decimal.Decimal) bool {
+	seed, debtor := c.input.FeeDebtSeeds[balanceRef], c.balances[balanceRef]
 	contexts := make([]OperationRecordSpec, 0, 2*len(seed))
 	items := make([]string, 0, len(seed))
 
@@ -114,23 +115,25 @@ func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, 
 		}
 
 		contexts = append(contexts,
-			c.spec(ref, debtor, accounting.RoleFeeDebtDebit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionDebit, credit.Amount, item.DebitRoute),
-			c.spec(ref, creditor, accounting.RoleFeeDebtCredit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionCredit, credit.Amount, item.CreditRoute))
+			c.spec(ref, debtor, accounting.RoleFeeDebtDebit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionDebit, amount, item.DebitRoute),
+			c.spec(ref, creditor, accounting.RoleFeeDebtCredit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionCredit, amount, item.CreditRoute))
 		items = append(items, item.ID)
 		ordinal++
 	}
 
 	if len(items) == 0 {
-		return
+		return false
 	}
 
 	transaction.Postings = append(transaction.Postings, accounting.Posting{
-		Ref: ref, BalanceRef: credit.BalanceRef, Type: accounting.PostingCollect, Amount: credit.Amount,
+		Ref: ref, BalanceRef: balanceRef, Type: accounting.PostingCollect, Amount: amount,
 		DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero, Items: items,
 	})
 	*projection = append(*projection, contexts...)
 
-	c.declare(transaction, credit.BalanceRef)
+	c.declare(transaction, balanceRef)
+
+	return true
 }
 
 // appendRevert composes, on any revert, the refunds of the debts the parent

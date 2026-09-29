@@ -190,8 +190,8 @@ i.e. `fee-debt:{transactions}:<org>:<ledger>:<alias#key>`, behind the same
 tenant prefix as the balance keys. Absent means the debtor never had a debt. No
 TTL and never deleted, so `seq` is never reused. Lua writes a changed value with
 `SET` (no `EX`) only in `commitPreparedExecution`, after the balances and before
-the receipt, charging it to the prepared-byte budget. Go's copy (`FeeDebtItem`,
-only `id` and `creditRef`) is a seed; Lua always reads the live key.
+the receipt, charging it to the prepared-byte budget. Go's copy (`FeeDebtItem`:
+`id`, `creditRef` and `remaining`) is a seed; Lua always reads the live key.
 
 ```json
 {"v":1,"nextSeq":"4","items":[

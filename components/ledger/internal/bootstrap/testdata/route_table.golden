@@ -320,6 +320,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/estimates	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	4

@@ -268,12 +268,12 @@ func TestFeeDebtResultContractShape(t *testing.T) {
 			`"originTransactionId":"1a2cf884-cf82-4520-9833-07d85c73bc14","seq":"3","assetCode":"BRL","amount":"70.0000000000000000001","opened":"70.0000000000000000001"}]}`)
 	assertContractJSON(t, ExecutionResult{Movements: []Movement{}, Final: []BalanceSnapshot{}, FeeDebt: []FeeDebtChange{}}, `{"movements":[],"final":[]}`)
 
-	assertContractJSON(t, FeeDebtItem{ID: change.DebtID, CreditRef: "@fees#default"},
-		`{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default"}`)
+	assertContractJSON(t, FeeDebtItem{ID: change.DebtID, CreditRef: "@fees#default", Remaining: decimal.RequireFromString("40.5")},
+		`{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default","remaining":"40.5"}`)
 
 	route := &FeeDebtRoute{ID: "0199f0a1-7c7e-7a4e-9a51-3d1b7c7f0a01", Code: "", Description: ""}
-	assertContractJSON(t, FeeDebtItem{ID: change.DebtID, CreditRef: "@fees#default", DebitRoute: route, CreditRoute: route},
-		`{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default",`+
+	assertContractJSON(t, FeeDebtItem{ID: change.DebtID, CreditRef: "@fees#default", Remaining: decimal.NewFromInt(1), DebitRoute: route, CreditRoute: route},
+		`{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14:fee-debit","creditRef":"@fees#default","remaining":"1",`+
 			`"debitRoute":{"id":"0199f0a1-7c7e-7a4e-9a51-3d1b7c7f0a01","code":"","description":""},`+
 			`"creditRoute":{"id":"0199f0a1-7c7e-7a4e-9a51-3d1b7c7f0a01","code":"","description":""}}`)
 }

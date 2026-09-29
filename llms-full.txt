@@ -445,7 +445,7 @@ Scoping is **path-based**: fee endpoints read the organization and ledger from t
 registry in `pkg/constant/errors.go` — the `FEE-` prefixed code family is retired). See
 `docs/api/SCOPING.md`.
 
-The fourteen operations are served under the ledger-scoped `/v2` contract (`{base}` =
+The fifteen operations are served under the ledger-scoped `/v2` contract (`{base}` =
 `/v2/organizations/{organization_id}/ledgers/{ledger_id}`); the path names the ledger and a read
 reaches only what that ledger owns.
 
@@ -465,6 +465,7 @@ reaches only what that ledger owns.
 | POST | {base}/billing/calculate | Calculate billing |
 | GET | {base}/fee-debts | List the ledger's fee debts, oldest first; `?status=open\|settled` filters, `?account_alias=` narrows to one debtor and adds `openTotal`, what it owes over all its open debts |
 | GET | {base}/fee-debts/:debt_id | Get fee debt |
+| POST | {base}/fee-debts/collect | Collect a debtor's open fee debt now (see below) |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
 `ledger_id` path value, `ledgerId` was removed from the create/estimate/calculate request bodies
@@ -490,6 +491,19 @@ create or update leaving a fee both deductible and deferrable is refused with `0
 transaction then records the send plus the fee, less the debt it opened (send 100, fee 10, payer
 holds 105: amount 105, debt 5). Enable it only once every ledger pod
 runs a release that knows fee debt (see `docs/architecture/engine.md`).
+
+`POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
+debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
+capped at `maxAmount` and at what the balance owes. It charges no fee and never originates a debt.
+An optional `X-Idempotency` header makes a retry return the first collection; an answer that settled
+nothing is not kept, and without the header every call is a new collection. A debtor balance that is blocked, cannot send, closing, closed, deleted,
+debit-direction or external collects nothing; the collection stops at the first debt whose fee
+account is blocked, cannot receive, closing, closed, deleted, debit-direction, external, in
+overdraft or of another asset. It answers
+`200 {collected, transactionId?}`; nothing settled is
+`{"collected":"0"}` with no transaction. The transaction carries `metadata.feeDebtCollection =
+"true"`, its amount is what it settled, and reverting it is refused (`0089`). Authz is
+`midaz:fee-debts:post`.
 
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
