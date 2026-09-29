@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -114,7 +115,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		}
 
 		if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, []*mmodel.Balance{balance}, engineRecoverySources, nil); err != nil {
-			recordCommandError(ctx, span, logger, "Balance cannot be deleted while it owes or is owed pending fees", err)
+			spanattr.HandleSpanByErrorClass(span, "Balance cannot be deleted while it owes or is owed pending fees", err)
 
 			return err
 		}
@@ -195,6 +196,11 @@ func (uc *UseCase) refuseCachedBalanceFunds(ctx context.Context, span trace.Span
 // (0528), under a marker the engine honors on every debt change. refuse vets every other
 // in-scope record of sources, so a caller with its own recovery check walks them once.
 func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, sources []recoverySource, refuse func(recoveryRecord) error) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.refuse_open_fee_debt")
+	defer span.End()
+
 	refs := make([]string, 0, len(balances))
 	for _, balance := range balances {
 		refs = append(refs, balance.Alias+"#"+balance.Key)
@@ -202,7 +208,7 @@ func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledger
 
 	debts, err := uc.TransactionReader.GetFeeDebtSeeds(ctx, organizationID, ledgerID, refs)
 	if err != nil {
-		return fmt.Errorf("failed to read balance fee debts: %w", err)
+		return refuseIndeterminate(ctx, span, logger, "Failed to read balance fee debts", err)
 	}
 
 	for _, ref := range refs {
@@ -229,7 +235,7 @@ func (uc *UseCase) refuseOpenFeeDebt(ctx context.Context, organizationID, ledger
 
 	owed, err := uc.FeeDebts.HasOpenCreditor(ctx, organizationID, ledgerID, refs)
 	if err != nil {
-		return fmt.Errorf("failed to read the fee debts owed to the balances: %w", err)
+		return refuseIndeterminate(ctx, span, logger, "Failed to read the fee debts owed to the balances", err)
 	}
 
 	if owed {

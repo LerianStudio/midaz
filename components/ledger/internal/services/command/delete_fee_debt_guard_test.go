@@ -115,18 +115,17 @@ func TestDeleteBalance_FeeDebtGuard(t *testing.T) {
 		require.NoError(t, uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID))
 	})
 
-	t.Run("an unreadable debt list fails closed and releases the marker", func(t *testing.T) {
+	t.Run("an unreadable debt list answers the retryable 0520 and releases the marker", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteBalanceUseCase(t)
 		bal := zeroBalance()
-		readErr := errors.New("redis down")
-		uc.TransactionReader = &feeDebtReader{err: readErr}
+		uc.TransactionReader = &feeDebtReader{err: errors.New("redis down")}
 
 		mockBalanceRepo.EXPECT().Find(gomock.Any(), organizationID, ledgerID, balanceID).Return(bal, nil)
 		expectDeleteMarkerPlant(mockRedisRepo, organizationID, ledgerID, bal)
 		mockRedisRepo.EXPECT().Get(gomock.Any(), balanceCacheKeyFor(organizationID, ledgerID, bal)).Return("", nil)
 		expectDeleteMarkerRelease(mockRedisRepo, organizationID, ledgerID, bal)
 
-		require.ErrorIs(t, uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID), readErr)
+		requireClosingCode(t, uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID), constant.ErrAccountClosingProtectionIndeterminate)
 	})
 }
 
@@ -233,10 +232,9 @@ func TestRefuseOpenFeeDebt_OwedToTheBalance(t *testing.T) {
 		requireOwed(t, refuse(uc, recoveryScopeLedgerID))
 	})
 
-	t.Run("an unproven walk refuses as indeterminate and a failed projection read is technical", func(t *testing.T) {
-		readErr := errors.New("mongo down")
-		uc := newUseCase(t, &owedFeeDebts{err: readErr}, redis.RecoveryScanPage{})
-		require.ErrorIs(t, refuse(uc, recoveryScopeLedgerID), readErr)
+	t.Run("an unproven walk or a failed projection read refuses as indeterminate", func(t *testing.T) {
+		uc := newUseCase(t, &owedFeeDebts{err: errors.New("mongo down")}, redis.RecoveryScanPage{})
+		requireClosingCode(t, refuse(uc, recoveryScopeLedgerID), constant.ErrAccountClosingProtectionIndeterminate)
 
 		uc = newUseCase(t, &owedFeeDebts{}, redis.RecoveryScanPage{Cursor: 7, Bytes: maxRecoveryWalkBytes + 1})
 		requireClosingCode(t, refuse(uc, recoveryScopeLedgerID), constant.ErrAccountClosingProtectionIndeterminate)

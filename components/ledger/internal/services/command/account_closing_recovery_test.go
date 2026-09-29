@@ -339,3 +339,16 @@ func TestAccountClosingRefusesAFeeDebtOwedInRecoveryInItsOnlyWalk(t *testing.T) 
 	requireClosingCode(t, err, constant.ErrBalanceOwedFeeDebt)
 	assert.Nil(t, debts.refs)
 }
+
+// TestAccountClosingWithoutBalancesStillWalksRecovery pins that an account with no balance
+// left is still refused while a recovery record over it waits for its completion.
+func TestAccountClosingWithoutBalancesStillWalksRecovery(t *testing.T) {
+	m := newClosingRecoveryMocks(t)
+	m.uc.TransactionReader, m.uc.FeeDebts = &feeDebtReader{}, &owedFeeDebts{}
+
+	m.expectTerminalScan(txRedis.RecoveryQueueSourceLegacyBackup, closingLegacyRecoveryRecord(t, recoveryScopeAccountID))
+
+	err := m.uc.verifyNoAccountClosingWorkOutstanding(context.Background(), recoveryScopeOrgID, recoveryScopeLedgerID, recoveryScopeAccountID, nil)
+
+	requireClosingCode(t, err, constant.ErrAccountClosingPersistencePending)
+}

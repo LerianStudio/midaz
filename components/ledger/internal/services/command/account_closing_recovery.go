@@ -73,7 +73,7 @@ func (uc *UseCase) walkRecovery(ctx context.Context, organizationID, ledgerID uu
 	for _, origin := range sources {
 		for cursor, walked := uint64(0), false; !walked || cursor != 0; walked = true {
 			if err := ctx.Err(); err != nil {
-				return fmt.Errorf("walk recovery records: %w", err)
+				return refuseRecoveryWalk(ctx, span, logger, origin, err)
 			}
 
 			// Charged after a page is inspected and checked only before the next read, so
@@ -110,9 +110,14 @@ func refuseRecoveryWalk(ctx context.Context, span trace.Span, logger libLog.Logg
 		return err
 	}
 
-	libOpentelemetry.HandleSpanError(span, "The recovery walk could not prove absence", err)
-	logger.Log(ctx, libLog.LevelError, "The recovery walk could not prove absence",
-		libLog.String("recovery_source", string(origin.source)), libLog.Err(err))
+	return refuseIndeterminate(ctx, span, logger, "The recovery walk could not prove absence", err,
+		libLog.String("recovery_source", string(origin.source)))
+}
+
+// refuseIndeterminate answers the retryable 0520 for a state that could not be established.
+// The cause ends here, so this is its one log (T8); callers pass the 0520 through.
+func refuseIndeterminate(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error, fields ...libLog.Field) error {
+	recordCommandError(ctx, span, logger, message, err, fields...)
 
 	return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
 }

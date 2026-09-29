@@ -369,25 +369,12 @@ func (uc *UseCase) verifyAccountClosingEligibility(ctx context.Context, organiza
 // fee or is owed one (only a credit collects a debt, and a closed account refuses credits),
 // or while an execution over the account still waits for its completion.
 func (uc *UseCase) verifyNoAccountClosingWorkOutstanding(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, states []accountClosingBalanceState) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "exec.verify_account_closing_work_outstanding")
-	defer span.End()
-
 	balances := make([]*mmodel.Balance, 0, len(states))
 	for _, state := range states {
 		balances = append(balances, state.Persisted)
 	}
 
-	err := uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances, allRecoverySources, refuseAccountInCompletion(accountID))
-	if err == nil || pkg.IsBusinessError(err) || isAccountClosingIndeterminate(err) {
-		return err
-	}
-
-	libOpentelemetry.HandleSpanError(span, "Failed to read the outstanding work of the account", err)
-	logger.Log(ctx, libLog.LevelError, "Failed to read the outstanding work of the account", libLog.Err(err))
-
-	return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	return uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances, allRecoverySources, refuseAccountInCompletion(accountID))
 }
 
 // verifyNoAccountClosingPendingTransaction refuses the closing while a pending
