@@ -106,15 +106,9 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 		return nil, constant.ErrInsufficientPrivileges
 	}
 
-	tenant := tmcore.GetTenantIDContext(ctx)
-	if !c.config.SingleTenant {
-		if tenant == "" {
-			return nil, constant.ErrReservationTenantRequired
-		}
-
-		if tmcore.GetPGContext(ctx) == nil {
-			return nil, pgdb.ErrNoTenantInContext
-		}
+	tenant, err := c.reserveTenant(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	hash, err := r.Fingerprint(ctx, tracercontract.ReserveScope{TenantID: tenant, IntegrationID: identity.ID, SingleTenant: c.config.SingleTenant}, c.config.Plan.Facts)
@@ -145,48 +139,10 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 	var result *tracercontract.ReserveResult
 
 	err = executeWithTx(ctx, c.deps.Transactions, func(tx pgdb.Tx) error {
-		state, err := c.deps.Operations.LockWithTx(ctx, tx, key.Identity())
-		if err != nil {
-			return err
-		}
+		decided, err := c.decideLocked(ctx, tx, r, key, hash)
+		result = decided
 
-		lockedDecision, err := c.deps.Decisions.GetWithTx(ctx, tx, key)
-		if err != nil {
-			return err
-		}
-
-		if state == nil || state.Validate() != nil {
-			return constant.ErrInternalServer
-		}
-
-		if lockedDecision != nil {
-			replayed, err := c.replay(r, key, hash, lockedDecision)
-			if err != nil {
-				return err
-			}
-			// The expired operation returned the capacity this decision held, so
-			// its stored ALLOW no longer describes anything the producer may use.
-			if state.Status == model.OperationExpired {
-				return constant.ErrReserveOperationConflict
-			}
-
-			result = replayed
-
-			return nil
-		}
-
-		if state.Status != model.OperationOpen {
-			return constant.ErrReserveOperationConflict
-		}
-
-		decision, err := c.admit(ctx, tx, r, key, hash)
-		if err != nil {
-			return err
-		}
-
-		result = &decision.Result
-
-		return ctx.Err()
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -195,6 +151,67 @@ func (c *ReserveAdmissionCommand) Execute(ctx context.Context, r tracercontract.
 	logging.WithTrace(ctx, logger).Log(ctx, libLog.LevelDebug, "Reserve decision committed")
 
 	return result, nil
+}
+
+// reserveTenant returns the tenant a multi-tenant reservation is scoped to,
+// requiring the tenant and its pool to be bound; single tenant returns "".
+func (c *ReserveAdmissionCommand) reserveTenant(ctx context.Context) (string, error) {
+	tenant := tmcore.GetTenantIDContext(ctx)
+	if c.config.SingleTenant {
+		return tenant, nil
+	}
+
+	if tenant == "" {
+		return "", constant.ErrReservationTenantRequired
+	}
+
+	if tmcore.GetPGContext(ctx) == nil {
+		return "", pgdb.ErrNoTenantInContext
+	}
+
+	return tenant, nil
+}
+
+// decideLocked replays or admits the operation under its row lock.
+func (c *ReserveAdmissionCommand) decideLocked(ctx context.Context, tx pgdb.Tx, r tracercontract.ReserveRequest, key model.ReserveOperationKey, hash [sha256.Size]byte) (*tracercontract.ReserveResult, error) {
+	state, err := c.deps.Operations.LockWithTx(ctx, tx, key.Identity())
+	if err != nil {
+		return nil, err
+	}
+
+	lockedDecision, err := c.deps.Decisions.GetWithTx(ctx, tx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	if state == nil || state.Validate() != nil {
+		return nil, constant.ErrInternalServer
+	}
+
+	if lockedDecision != nil {
+		replayed, err := c.replay(r, key, hash, lockedDecision)
+		if err != nil {
+			return nil, err
+		}
+		// The expired operation returned the capacity this decision held, so
+		// its stored ALLOW no longer describes anything the producer may use.
+		if state.Status == model.OperationExpired {
+			return nil, constant.ErrReserveOperationConflict
+		}
+
+		return replayed, nil
+	}
+
+	if state.Status != model.OperationOpen {
+		return nil, constant.ErrReserveOperationConflict
+	}
+
+	decision, err := c.admit(ctx, tx, r, key, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return &decision.Result, ctx.Err()
 }
 
 func (c *ReserveAdmissionCommand) replay(r tracercontract.ReserveRequest, key model.ReserveOperationKey, hash [sha256.Size]byte, d *model.ReserveDecision) (*tracercontract.ReserveResult, error) {

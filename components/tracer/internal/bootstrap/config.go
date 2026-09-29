@@ -1117,6 +1117,22 @@ type limitServiceDeps struct {
 // tenant pool fails fast in MT mode rather than silently using root (M1).
 // The txBeginner is shared with the validation service so the limit lifecycle
 // commands persist the status/update and the audit event atomically.
+// initLimitStack builds the limit service and the reserve operation expirer
+// the reaper settles expired decision reservations with.
+func initLimitStack(cfg *Config, pgConn pgdb.Connection, auditWriter command.AuditWriter, auditEvents command.AuditEventRepository, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
+	deps, err := initLimitService(cfg, pgConn, auditWriter, clk, txBeginner, streaming)
+	if err != nil {
+		return nil, err
+	}
+
+	deps.operationExpirer, err = initReserveOperationExpiry(cfg, pgConn, txBeginner, auditEvents, deps.reservationRepo)
+	if err != nil {
+		return nil, fmt.Errorf("initialize reserve operation expiry: %w", err)
+	}
+
+	return deps, nil
+}
+
 func initLimitService(cfg *Config, pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
 	definitionPolicy, err := initContextLimitDefinitionPolicy(cfg)
 	if err != nil {
@@ -2171,14 +2187,9 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init Limit service with audit writer for SOX/GLBA compliance
-	limitDeps, err := initLimitService(cfg, pgConn, auditWriter, clk, txBeginner, streamingEmitter)
+	limitDeps, err := initLimitStack(cfg, pgConn, auditWriter, auditEventRepo, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
-	}
-
-	limitDeps.operationExpirer, err = initReserveOperationExpiry(cfg, pgConn, txBeginner, auditEventRepo, limitDeps.reservationRepo)
-	if err != nil {
-		return nil, fmt.Errorf("initialize reserve operation expiry: %w", err)
 	}
 
 	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
