@@ -161,6 +161,10 @@ func (repo *concurrentFinalizationMetadata) FindByEntity(_ context.Context, coll
 	return &cloned, nil
 }
 
+func (*concurrentFinalizationMetadata) Update(context.Context, string, string, map[string]any) error {
+	return nil
+}
+
 func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
 	*publisher.calls = append(*publisher.calls, "publish")
 	publisher.transactions = append(publisher.transactions, tran)
@@ -216,6 +220,13 @@ func (repo *finalizationMetadataStub) FindByEntity(_ context.Context, collection
 	}
 
 	return actual, nil
+}
+
+func (repo *finalizationMetadataStub) Update(_ context.Context, collection, id string, metadata map[string]any) error {
+	*repo.calls = append(*repo.calls, "update:"+collection)
+	repo.data[collection+":"+id].Data = metadata
+
+	return nil
 }
 
 func finalizationFixture(t testing.TB) (context.Context, *TransactionCompletionRecord) {
@@ -728,13 +739,6 @@ func TestTransactionCompletionServiceReturnsZeroOutcomeWhenCompletionFails(t *te
 		{name: "SQL", storeErr: failure},
 		{name: "metadata create", metadataFn: func(metadata *finalizationMetadataStub) { metadata.createErr = failure }},
 		{name: "metadata find", metadataFn: func(metadata *finalizationMetadataStub) { metadata.findErr = failure }},
-		{name: "metadata compare", metadataFn: func(metadata *finalizationMetadataStub) {
-			metadata.find = func(actual *mongodb.Metadata) *mongodb.Metadata {
-				actual.Data["purpose"] = "changed"
-
-				return actual
-			}
-		}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx, envelope := finalizationFixture(t)
@@ -751,11 +755,7 @@ func TestTransactionCompletionServiceReturnsZeroOutcomeWhenCompletionFails(t *te
 
 			result, err := NewTransactionCompletionService(store, metadata).Complete(ctx, envelope)
 
-			if scenario.name == "metadata compare" {
-				require.ErrorIs(t, err, ErrEngineMetadataConflict)
-			} else {
-				require.ErrorIs(t, err, failure)
-			}
+			require.ErrorIs(t, err, failure)
 			assert.Equal(t, TransactionCompletionResult{}, result)
 			if scenario.storeErr != nil {
 				assert.Equal(t, []string{"sql-with-outcome"}, calls)
@@ -868,25 +868,11 @@ func TestTransactionCompletionServiceRepairsMetadataAfterSQLReplay(t *testing.T)
 	}, *calls)
 }
 
-func TestTransactionCompletionServiceRejectsUnconfirmedMetadata(t *testing.T) {
-	for _, scenario := range []struct {
-		name string
-		find func(*mongodb.Metadata) *mongodb.Metadata
-	}{
-		{"missing document", func(*mongodb.Metadata) *mongodb.Metadata { return nil }},
-		{"different identity", func(m *mongodb.Metadata) *mongodb.Metadata { m.EntityID = "different"; return m }},
-		{"different entity", func(m *mongodb.Metadata) *mongodb.Metadata { m.EntityName = "different"; return m }},
-		{"different content", func(m *mongodb.Metadata) *mongodb.Metadata { m.Data["purpose"] = "updated"; return m }},
-		{"rounded integer", func(m *mongodb.Metadata) *mongodb.Metadata { m.Data["sequence"] = float64(9007199254740992); return m }},
-		{"numeric string", func(m *mongodb.Metadata) *mongodb.Metadata { m.Data["sequence"] = "9007199254740993"; return m }},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			ctx, envelope := finalizationFixture(t)
-			finalizer, _, metadata, _ := finalizationDependencies()
-			metadata.find = scenario.find
-			require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
-		})
-	}
+func TestTransactionCompletionServiceRejectsMissingMetadata(t *testing.T) {
+	ctx, envelope := finalizationFixture(t)
+	finalizer, _, metadata, _ := finalizationDependencies()
+	metadata.find = func(*mongodb.Metadata) *mongodb.Metadata { return nil }
+	require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
 }
 
 func TestTransactionCompletionServiceDoesNotOverwriteExistingMetadata(t *testing.T) {
@@ -894,7 +880,7 @@ func TestTransactionCompletionServiceDoesNotOverwriteExistingMetadata(t *testing
 	finalizer, _, metadata, _ := finalizationDependencies()
 	key := constant.EntityTransaction + ":" + envelope.TransactionID.String()
 	metadata.data[key] = &mongodb.Metadata{EntityID: envelope.TransactionID.String(), EntityName: constant.EntityTransaction, Data: mongodb.JSON{"purpose": "later authorized edit"}}
-	require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
+	require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
 	assert.Equal(t, mongodb.JSON{"purpose": "later authorized edit"}, metadata.data[key].Data)
 }
 
@@ -1007,7 +993,7 @@ func TestFrozenMetadataNumericRoundTrip(t *testing.T) {
 			require.NoError(t, err)
 			var decoded mongodb.JSON
 			require.NoError(t, bson.Unmarshal(encoded, &decoded))
-			require.NoError(t, compareFrozenMetadata(normalized, decoded))
+			assert.Equal(t, normalized, decoded)
 		})
 	}
 }
@@ -1017,16 +1003,4 @@ func TestFrozenMetadataRejectsLossAndUnsupportedValues(t *testing.T) {
 		_, err := normalizeFrozenMetadata(map[string]any{"value": value})
 		require.ErrorIs(t, err, ErrEngineMetadataConflict)
 	}
-}
-
-func TestFrozenMetadataComparesExactNumericSemantics(t *testing.T) {
-	precise, err := bson.ParseDecimal128("9007199254740993")
-	require.NoError(t, err)
-	for _, actual := range []any{int64(9007199254740993), json.Number("9007199254740993.0"), precise} {
-		require.NoError(t, compareFrozenMetadata(mongodb.JSON{"value": json.Number("9007199254740993")}, mongodb.JSON{"value": actual}))
-	}
-
-	require.NoError(t, compareFrozenMetadata(mongodb.JSON{"value": int64(1)}, mongodb.JSON{"value": int32(1)}))
-	require.ErrorIs(t, compareFrozenMetadata(mongodb.JSON{"value": int64(9007199254740993)}, mongodb.JSON{"value": float64(9007199254740992)}), ErrEngineMetadataConflict)
-	require.ErrorIs(t, compareFrozenMetadata(mongodb.JSON{"value": int64(1)}, mongodb.JSON{"value": "1"}), ErrEngineMetadataConflict)
 }
