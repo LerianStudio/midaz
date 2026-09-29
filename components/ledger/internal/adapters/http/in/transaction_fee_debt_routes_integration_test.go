@@ -8,6 +8,7 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -224,17 +225,21 @@ func TestFeeDebtMovementsCarryTheFeeRubrics(t *testing.T) {
 // TestFeeDebtSettlementRevertsOnARouteValidatingLedger reverts a credit that settled a
 // debt on a ledger that validates routes: the take-back, whose route belongs to the fee
 // and not to the credit, is not held to the credit's transaction route and books to the
-// rubric its settlement credited, and the debt reopens for the next credit to settle.
+// debit rubric of that route's revert entry, and the debt reopens to settle again.
 func TestFeeDebtSettlementRevertsOnARouteValidatingLedger(t *testing.T) {
 	s := newFeeDebtRoutes(t, true)
+
+	_, err := s.db.Exec(`UPDATE operation_route SET accounting_entries = jsonb_set(accounting_entries, '{revert}', $1::jsonb) WHERE id = $2`,
+		fmt.Sprintf(`{"debit":{"code":"%[1]s-RD","description":"fee to revert"},"credit":{"code":"%[1]s-RC","description":"fee to revert"}}`, s.to), s.to)
+	require.NoError(t, err, "give the fee's credit route a revert entry of its own")
 
 	s.open(t)
 	settling := s.settle(t)
 	s.balances(t, "0", "80", "30", "990")
 
 	assert.ElementsMatch(t, []string{
-		row("DEBIT", "debit", "@debt-fee", "10", s.to, false) + s.to.String() + "-C", row("CREDIT", "credit", "@debt-funder", "10", s.funder, true),
-	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route and the rubric its settlement credited")
+		row("DEBIT", "debit", "@debt-fee", "10", s.to, false) + s.to.String() + "-RD", row("CREDIT", "credit", "@debt-funder", "10", s.funder, true),
+	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route and its revert debit rubric")
 	s.balances(t, "0", "80", "20", "1000")
 
 	s.settle(t)

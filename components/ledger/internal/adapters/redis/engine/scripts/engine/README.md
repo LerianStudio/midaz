@@ -196,8 +196,10 @@ only `id` and `creditRef`) is a seed; Lua always reads the live key.
 {"v":1,"nextSeq":"4","items":[
   {"id":"<originTx>:<debitPostingRef>","creditRef":"@fees#default","remaining":"40",
    "opened":"70","originTransactionId":"<uuid>","seq":"3","assetCode":"BRL",
-   "debitRoute":{"id":"<routeId>","code":"<rubric>","description":"<rubric>"},
-   "creditRoute":{"id":"<routeId>","code":"<rubric>","description":"<rubric>"}}]}
+   "debitRoute":{"id":"<routeId>","code":"<rubric>","description":"<rubric>",
+                 "revertCode":"<rubric>","revertDescription":"<rubric>"},
+   "creditRoute":{"id":"<routeId>","code":"<rubric>","description":"<rubric>",
+                  "revertCode":"<rubric>","revertDescription":"<rubric>"}}]}
 ```
 
 - `v` is the JSON number 1. A stored value that breaks any rule below is
@@ -209,7 +211,9 @@ only `id` and `creditRef`) is a seed; Lua always reads the live key.
   `0 < remaining <= opened`, both canonical decimals.
 - `debitRoute` and `creditRoute`, each absent or `{id, code, description}` with a
   non-empty `id` and string rubric texts, are the operation routes of the fee's
-  payer debit and fee-account credit, stored at opening and never changed.
+  payer debit and fee-account credit, stored at opening and never changed. Go
+  adds `revertCode` and `revertDescription` when the route's revert entry has a
+  rubric for the opposite side; Lua stores them as given.
 - An opened item is appended with `seq = nextSeq`, then `nextSeq` advances.
 - A deferrable debit with a shortfall on a payer whose list already holds 256
   items is refused with `insufficient_funds`. Reopening ignores the cap.
@@ -502,12 +506,14 @@ revert refuse with `fee_debt_conflict`, never refund the wrong amount.
 - The reversal folds C's `FEE_SETTLEMENT` rows per balance and route: a fee
   account's net settlement is taken back under the route its row carries, so a
   fee account that C also credited under another route keeps both legs. The
-  take-back books to the rubric its settlement stored, and route validation
-  holds it to none of C's transaction routes, which never list the fee's.
+  take-back books to the debit rubric of the fee route's revert entry, stored
+  with the debt, and route validation holds it to none of C's transaction
+  routes, which never list the fee's.
 - Both reverts in flight at once is an accepted ceiling: when O's executes
   first but C's read O as not reverted, C reopens the debt and charges the fee
   account again; the reopened debt converges when a later collect settles it.
-- Ceiling: one entry per debt the transaction opened or settled, about 150
-  characters per opening and 170 per settlement with typical aliases. The
+- Ceiling: one entry per debt the transaction opened or settled, about 170
+  characters with typical aliases and no routes, about 520 when both routes
+  carry direct and revert rubrics. The
   2000-character metadata limit is a request-body validator and stored values
   are never re-validated, so a longer value is stored and read unchanged.

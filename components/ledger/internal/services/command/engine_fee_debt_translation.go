@@ -43,15 +43,15 @@ func newFeeDebtComposition(input EngineTranslationInput, balances map[string]*mm
 	return &feeDebtComposition{input: input, balances: balances, pairs: map[string]string{}, declared: map[string]struct{}{}, takeBacks: takeBacks}, nil
 }
 
-// bookTakeBack books a revert source that takes back a fee-debt settlement under the
-// rubric the settlement credited, which no route of the reverted credit resolves.
+// bookTakeBack books a revert source that takes back a fee-debt settlement to the
+// revert rubric its debt stored, which no route of the reverted credit resolves.
 func (c *feeDebtComposition) bookTakeBack(primary *OperationRecordSpec) {
 	if primary.Side != OperationSpecSideFrom || primary.RouteID == nil {
 		return
 	}
 
 	if route := c.takeBacks[[2]string{primary.BalanceRef, *primary.RouteID}]; route != nil {
-		primary.RouteCode, primary.RouteDescription = route.Code, route.Description
+		primary.RouteCode, primary.RouteDescription = route.RevertCode, route.RevertDescription
 	}
 }
 
@@ -70,7 +70,15 @@ func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, p
 	}
 
 	if primary.RouteID != nil {
-		posting.DebtRoute = &accounting.FeeDebtRoute{ID: *primary.RouteID, Code: primary.RouteCode, Description: primary.RouteDescription}
+		reversed := constant.DirectionDebit
+		if primary.Direction == constant.DirectionDebit {
+			reversed = constant.DirectionCredit
+		}
+
+		route := &accounting.FeeDebtRoute{ID: *primary.RouteID, Code: primary.RouteCode, Description: primary.RouteDescription}
+		route.RevertCode, route.RevertDescription = translationRubric(c.input.RouteCache, route.ID,
+			crossLedgerRubricAction(c.input.RouteCache, route.ID, constant.ActionRevert), reversed)
+		posting.DebtRoute = route
 	}
 
 	switch posting.Type {

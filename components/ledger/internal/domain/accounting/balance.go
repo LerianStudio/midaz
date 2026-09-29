@@ -54,9 +54,12 @@ type FeeDebtItem struct {
 }
 
 // FeeDebtRoute is the accounting route of one side of a fee, fixed when its debt
-// opens: every later movement of that debt books under it.
+// opens: every later movement of that debt books under it. The revert rubric is the
+// route's revert entry for the opposite side, which a movement undoing this one books to.
 type FeeDebtRoute struct {
-	ID          string `json:"id"`
-	Code        string `json:"code"`
-	Description string `json:"description"`
+	ID                string `json:"id"`
+	Code              string `json:"code"`
+	Description       string `json:"description"`
+	RevertCode        string `json:"revertCode,omitempty"`
+	RevertDescription string `json:"revertDescription,omitempty"`
 }
