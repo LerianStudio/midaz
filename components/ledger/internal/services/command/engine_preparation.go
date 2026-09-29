@@ -72,7 +72,12 @@ func (uc *UseCase) prepareEngineTransactionWithPool(
 		return enginePreparedTransaction{}, err
 	}
 
-	routeCache, err := uc.TransactionReader.ValidateAccountingRules(ctx, input.organizationID, input.ledgerID, operations, input.translation.Validate, input.translation.Action)
+	validate, err := feeDebtRouteView(input.translation)
+	if err != nil {
+		return enginePreparedTransaction{}, err
+	}
+
+	routeCache, err := uc.TransactionReader.ValidateAccountingRules(ctx, input.organizationID, input.ledgerID, operations, validate, input.translation.Action)
 	if err != nil {
 		return enginePreparedTransaction{}, err
 	}

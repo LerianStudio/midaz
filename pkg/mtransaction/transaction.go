@@ -80,6 +80,9 @@ type Responses struct {
 	TransactionRouteID  *string
 	OperationRoutesFrom map[string]string
 	OperationRoutesTo   map[string]string
+	// FeeDebtLegs names the sources of a reversal that take back fee-debt
+	// settlements, which route validation holds to no transaction route.
+	FeeDebtLegs map[string]bool `json:"-" msgpack:"-"`
 }
 
 // Metadata structure for marshaling/unmarshalling JSON.

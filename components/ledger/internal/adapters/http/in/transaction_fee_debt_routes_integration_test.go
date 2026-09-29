@@ -238,6 +238,26 @@ func TestFeeDebtMovementsCarryTheFeeRubrics(t *testing.T) {
 	s.balances(t, "110", "0", "0", "990")
 }
 
+// TestFeeDebtSettlementRevertsOnARouteValidatingLedger reverts a credit that settled a
+// debt on a ledger that validates routes: the take-back, whose route belongs to the fee
+// and not to the credit, is not held to the credit's transaction route, and the debt
+// reopens for the next credit to settle again.
+func TestFeeDebtSettlementRevertsOnARouteValidatingLedger(t *testing.T) {
+	s := newFeeDebtRoutes(t, true)
+
+	s.open(t)
+	settling := s.settle(t)
+	s.balances(t, "0", "80", "30", "990")
+
+	assert.ElementsMatch(t, []string{
+		row("DEBIT", "debit", "@debt-fee", "10", s.to, false), row("CREDIT", "credit", "@debt-funder", "10", s.funder, true),
+	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route, whose rubric the credit's route cannot resolve")
+	s.balances(t, "0", "80", "20", "1000")
+
+	s.settle(t)
+	s.balances(t, "0", "80", "30", "990")
+}
+
 // laggingFeeDebts answers the fee-debt record as it stood before any settlement.
 type laggingFeeDebts struct{ command.FeeDebtRecorder }
 

@@ -286,6 +286,41 @@ func feeDebtOrigin(debtID string) string {
 	return debtID[:min(len(debtID), feeDebtOriginLength)]
 }
 
+// feeDebtRouteView is the intent route validation reads: on a revert, it names the
+// sources taking back what the reverted credit settled, each a creditor under the
+// route its settlement booked.
+func feeDebtRouteView(translation EngineTranslationInput) (*mtransaction.Responses, error) {
+	if translation.Action != constant.ActionRevert {
+		return translation.Validate, nil
+	}
+
+	_, settlements, err := feeDebtRevertFacts(translation.TransactionInput.Metadata)
+	if err != nil || len(settlements) == 0 {
+		return translation.Validate, err
+	}
+
+	settled := make(map[[2]string]bool, len(settlements))
+	for _, settlement := range settlements {
+		settled[[2]string{settlement.CreditRef, feeDebtRouteID(settlement.CreditRoute)}] = true
+	}
+
+	view := *translation.Validate
+	view.FeeDebtLegs = make(map[string]bool)
+
+	for _, leg := range translation.TransactionInput.Send.Source.From {
+		route := ""
+		if leg.RouteID != nil {
+			route = *leg.RouteID
+		}
+
+		if settled[[2]string{mtransaction.SplitAliasWithKey(leg.AccountAlias), route}] {
+			view.FeeDebtLegs[leg.AccountAlias] = true
+		}
+	}
+
+	return &view, nil
+}
+
 // feeDebtRevertFacts reads the debts a transaction opened and settled from its
 // metadata, where completion stores each list as a JSON string.
 func feeDebtRevertFacts(metadata map[string]any) ([]FeeDebtOpening, []FeeDebtSettlement, error) {
