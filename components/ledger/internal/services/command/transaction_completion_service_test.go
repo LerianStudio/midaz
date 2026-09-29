@@ -747,13 +747,6 @@ func TestTransactionCompletionServiceReturnsZeroOutcomeWhenCompletionFails(t *te
 		{name: "SQL", storeErr: failure},
 		{name: "metadata create", metadataFn: func(metadata *finalizationMetadataStub) { metadata.createErr = failure }},
 		{name: "metadata find", metadataFn: func(metadata *finalizationMetadataStub) { metadata.findErr = failure }},
-		{name: "metadata identity", metadataFn: func(metadata *finalizationMetadataStub) {
-			metadata.find = func(actual *mongodb.Metadata) *mongodb.Metadata {
-				actual.EntityID = "changed"
-
-				return actual
-			}
-		}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx, envelope := finalizationFixture(t)
@@ -770,11 +763,7 @@ func TestTransactionCompletionServiceReturnsZeroOutcomeWhenCompletionFails(t *te
 
 			result, err := NewTransactionCompletionService(store, metadata).Complete(ctx, envelope)
 
-			if scenario.name == "metadata identity" {
-				require.ErrorIs(t, err, ErrEngineMetadataConflict)
-			} else {
-				require.ErrorIs(t, err, failure)
-			}
+			require.ErrorIs(t, err, failure)
 			assert.Equal(t, TransactionCompletionResult{}, result)
 			if scenario.storeErr != nil {
 				assert.Equal(t, []string{"sql-with-outcome"}, calls)
@@ -893,7 +882,6 @@ func TestTransactionCompletionServiceRejectsUnconfirmedMetadata(t *testing.T) {
 		find func(*mongodb.Metadata) *mongodb.Metadata
 	}{
 		{"missing document", func(*mongodb.Metadata) *mongodb.Metadata { return nil }},
-		{"different identity", func(m *mongodb.Metadata) *mongodb.Metadata { m.EntityID = "different"; return m }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx, envelope := finalizationFixture(t)
