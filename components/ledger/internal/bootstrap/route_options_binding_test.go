@@ -148,7 +148,7 @@ func buildHumaMountDepsWithNilHandlers(setup *unifiedRouteSetup) httpin.HumaMoun
 		nil,
 		nil,
 		nil, nil, nil, nil, nil,
-		nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
 		nil,
 		setup,
 	)
@@ -183,7 +183,7 @@ const routeRolesGoldenHeader = `# Route -> role map: METHOD<TAB>RAW PATH<TAB>ROL
 // regeneration cannot bake a crm<->fees swap into the committed bytes.
 var (
 	crmPathSegments = map[string]bool{"holders": true, "instruments": true, "encryption": true, "protection": true}
-	feePathSegments = map[string]bool{"packages": true, "billing-packages": true, "estimates": true, "billing": true}
+	feePathSegments = map[string]bool{"packages": true, "billing-packages": true, "estimates": true, "billing": true, "fee-debts": true}
 )
 
 func pathHasSegment(rawPath string, set map[string]bool) bool {

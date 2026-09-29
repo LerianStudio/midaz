@@ -17,7 +17,9 @@ import (
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgMongo "github.com/LerianStudio/midaz/v4/pkg/mongo"
 )
@@ -36,6 +38,7 @@ type feesMongoComponents struct {
 	connection         *feesmongo.MongoConnection
 	packageRepo        pack.Repository
 	billingPackageRepo billing_package.Repository
+	feeDebtRepo        *fee_debt.Repository
 	mongoManager       *tmmongo.Manager // nil in single-tenant mode
 }
 
@@ -76,6 +79,18 @@ func initFeesMongo(opts *Options, cfg *Config, logger libLog.Logger) (*feesMongo
 		}
 
 		components.mongoManager = mongoMgr
+	}
+
+	// The fee-debt recorder must never write the static database in multi-tenant
+	// mode, so it resolves the tenant through the manager rather than the request.
+	var feeDebtTenantDB command.TenantMongoResolver
+	if components.mongoManager != nil {
+		feeDebtTenantDB = components.mongoManager
+	}
+
+	components.feeDebtRepo, err = fee_debt.NewRepository(connection, feeDebtTenantDB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize fee debt repository: %w", err)
 	}
 
 	return components, nil

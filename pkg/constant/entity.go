@@ -18,6 +18,7 @@ const (
 	EntityBillingPackage        = "BillingPackage"
 	EntityDashboard             = "Dashboard"
 	EntityFeeCalculation        = "FeeCalculation"
+	EntityFeeDebt               = "FeeDebt"
 	EntityHolder                = "Holder"
 	EntityInstrument            = "Instrument"
 	EntityLedger                = "Ledger"

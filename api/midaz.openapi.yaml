@@ -37,6 +37,8 @@ tags:
     x-displayName: Dashboard (v2)
   - name: Midaz_Ledger_API_Encryption (v2)
     x-displayName: Encryption (v2)
+  - name: Midaz_Ledger_API_Fee Debts (v2)
+    x-displayName: Fee Debts (v2)
   - name: Midaz_Ledger_API_Fees (v2)
     x-displayName: Fees (v2)
   - name: Midaz_Ledger_API_Holders (v2)
@@ -10217,6 +10219,144 @@ paths:
       summary: Create a fee estimate calculation
       tags:
         - Midaz_Ledger_API_Fees (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts:
+    get:
+      operationId: listFeeDebtsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Only the debts of this debtor account, in settlement order
+          explode: false
+          in: query
+          name: account_alias
+          schema:
+            description: Only the debts of this debtor account, in settlement order
+            type: string
+        - description: Debtor balance key; requires account_alias (default "default")
+          explode: false
+          in: query
+          name: balance_key
+          schema:
+            description: Debtor balance key; requires account_alias (default "default")
+            type: string
+        - description: 'open: remaining above zero; settled: the rest. Absent lists both'
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: 'open: remaining above zero; settled: the rest. Absent lists both'
+            type: string
+        - description: Number of items per page (default 10, max 100)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Number of items per page (default 10, max 100)
+            type: string
+        - description: Opaque cursor from a previous page
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque cursor from a previous page
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeDebtListBody'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List the fee debts of a ledger, oldest first
+      tags:
+        - Midaz_Ledger_API_Fee Debts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}:
+    get:
+      operationId: getFeeDebtV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Fee debt ID
+          in: path
+          name: debt_id
+          required: true
+          schema:
+            description: Fee debt ID
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeDebtView'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get a fee debt
+      tags:
+        - Midaz_Ledger_API_Fee Debts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
       operationId: createHolderAccountV2
@@ -18192,6 +18332,159 @@ components:
         - fees
         - enable
       type: object
+    FeeDebtEntryView:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - '30'
+          type: string
+        appliedAt:
+          format: date-time
+          type: string
+        kind:
+          enum:
+            - opened
+            - settled
+            - canceled
+            - reopened
+            - refunded
+          examples:
+            - settled
+          type: string
+        postingRef:
+          examples:
+            - to:0:credit:collect
+          type: string
+        transactionId:
+          examples:
+            - 01920000-0000-7000-8000-000000000002
+          type: string
+      required:
+        - kind
+        - transactionId
+        - amount
+        - appliedAt
+      type: object
+    FeeDebtListBody:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/FeeDebtView'
+          type:
+            - array
+            - 'null'
+        limit:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        next_cursor:
+          examples:
+            - eyJpZCI6IjAxOTI...
+          type: string
+        openTotal:
+          description: >-
+            What this debtor balance (account_alias and balance_key) owes over
+            all its open debts, not only this page, each counting at most its
+            opened amount; present only with account_alias
+          examples:
+            - '25'
+          type: string
+        prev_cursor:
+          examples:
+            - eyJpZCI6IjAxOTE...
+          type: string
+      required:
+        - items
+        - limit
+      type: object
+    FeeDebtView:
+      additionalProperties: false
+      properties:
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        createdAt:
+          description: When the earliest recorded change was applied
+          format: date-time
+          type: string
+        creditBalance:
+          description: Fee account balance the debt pays, as alias#key
+          examples:
+            - '@fees#default'
+          type: string
+        debtorBalance:
+          description: Debtor balance as alias#key
+          examples:
+            - '@payer#default'
+          type: string
+        entries:
+          description: Recorded changes, oldest first
+          items:
+            $ref: '#/components/schemas/FeeDebtEntryView'
+          type:
+            - array
+            - 'null'
+        feePackageId:
+          examples:
+            - 01920000-0000-7000-8000-0000000000cc
+          type: string
+        id:
+          description: Origin transaction id and the fee debit posting the debt opened in
+          examples:
+            - 01920000-0000-7000-8000-000000000001:from:1:debit
+          type: string
+        ledgerId:
+          examples:
+            - 01920000-0000-7000-8000-00000000000b
+          type: string
+        openedAmount:
+          examples:
+            - '70'
+          type: string
+        openedAt:
+          format: date-time
+          type: string
+        organizationId:
+          examples:
+            - 01920000-0000-7000-8000-00000000000a
+          type: string
+        originTransactionId:
+          examples:
+            - 01920000-0000-7000-8000-000000000001
+          type: string
+        remaining:
+          examples:
+            - '40'
+          type: string
+        seq:
+          description: Settlement order among the debtor's debts, oldest first
+          examples:
+            - 3
+          format: int64
+          type: integer
+        updatedAt:
+          description: When the latest recorded change was applied
+          format: date-time
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - debtorBalance
+        - creditBalance
+        - originTransactionId
+        - assetCode
+        - seq
+        - openedAmount
+        - remaining
+        - entries
+        - createdAt
+        - updatedAt
+      type: object
     FeeDiscountTier:
       additionalProperties: false
       properties:
@@ -22090,6 +22383,7 @@ x-tagGroups:
       - Midaz_Ledger_API_Dashboard (v1)
       - Midaz_Ledger_API_Dashboard (v2)
       - Midaz_Ledger_API_Encryption (v2)
+      - Midaz_Ledger_API_Fee Debts (v2)
       - Midaz_Ledger_API_Fees (v2)
       - Midaz_Ledger_API_Holders (v2)
       - Midaz_Ledger_API_Instruments (v2)

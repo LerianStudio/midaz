@@ -184,6 +184,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/:debt_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/:debt_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	3

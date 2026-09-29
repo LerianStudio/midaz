@@ -107,6 +107,8 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	f
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts	fees
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/:debt_id	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees

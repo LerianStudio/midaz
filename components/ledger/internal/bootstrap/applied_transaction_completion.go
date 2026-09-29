@@ -12,9 +12,9 @@ import (
 )
 
 // configureAppliedTransactionCompletion shares completion of already-applied
-// transactions and its tenant resolution between normal writes and recovery.
-// It does not enable the engine.
-func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver, maxRowsPerInsert ...int) error {
+// transactions and its tenant resolution between normal writes and recovery, so
+// feeDebt records the same fee-debt changes on both. It does not enable the engine.
+func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver, feeDebt command.FeeDebtRecorder, maxRowsPerInsert ...int) error {
 	if consumer == nil || useCase == nil {
 		return errors.New("applied transaction completion requires command and recovery owners")
 	}
@@ -27,6 +27,8 @@ func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase
 	if err != nil {
 		return err
 	}
+
+	delegate.WithFeeDebtRecorder(feeDebt)
 
 	completer := &tenantAppliedTransactionCompleter{
 		delegate: delegate, multiTenantEnabled: multiTenantEnabled, mongoResolver: mongoResolver,
