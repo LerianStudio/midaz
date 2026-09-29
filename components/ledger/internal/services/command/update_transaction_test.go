@@ -63,12 +63,12 @@ func TestUpdateTransaction(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
+		Return(&mongodb.Metadata{Data: mongodb.JSON{}}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), "Transaction", transactionID.String(), input.Metadata).
-		Return(nil).
+		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), input.Metadata, gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
@@ -246,12 +246,12 @@ func TestUpdateTransaction_MetadataUpdateError(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
+		Return(&mongodb.Metadata{Data: mongodb.JSON{}}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), "Transaction", transactionID.String(), input.Metadata).
-		Return(metadataUpdateError).
+		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), input.Metadata, gomock.Any()).
+		Return(false, metadataUpdateError).
 		Times(1)
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
@@ -425,12 +425,12 @@ func TestUpdateTransaction_PatchCarriesNoStatus(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
+		Return(&mongodb.Metadata{Data: mongodb.JSON{}}, nil).
 		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
-		Return(nil).
+		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		AnyTimes()
 
 	_, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID,

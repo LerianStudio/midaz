@@ -357,7 +357,7 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 		require.NoError(t, metadata.Create(ctx, constant.EntityTransaction, &mongodb.Metadata{
 			EntityID: envelope.TransactionID.String(), EntityName: constant.EntityTransaction, Data: mongodb.JSON{"purpose": "authorized later edit"}, CreatedAt: date, UpdatedAt: date,
 		}))
-		require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), command.ErrEngineMetadataConflict)
+		require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
 		actual, err := metadata.FindByEntity(ctx, constant.EntityTransaction, envelope.TransactionID.String())
 		require.NoError(t, err)
 		require.NotNil(t, actual)

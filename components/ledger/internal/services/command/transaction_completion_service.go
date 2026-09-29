@@ -35,6 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
+	SetKeys(context.Context, string, string, map[string]any) error
 }
 
 // TransactionCompletionService durably materializes an applied accounting result
@@ -61,6 +62,7 @@ type preparedTransactionCompletion struct {
 	writeSet       TransactionWriteSet
 	callerWriteSet TransactionWriteSet
 	metadata       []*mongodb.Metadata
+	feeDebt        *FeeDebtRecord
 }
 
 // NewTransactionCompletionService uses the existing metadata repository with the
@@ -120,7 +122,7 @@ func (service *TransactionCompletionService) complete(ctx context.Context, recor
 		return TransactionCompletionResult{}, err
 	}
 
-	if err := service.persistPreparedMetadata(ctx, []preparedTransactionCompletion{prepared}); err != nil {
+	if err := service.persistPreparedProjections(ctx, []preparedTransactionCompletion{prepared}); err != nil {
 		return TransactionCompletionResult{}, err
 	}
 
@@ -184,7 +186,7 @@ func (service *TransactionCompletionService) CompleteBulk(ctx context.Context, r
 		}
 	}
 
-	if err := service.persistPreparedMetadata(ctx, prepared); err != nil {
+	if err := service.persistPreparedProjections(ctx, prepared); err != nil {
 		return nil, err
 	}
 
@@ -239,10 +241,15 @@ func prepareTransactionCompletion(ctx context.Context, record *TransactionComple
 		return preparedTransactionCompletion{}, err
 	}
 
-	return preparedTransactionCompletion{writeSet: writeSet, callerWriteSet: callerWriteSet, metadata: metadata}, nil
+	return preparedTransactionCompletion{
+		writeSet: writeSet, callerWriteSet: callerWriteSet, metadata: metadata,
+		feeDebt: feeDebtRecord(*plan, record.Result, writeSet.Transaction.Metadata),
+	}, nil
 }
 
-func (service *TransactionCompletionService) persistPreparedMetadata(ctx context.Context, prepared []preparedTransactionCompletion) error {
+// persistPreparedProjections confirms every unit's metadata, then records its fee debts, so
+// events wait for both.
+func (service *TransactionCompletionService) persistPreparedProjections(ctx context.Context, prepared []preparedTransactionCompletion) error {
 	for _, unit := range prepared {
 		for _, entry := range unit.metadata {
 			if err := ctx.Err(); err != nil {
@@ -255,7 +262,7 @@ func (service *TransactionCompletionService) persistPreparedMetadata(ctx context
 		}
 	}
 
-	return nil
+	return service.recordFeeDebts(ctx, prepared)
 }
 
 func validTransactionLifecyclePhase(phase string) bool {
@@ -309,7 +316,10 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		status = constant.APPROVED
 	}
 
-	amount := payload.TransactionInput.Send.Value
+	amount, metadata, err := completedTransactionFeeDebt(payload, result.FeeDebt)
+	if err != nil {
+		return TransactionWriteSet{}, err
+	}
 
 	tran := &transaction.Transaction{
 		ID: payload.TransactionID.String(), OrganizationID: payload.OrganizationID.String(), LedgerID: payload.LedgerID.String(),
@@ -319,7 +329,7 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		CreatedAt:                payload.TransactionCreatedAt, UpdatedAt: payload.TransactionUpdatedAt,
 		Route: payload.TransactionInput.Route, RouteID: payload.TransactionInput.RouteID, //nolint:staticcheck // Preserve the frozen legacy route column alongside its canonical ID.
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
-		Metadata: payload.TransactionInput.Metadata, Operations: rows,
+		Metadata: metadata, Operations: rows,
 	}
 	if payload.GroupID != nil {
 		groupID := payload.GroupID.String()
@@ -533,6 +543,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
+// persistMetadata inserts the frozen metadata only when no document exists. A stored
+// document is the client-editable truth, so only its identity is confirmed, and it gets each
+// fee-debt key this completion computed and it lacks.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -543,11 +556,17 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return fmt.Errorf("verify recovered metadata: %w", err)
 	}
 
-	if actual == nil || actual.EntityID != expected.EntityID || actual.EntityName != expected.EntityName {
+	if actual == nil {
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
-	return compareFrozenMetadata(expected.Data, actual.Data)
+	if missing := missingFeeDebtMetadata(expected.Data, actual.Data); missing != nil {
+		if err := service.metadata.SetKeys(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
+			return fmt.Errorf("merge fee-debt metadata: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
@@ -577,43 +596,6 @@ func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
 	}
 
 	return normalized, nil
-}
-
-func compareFrozenMetadata(expected, actual mongodb.JSON) error {
-	if len(expected) != len(actual) {
-		return metadataConflict("stored metadata differs from frozen content")
-	}
-
-	for key, value := range expected {
-		other, exists := actual[key]
-		if !exists {
-			return metadataConflict("stored metadata is missing a frozen field")
-		}
-
-		left, leftNumeric, err := canonicalMetadataNumber(value)
-		if err != nil {
-			return err
-		}
-
-		right, rightNumeric, err := canonicalMetadataNumber(other)
-		if err != nil {
-			return err
-		}
-
-		if leftNumeric || rightNumeric {
-			if !leftNumeric || !rightNumeric || left != right {
-				return metadataConflict("stored metadata number differs from frozen content")
-			}
-
-			continue
-		}
-
-		if !metadataScalar(value) || !metadataScalar(other) || value != other {
-			return metadataConflict("stored metadata differs from frozen content")
-		}
-	}
-
-	return nil
 }
 
 func metadataScalar(value any) bool {
