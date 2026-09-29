@@ -222,11 +222,9 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
-	transactionReverted := tran.TransactionRevert()
-	if transactionReverted.IsEmpty() {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
+	transactionReverted, err := uc.reverseTransaction(readCtx, in, tran)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to build the reversal of the transaction", err)
 
 		return mtransaction.Transaction{}, tran, err
 	}

@@ -36,7 +36,7 @@ func (repo *finalizationBenchmarkMetadata) FindByEntity(_ context.Context, colle
 	return repo.records[collection+":"+id], nil
 }
 
-func (*finalizationBenchmarkMetadata) Update(context.Context, string, string, map[string]any) error {
+func (*finalizationBenchmarkMetadata) SetKeys(context.Context, string, string, map[string]any) error {
 	return nil
 }
 

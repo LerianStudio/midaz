@@ -382,6 +382,14 @@ func TestValidateGroupAccountingRoutes_CoverageOverTheGroup(t *testing.T) {
 			want:   constant.ErrAccountingRouteNotFound,
 		},
 		{
+			name:   "a fee-debt take-back voids the count and is held to no route",
+			routes: []mmodel.OperationRoute{set.sourceRoute(), set.destinationRoute(), bridge},
+			uses: append(append([]mmodel.AccountingRouteUse(nil), originUses...), mmodel.AccountingRouteUse{
+				Alias: "0#@fees#default", RouteID: uuid.NewString(), Source: true, Direction: constant.DirectionDebit, FeeDebtTakeBack: true,
+			}),
+			action: constant.ActionRevert,
+		},
+		{
 			name:   "cancel is source-only and has no group-wide rule",
 			routes: []mmodel.OperationRoute{set.sourceRoute(), set.secondSourceRoute(), bridge},
 			uses:   originUses[:1],

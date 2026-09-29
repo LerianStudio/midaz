@@ -64,7 +64,7 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 		return nil, errAccountOnMidaz
 	}
 
-	if errRange := uc.ValidatePackageMaxAndMinAmountRange(ctx, logger, cpi.MaxAmount, cpi.MinAmount, cpi.GetTransactionRoute(), organizationID, ledgerID, newSegmentID, nil); errRange != nil {
+	if errRange := uc.ValidatePackageMaxAndMinAmountRange(ctx, logger, cpi.MaxAmount, cpi.MinAmount, cpi.GetTransactionRoute(), cpi.MetadataSelector, organizationID, ledgerID, newSegmentID, nil); errRange != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate package max and min amount range", errRange)
 
 		return nil, errRange
@@ -95,6 +95,7 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 	packModel.Description = cpi.Description
 	packModel.SegmentID = newSegmentID
 	packModel.TransactionRoute = cpi.TransactionRoute
+	packModel.MetadataSelector = cpi.MetadataSelector
 	packModel.WaivedAccounts = cpi.WaivedAccounts
 
 	resultPackModel, err := uc.packageRepo.Create(ctx, packModel, organizationID)

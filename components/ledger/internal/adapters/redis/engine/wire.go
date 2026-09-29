@@ -67,6 +67,7 @@ type resolvedExecutionKeys struct {
 	AccountBlockExceptions map[uuid.UUID]string
 	Accounts               map[uuid.UUID]resolvedAccountKeys
 	Coordination           map[string]resolvedCoordinationKeys
+	FeeDebts               map[string]string
 }
 
 type resolvedCoordinationKeys struct {
@@ -117,6 +118,7 @@ type wireRequest struct {
 	Balances                 []wireBalance     `json:"balances"`
 	Accounts                 []wireAccount     `json:"accounts"`
 	ScopeKeys                []wireScopeKeys   `json:"scopeKeys,omitempty"`
+	FeeDebts                 []wireFeeDebt     `json:"feeDebts,omitempty"`
 }
 
 type wireScopeKeys struct {
@@ -155,6 +157,7 @@ type wireTransaction struct {
 	Dependencies          []command.TransactionEvidenceReference `json:"dependencies"`
 	BalanceRequirements   []wireBalanceRequirement               `json:"balanceRequirements"`
 	Postings              []wirePosting                          `json:"postings"`
+	ReopenFeeDebts        []wireFeeDebtReopen                    `json:"reopenFeeDebts,omitempty"`
 }
 
 type wireAccountBlockException struct {
@@ -173,12 +176,17 @@ type wireBalanceRequirement struct {
 }
 
 type wirePosting struct {
-	Ref             string                 `json:"ref"`
-	BalanceRef      string                 `json:"balanceRef"`
-	Type            accounting.PostingType `json:"type"`
-	Amount          string                 `json:"amount"`
-	DrawPolicy      accounting.DrawPolicy  `json:"drawPolicy"`
-	OverdraftAmount string                 `json:"overdraftAmount"`
+	Ref             string                   `json:"ref"`
+	BalanceRef      string                   `json:"balanceRef"`
+	Type            accounting.PostingType   `json:"type"`
+	Amount          string                   `json:"amount"`
+	DrawPolicy      accounting.DrawPolicy    `json:"drawPolicy"`
+	OverdraftAmount string                   `json:"overdraftAmount"`
+	DeferShortfall  bool                     `json:"deferShortfall,omitempty"`
+	FundedByRef     string                   `json:"fundedByRef,omitempty"`
+	DebtRoute       *accounting.FeeDebtRoute `json:"debtRoute,omitempty"`
+	Items           []string                 `json:"items,omitempty"`
+	Refunds         []wireFeeDebtRefund      `json:"refunds,omitempty"`
 }
 
 type wireBalance struct {
@@ -245,6 +253,11 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, err
 	}
 
+	feeDebtKeys, feeDebts, err := prepareFeeDebts(input.Execution, resolved, len(keys), transactions, limits.MaxRequestBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	wireAccounts := prepareAccounts(input.Execution, resolved, accounts)
 
 	request := input.Execution
@@ -261,6 +274,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		ReceiptField: request.ExecutionID.String(), RetentionSeconds: retentionSeconds, Transactions: transactions, Balances: wireBalances,
 		Accounts:  wireAccounts,
 		ScopeKeys: scopeKeys,
+		FeeDebts:  feeDebts,
 	}
 
 	encoded, err := json.Marshal(wire)
@@ -272,7 +286,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, fmt.Errorf("accounting execution exceeds request byte limit")
 	}
 
-	return &preparedExecution{Keys: keys, Payload: encoded}, nil
+	return &preparedExecution{Keys: append(keys, feeDebtKeys...), Payload: encoded}, nil
 }
 
 const (
@@ -615,7 +629,13 @@ func preparePostings(postings []accounting.Posting, balances map[string]accounti
 		}
 
 		refs[posting.Ref] = true
-		prepared = append(prepared, wirePosting{Ref: posting.Ref, BalanceRef: posting.BalanceRef, Type: posting.Type, Amount: amount, DrawPolicy: posting.DrawPolicy, OverdraftAmount: overdraftAmount})
+		wire := wirePosting{Ref: posting.Ref, BalanceRef: posting.BalanceRef, Type: posting.Type, Amount: amount, DrawPolicy: posting.DrawPolicy, OverdraftAmount: overdraftAmount}
+
+		if err := prepareFeeDebtPostingFields(posting, &wire, maxBytes); err != nil {
+			return nil, err
+		}
+
+		prepared = append(prepared, wire)
 	}
 
 	return prepared, nil
@@ -928,7 +948,13 @@ func validLogicalReference(ref string) bool {
 }
 
 func validPostingType(posting accounting.PostingType) bool {
-	switch posting {
+	return validMovementType(posting) || posting == accounting.PostingCollect || posting == accounting.PostingRefund
+}
+
+// validMovementType is the balance transition a movement records; collect and
+// refund postings record debits and credits.
+func validMovementType(movement accounting.PostingType) bool {
+	switch movement {
 	case accounting.PostingDebit, accounting.PostingCredit, accounting.PostingReserve, accounting.PostingUnreserve, accounting.PostingHold, accounting.PostingRelease:
 		return true
 	default:

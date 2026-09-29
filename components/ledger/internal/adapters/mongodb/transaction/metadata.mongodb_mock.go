@@ -175,6 +175,20 @@ func (mr *MockRepositoryMockRecorder) FindList(ctx, collection, filter any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, collection, filter)
 }
 
+// SetKeys mocks base method.
+func (m *MockRepository) SetKeys(ctx context.Context, collection, id string, keys map[string]any) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetKeys", ctx, collection, id, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetKeys indicates an expected call of SetKeys.
+func (mr *MockRepositoryMockRecorder) SetKeys(ctx, collection, id, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKeys", reflect.TypeOf((*MockRepository)(nil).SetKeys), ctx, collection, id, keys)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
 	m.ctrl.T.Helper()
@@ -187,4 +201,19 @@ func (m *MockRepository) Update(ctx context.Context, collection, id string, meta
 func (mr *MockRepositoryMockRecorder) Update(ctx, collection, id, metadata any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, collection, id, metadata)
+}
+
+// UpdateIfUnchanged mocks base method.
+func (m *MockRepository) UpdateIfUnchanged(ctx context.Context, collection, id, entityName string, metadata, guard map[string]any) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateIfUnchanged", ctx, collection, id, entityName, metadata, guard)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateIfUnchanged indicates an expected call of UpdateIfUnchanged.
+func (mr *MockRepositoryMockRecorder) UpdateIfUnchanged(ctx, collection, id, entityName, metadata, guard any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIfUnchanged", reflect.TypeOf((*MockRepository)(nil).UpdateIfUnchanged), ctx, collection, id, entityName, metadata, guard)
 }

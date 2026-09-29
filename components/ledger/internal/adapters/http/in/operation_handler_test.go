@@ -514,8 +514,8 @@ func TestUpdateOperation_Success(t *testing.T) {
 			EntityName: constant.EntityOperation,
 			Data:       map[string]any{"reason": "Purchase refund"},
 		}, nil).AnyTimes()
-	metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any()).
-		Return(nil).AnyTimes()
+	metaRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).AnyTimes()
 
 	handler := &OperationHandler{
 		Command: &command.UseCase{OperationRepo: opRepo, TransactionMetadataRepo: metaRepo},
@@ -610,9 +610,9 @@ func TestUpdateOperation_QueryError_500(t *testing.T) {
 		}).Times(1)
 
 	metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
-		Return(nil, nil).AnyTimes()
-	metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any()).
-		Return(nil).AnyTimes()
+		Return(&txMongodb.Metadata{Data: txMongodb.JSON{}}, nil).AnyTimes()
+	metaRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).AnyTimes()
 
 	handler := &OperationHandler{
 		Command: &command.UseCase{OperationRepo: opRepo, TransactionMetadataRepo: metaRepo},

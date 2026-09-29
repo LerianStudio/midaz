@@ -39,6 +39,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
+	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
@@ -159,6 +161,8 @@ func setupTestInfra(t *testing.T) *testInfra {
 	require.NoError(t, err, "failed to create Redis repository")
 	engine, err := redisengine.NewAdapter(redisConn)
 	require.NoError(t, err, "failed to create accounting engine")
+	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: infra.mongoContainer.Client}, nil)
+	require.NoError(t, err, "failed to create fee debt repository")
 
 	// Store repositories for test assertions
 	infra.redisRepo = redisRepo
@@ -186,6 +190,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		TransactionReader:           queryUC,
 		TransactionEvidenceResolver: testEngineEvidenceResolver{repository: redisRepo},
 		Engine:                      engine,
+		FeeDebts:                    feeDebts,
 		AppliedTransactionCompleter: command.NewTransactionCompletionService(
 			postgrescompletion.NewStore(transactionRepo, operationRepo),
 			metadataRepo,

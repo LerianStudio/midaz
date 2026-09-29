@@ -47,6 +47,7 @@ type fakePackageCache struct {
 	getCalls int
 	setCalls int
 	delCalls int
+	lastTTL  time.Duration
 
 	// getErr, when set, is returned by GetBytes to exercise the fallback path.
 	getErr error
@@ -71,9 +72,10 @@ func (f *fakePackageCache) GetBytes(_ context.Context, key string) ([]byte, erro
 	return v, nil
 }
 
-func (f *fakePackageCache) SetBytes(_ context.Context, key string, value []byte, _ time.Duration) error {
+func (f *fakePackageCache) SetBytes(_ context.Context, key string, value []byte, ttl time.Duration) error {
 	f.setCalls++
 	f.store[key] = value
+	f.lastTTL = ttl
 
 	return nil
 }
@@ -139,6 +141,44 @@ func TestCalculateFee_Cache_MissPopulatesSentinel(t *testing.T) {
 	assert.Equal(t, 1, cache.setCalls, "miss must populate the cache once")
 	assert.Equal(t, packageCacheNotFoundSentinel, cache.store[packageCacheKey(orgID, ledgerID)],
 		"zero-package result must be stored as the NOT_FOUND sentinel")
+	assert.Equal(t, packageCacheTTL, cache.lastTTL)
+}
+
+// TestCalculateFee_Cache_MissPopulatesPackageSetWithTTL proves a non-empty set is
+// cached with the same bounded TTL as the sentinel, so a set written by a pod
+// that does not know a newer package field cannot outlive packageCacheTTL.
+func TestCalculateFee_Cache_MissPopulatesPackageSetWithTTL(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := pack.NewMockRepository(ctrl)
+	cache := newFakePackageCache()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	enable := true
+
+	// Out of band for the 1000 transaction value, so no fee math runs.
+	mockRepo.EXPECT().
+		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+		Return([]*pack.Package{{
+			ID:            uuid.New(),
+			LedgerID:      ledgerID,
+			MinimumAmount: decimal.NewFromInt(5000),
+			MaximumAmount: decimal.NewFromInt(9000),
+			Enable:        &enable,
+		}}, nil).
+		Times(1)
+
+	uc := &UseCase{packageRepo: mockRepo, PackageCache: cache}
+
+	require.NoError(t, uc.CalculateFee(context.Background(), cacheTestFeeInput(ledgerID), orgID))
+
+	assert.Equal(t, 1, cache.setCalls)
+	assert.NotEqual(t, packageCacheNotFoundSentinel, cache.store[packageCacheKey(orgID, ledgerID)])
+	assert.Equal(t, packageCacheTTL, cache.lastTTL)
 }
 
 // TestCalculateFee_Cache_SentinelHitSkipsMongo proves that a NOT_FOUND sentinel

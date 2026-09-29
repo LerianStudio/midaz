@@ -14,7 +14,49 @@ const (
 	RolePrimary = "primary"
 	// RoleOverdraftCompanion identifies its generated debt-account movement.
 	RoleOverdraftCompanion = "overdraft_companion"
+	// RoleFeeDebtDebit is a collect posting's movement on its debtor for one settled
+	// debt; its ordinal is the debt's index in the posting's Items.
+	RoleFeeDebtDebit = "fee_debt_debit"
+	// RoleFeeDebtCredit is a collect posting's movement on one settled debt's creditor;
+	// its ordinal is the debt's index in the posting's Items.
+	RoleFeeDebtCredit = "fee_debt_credit" // #nosec G101 -- accounting role name, not a credential
+	// RoleFeeDebtRefundCredit is a refund posting's movement on its debtor for one
+	// entry; its ordinal is the entry's index in the posting's Refunds.
+	RoleFeeDebtRefundCredit = "fee_debt_refund_credit" // #nosec G101 -- accounting role name, not a credential
+	// RoleFeeDebtRefundDebit is a refund posting's movement on one entry's creditor;
+	// its ordinal is the entry's index in the posting's Refunds.
+	RoleFeeDebtRefundDebit = "fee_debt_refund_debit"
 )
+
+// FeeDebtChangeKind names how a change moved a debt's remaining amount.
+type FeeDebtChangeKind string
+
+const (
+	FeeDebtOpened   FeeDebtChangeKind = "opened"
+	FeeDebtSettled  FeeDebtChangeKind = "settled"
+	FeeDebtCanceled FeeDebtChangeKind = "canceled"
+	FeeDebtReopened FeeDebtChangeKind = "reopened"
+	FeeDebtRefunded FeeDebtChangeKind = "refunded"
+)
+
+// FeeDebtChange is one applied change to one debt, in the debtor's (transaction) scope.
+// 0 < Amount <= Opened, the debt's opened amount; remaining = opened - settled - canceled
+// + reopened, and refunded only returns money. Canceled and reopened carry no PostingRef.
+type FeeDebtChange struct {
+	TransactionID       uuid.UUID         `json:"transactionId"`
+	PostingRef          string            `json:"postingRef"`
+	Kind                FeeDebtChangeKind `json:"kind"`
+	DebtID              string            `json:"debtId"`
+	DebtorRef           string            `json:"debtorRef"`
+	CreditRef           string            `json:"creditRef"`
+	OriginTransactionID uuid.UUID         `json:"originTransactionId"`
+	Seq                 int64             `json:"seq,string"`
+	AssetCode           string            `json:"assetCode"`
+	Amount              decimal.Decimal   `json:"amount"`
+	Opened              decimal.Decimal   `json:"opened"`
+	DebitRoute          *FeeDebtRoute     `json:"debitRoute,omitempty"`
+	CreditRoute         *FeeDebtRoute     `json:"creditRoute,omitempty"`
+}
 
 // Movement records a real change in available, on-hold or overdraft-used funds.
 // Amount may be zero when only debt changes; such a movement still increments
@@ -43,4 +85,6 @@ type ExecutionResult struct {
 	Movements          []Movement        `json:"movements"`
 	Final              []BalanceSnapshot `json:"final"`
 	AppliedAtUnixMicro int64             `json:"appliedAtUnixMicro,omitempty"`
+	// FeeDebt lists fee-debt changes in execution order; absent when there are none.
+	FeeDebt []FeeDebtChange `json:"feeDebt,omitempty"`
 }

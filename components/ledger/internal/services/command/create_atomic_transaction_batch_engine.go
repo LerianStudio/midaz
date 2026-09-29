@@ -259,3 +259,27 @@ func atomicTransactionBatchTransactionIDs(run *atomicTransactionBatchRun) []uuid
 
 	return transactionIDs
 }
+
+// atomicTransactionBatchFeeDebtRefs keeps each item's fee-debt refs and unions
+// them per ledger, so each ledger reads its seeds once.
+func atomicTransactionBatchFeeDebtRefs(run *atomicTransactionBatchRun) (map[atomicTransactionBatchLedgerRef]feeDebtPoolRefs, error) {
+	byRef := make(map[atomicTransactionBatchLedgerRef]feeDebtPoolRefs)
+
+	for index := range run.items {
+		item := &run.items[index]
+
+		refs, err := feeDebtPreparationRefs(createEnginePreparationInput(run.createTransactionRun(item), true))
+		if err != nil {
+			return nil, withAtomicTransactionBatchRunItemError(err, item, "transaction preparation failed")
+		}
+
+		item.feeDebtRefs = refs
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
+		merged := byRef[ref]
+		merged.debtors = appendMissingRefs(merged.debtors, refs.debtors)
+		merged.balances = appendMissingRefs(merged.balances, refs.balances)
+		byRef[ref] = merged
+	}
+
+	return byRef, nil
+}

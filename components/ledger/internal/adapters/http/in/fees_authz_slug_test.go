@@ -75,6 +75,8 @@ func TestAuthz_FeeResources_AuthorizeUnderMidazAppName(t *testing.T) {
 		{fiber.MethodPatch, base + "/billing-packages/" + resourceID.String()},
 		{fiber.MethodDelete, base + "/billing-packages/" + resourceID.String()},
 		{fiber.MethodPost, base + "/billing/calculate"},
+		{fiber.MethodGet, base + "/fee-debts"},
+		{fiber.MethodGet, base + "/fee-debts/" + resourceID.String() + ":from:0:debit"},
 	}
 
 	require.Len(t, ops, len(feesV2FullRoutes), "the sweep must cover every mounted fee route")

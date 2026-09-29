@@ -41,6 +41,7 @@ const (
 	accountClosingReasonProtectionIndeterminate = "protection_indeterminate"
 	accountClosingReasonExternalAccount         = "external_account"
 	accountClosingReasonAccountNotFound         = "account_not_found"
+	accountClosingReasonFeeDebt                 = "fee_debt"
 	accountClosingReasonBusinessOther           = "business_other"
 	accountClosingReasonTechnical               = "technical"
 )
@@ -297,6 +298,8 @@ func accountClosingReason(err error) string {
 		return accountClosingReasonExternalAccount
 	case constant.ErrAccountIDNotFound.Error():
 		return accountClosingReasonAccountNotFound
+	case constant.ErrBalanceHasOpenFeeDebt.Error(), constant.ErrBalanceOwedFeeDebt.Error():
+		return accountClosingReasonFeeDebt
 	}
 
 	if pkg.IsBusinessError(err) {

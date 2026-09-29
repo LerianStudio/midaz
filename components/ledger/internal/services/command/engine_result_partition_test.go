@@ -269,7 +269,7 @@ func overdraftPartitionFixture(t *testing.T) (PreparedEngineExecution, accountin
 				Before: primaryStates[index][0], After: primaryStates[index][1],
 			},
 			accounting.Movement{
-				Ref: transaction.ID.String() + ":source:0:overdraft_companion:0", TransactionID: transaction.ID,
+				Ref: movementRef(transaction.ID, "source:0", accounting.RoleOverdraftCompanion, 0), TransactionID: transaction.ID,
 				PostingRef: "source:0", Role: accounting.RoleOverdraftCompanion, BalanceRef: companion.BalanceRef,
 				Type: accounting.PostingDebit, Amount: deltas[index],
 				Before: companionStates[index][0], After: companionStates[index][1],
