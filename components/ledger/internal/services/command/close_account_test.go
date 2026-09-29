@@ -74,6 +74,7 @@ func newCloseAccountMocks(t *testing.T) *closeAccountMocks {
 		TransactionRepo:      mocks.transaction,
 		TransactionRedisRepo: mocks.redis,
 		TransactionReader:    &feeDebtReader{},
+		FeeDebts:             &owedFeeDebts{},
 	}
 
 	return mocks
@@ -360,6 +361,37 @@ func TestCloseAccount_UnreadableFeeDebtIsIndeterminate(t *testing.T) {
 	_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
 	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
+}
+
+// TestCloseAccount_RefusesAFeeDebtOwedToIt proves a settled fee account that an open
+// debt still names as creditor is refused, and a projection that cannot be read leaves
+// the closing indeterminate; both give the protection back.
+func TestCloseAccount_RefusesAFeeDebtOwedToIt(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		debts *owedFeeDebts
+		want  error
+	}{
+		{"owed", &owedFeeDebts{owed: true}, constant.ErrBalanceOwedFeeDebt},
+		{"unreadable", &owedFeeDebts{err: errors.New("mongo down")}, constant.ErrAccountClosingProtectionIndeterminate},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			m := newCloseAccountMocks(t)
+			m.uc.FeeDebts = test.debts
+			creditor := closeEligibleBalance()
+
+			m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+			m.expectProtectionTaken()
+			m.expectBalancesRead(creditor)
+			m.expectRecoveryWalked()
+			m.expectProtectionReleased()
+
+			_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+			requireClosingCode(t, err, test.want)
+			assert.Equal(t, []string{creditor.Alias + "#" + creditor.Key}, test.debts.refs)
+		})
+	}
 }
 
 // TestCloseAccount_RefusesAPendingTransaction covers AC-08: every component reads

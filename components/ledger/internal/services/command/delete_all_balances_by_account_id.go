@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -134,8 +135,8 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		}
 	}
 
-	if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances); err != nil {
-		recordCommandError(ctx, span, logger, "Balances cannot be deleted while one owes pending fees", err)
+	if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances, engineRecoverySources, nil); err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Balances cannot be deleted while one owes or is owed pending fees", err)
 
 		return err
 	}

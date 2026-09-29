@@ -108,6 +108,12 @@ func TestAccountClosingOutcome_MapsEverySentinelToItsReason(t *testing.T) {
 			reason:  accountClosingReasonFeeDebt,
 		},
 		{
+			name:    "0528 fee debt owed to the account",
+			err:     midazpkg.ValidateBusinessError(constant.ErrBalanceOwedFeeDebt, constant.EntityAccount),
+			outcome: accountClosingOutcomeRefused,
+			reason:  accountClosingReasonFeeDebt,
+		},
+		{
 			name:    "business error outside the closing family",
 			err:     midazpkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount),
 			outcome: accountClosingOutcomeRefused,
@@ -171,6 +177,7 @@ func TestAccountClosingReason_StaysWithinItsVocabulary(t *testing.T) {
 		constant.ErrForbiddenExternalAccountManipulation,
 		constant.ErrAccountIDNotFound,
 		constant.ErrBalanceHasOpenFeeDebt,
+		constant.ErrBalanceOwedFeeDebt,
 		constant.ErrEntityNotFound,
 		constant.ErrBalanceUpdateFailed,
 	} {

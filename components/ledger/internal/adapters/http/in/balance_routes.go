@@ -130,6 +130,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Method:      http.MethodDelete,
 		Path:        balanceIDPath,
 		Summary:     "Delete Balance by account",
+		Description: "Deletes a balance. " + balanceDeletionRefusalDoc,
 		Tags:        []string{tag},
 		Security:    secBalanceBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.

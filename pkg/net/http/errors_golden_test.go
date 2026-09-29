@@ -301,6 +301,7 @@ func allSentinels() map[string]error {
 		"ErrAccountAdministrativeOperationInProgress": constant.ErrAccountAdministrativeOperationInProgress,
 		"ErrFeeDebtRecordPending":                     constant.ErrFeeDebtRecordPending,
 		"ErrBalanceHasOpenFeeDebt":                    constant.ErrBalanceHasOpenFeeDebt,
+		"ErrBalanceOwedFeeDebt":                       constant.ErrBalanceOwedFeeDebt,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,

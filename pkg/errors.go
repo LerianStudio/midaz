@@ -695,6 +695,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Balance Has Open Fee Debt Error",
 			Message:    "A balance that still owes pending fees cannot be deleted, and its account cannot be deleted or closed. Please credit the balance so the pending fees are collected and try again.",
 		},
+		constant.ErrBalanceOwedFeeDebt: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceOwedFeeDebt.Error(),
+			Title:      "Balance Owed Fee Debt Error",
+			Message:    "A balance that other balances still owe pending fees to cannot be deleted, and its account cannot be deleted or closed. Please credit the balances that owe those fees so they are collected and try again.",
+		},
 		constant.ErrAccountBalanceNotZero: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceNotZero.Error(),

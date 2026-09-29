@@ -1052,7 +1052,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.FeeApplier = fees.useCase
 	commandUseCase.TracerReserver = tracerReserver
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
-	commandUseCase.FeeDebts = feeMgo.feeDebtRepo
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	// Transaction handlers

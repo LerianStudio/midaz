@@ -3078,6 +3078,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
         "deprecated": true,
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteAccount",
         "parameters": [
           {
@@ -4380,6 +4381,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
         "deprecated": true,
+        "description": "Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteBalance",
         "parameters": [
           {
@@ -13138,7 +13140,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/close": {
       "post": {
-        "description": "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524) and a balance that still owes pending fees (0527) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
+        "description": "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
         "operationId": "closeAccountV2",
         "parameters": [
           {
@@ -13506,6 +13508,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteAccountV2",
         "parameters": [
           {
@@ -14465,6 +14468,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
+        "description": "Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteBalanceV2",
         "parameters": [
           {

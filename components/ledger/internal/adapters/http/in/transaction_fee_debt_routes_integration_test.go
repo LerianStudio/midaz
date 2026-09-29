@@ -18,27 +18,10 @@ import (
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
-
-// deferrablePackages serves the stored packages with every fee deferrable, the flag
-// packages do not persist yet.
-type deferrablePackages struct{ pack.Repository }
-
-func (repo deferrablePackages) FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*pack.Package, error) {
-	packages, err := repo.Repository.FindByOrganizationIDAndLedgerID(ctx, organizationID, ledgerID)
-	for _, p := range packages {
-		for key, fee := range p.Fees {
-			fee.Deferrable = true
-			p.Fees[key] = fee
-		}
-	}
-
-	return packages, err
-}
 
 // feeDebtRoutes is a harness whose 50 fee, owed by @debt-payer to @debt-fee, is deferrable
 // and routed fee-from/fee-to; @debt-funder credits the payer under its own routes.
@@ -279,7 +262,7 @@ func TestFeeDebtRevertWaitsForTheRecord(t *testing.T) {
 
 	refused := s.post(t, s.app, s.v2StatePath(origin, "revert"), "", nil)
 	assert.Equal(t, 409, refused.status, "body: %s", string(refused.rawBody))
-	assert.Equal(t, "0528", refused.body["code"])
+	assert.Equal(t, "0529", refused.body["code"])
 	s.balances(t, "0", "80", "30", "990")
 
 	s.commandUC.FeeDebts = debts

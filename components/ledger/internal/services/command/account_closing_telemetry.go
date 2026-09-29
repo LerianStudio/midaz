@@ -298,7 +298,7 @@ func accountClosingReason(err error) string {
 		return accountClosingReasonExternalAccount
 	case constant.ErrAccountIDNotFound.Error():
 		return accountClosingReasonAccountNotFound
-	case constant.ErrBalanceHasOpenFeeDebt.Error():
+	case constant.ErrBalanceHasOpenFeeDebt.Error(), constant.ErrBalanceOwedFeeDebt.Error():
 		return accountClosingReasonFeeDebt
 	}
 
