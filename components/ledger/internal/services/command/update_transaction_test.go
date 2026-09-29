@@ -67,7 +67,7 @@ func TestUpdateTransaction(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), input.Metadata, time.Time{}).
+		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), input.Metadata, gomock.Any()).
 		Return(true, nil).
 		Times(1)
 
@@ -250,7 +250,7 @@ func TestUpdateTransaction_MetadataUpdateError(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), input.Metadata, time.Time{}).
+		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), input.Metadata, gomock.Any()).
 		Return(false, metadataUpdateError).
 		Times(1)
 
@@ -429,7 +429,7 @@ func TestUpdateTransaction_PatchCarriesNoStatus(t *testing.T) {
 		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
-		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), time.Time{}).
+		UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any()).
 		Return(true, nil).
 		AnyTimes()
 

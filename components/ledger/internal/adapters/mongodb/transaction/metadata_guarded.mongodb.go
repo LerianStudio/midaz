@@ -43,9 +43,9 @@ func (mmr *MetadataMongoDBRepository) SetKeys(ctx context.Context, collection, i
 	return nil
 }
 
-// UpdateIfUnchanged replaces an existing document's metadata only while its updated_at still
-// equals updatedAt, as read, and reports whether it did.
-func (mmr *MetadataMongoDBRepository) UpdateIfUnchanged(ctx context.Context, collection, id string, metadata map[string]any, updatedAt time.Time) (bool, error) {
+// UpdateIfUnchanged replaces an existing document's metadata only while each guard key still
+// holds the value read, a nil value meaning absent, and reports whether it did.
+func (mmr *MetadataMongoDBRepository) UpdateIfUnchanged(ctx context.Context, collection, id string, metadata, guard map[string]any) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata_if_unchanged")
@@ -58,7 +58,16 @@ func (mmr *MetadataMongoDBRepository) UpdateIfUnchanged(ctx context.Context, col
 		return false, err
 	}
 
-	filter := bson.D{{Key: "entity_id", Value: id}, {Key: "updated_at", Value: updatedAt}}
+	filter := bson.D{{Key: "entity_id", Value: id}}
+
+	for key, value := range guard {
+		if value == nil {
+			value = bson.D{{Key: "$exists", Value: false}}
+		}
+
+		filter = append(filter, bson.E{Key: "metadata." + key, Value: value})
+	}
+
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now()}}}}
 
 	result, err := db.Collection(strings.ToLower(collection)).UpdateOne(ctx, filter, update)

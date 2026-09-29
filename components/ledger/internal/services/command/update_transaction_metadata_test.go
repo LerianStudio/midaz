@@ -9,7 +9,6 @@ import (
 	"errors"
 	"maps"
 	"testing"
-	"time"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -152,12 +151,11 @@ func TestUpdateTransactionMetadata(t *testing.T) {
 }
 
 func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) {
-	first, second := time.Date(2026, 9, 29, 10, 0, 0, 0, time.UTC), time.Date(2026, 9, 29, 10, 0, 1, 0, time.UTC)
-	stored := func(at time.Time, data mongodb.JSON) *mongodb.Metadata {
-		return &mongodb.Metadata{Data: maps.Clone(data), UpdatedAt: at}
-	}
+	stored := func(data mongodb.JSON) *mongodb.Metadata { return &mongodb.Metadata{Data: maps.Clone(data)} }
 	pending := mongodb.JSON{"purpose": "client", "feeApplied": "true"}
 	settled := mongodb.JSON{"purpose": "client", "feeApplied": "true", constant.MetadataKeyFeeDebtSettlements: "[]"}
+	absent := map[string]any{constant.MetadataKeyFeeDebtOpenings: nil, constant.MetadataKeyFeeDebtSettlements: nil}
+	written := map[string]any{constant.MetadataKeyFeeDebtOpenings: nil, constant.MetadataKeyFeeDebtSettlements: "[]"}
 
 	for _, scenario := range []struct {
 		name, entity string
@@ -168,8 +166,8 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 			name: "clearing keeps only reserved keys", entity: constant.EntityTransaction,
 			want: map[string]any{"feeApplied": "true"},
 			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
-				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(first, pending), nil)
-				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, first).Return(true, nil)
+				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(pending), nil)
+				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, absent).Return(true, nil)
 			},
 		},
 		{
@@ -178,10 +176,10 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 			want: map[string]any{"purpose": "edited", "feeApplied": "true", constant.MetadataKeyFeeDebtSettlements: "[]"},
 			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
 				gomock.InOrder(
-					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(first, pending), nil),
-					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", gomock.Any(), first).Return(false, nil),
-					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(second, settled), nil),
-					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", want, second).Return(true, nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(pending), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", gomock.Any(), absent).Return(false, nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(settled), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", want, written).Return(true, nil),
 				)
 			},
 		},
@@ -192,8 +190,8 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 				gomock.InOrder(
 					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(nil, nil),
 					repo.Create(gomock.Any(), constant.EntityTransaction, gomock.Any()).Return(nil),
-					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(first, mongodb.JSON{}), nil),
-					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, first).Return(true, nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(mongodb.JSON{}), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, absent).Return(true, nil),
 				)
 			},
 		},
@@ -210,8 +208,8 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 
 	t.Run("a document that keeps changing fails the update", func(t *testing.T) {
 		repo := mongodb.NewMockRepository(gomock.NewController(t))
-		repo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(first, pending), nil).Times(metadataUpdateAttempts)
-		repo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", gomock.Any(), first).Return(false, nil).Times(metadataUpdateAttempts)
+		repo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(pending), nil).Times(metadataUpdateAttempts)
+		repo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", gomock.Any(), absent).Return(false, nil).Times(metadataUpdateAttempts)
 
 		updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), constant.EntityTransaction, "id", map[string]any{"purpose": "edited"})
 		require.Error(t, err)
