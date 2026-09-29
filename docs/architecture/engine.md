@@ -452,6 +452,16 @@ reservation and does not inherit the original transaction's tracer skip. Neither
 revert nor pending transitions rewrite the engine recover record through the
 legacy write-behind path.
 
+A standalone fee-debt collection (`CollectFeeDebt`) composes one execution
+with a single `collect` posting on the debtor balance and nothing else: no
+fees and no tracer. Its amount is the lesser of the caller's
+cap and the open total in the debtor's seed; Lua re-reads the live list, so the
+seed only bounds it. An execution that moves nothing writes nothing and
+completes nothing. Otherwise the completion projects the transaction amount as
+the sum of its `settled` changes, and the `feeDebtCollection` mark makes revert
+refuse it: the revert fold rebuilds settlements from credit legs, and a
+collection has none, so its reversal would not balance.
+
 The engine never indexes a NOTED annotation. When the index and the primary both
 answer not-found, commit, cancel, revert, and the by-id GET read the legacy
 write-behind entry the annotation path writes, so an unprojected annotation is

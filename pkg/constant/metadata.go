@@ -30,6 +30,10 @@ const (
 	MetadataKeyFeeDebtSettlements = "feeDebtSettlements"
 )
 
+// MetadataKeyFeeDebtCollection marks, with the string true, a standalone collection of fee debt:
+// its amount is what it settled, and it cannot be reverted.
+const MetadataKeyFeeDebtCollection = "feeDebtCollection"
+
 // IsReservedMetadataKey reports whether the ledger reserves a metadata key for its own writes.
 // A request body naming one is rejected with ErrReservedMetadataKey rather than stripped, because
 // a stripped key is indistinguishable on the wire from a key that was stored.
@@ -43,16 +47,17 @@ const (
 // its own word about a record, which is what makes a caller-written copy a lie rather than a
 // collision.
 //
-// Seven keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. Three are the
+// Eight keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. Three are the
 // transaction-level statements the fee engine writes about a charge: whether a fee was actually
 // charged, which fee package the engine applied, and which exemption it recorded. They are spelled
 // literally here because the wire spelling is the contract a client reads, and this refusal has to
 // match what the client can send rather than what the engine happens to name its writes. The last
-// three are the fee-debt marks: the deferrable pair, and the debts a transaction opened and settled.
+// four are the fee-debt marks: the deferrable pair, the debts a transaction opened and settled, and
+// the standalone collection.
 func IsReservedMetadataKey(key string) bool {
 	switch key {
 	case MetadataKeyFeeLeg, "feeApplied", "packageAppliedID", "feeExemption",
-		MetadataKeyFeeDeferPair, MetadataKeyFeeDebtOpenings, MetadataKeyFeeDebtSettlements:
+		MetadataKeyFeeDeferPair, MetadataKeyFeeDebtOpenings, MetadataKeyFeeDebtSettlements, MetadataKeyFeeDebtCollection:
 		return true
 	default:
 		return false

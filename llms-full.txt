@@ -445,7 +445,7 @@ Scoping is **path-based**: fee endpoints read the organization and ledger from t
 registry in `pkg/constant/errors.go` — the `FEE-` prefixed code family is retired). See
 `docs/api/SCOPING.md`.
 
-The fourteen operations are served under the ledger-scoped `/v2` contract (`{base}` =
+The fifteen operations are served under the ledger-scoped `/v2` contract (`{base}` =
 `/v2/organizations/{organization_id}/ledgers/{ledger_id}`); the path names the ledger and a read
 reaches only what that ledger owns.
 
@@ -465,6 +465,7 @@ reaches only what that ledger owns.
 | POST | {base}/billing/calculate | Calculate billing |
 | GET | {base}/fee-debts | List the ledger's fee debts, oldest first; `?status=open\|settled` filters, `?account_alias=` narrows to one debtor and adds `openTotal`, what it owes over all its open debts |
 | GET | {base}/fee-debts/:debt_id | Get fee debt |
+| POST | {base}/fee-debts/collect | Collect a debtor's open fee debt now (see below) |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
 `ledger_id` path value, `ledgerId` was removed from the create/estimate/calculate request bodies
@@ -480,6 +481,16 @@ transaction only when every selector it carries matches and the amount is inside
 several apply, the one carrying the most selectors wins, each metadata pair counting one, and a tie
 is refused (`0198`). Two packages on overlapping bands collide (`0184`/`0199`) only when their
 selectors are identical.
+
+`POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
+debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
+capped at `maxAmount` and at what the balance owes. It charges no fee, never originates a debt, and
+takes no `Idempotency-Key`: a repeat collects only what is still open. It stops at the first debt
+whose fee account is blocked, closed or cannot receive; a blocked debtor, or one that cannot send,
+collects nothing. It answers `200 {collected, transactionId?}`; nothing settled is
+`{"collected":"0"}` with no transaction. The transaction carries `metadata.feeDebtCollection =
+"true"`, its amount is what it settled, and reverting it is refused (`0089`). Authz is
+`midaz:fee-debts:post`.
 
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
