@@ -131,11 +131,13 @@ func TestBuildTracerReserver_MTLSGuard(t *testing.T) {
 	}
 }
 
-// TestBuildTracerReserver_TransportSelection pins the TRACER_TRANSPORT toggle:
-// "rest" builds the HTTP client, "grpc" (and the empty default) build the gRPC
-// client, and an unknown value fails fast. The integration is single-tenant in
-// every case so the multi-tenant boot guard does not fire. grpc.NewClient is
-// lazy, so building the gRPC reserver never blocks on tracer reachability.
+// TestBuildTracerReserver_TransportSelection pins the TRACER_TRANSPORT handling:
+// the empty default and "grpc" (normalized: trimmed, case-insensitive) build the
+// gRPC client, the stale "rest" value refuses boot with the contract message,
+// and any other value fails fast listing grpc as the only accepted transport.
+// The integration is single-tenant in every case so the multi-tenant boot guard
+// does not fire. grpc.NewClient is lazy, so building the gRPC reserver never
+// blocks on tracer reachability.
 func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 	t.Parallel()
 
@@ -145,32 +147,33 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 		name            string
 		transport       string
 		wantType        any
+		wantErr         string
 		wantErrContains string
 	}{
-		{
-			name:      "grpc selects gRPC client",
-			transport: "grpc",
-			wantType:  &tracerclient.TracerGRPCClient{},
-		},
-		{
-			name:      "rest selects HTTP client",
-			transport: "rest",
-			wantType:  &tracerclient.TracerClient{},
-		},
 		{
 			name:      "empty defaults to gRPC",
 			transport: "",
 			wantType:  &tracerclient.TracerGRPCClient{},
 		},
 		{
-			name:      "case-insensitive GRPC",
-			transport: "GRPC",
+			name:      "grpc selects gRPC client",
+			transport: "grpc",
 			wantType:  &tracerclient.TracerGRPCClient{},
 		},
 		{
-			name:            "unknown transport fails fast",
-			transport:       "thrift",
-			wantErrContains: "invalid TRACER_TRANSPORT",
+			name:      "GRPC with surrounding whitespace is normalized",
+			transport: " GRPC ",
+			wantType:  &tracerclient.TracerGRPCClient{},
+		},
+		{
+			name:      "rest refuses boot with the contract message",
+			transport: "rest",
+			wantErr:   "TRACER_TRANSPORT=rest is no longer supported: the ledger reaches the tracer over gRPC only; unset TRACER_TRANSPORT",
+		},
+		{
+			name:            "unknown transport fails fast listing grpc only",
+			transport:       "soap",
+			wantErrContains: `invalid TRACER_TRANSPORT "soap": expected "grpc"`,
 		},
 	}
 
@@ -179,15 +182,24 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				TracerBaseURL:   "http://tracer:4020",
+				TracerBaseURL:   "http://tracer:4021",
 				TracerTransport: tt.transport,
 			}
 
 			reserver, err := buildTracerReserver(cfg, logger)
 
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErr, err.Error())
+				assert.Nil(t, reserver)
+
+				return
+			}
+
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)
+				assert.NotContains(t, err.Error(), `"rest"`)
 				assert.Nil(t, reserver)
 
 				return
