@@ -165,7 +165,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	}
 
 	// Get applicable limits (active limits matching asset and scopes)
-	limits, err := s.getApplicableLimits(ctx, input)
+	limits, err := s.getApplicableLimits(ctx, db, input)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get applicable limits", err)
 		return nil, err
@@ -479,7 +479,9 @@ func (s *LimitCheckerService) processLimitAtomic(
 
 // getApplicableLimits fetches active limits matching asset and scopes.
 // Handles pagination to retrieve all matching limits beyond MaxPaginationLimit.
-func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *model.CheckLimitsInput) ([]model.Limit, error) {
+// It reads through db: the caller's transaction already holds a connection,
+// and a second pooled read per request exhausts the pool under concurrency.
+func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) ([]model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit_checker.get_applicable_limits")
@@ -510,7 +512,7 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 			Cursor: cursor,
 		}
 
-		result, err := s.limitRepo.List(ctx, filter)
+		result, err := s.limitRepo.ListWithTx(ctx, db, filter)
 		if err != nil {
 			libOtel.HandleSpanError(span, "Failed to list limits", err)
 			return nil, err

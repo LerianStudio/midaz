@@ -140,7 +140,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -165,7 +165,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -205,7 +205,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -245,7 +245,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -281,7 +281,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -316,7 +316,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -370,7 +370,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				// (BRL limits are filtered out at database level)
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -396,7 +396,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				otherAccountID := testutil.MustDeterministicUUID(999)
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -431,7 +431,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -503,7 +503,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -544,7 +544,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -585,7 +585,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -606,7 +606,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository, db pgdb.DB) {
 				status := model.LimitStatusActive
 				asset := "USD"
-				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				lr.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 					Status: &status,
 					Asset:  &asset,
 					Limit:  trcConstant.MaxPaginationLimit,
@@ -748,7 +748,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -873,7 +873,7 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 	asset := "USD"
 
 	// Two limits: first one passes, second one exceeds
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1013,7 +1013,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			status := model.LimitStatusActive
 			asset := "USD"
 
-			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+			mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 				Status: &status,
 				Asset:  &asset,
 				Limit:  trcConstant.MaxPaginationLimit,
@@ -1137,7 +1137,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	scopeKey := "acct:" + accountID.String()
 
 	// First page returns 2 limits with HasMore=true
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1168,7 +1168,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	}, nil)
 
 	// Second page returns 1 limit with HasMore=false
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1260,7 +1260,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1782,7 +1782,7 @@ func TestCheckLimits_ServerTimestamp(t *testing.T) {
 	asset := "USD"
 	scopeKey := "acct:" + accountID.String()
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1857,7 +1857,7 @@ func TestCheckLimits_ServerTimestamp_Monthly(t *testing.T) {
 	asset := "USD"
 	scopeKey := "acct:" + accountID.String()
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1924,7 +1924,7 @@ func TestCheckLimits_PerTransactionUnaffectedByClock(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -1998,7 +1998,7 @@ func TestLimitCheckerService_CheckLimits_PreCheckGetUsageError(t *testing.T) {
 	asset := "USD"
 
 	// Mock limit with maxAmount=100, but we'll try to transact 500 (triggers pre-check)
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2067,7 +2067,7 @@ func TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2183,7 +2183,7 @@ func TestCheckLimits_TimeWindow_OutsideWindow_Skipped(t *testing.T) {
 	activeTimeStart := testhelper.MustNewTimeOfDay("20:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("06:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2273,7 +2273,7 @@ func TestCheckLimits_TimeWindow_InsideWindow_Evaluated(t *testing.T) {
 	activeTimeStart := testhelper.MustNewTimeOfDay("20:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("06:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2366,7 +2366,7 @@ func TestCheckLimits_TimeWindow_OvernightWindow_EarlyMorning_Evaluated(t *testin
 	activeTimeStart := testhelper.MustNewTimeOfDay("20:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("06:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2451,7 +2451,7 @@ func TestCheckLimits_TimeWindow_BusinessHours_Boundary_Inclusive(t *testing.T) {
 	activeTimeStart := testhelper.MustNewTimeOfDay("09:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("17:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2534,7 +2534,7 @@ func TestCheckLimits_TimeWindow_BusinessHours_Boundary_Exclusive(t *testing.T) {
 	activeTimeStart := testhelper.MustNewTimeOfDay("09:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("17:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2615,7 +2615,7 @@ func TestCheckLimits_TimeWindow_NoTimeWindow_AlwaysEvaluated(t *testing.T) {
 			scopeKey := "acct:" + accountID.String()
 
 			// Limit WITHOUT time window (ActiveTimeStart and ActiveTimeEnd are nil)
-			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+			mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 				Status: &status,
 				Asset:  &asset,
 				Limit:  trcConstant.MaxPaginationLimit,
@@ -2706,7 +2706,7 @@ func TestCheckLimits_TimeWindow_MixedLimits_SomeSkipped(t *testing.T) {
 	eveningStart := testhelper.MustNewTimeOfDay("18:00")
 	eveningEnd := testhelper.MustNewTimeOfDay("23:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2856,7 +2856,7 @@ func TestCheckLimits_TimeWindow_SkippedLimit_NoExceededFlag(t *testing.T) {
 	activeTimeStart := testhelper.MustNewTimeOfDay("09:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("12:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -2936,7 +2936,7 @@ func TestCheckLimits_TimeWindow_PerTransaction_Skipped(t *testing.T) {
 	activeTimeStart := testhelper.MustNewTimeOfDay("08:00")
 	activeTimeEnd := testhelper.MustNewTimeOfDay("18:00")
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3133,7 +3133,7 @@ func TestCheckLimits_TimeWindow_TableDriven(t *testing.T) {
 				limit.ActiveTimeEnd = &end
 			}
 
-			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+			mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 				Status: &status,
 				Asset:  &asset,
 				Limit:  trcConstant.MaxPaginationLimit,
@@ -3219,7 +3219,7 @@ func TestCheckLimits_CustomPeriod_OutsideCustomPeriod_Skipped(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3300,7 +3300,7 @@ func TestCheckLimits_CustomPeriod_InsideCustomPeriod_Evaluated(t *testing.T) {
 	scopeKey := "acct:" + accountID.String()
 	periodKey := "custom" // CUSTOM limits use "custom" as period key
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3390,7 +3390,7 @@ func TestCheckLimits_CustomPeriod_Boundary_Start_Inclusive(t *testing.T) {
 	scopeKey := "acct:" + accountID.String()
 	periodKey := "custom"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3476,7 +3476,7 @@ func TestCheckLimits_CustomPeriod_Boundary_End_Exclusive(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3553,7 +3553,7 @@ func TestCheckLimits_CustomPeriod_BeforePeriod_Skipped(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3628,7 +3628,7 @@ func TestCheckLimits_CustomPeriod_AfterPeriod_Skipped(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3713,7 +3713,7 @@ func TestCheckLimits_CustomPeriod_TwoTransactionsSamePeriod_CounterAccumulates(t
 	// Setup expectations for BOTH CheckLimits calls
 
 	// First transaction List call
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3831,7 +3831,7 @@ func TestCheckLimits_CustomPeriod_MixedLimits_SomeSkipped(t *testing.T) {
 	scopeKey := "acct:" + accountID.String()
 	dailyPeriodKey := "2025-03-09" // DAILY uses date format
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -3941,7 +3941,7 @@ func TestCheckLimits_CustomPeriod_SkippedLimit_NoExceededFlag(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -4091,7 +4091,7 @@ func TestCheckLimits_CustomPeriod_TableDriven(t *testing.T) {
 			scopeKey := "acct:" + accountID.String()
 			periodKey := "custom"
 
-			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+			mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 				Status: &status,
 				Asset:  &asset,
 				Limit:  trcConstant.MaxPaginationLimit,
@@ -4185,7 +4185,7 @@ func TestCheckLimits_EvaluatedAt_Consistency(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -4274,7 +4274,7 @@ func TestCheckLimits_NoActiveLimits_HasEvaluatedAt(t *testing.T) {
 	asset := "USD"
 
 	// No active limits
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -4439,7 +4439,7 @@ func TestLimitCheckerService_CheckLimits_UsesProvidedDB(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -4506,7 +4506,7 @@ func TestLimitCheckerService_CheckLimits_PropagatesDB(t *testing.T) {
 	status := model.LimitStatusActive
 	asset := "USD"
 
-	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), gomock.Any(), &model.ListLimitsFilter{
 		Status: &status,
 		Asset:  &asset,
 		Limit:  trcConstant.MaxPaginationLimit,
@@ -4558,4 +4558,35 @@ func TestLimitCheckerService_CheckLimits_PropagatesDB(t *testing.T) {
 	assert.Equal(t, limitID1, output.LimitUsageDetails[0].LimitID)
 
 	assert.True(t, dbWasUsed, "CheckLimits should propagate db parameter to UpsertAndIncrementAtomic")
+}
+
+// TestCheckLimits_ReadsLimitsThroughCallerHandle verifies the applicable-limit
+// read uses the handle passed to CheckLimits. The validation transaction
+// already holds a connection; a pooled read beside it deadlocks the pool once
+// concurrent validations reach its size.
+func TestCheckLimits_ReadsLimitsThroughCallerHandle(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+	mockDB := dbmocks.NewMockDB(ctrl)
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), gomock.Any()).Times(0)
+	mockLimitRepo.EXPECT().ListWithTx(gomock.Any(), mockDB, gomock.Any()).Return(&model.ListLimitsResult{}, nil)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	output, err := checker.CheckLimits(setupTest(t), mockDB, &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Asset:                "USD",
+		AccountID:            testutil.MustDeterministicUUID(11021),
+		TransactionTimestamp: time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
 }

@@ -13,10 +13,11 @@ import (
 	context "context"
 	reflect "reflect"
 
-	model "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
+
+	db "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	model "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // MockLimitRepository is a mock of LimitRepository interface.
@@ -71,4 +72,19 @@ func (m *MockLimitRepository) List(ctx context.Context, filters *model.ListLimit
 func (mr *MockLimitRepositoryMockRecorder) List(ctx, filters any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockLimitRepository)(nil).List), ctx, filters)
+}
+
+// ListWithTx mocks base method.
+func (m *MockLimitRepository) ListWithTx(ctx context.Context, arg1 db.DB, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWithTx", ctx, arg1, filters)
+	ret0, _ := ret[0].(*model.ListLimitsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListWithTx indicates an expected call of ListWithTx.
+func (mr *MockLimitRepositoryMockRecorder) ListWithTx(ctx, arg1, filters any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWithTx", reflect.TypeOf((*MockLimitRepository)(nil).ListWithTx), ctx, arg1, filters)
 }

@@ -188,6 +188,24 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 
 // List retrieves limits with optional filters and cursor-based pagination.
 func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+	return r.listInternal(ctx, nil, filters)
+}
+
+// ListWithTx retrieves limits like List on the provided database handle. A
+// caller already holding a transaction passes it so the read reuses that
+// connection instead of waiting on the pool for a second one. The db handle
+// MUST be non-nil; passing nil returns pgdb.ErrNilConnection.
+func (r *LimitRepository) ListWithTx(ctx context.Context, db pgdb.DB, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
+	return r.listInternal(ctx, db, filters)
+}
+
+// listInternal executes the list query on db, resolving the pooled connection
+// when db is nil so the span covers GetDB failures.
+func (r *LimitRepository) listInternal(ctx context.Context, db pgdb.DB, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.limit.list")
@@ -209,10 +227,12 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		sortBy = model.DefaultLimitSortField
 	}
 
-	db, err := r.conn.GetDB(ctx)
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to get database connection", err)
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	if db == nil {
+		db, err = r.conn.GetDB(ctx)
+		if err != nil {
+			libOtel.HandleSpanError(span, "Failed to get database connection", err)
+			return nil, fmt.Errorf("failed to get database connection: %w", err)
+		}
 	}
 
 	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").

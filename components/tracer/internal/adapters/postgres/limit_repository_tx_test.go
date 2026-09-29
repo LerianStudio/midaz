@@ -395,3 +395,48 @@ func TestLimitRepository_UpdateStatusWithTx_NilDB(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, pgdb.ErrNilConnection, "nil db must surface as pgdb.ErrNilConnection")
 }
+
+// ============================================================================
+// ListWithTx
+// ============================================================================
+
+// TestLimitRepository_ListWithTx_UsesProvidedDB verifies the list query runs on
+// the caller's handle: the repository has no Connection, so any pooled lookup
+// would fail instead of reaching the mock.
+func TestLimitRepository_ListWithTx_UsesProvidedDB(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	repo, db, sqlMock, cleanup := setupLimitRepoWithSQLMock(t)
+	defer cleanup()
+
+	sqlMock.ExpectQuery(regexp.QuoteMeta("SELECT id, name, description, limit_type")).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	status := model.LimitStatusActive
+	asset := "BRL"
+
+	result, err := repo.ListWithTx(context.Background(), db, &model.ListLimitsFilter{Status: &status, Asset: &asset, Limit: 10})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Limits)
+	assert.False(t, result.HasMore)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestLimitRepository_ListWithTx_NilDB verifies that ListWithTx rejects a nil
+// db handle with pgdb.ErrNilConnection instead of resolving a pooled
+// connection.
+func TestLimitRepository_ListWithTx_NilDB(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	repo := &LimitRepository{tableName: "limits"}
+
+	result, err := repo.ListWithTx(context.Background(), nil, nil)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, pgdb.ErrNilConnection, "nil db must surface as pgdb.ErrNilConnection")
+}
