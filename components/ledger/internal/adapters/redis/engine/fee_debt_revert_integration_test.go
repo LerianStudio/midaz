@@ -108,8 +108,9 @@ func TestIntegrationFeeDebtRevertRefundsWhatWasSettled(t *testing.T) {
 		f.requireUnchanged(t, "fee_debt_conflict")
 	})
 
-	t.Run("a list older than its refunds holds the revert", func(t *testing.T) {
+	t.Run("a list older than its refunds holds the revert before any record lag", func(t *testing.T) {
 		f := newRefundFixture(t, container.Client, 100, 50)
+		f.input.Execution.Transactions[0].Postings[2].Refunds[0].ExpectedRefund = decimal.Zero
 		f.seedFeeDebts(t, "@source#default", 3, open, other)
 		f.requireUnchanged(t, "fee_debt_conflict")
 	})

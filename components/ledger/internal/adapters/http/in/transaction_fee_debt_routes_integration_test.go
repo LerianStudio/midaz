@@ -307,19 +307,39 @@ func (s *feeDebtRoutes) enableAtomicBatches(t *testing.T) {
 	s.handler.TransactionBatchMaxSize = 50
 }
 
-// TestFeeDebtSettlesInsideAnAtomicBatch credits the indebted payer from an atomic batch
-// item: the collect's creditor is no leg of the item, and the batch still settles the debt.
+// TestFeeDebtSettlesInsideAnAtomicBatch credits two debtors who owe the same fee account
+// from two items of one batch: the shared creditor is no leg of either item, and each
+// item collects only its own debtor's debt.
 func TestFeeDebtSettlesInsideAnAtomicBatch(t *testing.T) {
 	s := newFeeDebtRoutes(t, false)
 	s.enableAtomicBatches(t)
+	s.seedBalance(t, "@debt-p1", "BRL", decimal.NewFromInt(100), "deposit")
+	s.seedBalance(t, "@debt-p2", "BRL", decimal.NewFromInt(100), "deposit")
 
-	s.open(t)
-	credit := s.v2RoutedBody("fee debt batch credit", "BRL", "10", s.credit,
-		[]string{s.v2RoutedLeg("@debt-funder", "10", s.funder)}, []string{s.v2RoutedLeg("@debt-payer", "10", s.payer)})
-	created := s.post(t, s.app, s.v2CreatePath("batch"), `{"transactions":[{"action":"direct","order":1,`+strings.TrimPrefix(credit, "{")+`]}`,
+	// Each 50 fee finds 40 and 45 left after its transfer: p1 owes 10 and p2 owes 5.
+	s.transfer(t, s.origin, "@debt-p1", s.payer, "@debt-receiver", s.receiver, "60")
+	s.transfer(t, s.origin, "@debt-p2", s.payer, "@debt-receiver", s.receiver, "55")
+	assertLiveBalance(t, s.feeHarness, "@debt-fee", "default", "85")
+
+	credit := func(order, debtor, amount string) string {
+		body := s.v2RoutedBody("fee debt batch credit", "BRL", amount, s.credit,
+			[]string{s.v2RoutedLeg("@debt-funder", amount, s.funder)}, []string{s.v2RoutedLeg(debtor, amount, s.payer)})
+
+		return `{"action":"direct","order":` + order + `,` + strings.TrimPrefix(body, "{")
+	}
+	created := s.post(t, s.app, s.v2CreatePath("batch"), `{"transactions":[`+credit("1", "@debt-p1", "8")+`,`+credit("2", "@debt-p2", "7")+`]}`,
 		map[string]string{"X-Idempotency": uuid.NewString()})
 	require.Equalf(t, 201, created.status, "batch: %s", string(created.rawBody))
-	s.balances(t, "0", "80", "30", "990")
+
+	for alias, want := range map[string]string{"@debt-p1": "0", "@debt-p2": "2", "@debt-fee": "98", "@debt-funder": "985"} {
+		assertLiveBalance(t, s.feeHarness, alias, "default", want)
+	}
+
+	for debtor, want := range map[string]string{"@debt-p1#default": "2", "@debt-p2#default": "0"} {
+		open, err := s.commandUC.FeeDebts.(*fee_debt.Repository).OpenTotal(s.ctx(), s.orgID, s.ledgerID, debtor)
+		require.NoError(t, err)
+		assert.Truef(t, decimal.RequireFromString(want).Equal(open), "%s still owes %s, want %s", debtor, open, want)
+	}
 }
 
 // laggingFeeDebts answers the fee-debt record as it stood before any settlement.

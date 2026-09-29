@@ -216,11 +216,12 @@ end
 local function refundFeeDebts(step, postingIndex, posting, debtor)
     local list, transaction = feeDebtList(step, posting.balanceRef), step.transaction
     for _, entry in ipairs(posting.refunds) do
-        local refund = sub_decimal(entry.opened, step.canceled[entry.debtId] or "0")
         if not list.exists or cmp_decimal(entry.seq, list.value.nextSeq) >= 0 then
             feeDebtConflict("refund does not match its live list")
         end
-        if cmp_decimal(refund, entry.expectedRefund) ~= 0 then
+    end
+    for _, entry in ipairs(posting.refunds) do
+        if cmp_decimal(sub_decimal(entry.opened, step.canceled[entry.debtId] or "0"), entry.expectedRefund) ~= 0 then
             technical("fee_debt_record_pending", "refund does not match the debt's record")
         end
     end

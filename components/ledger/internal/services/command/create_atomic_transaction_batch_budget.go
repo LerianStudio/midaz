@@ -575,10 +575,10 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 }
 
 // atomicTransactionBatchOwnedBalances is what an item's execution may move: its
-// explicit balances plus the pooled balances its fee-debt refs name, which are
-// its debtors, their seeds' creditors and its revert's opening and settlement refs.
+// explicit balances, which hold its debtors, plus the pooled balances its debtors'
+// seeds name as creditors and its revert's opening and settlement refs.
 func atomicTransactionBatchOwnedBalances(item *atomicTransactionBatchItemRun) []*mmodel.Balance {
-	refs := appendMissingRefs(slices.Clone(item.feeDebtRefs.balances), item.feeDebtRefs.debtors)
+	refs := slices.Clone(item.feeDebtRefs.balances)
 	for _, debtor := range item.feeDebtRefs.debtors {
 		for _, seed := range item.prepared.pool.FeeDebtSeeds[debtor] {
 			refs = appendMissingRefs(refs, []string{seed.CreditRef})
