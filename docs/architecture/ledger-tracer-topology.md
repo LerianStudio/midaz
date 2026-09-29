@@ -284,13 +284,37 @@ as the REST client).
 | `TRACER_GRPC_PORT` | **empty by default** | gRPC seam server **not started** unless set | `tracer/config.go:49-54`, `initGRPCServer` returns `nil,nil` when empty `:1230-1232` |
 
 **Wire contract evolves additively.** `proto/reservation/v1` grows only by new field numbers —
-`ReserveAccount.type`, `ReserveRequest.metadata`, `ReserveResult.decision` / `reason` /
-`matched_rule_ids` — and the REST DTOs mirror them. `denied` remains the field every ledger gates on:
-a tracer that sends `decision` answers a `REVIEW` with `denied=true`, which a ledger that predates it
-reads as a denial, and a ledger reading an older tracer sees an empty `decision` and gates on `denied`
-alone. **Deploy the tracer before the ledger:** a tracer that predates free-form account types refuses a
-REST reserve whose `account.type` is outside its former fixed set, which an `enforce` ledger then
-rejects with `0532` (over gRPC the older tracer drops the unknown field instead).
+`ReserveAccount.type`, `ReserveRequest.metadata`, `ReserveRequest.revert` (field 13),
+`ReserveResult.decision` / `reason` / `matched_rule_ids` — and the REST DTOs mirror them. `denied`
+remains the field every ledger gates on: a tracer that sends `decision` answers a `REVIEW` with
+`denied=true`, which a ledger that predates it reads as a denial, and a ledger reading an older tracer
+sees an empty `decision` and gates on `denied` alone.
+
+**Deploy order is HARD: the tracer first, then the ledger, and no tracer rollback below this version
+while a ledger that sends the new fields is running.** Additive fields do not make the pair
+order-independent:
+
+- **REST:** a tracer that predates free-form account types refuses a reserve whose `account.type` is
+  outside its former fixed set (HTTP 400). The ledger classifies that as a refusal, so every such
+  transaction on an `enforce` ledger is rejected with `0532` whatever its `failPosture` — an outage for
+  ordinary traffic, not a degraded mode.
+- **gRPC:** the older tracer drops the unknown fields (`account.type`, `metadata`, `revert`) silently.
+  Nothing is refused, but account-type-scoped limits and rules never match, and a revert is not
+  recognised as one.
+
+A tenant whose rule cache the tracer has not loaded yet (a cold start, or a tenant first seen after
+boot) answers Unavailable — HTTP 503, gRPC `Unavailable` — rather than evaluating without its rules.
+So does a tenant that reached its per-tenant worker cap on the reservation seam: REST answers 503
+with `Retry-After`, gRPC answers `Unavailable` with code `0445`. The ledger routes both through
+`failPosture`: `open` proceeds with a SKIPPED audit, `closed` rejects with `0178`. Expect the cold
+cache window right after a tracer rollout, and size `failPosture` accordingly.
+
+**Tracer migration `000025` needs a maintenance window.** Widening the asset columns rewrites
+`transaction_validations` and rebuilds all of its indexes under an `ACCESS EXCLUSIVE` lock, so size
+the window by that table's row count: every read and write of validations blocks for the whole
+rewrite. Each `ALTER` runs with a 5-second lock timeout and fails fast with SQLSTATE `55P03` instead
+of queueing behind live traffic (where it would block every later query on the table). Both `ALTER`s
+are guarded on the column's current type, so a re-run in a quieter window is safe.
 
 **Ports.** The ledger serves everything on a single port, default `:3002` (`SERVER_ADDRESS`). The tracer
 serves REST/health on `:4020` (`SERVER_ADDRESS`); the reservation **gRPC seam listens on a separate
