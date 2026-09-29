@@ -22,6 +22,7 @@ import (
 
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -244,6 +245,50 @@ func TestFeeDebtSettlementRevertsOnARouteValidatingLedger(t *testing.T) {
 		row("DEBIT", "debit", "@debt-fee", "10", s.to, s.to.String()+"-RD"), row("CREDIT", "credit", "@debt-funder", "10", s.funder, rubric(s.funder, "credit")),
 	}, s.rows(t, s.revert(t, settling)), "the take-back books under the fee's credit route and its revert debit rubric")
 	s.balances(t, "0", "80", "20", "1000")
+
+	s.settle(t)
+	s.balances(t, "0", "80", "30", "990")
+}
+
+// TestFeeDebtSettlementGroupRevertsOnARouteValidatingLedger reverts a cross-ledger
+// group whose credit settled a debt on a route-validating ledger: the take-back is held
+// to none of the group's routes, the group reverts, and the debt reopens to settle again.
+func TestFeeDebtSettlementGroupRevertsOnARouteValidatingLedger(t *testing.T) {
+	s := newFeeDebtRoutes(t, true)
+	s.enableAtomicBatches(t)
+	s.commandUC.TransactionGroupRepo = transactiongroup.NewTransactionGroupPostgreSQLRepository(s.pgConn)
+
+	remote := s.withSecondLedger(t)
+	for _, ledgerID := range []uuid.UUID{s.ledgerID, remote.ledgerID} {
+		postgrestestutil.SetLedgerSettings(t, s.db, ledgerID, map[string]any{
+			"crossLedger": map[string]any{"enabled": true}, "accounting": map[string]any{"validateRoutes": true},
+		})
+	}
+
+	remote.seedBalance(t, "@debt-remote", "BRL", decimal.NewFromInt(1000), "deposit")
+	remote.seedBalance(t, "@external/BRL", "BRL", decimal.Zero, "external")
+	s.seedBalance(t, "@external/BRL", "BRL", decimal.Zero, "external")
+
+	group := postgrestestutil.CreateTestTransactionRouteSimple(t, s.db, s.orgID, s.ledgerID, "fee debt group credit")
+	source := remote.seedBidirectionalRoute(t, "remote", group)
+	postgrestestutil.CreateTestOperationTransactionRouteLink(t, s.db, s.payer, group)
+	bridge := postgrestestutil.CreateTestOperationRouteSimple(t, s.db, s.orgID, s.ledgerID, "bridge", "bidirectional")
+	_, err := s.db.Exec(`UPDATE operation_route SET accounting_entries=$1::jsonb WHERE id=$2`,
+		`{"crossLedger":{"debit":{"code":"X-D","description":"in"},"credit":{"code":"X-C","description":"out"}}}`, bridge)
+	require.NoError(t, err, "give the bridge route its crossLedger entry")
+	postgrestestutil.CreateTestOperationTransactionRouteLink(t, s.db, bridge, group)
+
+	s.open(t)
+	credited := s.createV2Direct(t, s.app, s.v2RoutedBody("fee debt group credit", "BRL", "10", group,
+		[]string{remote.v2RoutedLeg("@debt-remote", "10", source)}, []string{s.v2RoutedLeg("@debt-payer", "10", s.payer)}),
+		map[string]string{"X-Idempotency": uuid.NewString()})
+	settled := decodeCrossLedgerGroup(t, credited.status, credited.rawBody, 201)
+	s.balances(t, "0", "80", "30", "1000")
+
+	reverted := s.post(t, s.app, s.v2StatePath(groupMember(t, settled, s.ledgerID), "revert"), "", nil)
+	decodeCrossLedgerGroup(t, reverted.status, reverted.rawBody, 201)
+	s.balances(t, "0", "80", "20", "1000")
+	assertLiveBalance(t, remote, "@debt-remote", "default", "1000")
 
 	s.settle(t)
 	s.balances(t, "0", "80", "30", "990")
