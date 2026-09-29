@@ -101,6 +101,7 @@ func TestMetadataPatchBeforeLifecycleCompletes(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, stored)
 			assert.Equal(t, "added", stored.Data["client"], "the client's edit is kept")
+			assert.Equal(t, "frozen", stored.Data["origin"], "the create-time key is kept")
 		})
 	}
 }
