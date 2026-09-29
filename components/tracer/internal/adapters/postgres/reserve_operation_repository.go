@@ -115,6 +115,52 @@ func (r *ReserveOperationRepository) CompleteWithTx(ctx context.Context, tx pgdb
 	return state, true, nil
 }
 
+// ScheduleExpiryWithTx records when an OPEN operation expires. Admission calls
+// it once, under the operation lock and in the transaction that stores the
+// decision; an operation that is not OPEN or already has an expiry is refused.
+func (r *ReserveOperationRepository) ScheduleExpiryWithTx(ctx context.Context, tx pgdb.Tx, identity model.ReserveOperationIdentity, expiresAt time.Time) (retErr error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.schedule_reserve_operation_expiry")
+	defer span.End()
+	defer func() { recordReserveDecisionRepositoryError(span, retErr) }()
+
+	if tx == nil {
+		return pgdb.ErrNilConnection
+	}
+
+	if err := identity.Validate(); err != nil {
+		return err
+	}
+
+	if expiresAt.IsZero() {
+		return constant.ErrInvalidRequestBody
+	}
+
+	result, err := tx.ExecContext(ctx, `UPDATE reserve_operations SET expires_at=$3
+		WHERE integration_id=$1 AND transaction_id=$2 AND status='OPEN' AND expires_at IS NULL`, identity.IntegrationID, identity.TransactionID, expiresAt.UTC())
+	if err != nil {
+		return fmt.Errorf("schedule reserve operation expiry: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("schedule reserve operation expiry: %w", err)
+	}
+
+	if affected != 1 {
+		return constant.ErrInternalServer
+	}
+
+	logging.WithTrace(ctx, logger).Log(ctx, libLog.LevelDebug, "Reserve operation expiry scheduled in transaction")
+
+	return nil
+}
+
 func scanReserveOperation(row *sql.Row) (*model.ReserveOperationState, error) {
 	var (
 		state model.ReserveOperationState

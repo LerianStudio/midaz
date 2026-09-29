@@ -14,7 +14,8 @@ import (
 )
 
 // ReservationReaperRepository is the narrow read surface the TTL reaper
-// consumes: it locates the outstanding RESERVED rows that have passed their TTL.
+// consumes: it locates the outstanding RESERVED rows that have passed their TTL,
+// and the OPEN operations past their TTL that hold none.
 // The rows expire through their owning operation (ReserveOperationExpirer), so
 // the repository writes nothing.
 type ReservationReaperRepository interface {
@@ -27,6 +28,13 @@ type ReservationReaperRepository interface {
 	// sweeps. An empty slice (not an error) means there is nothing to reap from
 	// that position.
 	FindExpiredReservations(ctx context.Context, now time.Time, after *model.ReservationExpiryPosition, limit int) ([]model.ExpiredReservation, error)
+
+	// FindExpiredOperations returns at most limit OPEN operations whose
+	// expires_at is strictly before now and that hold no RESERVED
+	// reservation, ordered by (expiry, integration, transaction). These are
+	// the operations FindExpiredReservations can never reach. A non-nil after
+	// resumes strictly past that position; nil starts from the oldest expiry.
+	FindExpiredOperations(ctx context.Context, now time.Time, after *model.OperationExpiryPosition, limit int) ([]model.ExpiredOperation, error)
 }
 
 // ReserveOperationExpirer closes a decision-owned operation as EXPIRED, returns

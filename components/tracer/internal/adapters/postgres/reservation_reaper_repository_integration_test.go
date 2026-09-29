@@ -8,6 +8,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -202,4 +203,128 @@ func TestIntegrationReaperFailingOperationDoesNotStarveNewerExpiries(t *testing.
 	}
 	status, _ = readOperationState(t, db, model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: failing.TransactionID})
 	require.NotEqual(t, string(model.OperationExpired), status)
+}
+
+func readOperationExpiry(t *testing.T, db *sql.DB, key model.ReserveOperationIdentity) sql.NullTime {
+	t.Helper()
+	var expiresAt sql.NullTime
+	require.NoError(t, db.QueryRowContext(t.Context(), "SELECT expires_at FROM reserve_operations WHERE integration_id=$1 AND transaction_id=$2", key.IntegrationID, key.TransactionID).Scan(&expiresAt))
+	return expiresAt
+}
+
+// TestIntegrationReaperExpiresOperationWithoutReservations admits operations
+// that hold no reservation (an ALLOW that no limit applies to, and a DENY whose
+// capacity was rolled back), proves each records its TTL, stays OPEN before it,
+// and expires past it with exactly one audit event; a later sweep writes no
+// second event and a late confirm conflicts, as for an operation that held
+// capacity.
+func TestIntegrationReaperExpiresOperationWithoutReservations(t *testing.T) {
+	for name, scenario := range map[string]struct {
+		limit     string
+		longLived bool
+		decision  tracercontract.Decision
+	}{
+		"allow without applicable limit": {decision: tracercontract.DecisionAllow},
+		"deny over the limit":            {limit: "1", decision: tracercontract.DecisionDeny},
+		"long-lived allow":               {longLived: true, decision: tracercontract.DecisionAllow},
+	} {
+		t.Run(name, func(t *testing.T) {
+			db := completionDatabase(t, name)
+			conn := &testutil.IntegrationDBAdapter{DB: db}
+			admittedAt := testutil.FixedTime()
+			lifetime, longLifetime := time.Second, time.Hour
+			admission, _, r := admissionFixtureWithLifetime(t, db, conn, admittedAt, true, 10, lifetime, longLifetime)
+			r.ValidationMode = tracercontract.ValidationLimits
+			r.LongLived = &scenario.longLived
+			if scenario.limit != "" {
+				admissionLimit(t, db, r, 77901, scenario.limit)
+			}
+			ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+			defer cancel()
+
+			admitted, err := admission.Execute(ctx, r)
+			require.NoError(t, err)
+			require.Equal(t, scenario.decision, admitted.Decision)
+			require.Empty(t, admitted.ReservationIDs)
+
+			key := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: r.TransactionID}
+			ttl := lifetime
+			if scenario.longLived {
+				ttl = longLifetime
+			}
+			expiresAt := readOperationExpiry(t, db, key)
+			require.True(t, expiresAt.Valid)
+			require.Equal(t, admittedAt.Add(ttl), expiresAt.Time.UTC(), "the operation takes the TTL its reservations would")
+
+			repo := NewReservationReaperRepository(conn)
+			expire := expireCommand(t, db)
+			sweep := func(at time.Time) int {
+				t.Helper()
+				reaper, err := workers.NewReservationReaperWorkerWithPoolResolver(repo, expire,
+					workers.ReservationReaperWorkerConfig{ReapInterval: time.Second, BatchSize: workers.DefaultReservationReaperBatchSize}, testutil.NewMockLogger(), clock.NewFixedClock(at), "", nil)
+				require.NoError(t, err)
+				released, err := reaper.RunOnce(ctx)
+				require.NoError(t, err)
+				return released
+			}
+
+			require.Zero(t, sweep(admittedAt.Add(ttl)), "the expiry is exclusive")
+			status, _ := readOperationState(t, db, key)
+			require.Equal(t, string(model.OperationOpen), status)
+			require.Empty(t, operationEvents(t, db, r.TransactionID, model.AuditEventOperationExpired))
+
+			sweptAt := admittedAt.Add(ttl + time.Second)
+			require.Zero(t, sweep(sweptAt), "an operation without reservations moves no capacity")
+			status, completedAt := readOperationState(t, db, key)
+			require.Equal(t, string(model.OperationExpired), status)
+			require.Equal(t, sweptAt, completedAt.Time.UTC())
+			require.Equal(t, admittedAt.Add(ttl), readOperationExpiry(t, db, key).Time.UTC(), "expiry is kept through the transition")
+
+			ids := operationEvents(t, db, r.TransactionID, model.AuditEventOperationExpired)
+			require.Len(t, ids, 1)
+			audit := NewAuditEventRepositoryWithConnection(conn)
+			event, err := audit.GetByID(ctx, ids[0])
+			require.NoError(t, err)
+			require.Equal(t, admitted.EvaluationID.String(), event.Context["evaluationId"])
+			valid, err := audit.VerifyHashChain(ctx, ids[0])
+			require.NoError(t, err)
+			require.True(t, valid.IsValid)
+
+			require.Zero(t, sweep(sweptAt.Add(time.Minute)))
+			require.Len(t, operationEvents(t, db, r.TransactionID, model.AuditEventOperationExpired), 1, "a later sweep writes no second event")
+
+			completion, _, _ := completionCommand(t, db, true)
+			state, err := completion.Execute(ctx, r.TransactionID, model.OperationConfirmed)
+			require.ErrorIs(t, err, constant.ErrReserveOperationConflict)
+			require.Nil(t, state)
+		})
+	}
+}
+
+// TestIntegrationOperationExpiryIsScheduledOnce pins the guard on the expiry
+// column: admission records it once, a second schedule is refused, and neither
+// an OPEN nor a terminal operation may change it afterwards.
+func TestIntegrationOperationExpiryIsScheduledOnce(t *testing.T) {
+	db := completionDatabase(t)
+	conn := &testutil.IntegrationDBAdapter{DB: db}
+	admittedAt := testutil.FixedTime()
+	admission, _, r := admissionFixtureWithLifetime(t, db, conn, admittedAt, true, 10, time.Minute, time.Hour)
+	r.ValidationMode = tracercontract.ValidationLimits
+	ctx, cancel := context.WithTimeout(completionContext(t.Context(), "producer"), 10*time.Second)
+	defer cancel()
+	_, err := admission.Execute(ctx, r)
+	require.NoError(t, err)
+	key := model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: r.TransactionID}
+
+	err = inRealTx(t, db, func(tx *sql.Tx) error {
+		return NewReserveOperationRepository().ScheduleExpiryWithTx(ctx, tx, key, admittedAt.Add(time.Hour))
+	})
+	require.ErrorIs(t, err, constant.ErrInternalServer, "an operation already carrying an expiry is not rescheduled")
+
+	_, err = db.ExecContext(ctx, "UPDATE reserve_operations SET expires_at = expires_at + interval '1 hour' WHERE transaction_id=$1", r.TransactionID)
+	require.ErrorContains(t, err, "reserve operation transition conflicts with recorded outcome")
+
+	_, err = db.ExecContext(ctx, "UPDATE reserve_operations SET status='RELEASED', completed_at=NOW(), expires_at=NULL WHERE transaction_id=$1", r.TransactionID)
+	require.ErrorContains(t, err, "reserve operation transition conflicts with recorded outcome")
+	require.Equal(t, admittedAt.Add(time.Minute), readOperationExpiry(t, db, key).Time.UTC())
 }

@@ -106,3 +106,22 @@ type ReservationExpiryPosition struct {
 	ExpiresAt time.Time
 	ID        uuid.UUID
 }
+
+// ExpiredOperation locates an OPEN operation past its TTL that holds no
+// RESERVED row, so no reservation sweep would ever reach it.
+type ExpiredOperation struct {
+	ExpiresAt time.Time
+	Operation ReserveOperationIdentity
+}
+
+// Position returns the sweep position this operation occupies.
+func (e ExpiredOperation) Position() OperationExpiryPosition {
+	return OperationExpiryPosition(e)
+}
+
+// OperationExpiryPosition orders OPEN operations by (expiry, integration,
+// transaction) so a TTL sweep can resume strictly after one it already read.
+type OperationExpiryPosition struct {
+	ExpiresAt time.Time
+	Operation ReserveOperationIdentity
+}

@@ -30,6 +30,9 @@ type ReserveAdmissionDecisions interface {
 // ReserveAdmissionOperations locks the operation before any capacity or audit.
 type ReserveAdmissionOperations interface {
 	LockWithTx(context.Context, pgdb.Tx, model.ReserveOperationIdentity) (*model.ReserveOperationState, error)
+	// ScheduleExpiryWithTx records the TTL of the locked OPEN operation, so an
+	// operation that holds no capacity still expires.
+	ScheduleExpiryWithTx(context.Context, pgdb.Tx, model.ReserveOperationIdentity, time.Time) error
 }
 
 // ReserveAdmissionCapacity must share the legacy account lock namespace.

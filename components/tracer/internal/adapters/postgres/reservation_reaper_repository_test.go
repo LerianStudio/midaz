@@ -192,3 +192,95 @@ func TestReservationReaperRepository_FindExpiredReservations(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestReservationReaperRepository_FindExpiredOperations(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(-time.Minute)
+	columns := []string{"integration_id", "transaction_id", "expires_at"}
+
+	const findExpired = `SELECT o.integration_id, o.transaction_id, o.expires_at FROM reserve_operations AS o WHERE o.status = 'OPEN' AND o.expires_at < \$1 AND NOT EXISTS \(SELECT 1 FROM reserve_decisions AS d JOIN usage_reservations AS r ON r.decision_id = d.evaluation_id AND r.transaction_id = d.transaction_id WHERE d.integration_id = o.integration_id AND d.transaction_id = o.transaction_id AND r.status = 'RESERVED'\)`
+
+	t.Run("Success - returns open operations without reservations past their expiry", func(t *testing.T) {
+		reaper, mock, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		transaction := testutil.MustDeterministicUUID(7101)
+
+		mock.ExpectQuery(findExpired + ` ORDER BY o.expires_at, o.integration_id, o.transaction_id LIMIT 7`).
+			WithArgs(now.UTC()).
+			WillReturnRows(sqlmock.NewRows(columns).AddRow("producer", transaction, expiresAt))
+
+		expired, err := reaper.FindExpiredOperations(context.Background(), now, nil, 7)
+		require.NoError(t, err)
+		require.Equal(t, []model.ExpiredOperation{{ExpiresAt: expiresAt, Operation: model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: transaction}}}, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Success - a resume position reads strictly past it", func(t *testing.T) {
+		reaper, mock, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		after := model.OperationExpiryPosition{ExpiresAt: expiresAt, Operation: model.ReserveOperationIdentity{IntegrationID: "producer", TransactionID: testutil.MustDeterministicUUID(7102)}}
+
+		mock.ExpectQuery(`AND \(o.expires_at, o.integration_id, o.transaction_id\) > \(\$2, \$3, \$4\) ORDER BY o.expires_at, o.integration_id, o.transaction_id LIMIT 7`).
+			WithArgs(now.UTC(), after.ExpiresAt, after.Operation.IntegrationID, after.Operation.TransactionID).
+			WillReturnRows(sqlmock.NewRows(columns))
+
+		expired, err := reaper.FindExpiredOperations(context.Background(), now, &after, 7)
+		require.NoError(t, err)
+		assert.Empty(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error - non-positive limit is rejected before the query", func(t *testing.T) {
+		reaper, mock, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		expired, err := reaper.FindExpiredOperations(context.Background(), now, nil, 0)
+		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+		assert.Nil(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error - query fails", func(t *testing.T) {
+		reaper, mock, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		mock.ExpectQuery(findExpired).WillReturnError(errors.New("connection reset"))
+
+		expired, err := reaper.FindExpiredOperations(context.Background(), now, nil, 100)
+		require.ErrorContains(t, err, "failed to query expired operations")
+		assert.Nil(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error - scan fails on malformed transaction", func(t *testing.T) {
+		reaper, mock, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		mock.ExpectQuery(findExpired).
+			WithArgs(now.UTC()).
+			WillReturnRows(sqlmock.NewRows(columns).AddRow("producer", "not-a-uuid", expiresAt))
+
+		expired, err := reaper.FindExpiredOperations(context.Background(), now, nil, 100)
+		require.ErrorContains(t, err, "failed to scan expired operation")
+		assert.Nil(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error - iteration fails", func(t *testing.T) {
+		reaper, mock, cleanup := setupReaperRepo(t)
+		defer cleanup()
+
+		mock.ExpectQuery(findExpired).
+			WithArgs(now.UTC()).
+			WillReturnRows(sqlmock.NewRows(columns).AddRow("producer", testutil.MustDeterministicUUID(7103), expiresAt).RowError(0, errors.New("connection reset")))
+
+		expired, err := reaper.FindExpiredOperations(context.Background(), now, nil, 100)
+		require.ErrorContains(t, err, "failed to iterate expired operations")
+		assert.Nil(t, expired)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

@@ -90,6 +90,9 @@ type ReservationReaperWorker struct {
 	// page, so rows that keep failing to expire cannot hold the head of the
 	// expiry order. nil starts from the oldest expiry.
 	resumeAfter *model.ReservationExpiryPosition
+	// resumeOperationsAfter is resumeAfter for the operations that hold no
+	// reservation, which are walked in their own expiry order.
+	resumeOperationsAfter *model.OperationExpiryPosition
 }
 
 // NewReservationReaperWorkerWithPoolResolver creates a reservation reaper
@@ -251,17 +254,21 @@ func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
 }
 
 // RunOnce executes a single reap sweep: find the expired RESERVED reservations
-// and expire each owning operation once through the expirer. Returns the number
-// of reservations the expirer moved. At most config.BatchSize reservations are
-// read; the rest stay expired for the next sweep.
+// and the expired OPEN operations that hold none, and expire each operation
+// once through the expirer. Returns the number of reservations the expirer
+// moved; an operation without reservations expires and audits without moving
+// any. At most config.BatchSize reservations and config.BatchSize operations
+// without reservations are read; the rest stay expired for the next sweep.
 //
 // Sweeps walk the expiry order (expiry, id) page by page. After a full page the
 // next sweep resumes past its last row, whatever the page's outcome; a short
 // page, or an empty page past the resume position, returns the walk to the
 // oldest expiry. An operation that fails on every sweep is therefore retried
 // once per pass instead of holding every sweep's head, so newer rows behind it
-// still expire. An operation that fails to expire does not stop the others; the
-// failures are returned together so the cycle is logged as failed.
+// still expire. Operations without reservations are paged the same way over
+// their own position. A failed operation read or an operation that fails to
+// expire does not stop the others; the failures are returned together so the
+// cycle is logged as failed.
 func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
@@ -288,12 +295,19 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 		w.resumeAfter = &position
 	}
 
-	if len(expired) == 0 {
-		return 0, nil
+	var findErr error
+
+	unheld, err := w.findOperationPage(ctx, now)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to find expired operations", err)
+
+		findErr = fmt.Errorf("failed to find expired operations: %w", err)
 	}
 
-	operations := make([]model.ReserveOperationIdentity, 0, len(expired))
-	seen := make(map[model.ReserveOperationIdentity]struct{}, len(expired))
+	w.advanceOperations(unheld, err)
+
+	operations := make([]model.ReserveOperationIdentity, 0, len(expired)+len(unheld))
+	seen := make(map[model.ReserveOperationIdentity]struct{}, len(expired)+len(unheld))
 
 	for _, reservation := range expired {
 		if _, ok := seen[reservation.Operation]; !ok {
@@ -302,9 +316,20 @@ func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
 		}
 	}
 
+	for _, operation := range unheld {
+		if _, ok := seen[operation.Operation]; !ok {
+			seen[operation.Operation] = struct{}{}
+			operations = append(operations, operation.Operation)
+		}
+	}
+
+	if len(operations) == 0 {
+		return 0, findErr
+	}
+
 	released, err := w.expireOperations(ctx, span, operations, now)
-	if err != nil {
-		return released, err
+	if err != nil || findErr != nil {
+		return released, errors.Join(findErr, err)
 	}
 
 	logger.With(
@@ -326,6 +351,31 @@ func (w *ReservationReaperWorker) findPage(ctx context.Context, now time.Time) (
 	}
 
 	return w.repo.FindExpiredReservations(ctx, now, nil, w.config.BatchSize)
+}
+
+// findOperationPage is findPage for the operations that hold no reservation.
+func (w *ReservationReaperWorker) findOperationPage(ctx context.Context, now time.Time) ([]model.ExpiredOperation, error) {
+	expired, err := w.repo.FindExpiredOperations(ctx, now, w.resumeOperationsAfter, w.config.BatchSize)
+	if err != nil || len(expired) > 0 || w.resumeOperationsAfter == nil {
+		return expired, err
+	}
+
+	return w.repo.FindExpiredOperations(ctx, now, nil, w.config.BatchSize)
+}
+
+// advanceOperations moves the operation walk past a full page and back to the
+// oldest expiry after a short one, keeping the position when the read failed.
+func (w *ReservationReaperWorker) advanceOperations(page []model.ExpiredOperation, err error) {
+	if err != nil {
+		return
+	}
+
+	w.resumeOperationsAfter = nil
+
+	if len(page) == w.config.BatchSize {
+		position := page[len(page)-1].Position()
+		w.resumeOperationsAfter = &position
+	}
 }
 
 // expireOperations expires each owning operation once and counts the

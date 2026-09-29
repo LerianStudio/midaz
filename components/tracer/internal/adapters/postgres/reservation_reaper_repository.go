@@ -130,3 +130,88 @@ func (r *ReservationReaperRepository) FindExpiredReservations(
 
 	return expired, nil
 }
+
+// FindExpiredOperations returns at most limit OPEN operations whose expires_at
+// is strictly before now and whose decision holds no RESERVED reservation,
+// ordered by (expiry, integration, transaction) and strictly after the after
+// position when one is given. An operation that still holds a reservation is
+// left to FindExpiredReservations, so the two sweeps never select the same
+// operation. The status is a literal so a generic plan can still prove the
+// idx_reserve_operations_expiry partial index's predicate.
+func (r *ReservationReaperRepository) FindExpiredOperations(
+	ctx context.Context,
+	now time.Time,
+	after *model.OperationExpiryPosition,
+	limit int,
+) ([]model.ExpiredOperation, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.reservation_reaper.find_expired_operations")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	if limit <= 0 {
+		return nil, fmt.Errorf("expired operations limit must be positive: %w", constant.ErrInvalidRequestBody)
+	}
+
+	db, err := r.conn.GetDB(ctx)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to resolve database connection", err)
+		return nil, fmt.Errorf("failed to resolve database connection: %w", err)
+	}
+
+	query := sq.Select("o.integration_id", "o.transaction_id", "o.expires_at").
+		From("reserve_operations AS o").
+		Where("o.status = '" + string(model.OperationOpen) + "'").
+		Where(sq.Lt{"o.expires_at": now.UTC()}).
+		Where("NOT EXISTS (SELECT 1 FROM reserve_decisions AS d JOIN " + usageReservationsTable + " AS r" +
+			" ON r.decision_id = d.evaluation_id AND r.transaction_id = d.transaction_id" +
+			" WHERE d.integration_id = o.integration_id AND d.transaction_id = o.transaction_id" +
+			" AND r.status = '" + string(model.StatusReserved) + "')")
+
+	if after != nil {
+		query = query.Where(sq.Expr("(o.expires_at, o.integration_id, o.transaction_id) > (?, ?, ?)",
+			after.ExpiresAt.UTC(), after.Operation.IntegrationID, after.Operation.TransactionID))
+	}
+
+	statement, args, err := query.
+		OrderBy("o.expires_at", "o.integration_id", "o.transaction_id").
+		Limit(uint64(limit)).
+		PlaceholderFormat(sq.Dollar).ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to build expired operations query", err)
+		return nil, fmt.Errorf("failed to build expired operations query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, statement, args...)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to query expired operations", err)
+		return nil, fmt.Errorf("failed to query expired operations: %w", err)
+	}
+	defer rows.Close()
+
+	var expired []model.ExpiredOperation
+
+	for rows.Next() {
+		var item model.ExpiredOperation
+
+		if err := rows.Scan(&item.Operation.IntegrationID, &item.Operation.TransactionID, &item.ExpiresAt); err != nil {
+			libOtel.HandleSpanError(span, "Failed to scan expired operation", err)
+			return nil, fmt.Errorf("failed to scan expired operation: %w", err)
+		}
+
+		item.ExpiresAt = item.ExpiresAt.UTC()
+
+		expired = append(expired, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOtel.HandleSpanError(span, "Failed to iterate expired operations", err)
+		return nil, fmt.Errorf("failed to iterate expired operations: %w", err)
+	}
+
+	logger.With(libLog.Int("count", len(expired))).Log(ctx, libLog.LevelDebug, "Found expired operations")
+
+	return expired, nil
+}

@@ -273,6 +273,12 @@ func (c *ReserveAdmissionCommand) admit(ctx context.Context, tx pgdb.Tx, r trace
 		return nil, err
 	}
 
+	// The operation expires with the same TTL as any capacity it holds, so a
+	// decision that reserved nothing is not left OPEN forever.
+	if err := c.deps.Operations.ScheduleExpiryWithTx(ctx, tx, key.Identity(), d.CreatedAt.Add(c.lifetime(r))); err != nil {
+		return nil, err
+	}
+
 	if err := c.audit(ctx, tx, d); err != nil {
 		return nil, err
 	}

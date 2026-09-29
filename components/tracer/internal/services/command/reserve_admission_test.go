@@ -41,7 +41,7 @@ func admissionUnitRequest() tracercontract.ReserveRequest {
 
 func TestReserveAdmissionTransactionFailures(t *testing.T) {
 	failure := errors.New("injected admission failure")
-	for _, stage := range []string{"success", "read", "begin", "lock", "second read", "account lock", "limits", "create", "audit", "commit", "past", "future"} {
+	for _, stage := range []string{"success", "read", "begin", "lock", "second read", "account lock", "limits", "create", "schedule expiry", "audit", "commit", "past", "future"} {
 		t.Run(stage, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			decisions := mocks.NewMockReserveAdmissionDecisions(ctrl)
@@ -92,6 +92,10 @@ func TestReserveAdmissionTransactionFailures(t *testing.T) {
 										return stepErr("create")
 									}))
 									if stage != "create" {
+										// A decision that reserved nothing still expires, with the direct TTL.
+										calls = append(calls, operations.EXPECT().ScheduleExpiryWithTx(gomock.Any(), tx, key.Identity(), testutil.FixedTime().Add(time.Hour)).Return(stepErr("schedule expiry")))
+									}
+									if stage != "create" && stage != "schedule expiry" {
 										calls = append(calls, audit.EXPECT().InsertWithTx(gomock.Any(), tx, gomock.Any()).DoAndReturn(func(_ context.Context, _ pgdb.DB, e *model.AuditEvent) error {
 											require.Equal(t, model.ResourceTypeReserveOperation, e.ResourceType)
 											require.Equal(t, model.AuditResultAllow, e.Result)
@@ -173,6 +177,7 @@ func TestReserveAdmissionCandidateCodesFollowTheAssetCodeRule(t *testing.T) {
 				return []model.ContextAccountLimit{}, nil
 			})
 			decisions.EXPECT().CreateWithTx(gomock.Any(), tx, gomock.Any()).Return(nil)
+			operations.EXPECT().ScheduleExpiryWithTx(gomock.Any(), tx, gomock.Any(), gomock.Any()).Return(nil)
 			audit.EXPECT().InsertWithTx(gomock.Any(), tx, gomock.Any()).Return(nil)
 			tx.EXPECT().Commit().Return(nil)
 			got, err := c.Execute(completionAuth(t.Context()), request)
@@ -234,6 +239,7 @@ func TestReserveAdmissionReplayConflictsOnceTheOperationExpired(t *testing.T) {
 			created = d
 			return nil
 		})
+		operations.EXPECT().ScheduleExpiryWithTx(gomock.Any(), tx, key.Identity(), gomock.Any()).Return(nil)
 		audit.EXPECT().InsertWithTx(gomock.Any(), tx, gomock.Any()).Return(nil)
 		tx.EXPECT().Commit().Return(nil)
 		_, err = c.Execute(completionAuth(t.Context()), request)

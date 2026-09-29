@@ -42,6 +42,21 @@ func (m *MockReservationReaperRepository) EXPECT() *MockReservationReaperReposit
 	return m.recorder
 }
 
+// FindExpiredOperations mocks base method.
+func (m *MockReservationReaperRepository) FindExpiredOperations(ctx context.Context, now time.Time, after *model.OperationExpiryPosition, limit int) ([]model.ExpiredOperation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindExpiredOperations", ctx, now, after, limit)
+	ret0, _ := ret[0].([]model.ExpiredOperation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindExpiredOperations indicates an expected call of FindExpiredOperations.
+func (mr *MockReservationReaperRepositoryMockRecorder) FindExpiredOperations(ctx, now, after, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindExpiredOperations", reflect.TypeOf((*MockReservationReaperRepository)(nil).FindExpiredOperations), ctx, now, after, limit)
+}
+
 // FindExpiredReservations mocks base method.
 func (m *MockReservationReaperRepository) FindExpiredReservations(ctx context.Context, now time.Time, after *model.ReservationExpiryPosition, limit int) ([]model.ExpiredReservation, error) {
 	m.ctrl.T.Helper()

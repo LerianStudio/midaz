@@ -325,6 +325,8 @@ func TestInitWorkers_SingleTenantReaperExpiresThroughTheOperationExpirer(t *test
 	sqlMock.ExpectQuery(`SELECT r.id, r.reservation_expires_at, d.integration_id, d.transaction_id FROM usage_reservations AS r`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reservation_expires_at", "integration_id", "transaction_id"}).
 			AddRow(testutil.MustDeterministicUUID(96002), testutil.FixedTime(), operation.IntegrationID, operation.TransactionID))
+	sqlMock.ExpectQuery(`SELECT o.integration_id, o.transaction_id, o.expires_at FROM reserve_operations AS o`).
+		WillReturnRows(sqlmock.NewRows([]string{"integration_id", "transaction_id", "expires_at"}))
 
 	cfg := &Config{ReservationReaperEnabled: true, ReservationReaperIntervalSeconds: "5"}
 
