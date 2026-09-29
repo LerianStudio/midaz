@@ -9,17 +9,15 @@ import (
 	"maps"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
-
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // flattenLegacyFeeExemption rewrites a feeExemption stored as an object to the JSON
-// string the fee engine writes, so an older record builds a flat plan. Any other value,
-// or one that cannot be encoded, is left for the flat-metadata check to judge.
-func flattenLegacyFeeExemption(input mtransaction.Transaction) mtransaction.Transaction {
+// string the fee engine writes, so records made before that contract stay flat. Any
+// other value, or one that cannot be encoded, is left for the flat-metadata check.
+func flattenLegacyFeeExemption(metadata map[string]any) map[string]any {
 	var exemption map[string]any
 
-	switch value := input.Metadata["feeExemption"].(type) {
+	switch value := metadata["feeExemption"].(type) {
 	case map[string]any:
 		exemption = value
 	case bson.D:
@@ -28,16 +26,16 @@ func flattenLegacyFeeExemption(input mtransaction.Transaction) mtransaction.Tran
 			exemption[element.Key] = element.Value
 		}
 	default:
-		return input
+		return metadata
 	}
 
 	encoded, err := json.Marshal(exemption)
 	if err != nil {
-		return input
+		return metadata
 	}
 
-	input.Metadata = maps.Clone(input.Metadata)
-	input.Metadata["feeExemption"] = string(encoded)
+	flat := maps.Clone(metadata)
+	flat["feeExemption"] = string(encoded)
 
-	return input
+	return flat
 }

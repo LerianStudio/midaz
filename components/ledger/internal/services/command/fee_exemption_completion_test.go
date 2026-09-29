@@ -215,3 +215,29 @@ func TestLegacyFeeExemptionDocumentCompletesPendingCommit(t *testing.T) {
 	require.Len(t, store.records, 1)
 	assert.Equal(t, legacy, metadata.data[key].Data)
 }
+
+// TestNestedFeeExemptionPlanCompletes completes a plan frozen before the string
+// contract, whose feeExemption is an object: the Mongo record holds the string form.
+func TestNestedFeeExemptionPlanCompletes(t *testing.T) {
+	payload, result := recoveryContractFixture(t)
+	payload.TransactionInput.Metadata = map[string]any{"feeExemption": map[string]any{"exempt": true, "reason": "all_source_accounts_exempt"}}
+	var err error
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+	frozen, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	envelope := TransactionCompletionRecord{
+		FormatVersion: TransactionCompletionFormatVersion, TenantID: payload.TenantID, OrganizationID: payload.OrganizationID,
+		LedgerID: payload.LedgerID, TransactionID: payload.TransactionID, ExecutionID: payload.ExecutionID, IntentFingerprint: payload.IntentFingerprint,
+		Payload: string(frozen), Result: result,
+	}
+	ctx, _ := finalizationFixture(t)
+	finalizer, store, metadata, _ := finalizationDependencies()
+
+	require.NoError(t, completionError(finalizer.Complete(ctx, &envelope)))
+	require.Len(t, store.records, 1)
+	stored := metadata.data[constant.EntityTransaction+":"+payload.TransactionID.String()]
+	require.NotNil(t, stored)
+	assert.Equal(t, mongodb.JSON{"feeExemption": `{"exempt":true,"reason":"all_source_accounts_exempt"}`}, stored.Data)
+}
