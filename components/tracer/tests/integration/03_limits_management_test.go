@@ -347,7 +347,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidAsset(t *testing.T) {
 		Name:      "Invalid Asset Limit",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Asset:     "INVALID", // Not ISO 4217
+		Asset:     "BR1", // Asset codes are letters only
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
 

@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,47 +91,46 @@ func TestSafeIntToInt32(t *testing.T) {
 	}
 }
 
-func TestIsValidCurrency(t *testing.T) {
+func TestIsValidAssetCode(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		currency string
+		code     string
 		expected bool
 	}{
-		// Valid ISO 4217 currencies
+		// ISO 4217 codes remain valid asset codes.
 		{"valid USD", "USD", true},
 		{"valid BRL", "BRL", true},
 		{"valid EUR", "EUR", true},
-		{"valid GBP", "GBP", true},
-		{"valid JPY", "JPY", true},
 
-		// Invalid - not real ISO 4217 codes
-		{"formatted but not ISO 4217", "XYZ", false},
-		{"formatted but not ISO 4217 AAA", "AAA", false},
+		// Non-ISO asset codes the ledger accepts.
+		{"crypto BTC", "BTC", true},
+		{"stablecoin USDT", "USDT", true},
+		{"loyalty POINTS", "POINTS", true},
+		{"formatted but not ISO 4217", "XYZ", true},
+		{"single letter", "U", true},
+		{"two letters", "US", true},
+		{"exactly 100 letters", strings.Repeat("A", 100), true},
 
-		// Invalid - wrong length
+		// Invalid - length
 		{"empty string", "", false},
-		{"single char", "U", false},
-		{"two chars", "US", false},
-		{"four chars", "USDD", false},
-		{"five chars", "USDDD", false},
+		{"101 letters", strings.Repeat("A", 101), false},
 
-		// Invalid - lowercase (ISO 4217 requires uppercase)
+		// Invalid - lowercase
 		{"lowercase", "usd", false},
 		{"mixed case lower first", "uSD", false},
-		{"mixed case middle", "UsD", false},
 		{"mixed case last", "USd", false},
 
-		// Invalid - numbers
+		// Invalid - digits
 		{"all numbers", "123", false},
-		{"numbers mixed", "US1", false},
-		{"numbers at start", "1SD", false},
+		{"digit at end", "BR1", false},
+		{"digit at start", "1SD", false},
 
 		// Invalid - special characters
 		{"with space", "US ", false},
-		{"with hyphen", "US-", false},
-		{"with underscore", "US_", false},
+		{"with hyphen", "US-D", false},
+		{"with underscore", "US_D", false},
 		{"with dollar sign", "US$", false},
 		{"with period", "US.", false},
 
@@ -149,9 +149,7 @@ func TestIsValidCurrency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := IsValidCurrency(tt.currency)
-
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, IsValidAssetCode(tt.code))
 		})
 	}
 }

@@ -2475,7 +2475,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
 			Title:      "Limit Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset must be 1 to 100 uppercase letters.",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,
@@ -2673,7 +2673,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidCurrency.Error(),
 			Title:      "Check Limits Invalid Asset",
-			Message:    "Check limits asset must be valid ISO 4217.",
+			Message:    "Check limits asset must be 1 to 100 uppercase letters.",
 		},
 		constant.ErrCheckLimitsUnknownLimitType: ValidationError{
 			EntityType: entityType,
@@ -2775,7 +2775,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidCurrency.Error(),
 			Title:      "Validation Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset must be 1 to 100 uppercase letters.",
 		},
 		constant.ErrValidationTimestampRequired: ValidationError{
 			EntityType: entityType,
@@ -2829,13 +2829,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidAccountType.Error(),
 			Title:      "Validation Invalid Account Type",
-			Message:    "Account.type must be checking, savings, or credit.",
+			Message:    "Account.type must be at most 256 characters.",
 		},
 		constant.ErrValidationInvalidAccountStatus: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidAccountStatus.Error(),
 			Title:      "Validation Invalid Account Status",
-			Message:    "Account.status must be active, suspended, or closed.",
+			Message:    "Account.status must be at most 50 characters.",
 		},
 		constant.ErrValidationInvalidMerchantCategory: ValidationError{
 			EntityType: entityType,
