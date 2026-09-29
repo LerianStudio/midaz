@@ -25,13 +25,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ReserveAccount is the account scope the tracer matches limits against. It
-// mirrors the ledger-side ReserveAccount: only the account id is carried; an
-// empty value parses to the nil UUID, which the relaxed reserve validation
-// accepts (external-only source).
+// ReserveAccount is the account scope the tracer matches limits and rules
+// against. It mirrors the ledger-side ReserveAccount. An empty account_id parses
+// to the nil UUID, which the relaxed reserve validation accepts (external-only
+// source).
 type ReserveAccount struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	AccountId string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// type is the caller's account type, free-form (ledger Account.Type). Optional.
+	Type          string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -73,6 +75,13 @@ func (x *ReserveAccount) GetAccountId() string {
 	return ""
 }
 
+func (x *ReserveAccount) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
 // ReserveRequest is the gRPC form of the reserve body. It mirrors the ledger's
 // ReserveRequest field-for-field. amount is a decimal-as-string (NEVER a
 // double); transaction_timestamp is an RFC3339 string.
@@ -89,12 +98,18 @@ type ReserveRequest struct {
 	MerchantId  string          `protobuf:"bytes,8,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
 	// transaction_type is optional on reserve; the ledger leaves it empty.
 	TransactionType string `protobuf:"bytes,9,opt,name=transaction_type,json=transactionType,proto3" json:"transaction_type,omitempty"`
-	// transaction_timestamp is RFC3339; the tracer enforces a not-future /
-	// not-too-far-past window against its injected clock.
+	// transaction_timestamp is RFC3339; the tracer rejects a future timestamp
+	// against its injected clock.
 	TransactionTimestamp string `protobuf:"bytes,10,opt,name=transaction_timestamp,json=transactionTimestamp,proto3" json:"transaction_timestamp,omitempty"`
 	// long_lived hints the tracer to assign a long-lived reservation lifetime to
 	// a PENDING-transaction reservation.
-	LongLived     bool `protobuf:"varint,11,opt,name=long_lived,json=longLived,proto3" json:"long_lived,omitempty"`
+	LongLived bool `protobuf:"varint,11,opt,name=long_lived,json=longLived,proto3" json:"long_lived,omitempty"`
+	// metadata is the caller's flat transaction metadata. Keys ^[a-zA-Z0-9_]+$,
+	// <=64 chars, <=50 entries. Optional.
+	Metadata map[string]string `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// revert marks the reservation as the revert of an applied transaction. The
+	// tracer skips rule evaluation for it and still reserves limit capacity.
+	Revert        bool `protobuf:"varint,13,opt,name=revert,proto3" json:"revert,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -206,15 +221,38 @@ func (x *ReserveRequest) GetLongLived() bool {
 	return false
 }
 
+func (x *ReserveRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ReserveRequest) GetRevert() bool {
+	if x != nil {
+		return x.Revert
+	}
+	return false
+}
+
 // ReserveResult is the handle returned by a successful reserve. denied is the
-// limit-exceeded decision (no capacity held, reservation_ids empty). Otherwise
-// reservation_ids holds one id per counter-backed limit the ledger must later
-// confirm or release.
+// refusal flag every client reads: when true no capacity is held and
+// reservation_ids is empty. Otherwise reservation_ids holds one id per
+// counter-backed limit the ledger must later confirm or release. decision
+// refines denied without replacing it, so a client that ignores decision keeps
+// its behavior.
 type ReserveResult struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	TransactionId  string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
 	Denied         bool                   `protobuf:"varint,2,opt,name=denied,proto3" json:"denied,omitempty"`
 	ReservationIds []string               `protobuf:"bytes,3,rep,name=reservation_ids,json=reservationIds,proto3" json:"reservation_ids,omitempty"`
+	// decision is ALLOW, DENY or REVIEW. denied is true for DENY and REVIEW.
+	Decision string `protobuf:"bytes,4,opt,name=decision,proto3" json:"decision,omitempty"`
+	// reason is a short machine/human hint: "limit_exceeded" or the rule
+	// evaluator's reason. Empty on ALLOW.
+	Reason string `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	// matched_rule_ids lists the rules that produced a DENY or REVIEW decision.
+	MatchedRuleIds []string `protobuf:"bytes,6,rep,name=matched_rule_ids,json=matchedRuleIds,proto3" json:"matched_rule_ids,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -266,6 +304,27 @@ func (x *ReserveResult) GetDenied() bool {
 func (x *ReserveResult) GetReservationIds() []string {
 	if x != nil {
 		return x.ReservationIds
+	}
+	return nil
+}
+
+func (x *ReserveResult) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+func (x *ReserveResult) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ReserveResult) GetMatchedRuleIds() []string {
+	if x != nil {
+		return x.MatchedRuleIds
 	}
 	return nil
 }
@@ -602,10 +661,11 @@ var File_reservation_v1_reservation_proto protoreflect.FileDescriptor
 
 const file_reservation_v1_reservation_proto_rawDesc = "" +
 	"\n" +
-	" reservation/v1/reservation.proto\x12\x1blerian.midaz.reservation.v1\"/\n" +
+	" reservation/v1/reservation.proto\x12\x1blerian.midaz.reservation.v1\"C\n" +
 	"\x0eReserveAccount\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xad\x03\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"\xd9\x04\n" +
 	"\x0eReserveRequest\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
 	"\n" +
@@ -622,11 +682,19 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	"\x15transaction_timestamp\x18\n" +
 	" \x01(\tR\x14transactionTimestamp\x12\x1d\n" +
 	"\n" +
-	"long_lived\x18\v \x01(\bR\tlongLived\"w\n" +
+	"long_lived\x18\v \x01(\bR\tlongLived\x12U\n" +
+	"\bmetadata\x18\f \x03(\v29.lerian.midaz.reservation.v1.ReserveRequest.MetadataEntryR\bmetadata\x12\x16\n" +
+	"\x06revert\x18\r \x01(\bR\x06revert\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd5\x01\n" +
 	"\rReserveResult\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x16\n" +
 	"\x06denied\x18\x02 \x01(\bR\x06denied\x12'\n" +
-	"\x0freservation_ids\x18\x03 \x03(\tR\x0ereservationIds\"D\n" +
+	"\x0freservation_ids\x18\x03 \x03(\tR\x0ereservationIds\x12\x1a\n" +
+	"\bdecision\x18\x04 \x01(\tR\bdecision\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\x12(\n" +
+	"\x10matched_rule_ids\x18\x06 \x03(\tR\x0ematchedRuleIds\"D\n" +
 	"\x1bConfirmByTransactionRequest\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\"D\n" +
 	"\x1bReleaseByTransactionRequest\x12%\n" +
@@ -659,7 +727,7 @@ func file_reservation_v1_reservation_proto_rawDescGZIP() []byte {
 	return file_reservation_v1_reservation_proto_rawDescData
 }
 
-var file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_reservation_v1_reservation_proto_goTypes = []any{
 	(*ReserveAccount)(nil),               // 0: lerian.midaz.reservation.v1.ReserveAccount
 	(*ReserveRequest)(nil),               // 1: lerian.midaz.reservation.v1.ReserveRequest
@@ -672,24 +740,26 @@ var file_reservation_v1_reservation_proto_goTypes = []any{
 	(*ReleaseByTransactionResponse)(nil), // 8: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
 	(*ConfirmByIdResponse)(nil),          // 9: lerian.midaz.reservation.v1.ConfirmByIdResponse
 	(*ReleaseByIdResponse)(nil),          // 10: lerian.midaz.reservation.v1.ReleaseByIdResponse
+	nil,                                  // 11: lerian.midaz.reservation.v1.ReserveRequest.MetadataEntry
 }
 var file_reservation_v1_reservation_proto_depIdxs = []int32{
 	0,  // 0: lerian.midaz.reservation.v1.ReserveRequest.account:type_name -> lerian.midaz.reservation.v1.ReserveAccount
-	1,  // 1: lerian.midaz.reservation.v1.ReservationService.Reserve:input_type -> lerian.midaz.reservation.v1.ReserveRequest
-	3,  // 2: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:input_type -> lerian.midaz.reservation.v1.ConfirmByTransactionRequest
-	4,  // 3: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:input_type -> lerian.midaz.reservation.v1.ReleaseByTransactionRequest
-	5,  // 4: lerian.midaz.reservation.v1.ReservationService.ConfirmById:input_type -> lerian.midaz.reservation.v1.ConfirmByIdRequest
-	6,  // 5: lerian.midaz.reservation.v1.ReservationService.ReleaseById:input_type -> lerian.midaz.reservation.v1.ReleaseByIdRequest
-	2,  // 6: lerian.midaz.reservation.v1.ReservationService.Reserve:output_type -> lerian.midaz.reservation.v1.ReserveResult
-	7,  // 7: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:output_type -> lerian.midaz.reservation.v1.ConfirmByTransactionResponse
-	8,  // 8: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:output_type -> lerian.midaz.reservation.v1.ReleaseByTransactionResponse
-	9,  // 9: lerian.midaz.reservation.v1.ReservationService.ConfirmById:output_type -> lerian.midaz.reservation.v1.ConfirmByIdResponse
-	10, // 10: lerian.midaz.reservation.v1.ReservationService.ReleaseById:output_type -> lerian.midaz.reservation.v1.ReleaseByIdResponse
-	6,  // [6:11] is the sub-list for method output_type
-	1,  // [1:6] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	11, // 1: lerian.midaz.reservation.v1.ReserveRequest.metadata:type_name -> lerian.midaz.reservation.v1.ReserveRequest.MetadataEntry
+	1,  // 2: lerian.midaz.reservation.v1.ReservationService.Reserve:input_type -> lerian.midaz.reservation.v1.ReserveRequest
+	3,  // 3: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:input_type -> lerian.midaz.reservation.v1.ConfirmByTransactionRequest
+	4,  // 4: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:input_type -> lerian.midaz.reservation.v1.ReleaseByTransactionRequest
+	5,  // 5: lerian.midaz.reservation.v1.ReservationService.ConfirmById:input_type -> lerian.midaz.reservation.v1.ConfirmByIdRequest
+	6,  // 6: lerian.midaz.reservation.v1.ReservationService.ReleaseById:input_type -> lerian.midaz.reservation.v1.ReleaseByIdRequest
+	2,  // 7: lerian.midaz.reservation.v1.ReservationService.Reserve:output_type -> lerian.midaz.reservation.v1.ReserveResult
+	7,  // 8: lerian.midaz.reservation.v1.ReservationService.ConfirmByTransaction:output_type -> lerian.midaz.reservation.v1.ConfirmByTransactionResponse
+	8,  // 9: lerian.midaz.reservation.v1.ReservationService.ReleaseByTransaction:output_type -> lerian.midaz.reservation.v1.ReleaseByTransactionResponse
+	9,  // 10: lerian.midaz.reservation.v1.ReservationService.ConfirmById:output_type -> lerian.midaz.reservation.v1.ConfirmByIdResponse
+	10, // 11: lerian.midaz.reservation.v1.ReservationService.ReleaseById:output_type -> lerian.midaz.reservation.v1.ReleaseByIdResponse
+	7,  // [7:12] is the sub-list for method output_type
+	2,  // [2:7] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_reservation_v1_reservation_proto_init() }
@@ -703,7 +773,7 @@ func file_reservation_v1_reservation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reservation_v1_reservation_proto_rawDesc), len(file_reservation_v1_reservation_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

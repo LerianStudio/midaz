@@ -44,9 +44,11 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 			item.transactionID,
 			item.input.Send.Value,
 			item.input.Send.Asset,
-			firstSourceAccountID(item.validate.Sources, item.prepared.pool.ExplicitBalances),
+			firstSourceAccount(item.validate.Sources, item.prepared.pool.ExplicitBalances),
+			item.input.Metadata,
 			item.transactionDate,
 			reservationTTLForStatus(item.status),
+			reservationPurposeForAction(item.action),
 			item.honoredTracerSkip,
 		)
 		if reservation.Kind == reservationReject {

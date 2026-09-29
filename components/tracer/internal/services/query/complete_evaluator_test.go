@@ -428,3 +428,26 @@ func TestCompleteEvaluator_EvaluateAll_NilRuleSkipped(t *testing.T) {
 	assert.Empty(t, result.DenyRuleIDs, "no deny rules")
 	assert.Empty(t, result.ReviewRuleIDs, "no review rules")
 }
+
+func TestCompleteEvaluator_EvaluateAll_AttributesTheFailingRule(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	failingRuleID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	failingRule := &model.Rule{ID: failingRuleID, Expression: "amount > 'x'", Action: model.DecisionDeny}
+	request := &model.ValidationRequest{RequestID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")}
+	cause := errors.New("no such overload")
+
+	mockEval := NewMockSingleRuleEvaluator(ctrl)
+	mockEval.EXPECT().Evaluate(gomock.Any(), failingRule, request).Return(false, cause)
+
+	evaluator, err := NewCompleteEvaluator(mockEval)
+	require.NoError(t, err)
+
+	_, err = evaluator.EvaluateAll(context.Background(), []*model.Rule{failingRule}, request)
+	require.ErrorIs(t, err, cause)
+
+	var ruleErr *RuleEvaluationError
+	require.ErrorAs(t, err, &ruleErr)
+	assert.Equal(t, failingRuleID, ruleErr.RuleID)
+	assert.Contains(t, err.Error(), failingRuleID.String())
+}

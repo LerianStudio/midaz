@@ -402,9 +402,11 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	transactionDate := time.Date(2026, time.September, 8, 13, 45, 0, 0, time.UTC)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-v2")
 	ctx = libObservability.ContextWithHeaderID(ctx, "request-v2")
+	input := createEngineTransaction(transactionDate)
+	input.Metadata = map[string]any{"channel": "app"}
 	got, replayed, err := uc.CreateTransactionV2(ctx, CreateTransactionV2Input{
 		OrganizationID: organizationID, LedgerID: ledgerID,
-		Transaction: createEngineTransaction(transactionDate), TransactionStatus: constant.CREATED,
+		Transaction: input, TransactionStatus: constant.CREATED,
 		IdempotencyTTL: time.Minute, AccountBlockExceptionID: &exceptionID,
 	})
 	require.NoError(t, err)
@@ -412,6 +414,13 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, 1, feeApplier.calls)
 	assert.Equal(t, 1, reserver.reserveCalls)
+	requests := reserver.reserveRequests()
+	require.Len(t, requests, 1)
+	assert.Equal(t, tracer.ReserveAccount{AccountID: source.AccountID, Type: "deposit"}, requests[0].Account,
+		"the reserve carries the source account id and its type")
+	assert.Equal(t, map[string]string{"channel": "app"}, requests[0].Metadata,
+		"the reserve carries the transaction metadata")
+	assert.False(t, requests[0].Revert, "a create is not a revert")
 	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
 	assert.Empty(t, reserver.releasedIDs)
 	require.Len(t, executor.requests, 1)

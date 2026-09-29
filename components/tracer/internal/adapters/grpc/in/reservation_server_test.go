@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(3)
 	reservationID := testutil.MustDeterministicUUID(4)
 
-	t.Run("allow maps proto to the same CheckLimitsInput and returns reservation ids", func(t *testing.T) {
+	t.Run("allow maps proto to the same limit input and returns reservation ids", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		svc := mocks.NewMockReservationService(ctrl)
 		clk := testutil.NewMockClock(now)
@@ -76,10 +77,14 @@ func TestReservationServer_Reserve(t *testing.T) {
 		expected := expectedInput(now, requestID, accountID)
 
 		svc.EXPECT().
-			Reserve(gomock.Any(), transactionID, gomock.Any(), false).
-			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotInput *model.CheckLimitsInput, _ bool) (*services.ReserveResult, error) {
-				// The gRPC server must hand the use case the SAME CheckLimitsInput
-				// the REST path produces (no fork).
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
+			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotReq *model.ValidationRequest, _ services.ReserveOptions) (*services.ReserveResult, error) {
+				// The gRPC server must hand the use case the validation request whose
+				// limit input is the SAME one the REST path produces (no fork).
+				require.NotNil(t, gotReq)
+				require.Equal(t, requestID, gotReq.RequestID)
+
+				gotInput := gotReq.ToCheckLimitsInput()
 				require.True(t, gotInput.Amount.Equal(expected.Amount))
 				require.Equal(t, expected.Asset, gotInput.Asset)
 				require.Equal(t, expected.AccountID, gotInput.AccountID)
@@ -105,7 +110,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 		clk := testutil.NewMockClock(now)
 
 		svc.EXPECT().
-			Reserve(gomock.Any(), transactionID, gomock.Any(), false).
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
 			Return(&services.ReserveResult{Denied: true}, nil)
 
 		server, err := NewReservationServer(svc, clk)
@@ -123,7 +128,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 		clk := testutil.NewMockClock(now)
 
 		svc.EXPECT().
-			Reserve(gomock.Any(), transactionID, gomock.Any(), true).
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{LongLived: true}).
 			Return(&services.ReserveResult{}, nil)
 
 		server, err := NewReservationServer(svc, clk)
@@ -134,6 +139,42 @@ func TestReservationServer_Reserve(t *testing.T) {
 
 		_, err = server.Reserve(context.Background(), req)
 		require.NoError(t, err)
+	})
+
+	t.Run("revert hint is forwarded to the use case", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{Revert: true}).
+			Return(&services.ReserveResult{}, nil)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.Revert = true
+
+		_, err = server.Reserve(context.Background(), req)
+		require.NoError(t, err)
+	})
+
+	t.Run("rule cache not ready is Unavailable", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
+			Return(nil, fmt.Errorf("rule evaluation failed: %w", constant.ErrRuleCacheNotReady))
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		_, err = server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+		require.Equal(t, codes.Unavailable, status.Code(err))
+		require.Equal(t, constant.ErrRuleCacheNotReady.Error(), status.Convert(err).Message())
 	})
 
 	t.Run("invalid transaction id is InvalidArgument", func(t *testing.T) {
@@ -285,4 +326,169 @@ func expectedInput(now time.Time, requestID, accountID uuid.UUID) *model.CheckLi
 	}
 
 	return req.ToCheckLimitsInput()
+}
+
+func TestReservationServer_Reserve_Decision(t *testing.T) {
+	now := testutil.FixedTime()
+	transactionID := testutil.MustDeterministicUUID(1)
+	requestID := testutil.MustDeterministicUUID(2)
+	accountID := testutil.MustDeterministicUUID(3)
+	ruleID := testutil.MustDeterministicUUID(5)
+
+	tests := []struct {
+		name            string
+		serviceResult   *services.ReserveResult
+		wantDenied      bool
+		wantDecision    string
+		wantReason      string
+		wantMatchedRule []string
+	}{
+		{
+			name:          "allow without a service decision falls back to ALLOW",
+			serviceResult: &services.ReserveResult{},
+			wantDecision:  string(model.DecisionAllow),
+		},
+		{
+			name:          "denied without a service decision falls back to DENY",
+			serviceResult: &services.ReserveResult{Denied: true},
+			wantDenied:    true,
+			wantDecision:  string(model.DecisionDeny),
+		},
+		{
+			name: "service decision, reason and matched rules are carried verbatim",
+			serviceResult: &services.ReserveResult{
+				Denied:         true,
+				Decision:       model.DecisionReview,
+				Reason:         "manual review required",
+				MatchedRuleIDs: []uuid.UUID{ruleID},
+			},
+			wantDenied:      true,
+			wantDecision:    string(model.DecisionReview),
+			wantReason:      "manual review required",
+			wantMatchedRule: []string{ruleID.String()},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			svc := mocks.NewMockReservationService(ctrl)
+
+			svc.EXPECT().
+				Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
+				Return(tt.serviceResult, nil)
+
+			server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+			require.NoError(t, err)
+
+			result, err := server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+			require.NoError(t, err)
+			require.Equal(t, tt.wantDenied, result.GetDenied())
+			require.Equal(t, tt.wantDecision, result.GetDecision())
+			require.NotEmpty(t, result.GetDecision())
+			require.Equal(t, tt.wantReason, result.GetReason())
+			require.Equal(t, tt.wantMatchedRule, result.GetMatchedRuleIds())
+		})
+	}
+}
+
+func TestReservationServer_ToValidationRequest_AccountTypeAndMetadata(t *testing.T) {
+	now := testutil.FixedTime()
+	transactionID := testutil.MustDeterministicUUID(1)
+	requestID := testutil.MustDeterministicUUID(2)
+	accountID := testutil.MustDeterministicUUID(3)
+
+	ctrl := gomock.NewController(t)
+	server, err := NewReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewMockClock(now))
+	require.NoError(t, err)
+
+	t.Run("account type and metadata reach the validation request", func(t *testing.T) {
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.Account.Type = "deposit"
+		req.Metadata = map[string]string{"channel": "app"}
+
+		validationReq, err := server.toValidationRequest(req)
+		require.NoError(t, err)
+		require.Equal(t, accountID, validationReq.Account.ID)
+		require.Equal(t, "deposit", validationReq.Account.Type)
+		require.Equal(t, map[string]any{"channel": "app"}, validationReq.Metadata)
+	})
+
+	t.Run("empty metadata stays nil", func(t *testing.T) {
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.Metadata = map[string]string{}
+
+		validationReq, err := server.toValidationRequest(req)
+		require.NoError(t, err)
+		require.Nil(t, validationReq.Metadata)
+	})
+
+	t.Run("account type without an account id is carried", func(t *testing.T) {
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.Account = &reservationv1.ReserveAccount{Type: "deposit"}
+
+		validationReq, err := server.toValidationRequest(req)
+		require.NoError(t, err)
+		require.Equal(t, uuid.Nil, validationReq.Account.ID)
+		require.Equal(t, "deposit", validationReq.Account.Type)
+	})
+}
+
+func TestReservationServer_Reserve_ForwardsRuleContext(t *testing.T) {
+	now := testutil.FixedTime()
+	transactionID := testutil.MustDeterministicUUID(1)
+	requestID := testutil.MustDeterministicUUID(2)
+	accountID := testutil.MustDeterministicUUID(3)
+	ruleID := testutil.MustDeterministicUUID(5)
+
+	ctrl := gomock.NewController(t)
+	svc := mocks.NewMockReservationService(ctrl)
+
+	svc.EXPECT().
+		Reserve(gomock.Any(), transactionID, gomock.Cond(func(req *model.ValidationRequest) bool {
+			return req != nil &&
+				req.Account.Type == "deposit" &&
+				req.Metadata["channel"] == "app"
+		}), services.ReserveOptions{}).
+		Return(&services.ReserveResult{
+			Denied:         true,
+			Decision:       model.DecisionDeny,
+			Reason:         "blocked by rule",
+			MatchedRuleIDs: []uuid.UUID{ruleID},
+		}, nil)
+
+	server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+	require.NoError(t, err)
+
+	req := newReserveRequest(now, transactionID, requestID, accountID)
+	req.Account.Type = "deposit"
+	req.Metadata = map[string]string{"channel": "app"}
+
+	result, err := server.Reserve(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, result.GetDenied())
+	require.Equal(t, string(model.DecisionDeny), result.GetDecision())
+	require.Equal(t, "blocked by rule", result.GetReason())
+	require.Equal(t, []string{ruleID.String()}, result.GetMatchedRuleIds())
+	require.Empty(t, result.GetReservationIds())
+}
+
+func TestReservationServer_Reserve_InvalidMetadataKey(t *testing.T) {
+	now := testutil.FixedTime()
+	transactionID := testutil.MustDeterministicUUID(1)
+	requestID := testutil.MustDeterministicUUID(2)
+	accountID := testutil.MustDeterministicUUID(3)
+
+	ctrl := gomock.NewController(t)
+	svc := mocks.NewMockReservationService(ctrl)
+
+	server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+	require.NoError(t, err)
+
+	req := newReserveRequest(now, transactionID, requestID, accountID)
+	req.Metadata = map[string]string{"bad-key": "value"}
+
+	_, err = server.Reserve(context.Background(), req)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, status.Convert(err).Message(), constant.ErrMetadataKeyInvalidChars.Error())
 }

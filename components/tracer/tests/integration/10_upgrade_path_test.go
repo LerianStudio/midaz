@@ -50,8 +50,8 @@ const legacyHeadVersion = 12
 const legacyFixtureRoot = "testdata/legacy_dual_runner"
 
 // headVersion is the expected final schema_migrations.version after applying
-// the HEAD migrations (unified single-runner, 000001..000023).
-const headVersion = 23
+// the HEAD migrations (unified single-runner, 000001..000025).
+const headVersion = 25
 
 // legacyFixtureManifestSHA256 pins the manifest for the immutable historical
 // migration fixture under testdata/legacy_dual_runner. The SQL files were
@@ -99,14 +99,14 @@ func TestUpgradePath_FromDevelopToHead(t *testing.T) {
 // the renumbered HEAD migrations:
 //
 //   - 3  — only legacy 1-3 applied (initial_schema, convert_cents,
-//     draft_audit_enums). HEAD replays files 4..16, which re-executes
+//     draft_audit_enums). HEAD replays files 4..25, which re-executes
 //     the entire renumbered initial_schema + convert_cents path. Proves
 //     the CREATE TYPE and ALTER ... TYPE DECIMAL guards added to
 //     HEAD 000004 and 000005 hold.
-//   - 7  — legacy 1-7 applied; HEAD replays 8..16. Exercises the ADD
+//   - 7  — legacy 1-7 applied; HEAD replays 8..25. Exercises the ADD
 //     CONSTRAINT idempotency guards in HEAD 000010 (renumbered from
 //     legacy 000007_add_limit_period_columns).
-//   - 11 — legacy 1-11 applied; HEAD replays 12..16. Close to the head of
+//   - 11 — legacy 1-11 applied; HEAD replays 12..25. Close to the head of
 //     develop, catches issues isolated to the very last renumbers.
 //   - 12 — full develop → HEAD. Covered by TestUpgradePath_FromDevelopToHead
 //     and redundantly here for a single authoritative matrix.

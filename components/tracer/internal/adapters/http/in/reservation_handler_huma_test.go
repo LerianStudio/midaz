@@ -51,7 +51,7 @@ type reservationSpyService struct {
 	byTxErr       error
 }
 
-func (s *reservationSpyService) Reserve(ctx context.Context, transactionID uuid.UUID, _ *model.CheckLimitsInput, _ bool) (*services.ReserveResult, error) {
+func (s *reservationSpyService) Reserve(ctx context.Context, transactionID uuid.UUID, _ *model.ValidationRequest, _ services.ReserveOptions) (*services.ReserveResult, error) {
 	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
 	s.capturedTxID = transactionID
 	return s.reserveResult, s.reserveErr

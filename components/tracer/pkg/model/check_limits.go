@@ -87,7 +87,7 @@ func (i *CheckLimitsInput) validate(requireAccount bool) error {
 		return constant.ErrCheckLimitsInvalidAmount
 	}
 
-	if !pkg.IsValidCurrency(i.Asset) {
+	if !pkg.IsValidAssetCode(i.Asset) {
 		return constant.ErrCheckLimitsInvalidCurrency
 	}
 

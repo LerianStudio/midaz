@@ -55,7 +55,7 @@ released on the single unified Midaz version.
 
 Every transaction submitted to Tracer contains:
 - **Request ID** - Unique identifier for idempotency
-- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), currency, timestamp
+- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), asset, timestamp
 - **Account context** - Account ID, type, status (required)
 - **Optional contexts** - Segment, portfolio, merchant information
 - **Metadata** - Custom key-value pairs for business rules
@@ -143,6 +143,30 @@ Every validation creates an immutable audit record:
 1. **DENY** - Rule violation or limit exceeded → Transaction rejected
 2. **REVIEW** - Suspicious activity detected → Manual review required
 3. **ALLOW** - All checks passed → Transaction approved
+
+### Reserve Path (Midaz ledger seam)
+
+The Midaz ledger reserves limit capacity before its balance commit (gRPC, or `POST /v1/reservations`
+over REST). The reserve evaluates the same CEL rules before any limit, with three differences from
+`POST /v1/validations`:
+
+- **Only a matched rule refuses.** A matched `DENY` or `REVIEW` refuses the reserve with no limit
+  counter touched. When no rule matches, `DEFAULT_DECISION_WHEN_NO_MATCH` is ignored and the
+  reserve continues to the limits.
+- **A rule evaluation error is a refusal.** A rule that cannot be evaluated for the transaction
+  answers `decision=REVIEW`, `reason=rule_evaluation_error`. Infrastructure failures stay errors,
+  and a tenant whose rule cache is not loaded yet, or that reached its per-tenant worker cap on
+  the reservation seam, answers Unavailable (HTTP 503 with `Retry-After` / gRPC `Unavailable`,
+  code `0445` for the cap). Every rule-evaluation class — syntax or compile, program build, cost
+  estimation, runtime — counts as an evaluation error.
+- **A revert skips the rules.** A reserve with `revert=true` evaluates no rule and still reserves
+  its limits.
+
+The ledger sends metadata values as strings, so a rule meant for ledger traffic compares strings
+(`metadata["tier"] == "1"`, not `== 1`). The asset follows the ledger's asset-code grammar: 1 to
+100 uppercase Unicode letters. Deploy the tracer before the ledger, and do not roll it back below
+this contract while such a ledger runs: an older tracer refuses a REST reserve with a free-form
+`account.type`. See `docs/tracer/INVARIANTS.md` and `docs/api/SCOPING.md` at the repository root.
 
 ---
 
@@ -384,7 +408,7 @@ curl -X POST http://localhost:4020/v1/validations \
     "requestId": "123e4567-e89b-12d3-a456-426614174000",
     "transactionType": "CARD",
     "amount": "15000.00",
-    "currency": "USD",
+    "asset": "USD",
     "transactionTimestamp": "2026-01-28T10:30:00Z",
     "account": {
       "accountId": "223e4567-e89b-12d3-a456-426614174001"
@@ -551,7 +575,7 @@ X-API-Key: your-api-key
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
   "transactionType": "CARD",
   "amount": "5000.00",
-  "currency": "USD",
+  "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
     "accountId": "223e4567-e89b-12d3-a456-426614174001"
@@ -571,12 +595,12 @@ X-API-Key: your-api-key
   "transactionType": "CARD",
   "subType": "debit",
   "amount": "5000.00",
-  "currency": "USD",
+  "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
     "accountId": "223e4567-e89b-12d3-a456-426614174001",
-    "type": "checking",
-    "status": "active",
+    "type": "deposit",
+    "status": "ACTIVE",
     "metadata": {
       "customer_tier": "gold"
     }
@@ -605,8 +629,9 @@ X-API-Key: your-api-key
 **Notes:**
 - `amount` is a decimal string value. Example: $5,000.00 = "5000.00"
 - `transactionType` must be one of: `CARD`, `WIRE`, `PIX`, `CRYPTO`
-- `account.type` values: `checking`, `savings`, `credit`
-- `account.status` values: `active`, `suspended`, `closed`
+- `asset` is an asset code of 1 to 100 uppercase Unicode letters, the Midaz ledger's own asset-code grammar (`USD`, `BRL`, `BTC`, a points or token code)
+- `account.type` is free-form, at most 256 characters, and reaches CEL verbatim (the Midaz ledger sends its own account type)
+- `account.status` is free-form, at most 50 characters, and reaches CEL verbatim
 - `merchant.category` is 4-digit MCC code (ISO 18245)
 - `merchant.country` is 2-letter ISO 3166-1 alpha-2 code
 

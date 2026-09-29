@@ -129,12 +129,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 		},
 		{
-			name: "error - invalid asset (not 3 chars)",
+			name: "error - invalid asset (longer than 100 letters)",
 			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"asset":     "BR",
+				"asset":     strings.Repeat("B", 101),
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},

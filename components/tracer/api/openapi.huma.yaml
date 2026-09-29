@@ -13,11 +13,11 @@ components:
           type: object
         status:
           examples:
-            - active
+            - ACTIVE
           type: string
         type:
           examples:
-            - checking
+            - deposit
           type: string
       required:
         - accountId
@@ -691,10 +691,25 @@ components:
     ReserveResponse:
       additionalProperties: false
       properties:
+        decision:
+          examples:
+            - ALLOW
+          type: string
         denied:
           examples:
             - false
           type: boolean
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        reason:
+          examples:
+            - limit_exceeded
+          type: string
         reservationIds:
           items:
             format: uuid
@@ -709,6 +724,8 @@ components:
         - transactionId
         - denied
         - reservationIds
+        - decision
+        - matchedRuleIds
       type: object
     Rule:
       additionalProperties: false
