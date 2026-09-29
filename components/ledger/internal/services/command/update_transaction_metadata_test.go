@@ -9,6 +9,7 @@ import (
 	"errors"
 	"maps"
 	"testing"
+	"time"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -150,53 +151,70 @@ func TestUpdateTransactionMetadata(t *testing.T) {
 	}
 }
 
-func TestUpdateTransactionMetadataWritesOnlyClientKeys(t *testing.T) {
-	transactionStored := map[string]any{
-		"purpose": "client", constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`,
-		"feeApplied": "true", "packageAppliedID": "package-1",
+func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) {
+	first, second := time.Date(2026, 9, 29, 10, 0, 0, 0, time.UTC), time.Date(2026, 9, 29, 10, 0, 1, 0, time.UTC)
+	stored := func(at time.Time, data mongodb.JSON) *mongodb.Metadata {
+		return &mongodb.Metadata{Data: maps.Clone(data), UpdatedAt: at}
 	}
-	operationStored := map[string]any{"note": "client", constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}
-	stored := map[string]any{"stored": "document"}
+	pending := mongodb.JSON{"purpose": "client", "feeApplied": "true"}
+	settled := mongodb.JSON{"purpose": "client", "feeApplied": "true", constant.MetadataKeyFeeDebtSettlements: "[]"}
 
 	for _, scenario := range []struct {
-		name, entity   string
-		stored, sent   map[string]any
-		fields         map[string]any
-		readsNoStorage bool
+		name, entity string
+		sent, want   map[string]any
+		expect       func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any)
 	}{
-		{name: "cleared transaction", entity: constant.EntityTransaction, stored: transactionStored, fields: map[string]any{"purpose": nil}},
-		{name: "cleared operation", entity: constant.EntityOperation, stored: operationStored, fields: map[string]any{"note": nil}},
-		{name: "cleared transaction without document", entity: constant.EntityTransaction, fields: map[string]any{}},
 		{
-			name: "merged transaction", entity: constant.EntityTransaction, readsNoStorage: true,
-			sent: map[string]any{"purpose": "edited", "gone": nil}, fields: map[string]any{"purpose": "edited", "gone": nil},
+			name: "clearing keeps only reserved keys", entity: constant.EntityTransaction,
+			want: map[string]any{"feeApplied": "true"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(first, pending), nil)
+				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, first).Return(true, nil)
+			},
+		},
+		{
+			name: "a concurrent fee-debt write makes it merge again", entity: constant.EntityOperation,
+			sent: map[string]any{"purpose": "edited", "gone": nil},
+			want: map[string]any{"purpose": "edited", "feeApplied": "true", constant.MetadataKeyFeeDebtSettlements: "[]"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				gomock.InOrder(
+					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(first, pending), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", gomock.Any(), first).Return(false, nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityOperation, "id").Return(stored(second, settled), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityOperation, "id", want, second).Return(true, nil),
+				)
+			},
+		},
+		{
+			name: "a missing document is created before the merge", entity: constant.EntityTransaction,
+			sent: map[string]any{"purpose": "first"}, want: map[string]any{"purpose": "first"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				gomock.InOrder(
+					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(nil, nil),
+					repo.Create(gomock.Any(), constant.EntityTransaction, gomock.Any()).Return(nil),
+					repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(first, mongodb.JSON{}), nil),
+					repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", want, first).Return(true, nil),
+				)
+			},
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			repo := mongodb.NewMockRepository(gomock.NewController(t))
-			if !scenario.readsNoStorage {
-				var document *mongodb.Metadata
-				if scenario.stored != nil {
-					document = &mongodb.Metadata{Data: maps.Clone(scenario.stored)}
-				}
-
-				repo.EXPECT().FindByEntity(gomock.Any(), scenario.entity, "id").Return(document, nil)
-			}
-
-			repo.EXPECT().UpdateFields(gomock.Any(), scenario.entity, "id", scenario.fields).Return(&mongodb.Metadata{Data: stored}, nil)
+			scenario.expect(repo.EXPECT(), scenario.want)
 
 			updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), scenario.entity, "id", scenario.sent)
 			require.NoError(t, err)
-			assert.Equal(t, stored, updated)
+			assert.Equal(t, scenario.want, updated)
 		})
 	}
 
-	t.Run("cleared route replaces the document", func(t *testing.T) {
+	t.Run("a document that keeps changing fails the update", func(t *testing.T) {
 		repo := mongodb.NewMockRepository(gomock.NewController(t))
-		repo.EXPECT().Update(gomock.Any(), constant.EntityTransactionRoute, "id", map[string]any{}).Return(nil)
+		repo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(first, pending), nil).Times(metadataUpdateAttempts)
+		repo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", gomock.Any(), first).Return(false, nil).Times(metadataUpdateAttempts)
 
-		updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), constant.EntityTransactionRoute, "id", nil)
-		require.NoError(t, err)
-		assert.Empty(t, updated)
+		updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), constant.EntityTransaction, "id", map[string]any{"purpose": "edited"})
+		require.Error(t, err)
+		assert.Nil(t, updated)
 	})
 }

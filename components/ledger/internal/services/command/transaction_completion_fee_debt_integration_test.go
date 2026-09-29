@@ -8,6 +8,7 @@ package command
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -19,7 +20,7 @@ import (
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 )
 
-// interleavedMetadata runs between after a read returns, standing in for a write that lands
+// interleavedMetadata runs between after each read returns, standing in for a write that lands
 // between a metadata update's read and its write.
 type interleavedMetadata struct {
 	mongodb.Repository
@@ -83,17 +84,24 @@ func TestIntegrationFeeDebtMetadataOnMongo(t *testing.T) {
 		assert.Equal(t, want, stored(t, ctx, repo), "clearing drops only client keys")
 	})
 
-	t.Run("clearing update interleaved with the commit keeps its settlements", func(t *testing.T) {
-		ctx, repo, complete := setup(t)
-		commit, _, resolver := feeDebtLifecycleFixture(t)
-		predecessor := commit.Dependencies[0]
-		complete(resolver.records[transactionCompletionEvidenceIdentity(predecessor.TransactionID, predecessor.ExecutionID)])
-		uc := &UseCase{TransactionMetadataRepo: interleavedMetadata{Repository: repo, between: func() { complete(&commit) }}}
+	for _, sent := range []map[string]any{nil, {"note": "client"}} {
+		t.Run("update interleaved with the commit keeps its fee-debt keys", func(t *testing.T) {
+			ctx, repo, complete := setup(t)
+			commit, _, resolver := feeDebtLifecycleFixture(t)
+			predecessor := commit.Dependencies[0]
+			complete(resolver.records[transactionCompletionEvidenceIdentity(predecessor.TransactionID, predecessor.ExecutionID)])
+			var once sync.Once
+			uc := &UseCase{TransactionMetadataRepo: interleavedMetadata{Repository: repo, between: func() { once.Do(func() { complete(&commit) }) }}}
 
-		_, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, nil)
-		require.NoError(t, err)
-		want := feeDebtCommittedMetadata()
-		delete(want, "purpose")
-		assert.Equal(t, want, stored(t, ctx, repo), "the commit's keys written after the read survive the clear")
-	})
+			_, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, feeDebtTransaction, sent)
+			require.NoError(t, err)
+			want := feeDebtCommittedMetadata()
+			if sent == nil {
+				delete(want, "purpose")
+			} else {
+				want["note"] = "client"
+			}
+			assert.Equal(t, want, stored(t, ctx, repo), "the commit's keys written after the read survive the update")
+		})
+	}
 }

@@ -6,6 +6,8 @@ package command
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -13,12 +15,16 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/trace"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
+// metadataUpdateAttempts bounds the reads and conditional writes of one transaction or operation
+// metadata update that keeps losing to concurrent writes.
+const metadataUpdateAttempts = 3
+
 // UpdateTransactionMetadata merges metadata into the stored document; nil clears it. A
-// transaction or operation writes only client keys, field by field, so a reserved key the ledger
-// writes concurrently is never overwritten or dropped.
+// transaction or operation keeps every reserved key the ledger wrote, read fresh.
 func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -26,7 +32,7 @@ func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, en
 	defer span.End()
 
 	if entityName == constant.EntityTransaction || entityName == constant.EntityOperation {
-		return uc.updateClientMetadataFields(ctx, span, logger, entityName, entityID, metadata)
+		return uc.updateLedgerWrittenMetadata(ctx, span, logger, entityName, entityID, metadata)
 	}
 
 	metadataToUpdate := metadata
@@ -55,37 +61,57 @@ func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, en
 	return metadataToUpdate, nil
 }
 
-// updateClientMetadataFields sets each non-nil key and removes each nil one; clearing removes
-// every stored client key. The response is the resulting stored document.
-func (uc *UseCase) updateClientMetadataFields(
+// updateLedgerWrittenMetadata merges into the stored document read on each attempt, or keeps only
+// its reserved keys for a nil body, and writes only while that document is unchanged: a
+// concurrent completion writing a fee-debt key makes it read and merge again.
+func (uc *UseCase) updateLedgerWrittenMetadata(
 	ctx context.Context, span trace.Span, logger libLog.Logger, entityName, entityID string, metadata map[string]any,
 ) (map[string]any, error) {
-	fields := metadata
-	if fields == nil {
-		existingMetadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, entityName, entityID)
+	for range metadataUpdateAttempts {
+		stored, err := uc.TransactionMetadataRepo.FindByEntity(ctx, entityName, entityID)
 		if err != nil {
 			recordCommandError(ctx, span, logger, "Failed to get metadata on mongodb", err)
 
 			return nil, err
 		}
 
-		fields = map[string]any{}
+		if stored == nil {
+			now := time.Now()
+			document := &mongodb.Metadata{EntityID: entityID, EntityName: entityName, Data: mongodb.JSON{}, CreatedAt: now, UpdatedAt: now}
 
-		if existingMetadata != nil {
-			for key := range existingMetadata.Data {
-				if !constant.IsReservedMetadataKey(key) {
-					fields[key] = nil
-				}
+			if err := uc.TransactionMetadataRepo.Create(ctx, entityName, document); err != nil {
+				recordCommandError(ctx, span, logger, "Failed to create metadata on mongodb", err)
+
+				return nil, err
 			}
+
+			continue
+		}
+
+		merged := make(map[string]any)
+
+		for key, value := range stored.Data {
+			if metadata != nil || constant.IsReservedMetadataKey(key) {
+				merged[key] = value
+			}
+		}
+
+		merged = libCommons.MergeMaps(metadata, merged)
+
+		updated, err := uc.TransactionMetadataRepo.UpdateIfUnchanged(ctx, entityName, entityID, merged, stored.UpdatedAt)
+		if err != nil {
+			recordCommandError(ctx, span, logger, "Failed to update metadata on mongodb", err)
+
+			return nil, err
+		}
+
+		if updated {
+			return merged, nil
 		}
 	}
 
-	updated, err := uc.TransactionMetadataRepo.UpdateFields(ctx, entityName, entityID, fields)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on mongodb", err)
+	err := fmt.Errorf("update %s metadata: the document kept changing", entityName)
+	recordCommandError(ctx, span, logger, "Failed to update metadata on mongodb", err)
 
-		return nil, err
-	}
-
-	return updated.Data, nil
+	return nil, err
 }

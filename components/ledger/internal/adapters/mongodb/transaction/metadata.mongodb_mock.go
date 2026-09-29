@@ -12,6 +12,7 @@ package mongodb
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -175,6 +176,20 @@ func (mr *MockRepositoryMockRecorder) FindList(ctx, collection, filter any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, collection, filter)
 }
 
+// SetKeys mocks base method.
+func (m *MockRepository) SetKeys(ctx context.Context, collection, id string, keys map[string]any) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetKeys", ctx, collection, id, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetKeys indicates an expected call of SetKeys.
+func (mr *MockRepositoryMockRecorder) SetKeys(ctx, collection, id, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKeys", reflect.TypeOf((*MockRepository)(nil).SetKeys), ctx, collection, id, keys)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
 	m.ctrl.T.Helper()
@@ -189,17 +204,17 @@ func (mr *MockRepositoryMockRecorder) Update(ctx, collection, id, metadata any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, collection, id, metadata)
 }
 
-// UpdateFields mocks base method.
-func (m *MockRepository) UpdateFields(ctx context.Context, collection, id string, fields map[string]any) (*Metadata, error) {
+// UpdateIfUnchanged mocks base method.
+func (m *MockRepository) UpdateIfUnchanged(ctx context.Context, collection, id string, metadata map[string]any, updatedAt time.Time) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateFields", ctx, collection, id, fields)
-	ret0, _ := ret[0].(*Metadata)
+	ret := m.ctrl.Call(m, "UpdateIfUnchanged", ctx, collection, id, metadata, updatedAt)
+	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateFields indicates an expected call of UpdateFields.
-func (mr *MockRepositoryMockRecorder) UpdateFields(ctx, collection, id, fields any) *gomock.Call {
+// UpdateIfUnchanged indicates an expected call of UpdateIfUnchanged.
+func (mr *MockRepositoryMockRecorder) UpdateIfUnchanged(ctx, collection, id, metadata, updatedAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFields", reflect.TypeOf((*MockRepository)(nil).UpdateFields), ctx, collection, id, fields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIfUnchanged", reflect.TypeOf((*MockRepository)(nil).UpdateIfUnchanged), ctx, collection, id, metadata, updatedAt)
 }

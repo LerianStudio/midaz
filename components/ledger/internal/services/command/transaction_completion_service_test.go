@@ -162,14 +162,11 @@ func (repo *concurrentFinalizationMetadata) FindByEntity(_ context.Context, coll
 	return &cloned, nil
 }
 
-func (repo *concurrentFinalizationMetadata) UpdateFields(_ context.Context, collection, id string, fields map[string]any) (*mongodb.Metadata, error) {
+func (repo *concurrentFinalizationMetadata) SetKeys(_ context.Context, collection, id string, keys map[string]any) error {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	stored := repo.data[collection+":"+id]
-	maps.Copy(stored.Data, fields)
-	cloned := *stored
-	cloned.Data = maps.Clone(stored.Data)
-	return &cloned, nil
+	maps.Copy(repo.data[collection+":"+id].Data, keys)
+	return nil
 }
 
 func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
@@ -215,27 +212,15 @@ func (repo *finalizationMetadataStub) Create(_ context.Context, collection strin
 	return nil
 }
 
-// UpdateFields sets each non-nil field and removes each nil one, like the Mongo adapter.
-func (repo *finalizationMetadataStub) UpdateFields(_ context.Context, collection, id string, fields map[string]any) (*mongodb.Metadata, error) {
+func (repo *finalizationMetadataStub) SetKeys(_ context.Context, collection, id string, keys map[string]any) error {
 	*repo.calls = append(*repo.calls, "update:"+collection)
 	if repo.updateErr != nil {
-		return nil, repo.updateErr
+		return repo.updateErr
 	}
 
-	stored := repo.data[collection+":"+id]
-	if stored == nil {
-		return nil, errors.New("metadata document not found")
-	}
+	maps.Copy(repo.data[collection+":"+id].Data, keys)
 
-	for key, value := range fields {
-		if value == nil {
-			delete(stored.Data, key)
-		} else {
-			stored.Data[key] = value
-		}
-	}
-
-	return stored, nil
+	return nil
 }
 
 func (repo *finalizationMetadataStub) FindByEntity(_ context.Context, collection, id string) (*mongodb.Metadata, error) {

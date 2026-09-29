@@ -1952,10 +1952,16 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// Command.UpdateMetadata writes the sent keys field by field
+				// Command.UpdateMetadata first calls FindByEntity to get existing metadata
 				metadataRepo.EXPECT().
-					UpdateFields(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
-					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil).
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(&mongodb.Metadata{Data: mongodb.JSON{}}, nil).
+					Times(1)
+
+				// Command.UpdateMetadata then writes while the document is unchanged
+				metadataRepo.EXPECT().
+					UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
 					Times(1)
 
 				// Query.GetTransactionByID (read-after-write pattern) calls TransactionRepo.Find
@@ -2061,10 +2067,16 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// UpdateMetadata writes the sent keys field by field
+				// UpdateMetadata first calls FindByEntity to check existing metadata
 				metadataRepo.EXPECT().
-					UpdateFields(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
-					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil).
+					FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+					Return(&mongodb.Metadata{Data: mongodb.JSON{}}, nil).
+					Times(1)
+
+				// UpdateMetadata then writes while the document is unchanged
+				metadataRepo.EXPECT().
+					UpdateIfUnchanged(gomock.Any(), "Transaction", transactionID.String(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
 					Times(1)
 
 				// Get after update fails

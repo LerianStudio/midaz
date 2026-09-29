@@ -35,7 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
-	UpdateFields(context.Context, string, string, map[string]any) (*mongodb.Metadata, error)
+	SetKeys(context.Context, string, string, map[string]any) error
 }
 
 // TransactionCompletionService durably materializes an applied accounting result
@@ -561,7 +561,7 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 	}
 
 	if missing := missingFeeDebtMetadata(expected.Data, actual.Data); missing != nil {
-		if _, err := service.metadata.UpdateFields(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
+		if err := service.metadata.SetKeys(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
 			return fmt.Errorf("merge fee-debt metadata: %w", err)
 		}
 	}
