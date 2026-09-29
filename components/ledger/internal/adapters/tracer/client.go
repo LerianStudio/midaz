@@ -88,13 +88,14 @@ type ReserveAccount struct {
 // independently of the tracer's internal model so the tracer's domain
 // evolution does not leak onto the ledger's outbound contract, but its JSON
 // shape is a faithful subset of the tracer's reserve contract (transactionId +
-// the embedded ValidationRequest). The reserve anchor (F3-T13) populates it
+// the embedded ValidationRequest). The reserve anchor populates it
 // from the fee-inclusive transaction state; this client only transports it.
 //
 // The tracer's reserve validation requires requestId, a positive amount, a
-// valid ISO-4217 asset, and an in-window transactionTimestamp. account.accountId
-// is OPTIONAL on the relaxed reserve path: an external-only source omits it and
-// the tracer accepts the accountless body (parsing the absent key to uuid.Nil).
+// valid asset code (1 to 100 uppercase letters), and a transactionTimestamp that
+// is not in the future. account.accountId is OPTIONAL on the relaxed reserve
+// path: an external-only source omits it and the tracer accepts the accountless
+// body (parsing the absent key to uuid.Nil).
 // transactionType is OPTIONAL too (the ledger has no card-rail nature to
 // honestly report; when empty the tracer matches account-scoped limits without
 // a transaction-type constraint).
@@ -110,11 +111,11 @@ type ReserveRequest struct {
 	// TransactionType is optional on reserve. When set it must be a valid
 	// tracer transaction type; the ledger leaves it empty.
 	TransactionType string `json:"transactionType,omitempty"`
-	// TransactionTimestamp is RFC3339; the tracer enforces a not-future /
-	// not-too-far-past window against its injected clock.
+	// TransactionTimestamp is RFC3339; the tracer rejects a future timestamp
+	// against its injected clock and does not bound its age on reserve.
 	TransactionTimestamp string `json:"transactionTimestamp"`
 	// LongLived hints the tracer to assign a long-lived reservation lifetime to
-	// a PENDING-transaction reservation (F3-T15). It replaces the former
+	// a PENDING-transaction reservation. It replaces the former
 	// overload of transactionType=pending-long-lived, which polluted the
 	// transaction-type field and broke the tracer's reserve validation.
 	LongLived bool `json:"longLived,omitempty"`

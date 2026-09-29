@@ -320,7 +320,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			name: "bad input - invalid asset returns 400, service not called",
 			requestBody: func() any {
 				r := newValidReserveRequest()
-				r.Asset = "usd" // lowercase rejected by strict ISO 4217 check
+				r.Asset = "usd" // lowercase rejected: asset codes are uppercase letters
 				return r
 			}(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {

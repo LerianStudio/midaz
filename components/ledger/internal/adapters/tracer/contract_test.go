@@ -130,9 +130,8 @@ func writeTracerError(w http.ResponseWriter, status int, code, message string) {
 
 // ledgerStyleReserveRequest builds the reserve request the ledger anchor sends:
 // requestId derived from the transactionID, the structured account scope, a
-// fee-inclusive amount/asset, and an in-window timestamp. ts must be inside
-// the tracer's accept window (not future, within 24h) relative to the
-// endpoint's now.
+// fee-inclusive amount/asset, and a timestamp. ts must not be in the future
+// relative to the endpoint's now; the reserve path does not bound its age.
 func ledgerStyleReserveRequest(transactionID, requestID uuid.UUID, ts time.Time) ReserveRequest {
 	return ReserveRequest{
 		TransactionID:        transactionID,
@@ -272,13 +271,13 @@ func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
 		uuid.MustParse("99999999-9999-9999-9999-999999999990"),
 		now,
 	)
-	req.Account.Type = "checking"
+	req.Account.Type = "deposit"
 	req.Metadata = map[string]string{"channel": "app"}
 
 	_, err = client.Reserve(context.Background(), req)
 	require.NoError(t, err)
 	require.True(t, endpoint.parsed)
-	assert.Equal(t, "checking", endpoint.received.Account.Type)
+	assert.Equal(t, "deposit", endpoint.received.Account.Type)
 	assert.Equal(t, map[string]any{"channel": "app"}, endpoint.received.Metadata)
 
 	// A metadata key the tracer refuses is a 4xx the client classifies as a

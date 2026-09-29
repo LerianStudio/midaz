@@ -44,8 +44,9 @@ const DefaultClockSkewTolerance = 1 * time.Minute
 // this value at startup to adjust tolerance (e.g., 100-500ms for stricter checks).
 var ClockSkewTolerance = DefaultClockSkewTolerance
 
-// DefaultMaxTimestampAge is the default maximum age allowed for a transaction timestamp.
-// Transactions with timestamps older than this duration from the current time are rejected.
+// DefaultMaxTimestampAge is the default maximum age allowed for a transaction timestamp
+// on the synchronous validation path. Transactions with timestamps older than this
+// duration from the current time are rejected there; the reserve path does not bound age.
 // This prevents replay attacks and stale transaction processing.
 const DefaultMaxTimestampAge = 24 * time.Hour
 

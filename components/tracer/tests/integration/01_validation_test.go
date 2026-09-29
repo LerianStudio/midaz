@@ -5012,9 +5012,9 @@ func TestValidation_1_3_29_ValidationSummaryFields(t *testing.T) {
 		assert.True(t, item.Amount.GreaterThanOrEqual(decimal.Zero),
 			"Item %d: amount should be >= 0, got: %s", i, item.Amount)
 
-		// Verify asset - must be 3-character string (ISO 4217)
-		assert.Len(t, item.Asset, 3,
-			"Item %d: asset should be 3 characters (ISO 4217), got: %s", i, item.Asset)
+		// Verify asset - must be an asset code (1 to 100 uppercase letters)
+		assert.Regexp(t, `^[A-Z]{1,100}$`, item.Asset,
+			"Item %d: asset should be an uppercase asset code, got: %s", i, item.Asset)
 
 		// Verify decision - must be one of valid enum values
 		assert.Contains(t, []string{"ALLOW", "DENY", "REVIEW"}, item.Decision,
