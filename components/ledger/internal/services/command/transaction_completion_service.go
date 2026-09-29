@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/shopspring/decimal"
 
@@ -34,6 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
+	Update(context.Context, string, string, map[string]any) error
 }
 
 // TransactionCompletionService durably materializes an applied accounting result
@@ -523,9 +525,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-// persistMetadata inserts the frozen metadata only when no document exists. A stored
-// document is the client-editable truth, so only its presence under the entity id
-// is confirmed.
+// persistMetadata inserts the frozen metadata when no document exists. Only a PATCH
+// writes a document without an entity name, before the frozen keys landed, so those
+// keys are restored under the stored ones; any other stored document is kept as is.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -536,8 +538,17 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return fmt.Errorf("verify recovered metadata: %w", err)
 	}
 
-	if actual == nil || actual.EntityID != expected.EntityID {
+	if actual == nil {
 		return metadataConflict("metadata identity is not confirmed")
+	}
+
+	if actual.EntityName != "" {
+		return nil
+	}
+
+	merged := libCommons.MergeMaps(actual.Data, maps.Clone(expected.Data))
+	if err := service.metadata.Update(ctx, expected.EntityName, expected.EntityID, merged); err != nil {
+		return fmt.Errorf("restore frozen metadata: %w", err)
 	}
 
 	return nil

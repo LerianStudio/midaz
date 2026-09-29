@@ -365,16 +365,16 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 		assertFinalizerSQLCounts(t, pg.DB, envelope.TransactionID, 1, 1)
 	})
 
-	t.Run("metadata patched before completion keeps one document", func(t *testing.T) {
+	t.Run("metadata patched before completion keeps the frozen keys", func(t *testing.T) {
 		envelope := finalizerIntegrationEnvelope(t, t.Name(), "", false, false, false)
 		id := envelope.TransactionID.String()
-		require.NoError(t, metadata.Update(ctx, constant.EntityTransaction, id, map[string]any{"client": "patched"}))
+		require.NoError(t, metadata.Update(ctx, constant.EntityTransaction, id, map[string]any{"client": "patched", "purpose": "edited"}))
 		require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
 		assertFinalizerMetadataCount(t, mongoContainer.Database, constant.EntityTransaction, id, 1)
 		actual, err := metadata.FindByEntity(ctx, constant.EntityTransaction, id)
 		require.NoError(t, err)
 		require.NotNil(t, actual)
-		assert.Equal(t, mongodb.JSON{"client": "patched"}, actual.Data)
+		assert.Equal(t, mongodb.JSON{"client": "patched", "purpose": "edited", "sequence": int64(9007199254740993), "fraction": 0.1}, actual.Data)
 	})
 
 	for _, emptyMetadata := range []bool{false, true} {
