@@ -222,7 +222,7 @@ func (uc *UseCase) preparePendingEngineIntent(ctx context.Context, run *pendingT
 		return pendingEngineTransition{}, err
 	}
 
-	input = flattenLegacyFeeExemption(input)
+	input.Metadata = flattenLegacyFeeExemption(input.Metadata)
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Distribute.To)
 	mtransaction.MutateConcatAliases(input.Send.Source.From)

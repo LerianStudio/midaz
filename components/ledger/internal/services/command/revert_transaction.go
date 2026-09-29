@@ -222,7 +222,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
-	transactionReverted := flattenLegacyFeeExemption(tran.TransactionRevert())
+	transactionReverted := tran.TransactionRevert()
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
 
@@ -230,6 +230,8 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 		return mtransaction.Transaction{}, tran, err
 	}
+
+	transactionReverted.Metadata = flattenLegacyFeeExemption(transactionReverted.Metadata)
 
 	// Validate bidirectional routes: operations with a route_id require
 	// the referenced OperationRoute to have OperationType "bidirectional".

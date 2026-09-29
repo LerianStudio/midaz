@@ -510,7 +510,7 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 		return nil
 	}
 
-	if err := appendMetadata(constant.EntityTransaction, tran.ID, tran.Metadata); err != nil {
+	if err := appendMetadata(constant.EntityTransaction, tran.ID, flattenLegacyFeeExemption(tran.Metadata)); err != nil {
 		return nil, err
 	}
 
