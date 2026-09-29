@@ -48,7 +48,7 @@ func (recorder *feeDebtRecorderStub) Apply(_ context.Context, record FeeDebtReco
 	return recorder.err
 }
 
-func feeDebtBalance(alias string, index int) OperationBalanceContext {
+func feeDebtRowBalance(alias string, index int) OperationBalanceContext {
 	return OperationBalanceContext{
 		ID: fmt.Sprintf("a1a1a1a1-0000-4000-8000-%012d", index), AccountID: fmt.Sprintf("b2b2b2b2-0000-4000-8000-%012d", index),
 		OrganizationID: "33333333-3333-4333-8333-333333333333", LedgerID: "44444444-4444-4444-8444-444444444444",
@@ -102,7 +102,7 @@ func deferredFeeFixture(t testing.TB) (TransactionCompletionPlan, accounting.Exe
 	payload.TransactionID = tx
 	payload.TransactionInput.Send.Value = decimal.NewFromInt(100)
 	payload.TransactionInput.Metadata = map[string]any{"purpose": "fee debt", "packageAppliedID": "package-1"}
-	payer, dest, fees := feeDebtBalance("@payer", 1), feeDebtBalance("@dest", 2), feeDebtBalance("@fees", 3)
+	payer, dest, fees := feeDebtRowBalance("@payer", 1), feeDebtRowBalance("@dest", 2), feeDebtRowBalance("@fees", 3)
 	pair := map[string]any{constant.MetadataKeyFeeDeferPair: "pair-0"}
 	feeLeg := map[string]any{constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}
 	payload.OperationSpecs = []OperationRecordSpec{
@@ -232,7 +232,7 @@ func TestFeeDebtRevertWritesRefundRowsAndStripsInheritedKeys(t *testing.T) {
 	payload.TransactionInput.Metadata = map[string]any{
 		"purpose": "revert", constant.MetadataKeyFeeDebtOpenings: feeDebtOpeningsGolden, constant.MetadataKeyFeeDebtSettlements: feeDebtSettledGolden,
 	}
-	payer, dest, fees := feeDebtBalance("@payer", 1), feeDebtBalance("@dest", 2), feeDebtBalance("@fees", 3)
+	payer, dest, fees := feeDebtRowBalance("@payer", 1), feeDebtRowBalance("@dest", 2), feeDebtRowBalance("@fees", 3)
 	refund, settled, open := "fee-refund:0", parent.String()+":from:1", parent.String()+":from:2"
 	payload.OperationSpecs = []OperationRecordSpec{
 		feeDebtSpec(tx, "from:0", accounting.RolePrimary, 0, dest, constant.DEBIT, constant.DirectionDebit, 30, nil),
@@ -277,7 +277,7 @@ func TestFeeDebtRefundRepaysTheDebtorOverdraft(t *testing.T) {
 	tx, parent := uuid.MustParse(feeDebtTransaction), uuid.MustParse("16161616-1616-4161-8161-161616161616")
 	payload.TransactionID, payload.ParentTransactionID, payload.Action = tx, &parent, constant.ActionRevert
 	payload.TransactionInput.Metadata = map[string]any{"purpose": "revert"}
-	payer, fees, overdraft := feeDebtBalance("@payer", 1), feeDebtBalance("@fees", 3), feeDebtBalance("@payer", 4)
+	payer, fees, overdraft := feeDebtRowBalance("@payer", 1), feeDebtRowBalance("@fees", 3), feeDebtRowBalance("@payer", 4)
 	overdraft.AccountID, overdraft.Key, overdraft.Direction = payer.AccountID, constant.OverdraftBalanceKey, constant.DirectionDebit
 	refund, settled := "fee-refund:0", parent.String()+":from:1"
 
@@ -594,7 +594,7 @@ func TestPartitionEngineResultRoutesFeeDebtChangesPerTransaction(t *testing.T) {
 
 func TestValidateCompletionPostingsAnchorsCollectAndRefundOnTheirDebtor(t *testing.T) {
 	tx := uuid.MustParse(feeDebtTransaction)
-	payer, fees := feeDebtBalance("@payer", 1), feeDebtBalance("@fees", 3)
+	payer, fees := feeDebtRowBalance("@payer", 1), feeDebtRowBalance("@fees", 3)
 	transaction := accounting.Transaction{Postings: []accounting.Posting{
 		{Ref: "to:0", BalanceRef: "@payer#default", Type: accounting.PostingCredit},
 		{Ref: feeDebtCollectPosting, BalanceRef: "@payer#default", Type: accounting.PostingCollect},
