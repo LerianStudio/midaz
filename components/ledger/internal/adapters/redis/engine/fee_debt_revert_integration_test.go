@@ -97,6 +97,19 @@ func TestIntegrationFeeDebtRevertRefundsWhatWasSettled(t *testing.T) {
 		require.Empty(t, f.storedFeeDebts(t, "@source#default").Items)
 	})
 
+	// transaction_already_reverted is the refusal the ledger answers with 0087.
+	t.Run("a second revert of the origin is refused before it refunds anything", func(t *testing.T) {
+		f := newRefundFixture(t, container.Client, 100, 50)
+		f.seedFeeDebts(t, "@source#default", 4, open, other)
+		f.execute(t)
+
+		second := uuid.MustParse("5e5e5e5e-5e5e-45e5-85e5-5e5e5e5e5e5e")
+		f.input.Execution.ExecutionID, f.input.Execution.Transactions[0].ID = uuid.MustParse("6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f6f"), second
+		f.input.Guards[0].TransactionID, f.input.Guards[0].NextToken = second, second.String()
+		f.input.CompletionPlans[0].TransactionID = second
+		f.requireUnchanged(t, "transaction_already_reverted")
+	})
+
 	t.Run("a refund the fee account cannot fund refuses the revert", func(t *testing.T) {
 		f := newRefundFixture(t, container.Client, 100, 10)
 		f.seedFeeDebts(t, "@source#default", 4, open, other)
