@@ -787,10 +787,9 @@ fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
 A fee defers only when its package sets `deferrable: true` on it, which only a
 non-deductible fee accepts; without it an unfunded fee is still refused with
 `0018`. A partly deferred fee books only the share the payer funded: the
-transaction stores the executed amount, the send less the debt it opened, so
-neither that amount nor the fee rows add up to the send plus the fee the package
-computed. The difference is the transaction's `feeDebtOpenings` metadata and the
-open debt on `GET .../fee-debts`.
+transaction stores the send plus the fee, less the debt it opened (send 100, fee
+10, payer holds 105: amount 105, debt 5). The difference is the transaction's
+`feeDebtOpenings` metadata and the open debt on `GET .../fee-debts`.
 
 Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the

@@ -2143,7 +2143,7 @@ components:
             - conta_receita_taxas_adm
           type: string
         deferrable:
-          description: Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.
+          description: Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.
           examples:
             - false
           type: boolean

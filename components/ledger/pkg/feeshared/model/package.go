@@ -32,9 +32,7 @@ type Fee struct {
 	CreditAccount    string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
 	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
 	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
-	// Deferrable turns an unfunded non-deductible fee into a fee debt instead of a
-	// refusal. Nil means false; a deductible fee cannot be deferrable.
-	Deferrable *bool `json:"deferrable,omitempty" example:"false" doc:"Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false."`
+	Deferrable       *bool             `json:"deferrable,omitempty" example:"false" doc:"Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false."`
 }
 
 func (f *Fee) GetIsDeductibleFrom() bool {
