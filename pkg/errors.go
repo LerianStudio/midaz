@@ -615,7 +615,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrTransactionReservationReview.Error(),
 			Title:      "Transaction Reservation Review Error",
-			Message:    "The transaction was flagged for review by a transaction validation rule and this ledger is configured to reject flagged transactions. Review the rule or retry after manual approval.",
+			Message:    "The transaction was flagged for review by a transaction validation rule, or a rule could not be evaluated for it, and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.",
 		},
 		constant.ErrTransactionReservationRejected: UnprocessableOperationError{
 			EntityType: entityType,
