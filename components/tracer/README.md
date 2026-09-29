@@ -55,7 +55,7 @@ released on the single unified Midaz version.
 
 Every transaction submitted to Tracer contains:
 - **Request ID** - Unique identifier for idempotency
-- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), currency, timestamp
+- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), asset, timestamp
 - **Account context** - Account ID, type, status (required)
 - **Optional contexts** - Segment, portfolio, merchant information
 - **Metadata** - Custom key-value pairs for business rules
@@ -384,7 +384,7 @@ curl -X POST http://localhost:4020/v1/validations \
     "requestId": "123e4567-e89b-12d3-a456-426614174000",
     "transactionType": "CARD",
     "amount": "15000.00",
-    "currency": "USD",
+    "asset": "USD",
     "transactionTimestamp": "2026-01-28T10:30:00Z",
     "account": {
       "accountId": "223e4567-e89b-12d3-a456-426614174001"
@@ -551,7 +551,7 @@ X-API-Key: your-api-key
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
   "transactionType": "CARD",
   "amount": "5000.00",
-  "currency": "USD",
+  "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
     "accountId": "223e4567-e89b-12d3-a456-426614174001"
@@ -571,12 +571,12 @@ X-API-Key: your-api-key
   "transactionType": "CARD",
   "subType": "debit",
   "amount": "5000.00",
-  "currency": "USD",
+  "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
     "accountId": "223e4567-e89b-12d3-a456-426614174001",
-    "type": "checking",
-    "status": "active",
+    "type": "deposit",
+    "status": "ACTIVE",
     "metadata": {
       "customer_tier": "gold"
     }
@@ -605,8 +605,9 @@ X-API-Key: your-api-key
 **Notes:**
 - `amount` is a decimal string value. Example: $5,000.00 = "5000.00"
 - `transactionType` must be one of: `CARD`, `WIRE`, `PIX`, `CRYPTO`
-- `account.type` values: `checking`, `savings`, `credit`
-- `account.status` values: `active`, `suspended`, `closed`
+- `asset` is an asset code of 1 to 100 uppercase letters (`USD`, `BRL`, `BTC`, a points or token code)
+- `account.type` is free-form, at most 256 characters, and reaches CEL verbatim (the Midaz ledger sends its own account type)
+- `account.status` is free-form, at most 50 characters, and reaches CEL verbatim
 - `merchant.category` is 4-digit MCC code (ISO 18245)
 - `merchant.country` is 2-letter ISO 3166-1 alpha-2 code
 

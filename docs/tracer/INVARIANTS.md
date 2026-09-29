@@ -53,14 +53,41 @@ Rules evaluate against the complete transaction context. Available variables:
 transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
 subType               // String: "debit", "credit", "instant", etc.
 amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
-currency              // String (ISO 4217)
+asset                 // String: asset code, 1 to 100 uppercase letters ("USD", "BTC", a points code)
 transactionTimestamp  // int64 Unix timestamp in nanoseconds
-account               // Map: account["id"], account["type"], account["status"]
-segment               // Map: segment["id"] (optional)
-portfolio             // Map: portfolio["id"] (optional)
-merchant              // Map: merchant["id"], merchant["name"], merchant["category"] (optional)
-metadata              // Map of custom fields
+account               // Map: account["accountId"], account["type"], account["status"], account["metadata"]
+segment               // Map: segment["segmentId"], segment["name"], segment["metadata"] (empty map when absent)
+portfolio             // Map: portfolio["portfolioId"], portfolio["name"], portfolio["metadata"] (empty map when absent)
+merchant              // Map: merchant["merchantId"], merchant["name"], merchant["category"], merchant["country"] (empty map when absent)
+metadata              // Map of custom fields (empty map when absent)
 ```
+
+`account["type"]` and `account["status"]` are the caller's own vocabulary, compared verbatim with
+no case normalization (the Midaz ledger sends its free-form account type, e.g. `"deposit"`).
+
+### Reserve context
+
+The reserve path (the ledger's `/v2` reservation seam) evaluates the same rules with the same
+evaluator as `POST /v1/validations`, BEFORE any limit is resolved. A rule `DENY` or `REVIEW`
+refuses the reserve with no limit counter touched; only an `ALLOW` goes on to the limits. The
+response carries `decision`, `reason` and `matchedRuleIds` beside `denied`, which stays `true`
+for both `DENY` and `REVIEW`. A rule evaluation failure is a server error, not a decision.
+
+A reserve from the ledger fills only part of the context, so rules meant for ledger traffic must
+be written against these variables:
+
+- `amount`, `asset` and `transactionTimestamp` — the fee-inclusive amount, its asset and the
+  transaction date.
+- `account["accountId"]` and `account["type"]` — the first internal source account. Without an
+  internal source the id is the nil UUID and the type is empty.
+- `metadata` — the transaction metadata the ledger forwards: keys matching `^[a-zA-Z0-9_]+$` of
+  at most 64 characters, at most 50 entries, and every value a STRING (the ledger renders numbers
+  and booleans as strings, so compare `metadata["tier"] == "1"`, not `== 1`).
+- `transactionType` and `subType` are empty strings, `account["status"]` is empty, and
+  `account["metadata"]`, `segment`, `portfolio` and `merchant` are empty maps.
+
+On reserve the transaction timestamp is only checked for being in the future; the maximum-age
+window applies to `POST /v1/validations` alone.
 
 ### `amount` precision (MANDATORY caveat)
 

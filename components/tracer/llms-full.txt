@@ -7,13 +7,13 @@ Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/Ler
 ## Core Domain Concepts
 
 ### Validation Request
-Every transaction submitted contains: requestId (UUID, idempotency key), transactionType (CARD/WIRE/PIX/CRYPTO), amount (decimal string via shopspring/decimal), currency (ISO 4217), transactionTimestamp (RFC3339), account context (required), and optional segment/portfolio/merchant contexts with metadata key-value pairs.
+Every transaction submitted contains: requestId (UUID, idempotency key), transactionType (CARD/WIRE/PIX/CRYPTO), amount (decimal string via shopspring/decimal), asset (1 to 100 uppercase letters, the Midaz asset-code vocabulary), transactionTimestamp (RFC3339), account context (required), and optional segment/portfolio/merchant contexts with metadata key-value pairs.
 
 ### Decision Flow
 Transaction → Rules Evaluation (CEL) → Limit Check → Final Decision (ALLOW/DENY/REVIEW). DENY takes precedence: any rule match with DENY action or any exceeded limit produces DENY. REVIEW only if no DENY. ALLOW when all checks pass. Configurable default decision when no rules match (ALLOW or DENY, not REVIEW).
 
 ### Rules Engine (CEL)
-Rules are Google CEL expressions evaluated against transaction data. Type-safe with compile-time validation. Cost limits prevent DoS. Expressions compiled at rule creation, cached in-memory. Available variables: transactionType (string), subType (string), amount (dyn/float64), currency (string), transactionTimestamp (int64 Unix nanos), account (map), segment (map), portfolio (map), merchant (map), metadata (map).
+Rules are Google CEL expressions evaluated against transaction data. Type-safe with compile-time validation. Cost limits prevent DoS. Expressions compiled at rule creation, cached in-memory. Available variables: transactionType (string), subType (string), amount (dyn/float64), asset (string), transactionTimestamp (int64 Unix nanos), account (map), segment (map), portfolio (map), merchant (map), metadata (map).
 
 CEL expression examples:
 - `amount > 10000` — flag high-value transactions
@@ -51,7 +51,7 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 - `POST /v1/limits` — Create spending limit
 - `GET /v1/limits` — List limits (filter by status, type; cursor pagination)
 - `GET /v1/limits/{id}/usage` — Get limit usage snapshot
-- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, currency)
+- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, asset)
 - `POST /v1/limits/{id}/activate` — Activate limit
 - `POST /v1/limits/{id}/deactivate` — Deactivate limit
 - `DELETE /v1/limits/{id}` — Soft-delete (DRAFT/INACTIVE only)
@@ -150,7 +150,7 @@ Startup: WarmUp loads all active rules from DB, compiles CEL expressions, popula
 Fields: ID (uuid), Name (unique, max 255), Description (max 1000), Expression (CEL, max 5000), Action (ALLOW/DENY/REVIEW), Scopes (max 100), Status (DRAFT/ACTIVE/INACTIVE/DELETED), Priority (int), ActivatedAt, DeactivatedAt, CreatedAt, UpdatedAt, DeletedAt.
 
 #### Limit
-Fields: ID (uuid), Name (unique, max 255), Description (max 1000), LimitType (DAILY/MONTHLY/WEEKLY/PER_TRANSACTION/CUSTOM), MaxAmount (decimal), Currency (ISO 4217), Scopes, Status (DRAFT/ACTIVE/INACTIVE/DELETED), ActiveTimeStart/End (HH:MM), CustomStartDate/EndDate (RFC3339 for CUSTOM type), CreatedAt, UpdatedAt, DeletedAt, ResetAt.
+Fields: ID (uuid), Name (unique, max 255), Description (max 1000), LimitType (DAILY/MONTHLY/WEEKLY/PER_TRANSACTION/CUSTOM), MaxAmount (decimal), Asset (1 to 100 uppercase letters), Scopes, Status (DRAFT/ACTIVE/INACTIVE/DELETED), ActiveTimeStart/End (HH:MM), CustomStartDate/EndDate (RFC3339 for CUSTOM type), CreatedAt, UpdatedAt, DeletedAt, ResetAt.
 
 #### Scope (shared by rules and limits)
 Fields: SegmentID (*uuid), PortfolioID (*uuid), AccountID (*uuid), MerchantID (*uuid), TransactionType (*string), SubType (*string). All optional; at least one must be set.

@@ -526,6 +526,16 @@ service-mesh sidecar. Over the verified connection the ledger forwards a trusted
 the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
+A `/v2` reserve carries the fee-inclusive amount and asset (any Midaz asset code: 1 to 100
+uppercase letters), the transaction date (only a future date is refused; its age is not bounded),
+the first internal source account's `accountId` and ledger account `type`, and the transaction
+metadata filtered to the tracer's key rules (`^[a-zA-Z0-9_]+$`, at most 64 characters, at most 50
+entries, values as strings). The tracer evaluates its CEL rules before its limits and answers
+`decision` (`ALLOW`/`DENY`/`REVIEW`) beside `denied`. Under `tracer.mode=enforce` a `DENY` rejects
+with `0177`, a `REVIEW` with `0531`, a refused request with `0532`, and an unavailable tracer
+branches on `failPosture` (`0178` when closed); `advisory` never blocks. `tracer.timeoutMs` bounds
+each reserve call. See [docs/api/SCOPING.md](docs/api/SCOPING.md).
+
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | /v1/rules | Create rule |
@@ -619,10 +629,12 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0249–0256)
+#### Settings / Reservation Error Codes (0176–0178, 0531–0532, 0249–0256)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
-- `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
-- `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
+- `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit or a rule `DENY` under `tracer.mode=enforce` (HTTP 422)
+- `0178` ErrTransactionReservationUnavailable — tracer unreachable or failing under `tracer.mode=enforce` + `tracer.failPosture=closed` (HTTP 503)
+- `0531` ErrTransactionReservationReview — a tracer rule flagged the transaction for `REVIEW` under `tracer.mode=enforce`; rejected before the balance commit (HTTP 422)
+- `0532` ErrTransactionReservationRejected — the tracer refused the reserve request itself (REST 400/422, gRPC `InvalidArgument`/`FailedPrecondition`) under `tracer.mode=enforce`, whatever the `failPosture` (HTTP 422)
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
 - `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
 - `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)

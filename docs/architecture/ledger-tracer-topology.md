@@ -187,10 +187,12 @@ no marker (`:113-132`).
 at the transport boundary so `failPosture` can branch on them: gRPC `Unavailable` /
 `DeadlineExceeded` / `Canceled` and context deadline/cancellation are folded into `ErrTracerUnavailable`
 (`grpc_client.go:343-358`), and the REST client wraps transport errors equivalently
-(`client.go:53-60, 351-354`). A business **DENIED** decision is a *successful result*, not an error.
-`handleReserveError` additionally treats **any** non-availability reserve error as fail-posture-gated,
-so a tracer defect cannot let an `enforce`+`closed` ledger commit unchecked
-(`transaction_reservation_anchor.go:143-148`).
+(`client.go:53-60, 351-354`). A business **DENY** or **REVIEW** decision is a *successful result*, not
+an error. A request the tracer **refused** — REST 400/422, gRPC `InvalidArgument` /
+`FailedPrecondition` — is classified as `ErrTracerRejected`, not as unavailability: the tracer answered,
+so under `enforce` it rejects with `0532` whatever the `failPosture`. `handleReserveError` treats **any
+other** reserve error as fail-posture-gated, so a tracer defect cannot let an `enforce`+`closed` ledger
+commit unchecked. The full outcome table lives in `docs/api/SCOPING.md`.
 
 **Boot-time graceful absence even when configured.** The gRPC client uses one persistent lazy
 connection — `grpc.NewClient` does not dial until the first RPC — so wiring the client never blocks on
@@ -280,6 +282,15 @@ as the REST client).
 | Ledger `SERVER_ADDRESS` | `:3002` (default) | unified ledger binary, all APIs on one port | `config.go:62-63`, `ledger/.env.example:34-35` |
 | Tracer `SERVER_ADDRESS` | `:4020` | REST seam + health | `tracer/.env.example:14-15` |
 | `TRACER_GRPC_PORT` | **empty by default** | gRPC seam server **not started** unless set | `tracer/config.go:49-54`, `initGRPCServer` returns `nil,nil` when empty `:1230-1232` |
+
+**Wire contract evolves additively.** `proto/reservation/v1` grows only by new field numbers —
+`ReserveAccount.type`, `ReserveRequest.metadata`, `ReserveResult.decision` / `reason` /
+`matched_rule_ids` — and the REST DTOs mirror them. `denied` remains the field every ledger gates on:
+a tracer that sends `decision` answers a `REVIEW` with `denied=true`, which a ledger that predates it
+reads as a denial, and a ledger reading an older tracer sees an empty `decision` and gates on `denied`
+alone. **Deploy the tracer before the ledger:** a tracer that predates free-form account types refuses a
+REST reserve whose `account.type` is outside its former fixed set, which an `enforce` ledger then
+rejects with `0532` (over gRPC the older tracer drops the unknown field instead).
 
 **Ports.** The ledger serves everything on a single port, default `:3002` (`SERVER_ADDRESS`). The tracer
 serves REST/health on `:4020` (`SERVER_ADDRESS`); the reservation **gRPC seam listens on a separate
