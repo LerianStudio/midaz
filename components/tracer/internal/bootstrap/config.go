@@ -93,6 +93,13 @@ type Config struct {
 	// TracerTLSMode=mtls — without it the server cannot enforce
 	// RequireAndVerifyClientCert.
 	TracerTLSClientCAFile string `env:"TRACER_TLS_CLIENT_CA_FILE"`
+	// TracerTLSClientAllowedNames is a comma-separated allowlist of client
+	// identities the gRPC listener accepts in "mtls" mode. A client cert passes
+	// when one of its DNS SANs, URI SANs or its Subject CN equals an entry
+	// (exact, case-insensitive, trimmed). Empty accepts any cert signed by
+	// TracerTLSClientCAFile and logs a boot Warn. Ignored in "mesh"/empty mode
+	// and never applied to the HTTP listener.
+	TracerTLSClientAllowedNames string `env:"TRACER_TLS_CLIENT_ALLOWED_NAMES"`
 
 	LogLevel                string `env:"LOG_LEVEL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -1365,12 +1372,14 @@ func initGRPCServer(
 		return nil, fmt.Errorf("failed to create reservation gRPC server: %w", err)
 	}
 
-	// Same seam TLS posture as the REST listener so the two transports cannot
-	// diverge. nil in mesh/unset mode ⇒ plaintext gRPC.
-	seamTLS, err := buildSeamTLSConfig(cfg)
+	// The shared seam TLS posture plus the client identity allowlist. nil in
+	// mesh/unset mode ⇒ plaintext gRPC.
+	seamTLS, err := buildGRPCSeamTLSConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
 	}
+
+	warnGRPCSeamAcceptsAnyClient(context.Background(), cfg, logger)
 
 	// Resolve the per-tenant pool from the trusted x-tenant-id metadata the
 	// ledger forwards over the mTLS/mesh-verified connection. In single-tenant

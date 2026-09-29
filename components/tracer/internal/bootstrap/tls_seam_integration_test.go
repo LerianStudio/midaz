@@ -122,6 +122,80 @@ func TestReservationMTLS(t *testing.T) {
 	})
 }
 
+// TestGRPCSeamClientAllowlist proves TRACER_TLS_CLIENT_ALLOWED_NAMES pins the
+// gRPC listener's client identity while the HTTP listener keeps accepting any
+// CA-signed client:
+//
+//   - a CA-signed client whose identity is not allowlisted is refused on gRPC
+//     and still handshakes with the Fiber TLS listener;
+//   - the same client is accepted on gRPC once its Subject CN is allowlisted
+//     (matched case-insensitively).
+func TestGRPCSeamClientAllowlist(t *testing.T) {
+	fixture := testutil.GenerateMTLSFixture(t)
+
+	clientCert, err := tls.X509KeyPair(fixture.ClientCertPEM, fixture.ClientKeyPEM)
+	require.NoError(t, err)
+
+	caPool := x509.NewCertPool()
+	require.True(t, caPool.AppendCertsFromPEM(fixture.CACertPEM))
+
+	clientTLS := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caPool,
+		ServerName:   "localhost",
+	}
+
+	t.Run("non-allowlisted client is refused on gRPC and accepted on HTTP", func(t *testing.T) {
+		cfg := writeMTLSConfig(t, fixture)
+		cfg.TracerTLSClientAllowedNames = "ledger.midaz.svc.cluster.local, spiffe://lerian.studio/ns/midaz/sa/ledger"
+
+		grpcTLS, err := buildGRPCSeamTLSConfig(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, grpcTLS)
+
+		_, err = reserveOverGRPC(t, startGRPCMTLSServer(t, grpcTLS), clientTLS)
+		require.Error(t, err, "a CA-signed client outside the allowlist must be refused on gRPC")
+
+		httpTLS, err := buildSeamTLSConfig(cfg)
+		require.NoError(t, err)
+
+		conn, err := tls.Dial("tcp", startFiberMTLSServer(t, cfg, httpTLS), clientTLS)
+		require.NoError(t, err, "the HTTP listener must not apply the gRPC allowlist")
+		require.NoError(t, conn.Handshake())
+		_ = conn.Close()
+	})
+
+	t.Run("allowlisted client is accepted on gRPC", func(t *testing.T) {
+		cfg := writeMTLSConfig(t, fixture)
+		cfg.TracerTLSClientAllowedNames = " other-client , LEDGER-SEAM-CLIENT "
+
+		grpcTLS, err := buildGRPCSeamTLSConfig(cfg)
+		require.NoError(t, err)
+
+		resp, err := reserveOverGRPC(t, startGRPCMTLSServer(t, grpcTLS), clientTLS)
+		require.NoError(t, err, "an allowlisted client must complete the RPC")
+		require.True(t, resp.GetDenied(), "stub returns the sentinel denied=true")
+	})
+}
+
+// reserveOverGRPC issues one Reserve RPC to addr with the given client TLS
+// config and returns its outcome.
+func reserveOverGRPC(t *testing.T, addr string, clientTLS *tls.Config) (*reservationv1.ReserveResult, error) {
+	t.Helper()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(clientTLS)))
+	require.NoError(t, err)
+
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return reservationv1.NewReservationServiceClient(conn).
+		Reserve(ctx, &reservationv1.ReserveRequest{TransactionId: "tx-allowlist"})
+}
+
 // mtlsRejectionError dials addr without a client certificate, completes the
 // handshake, and attempts a read. It returns the first error observed — under
 // TLS 1.2 the handshake itself fails; under TLS 1.3 the server's bad-certificate

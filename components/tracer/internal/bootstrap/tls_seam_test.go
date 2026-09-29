@@ -5,10 +5,20 @@
 package bootstrap
 
 import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"math/big"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -165,4 +175,228 @@ func writeSeamCertFixture(t *testing.T) (certFile, keyFile, caFile string) {
 	require.NoError(t, os.WriteFile(caFile, mat.CACertPEM, 0o600))
 
 	return certFile, keyFile, caFile
+}
+
+// TestParseClientAllowedNames locks the allowlist parsing rule: entries are
+// comma-separated, trimmed, lowercased, and empty entries are dropped.
+func TestParseClientAllowedNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{name: "empty string yields no entries", raw: "", want: nil},
+		{name: "only separators and spaces yield no entries", raw: " , ,, ", want: nil},
+		{name: "single entry", raw: "ledger", want: []string{"ledger"}},
+		{name: "entries are trimmed", raw: "  ledger.svc , spiffe://lerian/ledger  ", want: []string{"ledger.svc", "spiffe://lerian/ledger"}},
+		{name: "empty entries are dropped", raw: "ledger,,  ,ledger-2,", want: []string{"ledger", "ledger-2"}},
+		{name: "entries are lowercased", raw: "Ledger.SVC,SPIFFE://Lerian/Ledger", want: []string{"ledger.svc", "spiffe://lerian/ledger"}},
+		{name: "duplicates collapse", raw: "ledger,LEDGER, ledger ", want: []string{"ledger"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := parseClientAllowedNames(tt.raw)
+
+			require.Len(t, got, len(tt.want))
+
+			for _, name := range tt.want {
+				_, ok := got[name]
+				require.True(t, ok, "expected %q in the allowlist", name)
+			}
+		})
+	}
+}
+
+// TestVerifyClientAllowedName exercises the gRPC seam identity check against
+// generated certificates: a leaf matches when one of its DNS SANs, URI SANs or
+// its Subject CN equals an allowlist entry (case-insensitive).
+func TestVerifyClientAllowedName(t *testing.T) {
+	t.Parallel()
+
+	spiffe, err := url.Parse("spiffe://lerian.studio/ns/midaz/sa/ledger")
+	require.NoError(t, err)
+
+	dnsLeaf := generateIdentityCert(t, "unrelated-cn", []string{"ledger.midaz.svc.cluster.local"}, nil)
+	uriLeaf := generateIdentityCert(t, "unrelated-cn", nil, []*url.URL{spiffe})
+	cnLeaf := generateIdentityCert(t, "Ledger-Seam-Client", nil, nil)
+	otherLeaf := generateIdentityCert(t, "intruder", []string{"intruder.svc"}, nil)
+
+	allowed := parseClientAllowedNames("LEDGER.midaz.svc.cluster.local, spiffe://lerian.studio/ns/midaz/sa/ledger, ledger-seam-client")
+	verify := verifyClientAllowedName(allowed)
+
+	tests := []struct {
+		name    string
+		state   tls.ConnectionState
+		wantErr bool
+	}{
+		{name: "DNS SAN match", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{dnsLeaf}}},
+		{name: "URI SAN match", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{uriLeaf}}},
+		{name: "Subject CN match", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{cnLeaf}}},
+		{name: "only the leaf is checked", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{otherLeaf, cnLeaf}}, wantErr: true},
+		{name: "no match is refused", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{otherLeaf}}, wantErr: true},
+		{name: "no peer certificate is refused", state: tls.ConnectionState{}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := verify(tt.state)
+			if !tt.wantErr {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			// The refusal names no certificate contents.
+			require.NotContains(t, err.Error(), "intruder")
+			require.NotContains(t, strings.ToLower(err.Error()), "ledger")
+		})
+	}
+}
+
+// TestBuildGRPCSeamTLSConfig locks the gRPC listener's TLS posture: nil in
+// mesh/empty mode (the allowlist is ignored), a clone of the shared seam
+// config in mtls, and a VerifyConnection hook only when the allowlist names
+// at least one identity.
+func TestBuildGRPCSeamTLSConfig(t *testing.T) {
+	t.Parallel()
+
+	certFile, keyFile, caFile := writeSeamCertFixture(t)
+
+	mtls := func(allowed string) *Config {
+		return &Config{
+			TracerTLSMode:               "mtls",
+			TracerTLSCertFile:           certFile,
+			TracerTLSKeyFile:            keyFile,
+			TracerTLSClientCAFile:       caFile,
+			TracerTLSClientAllowedNames: allowed,
+		}
+	}
+
+	t.Run("mesh and empty mode ignore the allowlist", func(t *testing.T) {
+		t.Parallel()
+
+		for _, mode := range []string{"", "mesh"} {
+			got, err := buildGRPCSeamTLSConfig(&Config{TracerTLSMode: mode, TracerTLSClientAllowedNames: "ledger"})
+			require.NoError(t, err)
+			require.Nil(t, got)
+		}
+	})
+
+	t.Run("invalid mode propagates the shared builder error", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := buildGRPCSeamTLSConfig(&Config{TracerTLSMode: "insecure", TracerTLSClientAllowedNames: "ledger"})
+		require.ErrorContains(t, err, "TRACER_TLS_MODE")
+		require.Nil(t, got)
+	})
+
+	t.Run("mtls with empty allowlist keeps any CA-signed client", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := buildGRPCSeamTLSConfig(mtls(" , "))
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, tls.RequireAndVerifyClientCert, got.ClientAuth)
+		require.NotNil(t, got.ClientCAs)
+		require.Nil(t, got.VerifyConnection)
+	})
+
+	t.Run("mtls with allowlist installs the identity check", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := buildGRPCSeamTLSConfig(mtls("ledger-seam-client"))
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, tls.RequireAndVerifyClientCert, got.ClientAuth)
+		require.NotNil(t, got.VerifyConnection)
+
+		allowedLeaf := generateIdentityCert(t, "ledger-seam-client", nil, nil)
+		otherLeaf := generateIdentityCert(t, "someone-else", nil, nil)
+
+		require.NoError(t, got.VerifyConnection(tls.ConnectionState{PeerCertificates: []*x509.Certificate{allowedLeaf}}))
+		require.Error(t, got.VerifyConnection(tls.ConnectionState{PeerCertificates: []*x509.Certificate{otherLeaf}}))
+	})
+
+	t.Run("the HTTP seam config never carries the allowlist", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := buildSeamTLSConfig(mtls("ledger-seam-client"))
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Nil(t, got.VerifyConnection)
+	})
+}
+
+// TestWarnGRPCSeamAcceptsAnyClient locks the boot Warn: exactly one Warn in
+// mtls with an empty allowlist, nothing otherwise.
+func TestWarnGRPCSeamAcceptsAnyClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		cfg       *Config
+		wantWarns int
+	}{
+		{name: "mtls with empty allowlist warns once", cfg: &Config{TracerTLSMode: " MTLS "}, wantWarns: 1},
+		{name: "mtls with blank allowlist warns once", cfg: &Config{TracerTLSMode: "mtls", TracerTLSClientAllowedNames: " , "}, wantWarns: 1},
+		{name: "mtls with allowlist is silent", cfg: &Config{TracerTLSMode: "mtls", TracerTLSClientAllowedNames: "ledger"}},
+		{name: "mesh mode is silent", cfg: &Config{TracerTLSMode: "mesh"}},
+		{name: "empty mode is silent", cfg: &Config{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := testutil.NewMockLogger()
+
+			warnGRPCSeamAcceptsAnyClient(context.Background(), tt.cfg, logger)
+
+			require.Len(t, logger.Calls, tt.wantWarns)
+
+			for _, call := range logger.Calls {
+				require.Equal(t, "warn", call.Level)
+				require.Equal(t,
+					"gRPC seam accepts any client certificate signed by TRACER_TLS_CLIENT_CA_FILE; set TRACER_TLS_CLIENT_ALLOWED_NAMES",
+					call.Message)
+			}
+		})
+	}
+}
+
+// generateIdentityCert returns a self-signed leaf carrying the given identity
+// fields. The verifier inspects only identity fields, so a self-signed cert
+// with a fixed validity window is sufficient.
+func generateIdentityCert(t *testing.T, commonName string, dnsNames []string, uris []*url.URL) *x509.Certificate {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(10),
+		Subject:      pkix.Name{CommonName: commonName},
+		NotBefore:    time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC),
+		NotAfter:     time.Date(2100, time.January, 1, 0, 0, 0, 0, time.UTC),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		DNSNames:     dnsNames,
+		URIs:         uris,
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(der)
+	require.NoError(t, err)
+
+	return cert
 }

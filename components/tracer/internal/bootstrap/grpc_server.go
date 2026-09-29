@@ -24,11 +24,12 @@ import (
 // ServerManager graceful-shutdown path as the Fiber server. The otelgrpc stats
 // handler gives the gRPC surface the same tracing parity as REST.
 //
-// Transport security depends on TRACER_TLS_MODE (Epic 1.3): in "mtls" mode a
-// non-nil *tls.Config is passed in and the server requires+verifies a client
-// cert (the reservation seam is unreachable without one); in "mesh" mode the
-// config is nil and a sidecar terminates mTLS. The server is opt-in: bootstrap
-// only registers it when TRACER_GRPC_PORT is set.
+// Transport security depends on TRACER_TLS_MODE: in "mtls" mode a non-nil
+// *tls.Config is passed in and the server requires+verifies a client cert whose
+// identity is in TRACER_TLS_CLIENT_ALLOWED_NAMES when that allowlist is set
+// (the reservation seam is unreachable without one); in "mesh" mode the config
+// is nil and a sidecar terminates mTLS. The server is opt-in: bootstrap only
+// registers it when TRACER_GRPC_PORT is set.
 type GRPCServer struct {
 	server    *grpc.Server
 	address   string
