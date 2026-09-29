@@ -6,7 +6,6 @@ package command
 
 import (
 	"bytes"
-	"cmp"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -618,7 +617,7 @@ func validateCompletionPostings(transaction accounting.Transaction, projections 
 			return invalidTransactionCompletionRecord("spec references an unrelated posting")
 		}
 
-		if spec.Role == cmp.Or(postingAnchorRoles[posting.Type], accounting.RolePrimary) {
+		if spec.Role == postingAnchorRole(posting.Type) {
 			if spec.BalanceRef != posting.BalanceRef {
 				return invalidTransactionCompletionRecord("spec balance does not match posting")
 			}
@@ -632,13 +631,6 @@ func validateCompletionPostings(transaction accounting.Transaction, projections 
 	}
 
 	return nil
-}
-
-// postingAnchorRoles names the role a collect or refund posting's context holds on its own
-// debtor balance; every other posting anchors on its primary.
-var postingAnchorRoles = map[accounting.PostingType]string{
-	accounting.PostingCollect: accounting.RoleFeeDebtDebit,
-	accounting.PostingRefund:  accounting.RoleFeeDebtRefundCredit,
 }
 
 // EncodeTransactionCompletionRecord validates a completed execution record.

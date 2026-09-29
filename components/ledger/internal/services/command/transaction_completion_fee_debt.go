@@ -150,3 +150,16 @@ func withoutUnfrozenFeeDebt(expected, actual mongodb.JSON) mongodb.JSON {
 
 	return stored
 }
+
+// postingAnchorRole is the role a posting's context holds on the posting's own balance: a collect
+// or refund anchors on its debtor balance, every other posting on its primary.
+func postingAnchorRole(postingType accounting.PostingType) string {
+	switch postingType {
+	case accounting.PostingCollect:
+		return accounting.RoleFeeDebtDebit
+	case accounting.PostingRefund:
+		return accounting.RoleFeeDebtRefundCredit
+	default:
+		return accounting.RolePrimary
+	}
+}

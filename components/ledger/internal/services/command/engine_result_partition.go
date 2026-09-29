@@ -20,11 +20,18 @@ func PartitionEngineResult(prepared PreparedEngineExecution, result accounting.E
 		return nil, err
 	}
 
-	return partitionValidatedEngineResult(prepared, result)
+	feeDebt, err := partitionFeeDebt(prepared.Execution.Execution.Transactions, result.FeeDebt)
+	if err != nil {
+		return nil, err
+	}
+
+	return partitionValidatedEngineResult(prepared, result, feeDebt)
 }
 
-//nolint:gocyclo // one flat pass validating every movement and change of the engine result.
-func partitionValidatedEngineResult(prepared PreparedEngineExecution, result accounting.ExecutionResult) ([]accounting.ExecutionResult, error) {
+// partitionValidatedEngineResult takes the fee-debt changes already routed by transaction index.
+func partitionValidatedEngineResult(
+	prepared PreparedEngineExecution, result accounting.ExecutionResult, feeDebt [][]accounting.FeeDebtChange,
+) ([]accounting.ExecutionResult, error) {
 	if result.Movements == nil || result.Final == nil {
 		return nil, invalidTransactionCompletionRecord("engine result arrays must not be null")
 	}
@@ -41,6 +48,7 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 			Movements:          make([]accounting.Movement, 0),
 			Final:              make([]accounting.BalanceSnapshot, 0),
 			AppliedAtUnixMicro: result.AppliedAtUnixMicro,
+			FeeDebt:            feeDebt[index],
 		}
 		transactionLast[index] = make(map[string]accounting.BalanceState)
 	}
@@ -100,10 +108,6 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 		}
 
 		transactionLast[transactionIndex][balanceKey] = movement.After
-	}
-
-	if err := partitionFeeDebt(partitions, transactionIndices, result.FeeDebt); err != nil {
-		return nil, err
 	}
 
 	finals, err := validateGlobalEngineFinal(request, result.Final, globalTouches, globalLast, balances)
@@ -210,15 +214,23 @@ func sameEngineBalanceIdentity(request accounting.Execution, left, right account
 		left.AccountType == right.AccountType && left.AssetCode == right.AssetCode && left.Alias == right.Alias && left.Key == right.Key
 }
 
-func partitionFeeDebt(partitions []accounting.ExecutionResult, transactionIndices map[uuid.UUID]int, changes []accounting.FeeDebtChange) error {
-	for _, change := range changes {
-		transactionIndex, exists := transactionIndices[change.TransactionID]
-		if !exists {
-			return invalidTransactionCompletionRecord("engine fee-debt change belongs to an unknown transaction")
-		}
+// partitionFeeDebt routes each fee-debt change to its transaction's index, keeping execution order.
+func partitionFeeDebt(transactions []accounting.Transaction, changes []accounting.FeeDebtChange) ([][]accounting.FeeDebtChange, error) {
+	routed := make([][]accounting.FeeDebtChange, len(transactions))
+	indices := make(map[uuid.UUID]int, len(transactions))
 
-		partitions[transactionIndex].FeeDebt = append(partitions[transactionIndex].FeeDebt, change)
+	for index := range transactions {
+		indices[transactions[index].ID] = index
 	}
 
-	return nil
+	for _, change := range changes {
+		index, exists := indices[change.TransactionID]
+		if !exists {
+			return nil, invalidTransactionCompletionRecord("engine fee-debt change belongs to an unknown transaction")
+		}
+
+		routed[index] = append(routed[index], change)
+	}
+
+	return routed, nil
 }

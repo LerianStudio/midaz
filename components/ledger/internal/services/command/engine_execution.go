@@ -76,7 +76,12 @@ func ExecutePreparedEngine(
 		return outcome, invalidEngineResult(errors.New("executor returned a nil result"))
 	}
 
-	partitions, validationErr := partitionValidatedEngineResult(prepared, *result)
+	feeDebt, validationErr := partitionFeeDebt(prepared.Execution.Execution.Transactions, result.FeeDebt)
+	if validationErr != nil {
+		return outcome, invalidEngineResult(validationErr)
+	}
+
+	partitions, validationErr := partitionValidatedEngineResult(prepared, *result, feeDebt)
 	if validationErr != nil {
 		return outcome, invalidEngineResult(validationErr)
 	}
