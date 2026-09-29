@@ -237,7 +237,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 
 	accounts := protectedAccounts(input.Execution)
 
-	keys, scopeKeys, feeDebts, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes, accounts)
+	keys, scopeKeys, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes, accounts)
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +248,11 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 	}
 
 	transactions, err := prepareTransactions(ctx, input.Execution, limits, guards, recovery, balances)
+	if err != nil {
+		return nil, err
+	}
+
+	feeDebtKeys, feeDebts, err := prepareFeeDebts(input.Execution, resolved, len(keys), transactions, limits.MaxRequestBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +285,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, fmt.Errorf("accounting execution exceeds request byte limit")
 	}
 
-	return &preparedExecution{Keys: keys, Payload: encoded}, nil
+	return &preparedExecution{Keys: append(keys, feeDebtKeys...), Payload: encoded}, nil
 }
 
 const (
@@ -511,12 +516,6 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		}
 
 		prepared.Postings = postings
-
-		prepared.ReopenFeeDebts, err = prepareFeeDebtReopens(transaction.ReopenFeeDebts, limits.MaxRequestBytes)
-		if err != nil {
-			return nil, err
-		}
-
 		if transaction.AccountBlockException != nil {
 			exception, err := prepareAccountBlockException(
 				transaction.AccountBlockException,
@@ -699,13 +698,13 @@ func prepareAccounts(request accounting.Execution, resolved resolvedExecutionKey
 }
 
 //nolint:gocyclo // validates the full ordered Lua key inventory and the optional multi-scope tail
-func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int, accounts []uuid.UUID) ([]string, []wireScopeKeys, []wireFeeDebt, error) {
+func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int, accounts []uuid.UUID) ([]string, []wireScopeKeys, error) {
 	if len(resolved.Balances) != len(request.Balances) {
-		return nil, nil, nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
+		return nil, nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
 
 	if resolved.Protection == "" || resolved.TransactionIndex == "" || resolved.Evidence == "" {
-		return nil, nil, nil, fmt.Errorf("missing resolved accounting protection, transaction index, or evidence key")
+		return nil, nil, fmt.Errorf("missing resolved accounting protection, transaction index, or evidence key")
 	}
 
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex, resolved.Evidence}
@@ -713,12 +712,12 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 	for _, balance := range request.Balances {
 		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
 		if !ok {
-			return nil, nil, nil, fmt.Errorf("invalid accounting balance scope")
+			return nil, nil, fmt.Errorf("invalid accounting balance scope")
 		}
 
 		pair, exists := findResolvedBalanceKeys(request, resolved, balance, organizationID, ledgerID)
 		if !exists || !validResolvedBalanceKeys(pair) {
-			return nil, nil, nil, fmt.Errorf("invalid resolved accounting balance keys")
+			return nil, nil, fmt.Errorf("invalid resolved accounting balance keys")
 		}
 
 		keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
@@ -726,12 +725,12 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 
 	keys, err := appendAccountBlockExceptionKeys(request, resolved, keys)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	keys, err = appendAccountProtectionKeys(resolved, keys, accounts)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	var scopeKeys []wireScopeKeys
@@ -754,7 +753,7 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 
 			parts := strings.Split(scope, ":")
 			if len(parts) != 2 || coordination.Receipts == "" || coordination.Guards == "" || coordination.Protection == "" || coordination.TransactionIndex == "" || coordination.Evidence == "" {
-				return nil, nil, nil, fmt.Errorf("invalid resolved accounting coordination keys")
+				return nil, nil, fmt.Errorf("invalid resolved accounting coordination keys")
 			}
 
 			base := len(keys)
@@ -767,23 +766,18 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 		}
 	}
 
-	keys, feeDebts, err := appendFeeDebtKeys(request, resolved, keys)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
 	seen := make(map[string]bool, len(keys))
 
 	total := 0
 	for _, key := range keys {
 		if !strings.Contains(key, cachepolicy.HashTag) || strings.Count(key, "{") != 1 || strings.Count(key, "}") != 1 || seen[key] || len(key) > maxBytes-total {
-			return nil, nil, nil, fmt.Errorf("invalid or oversized resolved accounting key")
+			return nil, nil, fmt.Errorf("invalid or oversized resolved accounting key")
 		}
 
 		seen[key], total = true, total+len(key)
 	}
 
-	return keys, scopeKeys, feeDebts, nil
+	return keys, scopeKeys, nil
 }
 
 func findResolvedBalanceKeys(

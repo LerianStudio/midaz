@@ -1,15 +1,17 @@
--- savedMovementRole accepts a saved movement's role and ordinal: primary and
--- companion use ordinal 0 and any posting but collect or refund; a collect yields
--- one debit on its debtor (0) and credits at item ordinals on declared balances;
--- a refund yields one credit on its debtor (0) and debits on entry creditors.
+-- savedMovementRole accepts a saved movement's role and ordinal: 0 for primary,
+-- companion and a fee-debt posting's debtor, an item or entry index otherwise.
+-- Only a refund's debtor credit, among fee-debt movements, may repay overdraft.
 local function savedMovementRole(movement, posting, ordinal, seeds, transaction)
     if not ordinal:match("^%d+$") or (#ordinal > 1 and ordinal:sub(1, 1) == "0") or #ordinal > 9 then return false end
     local index, role, feeDebtPosting = tonumber(ordinal), movement.role, posting.type == "collect" or posting.type == "refund"
     local onDebtor = movement.balanceRef == posting.balanceRef and index == 0
-    if role == "primary" or role == "overdraft_companion" then return index == 0 and not feeDebtPosting end
+    if role == "primary" then return index == 0 and not feeDebtPosting end
+    if role == "overdraft_companion" then return index == 0 and posting.type ~= "collect" end
+    if role == "fee_debt_refund_credit" then
+        return posting.type == "refund" and onDebtor and movement.type == "credit" and cmp_decimal(canonicalMoney(movement.overdraftDelta), "0") <= 0
+    end
     if movement.overdraftDelta ~= "0" then return false end
     if role == "fee_debt_debit" then return posting.type == "collect" and onDebtor and movement.type == "debit" end
-    if role == "fee_debt_refund_credit" then return posting.type == "refund" and onDebtor and movement.type == "credit" end
     if role == "fee_debt_credit" then
         return posting.type == "collect" and index < #posting.items and movement.type == "credit" and
             seeds[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, movement.balanceRef)] ~= nil
@@ -72,7 +74,7 @@ local function validateStoredResponse(raw, request)
         if movement.role == "overdraft_companion" then
             local primary = response.movements[index - 1]
             local seed = seeds[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
-            if not primary or primary.role ~= "primary" or primary.transactionId ~= movement.transactionId or primary.postingRef ~= movement.postingRef or primary.overdraftDelta == "0" or movement.balanceRef ~= seed.alias .. "#overdraft" then
+            if not primary or (primary.role ~= "primary" and primary.role ~= "fee_debt_refund_credit") or primary.transactionId ~= movement.transactionId or primary.postingRef ~= movement.postingRef or primary.overdraftDelta == "0" or movement.balanceRef ~= seed.alias .. "#overdraft" then
                 technical("invalid_receipt", "invalid saved companion correlation")
             end
         end

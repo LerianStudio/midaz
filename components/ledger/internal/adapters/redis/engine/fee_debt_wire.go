@@ -26,10 +26,11 @@ type wireFeeDebt struct {
 }
 
 type wireFeeDebtRefund struct {
-	DebtID    string `json:"debtId"`
-	CreditRef string `json:"creditRef"`
-	Opened    string `json:"opened"`
-	Seq       string `json:"seq"`
+	DebtID         string `json:"debtId"`
+	CreditRef      string `json:"creditRef"`
+	Opened         string `json:"opened"`
+	Seq            string `json:"seq"`
+	ExpectedRefund string `json:"expectedRefund"`
 }
 
 type wireFeeDebtReopen struct {
@@ -73,16 +74,12 @@ func feeDebtDeclarations(request accounting.Execution) []feeDebtDeclaration {
 }
 
 // resolveFeeDebtKeys resolves each declared list behind the tenant prefix of the
-// balance keys.
+// balance keys, into the map resolved already holds.
 func resolveFeeDebtKeys(ctx context.Context, request accounting.Execution, resolved *resolvedExecutionKeys) error {
 	for _, declaration := range feeDebtDeclarations(request) {
 		key, err := tmvalkey.GetKeyContext(ctx, utils.FeeDebtInternalKey(declaration.OrganizationID, declaration.LedgerID, declaration.BalanceRef))
 		if err != nil {
 			return err
-		}
-
-		if resolved.FeeDebts == nil {
-			resolved.FeeDebts = make(map[string]string)
 		}
 
 		resolved.FeeDebts[declaration.scopedRef()] = key
@@ -91,15 +88,16 @@ func resolveFeeDebtKeys(ctx context.Context, request accounting.Execution, resol
 	return nil
 }
 
-// appendFeeDebtKeys closes the key inventory with one live list per declared
-// debtor and declares each at its 1-based key index.
-func appendFeeDebtKeys(request accounting.Execution, resolved resolvedExecutionKeys, keys []string) ([]string, []wireFeeDebt, error) {
+// prepareFeeDebts encodes the fee-debt parts of the wire outside postings: the
+// keys that close KEYS after its first base keys, their declarations, and each
+// transaction's reopens.
+func prepareFeeDebts(request accounting.Execution, resolved resolvedExecutionKeys, base int, transactions []wireTransaction, maxBytes int) ([]string, []wireFeeDebt, error) {
 	declarations := feeDebtDeclarations(request)
-	if len(resolved.FeeDebts) != len(declarations) {
+	if len(resolved.FeeDebts) != len(declarations) || len(transactions) != len(request.Transactions) {
 		return nil, nil, fmt.Errorf("resolved accounting fee-debt inventory does not match transactions")
 	}
 
-	var prepared []wireFeeDebt
+	keys, prepared := make([]string, 0, len(declarations)), []wireFeeDebt(nil)
 
 	for _, declaration := range declarations {
 		key := resolved.FeeDebts[declaration.scopedRef()]
@@ -110,8 +108,17 @@ func appendFeeDebtKeys(request accounting.Execution, resolved resolvedExecutionK
 		keys = append(keys, key)
 		prepared = append(prepared, wireFeeDebt{
 			OrganizationID: declaration.OrganizationID.String(), LedgerID: declaration.LedgerID.String(),
-			BalanceRef: declaration.BalanceRef, KeyIndex: len(keys),
+			BalanceRef: declaration.BalanceRef, KeyIndex: base + len(keys),
 		})
+	}
+
+	for i, transaction := range request.Transactions {
+		reopens, err := prepareFeeDebtReopens(transaction.ReopenFeeDebts, maxBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		transactions[i].ReopenFeeDebts = reopens
 	}
 
 	return keys, prepared, nil
@@ -128,8 +135,13 @@ func prepareFeeDebtPostingFields(posting accounting.Posting, prepared *wirePosti
 			return err
 		}
 
+		expected, err := boundedDecimal(refund.ExpectedRefund, maxBytes)
+		if err != nil {
+			return err
+		}
+
 		prepared.Refunds = append(prepared.Refunds, wireFeeDebtRefund{
-			DebtID: refund.DebtID, CreditRef: refund.CreditRef, Opened: opened, Seq: strconv.FormatInt(refund.Seq, 10),
+			DebtID: refund.DebtID, CreditRef: refund.CreditRef, Opened: opened, Seq: strconv.FormatInt(refund.Seq, 10), ExpectedRefund: expected,
 		})
 	}
 

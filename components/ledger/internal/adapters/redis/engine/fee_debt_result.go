@@ -48,7 +48,8 @@ func movementOrdinal(ref, prefix string) (int, bool) {
 }
 
 // feeDebtMovementSub correlates a fee-debt movement with its collect or refund
-// posting and returns its sub-position: 0 on the debtor, 1+ordinal per item.
+// posting and returns its sub-position: 0 on the debtor, 1 on the debtor's
+// overdraft companion (refund only), 2+ordinal per item.
 func feeDebtMovementSub(role string, ordinal int, posting accounting.Posting, source, target accounting.BalanceSnapshot) (int64, bool) {
 	onDebtor := ordinal == 0 && target.BalanceRef == source.BalanceRef
 
@@ -57,10 +58,12 @@ func feeDebtMovementSub(role string, ordinal int, posting accounting.Posting, so
 		return 0, onDebtor
 	case role == accounting.RoleFeeDebtRefundCredit && posting.Type == accounting.PostingRefund:
 		return 0, onDebtor
+	case role == accounting.RoleOverdraftCompanion && posting.Type == accounting.PostingRefund:
+		return 1, ordinal == 0 && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef
 	case role == accounting.RoleFeeDebtCredit && posting.Type == accounting.PostingCollect:
-		return int64(ordinal) + 1, ordinal < len(posting.Items) && target.BalanceRef != source.BalanceRef
+		return int64(ordinal) + 2, ordinal < len(posting.Items) && target.BalanceRef != source.BalanceRef
 	case role == accounting.RoleFeeDebtRefundDebit && posting.Type == accounting.PostingRefund:
-		return int64(ordinal) + 1, ordinal < len(posting.Refunds) && target.BalanceRef == posting.Refunds[ordinal].CreditRef
+		return int64(ordinal) + 2, ordinal < len(posting.Refunds) && target.BalanceRef == posting.Refunds[ordinal].CreditRef
 	default:
 		return 0, false
 	}
@@ -132,17 +135,19 @@ func validFeeDebtKind(kind accounting.FeeDebtChangeKind, postingRef string) bool
 }
 
 // validFeeDebtMovement accepts a movement whose fee-debt role records its one
-// type and leaves overdraft untouched; any other role is not its concern.
+// type and whose overdraft delta is its overdraft change: zero, except that a
+// refund's debtor credit repays; any other role is not its concern.
 func validFeeDebtMovement(movement accounting.Movement) bool {
 	expected, feeDebt := feeDebtMovementTypes[movement.Role]
+	delta := movement.After.OverdraftUsed.Sub(movement.Before.OverdraftUsed)
 
-	return !feeDebt || (movement.Type == expected && movement.OverdraftDelta.IsZero() && movement.After.OverdraftUsed.Equal(movement.Before.OverdraftUsed))
+	return !feeDebt || (movement.Type == expected && movement.OverdraftDelta.Equal(delta) &&
+		(delta.IsZero() || (movement.Role == accounting.RoleFeeDebtRefundCredit && delta.IsNegative())))
 }
 
-// validateFeeDebtResult pairs every fee-debt movement with its change: a
-// deferrable debit moved plus opened equals its amount, a collect's credits are
-// its settlements and sum to its debit, and a refund's debits are opened minus
-// canceled and sum to its credit. Changes never travel without a movement.
+// validateFeeDebtResult pairs every fee-debt movement with its change and every
+// change with a movement: deferrals add up, collect credits are its settlements,
+// and refund debits are each entry's expected refund.
 func validateFeeDebtResult(movements []accounting.Movement, changes []accounting.FeeDebtChange, request accounting.Execution) error {
 	if len(changes) > 0 && len(movements) == 0 {
 		return errors.New("accounting fee-debt changes without movements")
@@ -157,19 +162,16 @@ func validateFeeDebtResult(movements []accounting.Movement, changes []accounting
 			}
 		}
 
-		changed, canceled := make(map[string][]accounting.FeeDebtChange), make(map[string]decimal.Decimal)
+		changed := make(map[string][]accounting.FeeDebtChange)
 
 		for _, change := range changes {
 			if change.TransactionID == transaction.ID {
 				changed[change.PostingRef+"\x00"+string(change.Kind)] = append(changed[change.PostingRef+"\x00"+string(change.Kind)], change)
-				if change.Kind == accounting.FeeDebtCanceled {
-					canceled[change.DebtID] = change.Amount
-				}
 			}
 		}
 
 		for _, posting := range transaction.Postings {
-			if err := validatePostingFeeDebt(transaction, posting, moved, changed, canceled); err != nil {
+			if err := validatePostingFeeDebt(transaction, posting, moved, changed); err != nil {
 				return err
 			}
 		}
@@ -178,7 +180,7 @@ func validateFeeDebtResult(movements []accounting.Movement, changes []accounting
 	return nil
 }
 
-func validatePostingFeeDebt(transaction accounting.Transaction, posting accounting.Posting, moved map[string][]accounting.Movement, changed map[string][]accounting.FeeDebtChange, canceled map[string]decimal.Decimal) error {
+func validatePostingFeeDebt(transaction accounting.Transaction, posting accounting.Posting, moved map[string][]accounting.Movement, changed map[string][]accounting.FeeDebtChange) error {
 	switch {
 	case posting.DeferShortfall:
 		primary, opened := moved[posting.Ref+"\x00"+accounting.RolePrimary], changed[posting.Ref+"\x00"+string(accounting.FeeDebtOpened)]
@@ -207,7 +209,7 @@ func validatePostingFeeDebt(transaction accounting.Transaction, posting accounti
 		return pairFeeDebtItems(posting, moved[posting.Ref+"\x00"+accounting.RoleFeeDebtRefundCredit], moved[posting.Ref+"\x00"+accounting.RoleFeeDebtRefundDebit],
 			changed[posting.Ref+"\x00"+string(accounting.FeeDebtRefunded)], func(ordinal int) (string, string, decimal.Decimal, bool) {
 				refund := posting.Refunds[ordinal]
-				return refund.DebtID, refund.CreditRef, refund.Opened.Sub(canceled[refund.DebtID]), true
+				return refund.DebtID, refund.CreditRef, refund.ExpectedRefund, true
 			})
 	}
 
@@ -215,8 +217,8 @@ func validatePostingFeeDebt(transaction accounting.Transaction, posting accounti
 }
 
 // pairFeeDebtItems checks one collect or refund posting: at most one debtor
-// movement for the total, and one item movement per change, in the same order,
-// naming the item at its ordinal, on the change's creditor and for its amount.
+// movement for the total, overdraft repaid included, and one item movement per
+// change, in order, naming the item at its ordinal, on its creditor, for its amount.
 func pairFeeDebtItems(posting accounting.Posting, debtor, items []accounting.Movement, changes []accounting.FeeDebtChange, item func(int) (string, string, decimal.Decimal, bool)) error {
 	if len(items) != len(changes) || (len(debtor) != 1 && len(items) > 0) || (len(debtor) != 0 && len(items) == 0) {
 		return errors.New("accounting fee-debt movements do not pair with changes")
@@ -237,7 +239,7 @@ func pairFeeDebtItems(posting accounting.Posting, debtor, items []accounting.Mov
 		total = total.Add(movement.Amount)
 	}
 
-	if len(debtor) == 1 && (!debtor[0].Amount.Equal(total) || total.GreaterThan(posting.Amount)) {
+	if len(debtor) == 1 && (!debtor[0].Amount.Sub(debtor[0].OverdraftDelta).Equal(total) || total.GreaterThan(posting.Amount)) {
 		return errors.New("accounting fee-debt total does not match its debtor movement")
 	}
 

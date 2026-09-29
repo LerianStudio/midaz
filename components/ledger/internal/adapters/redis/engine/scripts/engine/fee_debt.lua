@@ -1,8 +1,6 @@
--- Fee debts. A deferrable debit moves only what its payer can fund and its
--- funded credit opens the rest as a debt on the payer's live list; a collect
--- posting settles that list oldest first; a revert cancels what its parent left
--- open, reopens what its parent settled, and refunds what later credits settled.
--- Nothing here writes Redis: changed lists are published by the commit phase.
+-- Fee debts: a deferrable debit's unfunded rest opens on its payer's live list, a
+-- collect settles that list oldest first, and a revert cancels, reopens and refunds.
+-- Nothing here writes Redis; the commit phase publishes the changed lists.
 
 local feeDebtCap = 256
 
@@ -20,27 +18,30 @@ end
 
 -- decodeFeeDebtList validates one stored list: version 1, a positive nextSeq above
 -- every item's seq, strictly ascending seqs, unique ids and 0 < remaining <= opened.
+-- Any failure is corrupt live state, so it is a conflict, not a protocol error.
 local function decodeFeeDebtList(raw)
-    local list = decodeJSON(raw)
-    requireObject(list)
-    requireArray(list.items)
-    if numberTokens[list.v] ~= "1" or integerText(list.nextSeq, maximumFeeDebtSeq) == "0" then
-        technical("invalid_protocol", "invalid fee-debt list")
-    end
-    local ids, previous = {}, "0"
-    for _, item in ipairs(list.items) do
-        requireObject(item)
-        text(item.id, false)
-        logicalRef(item.creditRef)
-        uuid(item.originTransactionId)
-        text(item.assetCode, false)
-        local remaining, opened = canonicalMoney(item.remaining), canonicalMoney(item.opened)
-        if ids[item.id] or cmp_decimal(remaining, "0") <= 0 or cmp_decimal(remaining, opened) > 0 or
-            cmp_decimal(positiveSeq(item.seq), previous) <= 0 or cmp_decimal(item.seq, list.nextSeq) >= 0 then
-            technical("invalid_protocol", "invalid fee-debt item")
+    local decoded, list = pcall(function()
+        local list = decodeJSON(raw)
+        requireObject(list)
+        requireArray(list.items)
+        if numberTokens[list.v] ~= "1" or integerText(list.nextSeq, maximumFeeDebtSeq) == "0" then error("invalid fee-debt list", 0) end
+        local ids, previous = {}, "0"
+        for _, item in ipairs(list.items) do
+            requireObject(item)
+            text(item.id, false)
+            logicalRef(item.creditRef)
+            uuid(item.originTransactionId)
+            text(item.assetCode, false)
+            local remaining, opened = canonicalMoney(item.remaining), canonicalMoney(item.opened)
+            if ids[item.id] or cmp_decimal(remaining, "0") <= 0 or cmp_decimal(remaining, opened) > 0 or
+                cmp_decimal(positiveSeq(item.seq), previous) <= 0 or cmp_decimal(item.seq, list.nextSeq) >= 0 then
+                error("invalid fee-debt item", 0)
+            end
+            ids[item.id], previous = true, item.seq
         end
-        ids[item.id], previous = true, item.seq
-    end
+        return list
+    end)
+    if not decoded then feeDebtConflict("corrupt fee-debt list") end
     return list
 end
 
@@ -203,18 +204,20 @@ local function collectFeeDebts(step, posting, debtor)
     end
 end
 
--- refundFeeDebts pays the debtor back what later credits settled of each debt the
--- reverted parent opened: opened minus what this transaction canceled of it. Each
--- creditor pays as an ordinary debit without overdraft, never partially. A list
--- that is gone or older than an entry holds the revert for an operator.
+-- refundFeeDebts pays the debtor, as an ordinary credit, opened minus canceled of
+-- each debt the parent opened; it must equal the entry's expectedRefund and each
+-- creditor pays its part as a debit without overdraft, never partially.
 local function refundFeeDebts(step, postingIndex, posting, debtor)
     local list, transaction = feeDebtList(step, posting.balanceRef), step.transaction
     for _, entry in ipairs(posting.refunds) do
-        if not list.exists or cmp_decimal(entry.seq, list.value.nextSeq) >= 0 then feeDebtConflict("refunded debt is newer than its list") end
+        local refund = sub_decimal(entry.opened, step.canceled[entry.debtId] or "0")
+        if not list.exists or cmp_decimal(entry.seq, list.value.nextSeq) >= 0 or cmp_decimal(refund, entry.expectedRefund) ~= 0 then
+            feeDebtConflict("refund does not match its live list")
+        end
     end
     local refunds, pending, total = {}, {}, "0"
     for index, entry in ipairs(posting.refunds) do
-        local amount = sub_decimal(entry.opened, step.canceled[entry.debtId] or "0")
+        local amount = entry.expectedRefund
         if cmp_decimal(amount, "0") > 0 then
             local creditor = feeDebtBalance(step, entry.creditRef)
             step.touch(creditor, step.txIndex, postingIndex, transaction.rejectBlockedBalances, step.exempt)
@@ -227,11 +230,10 @@ local function refundFeeDebts(step, postingIndex, posting, debtor)
         end
     end
     if #refunds == 0 then return end
-    local current = debtor.current
-    if current.direction == "debit" or current.accountType == "external" then feeDebtConflict("refund debtor cannot hold a fee debt") end
-    local nextState = clone(current)
-    nextState.available = add_decimal(current.available, total)
-    step.record(debtor, nextState, posting, "fee_debt_refund_credit", "credit", total, "0", 0)
+    local nextState = clone(debtor.current)
+    local credited, delta = applyCreditPosting(debtor.current, nextState, { amount = total, overdraftAmount = posting.overdraftAmount })
+    step.record(debtor, nextState, posting, "fee_debt_refund_credit", "credit", credited, delta, 0)
+    mirrorOverdraft(step, postingIndex, posting, debtor, delta)
     for _, refund in ipairs(refunds) do
         local creditorNext = clone(refund.creditor.current)
         creditorNext.available = sub_decimal(creditorNext.available, refund.amount)
@@ -239,7 +241,7 @@ local function refundFeeDebts(step, postingIndex, posting, debtor)
         local entry = refund.entry
         emitFeeDebtChange(step, "refunded", posting.ref, posting.balanceRef, {
             id = entry.debtId, creditRef = entry.creditRef, originTransactionId = entry.debtId:sub(1, 36),
-            seq = entry.seq, assetCode = current.assetCode, opened = entry.opened
+            seq = entry.seq, assetCode = debtor.current.assetCode, opened = entry.opened
         }, refund.amount)
     end
 end

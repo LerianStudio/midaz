@@ -32,8 +32,9 @@ func TestPrepareExecutionAppendsFeeDebtKeysLast(t *testing.T) {
 	input.Execution.Transactions[1].Postings = append(input.Execution.Transactions[1].Postings, accounting.Posting{
 		Ref: "refund", BalanceRef: "@source#default", Type: accounting.PostingRefund, Amount: decimal.NewFromInt(70),
 		DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero,
-		Refunds: []accounting.FeeDebtRefund{{DebtID: "parent:fee", CreditRef: "@secondary#default", Opened: decimal.NewFromInt(70), Seq: 9}},
+		Refunds: []accounting.FeeDebtRefund{{DebtID: "parent:fee", CreditRef: "@secondary#default", Opened: decimal.NewFromInt(70), Seq: 9, ExpectedRefund: decimal.NewFromInt(25)}},
 	})
+	resolved.FeeDebts = make(map[string]string)
 	require.NoError(t, resolveFeeDebtKeys(context.Background(), input.Execution, &resolved))
 	source := utils.FeeDebtInternalKey(input.Execution.OrganizationID, input.Execution.LedgerID, "@source#default")
 	secondary := utils.FeeDebtInternalKey(input.Execution.OrganizationID, input.Execution.LedgerID, "@secondary#default")
@@ -60,7 +61,7 @@ func TestPrepareExecutionAppendsFeeDebtKeysLast(t *testing.T) {
 		DebtID: input.Execution.Transactions[0].ID.String() + ":fee", DebtorRef: "@source#default", CreditRef: "@secondary#default",
 		Amount: "12.5", Opened: "70", Seq: "3",
 	}}, wire.Transactions[1].ReopenFeeDebts)
-	require.Equal(t, []wireFeeDebtRefund{{DebtID: "parent:fee", CreditRef: "@secondary#default", Opened: "70", Seq: "9"}}, wire.Transactions[1].Postings[1].Refunds)
+	require.Equal(t, []wireFeeDebtRefund{{DebtID: "parent:fee", CreditRef: "@secondary#default", Opened: "70", Seq: "9", ExpectedRefund: "25"}}, wire.Transactions[1].Postings[1].Refunds)
 	require.Nil(t, wire.Transactions[0].ReopenFeeDebts)
 
 	resolved.FeeDebts = map[string]string{scopedBalanceRef(input.Execution.OrganizationID, input.Execution.LedgerID, "@source#default"): source}

@@ -227,7 +227,7 @@ func TestFeeDebtRequestContractShape(t *testing.T) {
 			{Ref: "fee-credit", BalanceRef: "@fees#default", Type: PostingCredit, Amount: decimal.NewFromInt(100), DrawPolicy: DrawForbidden, FundedByRef: "fee-debit"},
 			{Ref: "fee-credit:collect", BalanceRef: "@payer#default", Type: PostingCollect, Amount: decimal.NewFromInt(200), DrawPolicy: DrawForbidden, Items: []string{origin.String() + ":fee-debit"}},
 			{Ref: "fee-refund:0", BalanceRef: "@payer#default", Type: PostingRefund, Amount: decimal.NewFromInt(70), DrawPolicy: DrawForbidden, Refunds: []FeeDebtRefund{{
-				DebtID: origin.String() + ":fee-debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3,
+				DebtID: origin.String() + ":fee-debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3, ExpectedRefund: decimal.NewFromInt(30),
 			}}},
 		},
 		FeeDebtRefs: []string{"@payer#default"},
@@ -241,7 +241,7 @@ func TestFeeDebtRequestContractShape(t *testing.T) {
 		`{"ref":"fee-debit","balanceRef":"@payer#default","type":"debit","amount":"100","drawPolicy":"forbidden","overdraftAmount":"0","deferShortfall":true},` +
 		`{"ref":"fee-credit","balanceRef":"@fees#default","type":"credit","amount":"100","drawPolicy":"forbidden","overdraftAmount":"0","fundedByRef":"fee-debit"},` +
 		`{"ref":"fee-credit:collect","balanceRef":"@payer#default","type":"collect","amount":"200","drawPolicy":"forbidden","overdraftAmount":"0","items":["6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit"]},` +
-		`{"ref":"fee-refund:0","balanceRef":"@payer#default","type":"refund","amount":"70","drawPolicy":"forbidden","overdraftAmount":"0","refunds":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","creditRef":"@fees#default","opened":"70","seq":"3"}]}],` +
+		`{"ref":"fee-refund:0","balanceRef":"@payer#default","type":"refund","amount":"70","drawPolicy":"forbidden","overdraftAmount":"0","refunds":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","creditRef":"@fees#default","opened":"70","seq":"3","expectedRefund":"30"}]}],` +
 		`"feeDebtRefs":["@payer#default"],` +
 		`"reopenFeeDebts":[{"debtId":"6e0ebc70-6039-4edf-b039-4bb5d85afafe:fee-debit","debtorRef":"@payer#default","creditRef":"@fees#default","amount":"12.5","opened":"70","seq":"7"}]}`
 	assertContractJSON(t, transaction, want)

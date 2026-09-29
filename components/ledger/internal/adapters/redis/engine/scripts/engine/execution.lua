@@ -361,12 +361,11 @@ local function validateLiveBalanceAvailability(request, pool, exemptions)
     end
 end
 
--- applyAccountingPosting applies one monetary posting: the closed algebra, then
--- the overdraft draw or repayment it produces, mirrored on the companion. A
--- deferrable debit moves only what its payer funds; its funded credit moves the
--- same part and opens the rest as a fee debt.
+-- applyAccountingPosting applies one monetary posting through the closed algebra
+-- and mirrors its overdraft change. A deferrable debit and its funded credit move
+-- only what the payer funds; the credit opens the rest as a fee debt.
 local function applyAccountingPosting(step, postingIndex, posting, item)
-    local transaction, txIndex = step.transaction, step.txIndex
+    local txIndex = step.txIndex
     local amount = posting.amount
     if posting.deferShortfall then
         amount = deferShortfall(step, postingIndex, posting, item)
@@ -401,30 +400,8 @@ local function applyAccountingPosting(step, postingIndex, posting, item)
         nextState.available, primaryAmount, delta = "0", sub_decimal(amount, draw), draw
     end
 
-    -- Mirror every overdraft draw or repayment on the account's dedicated
-    -- companion balance so both sides of the debt remain explicit.
-    local companion, companionNext, companionAmount, companionType
-    if cmp_decimal(delta, "0") ~= 0 then
-        companion = step.companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, current.accountId)]
-        if not companion then refuse("overdraft_companion_missing", txIndex, postingIndex, posting.balanceRef) end
-        if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
-            technical("invalid_companion", "invalid overdraft companion")
-        end
-        step.touch(companion, txIndex, postingIndex, transaction.rejectBlockedBalances, step.exempt)
-        companionNext = clone(companion.current)
-        if cmp_decimal(delta, "0") > 0 then
-            companionAmount, companionType = delta, "debit"
-            companionNext.available = add_decimal(companion.current.available, companionAmount)
-        else
-            companionAmount, companionType = sub_decimal("0", delta), "credit"
-            if cmp_decimal(companion.current.available, companionAmount) < 0 then
-                refuse("insufficient_funds", txIndex, postingIndex, companion.current.balanceRef)
-            end
-            companionNext.available = sub_decimal(companion.current.available, companionAmount)
-        end
-    end
     step.record(item, nextState, posting, "primary", postingType, primaryAmount, delta)
-    if companion then step.record(companion, companionNext, posting, "overdraft_companion", companionType, companionAmount, "0") end
+    mirrorOverdraft(step, postingIndex, posting, item, delta)
     if posting.fundedByRef then openFeeDebt(step, posting) end
 end
 
@@ -726,11 +703,9 @@ local function commitPreparedExecution(request, preparedBalances, preparedFeeDeb
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
-    -- Publish live balances first, then the fee-debt lists they owe (never
-    -- expiring: they are the only live copy of receivables), the synchronization
-    -- schedule, the expiry of cached companions kept beside them, the recovery
-    -- evidence, lifecycle guards, and cleanup coordinators. The receipt is written
-    -- last so its presence proves that the complete prepared command sequence ran.
+    -- Publish balances, then the never-expiring fee-debt lists they owe, the sync
+    -- schedule, companion expiries, recovery evidence, guards and coordinators; the
+    -- receipt goes last, so its presence proves the whole sequence ran.
     for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
     for _, list in ipairs(preparedFeeDebts) do redis.call("SET", list.key, list.value) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end

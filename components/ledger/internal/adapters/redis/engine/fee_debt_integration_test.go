@@ -465,6 +465,12 @@ func TestIntegrationFeeDebtRejectsMalformedProtocol(t *testing.T) {
 			f.revert(parent)
 			f.input.Execution.Transactions[0].Postings = []accounting.Posting{refund(f, "70", "0a4b6d8e-3333-4a1a-8a1a-000000000002:fee-debit")}
 		}},
+		{name: "a refund expecting more than its debt opened", shape: func(f *integrationFixture) {
+			f.revert(parent)
+			posting := refund(f, "70", parent.String()+":fee-debit")
+			posting.Refunds[0].ExpectedRefund = decimal.NewFromInt(71)
+			f.input.Execution.Transactions[0].Postings = []accounting.Posting{posting}
+		}},
 		{name: "a reopen outside a revert", shape: func(f *integrationFixture) {
 			f.input.Execution.Transactions[0].ReopenFeeDebts = []accounting.FeeDebtReopen{{
 				DebtID: parent.String() + ":fee-debit", DebtorRef: "@source#default", CreditRef: "@fees#default",
@@ -519,6 +525,14 @@ func TestIntegrationFeeDebtRejectsMalformedProtocol(t *testing.T) {
 		f.input.Execution.Balances[0].Available = decimal.Zero
 		f.requireUnchanged(t, "fee_debt_conflict")
 	})
+
+	for name, raw := range map[string]string{"invalid json": `not json`, "a zero nextSeq": `{"items":[],"nextSeq":"0","v":1}`} {
+		t.Run("a stored list with "+name+" is a conflict", func(t *testing.T) {
+			f := newDeferralFixture(t, container.Client)
+			require.NoError(t, f.client.Set(context.Background(), f.feeDebtKey("@source#default"), raw, 0).Err())
+			f.requireUnchanged(t, "fee_debt_conflict")
+		})
+	}
 }
 
 // noFeeDebtResponse is the response the engine gave the base fixture before fee

@@ -198,7 +198,8 @@ only `id` and `creditRef`) is a seed; Lua always reads the live key.
    "opened":"70","originTransactionId":"<uuid>","seq":"3","assetCode":"BRL"}]}
 ```
 
-- `v` is the JSON number 1; anything else is `invalid_protocol`.
+- `v` is the JSON number 1. A stored value that breaks any rule below is
+  corrupt live state and fails the execution with `fee_debt_conflict`.
 - `nextSeq` and `seq` are decimal integer strings; `nextSeq` starts at `"1"`.
 - `items` (possibly `[]`) is in settlement order and `seq` strictly ascends
   along it. `id` is the identity and is unique in the list.
@@ -256,8 +257,15 @@ of that list, `n` counting them from 0, its entries in list order:
 ```json
 {"ref":"fee-refund:<n>","balanceRef":"<the debtor>","type":"refund","amount":"<sum of opened>",
  "drawPolicy":"forbidden","overdraftAmount":"0",
- "refunds":[{"debtId":"<O>:<debitPostingRef>","creditRef":"@fees#default","opened":"70","seq":"3"}]}
+ "refunds":[{"debtId":"<O>:<debitPostingRef>","creditRef":"@fees#default","opened":"70","seq":"3",
+   "expectedRefund":"30"}]}
 ```
+
+`expectedRefund` is what the Fees `fee_debt` projection says later credits
+settled of that debt, net of reopens: its `opened` minus its projected
+`remaining`. The refund debtor is an explicit balance, so
+`LoadEngineSnapshotPool` already loads its overdraft companion; a debtor with
+`overdraftUsed > 0` and no companion refuses with `overdraft_companion_missing`.
 
 Collect and refund postings count toward the existing posting limit.
 `request.lua` is the only owner of the deferral pairing (Go does not check it)
@@ -278,8 +286,9 @@ and refuses with `invalid_protocol` when:
   debits;
 - `refunds` is on a non-refund; a refund posting appears when `action` is not
   `revert`, has no entries, an amount other than the sum of their `opened`, or
-  an undeclared debtor key; an entry has a non-positive `opened` or seq, a
-  `creditRef` outside its scope's pool, or a `debtId` not starting with
+  an undeclared debtor key; an entry has a non-positive `opened` or seq, an
+  `expectedRefund` below 0 or above its `opened`, a `creditRef` outside its
+  scope's pool, or a `debtId` not starting with
   `<parentTransactionId>:`; a `debtId` repeats across the transaction's refund
   entries;
 - `feeDebts` repeats an entry, or an entry's key index or key suffix is wrong.
@@ -326,21 +335,25 @@ Then the posting loop:
   live-blocked, `allowReceiving = false`, closing/closed, an unconfirmed seed,
   `overdraftUsed > 0`, or of another asset. Each settled item moves
   `take(budget, remaining)`, is removed at 0, and emits one `settled` change.
-- Refund: the debtor's list must exist with `nextSeq` above every entry's
-  `seq`; otherwise the execution fails with `fee_debt_conflict` and refunds
-  nothing, so a lost list (a Redis failover) holds the revert for an operator
-  instead of refunding the whole `opened`. Then, per entry in order,
-  `refund = opened - canceled`, where `canceled` is what step 1 of this
-  transaction removed of that debt (0 when it was no longer live, i.e. fully
-  settled). A positive refund debits the entry's `creditRef` as
-  an ordinary debit (touch, no overdraft draw) and refuses the execution exactly
-  as that debit would; an external or non-credit-direction creditor refuses with
-  `insufficient_funds`. It is never partial. The debtor is credited the total as
-  an ordinary credit, and each positive refund emits one `refunded` change. So
-  the payer always gets back what later credits settled and never owes what was
-  still open, whatever the order of the settlements.
+- Refund: per entry, `refund = opened - canceled`, where `canceled` is what
+  step 1 of this transaction removed of that debt (0 when it was no longer
+  live, i.e. fully settled). The execution fails with `fee_debt_conflict` and
+  refunds nothing when the debtor's list is missing, its `nextSeq` is not above
+  an entry's `seq`, or a refund differs from the entry's `expectedRefund`. A
+  lost list that a later deferral recreated past the entry's `seq` cancels
+  nothing, so only `expectedRefund` stops it from refunding the whole `opened`
+  of a debt still open; the revert holds for an operator instead. Each positive
+  refund then debits the entry's `creditRef` as an ordinary debit (touch, no
+  overdraft draw) and refuses the execution exactly as that debit would; an
+  external or non-credit-direction creditor refuses with `insufficient_funds`.
+  It is never partial. The debtor is credited the total through the ordinary
+  credit algebra: it repays `overdraftUsed` first, mirrored on the debtor's
+  companion, and the rest raises `available`. Each positive refund emits one
+  `refunded` change. So the payer always gets back what later credits settled
+  and never owes what was still open, whatever the order of the settlements.
 
-No movement of amount 0 is ever recorded.
+No fee-debt movement of amount 0 is recorded, except a refund's debtor credit
+that went entirely to overdraft: its `overdraftDelta` carries the repayment.
 
 ### Movements
 
@@ -350,20 +363,24 @@ settled item on that item's `creditRef` (type `credit`, ordinal = the item id's
 0-based index in `items`, amount = its settlement), all with
 `overdraftDelta = "0"`. Several credits may land on one creditor. A refund
 posting mirrors it: one `fee_debt_refund_credit` on its debtor (type `credit`,
-ordinal 0, the total refunded) followed by one `fee_debt_refund_debit` per
-positive refund on its entry's `creditRef` (type `debit`, ordinal = the entry's
-0-based index in `refunds`), all with `overdraftDelta = "0"`. Every ref keeps
+ordinal 0, the part of the total that reached `available`, `overdraftDelta` =
+minus the overdraft it repaid), then, when it repaid overdraft, one
+`overdraft_companion` credit (ordinal 0) of that amount on the debtor's
+companion, then one `fee_debt_refund_debit` per positive refund on its entry's
+`creditRef` (type `debit`, ordinal = the entry's 0-based index in `refunds`,
+`overdraftDelta = "0"`). Every ref keeps
 the form `<txId>:<len(postingRef)>:<postingRef>:<role>:<ordinal>`; primary,
 companion, `fee_debt_debit` and `fee_debt_refund_credit` use ordinal 0.
 Movements follow posting order and, within a posting, sub 0 (primary,
-`fee_debt_debit` or `fee_debt_refund_credit`), then sub 1 (companion) or the
-per-item movements in ascending ordinal; readers order by `(postingIndex, sub)`.
+`fee_debt_debit` or `fee_debt_refund_credit`), sub 1 (companion), then the
+per-item movements at sub 2 + ordinal; readers order by `(postingIndex, sub)`.
 
 ### Response, receipt and recovery
 
 The response envelope gains `"feeDebt":[...]`, omitted when empty; the receipt
 stores that response verbatim, so replay returns it, and receipt validation
-accepts the four new roles and their ordinals. Each recovery record's
+accepts the four new roles and their ordinals, and a companion movement after a
+refund credit that repaid overdraft. Each recovery record's
 `record.result` gains the same array holding only that transaction's changes,
 omitted when empty. Changes keep execution order. One change:
 
@@ -389,8 +406,9 @@ change of the item at its ordinal, on that change's `creditRef` and for its
 amount, and the total equals the debit and does not exceed the posting amount;
 per refund posting, that `fee_debt_refund_credit` is on the posting's balance,
 each `fee_debt_refund_debit` pairs with one `refunded` change of the entry at
-its ordinal, on its `creditRef` and for its `opened` minus that debt's
-`canceled` amount in the same transaction, and the total equals the credit.
+its ordinal, on its `creditRef` and for its `expectedRefund`, and the total
+equals the credit's amount plus the overdraft it repaid, which its companion
+movement mirrors.
 
 ### Completion (Go)
 
@@ -433,7 +451,9 @@ lookup built by `BuildTransactionWriteSet` from plan and result) or from the
 primary with P's Mongo metadata, and completion confirms that metadata before
 the evidence is reaped. Rows are not the source: the primary route loads
 operations without metadata, and an unpaid fee writes none. The Fees `fee_debt`
-documents are not either: they lag completion and round past 34 digits.
+documents are not either: they lag completion and round past 34 digits. They
+source only each refund's `expectedRefund`, where a lag or a rounding makes the
+revert refuse with `fee_debt_conflict`, never refund the wrong amount.
 
 - Declared lists: the debtors of P's `feeDebtOpenings` (refund and cancel) and
   `feeDebtSettlements` (reopen) and, on `/v2`, each debtor that gets a collect.

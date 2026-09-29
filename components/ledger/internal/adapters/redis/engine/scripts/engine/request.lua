@@ -79,9 +79,8 @@ local function positiveSeq(value)
 end
 
 -- validateFeeDebtTransaction owns the fee-debt pairing rules of one transaction:
--- every deferrable debit is funded by exactly one later credit of the same amount
--- and asset, collect and refund postings name declared debtors, and reopen and
--- refund entries are well formed and bound to the reverted parent.
+-- one funding credit per deferrable debit, declared debtors, and reopen and refund
+-- entries bound to the reverted parent.
 local function validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
     local function scoped(ref) return scopedBalanceRef(transaction.organizationId, transaction.ledgerId, ref) end
     local function invalid(message) technical("invalid_protocol", message) end
@@ -117,7 +116,9 @@ local function validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
                 requireObject(entry)
                 text(entry.debtId, false)
                 positiveSeq(entry.seq)
-                if refundIds[entry.debtId] or entry.debtId:sub(1, 37) ~= parent .. ":" or #entry.debtId == 37 or not refs[scoped(logicalRef(entry.creditRef))] or cmp_decimal(canonicalMoney(entry.opened), "0") <= 0 then
+                local expected = canonicalMoney(entry.expectedRefund)
+                if refundIds[entry.debtId] or entry.debtId:sub(1, 37) ~= parent .. ":" or #entry.debtId == 37 or not refs[scoped(logicalRef(entry.creditRef))] or
+                    cmp_decimal(canonicalMoney(entry.opened), "0") <= 0 or cmp_decimal(expected, "0") < 0 or cmp_decimal(expected, entry.opened) > 0 then
                     invalid("invalid refund entry")
                 end
                 refundIds[entry.debtId], total = true, add_decimal(total, entry.opened)
@@ -144,6 +145,29 @@ local function validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
         end
         reopenIds[entry.debtId] = true
     end
+end
+
+-- decodeFeeDebtInventory validates the fee-debt keys that close KEYS at base, one
+-- live list per declared debtor, and with them the total key count.
+local function decodeFeeDebtInventory(request, base)
+    local feeDebts, feeDebtKeys = request.feeDebts or array(), {}
+    requireArray(feeDebts)
+    if request.feeDebts ~= nil and #feeDebts == 0 then technical("invalid_protocol", "empty fee-debt inventory") end
+    if #KEYS ~= base + #feeDebts then technical("invalid_protocol", "invalid execution cardinality") end
+    for i, entry in ipairs(feeDebts) do
+        requireObject(entry)
+        uuid(entry.organizationId)
+        uuid(entry.ledgerId)
+        logicalRef(entry.balanceRef)
+        local scoped = scopedBalanceRef(entry.organizationId, entry.ledgerId, entry.balanceRef)
+        local suffix = "fee-debt:" .. transaction_hash_tag .. ":" .. scoped
+        if feeDebtKeys[scoped] or smallInteger(entry.keyIndex, #KEYS) ~= base + i or KEYS[base + i]:sub(-#suffix) ~= suffix then
+            technical("invalid_protocol", "invalid fee-debt key inventory")
+        end
+        entry.keyIndex, feeDebtKeys[scoped] = base + i, entry
+    end
+    request.feeDebts = feeDebts
+    return feeDebtKeys
 end
 
 -- decodeRequest validates the entire Go-to-Lua contract before live state is
@@ -184,10 +208,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         if #declaredScopes < 2 then technical("invalid_protocol", "invalid scope key inventory") end
         extraScopes = #declaredScopes - 1
     end
-    local feeDebts = request.feeDebts or array()
-    requireArray(feeDebts)
-    if request.feeDebts ~= nil and #feeDebts == 0 then technical("invalid_protocol", "empty fee-debt inventory") end
-    if #KEYS ~= 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes + #feeDebts then technical("invalid_protocol", "invalid execution cardinality") end
+    local feeDebtKeys = decodeFeeDebtInventory(request, 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes)
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -309,21 +330,6 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         end
     end
     request.scopeKeyMap = scopeKeyMap
-    -- The fee-debt keys close the inventory: one live list per declared debtor.
-    local feeDebtKeys, feeDebtBase = {}, protectionBase + 3 * #request.accounts + 5 * extraScopes
-    for i, entry in ipairs(feeDebts) do
-        requireObject(entry)
-        uuid(entry.organizationId)
-        uuid(entry.ledgerId)
-        logicalRef(entry.balanceRef)
-        local scoped = scopedBalanceRef(entry.organizationId, entry.ledgerId, entry.balanceRef)
-        local suffix = "fee-debt:" .. transaction_hash_tag .. ":" .. scoped
-        if feeDebtKeys[scoped] or smallInteger(entry.keyIndex, #KEYS) ~= feeDebtBase + i or KEYS[feeDebtBase + i]:sub(-#suffix) ~= suffix then
-            technical("invalid_protocol", "invalid fee-debt key inventory")
-        end
-        entry.keyIndex, feeDebtKeys[scoped] = feeDebtBase + i, entry
-    end
-    request.feeDebts, request.feeDebtKeys = feeDebts, feeDebtKeys
     -- Validate transaction correlation, guard advancement, recovery payloads,
     -- and the closed set of balance references used by requirements and postings.
     local transactions, grantOrdinal, postingCount = {}, 0, 0

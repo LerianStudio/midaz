@@ -307,7 +307,7 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 		Accounts:               make(map[uuid.UUID]resolvedAccountKeys, len(request.Balances)),
-		Coordination:           make(map[string]resolvedCoordinationKeys),
+		Coordination:           make(map[string]resolvedCoordinationKeys), FeeDebts: make(map[string]string),
 	}
 	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex, &resolved.Evidence} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
@@ -393,11 +393,7 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		return resolvedExecutionKeys{}, err
 	}
 
-	if err := resolveFeeDebtKeys(ctx, request, &resolved); err != nil {
-		return resolvedExecutionKeys{}, err
-	}
-
-	return resolved, nil
+	return resolved, resolveFeeDebtKeys(ctx, request, &resolved)
 }
 
 // resolveAccountProtectionKeys resolves the closing controls of every account of
@@ -729,7 +725,7 @@ func validateCompanionSequence(movement accounting.Movement, previous []accounti
 	}
 
 	primary := previous[len(previous)-1]
-	if primary.Role != accounting.RolePrimary || primary.TransactionID != movement.TransactionID || primary.PostingRef != movement.PostingRef || primary.OverdraftDelta.IsZero() || !movement.Amount.Equal(primary.OverdraftDelta.Abs()) {
+	if !requiresCompanion(primary) || primary.TransactionID != movement.TransactionID || primary.PostingRef != movement.PostingRef || !movement.Amount.Equal(primary.OverdraftDelta.Abs()) {
 		return errors.New("companion movement does not match primary debt change")
 	}
 
@@ -741,7 +737,7 @@ func validateCompanionSequence(movement accounting.Movement, previous []accounti
 }
 
 func requiresCompanion(movement accounting.Movement) bool {
-	return movement.Role == accounting.RolePrimary && !movement.OverdraftDelta.IsZero()
+	return (movement.Role == accounting.RolePrimary || movement.Role == accounting.RoleFeeDebtRefundCredit) && !movement.OverdraftDelta.IsZero()
 }
 
 // decodeMovement returns the movement, its order key (posting position, then

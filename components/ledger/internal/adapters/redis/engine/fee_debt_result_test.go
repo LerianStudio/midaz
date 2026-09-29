@@ -107,8 +107,8 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 	debit := core.Posting{Ref: "fd", BalanceRef: "@source#default", Type: core.PostingDebit, Amount: decimal.NewFromInt(100), DeferShortfall: true}
 	credit := core.Posting{Ref: "fc", BalanceRef: "@fees#default", Type: core.PostingCredit, Amount: decimal.NewFromInt(100), FundedByRef: "fd"}
 	refund := core.Posting{Ref: "r", BalanceRef: "@source#default", Type: core.PostingRefund, Amount: decimal.NewFromInt(90), Refunds: []core.FeeDebtRefund{
-		{DebtID: feeDebtOrigin.String() + ":a", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 1},
-		{DebtID: feeDebtOrigin.String() + ":b", CreditRef: "@fees#default", Opened: decimal.NewFromInt(20), Seq: 3},
+		{DebtID: feeDebtOrigin.String() + ":a", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 1, ExpectedRefund: decimal.NewFromInt(30)},
+		{DebtID: feeDebtOrigin.String() + ":b", CreditRef: "@fees#default", Opened: decimal.NewFromInt(20), Seq: 3, ExpectedRefund: decimal.NewFromInt(20)},
 	}}
 
 	settle := func() ([]feeDebtStep, []resultFeeDebtChange) {
@@ -196,7 +196,7 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) { (*c)[0].PostingRef = "r" },
 		},
 		{
-			name: "a refund ignoring what was canceled", postings: []core.Posting{refund}, scenario: reimburse,
+			name: "a refund other than its expected refund", postings: []core.Posting{refund}, scenario: reimburse,
 			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) {
 				(*s)[0].amount, (*s)[1].amount, (*c)[1].Amount = 90, 70, "70"
 			},

@@ -82,12 +82,14 @@ type Posting struct {
 }
 
 // FeeDebtRefund names one debt the reverted parent opened: the engine refunds
-// Opened minus what this transaction canceled of it.
+// Opened minus what this transaction canceled of it, and refuses technically when
+// that differs from ExpectedRefund, what the durable record says was settled.
 type FeeDebtRefund struct {
-	DebtID    string          `json:"debtId"`
-	CreditRef string          `json:"creditRef"`
-	Opened    decimal.Decimal `json:"opened"`
-	Seq       int64           `json:"seq,string"`
+	DebtID         string          `json:"debtId"`
+	CreditRef      string          `json:"creditRef"`
+	Opened         decimal.Decimal `json:"opened"`
+	Seq            int64           `json:"seq,string"`
+	ExpectedRefund decimal.Decimal `json:"expectedRefund"`
 }
 
 // BalancePermission identifies the transaction-side permission that must be
