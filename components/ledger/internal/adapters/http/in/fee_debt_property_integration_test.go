@@ -201,6 +201,10 @@ func newFeeDebtPropertyHarness(t *testing.T) (*feeHarness, *fee_debt.Repository,
 // newFeeDebtRun seeds the run's accounts and its two packages, which only an origin
 // naming the run's fee tier selects: credits and reverts carry no fee.
 func newFeeDebtRun(t *testing.T, h *feeHarness, debts *fee_debt.Repository, txApp, reads *fiber.App, seed int) *feeDebtRun {
+	// Runs share nothing but the ledger. Dropping the last run's Redis state keeps the harness's
+	// 128MB Valkey from filling: past it the RDB snapshot fails and Valkey refuses every write.
+	require.NoError(t, h.redisContainer.Client.FlushDB(t.Context()).Err())
+
 	tag := "s" + strconv.Itoa(seed)
 	r := &feeDebtRun{
 		t: t, h: h, debts: debts, txApp: txApp, reads: reads, tag: tag,
