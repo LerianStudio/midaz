@@ -51,6 +51,7 @@ type Fee struct {
 	CreditAccount    string           `bson:"credit_account"`
 	RouteFrom        *string          `bson:"route_from"`
 	RouteTo          *string          `bson:"route_to"`
+	Deferrable       bool             `bson:"deferrable"`
 }
 
 // PackageMongoDBModel represents the MongoDB model for a pack
@@ -255,6 +256,7 @@ func ToEntityFeeMap(fees map[string]Fee) map[string]model.Fee {
 			CreditAccount:    fee.CreditAccount,
 			RouteTo:          fee.RouteTo,
 			RouteFrom:        fee.RouteFrom,
+			Deferrable:       &fee.Deferrable,
 		}
 	}
 
@@ -310,6 +312,7 @@ func FromEntityFeeMap(fees map[string]model.Fee) (map[string]Fee, error) {
 			CreditAccount:    fee.CreditAccount,
 			RouteTo:          fee.RouteTo,
 			RouteFrom:        fee.RouteFrom,
+			Deferrable:       fee.GetDeferrable(),
 		}
 	}
 

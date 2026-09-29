@@ -260,9 +260,14 @@ func TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum(t *testing.T) {
 
 			svc := &UseCase{packageRepo: mockPackageRepo, resolver: mockResolver}
 
+			fees := addedDeductibleFee(tt.addedFee)
+			deferred := storedNonDeductibleFlatFee("5")["fee1"]
+			deferred.Priority, deferred.Deferrable = 3, boolPtr(true)
+			fees["fee3"] = deferred
+
 			input := &model.UpdatePackageInput{
 				MinAmount: &tt.newMinimum,
-				Fee:       addedDeductibleFee(tt.addedFee),
+				Fee:       fees,
 			}
 
 			err := svc.UpdatePackageByID(context.Background(), packageID, uuid.New(), uuid.Nil, input)
@@ -277,6 +282,7 @@ func TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.newMinimum, *written["$set"].(bson.M)["minimum_amount"].(*string))
 			require.Contains(t, written["$set"], "fees.fee2")
+			require.True(t, written["$set"].(bson.M)["fees.fee3"].(pack.Fee).Deferrable, "an added fee keeps its deferrable flag")
 		})
 	}
 }

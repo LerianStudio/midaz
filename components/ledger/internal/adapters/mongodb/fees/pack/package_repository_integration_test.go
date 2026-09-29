@@ -716,3 +716,55 @@ func TestIntegration_PackRepo_SoftDelete_Idempotency(t *testing.T) {
 	var notFound pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &notFound)
 }
+
+// TestIntegration_PackRepo_Deferrable round-trips a deferrable fee through every read and
+// the patch key the update writes, and reads a document stored without the field as false.
+func TestIntegration_PackRepo_Deferrable(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+	orgID := uuid.New()
+
+	// Every read carries the flag, so a package read always renders it.
+	read := func(t *testing.T, fees map[string]model.Fee) bool {
+		t.Helper()
+		require.NotNil(t, fees["adminFee"].Deferrable)
+
+		return *fees["adminFee"].Deferrable
+	}
+	deferrable := func(t *testing.T, id uuid.UUID) bool {
+		t.Helper()
+
+		got, err := repo.FindByID(ctx, id, orgID, uuid.Nil)
+		require.NoError(t, err)
+		data, err := repo.FindFeesAndAmountDataByPackageID(ctx, orgID, id)
+		require.NoError(t, err)
+		require.Equal(t, read(t, got.Fees), read(t, data.Fees))
+
+		return read(t, got.Fees)
+	}
+
+	pkgEntity := newTestPackage(uuid.New())
+	fee := pkgEntity.Fees["adminFee"]
+	fee.IsDeductibleFrom, fee.Deferrable = boolPtr(false), boolPtr(true)
+	pkgEntity.Fees["adminFee"] = fee
+	created, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+	assert.True(t, read(t, created.Fees))
+	assert.True(t, deferrable(t, pkgEntity.ID))
+
+	fields := bson.M{}
+	_, err = (&model.Fee{Deferrable: boolPtr(false)}).SetAndValidateHasFieldsToUpdate(ctx, nil, decimal.Zero,
+		created.Fees, "adminFee", orgID, uuid.Nil, fields, nil)
+	require.NoError(t, err)
+	_, err = repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, &bson.M{"$set": fields})
+	require.NoError(t, err)
+	assert.False(t, deferrable(t, pkgEntity.ID), "the patch key names the stored field")
+
+	old := newTestPackage(uuid.New())
+	_, err = repo.Create(ctx, old, orgID)
+	require.NoError(t, err)
+	_, err = packCollection(container).UpdateByID(ctx, old.ID, bson.M{"$unset": bson.M{"fees.adminFee.deferrable": ""}})
+	require.NoError(t, err)
+	assert.False(t, deferrable(t, old.ID), "a document stored before the field reads false")
+}

@@ -784,6 +784,13 @@ fails with `fee_debt_conflict` instead of refunding from a guess. Verify the
 production instance's persistence and eviction policy before enabling deferrable
 fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
 
+A fee defers only when its package sets `deferrable: true` on it, which only a
+non-deductible fee accepts; without it an unfunded fee is still refused with
+`0018`. A partly deferred fee books only the share the payer funded: the
+transaction stores the send plus the fee, less the debt it opened (send 100, fee
+10, payer holds 105: amount 105, debt 5). The difference is the transaction's
+`feeDebtOpenings` metadata and the open debt on `GET .../fee-debts`.
+
 Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the
 protocol prefix. Validate the code enum, transaction/posting index bounds, and
@@ -1107,6 +1114,12 @@ blob must carry the coordinated admission before the close route is exposed, and
 there is no key to backfill for the accounts that stay open. The procedure, the
 rollback that keeps `closed_at`, and the reconciliation an operator can run are in
 `docs/runbooks/account-closing-protection.md`.
+
+Deferrable fees are one-way for a rolling deploy. A completion record that carries
+fee debt fails the strict decoder of an older binary, which quarantines it instead
+of completing it. Set `deferrable` on a package only after every ledger pod runs a
+release that knows fee debt; rolling back to an older binary quarantines the fee
+debt records still in `recover` the same way.
 
 The active `GetBalances` query, Redis transaction `ListBalanceByKey`, and
 `GetBalancesByKeys` use the shared read-only `DecodeForRead` projection. The

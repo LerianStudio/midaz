@@ -344,5 +344,6 @@ func (uc *UseCase) convertFeeToMongoFormat(fee model.Fee) (pack.Fee, error) {
 		CreditAccount:    fee.CreditAccount,
 		RouteFrom:        fee.RouteFrom,
 		RouteTo:          fee.RouteTo,
+		Deferrable:       fee.GetDeferrable(),
 	}, nil
 }
