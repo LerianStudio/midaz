@@ -71,16 +71,11 @@ func TestUpdateOperation(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Operation", operationID.String()).
-					Return(nil, nil).
-					Times(1)
-
-				mockMetadataRepo.EXPECT().
-					Update(gomock.Any(), "Operation", operationID.String(), map[string]any{
+					UpdateFields(gomock.Any(), "Operation", operationID.String(), map[string]any{
 						"key1": "value1",
 						"key2": "value2",
 					}).
-					Return(nil).
+					Return(&mongodb.Metadata{Data: map[string]any{"key1": "value1", "key2": "value2"}}, nil).
 					Times(1)
 			},
 			expectedErr: nil,
@@ -157,15 +152,10 @@ func TestUpdateOperation(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Operation", operationID.String()).
-					Return(nil, nil).
-					Times(1)
-
-				mockMetadataRepo.EXPECT().
-					Update(gomock.Any(), "Operation", operationID.String(), map[string]any{
+					UpdateFields(gomock.Any(), "Operation", operationID.String(), map[string]any{
 						"key1": "value1",
 					}).
-					Return(errors.New("mongodb connection error")).
+					Return(nil, errors.New("mongodb connection error")).
 					Times(1)
 			},
 			expectedErr: errors.New("mongodb connection error"),

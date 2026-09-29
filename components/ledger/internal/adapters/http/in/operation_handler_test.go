@@ -507,15 +507,15 @@ func TestUpdateOperation_Success(t *testing.T) {
 	opRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, txID, operationID).
 		Return(updated, nil).Times(1)
 
-	// Both the command's metadata upsert and the query re-read hit FindByEntity.
+	// The query re-read hits FindByEntity.
 	metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
 		Return(&txMongodb.Metadata{
 			EntityID:   operationID.String(),
 			EntityName: constant.EntityOperation,
 			Data:       map[string]any{"reason": "Purchase refund"},
 		}, nil).AnyTimes()
-	metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any()).
-		Return(nil).AnyTimes()
+	metaRepo.EXPECT().UpdateFields(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any()).
+		Return(&txMongodb.Metadata{}, nil).AnyTimes()
 
 	handler := &OperationHandler{
 		Command: &command.UseCase{OperationRepo: opRepo, TransactionMetadataRepo: metaRepo},
@@ -611,8 +611,8 @@ func TestUpdateOperation_QueryError_500(t *testing.T) {
 
 	metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
 		Return(nil, nil).AnyTimes()
-	metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any()).
-		Return(nil).AnyTimes()
+	metaRepo.EXPECT().UpdateFields(gomock.Any(), constant.EntityOperation, operationID.String(), gomock.Any()).
+		Return(&txMongodb.Metadata{}, nil).AnyTimes()
 
 	handler := &OperationHandler{
 		Command: &command.UseCase{OperationRepo: opRepo, TransactionMetadataRepo: metaRepo},

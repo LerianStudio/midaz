@@ -150,29 +150,27 @@ func TestUpdateTransactionMetadata(t *testing.T) {
 	}
 }
 
-func TestUpdateTransactionMetadataKeepsReservedKeys(t *testing.T) {
+func TestUpdateTransactionMetadataWritesOnlyClientKeys(t *testing.T) {
 	transactionStored := map[string]any{
 		"purpose": "client", constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`,
 		"feeApplied": "true", "packageAppliedID": "package-1",
 	}
-	transactionReserved := map[string]any{
-		constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`, "feeApplied": "true", "packageAppliedID": "package-1",
-	}
 	operationStored := map[string]any{"note": "client", constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}
+	stored := map[string]any{"stored": "document"}
 
 	for _, scenario := range []struct {
 		name, entity   string
 		stored, sent   map[string]any
-		want           map[string]any
+		fields         map[string]any
 		readsNoStorage bool
 	}{
-		{name: "cleared transaction", entity: constant.EntityTransaction, stored: transactionStored, want: transactionReserved},
-		{name: "cleared operation", entity: constant.EntityOperation, stored: operationStored, want: map[string]any{constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}},
-		{name: "cleared transaction without document", entity: constant.EntityTransaction, want: map[string]any{}},
-		{name: "merged transaction", entity: constant.EntityTransaction, stored: transactionStored, sent: map[string]any{"purpose": "edited"}, want: map[string]any{
-			"purpose": "edited", constant.MetadataKeyFeeDebtOpenings: `[{"debtId":"d"}]`, constant.MetadataKeyFeeDebtSettlements: `[]`, "feeApplied": "true", "packageAppliedID": "package-1",
-		}},
-		{name: "cleared route is not read", entity: constant.EntityTransactionRoute, want: map[string]any{}, readsNoStorage: true},
+		{name: "cleared transaction", entity: constant.EntityTransaction, stored: transactionStored, fields: map[string]any{"purpose": nil}},
+		{name: "cleared operation", entity: constant.EntityOperation, stored: operationStored, fields: map[string]any{"note": nil}},
+		{name: "cleared transaction without document", entity: constant.EntityTransaction, fields: map[string]any{}},
+		{
+			name: "merged transaction", entity: constant.EntityTransaction, readsNoStorage: true,
+			sent: map[string]any{"purpose": "edited", "gone": nil}, fields: map[string]any{"purpose": "edited", "gone": nil},
+		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			repo := mongodb.NewMockRepository(gomock.NewController(t))
@@ -185,11 +183,20 @@ func TestUpdateTransactionMetadataKeepsReservedKeys(t *testing.T) {
 				repo.EXPECT().FindByEntity(gomock.Any(), scenario.entity, "id").Return(document, nil)
 			}
 
-			repo.EXPECT().Update(gomock.Any(), scenario.entity, "id", scenario.want).Return(nil)
+			repo.EXPECT().UpdateFields(gomock.Any(), scenario.entity, "id", scenario.fields).Return(&mongodb.Metadata{Data: stored}, nil)
 
 			updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), scenario.entity, "id", scenario.sent)
 			require.NoError(t, err)
-			assert.Equal(t, scenario.want, updated)
+			assert.Equal(t, stored, updated)
 		})
 	}
+
+	t.Run("cleared route replaces the document", func(t *testing.T) {
+		repo := mongodb.NewMockRepository(gomock.NewController(t))
+		repo.EXPECT().Update(gomock.Any(), constant.EntityTransactionRoute, "id", map[string]any{}).Return(nil)
+
+		updated, err := (&UseCase{TransactionMetadataRepo: repo}).UpdateTransactionMetadata(context.Background(), constant.EntityTransactionRoute, "id", nil)
+		require.NoError(t, err)
+		assert.Empty(t, updated)
+	})
 }

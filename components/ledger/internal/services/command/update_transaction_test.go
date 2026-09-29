@@ -62,13 +62,8 @@ func TestUpdateTransaction(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
-		Times(1)
-
-	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), "Transaction", transactionID.String(), input.Metadata).
-		Return(nil).
+		UpdateFields(gomock.Any(), "Transaction", transactionID.String(), input.Metadata).
+		Return(&mongodb.Metadata{Data: input.Metadata}, nil).
 		Times(1)
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
@@ -152,7 +147,7 @@ func TestUpdateTransaction_RepositoryError(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TestUpdateTransaction_MetadataFindError tests update when metadata find fails
+// TestUpdateTransaction_MetadataFindError tests a clearing update when reading the stored metadata fails
 func TestUpdateTransaction_MetadataFindError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -172,9 +167,6 @@ func TestUpdateTransaction_MetadataFindError(t *testing.T) {
 
 	input := &transaction.UpdateTransactionInput{
 		Description: "Updated description",
-		Metadata: map[string]any{
-			"key1": "value1",
-		},
 	}
 
 	expectedTransaction := &transaction.Transaction{
@@ -245,13 +237,8 @@ func TestUpdateTransaction_MetadataUpdateError(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
-		Return(nil, nil).
-		Times(1)
-
-	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), "Transaction", transactionID.String(), input.Metadata).
-		Return(metadataUpdateError).
+		UpdateFields(gomock.Any(), "Transaction", transactionID.String(), input.Metadata).
+		Return(nil, metadataUpdateError).
 		Times(1)
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
@@ -429,8 +416,8 @@ func TestUpdateTransaction_PatchCarriesNoStatus(t *testing.T) {
 		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
-		Return(nil).
+		UpdateFields(gomock.Any(), "Transaction", transactionID.String(), gomock.Any()).
+		Return(&mongodb.Metadata{}, nil).
 		AnyTimes()
 
 	_, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID,
