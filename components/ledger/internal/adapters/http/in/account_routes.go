@@ -37,6 +37,11 @@ const accountClosePath = accountListPath + "/{account_id}/close"
 const accountClosedAtInputDoc = "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, " +
 	"and the stored instant is only ever written by the close command."
 
+// balanceDeletionRefusalDoc lists the refusals a balance deletion shares with the account
+// deletion that deletes every balance of the account.
+const balanceDeletionRefusalDoc = "A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. " +
+	"A state that cannot be established answers 503 (0520) and may be retried."
+
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
 // the humafiber adapter registers on that group and Fiber prepends the version prefix).
@@ -117,6 +122,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -213,6 +219,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -235,7 +242,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Summary:     "Close an account",
 		Description: "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. " +
 			"The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. " +
-			"An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524) and a balance that still owes pending fees (0527) are refused with 422. " +
+			"An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. " +
 			"An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. " +
 			"An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
 		Tags:          []string{accountTag},

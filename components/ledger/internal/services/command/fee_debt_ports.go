@@ -25,11 +25,15 @@ type FeeDebtRecord struct {
 	Changes        []accounting.FeeDebtChange
 }
 
-// FeeDebtRecorder projects applied fee-debt changes into Fees, resolving the
-// tenant from ctx. Apply is idempotent per (DebtID, TransactionID, PostingRef,
-// Kind), so replays and out-of-order completions converge.
+// FeeDebtRecorder is the Fees projection of fee debts, resolving the tenant from ctx.
 type FeeDebtRecorder interface {
+	// Apply projects applied fee-debt changes. It is idempotent per (DebtID,
+	// TransactionID, PostingRef, Kind), so replays and out-of-order completions converge.
 	Apply(ctx context.Context, record FeeDebtRecord) error
+
+	// HasOpenCreditor reports whether an open debt of the ledger names one of
+	// creditRefs (alias#key) as creditor. The projection lags completion.
+	HasOpenCreditor(ctx context.Context, organizationID, ledgerID uuid.UUID, creditRefs []string) (bool, error)
 }
 
 // FeeDebtOpening is one element of the feeDebtOpenings transaction metadata, built by

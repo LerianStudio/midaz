@@ -204,6 +204,10 @@ type UseCase struct {
 	// application (the create path stays unchanged).
 	FeeApplier FeeApplier
 
+	// FeeDebts is the Fees projection of fee debts; balance deletion and account
+	// closing read the debts owed to a balance from it.
+	FeeDebts FeeDebtRecorder
+
 	// TracerReserver drives the tracer two-phase reservation lifecycle from the
 	// create seam. It is injected at bootstrap from the tracer client; a nil
 	// reserver means the tracer integration is disabled (the create path stays

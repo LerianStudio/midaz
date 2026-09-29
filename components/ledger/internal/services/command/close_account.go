@@ -350,11 +350,7 @@ func (uc *UseCase) verifyAccountClosingEligibility(ctx context.Context, organiza
 		return nil, err
 	}
 
-	if err := uc.verifyNoAccountClosingFeeDebt(ctx, organizationID, ledgerID, states); err != nil {
-		return nil, err
-	}
-
-	if err := uc.verifyNoAccountClosingRecoveryPending(ctx, organizationID, ledgerID, accountID); err != nil {
+	if err := uc.verifyNoAccountClosingWorkOutstanding(ctx, organizationID, ledgerID, accountID, states); err != nil {
 		return nil, err
 	}
 
@@ -369,29 +365,16 @@ func (uc *UseCase) verifyAccountClosingEligibility(ctx context.Context, organiza
 	return states, nil
 }
 
-// verifyNoAccountClosingFeeDebt refuses the closing while any balance of the account
-// still owes a deferred fee: only a later credit collects it, and a closed account
-// refuses credits. A debt list that cannot be read leaves the state unknown.
-func (uc *UseCase) verifyNoAccountClosingFeeDebt(ctx context.Context, organizationID, ledgerID uuid.UUID, states []accountClosingBalanceState) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "exec.verify_account_closing_fee_debt")
-	defer span.End()
-
+// verifyNoAccountClosingWorkOutstanding refuses the closing while a balance owes a deferred
+// fee or is owed one (only a credit collects a debt, and a closed account refuses credits),
+// or while an execution over the account still waits for its completion.
+func (uc *UseCase) verifyNoAccountClosingWorkOutstanding(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, states []accountClosingBalanceState) error {
 	balances := make([]*mmodel.Balance, 0, len(states))
 	for _, state := range states {
 		balances = append(balances, state.Persisted)
 	}
 
-	err := uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances)
-	if err == nil || pkg.IsBusinessError(err) {
-		return err
-	}
-
-	libOpentelemetry.HandleSpanError(span, "Failed to read the fee debts of the account", err)
-	logger.Log(ctx, libLog.LevelError, "Failed to read the fee debts of the account", libLog.Err(err))
-
-	return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	return uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances, allRecoverySources, refuseAccountInCompletion(accountID))
 }
 
 // verifyNoAccountClosingPendingTransaction refuses the closing while a pending
