@@ -34,12 +34,14 @@ service ReservationService {
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
 }
 
-// ReserveAccount is the account scope the tracer matches limits against. It
-// mirrors the ledger-side ReserveAccount: only the account id is carried; an
-// empty value parses to the nil UUID, which the relaxed reserve validation
-// accepts (external-only source).
+// ReserveAccount is the account scope the tracer matches limits and rules
+// against. It mirrors the ledger-side ReserveAccount. An empty account_id parses
+// to the nil UUID, which the relaxed reserve validation accepts (external-only
+// source).
 message ReserveAccount {
   string account_id = 1;
+  // type is the caller's account type, free-form (ledger Account.Type). Optional.
+  string type = 2;
 }
 
 // ReserveRequest is the gRPC form of the reserve body. It mirrors the ledger's
@@ -57,22 +59,34 @@ message ReserveRequest {
   string merchant_id = 8;
   // transaction_type is optional on reserve; the ledger leaves it empty.
   string transaction_type = 9;
-  // transaction_timestamp is RFC3339; the tracer enforces a not-future /
-  // not-too-far-past window against its injected clock.
+  // transaction_timestamp is RFC3339; the tracer rejects a future timestamp
+  // against its injected clock.
   string transaction_timestamp = 10;
   // long_lived hints the tracer to assign a long-lived reservation lifetime to
   // a PENDING-transaction reservation.
   bool long_lived = 11;
+  // metadata is the caller's flat transaction metadata. Keys ^[a-zA-Z0-9_]+$,
+  // <=64 chars, <=50 entries. Optional.
+  map<string, string> metadata = 12;
 }
 
 // ReserveResult is the handle returned by a successful reserve. denied is the
-// limit-exceeded decision (no capacity held, reservation_ids empty). Otherwise
-// reservation_ids holds one id per counter-backed limit the ledger must later
-// confirm or release.
+// refusal flag every client reads: when true no capacity is held and
+// reservation_ids is empty. Otherwise reservation_ids holds one id per
+// counter-backed limit the ledger must later confirm or release. decision
+// refines denied without replacing it, so a client that ignores decision keeps
+// its behavior.
 message ReserveResult {
   string transaction_id = 1;
   bool denied = 2;
   repeated string reservation_ids = 3;
+  // decision is ALLOW, DENY or REVIEW. denied is true for DENY and REVIEW.
+  string decision = 4;
+  // reason is a short machine/human hint: "limit_exceeded" or the rule
+  // evaluator's reason. Empty on ALLOW.
+  string reason = 5;
+  // matched_rule_ids lists the rules that produced a DENY or REVIEW decision.
+  repeated string matched_rule_ids = 6;
 }
 
 // ConfirmByTransactionRequest commits every reservation held by a transaction.

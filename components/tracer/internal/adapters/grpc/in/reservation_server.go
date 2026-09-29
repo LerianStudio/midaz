@@ -123,6 +123,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		libLog.String("operation", "grpc.reservations.reserve"),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Bool("denied", result.Denied),
+		libLog.String("decision", reserveDecision(result)),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
@@ -130,6 +131,9 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		TransactionId:  transactionID.String(),
 		Denied:         result.Denied,
 		ReservationIds: reservationIDStrings(result.ReservationIDs),
+		Decision:       reserveDecision(result),
+		Reason:         result.Reason,
+		MatchedRuleIds: reservationIDStrings(result.MatchedRuleIDs),
 	}, nil
 }
 
@@ -255,9 +259,9 @@ func (s *ReservationServer) terminateByID(
 
 // toValidationRequest builds the model.ValidationRequest the reserve path
 // validates and converts, from the proto request. It mirrors the field set the
-// REST DTO carries: requestId, amount (decimal-as-string), asset, account,
-// optional segment/portfolio/merchant ids, transactionType, transactionTimestamp
-// (RFC3339). Normalization and validation are delegated to the model so the
+// REST DTO carries: requestId, amount (decimal-as-string), asset, account id and
+// type, optional segment/portfolio/merchant ids, transactionType,
+// transactionTimestamp (RFC3339) and flat metadata. Normalization and validation are delegated to the model so the
 // gRPC path never forks the reserve input contract.
 func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveRequest) (*model.ValidationRequest, error) {
 	requestID, err := uuid.Parse(req.GetRequestId())
@@ -292,7 +296,8 @@ func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveReques
 		Amount:               amount,
 		Asset:                req.GetAsset(),
 		TransactionTimestamp: transactionTimestamp,
-		Account:              model.AccountContext{ID: accountID},
+		Account:              model.AccountContext{ID: accountID, Type: req.GetAccount().GetType()},
+		Metadata:             metadataFromProto(req.GetMetadata()),
 	}
 
 	if segment, err := optionalContextID(req.GetSegmentId()); err != nil {
@@ -350,7 +355,37 @@ func optionalContextID(raw string) (*uuid.UUID, error) {
 	return &id, nil
 }
 
-// reservationIDStrings renders the reservation ids as proto-friendly strings.
+// reserveDecision is the decision the reserve response carries. The service's
+// Decision wins when set; otherwise it is derived from Denied, so the response
+// always names a decision.
+func reserveDecision(result *services.ReserveResult) string {
+	if result.Decision != "" {
+		return string(result.Decision)
+	}
+
+	if result.Denied {
+		return string(model.DecisionDeny)
+	}
+
+	return string(model.DecisionAllow)
+}
+
+// metadataFromProto widens the proto string map into the model's metadata map.
+// An empty map yields nil so an absent field and an empty one validate alike.
+func metadataFromProto(in map[string]string) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+
+	return out
+}
+
+// reservationIDStrings renders reservation or rule ids as proto-friendly strings.
 // A nil/empty input yields a nil slice — proto serializes a repeated field's
 // absence and an empty slice identically, so no [] sentinel is needed (unlike
 // the REST JSON path).

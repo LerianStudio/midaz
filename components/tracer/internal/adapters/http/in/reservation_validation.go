@@ -60,13 +60,18 @@ func (r *ReserveRequest) ToReserveInput() *model.CheckLimitsInput {
 }
 
 // ReserveResponse is the handle returned on a successful reserve. Denied is the
-// limit-exceeded decision (no capacity held, ReservationIDs empty); otherwise
-// ReservationIDs holds one id per counter-backed limit the ledger must confirm or
-// release in phase two.
+// refusal flag every client reads (no capacity held, ReservationIDs empty);
+// otherwise ReservationIDs holds one id per counter-backed limit the ledger must
+// confirm or release in phase two. Decision refines Denied without replacing it:
+// DENY and REVIEW both come with Denied=true. Reason is empty on ALLOW.
+// ReservationIDs and MatchedRuleIDs always serialize as arrays, never null.
 type ReserveResponse struct {
 	TransactionID  uuid.UUID   `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Denied         bool        `json:"denied" example:"false"`
 	ReservationIDs []uuid.UUID `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+	Decision       string      `json:"decision" enums:"ALLOW,DENY,REVIEW" example:"ALLOW"`
+	Reason         string      `json:"reason,omitempty" example:"limit_exceeded"`
+	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds" swaggertype:"array,string" format:"uuid"`
 }
 
 // ReservationActionResponse is the body returned by confirm and release. Status is
@@ -89,4 +94,14 @@ type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
+}
+
+// matchedRuleIDsOrEmpty returns a non-nil slice so the JSON body serializes
+// matchedRuleIds as [] rather than null when no rule matched.
+func matchedRuleIDsOrEmpty(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+
+	return ids
 }

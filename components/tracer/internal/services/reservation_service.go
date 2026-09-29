@@ -123,12 +123,18 @@ type ReservationAuditWriter interface {
 }
 
 // ReserveResult is the handle returned to the caller after a reserve attempt.
-// Denied is the limit-exceeded decision (the same shape the synchronous Validate
-// produces on a limit breach): when true, no reservation was held and
-// ReservationIDs is empty. Otherwise ReservationIDs holds one id per counter-backed
-// limit that was reserved — the ledger confirms or releases each in phase two.
+// Denied is the refusal flag (the same shape the synchronous Validate produces
+// on a limit breach): when true, no reservation was held and ReservationIDs is
+// empty. Otherwise ReservationIDs holds one id per counter-backed limit that was
+// reserved — the ledger confirms or releases each in phase two. Decision refines
+// Denied (ALLOW, DENY or REVIEW); Reason is empty on ALLOW, "limit_exceeded" on
+// a limit denial, or the rule evaluator's reason; MatchedRuleIDs lists the rules
+// behind a rule-driven DENY or REVIEW.
 type ReserveResult struct {
 	Denied         bool
+	Decision       model.Decision
+	Reason         string
+	MatchedRuleIDs []uuid.UUID
 	ReservationIDs []uuid.UUID
 }
 
