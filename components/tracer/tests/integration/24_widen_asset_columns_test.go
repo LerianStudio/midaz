@@ -15,6 +15,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,12 @@ import (
 //  4. migrate-down on tables holding only short codes restores the original
 //     types; with a longer code stored it fails explicitly and leaves the
 //     widened column and its data in place.
-//  5. An up -> down -> up cycle is idempotent.
+//  5. A longer code stored only in transaction_validations still refuses the
+//     down, and limits is not narrowed either: both tables are checked before
+//     either is altered.
+//  6. With a conflicting lock held, the up fails with lock_not_available
+//     within its lock_timeout instead of queueing.
+//  7. An up -> down -> up cycle is idempotent.
 //
 // Each sub-test provisions its OWN throwaway Postgres container so a step-down
 // in one case never leaks schema state into another.
@@ -80,6 +86,10 @@ func TestWidenAssetColumnsMigration(t *testing.T) {
 					`INSERT INTO limits (name, limit_type, max_amount, asset)
 					 VALUES ('pre-widen-points', 'PER_TRANSACTION', 1000, 'POINTS')`)
 				require.Error(t, err, "a 6-letter asset must not fit limits.asset VARCHAR(3)")
+
+				var pgErr *pgconn.PgError
+				require.ErrorAs(t, err, &pgErr, "the refusal must be a Postgres error")
+				require.Equal(t, "22001", pgErr.Code, "the refusal must be string_data_right_truncation")
 			},
 		},
 		{
@@ -190,6 +200,59 @@ func TestWidenAssetColumnsMigration(t *testing.T) {
 				require.Equal(t, "POINTS", readValue(ctx, t, db,
 					`SELECT asset FROM limits WHERE name = 'widen-points-blocks-down'`),
 					"the stored POINTS value must be untouched by the refused down")
+			},
+		},
+		{
+			name: "down_refuses_on_a_long_validation_code_and_alters_neither_table",
+			run: func(t *testing.T, mig *migrate.Migrate, db *sql.DB) {
+				const txRequest = "25005000-0000-0000-0000-000000000000"
+
+				require.NoError(t, applyWidenMigrationUp(mig), "apply migrations up to 000025")
+
+				_, err := db.ExecContext(ctx,
+					`INSERT INTO transaction_validations
+						(request_id, transaction_type, amount, asset, transaction_timestamp,
+						 account, decision, processing_time_ms)
+					 VALUES ($1, 'PIX', 500, 'USDT', '2026-01-02T03:04:05Z'::timestamptz,
+						 '{}'::jsonb, 'ALLOW', 10)`, txRequest)
+				require.NoError(t, err, "seed a USDT validation after the widen; limits holds no long code")
+
+				err = mig.Steps(-1)
+				require.Error(t, err, "down must refuse to narrow over a 4-letter validation asset")
+				require.Contains(t, err.Error(), "cannot narrow transaction_validations.asset",
+					"the refusal must name the blocking table")
+
+				dt, ml, ok := columnCharInfo(ctx, t, db, "limits", "asset")
+				require.True(t, ok, "limits.asset must still exist after the refused down")
+				require.Equal(t, "character varying", dt, "limits.asset must stay VARCHAR")
+				require.Equal(t, int64(100), ml, "limits.asset must not be narrowed by a refused down")
+
+				dt, ml, ok = columnCharInfo(ctx, t, db, "transaction_validations", "asset")
+				require.True(t, ok, "transaction_validations.asset must still exist after the refused down")
+				require.Equal(t, "character varying", dt, "transaction_validations.asset must stay VARCHAR")
+				require.Equal(t, int64(100), ml, "transaction_validations.asset must stay widened")
+			},
+		},
+		{
+			name: "up_fails_fast_when_a_conflicting_lock_is_held",
+			run: func(t *testing.T, mig *migrate.Migrate, db *sql.DB) {
+				require.NoError(t, mig.Migrate(widenMigrationVersion-1), "migrate up to version 24 (pre-000025)")
+
+				holder, err := db.BeginTx(ctx, nil)
+				require.NoError(t, err, "open the lock-holding transaction")
+
+				defer func() { _ = holder.Rollback() }()
+
+				_, err = holder.ExecContext(ctx, `LOCK TABLE transaction_validations IN ACCESS SHARE MODE`)
+				require.NoError(t, err, "hold a lock that conflicts with ALTER TABLE")
+
+				started := time.Now()
+				err = mig.Migrate(widenMigrationVersion)
+				elapsed := time.Since(started)
+
+				require.Error(t, err, "the ALTER must give up while the conflicting lock is held")
+				require.Contains(t, err.Error(), "55P03", "the failure must be lock_not_available")
+				require.Less(t, elapsed, 30*time.Second, "the ALTER must fail within its lock_timeout, not queue")
 			},
 		},
 		{
