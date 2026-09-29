@@ -223,3 +223,64 @@ func TestTenantUnaryInterceptor_SingleTenantNeverEnsuresWorkers(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, ensurer.tenants)
 }
+
+func TestTenantUnaryInterceptor_ResolveFailureMapping(t *testing.T) {
+	tests := []struct {
+		name        string
+		poolErr     error
+		wantCode    codes.Code
+		wantMessage string
+	}{
+		{
+			name:        "suspended tenant is unavailable",
+			poolErr:     &tmcore.TenantSuspendedError{TenantID: interceptorTenantID, Status: "suspended"},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+		{
+			name:        "unprovisioned tenant is unavailable",
+			poolErr:     fmt.Errorf("get connection: %w", tmcore.ErrTenantNotProvisioned),
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+		{
+			name:        "other pool failure is internal",
+			poolErr:     errors.New("pool down"),
+			wantCode:    codes.Internal,
+			wantMessage: constant.ErrInternalServer.Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver := seamtenant.NewResolverWithPool(
+				func(context.Context, string) (dbresolver.DB, error) { return nil, tt.poolErr },
+				true,
+			)
+			ensurer := &recordingEnsurer{}
+
+			interceptor := TenantUnaryInterceptor(resolver, ensurer)
+
+			ctx := metadata.NewIncomingContext(
+				context.Background(),
+				metadata.Pairs(seamtenant.MetadataKey, interceptorTenantID),
+			)
+
+			handlerCalled := false
+			handler := func(context.Context, any) (any, error) {
+				handlerCalled = true
+				return "ok", nil
+			}
+
+			resp, err := interceptor(ctx, nil, unaryInfo(), handler)
+			require.Nil(t, resp)
+			require.False(t, handlerCalled)
+			require.Empty(t, ensurer.tenants)
+
+			st, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tt.wantCode, st.Code())
+			require.Equal(t, tt.wantMessage, st.Message())
+		})
+	}
+}

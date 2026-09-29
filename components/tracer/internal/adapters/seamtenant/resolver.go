@@ -17,6 +17,7 @@ package seamtenant
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -102,8 +103,10 @@ func (r *Resolver) Active() bool {
 //
 // In no-op mode it returns ctx unchanged with a nil error, regardless of whether
 // a tenant key was supplied. Under MT an empty/invalid tenant key yields
-// ErrReservationTenantRequired; a pool-resolution failure is returned so the
-// caller can classify it as technical.
+// ErrReservationTenantRequired. A pool failure the tenant manager reports as a
+// not-provisioned, suspended or purged tenant is wrapped in
+// ErrReservationTenantInactive (the original stays in the chain); any other
+// pool failure is returned unchanged so the caller classifies it as technical.
 func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Context, error) {
 	if !r.Active() {
 		return ctx, nil
@@ -115,6 +118,10 @@ func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Contex
 
 	db, err := r.pool(ctx, tenantID)
 	if err != nil {
+		if isInactiveTenantError(err) {
+			return ctx, fmt.Errorf("%w: %w", constant.ErrReservationTenantInactive, err)
+		}
+
 		return ctx, err
 	}
 
@@ -122,4 +129,13 @@ func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Contex
 	ctx = tmcore.ContextWithPG(ctx, db)
 
 	return ctx, nil
+}
+
+// isInactiveTenantError reports whether err is one of the tenant-manager
+// classes that mean the tenant cannot be served: not provisioned, suspended or
+// purged.
+func isInactiveTenantError(err error) bool {
+	return tmcore.IsTenantNotProvisionedError(err) ||
+		tmcore.IsTenantSuspendedError(err) ||
+		tmcore.IsTenantPurgedError(err)
 }

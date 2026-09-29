@@ -39,6 +39,10 @@ type WorkerEnsurer interface {
 // codes.InvalidArgument and never resolves a default/wrong pool. In
 // single-tenant (no-op) mode the resolver passes through and the key is ignored.
 //
+// A tenant the tenant manager reports as not provisioned, suspended or purged
+// answers codes.Unavailable with ErrReservationTenantInactive; any other
+// resolution failure answers codes.Internal.
+//
 // Once the tenant resolves, ensurer starts that tenant's workers so a tenant
 // whose first traffic is a reservation still gets its rule cache loaded. A
 // reached tenant cap answers codes.Unavailable so the ledger backs off; any
@@ -50,13 +54,11 @@ func TenantUnaryInterceptor(resolver *seamtenant.Resolver, ensurer WorkerEnsurer
 			return handler(ctx, req)
 		}
 
-		resolvedCtx, err := resolver.Resolve(ctx, tenantIDFromMetadata(ctx))
-		if err != nil {
-			if errors.Is(err, constant.ErrReservationTenantRequired) {
-				return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error())
-			}
+		tenantID := tenantIDFromMetadata(ctx)
 
-			return nil, status.Error(codes.Internal, constant.ErrInternalServer.Error())
+		resolvedCtx, err := resolver.Resolve(ctx, tenantID)
+		if err != nil {
+			return nil, resolveFailureStatus(ctx, tenantID, err)
 		}
 
 		if err := ensureTenantWorkers(resolvedCtx, ensurer, tmcore.GetTenantIDContext(resolvedCtx)); err != nil {
@@ -64,6 +66,25 @@ func TenantUnaryInterceptor(resolver *seamtenant.Resolver, ensurer WorkerEnsurer
 		}
 
 		return handler(resolvedCtx, req)
+	}
+}
+
+// resolveFailureStatus maps a Resolve failure onto the gRPC status the caller
+// receives.
+func resolveFailureStatus(ctx context.Context, tenantID string, err error) error {
+	switch {
+	case errors.Is(err, constant.ErrReservationTenantRequired):
+		return status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error())
+	case errors.Is(err, constant.ErrReservationTenantInactive):
+		logger := libObservability.NewLoggerFromContext(ctx)
+		logger.Log(ctx, libLog.LevelWarn, "Tenant is not active for reservations; answering unavailable",
+			libLog.String("operation", "grpc.reservations.resolve_tenant"),
+			libLog.String("tenant_id", tenantID),
+			libLog.Err(err))
+
+		return status.Error(codes.Unavailable, constant.ErrReservationTenantInactive.Error())
+	default:
+		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
 }
 
