@@ -33,9 +33,10 @@ type contextTracerRuntime struct {
 // buildContextTracer wires the tracer reservation runtime when TRACER_BASE_URL
 // is set and returns nil when it is not. With the integration on, any
 // configuration it cannot honor refuses boot. minter, dialing plugin-auth at
-// authHost, issues the M2M token the REST transport presents; the gRPC
-// transport uses neither.
-func buildContextTracer(cfg *Config, onboarding *libPostgres.Client, minter tracerclient.TokenMinter, authHost string, logger libLog.Logger) (_ *contextTracerRuntime, retErr error) {
+// authHost, issues the M2M token the REST transport presents; under
+// multi-tenancy it mints from each tenant's credentials, read through the
+// custody reader newSecrets builds. The gRPC transport uses none of them.
+func buildContextTracer(cfg *Config, onboarding *libPostgres.Client, minter tracerclient.TokenMinter, authHost string, newSecrets tracerM2MSecretsReaderFactory, logger libLog.Logger) (_ *contextTracerRuntime, retErr error) {
 	if cfg == nil {
 		return nil, constant.ErrTracerContractUnavailable
 	}
@@ -65,7 +66,7 @@ func buildContextTracer(cfg *Config, onboarding *libPostgres.Client, minter trac
 		return nil, err
 	}
 
-	client, closeClient, tokens, err := buildContextTracerClient(cfg, parsed, minter, authHost)
+	client, closeClient, tokens, err := buildContextTracerClient(cfg, parsed, minter, authHost, newSecrets)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,8 @@ func buildContextTracer(cfg *Config, onboarding *libPostgres.Client, minter trac
 		libLog.String("transport", parsed.transport),
 		libLog.String("integration_id", parsed.integrationID))
 
-	if tokens != nil {
+	// A per-tenant source has no tenant to mint for at boot.
+	if tokens != nil && !cfg.MultiTenantEnabled {
 		prewarmTracerToken(logger, tokens)
 	}
 
@@ -94,7 +96,7 @@ func buildContextTracer(cfg *Config, onboarding *libPostgres.Client, minter trac
 
 // buildContextTracerClient builds the transport parsed selected. The token
 // source is returned only for REST, so the caller can pre-warm it.
-func buildContextTracerClient(cfg *Config, parsed contextTracerRuntimeConfig, minter tracerclient.TokenMinter, authHost string) (command.ContextTracerClient, func() error, tracerclient.TokenSource, error) {
+func buildContextTracerClient(cfg *Config, parsed contextTracerRuntimeConfig, minter tracerclient.TokenMinter, authHost string, newSecrets tracerM2MSecretsReaderFactory) (command.ContextTracerClient, func() error, tracerclient.TokenSource, error) {
 	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
 
 	switch parsed.transport {
@@ -120,7 +122,7 @@ func buildContextTracerClient(cfg *Config, parsed contextTracerRuntimeConfig, mi
 			return nil, nil, nil, err
 		}
 
-		tokens, err := buildTracerTokenSource(cfg, minter, authHost, parsed.tlsMode)
+		tokens, err := buildTracerTokenSource(cfg, minter, authHost, parsed.tlsMode, newSecrets)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -165,9 +167,11 @@ func buildRESTTracerTLSConfig(cfg *Config, mode, serverName string) (*tls.Config
 // M2M token: plugin auth disabled or without a host (the minter would return an
 // empty token), empty client credentials, or, under DEPLOYMENT_MODE=saas, a
 // cleartext plugin-auth address outside an explicit mesh. authHost is the
-// plugin-auth address after service discovery. Only variable names are
+// plugin-auth address after service discovery. Single-tenant mints from the
+// static IDP_M2M_CLIENT_ID/SECRET; multi-tenant mints from each tenant's own
+// credentials and never falls back to the static ones. Only variable names are
 // reported, never a value.
-func buildTracerTokenSource(cfg *Config, minter tracerclient.TokenMinter, authHost, tlsMode string) (tracerclient.TokenSource, error) {
+func buildTracerTokenSource(cfg *Config, minter tracerclient.TokenMinter, authHost, tlsMode string, newSecrets tracerM2MSecretsReaderFactory) (tracerclient.TokenSource, error) {
 	if !cfg.AuthEnabled {
 		return nil, fmt.Errorf("TRACER_TRANSPORT=rest authenticates to Tracer with an M2M token minted by plugin-auth, but PLUGIN_AUTH_ENABLED=false; enable plugin auth or use TRACER_TRANSPORT=grpc with TRACER_TLS_MODE=mtls: %w", constant.ErrTracerContractUnavailable)
 	}
@@ -178,6 +182,14 @@ func buildTracerTokenSource(cfg *Config, minter tracerclient.TokenMinter, authHo
 
 	if err := ValidateSaaSTracerAuthTLS(cfg.DeploymentMode, authHost, tlsMode); err != nil {
 		return nil, err
+	}
+
+	if minter == nil {
+		return nil, fmt.Errorf("TRACER_TRANSPORT=rest requires the auth client to mint M2M tokens: %w", constant.ErrTracerContractUnavailable)
+	}
+
+	if cfg.MultiTenantEnabled {
+		return buildTenantTracerTokenSource(cfg, minter, newSecrets)
 	}
 
 	var missing []string
@@ -192,10 +204,6 @@ func buildTracerTokenSource(cfg *Config, minter tracerclient.TokenMinter, authHo
 
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("TRACER_TRANSPORT=rest authenticates to Tracer with an M2M token, but %s is empty: %w", strings.Join(missing, " and "), constant.ErrTracerContractUnavailable)
-	}
-
-	if minter == nil {
-		return nil, fmt.Errorf("TRACER_TRANSPORT=rest requires the auth client to mint M2M tokens: %w", constant.ErrTracerContractUnavailable)
 	}
 
 	return tracerclient.NewM2MTokenSource(minter, cfg.IDPM2MClientID, cfg.IDPM2MClientSecret, time.Now)

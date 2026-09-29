@@ -1072,7 +1072,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
-	contextTracer, err := buildContextTracer(cfg, onbPG.connection, auth, sd.authHost, logger)
+	contextTracer, err := buildContextTracer(cfg, onbPG.connection, auth, sd.authHost, newTracerM2MSecretsReader, logger)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("initialize context tracer coordination: %w", err)

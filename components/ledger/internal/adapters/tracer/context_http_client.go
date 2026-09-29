@@ -155,7 +155,9 @@ func (c *ContextHTTPClient) complete(ctx context.Context, transactionID uuid.UUI
 // expectedStatus. A 401 reports the rejected token and, when the token source
 // can offer a different one, retries once within the same operation deadline:
 // the Tracer rejected the request before evaluating it, so a retry cannot
-// apply it twice. A retry that fails in transport keeps the 401 in its chain.
+// apply it twice. A 401 that is not retried is reported to a token source that
+// can re-read its credentials. A retry that fails in transport keeps the 401 in
+// its chain; a retry refused before sending is reported as that refusal alone.
 func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []byte, expectedStatus int) ([]byte, error) {
 	if len(body) > c.config.MaxBodyBytes {
 		return nil, constant.ErrPayloadTooLarge
@@ -168,7 +170,10 @@ func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []by
 	for {
 		status, raw, sentToken, err := c.post(ctx, path, body)
 		if err != nil {
-			if rejection != nil {
+			// A refusal of the request, such as a tenant whose renewed
+			// identity plugin-auth refused, is the answer: the earlier 401
+			// must not turn it back into an outage.
+			if rejection != nil && !errors.Is(err, ErrTracerRequestRejected) {
 				return nil, fmt.Errorf("%w; after %w", err, rejection)
 			}
 
@@ -181,10 +186,16 @@ func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []by
 
 		responseErr := contextHTTPResponseError(status, raw)
 
-		if status == http.StatusUnauthorized && rejection == nil && canRenew && invalidator.Invalidate(sentToken) {
-			rejection = responseErr
+		if status == http.StatusUnauthorized {
+			if rejection == nil && canRenew && invalidator.Invalidate(ctx, sentToken) {
+				rejection = responseErr
 
-			continue
+				continue
+			}
+
+			if rejector, ok := c.tokens.(CredentialRejector); ok {
+				rejector.RejectCredentials(ctx, sentToken)
+			}
 		}
 
 		return nil, responseErr

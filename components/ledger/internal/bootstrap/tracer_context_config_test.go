@@ -173,7 +173,7 @@ func TestContextTracerIntegrationIDRoster(t *testing.T) {
 }
 
 func TestContextTracerDisabledBuildsNothing(t *testing.T) {
-	runtime, err := buildContextTracer(&Config{}, nil, nil, testTracerAuthHost, newBootstrapTestLogger(t))
+	runtime, err := buildContextTracer(&Config{}, nil, nil, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 	require.NoError(t, err)
 	require.Nil(t, runtime)
 }
@@ -203,13 +203,13 @@ func TestContextTracerRuntimeBuildsCoordinator(t *testing.T) {
 			cfg := contextTracerTestConfig()
 			configure(&cfg)
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerAuthHost, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 			require.NoError(t, err)
 			require.NotNil(t, runtime.coordinator)
 			require.NoError(t, runtime.coordinator.ValidateActivation(t.Context()))
 			closeContextTracerRuntime(t, runtime)
 
-			_, err = buildContextTracer(&cfg, nil, fixedTokenMinter{}, testTracerAuthHost, newBootstrapTestLogger(t))
+			_, err = buildContextTracer(&cfg, nil, fixedTokenMinter{}, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 			require.Error(t, err, "no activation without the official facts store")
 		})
 	}
@@ -231,7 +231,7 @@ func TestContextTracerRESTMTLSRequiresVerifiableServer(t *testing.T) {
 			cfg := restTracerTestConfig()
 			cfg.TracerTLSCertFile, cfg.TracerTLSKeyFile, cfg.TracerTLSCAFile = scenario.certFile, scenario.keyFile, scenario.caFile
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerAuthHost, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 			require.ErrorContains(t, err, scenario.wantMessage)
 			require.Nil(t, runtime)
 		})
@@ -244,7 +244,7 @@ func TestContextTracerRESTRefusesDisabledPluginAuth(t *testing.T) {
 	cfg.AuthEnabled = false
 	minter := &countingTokenMinter{}
 
-	runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, testTracerAuthHost, newBootstrapTestLogger(t))
+	runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 	require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
 	require.ErrorContains(t, err, "PLUGIN_AUTH_ENABLED=false")
 	require.Nil(t, runtime)
@@ -265,7 +265,7 @@ func TestContextTracerRESTRequiresM2MCredentials(t *testing.T) {
 			cfg.TracerTLSMode, cfg.TracerBaseURL = "mesh", "http://tracer.test:4020"
 			cfg.IDPM2MClientID, cfg.IDPM2MClientSecret = scenario.clientID, scenario.secret
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerAuthHost, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 			require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
 			require.Nil(t, runtime)
 
@@ -289,7 +289,7 @@ func TestContextTracerRESTPrewarmsTokenBestEffort(t *testing.T) {
 			cfg := restTracerTestConfig()
 			cfg.TracerTLSMode, cfg.TracerBaseURL = "mesh", "http://tracer.test:4020"
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, testTracerAuthHost, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 			require.NoError(t, err, "a failed boot-time mint never refuses boot")
 			require.NotNil(t, runtime)
 			require.Equal(t, int32(1), minter.calls.Load(), "boot mints one token ahead of the first reservation")
@@ -304,7 +304,7 @@ func TestContextTracerGRPCNeedsNoM2MCredentials(t *testing.T) {
 	cfg.TracerTLSCertFile, cfg.TracerTLSKeyFile, cfg.TracerTLSCAFile = certs.certFile, certs.keyFile, certs.caFile
 	minter := &countingTokenMinter{}
 
-	runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, testTracerAuthHost, newBootstrapTestLogger(t))
+	runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 	require.NoError(t, err)
 	require.NotNil(t, runtime)
 	require.Zero(t, minter.calls.Load(), "gRPC identity is the client certificate, never a token")
@@ -316,7 +316,7 @@ func TestContextTracerGRPCRequiresCertificateMaterial(t *testing.T) {
 	cfg := contextTracerTestConfig()
 	cfg.TracerTransport = "grpc"
 
-	runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, nil, testTracerAuthHost, newBootstrapTestLogger(t))
+	runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, nil, testTracerAuthHost, nil, newBootstrapTestLogger(t))
 	require.ErrorContains(t, err, "TRACER_TLS_CERT_FILE")
 	require.Nil(t, runtime)
 }
@@ -328,7 +328,7 @@ func TestContextTracerRESTRequiresPluginAuthHost(t *testing.T) {
 			cfg.TracerTLSMode, cfg.TracerBaseURL = "mesh", "http://tracer.test:4020"
 			minter := &countingTokenMinter{}
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, host, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, host, nil, newBootstrapTestLogger(t))
 			require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
 			require.ErrorContains(t, err, "PLUGIN_AUTH_HOST")
 			require.Nil(t, runtime)
@@ -357,7 +357,7 @@ func TestContextTracerRESTSaaSRefusesCleartextWithoutExplicitMesh(t *testing.T) 
 			cfg.DeploymentMode, cfg.TracerBaseURL, cfg.TracerTLSMode = scenario.deploymentMode, scenario.baseURL, scenario.tlsMode
 			cfg.TracerTLSCAFile = certs.caFile
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerSecureAuthHost, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, fixedTokenMinter{}, testTracerSecureAuthHost, nil, newBootstrapTestLogger(t))
 			if scenario.refused {
 				require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
 				require.ErrorContains(t, err, "DEPLOYMENT_MODE=saas")
@@ -402,7 +402,7 @@ func TestContextTracerRESTSaaSRefusesCleartextAuthHost(t *testing.T) {
 			cfg.TracerTLSCAFile = certs.caFile
 			minter := &countingTokenMinter{}
 
-			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, scenario.authHost, newBootstrapTestLogger(t))
+			runtime, err := buildContextTracer(&cfg, &libPostgres.Client{}, minter, scenario.authHost, nil, newBootstrapTestLogger(t))
 			if scenario.refused {
 				require.ErrorIs(t, err, constant.ErrTracerContractUnavailable)
 				require.ErrorContains(t, err, "DEPLOYMENT_MODE=saas")

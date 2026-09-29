@@ -169,20 +169,32 @@ func warnContextReservationOutcomeUnknown(ctx context.Context, logger libLog.Log
 // #nosec G101 -- span attribute value, not a credential value.
 const tracerFailureCauseTokenUnavailable = "token_unavailable"
 
+// tracerFailureCauseTenantIdentityUnprovisioned marks a refusal the ledger
+// made because the tenant holds no usable identity toward the Tracer. It shares
+// the rejection code with a contract refusal, so the span attribute is what
+// tells them apart.
+//
+// #nosec G101 -- span attribute value, not a credential value.
+const tracerFailureCauseTenantIdentityUnprovisioned = "tenant_identity_unprovisioned"
+
 // recordTracerFailureCause names on span a tracer failure cause the response
 // code does not distinguish.
 func recordTracerFailureCause(span trace.Span, err error) {
-	if errors.Is(err, constant.ErrTracerTokenUnavailable) {
+	switch {
+	case errors.Is(err, traceradapter.ErrTenantIdentityUnprovisioned):
+		span.SetAttributes(attribute.String("app.tracer.failure_cause", tracerFailureCauseTenantIdentityUnprovisioned))
+	case errors.Is(err, constant.ErrTracerTokenUnavailable):
 		span.SetAttributes(attribute.String("app.tracer.failure_cause", tracerFailureCauseTokenUnavailable))
 	}
 }
 
 // tracerBusinessCauses are the canonical causes of a coordination failure the
 // request itself provoked: a coded refusal before evaluation (0043, 0487,
-// 0537), an unusable contract (0534), and the caller-bound expression cost,
-// payload size and operation conflict (0342, 0143, 0540). Every other cause is
-// technical.
+// 0537) or a tenant without an identity toward the Tracer, an unusable
+// contract (0534), and the caller-bound expression cost, payload size and
+// operation conflict (0342, 0143, 0540). Every other cause is technical.
 var tracerBusinessCauses = []error{
+	traceradapter.ErrTenantIdentityUnprovisioned,
 	constant.ErrInsufficientPrivileges,
 	constant.ErrReservationTenantRequired,
 	constant.ErrContextPolicyUnavailable,

@@ -31,7 +31,14 @@ type TokenSource interface {
 // Token may succeed: true when rejected was discarded or already replaced,
 // false when no different token can be obtained yet.
 type TokenInvalidator interface {
-	Invalidate(rejected string) bool
+	Invalidate(ctx context.Context, rejected string) bool
+}
+
+// CredentialRejector is implemented by a TokenSource whose client credentials
+// can themselves be stale. RejectCredentials reports a token the Tracer still
+// refused after renewal, so the credentials it was minted from are read again.
+type CredentialRejector interface {
+	RejectCredentials(ctx context.Context, rejected string)
 }
 
 // TokenMinter issues an application (client-credentials) token. It is
@@ -74,6 +81,8 @@ type M2MTokenSource struct {
 	refreshAt  time.Time
 	expiresAt  time.Time
 	renewAfter time.Time
+	// renewErr is the failure that started the current mint pause.
+	renewErr error
 }
 
 // NewM2MTokenSource builds a caching token source over minter.
@@ -94,7 +103,8 @@ func NewM2MTokenSource(minter TokenMinter, clientID, secret string, clk clock) (
 // background renewal. Only a caller without a valid token blocks, and a
 // failure then wraps constant.ErrTracerTokenUnavailable. A failed mint
 // suppresses every mint for tokenRenewBackoff; a caller without a valid token
-// during that pause fails fast instead of reaching the identity provider.
+// during that pause fails fast with the failure that started it, instead of
+// reaching the identity provider.
 //
 // The renewal is shared by every concurrent caller, so it runs detached from
 // the caller that started it, bounded by tokenRenewTimeout: one caller's
@@ -114,6 +124,10 @@ func (s *M2MTokenSource) Token(ctx context.Context) (string, error) {
 	}
 
 	if state.backingOff {
+		if state.renewErr != nil {
+			return "", fmt.Errorf("%w: renewal paused after a failed mint: %w", constant.ErrTracerTokenUnavailable, state.renewErr)
+		}
+
 		return "", fmt.Errorf("%w: renewal paused after a failed mint", constant.ErrTracerTokenUnavailable)
 	}
 
@@ -145,7 +159,7 @@ func (s *M2MTokenSource) Token(ctx context.Context) (string, error) {
 // rejection that soon is not about the token's age, and replacing it would
 // cost the identity provider a mint per rejected request. The mint pause of an
 // earlier failure is preserved.
-func (s *M2MTokenSource) Invalidate(rejected string) bool {
+func (s *M2MTokenSource) Invalidate(_ context.Context, rejected string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -200,7 +214,7 @@ func (s *M2MTokenSource) renew(ctx context.Context) (string, error) {
 
 	if err != nil {
 		s.mu.Lock()
-		s.renewAfter = now.Add(tokenRenewBackoff)
+		s.renewAfter, s.renewErr = now.Add(tokenRenewBackoff), err
 		s.mu.Unlock()
 
 		// Re-read: the cached token may have been invalidated during the mint.
@@ -212,7 +226,7 @@ func (s *M2MTokenSource) renew(ctx context.Context) (string, error) {
 	}
 
 	s.mu.Lock()
-	s.token, s.mintedAt, s.refreshAt, s.expiresAt, s.renewAfter = token, now, refreshAt, expiresAt, time.Time{}
+	s.token, s.mintedAt, s.refreshAt, s.expiresAt, s.renewAfter, s.renewErr = token, now, refreshAt, expiresAt, time.Time{}, nil
 	s.mu.Unlock()
 
 	return token, nil
@@ -224,6 +238,7 @@ type tokenState struct {
 	fresh, valid bool
 	// backingOff: a failed mint suppresses every mint.
 	backingOff bool
+	renewErr   error
 }
 
 func (s *M2MTokenSource) snapshot() tokenState {
@@ -232,6 +247,9 @@ func (s *M2MTokenSource) snapshot() tokenState {
 
 	now := s.now()
 	state := tokenState{backingOff: now.Before(s.renewAfter)}
+	if state.backingOff {
+		state.renewErr = s.renewErr
+	}
 
 	if s.token == "" {
 		return state

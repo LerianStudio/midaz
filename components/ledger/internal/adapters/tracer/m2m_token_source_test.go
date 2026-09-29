@@ -454,15 +454,15 @@ func TestM2MTokenSource_InvalidateForcesFreshMint(t *testing.T) {
 	first, err := source.Token(t.Context())
 	require.NoError(t, err)
 
-	assert.False(t, source.Invalidate(""), "no token presented, nothing to replace")
-	assert.True(t, source.Invalidate("some-other-token"), "a token that is not cached is already replaced")
+	assert.False(t, source.Invalidate(context.Background(), ""), "no token presented, nothing to replace")
+	assert.True(t, source.Invalidate(context.Background(), "some-other-token"), "a token that is not cached is already replaced")
 
 	same, err := source.Token(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, first, same, "a token that is not cached invalidates nothing")
 	assert.Equal(t, int32(1), minter.calls.Load())
 
-	assert.False(t, source.Invalidate(first), "a token minted within the backoff is kept")
+	assert.False(t, source.Invalidate(context.Background(), first), "a token minted within the backoff is kept")
 
 	kept, err := source.Token(t.Context())
 	require.NoError(t, err)
@@ -470,14 +470,14 @@ func TestM2MTokenSource_InvalidateForcesFreshMint(t *testing.T) {
 	assert.Equal(t, int32(1), minter.calls.Load())
 
 	clk.Advance(tokenRenewBackoff)
-	assert.True(t, source.Invalidate(first))
+	assert.True(t, source.Invalidate(context.Background(), first))
 
 	fresh, err := source.Token(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, tokens[1], fresh)
 	assert.Equal(t, int32(2), minter.calls.Load())
 
-	assert.True(t, source.Invalidate(first))
+	assert.True(t, source.Invalidate(context.Background(), first))
 
 	kept, err = source.Token(t.Context())
 	require.NoError(t, err)
@@ -508,7 +508,7 @@ func TestM2MTokenSource_InvalidateKeepsMintPause(t *testing.T) {
 	awaitFlight(source)
 	require.Equal(t, int32(2), minter.calls.Load())
 
-	require.True(t, source.Invalidate(token))
+	require.True(t, source.Invalidate(context.Background(), token))
 
 	_, err = source.Token(t.Context())
 	require.ErrorIs(t, err, constant.ErrTracerTokenUnavailable)

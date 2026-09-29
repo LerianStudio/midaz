@@ -121,8 +121,10 @@ func NewTracerClient(baseURL string, opts ...TracerClientOption) (*TracerClient,
 //
 // Transport-availability failures (timeout, dial error, header hook failure)
 // are normalised to ErrTracerUnavailable so the reserve anchor can branch on
-// tracer.failPosture; a non-2xx status is NOT an availability failure and is surfaced verbatim by
-// the caller's status check.
+// tracer.failPosture. A header hook failure wrapping ErrTracerRequestRejected,
+// such as a tenant without a usable identity, is returned as is: it is a
+// refusal in every mode, never an outage. A non-2xx status is NOT an
+// availability failure and is surfaced verbatim by the caller's status check.
 func (c *TracerClient) post(ctx context.Context, path string, body []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 
@@ -152,6 +154,13 @@ func (c *TracerClient) post(ctx context.Context, path string, body []byte) (*htt
 	if c.headerHook != nil {
 		if err := c.headerHook(ctx, req.Header); err != nil {
 			cancel()
+
+			// A request the Tracer would refuse before evaluation is refused
+			// here with the same cause, not reported as an outage.
+			if errors.Is(err, ErrTracerRequestRejected) {
+				return nil, err
+			}
+
 			return nil, fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 		}
 	}
