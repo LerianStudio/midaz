@@ -103,8 +103,8 @@ func preEvaluationRejections() map[string]seamErrorCase {
 			return restSeamErrorWithBody(t, http.StatusForbidden, `{"type":"about:blank","title":"Insufficient Privileges","status":403,"code":"0043"}`)
 		}},
 		"rest 400 0487": {"rest", func(t *testing.T) error { return restSeamErrorWithBody(t, http.StatusBadRequest, `{"code":"0487"}`) }},
-		"rest 503 0527": {"rest", func(t *testing.T) error {
-			return restSeamErrorWithBody(t, http.StatusServiceUnavailable, `{"code":"0527"}`)
+		"rest 503 0537": {"rest", func(t *testing.T) error {
+			return restSeamErrorWithBody(t, http.StatusServiceUnavailable, `{"code":"0537"}`)
 		}},
 		"grpc PermissionDenied 0043": {"grpc", func(t *testing.T) error {
 			return grpcSeamError(t, status.Error(codes.PermissionDenied, constant.ErrInsufficientPrivileges.Error()))
@@ -112,7 +112,7 @@ func preEvaluationRejections() map[string]seamErrorCase {
 		"grpc InvalidArgument 0487": {"grpc", func(t *testing.T) error {
 			return grpcSeamError(t, status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error()))
 		}},
-		"grpc FailedPrecondition 0527": {"grpc", func(t *testing.T) error {
+		"grpc FailedPrecondition 0537": {"grpc", func(t *testing.T) error {
 			return grpcSeamError(t, status.Error(codes.FailedPrecondition, constant.ErrContextPolicyUnavailable.Error()))
 		}},
 	}
@@ -370,8 +370,8 @@ func TestRecordTracerCoordinationErrorClassifiesByCause(t *testing.T) {
 		"rest 413 0143": func(t *testing.T) error {
 			return restSeamErrorWithBody(t, http.StatusRequestEntityTooLarge, `{"code":"0143"}`)
 		},
-		"rest 409 0530": func(t *testing.T) error {
-			return restSeamErrorWithBody(t, http.StatusConflict, `{"code":"0530"}`)
+		"rest 409 0540": func(t *testing.T) error {
+			return restSeamErrorWithBody(t, http.StatusConflict, `{"code":"0540"}`)
 		},
 		"grpc InvalidArgument 0342": func(t *testing.T) error {
 			return grpcSeamError(t, status.Error(codes.InvalidArgument, constant.ErrExpressionCostExceeded.Error()))
@@ -384,8 +384,8 @@ func TestRecordTracerCoordinationErrorClassifiesByCause(t *testing.T) {
 	technical := map[string]func(t *testing.T) error{
 		"rest 503": func(t *testing.T) error { return restSeamError(t, http.StatusServiceUnavailable) },
 		"rest 401": func(t *testing.T) error { return restSeamError(t, http.StatusUnauthorized) },
-		"rest 429 0527": func(t *testing.T) error {
-			return restSeamErrorWithBody(t, http.StatusTooManyRequests, `{"code":"0527"}`)
+		"rest 429 0537": func(t *testing.T) error {
+			return restSeamErrorWithBody(t, http.StatusTooManyRequests, `{"code":"0537"}`)
 		},
 		"rest 400 0094": func(t *testing.T) error { return restSeamErrorWithBody(t, http.StatusBadRequest, `{"code":"0094"}`) },
 		"rest 422 0531": func(t *testing.T) error {

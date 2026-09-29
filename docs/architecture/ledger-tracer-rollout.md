@@ -109,7 +109,7 @@ checks do not certify the remote Tracer's version, policies or readiness.
      own Error for a non-200 answer. The Tracer warms the set at boot in the
      background; a failure there also logs a Warn, and requests refresh the set
      on demand.
-   - A missing or unusable Tracer configuration is 503 `0527`, which blocks in
+   - A missing or unusable Tracer configuration is 503 `0537`, which blocks in
      every posture.
 
    Revoking an association or suspending a tenant takes effect once the cached
@@ -271,8 +271,8 @@ must not be replayed against production accounts.
 A Tracer answer is deterministic only when it carries a canonical code the
 Ledger recognizes: the `code` of the REST problem body, or a gRPC status message
 that is exactly the code. The recognized codes are the refusals before
-evaluation (`0043`, `0487`, `0527`) and `0094`, `0143`, `0342`, `0343`, `0530`,
-`0531` and `0534`, each with its own class.
+evaluation (`0043`, `0487`, `0537`) and `0094`, `0143`, `0342`, `0343`, `0531`,
+`0534` and `0540`, each with its own class.
 
 Everything else is unavailability: a transport failure, a timeout, a redirect
 (never followed), HTTP 401 (after at most one token renewal), 429, 5xx, and any 3xx or 4xx
@@ -285,8 +285,8 @@ status without a recognized message, including `PermissionDenied`,
 only these admission failures. The ledger's `failPosture` then applies to
 admission, and an undelivered completion goes to the in-memory retrier.
 
-A refusal before evaluation (`0043`, `0487`, `0527`) is deterministic. The
-Ledger rejects that Reserve in every mode, `advisory` included, with `0527` for
+A refusal before evaluation (`0043`, `0487`, `0537`) is deterministic. The
+Ledger rejects that Reserve in every mode, `advisory` included, with `0537` for
 a missing policy and `0534` otherwise, and sends no release because the Tracer
 holds nothing for the transaction. The same refusal on a confirm or release is terminal: one Error log
 names the transaction, with no retry. Invalid context, missing policy or limit
@@ -311,7 +311,7 @@ HTTP and gRPC clients inspect the canonical code, the problem `code` or the gRPC
 status message, before classifying any failure, a 503 or `Unavailable`
 included. The Tracer answers evaluation-time policy and configuration errors
 with gRPC `FailedPrecondition` and a tenant-stage configuration fault with
-`Unavailable` and message `0527`; the Ledger rejects both because of the code in
+`Unavailable` and message `0537`; the Ledger rejects both because of the code in
 the message, not the gRPC status code. Existing error classes remain distinct:
 malformed context is 400, oversized messages 413, CEL budget exhaustion 422, and
 missing trusted configuration 503. A 503 response alone does not authorize
@@ -418,8 +418,8 @@ a completion: in one tenant transaction it sets `reserve_operations.status` and
 every owned `usage_reservations.status` to `EXPIRED`, returns the held capacity
 and appends one `RESERVE_OPERATION_EXPIRED` audit event. The reaper runs whether
 or not any Ledger currently calls the Tracer, so stopping admission does not
-strand held capacity. A confirm or release that arrives after expiry is answered with `0530`
-(409). The Ledger treats `0530` as terminal and does not retry it. A confirm logs
+strand held capacity. A confirm or release that arrives after expiry is answered with `0540`
+(409). The Ledger treats `0540` as terminal and does not retry it. A confirm logs
 one Error naming the transaction and the uncounted spend. A release is already
 settled, because the capacity was returned at expiry, so it is logged at Info
 only. No money moves.
@@ -442,7 +442,7 @@ bounded `operation` (`admission`, `confirm`, `release`) and `result` labels. A
 `confirm`/`failed` or `release`/`failed` observation marks an inline completion
 that did not land: a terminal rejection, or a completion handed to the retrier,
 including one skipped inline because admission failed for availability. A
-release answered with `0530` is settled and counts as `delivered`.
+release answered with `0540` is settled and counts as `delivered`.
 
 For the Tracer tenant primary, inspect reservations and operations; `EXPIRED` is
 a terminal class of its own, distinct from `CONFIRMED` and `RELEASED`:

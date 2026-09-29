@@ -165,7 +165,7 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 		deploy.pluginAuth.down.Store(true)
 		t.Cleanup(func() { deploy.pluginAuth.down.Store(false) })
 
-		// Neither a denial nor the policy-configuration code 0527: the ledger
+		// Neither a denial nor the policy-configuration code 0537: the ledger
 		// reads an unrecognized 503 as tracer unavailability, so its fail
 		// posture decides.
 		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantAssociated), deploy.reserveJSON)
@@ -212,7 +212,7 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 		// Without a fetched list the first call refreshes it and meets the
 		// failing tenant-manager; the calls inside the failure backoff that
 		// follows answer without a list call. None of them is a denial, nor
-		// the policy-configuration code 0527, which the ledger treats as
+		// the policy-configuration code 0537, which the ledger treats as
 		// deterministic and blocks on even under a fail-open posture.
 		_, err := cold.grpcReserve(t, &cold.mappedClient, tenantAssociated)
 		require.Equal(t, codes.Unavailable, status.Code(err), "err=%v", err)

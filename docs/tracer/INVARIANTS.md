@@ -197,9 +197,9 @@ use case.
 Migration `000025` persists immutable policy and rule revisions, plus exact
 `(integration_id, context_id)` bindings within the authenticated tenant database.
 The policy repository reads the binding and its complete rule set from the
-primary in one query. Missing configuration is error `0527` (503), never an
+primary in one query. Missing configuration is error `0537` (503), never an
 implicit ALLOW. Immutable revision conflicts and stale binding updates use
-`0528` (409). Binding versions advance on every update, including a return to a
+`0538` (409). Binding versions advance on every update, including a return to a
 previous policy, so stale administrative writes cannot overwrite that change.
 
 The reservation contract has shared request/response types in
@@ -214,7 +214,7 @@ integration. The original response and selected policy/binding/rule revisions
 survive policy rebindings and process restarts. `LookupReserveDecisionQuery`
 validates verified identity and the content fingerprint before returning a
 detached stored snapshot; it never evaluates current rules or repeats capacity
-or audit writes. Conflicting identity reuse is canonical error `0529` (409).
+or audit writes. Conflicting identity reuse is canonical error `0539` (409).
 Reads use the primary, including the repeated lookup available inside the caller's
 transaction. Parsing/storage bounds must continue to cover replayable records.
 
@@ -232,16 +232,16 @@ transaction ends. Acquire this lock before account, counter and audit locks,
 then repeat the decision lookup. `CompleteWithTx` records CONFIRMED or RELEASED
 even before the first decision exists, or EXPIRED when the reaper closes the
 operation. Same-outcome replay preserves the original timestamp; a contradictory
-completion returns canonical error `0530` (409), including a confirm or release
+completion returns canonical error `0540` (409), including a confirm or release
 that arrives after EXPIRED. OPEN expires by TTL: once the operation's
 reservations pass their expiry, the reaper moves it to EXPIRED. EXPIRED returns
 held capacity; it is not proof that accounting failed.
 
 A database trigger takes the same operation lock before a decision insert and
-rejects an already completed operation with `0530`. This is defense in depth,
+rejects an already completed operation with `0540`. This is defense in depth,
 not a substitute for acquiring the lock before capacity/audit work. An existing
 decision remains replayable after a CONFIRMED or RELEASED completion; replaying a
-decision whose operation EXPIRED returns `0530`, because its capacity was returned. Backfill marks old decisions OPEN
+decision whose operation EXPIRED returns `0540`, because its capacity was returned. Backfill marks old decisions OPEN
 without inferring an accounting outcome. Triggers forbid reopening, rewriting or
 removing completed operations, and migration rollback refuses any operation
 history. Upgrade is atomic; empty rollback fails promptly on active writers.
@@ -440,7 +440,7 @@ Each transport has its own credential, and both resolve to the same
   `TRACER_PLATFORM_PRODUCERS`. Trusting the CA alone is insufficient. Common
   names, DNS names, forwarded certificate headers and payload fields never select
   the producer. A rejected certificate is `PermissionDenied` (`0043`); a missing
-  or certificate-less producer map is `Unavailable` (`0527`).
+  or certificate-less producer map is `Unavailable` (`0537`).
 
 `TRACER_PLATFORM_PRODUCERS` is a non-empty JSON array of at most 64 KiB such as
 `[{"service":"ledger","clientId":"<azp>","certUri":"spiffe://example.test/ledger"}]`.
@@ -512,14 +512,14 @@ After identity, both transports authorize the tenant in a fixed order:
 | The tracer pool cannot be resolved | 503 `0161` (gRPC `Unavailable`, message `0161`) |
 | The caller cancelled | 503 `0330` (gRPC `Canceled`, no code in the message) |
 | The deadline passed | 504 `0422` (gRPC `DeadlineExceeded`, no code in the message) |
-| Missing producer, or authorizer and resolver disagree on multi-tenancy | 503 `0527` (gRPC `Unavailable`, message `0527`) |
+| Missing producer, or authorizer and resolver disagree on multi-tenancy | 503 `0537` (gRPC `Unavailable`, message `0537`) |
 | Otherwise | context carries the tenant, its pool and the producer's integration ID |
 
 `0161`, `0330` and `0422` are availability failures: the Ledger handles them as
 Tracer unavailability, so the ledger's `failPosture` applies. `0043`, `0487` and
-`0527` are refusals before evaluation: the Ledger rejects the Reserve in every
+`0537` are refusals before evaluation: the Ledger rejects the Reserve in every
 mode and treats the same answer on a confirm or release as terminal. A missing
-or unusable configuration, such as a missing producer map or policy, is `0527`,
+or unusable configuration, such as a missing producer map or policy, is `0537`,
 which blocks accounting in every posture. The Ledger recognizes a refusal only
 by its canonical code: the `code` of the REST problem body, or a gRPC status
 message that is exactly the code, whatever the HTTP status or gRPC code. Any
@@ -575,7 +575,7 @@ This query does not cache decisions.
 replay before checking freshness or the current policy. A stored decision whose
 content does not match is rejected there; every other request opens one tenant
 transaction, locks the operation and checks replay again. Under the lock a
-matching decision is returned unless its operation EXPIRED, which returns `0530`;
+matching decision is returned unless its operation EXPIRED, which returns `0540`;
 without a decision, a known terminal outcome is rejected. Only the winner evaluates the policy and attempts capacity.
 Policy resolution uses that same transaction connection, avoiding pool exhaustion
 when every request already owns an operation lock. Immutable compiled programs

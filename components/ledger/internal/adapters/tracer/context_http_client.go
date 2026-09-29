@@ -220,7 +220,7 @@ func (c *ContextHTTPClient) post(ctx context.Context, path string, body []byte) 
 
 // contextHTTPResponseError classifies a non-success status. Only a canonical
 // code the seam recognizes makes a response deterministic: a refusal before
-// evaluation (0043, 0487, 0527) wraps ErrTracerRequestRejected, and the other
+// evaluation (0043, 0487, 0537) wraps ErrTracerRequestRejected, and the other
 // recognized codes keep their own meaning. Any other status of 300 or above is
 // ErrTracerUnavailable whatever its value: a bare 4xx or a redirect comes from
 // something other than a Tracer that evaluated the request (a mesh denial, an

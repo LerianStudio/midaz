@@ -76,10 +76,10 @@ transaction committed or canceled after its ledger was switched off is left to
 the TTL. An engine outcome that stays unknown makes no completion call; a
 singular create and an atomic batch also log a Warn naming the transaction. An
 admission that failed for availability skips the inline completion and hands it
-straight to the retrier. An operation conflict (`0530`, for example a confirm after TTL expiry), a
-refusal before evaluation (`0043`, `0487`, `0527`, recognized only by that canonical code) or a
+straight to the retrier. An operation conflict (`0540`, for example a confirm after TTL expiry), a
+refusal before evaluation (`0043`, `0487`, `0537`, recognized only by that canonical code) or a
 response that contradicts the request is terminal and is not retried: one Error
-log names the transaction and the consequence. A release answered with `0530` is
+log names the transaction and the consequence. A release answered with `0540` is
 already settled and is logged at Info only.
 Any other completion the Tracer does not acknowledge, such as one that fails for unavailability
 (transport failure, timeout, a persistent HTTP 401, 429, 5xx, a 3xx or 4xx without a
@@ -95,7 +95,7 @@ A direct reservation expires after 5 minutes; a PENDING one, sent with
 `longLived`, after `RESERVATION_LONG_LIVED_TTL_HOURS` (default 720 hours). The
 Tracer reaper then marks the operation and its reservations `EXPIRED`, returns
 the held capacity and appends one `RESERVE_OPERATION_EXPIRED` audit event; a
-later confirm or release answers `0530`. Expiry does not prove that accounting
+later confirm or release answers `0540`. Expiry does not prove that accounting
 failed, so under `enforce` a lost confirm frees limit capacity at expiry. Runtime
 construction tests are not proof of a completed production rollout.
 
@@ -209,7 +209,7 @@ collapsing the two into one failure/scale unit.
   twice.
 
   The budget deliberately outlasts the tracer's own five-minute hold, but expiry is terminal: the
-  operation is `EXPIRED` and a late confirm or release answers `0530` on every attempt, so the retrier
+  operation is `EXPIRED` and a late confirm or release answers `0540` on every attempt, so the retrier
   stops and the spend is never counted.
 
   Two failures remain and both are reported at Error naming the transaction, the reservation and the
@@ -271,15 +271,15 @@ This open-vs-closed contract is locked by the proof tests in
 at the transport boundary so `failPosture` can branch on them (`seam_errors.go`). Both clients read
 the canonical code first: the problem `code` on REST (`contextHTTPResponseError`), the gRPC status
 message on gRPC (`mapGRPCError`). Only a recognized code is deterministic, whatever the HTTP status or
-gRPC code: `0043`, `0487` and `0527` are refusals before evaluation, and `0094`, `0143`, `0342`,
-`0343`, `0530`, `0531` and `0534` keep their own class. Everything else is `ErrTracerUnavailable`:
+gRPC code: `0043`, `0487` and `0537` are refusals before evaluation, and `0094`, `0143`, `0342`,
+`0343`, `0531`, `0534` and `0540` keep their own class. Everything else is `ErrTracerUnavailable`:
 transport errors, timeouts and context deadline/cancellation, HTTP 401 (after at most one token renewal), 429,
 5xx, any 3xx or 4xx without a recognized code (a mesh RBAC denial, an ingress default backend, a 404
 from an older Tracer pod, a redirect, which is never followed), and every gRPC status without a
 recognized message (`PermissionDenied`, `InvalidArgument`, `NotFound`, `FailedPrecondition`,
-`Unimplemented`, `Unavailable` and the rest). So a 503 or `Unavailable` carrying `0527` is a
+`Unimplemented`, `Unavailable` and the rest). So a 503 or `Unavailable` carrying `0537` is a
 rejection, while `0161`, `0330` and `0422` stay unavailability. A refusal before evaluation rejects
-the Reserve in every mode, with `0527` for a missing policy and `0534` otherwise, and sends no
+the Reserve in every mode, with `0537` for a missing policy and `0534` otherwise, and sends no
 release. Over REST, a Ledger that holds no token the
 Tracer accepts fails internally with `0536` (`ErrTracerTokenUnavailable`), classified as the same
 unavailability: under `enforce` + `failPosture=closed` the API client receives `0178`/503, and the span
@@ -384,7 +384,7 @@ reservation gets 503 `0161`.
 | Tracer pool unavailable | 503 `0161` / `Unavailable` with message `0161` |
 | Caller cancelled | 503 `0330` / `Canceled`, no code in the message |
 | Deadline passed | 504 `0422` / `DeadlineExceeded`, no code in the message |
-| Missing producer or inconsistent tenant wiring | 503 `0527` / `Unavailable` with message `0527` |
+| Missing producer or inconsistent tenant wiring | 503 `0537` / `Unavailable` with message `0537` |
 
 A set is fresh for `MULTI_TENANT_CACHE_TTL_SEC` and usable up to three times that. A fresh set answers
 its members without a call; a stale but usable set admits them at once while one background refresh
@@ -399,7 +399,7 @@ every set at boot in the background: a failure also logs a Warn, and requests re
 Warm-up and background refreshes run under `SafeGo`.
 
 `0161`, `0330` and `0422` are availability failures, so the Ledger applies its `failPosture`. `0043`,
-`0487` and `0527` are refusals before evaluation: the Ledger rejects the Reserve in every posture and
+`0487` and `0537` are refusals before evaluation: the Ledger rejects the Reserve in every posture and
 treats the same answer on a completion as terminal.
 
 The tenant resolver is wired **only** onto the reservation routes and RPCs; user-facing tracer routes

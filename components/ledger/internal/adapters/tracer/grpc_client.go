@@ -143,7 +143,7 @@ func tenantUnaryInterceptor(
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
 // Only a status whose message is a canonical code the seam recognizes is
 // deterministic, whatever its status code: a refusal before evaluation (0043,
-// 0487, 0527) wraps ErrTracerRequestRejected, as on the REST transport. Every
+// 0487, 0537) wraps ErrTracerRequestRejected, as on the REST transport. Every
 // other failure, including PermissionDenied, InvalidArgument or NotFound
 // without a recognized code, is ErrTracerUnavailable: the answer did not come
 // from a Tracer that evaluated the request, so the fail posture and the

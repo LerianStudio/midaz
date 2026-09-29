@@ -178,8 +178,8 @@ func recordTracerFailureCause(span trace.Span, err error) {
 
 // tracerBusinessCauses are the canonical causes of a coordination failure the
 // request itself provoked: a coded refusal before evaluation (0043, 0487,
-// 0527), an unusable contract (0534), and the caller-bound expression cost,
-// payload size and operation conflict (0342, 0143, 0530). Every other cause is
+// 0537), an unusable contract (0534), and the caller-bound expression cost,
+// payload size and operation conflict (0342, 0143, 0540). Every other cause is
 // technical.
 var tracerBusinessCauses = []error{
 	constant.ErrInsufficientPrivileges,

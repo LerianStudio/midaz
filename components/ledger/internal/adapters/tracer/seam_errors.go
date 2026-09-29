@@ -13,7 +13,7 @@ import (
 
 // ErrTracerRequestRejected marks a request the Tracer refused before
 // evaluating it and named with a canonical code: an unauthorized producer or
-// tenant (0043), a missing tenant (0487) or a missing policy (0527). The
+// tenant (0043), a missing tenant (0487) or a missing policy (0537). The
 // Tracer then holds nothing for the transaction, and redelivering the same
 // request cannot change the answer. The canonical cause is wrapped alongside
 // it. A refusal without a recognized code is never this error.

@@ -47,7 +47,7 @@ var errReservationRetryStop = errors.New("reservation retry stopped by transport
 // returned. The ledger would rather deliver the confirm late — the spend
 // counted, the window logged — than stop trying because the hold is gone.
 // The context profile is the exception: Tracer answers a confirm after expiry
-// with an operation conflict (0530), which is terminal and not retried.
+// with an operation conflict (0540), which is terminal and not retried.
 //
 // It does NOT outlast a PENDING transaction's hold, and nothing sensible could:
 // that one is thirty days by default (RESERVATION_LONG_LIVED_TTL_HOURS). Those

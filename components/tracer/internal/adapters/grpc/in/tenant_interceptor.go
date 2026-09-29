@@ -32,7 +32,7 @@ import (
 // cancelled call or passed deadline keeps its own code. Single-tenant mode
 // ignores the metadata. A missing producer, and an authorizer and resolver that
 // disagree on multi-tenancy, are deployment defects that fail closed with
-// codes.Unavailable (0527).
+// codes.Unavailable (0537).
 func TenantUnaryInterceptor(authz *producerauth.TenantAuthorizer, resolver *seamtenant.Resolver) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		resolvedCtx, err := seamtenant.AuthorizeTenant(ctx, authz, resolver, tenantIDFromMetadata(ctx))

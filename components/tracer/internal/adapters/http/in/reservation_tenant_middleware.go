@@ -30,7 +30,7 @@ import (
 // governs; a request the caller cancelled or whose deadline passed is 503 0330
 // or 504 0422. Single-tenant mode ignores the header. A missing producer, and
 // an authorizer and resolver that disagree on multi-tenancy, are deployment
-// defects that fail closed with 503 0527, so a tenant is never authorized
+// defects that fail closed with 503 0537, so a tenant is never authorized
 // without its pool or pooled without authorization.
 func reservationTenantMiddleware(authz *producerauth.TenantAuthorizer, resolver *seamtenant.Resolver) fiber.Handler {
 	return func(c fiber.Ctx) error {

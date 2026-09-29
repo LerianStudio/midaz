@@ -673,14 +673,6 @@ var (
 	// ErrDeferrableDeductibleFee refuses a fee both deducted from the payment and
 	// deferrable: fee debt defers only a fee charged on top of the payment.
 	ErrDeferrableDeductibleFee = errors.New("0530")
-	// ErrContextPolicyUnavailable reports missing or unusable trusted policy configuration.
-	ErrContextPolicyUnavailable = errors.New("0537")
-	// ErrContextPolicyConflict reports a reused immutable revision or stale binding update.
-	ErrContextPolicyConflict = errors.New("0538")
-	// ErrReserveDecisionConflict reports reused transaction/request identity with conflicting content.
-	ErrReserveDecisionConflict = errors.New("0539")
-	// ErrReserveOperationConflict reports a late evaluation or contradictory completion.
-	ErrReserveOperationConflict = errors.New("0540")
 	// ErrContextLimitsUnavailable reports incomplete or unusable account/asset limit configuration.
 	ErrContextLimitsUnavailable = errors.New("0531")
 	// ErrTracerFactsUnavailable reports missing or inconsistent official account/asset facts.
@@ -692,6 +684,14 @@ var (
 	// ErrTracerTokenUnavailable reports that no valid M2M token for the Tracer
 	// REST seam could be obtained; callers treat it as Tracer unavailability.
 	ErrTracerTokenUnavailable = errors.New("0536")
+	// ErrContextPolicyUnavailable reports missing or unusable trusted policy configuration.
+	ErrContextPolicyUnavailable = errors.New("0537")
+	// ErrContextPolicyConflict reports a reused immutable revision or stale binding update.
+	ErrContextPolicyConflict = errors.New("0538")
+	// ErrReserveDecisionConflict reports reused transaction/request identity with conflicting content.
+	ErrReserveDecisionConflict = errors.New("0539")
+	// ErrReserveOperationConflict reports a late evaluation or contradictory completion.
+	ErrReserveOperationConflict = errors.New("0540")
 )
 
 // List of CRM domain errors.

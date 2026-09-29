@@ -532,7 +532,7 @@ with `GET /v1/tenants/active?service=ledger` (no Ledger credentials are fetched)
 tracer's per-tenant pool. The set is fresh for `MULTI_TENANT_CACHE_TTL_SEC` and usable up to three
 times that; members of a usable set stay admitted while the tenant-manager cannot answer. An absent
 tenant is 403 `0043`; a tenant-manager or pool that cannot answer is 503 `0161`, which the ledger
-treats as unavailability under its `failPosture`. Refusals before evaluation (`0043`, `0487`, `0527`)
+treats as unavailability under its `failPosture`. Refusals before evaluation (`0043`, `0487`, `0537`)
 reject the transaction in every posture; the ledger recognizes them only by the canonical code (REST
 problem `code`, or the exact gRPC status message), and any other non-2xx or gRPC status counts as
 unavailability. See

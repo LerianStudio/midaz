@@ -1468,7 +1468,7 @@ func initGRPCServer(
 	}
 
 	// Under multi-tenancy both tenant steps must enforce; the interceptor
-	// would otherwise fail every call closed with 0527 behind a green boot.
+	// would otherwise fail every call closed with 0537 behind a green boot.
 	tenantResolver := seamtenant.NewResolver(pgManager, cfg.MultiTenantEnabled)
 	if cfg.MultiTenantEnabled && (!authz.Active() || !tenantResolver.Active()) {
 		return nil, fmt.Errorf("reservation gRPC server: MULTI_TENANT_ENABLED requires the tenant authorizer and the tenant pool manager")

@@ -817,7 +817,7 @@ or 403 on the list leaves members of a usable set admitted and answers every
 other tenant with `0161`. A tenant pool that cannot be resolved is
 also 503 `0161`, a cancelled call 503 `0330` and a passed deadline 504 `0422`:
 availability failures under the Ledger's `failPosture`. A missing or malformed
-tenant is 400 `0487`, and a missing or unusable configuration is 503 `0527`;
+tenant is 400 `0487`, and a missing or unusable configuration is 503 `0537`;
 the Ledger rejects both, like `0043`, in every posture. On REST a 401 makes the
 Ledger discard its cached token and retry once, and a persistent 401 counts as
 unavailability. The Ledger treats an answer as a refusal only by its canonical
