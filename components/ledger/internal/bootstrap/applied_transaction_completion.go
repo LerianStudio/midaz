@@ -29,6 +29,7 @@ func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase
 	}
 
 	delegate.WithFeeDebtRecorder(feeDebt)
+	useCase.FeeDebts = feeDebt
 
 	completer := &tenantAppliedTransactionCompleter{
 		delegate: delegate, multiTenantEnabled: multiTenantEnabled, mongoResolver: mongoResolver,

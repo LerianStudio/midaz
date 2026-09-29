@@ -74,6 +74,7 @@ func newCloseAccountMocks(t *testing.T) *closeAccountMocks {
 		TransactionRepo:      mocks.transaction,
 		TransactionRedisRepo: mocks.redis,
 		TransactionReader:    &feeDebtReader{},
+		FeeDebts:             &owedFeeDebts{},
 	}
 
 	return mocks
@@ -177,8 +178,16 @@ func (m *closeAccountMocks) expectBalancesRead(balances ...*mmodel.Balance) {
 // expectRecoveryWalked programs both recovery origins returning an empty terminal
 // page, which is the shape of an account with no completion left to run.
 func (m *closeAccountMocks) expectRecoveryWalked() {
+	m.expectFeeDebtRecoveryWalked()
 	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), gomock.Any(), uint64(0), gomock.Any()).
 		Return(txRedis.RecoveryScanPage{Cursor: 0}, nil).Times(2)
+}
+
+// expectFeeDebtRecoveryWalked programs the engine recovery walk the fee-debt guard runs
+// before the closing's own, returning an empty terminal page.
+func (m *closeAccountMocks) expectFeeDebtRecoveryWalked() {
+	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceEngineRecover, uint64(0), gomock.Any()).
+		Return(txRedis.RecoveryScanPage{Cursor: 0}, nil)
 }
 
 // expectPersistenceProven programs the high-water-mark read that answers the
@@ -362,6 +371,37 @@ func TestCloseAccount_UnreadableFeeDebtIsIndeterminate(t *testing.T) {
 	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 }
 
+// TestCloseAccount_RefusesAFeeDebtOwedToIt proves a settled fee account that an open
+// debt still names as creditor is refused, and a projection that cannot be read leaves
+// the closing indeterminate; both give the protection back.
+func TestCloseAccount_RefusesAFeeDebtOwedToIt(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		debts *owedFeeDebts
+		want  error
+	}{
+		{"owed", &owedFeeDebts{owed: true}, constant.ErrBalanceOwedFeeDebt},
+		{"unreadable", &owedFeeDebts{err: errors.New("mongo down")}, constant.ErrAccountClosingProtectionIndeterminate},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			m := newCloseAccountMocks(t)
+			m.uc.FeeDebts = test.debts
+			creditor := closeEligibleBalance()
+
+			m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
+			m.expectProtectionTaken()
+			m.expectBalancesRead(creditor)
+			m.expectFeeDebtRecoveryWalked()
+			m.expectProtectionReleased()
+
+			_, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
+
+			requireClosingCode(t, err, test.want)
+			assert.Equal(t, []string{creditor.Alias + "#" + creditor.Key}, test.debts.refs)
+		})
+	}
+}
+
 // TestCloseAccount_RefusesAPendingTransaction covers AC-08: every component reads
 // zero and the account is still one commit away from moving.
 func TestCloseAccount_RefusesAPendingTransaction(t *testing.T) {
@@ -390,6 +430,7 @@ func TestCloseAccount_RefusesWhileCompletionIsPending(t *testing.T) {
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 	m.expectProtectionTaken()
 	m.expectBalancesRead(closeEligibleBalance())
+	m.expectFeeDebtRecoveryWalked()
 
 	m.redis.EXPECT().ScanRecoveryMessages(gomock.Any(), txRedis.RecoveryQueueSourceLegacyBackup, uint64(0), gomock.Any()).
 		Return(txRedis.RecoveryScanPage{

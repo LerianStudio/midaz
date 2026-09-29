@@ -8484,8 +8484,9 @@ paths:
         is read back as the account's closedAt, which every account read then
         exposes. An external account is never eligible (0074), balances that are
         not exactly zero (0523), a pending transaction still holding the
-        account's funds (0524) and a balance that still owes pending fees (0527)
-        are refused with 422. An account already closed (0521), an account whose
+        account's funds (0524), a balance that still owes pending fees (0527)
+        and a balance that other balances still owe pending fees to (0528) are
+        refused with 422. An account already closed (0521), an account whose
         closing is already in progress (0522), an account held by another
         operation such as transactions loading its balances or a balance
         creation or deletion (0526) and an account whose accounting persistence

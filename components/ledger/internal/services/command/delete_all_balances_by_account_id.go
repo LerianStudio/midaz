@@ -135,7 +135,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	}
 
 	if err = uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances); err != nil {
-		recordCommandError(ctx, span, logger, "Balances cannot be deleted while one owes pending fees", err)
+		recordCommandError(ctx, span, logger, "Balances cannot be deleted while one owes or is owed pending fees", err)
 
 		return err
 	}
