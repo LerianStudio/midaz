@@ -246,6 +246,9 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	assert.Equal(t, "tenant-revert", payload.TenantID)
 
 	assert.Equal(t, 1, reserver.reserveCalls)
+	requests := reserver.reserveRequests()
+	require.Len(t, requests, 1)
+	assert.True(t, requests[0].Revert, "a revert marks its reservation as a revert")
 	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
 	assert.Empty(t, reserver.releasedIDs)
 	select {

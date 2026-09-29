@@ -98,7 +98,7 @@ type Limit struct {
 	// Maximum amount allowed within the period
 	MaxAmount decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
 
-	// ISO 4217 asset code this limit applies to
+	// Asset code this limit applies to (1..100 uppercase letters)
 	// example: USD
 	Asset string `json:"asset" example:"USD"`
 
@@ -223,9 +223,9 @@ func CalculateCustomResetAt(customEndDate time.Time) *time.Time {
 	return &resetAt
 }
 
-// validateAsset checks if asset is a valid ISO 4217 code (3 uppercase letters)
+// validateAsset checks that asset is a ledger asset code (1..100 uppercase letters).
 func validateAsset(asset string) error {
-	if !pkg.IsValidCurrency(asset) {
+	if !pkg.IsValidAssetCode(asset) {
 		return constant.ErrLimitInvalidCurrency
 	}
 

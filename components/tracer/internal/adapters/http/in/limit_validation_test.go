@@ -161,16 +161,51 @@ func TestCreateLimitInput_AssetValidation(t *testing.T) {
 			errMsg:  "asset must be uppercase",
 		},
 		{
-			name:    "invalid - too short",
-			asset:   "BR",
-			wantErr: true,
-			errMsg:  "asset must be exactly 3 characters",
+			name:    "valid - crypto BTC",
+			asset:   "BTC",
+			wantErr: false,
 		},
 		{
-			name:    "invalid - too long",
-			asset:   "BRLL",
+			name:    "valid - stablecoin USDT",
+			asset:   "USDT",
+			wantErr: false,
+		},
+		{
+			name:    "valid - loyalty POINTS",
+			asset:   "POINTS",
+			wantErr: false,
+		},
+		{
+			name:    "valid - single letter",
+			asset:   "B",
+			wantErr: false,
+		},
+		{
+			name:    "valid - exactly 100 letters",
+			asset:   strings.Repeat("A", 100),
+			wantErr: false,
+		},
+		{
+			name:    "valid - non-ASCII uppercase letter",
+			asset:   "ÜSD",
+			wantErr: false,
+		},
+		{
+			name:    "valid - 100 multi-byte letters",
+			asset:   strings.Repeat("Ü", 100),
+			wantErr: false,
+		},
+		{
+			name:    "invalid - 101 multi-byte letters",
+			asset:   strings.Repeat("Ü", 101),
 			wantErr: true,
-			errMsg:  "asset must be exactly 3 characters",
+			errMsg:  "asset must be a maximum of 100 characters",
+		},
+		{
+			name:    "invalid - longer than 100 letters",
+			asset:   strings.Repeat("A", 101),
+			wantErr: true,
+			errMsg:  "asset must be a maximum of 100 characters",
 		},
 		{
 			name:    "invalid - empty",

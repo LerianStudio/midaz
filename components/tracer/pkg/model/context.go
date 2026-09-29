@@ -11,12 +11,13 @@ import (
 )
 
 // AccountContext contains account information for validation.
-// Type should be one of: "checking", "savings", "credit"
-// Status should be one of: "active", "suspended", "closed"
+// Type and Status are free-form caller vocabulary (for the Midaz ledger, the
+// account's type and status) and reach CEL verbatim, without case
+// normalization. Type is at most 256 characters and Status at most 50.
 type AccountContext struct {
 	ID       uuid.UUID      `json:"accountId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
-	Type     string         `json:"type" example:"checking"`
-	Status   string         `json:"status" example:"active"`
+	Type     string         `json:"type" example:"deposit"`
+	Status   string         `json:"status" example:"ACTIVE"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 

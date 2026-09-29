@@ -77,7 +77,30 @@ var (
 	ErrNilReservationAuditWriter  = errors.New("reservation: audit writer cannot be nil")
 	ErrNilReservationRequest      = errors.New("reservation: request cannot be nil")
 	ErrNilReservationTransationID = errors.New("reservation: transaction id is required")
+	ErrNilRuleEvaluationResult    = errors.New("reservation: rule evaluation returned nil result")
 )
+
+// Refusal reasons the reserve and synchronous validate paths report when the
+// refusal does not come from a matched rule's own reason.
+const (
+	// reasonLimitExceeded is the reason when a limit, not a rule, refused.
+	reasonLimitExceeded = "limit_exceeded"
+	// reasonRuleEvaluationError is the reason when a rule expression could not be
+	// evaluated against the request, so the reserve is routed to review.
+	reasonRuleEvaluationError = "rule_evaluation_error"
+)
+
+// ruleExpressionFailures are the rule-expression error classes that make a rule
+// unevaluable for one request. They describe the rule and the request, not the
+// tracer's health, so a reserve refuses on them instead of failing.
+var ruleExpressionFailures = []error{
+	constant.ErrExpressionEvaluation,
+	constant.ErrExpressionType,
+	constant.ErrExpressionCostExceeded,
+	constant.ErrExpressionCostEstimation,
+	constant.ErrExpressionProgram,
+	constant.ErrExpressionSyntax,
+}
 
 // LimitResolver resolves the applicable limits for a transaction ONCE and computes
 // the per-limit reservation parameters. Implemented by query.LimitCheckerService.
@@ -123,26 +146,62 @@ type ReservationAuditWriter interface {
 }
 
 // ReserveResult is the handle returned to the caller after a reserve attempt.
-// Denied is the limit-exceeded decision (the same shape the synchronous Validate
-// produces on a limit breach): when true, no reservation was held and
-// ReservationIDs is empty. Otherwise ReservationIDs holds one id per counter-backed
-// limit that was reserved — the ledger confirms or releases each in phase two.
+// Denied is the refusal flag (the same shape the synchronous Validate produces
+// on a limit breach): when true, no reservation was held and ReservationIDs is
+// empty. Otherwise ReservationIDs holds one id per counter-backed limit that was
+// reserved — the ledger confirms or releases each in phase two. Decision refines
+// Denied (ALLOW, DENY or REVIEW); Reason is empty on ALLOW, "limit_exceeded" on
+// a limit denial, "rule_evaluation_error" when a rule could not be evaluated, or
+// the rule evaluator's reason; MatchedRuleIDs lists the rules behind a
+// rule-driven DENY or REVIEW, or the rule that could not be evaluated.
 type ReserveResult struct {
 	Denied         bool
+	Decision       model.Decision
+	Reason         string
+	MatchedRuleIDs []uuid.UUID
 	ReservationIDs []uuid.UUID
 }
 
-// ReservationService owns the two-phase reservation lifecycle: it resolves limits
-// once and reserves capacity (phase one), then confirms or releases (phase two).
+// EffectiveDecision is the decision a reserve response names. An explicit
+// Decision wins; otherwise it is derived from Denied, so a response always
+// carries one.
+func (r *ReserveResult) EffectiveDecision() model.Decision {
+	if r.Decision != "" {
+		return r.Decision
+	}
+
+	if r.Denied {
+		return model.DecisionDeny
+	}
+
+	return model.DecisionAllow
+}
+
+// ReserveOptions carries the per-call hints of a reserve that are not part of
+// the validation request.
+type ReserveOptions struct {
+	// LongLived selects the long-lived reservation lifetime for a PENDING
+	// transaction; false uses the short direct-transaction TTL.
+	LongLived bool
+	// Revert marks the reserve as the revert of an applied transaction: rules are
+	// not evaluated, limits are still reserved.
+	Revert bool
+}
+
+// ReservationService owns the two-phase reservation lifecycle: it evaluates rules,
+// resolves limits once and reserves capacity (phase one), then confirms or
+// releases (phase two).
 // Each method runs in its own transaction so the counter move, the reservation-row
 // flip, and the audit row commit atomically.
 type ReservationService struct {
-	conn         pgdb.TxBeginner
-	resolver     LimitResolver
-	repo         ReservationRepository
-	auditWriter  ReservationAuditWriter
-	clock        clock.Clock
-	longLivedTTL time.Duration
+	conn        pgdb.TxBeginner
+	resolver    LimitResolver
+	repo        ReservationRepository
+	auditWriter ReservationAuditWriter
+	// ruleEvaluator runs the CEL rules before any limit is resolved.
+	ruleEvaluator RuleEvaluator
+	clock         clock.Clock
+	longLivedTTL  time.Duration
 	// retrySleep waits out the transient-retry backoff, honouring ctx cancellation.
 	// Injected so tests drive the retry loop deterministically without wall-clock sleeps.
 	retrySleep func(ctx context.Context, d time.Duration) error
@@ -157,9 +216,10 @@ func NewReservationService(
 	resolver LimitResolver,
 	repo ReservationRepository,
 	auditWriter ReservationAuditWriter,
+	ruleEvaluator RuleEvaluator,
 	clk clock.Clock,
 ) (*ReservationService, error) {
-	return NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, clk, 0)
+	return NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, ruleEvaluator, clk, 0)
 }
 
 // NewReservationServiceWithLongLivedTTL is the full constructor. longLivedTTL is
@@ -171,6 +231,7 @@ func NewReservationServiceWithLongLivedTTL(
 	resolver LimitResolver,
 	repo ReservationRepository,
 	auditWriter ReservationAuditWriter,
+	ruleEvaluator RuleEvaluator,
 	clk clock.Clock,
 	longLivedTTL time.Duration,
 ) (*ReservationService, error) {
@@ -190,6 +251,10 @@ func NewReservationServiceWithLongLivedTTL(
 		return nil, ErrNilReservationAuditWriter
 	}
 
+	if ruleEvaluator == nil {
+		return nil, ErrNilRuleEvaluator
+	}
+
 	if clk == nil {
 		clk = clock.RealClock{}
 	}
@@ -199,19 +264,30 @@ func NewReservationServiceWithLongLivedTTL(
 	}
 
 	return &ReservationService{
-		conn:         conn,
-		resolver:     resolver,
-		repo:         repo,
-		auditWriter:  auditWriter,
-		clock:        clk,
-		longLivedTTL: longLivedTTL,
-		retrySleep:   libBackoff.WaitContext,
+		conn:          conn,
+		resolver:      resolver,
+		repo:          repo,
+		auditWriter:   auditWriter,
+		ruleEvaluator: ruleEvaluator,
+		clock:         clk,
+		longLivedTTL:  longLivedTTL,
+		retrySleep:    libBackoff.WaitContext,
 	}, nil
 }
 
-// Reserve resolves the applicable limits ONCE, holds capacity for each
-// counter-backed limit, and returns a handle the ledger uses to confirm or release.
-// This is the ALLOW-path persistence of the two-phase model.
+// Reserve evaluates the CEL rules, then resolves the applicable limits ONCE, holds
+// capacity for each counter-backed limit, and returns a handle the ledger uses to
+// confirm or release. This is the ALLOW-path persistence of the two-phase model.
+//
+// Rules run first, with the same evaluator as the synchronous Validate path. Only
+// a MATCHED rule refuses: a DENY or REVIEW backed by at least one matched rule id
+// refuses the reserve (Denied=true) before any limit is resolved or counter
+// touched, so like the synchronous path a REVIEW does not consume limit capacity.
+// A DENY or REVIEW with no matched rule is the configured no-match default and
+// proceeds to limits as ALLOW. A rule expression that cannot be evaluated for the
+// request refuses as REVIEW with reason rule_evaluation_error; a failure to load
+// the rules is an error. A revert (opts.Revert) skips rules entirely: it undoes
+// an applied transaction the rules already admitted.
 //
 // Resolution and reservation share ONE transaction so the per-limit reserves are
 // all-or-nothing: if any limit's guard denies, the whole transaction rolls back and
@@ -223,11 +299,11 @@ func NewReservationServiceWithLongLivedTTL(
 // transactionID is the 4-tuple idempotency key: a retried reserve collapses onto
 // the existing rows rather than double-reserving (R11/R35).
 //
-// longLived selects the reservation lifetime: false (direct transaction) uses the
-// short reservationTTL so the reaper converges quickly; true (PENDING transaction,
-// R18) uses the configured long-lived TTL so a reservation backing a still-valid
-// pending does not expire before the pending commits or cancels.
-func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*ReserveResult, error) {
+// opts.LongLived selects the reservation lifetime: false (direct transaction)
+// uses the short reservationTTL so the reaper converges quickly; true (PENDING
+// transaction, R18) uses the configured long-lived TTL so a reservation backing a
+// still-valid pending does not expire before the pending commits or cancels.
+func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, opts ReserveOptions) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.reservation.reserve")
@@ -240,10 +316,29 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		return nil, ErrNilReservationTransationID
 	}
 
-	if input == nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil reserve input", ErrNilReservationRequest)
+	if req == nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil reserve request", ErrNilReservationRequest)
 		return nil, ErrNilReservationRequest
 	}
+
+	span.SetAttributes(attribute.Bool("app.request.revert", opts.Revert))
+
+	refused, err := s.evaluateRules(ctx, span, logger, transactionID, req, opts.Revert)
+	if err != nil {
+		return nil, err
+	}
+
+	if refused != nil {
+		logger.With(
+			libLog.String("operation", "service.reservation.reserve"),
+			libLog.String("transaction_id", transactionID.String()),
+			libLog.String("decision", string(refused.Decision)),
+		).Log(ctx, libLog.LevelWarn, "Reservation refused by rule")
+
+		return s.decided(span, refused), nil
+	}
+
+	input := req.ToCheckLimitsInput()
 
 	specs, denied, err := s.resolver.ResolveReservations(ctx, input)
 	if err != nil {
@@ -254,16 +349,16 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	// Denied by a PER_TRANSACTION cap or the amount-alone pre-check: no capacity
 	// to hold, return the limit-exceeded decision without opening a transaction.
 	if denied {
-		return &ReserveResult{Denied: true}, nil
+		return s.limitDenied(ctx, span, logger, transactionID), nil
 	}
 
 	// No applicable counter-backed limits: nothing to reserve, allow.
 	if len(specs) == 0 {
-		return &ReserveResult{}, nil
+		return s.decided(span, &ReserveResult{Decision: model.DecisionAllow}), nil
 	}
 
 	ttl := reservationTTL
-	if longLived {
+	if opts.LongLived {
 		ttl = s.longLivedTTL
 	}
 
@@ -273,7 +368,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	// Serialize reserves that could contend on the same account's counter rows on a
 	// stable per-account key, taken BEFORE any counter row is locked. Computed once,
 	// outside the closure, so every transient-retry attempt reuses the same key.
-	scopeLockKey := reserveScopeLockKey(input.AccountID)
+	scopeLockKey := reserveScopeLockKey(req.Account.ID)
 
 	guardDenied := false
 
@@ -346,7 +441,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		if guardDenied {
 			// Limit-exceeded is a business decision, not a service failure: the
 			// rollback already released any partial holds.
-			return &ReserveResult{Denied: true}, nil
+			return s.limitDenied(ctx, span, logger, transactionID), nil
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to reserve capacity", txErr)
@@ -360,7 +455,121 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		libLog.Int("reservations", len(reservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reserved capacity")
 
-	return &ReserveResult{ReservationIDs: reservationIDs}, nil
+	return s.decided(span, &ReserveResult{Decision: model.DecisionAllow, ReservationIDs: reservationIDs}), nil
+}
+
+// evaluateRules runs the rule step of a reserve. It returns a non-nil result only
+// when the reserve is refused — by a matched DENY or REVIEW rule, or by a rule
+// that cannot be evaluated; nil means proceed to limits. A revert never
+// evaluates rules.
+func (s *ReservationService) evaluateRules(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	transactionID uuid.UUID,
+	req *model.ValidationRequest,
+	revert bool,
+) (*ReserveResult, error) {
+	if revert {
+		return nil, nil
+	}
+
+	evalResult, err := s.ruleEvaluator.Execute(ctx, req)
+	if err != nil {
+		if isRuleExpressionFailure(err) {
+			return s.ruleEvaluationRefused(ctx, span, logger, transactionID, err), nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Rule evaluation failed", err)
+
+		return nil, fmt.Errorf("rule evaluation failed: %w", err)
+	}
+
+	if evalResult == nil {
+		libOpentelemetry.HandleSpanError(span, "Rule evaluation returned nil", ErrNilRuleEvaluationResult)
+		return nil, ErrNilRuleEvaluationResult
+	}
+
+	if len(evalResult.MatchedRuleIDs) == 0 {
+		return nil, nil
+	}
+
+	switch evalResult.Decision {
+	case model.DecisionDeny, model.DecisionReview:
+		return &ReserveResult{
+			Denied:         true,
+			Decision:       evalResult.Decision,
+			Reason:         evalResult.Reason,
+			MatchedRuleIDs: evalResult.MatchedRuleIDs,
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
+// ruleEvaluationRefused is the result of a reserve whose rule step could not
+// evaluate a rule for the request: REVIEW, attributed to the failing rule when
+// the evaluator names it, with no capacity held.
+func (s *ReservationService) ruleEvaluationRefused(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	transactionID uuid.UUID,
+	err error,
+) *ReserveResult {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule evaluation failed; reserve routed to review", err)
+
+	result := &ReserveResult{Denied: true, Decision: model.DecisionReview, Reason: reasonRuleEvaluationError}
+
+	fields := []any{
+		libLog.String("operation", "service.reservation.reserve"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("decision", string(model.DecisionReview)),
+		libLog.Err(err),
+	}
+
+	var ruleErr *query.RuleEvaluationError
+	if errors.As(err, &ruleErr) && ruleErr.RuleID != uuid.Nil {
+		result.MatchedRuleIDs = []uuid.UUID{ruleErr.RuleID}
+		fields = append(fields, libLog.String("rule_id", ruleErr.RuleID.String()))
+	}
+
+	logger.With(fields...).Log(ctx, libLog.LevelWarn, "Reservation routed to review: rule evaluation failed")
+
+	return s.decided(span, result)
+}
+
+// isRuleExpressionFailure reports whether err is a rule-expression failure (see
+// ruleExpressionFailures) rather than a failure to load or run the rule step.
+func isRuleExpressionFailure(err error) bool {
+	for _, target := range ruleExpressionFailures {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// limitDenied is the result of a reserve a limit refused, with no capacity held.
+func (s *ReservationService) limitDenied(ctx context.Context, span trace.Span, logger libLog.Logger, transactionID uuid.UUID) *ReserveResult {
+	logger.With(
+		libLog.String("operation", "service.reservation.reserve"),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.String("decision", string(model.DecisionDeny)),
+	).Log(ctx, libLog.LevelWarn, "Reservation refused by limit")
+
+	return s.decided(span, &ReserveResult{Denied: true, Decision: model.DecisionDeny, Reason: reasonLimitExceeded})
+}
+
+// decided records the reserve decision on the span and hands the result back.
+func (s *ReservationService) decided(span trace.Span, result *ReserveResult) *ReserveResult {
+	span.SetAttributes(
+		attribute.String("app.tracer.decision", string(result.Decision)),
+		attribute.Int("app.tracer.matched_rule_count", len(result.MatchedRuleIDs)),
+	)
+
+	return result
 }
 
 // Confirm commits a reservation: the held amount moves reserved_usage ->

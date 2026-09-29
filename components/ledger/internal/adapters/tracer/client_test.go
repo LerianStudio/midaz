@@ -280,3 +280,129 @@ func TestTracerClient_Confirm_TimeoutReturnsUnavailable(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrTracerUnavailable)
 }
+
+func TestTracerClient_Reserve_RejectedStatusIsErrTracerRejected(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       int
+		wantRejected bool
+	}{
+		{name: "400 is a rejection", status: http.StatusBadRequest, wantRejected: true},
+		{name: "422 is a rejection", status: http.StatusUnprocessableEntity, wantRejected: true},
+		{name: "404 is neither rejection nor unavailability", status: http.StatusNotFound},
+		{name: "500 is neither rejection nor unavailability", status: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(`{"code":"0001"}`))
+			}))
+			defer srv.Close()
+
+			client, err := NewTracerClient(srv.URL)
+			require.NoError(t, err)
+
+			result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+
+			require.Error(t, err)
+			require.Nil(t, result)
+			assert.NotErrorIs(t, err, ErrTracerUnavailable)
+
+			if tt.wantRejected {
+				assert.ErrorIs(t, err, ErrTracerRejected)
+			} else {
+				assert.NotErrorIs(t, err, ErrTracerRejected)
+			}
+		})
+	}
+}
+
+func TestTracerClient_Reserve_SendsAccountTypeAndMetadata(t *testing.T) {
+	var raw map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&raw))
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, Decision: "ALLOW"})
+	}))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	_, err = client.Reserve(context.Background(), ReserveRequest{
+		TransactionID: fixedTransactionID,
+		Account:       ReserveAccount{AccountID: "acc-1", Type: "deposit"},
+		Metadata:      map[string]string{"channel": "app"},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{"accountId": "acc-1", "type": "deposit"}, raw["account"])
+	assert.Equal(t, map[string]any{"channel": "app"}, raw["metadata"])
+}
+
+func TestTracerClient_Reserve_OmitsEmptyAccountTypeAndMetadata(t *testing.T) {
+	var raw map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&raw))
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID})
+	}))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	_, err = client.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{}, raw["account"])
+	assert.NotContains(t, raw, "metadata")
+}
+
+func TestTracerClient_Reserve_DecodesDecisionFields(t *testing.T) {
+	ruleID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+
+	t.Run("review decision, reason and matched rules are decoded", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"transactionId":"` + fixedTransactionID.String() + `","denied":true,` +
+				`"decision":"REVIEW","reason":"manual review required",` +
+				`"matchedRuleIds":["` + ruleID.String() + `"],"reservationIds":[]}`))
+		}))
+		defer srv.Close()
+
+		client, err := NewTracerClient(srv.URL)
+		require.NoError(t, err)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+		require.NoError(t, err)
+		assert.True(t, result.Denied)
+		assert.Equal(t, "REVIEW", result.Decision)
+		assert.Equal(t, "manual review required", result.Reason)
+		assert.Equal(t, []uuid.UUID{ruleID}, result.MatchedRuleIDs)
+	})
+
+	t.Run("a tracer without the decision fields decodes to zero values", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"transactionId":"` + fixedTransactionID.String() + `","denied":true,"reservationIds":[]}`))
+		}))
+		defer srv.Close()
+
+		client, err := NewTracerClient(srv.URL)
+		require.NoError(t, err)
+
+		result, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
+		require.NoError(t, err)
+		assert.True(t, result.Denied)
+		assert.Empty(t, result.Decision)
+		assert.Empty(t, result.Reason)
+		assert.Empty(t, result.MatchedRuleIDs)
+	})
+}

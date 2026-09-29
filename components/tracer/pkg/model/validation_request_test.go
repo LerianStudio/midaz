@@ -5,6 +5,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -88,23 +89,23 @@ func TestValidationRequest_Validate(t *testing.T) {
 			expectedErr: constant.ErrValidationCurrencyRequired,
 		},
 		{
-			name: "invalid asset format fails",
+			name: "lowercase asset fails",
 			modify: func(r *ValidationRequest) {
-				r.Asset = "INVALID"
+				r.Asset = "usd"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
 		{
-			name: "too short asset fails",
+			name: "asset with digit fails",
 			modify: func(r *ValidationRequest) {
-				r.Asset = "US"
+				r.Asset = "BR1"
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
 		{
-			name: "too long asset fails",
+			name: "asset longer than 100 letters fails",
 			modify: func(r *ValidationRequest) {
-				r.Asset = "USDD"
+				r.Asset = strings.Repeat("A", 101)
 			},
 			expectedErr: constant.ErrValidationInvalidCurrency,
 		},
@@ -165,6 +166,77 @@ func TestValidationRequest_Validate(t *testing.T) {
 				r.Portfolio = &PortfolioContext{ID: testutil.MustDeterministicUUID(4), Name: "premium"}
 			},
 			expectedErr: nil,
+		},
+		{
+			name: "non-ISO asset BTC passes",
+			modify: func(r *ValidationRequest) {
+				r.Asset = "BTC"
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "non-ISO asset POINTS passes",
+			modify: func(r *ValidationRequest) {
+				r.Asset = "POINTS"
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "non-ISO asset USDT passes",
+			modify: func(r *ValidationRequest) {
+				r.Asset = "USDT"
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "asset of exactly 100 letters passes",
+			modify: func(r *ValidationRequest) {
+				r.Asset = strings.Repeat("A", 100)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "ledger account type and status pass verbatim",
+			modify: func(r *ValidationRequest) {
+				r.Account.Type = "deposit"
+				r.Account.Status = "ACTIVE"
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "account type of exactly 256 runes passes",
+			modify: func(r *ValidationRequest) {
+				r.Account.Type = strings.Repeat("é", 256)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "account type longer than 256 runes fails",
+			modify: func(r *ValidationRequest) {
+				r.Account.Type = strings.Repeat("a", 257)
+			},
+			expectedErr: constant.ErrValidationInvalidAccountType,
+		},
+		{
+			name: "account status of exactly 50 runes passes",
+			modify: func(r *ValidationRequest) {
+				r.Account.Status = strings.Repeat("é", 50)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "account status longer than 50 runes fails",
+			modify: func(r *ValidationRequest) {
+				r.Account.Status = strings.Repeat("A", 51)
+			},
+			expectedErr: constant.ErrValidationInvalidAccountStatus,
+		},
+		{
+			name: "timestamp older than 24h still fails on the synchronous path",
+			modify: func(r *ValidationRequest) {
+				r.TransactionTimestamp = testutil.FixedTime().Add(-25 * time.Hour)
+			},
+			expectedErr: constant.ErrValidationTimestampPast,
 		},
 	}
 
@@ -276,6 +348,37 @@ func TestValidationRequest_ValidateForReserve(t *testing.T) {
 				r.TransactionTimestamp = testutil.FixedTime().Add(2 * time.Minute)
 			},
 			expectedErr: constant.ErrValidationTimestampFuture,
+		},
+		{
+			name: "backdated timestamp is ACCEPTED on reserve (no max age)",
+			modify: func(r *ValidationRequest) {
+				r.TransactionTimestamp = testutil.FixedTime().Add(-72 * time.Hour)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "timestamp far in the past is ACCEPTED on reserve",
+			modify: func(r *ValidationRequest) {
+				r.TransactionTimestamp = testutil.FixedTime().AddDate(-2, 0, 0)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "ledger vocabulary (BTC, deposit, ACTIVE, 3 days back) passes",
+			modify: func(r *ValidationRequest) {
+				r.Asset = "BTC"
+				r.Account.Type = "deposit"
+				r.Account.Status = "ACTIVE"
+				r.TransactionTimestamp = testutil.FixedTime().AddDate(0, 0, -3)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "account type longer than 256 runes still fails",
+			modify: func(r *ValidationRequest) {
+				r.Account.Type = strings.Repeat("a", 257)
+			},
+			expectedErr: constant.ErrValidationInvalidAccountType,
 		},
 	}
 

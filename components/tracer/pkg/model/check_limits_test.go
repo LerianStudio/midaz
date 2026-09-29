@@ -84,9 +84,9 @@ func TestNewCheckLimitsInput_InvalidAsset(t *testing.T) {
 		asset string
 	}{
 		{"empty asset", ""},
-		{"too short", "BR"},
-		{"too long", "BRLL"},
-		{"two chars lowercase", "br"},
+		{"longer than 100 letters", strings.Repeat("B", 101)},
+		{"digit in code", "BR1"},
+		{"lowercase with digit", "br1"},
 		{"numeric", "123"},
 		{"special chars", "BR$"},
 	}
@@ -99,6 +99,24 @@ func TestNewCheckLimitsInput_InvalidAsset(t *testing.T) {
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, constant.ErrCheckLimitsInvalidCurrency)
+		})
+	}
+}
+
+func TestNewCheckLimitsInput_AcceptsLedgerAssetCodes(t *testing.T) {
+	t.Parallel()
+
+	accountID := testutil.MustDeterministicUUID(1)
+	fixedTime := testutil.FixedTime()
+
+	for _, asset := range []string{"USD", "BTC", "USDT", "POINTS", strings.Repeat("A", 100)} {
+		t.Run(asset, func(t *testing.T) {
+			t.Parallel()
+
+			input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), asset, accountID, nil, nil, nil, nil, nil, fixedTime)
+
+			require.NoError(t, err)
+			assert.Equal(t, asset, input.Asset)
 		})
 	}
 }
@@ -303,7 +321,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 			name: "invalid asset",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("100"),
-				Asset:                "XX",
+				Asset:                "X1",
 				AccountID:            accountID,
 				TransactionTimestamp: fixedTime,
 			},

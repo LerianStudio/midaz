@@ -17,9 +17,9 @@ import (
 // request shape (amount, asset, account/segment/portfolio/merchant context,
 // transaction type and timestamp) and adds the ledger transactionId — the
 // correlation handle the two-phase reservation lifecycle is keyed on. The embedded
-// ValidationRequest carries the scope fields and reuses its NormalizeAndValidate
-// and ToCheckLimitsInput logic so the reserve path never drifts from the
-// synchronous validate path's input contract.
+// ValidationRequest carries the scope fields and is handed to the reservation
+// service as-is, so rules and limits see the same input contract as the
+// synchronous validate path.
 type ReserveRequest struct {
 	// TransactionID is the ledger transaction correlation id. It is the
 	// idempotency grain for retried reserves and the handle the ledger later
@@ -32,7 +32,11 @@ type ReserveRequest struct {
 	// still-valid pending that has no existing sweep (R18). It is a sibling wire
 	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
 	// validation never sees it.
-	LongLived               bool `json:"longLived,omitempty" example:"false"`
+	LongLived bool `json:"longLived,omitempty" example:"false"`
+	// Revert marks the reservation as the revert of an applied transaction. Rules
+	// are not evaluated for it; limit capacity is still reserved. A sibling wire
+	// field like LongLived, outside the embedded ValidationRequest.
+	Revert                  bool `json:"revert,omitempty" example:"false"`
 	model.ValidationRequest `swaggerignore:"true"`
 }
 
@@ -52,21 +56,19 @@ func (r *ReserveRequest) NormalizeAndReserveValidate(now time.Time) error {
 	return r.NormalizeAndValidateForReserve(now)
 }
 
-// ToReserveInput builds the CheckLimitsInput the reservation service resolves
-// against. It delegates to the embedded ValidationRequest so the scope-key inputs
-// are identical to the synchronous validate path.
-func (r *ReserveRequest) ToReserveInput() *model.CheckLimitsInput {
-	return r.ToCheckLimitsInput()
-}
-
 // ReserveResponse is the handle returned on a successful reserve. Denied is the
-// limit-exceeded decision (no capacity held, ReservationIDs empty); otherwise
-// ReservationIDs holds one id per counter-backed limit the ledger must confirm or
-// release in phase two.
+// refusal flag every client reads (no capacity held, ReservationIDs empty);
+// otherwise ReservationIDs holds one id per counter-backed limit the ledger must
+// confirm or release in phase two. Decision refines Denied without replacing it:
+// DENY and REVIEW both come with Denied=true. Reason is empty on ALLOW.
+// ReservationIDs and MatchedRuleIDs always serialize as arrays, never null.
 type ReserveResponse struct {
 	TransactionID  uuid.UUID   `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Denied         bool        `json:"denied" example:"false"`
 	ReservationIDs []uuid.UUID `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
+	Decision       string      `json:"decision" enums:"ALLOW,DENY,REVIEW" example:"ALLOW"`
+	Reason         string      `json:"reason,omitempty" example:"limit_exceeded"`
+	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds" swaggertype:"array,string" format:"uuid"`
 }
 
 // ReservationActionResponse is the body returned by confirm and release. Status is

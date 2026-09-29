@@ -55,7 +55,7 @@ func newReservationServiceDeps(t *testing.T) (*ReservationService, *reservationD
 		clock:       testutil.NewMockClock(testutil.FixedTime()),
 	}
 
-	svc, err := NewReservationService(deps.conn, deps.resolver, deps.repo, deps.auditWriter, deps.clock)
+	svc, err := NewReservationService(deps.conn, deps.resolver, deps.repo, deps.auditWriter, allowRuleEvaluator{}, deps.clock)
 	require.NoError(t, err)
 
 	return svc, deps
@@ -91,32 +91,34 @@ func TestNewReservationService_NilDeps(t *testing.T) {
 	repo := servicesMocks.NewMockReservationRepository(ctrl)
 	audit := servicesMocks.NewMockReservationAuditWriter(ctrl)
 
-	_, err := NewReservationService(nil, resolver, repo, audit, nil)
+	evaluator := allowRuleEvaluator{}
+
+	_, err := NewReservationService(nil, resolver, repo, audit, evaluator, nil)
 	require.ErrorIs(t, err, ErrNilReservationConn)
 
-	_, err = NewReservationService(conn, nil, repo, audit, nil)
+	_, err = NewReservationService(conn, nil, repo, audit, evaluator, nil)
 	require.ErrorIs(t, err, ErrNilLimitResolver)
 
-	_, err = NewReservationService(conn, resolver, nil, audit, nil)
+	_, err = NewReservationService(conn, resolver, nil, audit, evaluator, nil)
 	require.ErrorIs(t, err, ErrNilReservationRepo)
 
-	_, err = NewReservationService(conn, resolver, repo, nil, nil)
+	_, err = NewReservationService(conn, resolver, repo, nil, evaluator, nil)
 	require.ErrorIs(t, err, ErrNilReservationAuditWriter)
+
+	_, err = NewReservationService(conn, resolver, repo, audit, nil, nil)
+	require.ErrorIs(t, err, ErrNilRuleEvaluator)
 }
 
-func testCheckLimitsInput(t *testing.T) *model.CheckLimitsInput {
+func testReserveRequest(t *testing.T) *model.ValidationRequest {
 	t.Helper()
 
-	input, err := model.NewCheckLimitsInput(
-		decimal.NewFromInt(400),
-		"USD",
-		testutil.MustDeterministicUUID(7001),
-		nil, nil, nil, nil, nil,
-		testutil.FixedTime(),
-	)
-	require.NoError(t, err)
-
-	return input
+	return &model.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(7000),
+		Amount:               decimal.NewFromInt(400),
+		Asset:                "USD",
+		TransactionTimestamp: testutil.FixedTime(),
+		Account:              model.AccountContext{ID: testutil.MustDeterministicUUID(7001)},
+	}
 }
 
 // decEq matches a decimal.Decimal argument by value (decimal.Equal, never ==).
@@ -149,7 +151,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Resolves limits ONCE and reserves one row per applicable limit", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 
 		// Single resolution call (R38 / resolve-once invariant).
 		deps.resolver.EXPECT().
@@ -174,7 +177,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(2)
 
-		result, err := svc.Reserve(context.Background(), txID, input, false)
+		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
@@ -183,7 +186,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("A replayed reserve hands back the existing row's id", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 		specs := twoSpecs()
 
 		// The id the retried reserve collapses onto. The repository overwrites the
@@ -220,7 +224,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			}).
 			Times(1)
 
-		result, err := svc.Reserve(context.Background(), txID, input, false)
+		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		require.Len(t, result.ReservationIDs, 1)
@@ -233,7 +237,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Fractional spec amount reaches the reservation row intact", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 
 		fractional := decimal.RequireFromString("10.50")
 		spec := []query.ReservationSpec{
@@ -268,7 +273,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		_, err := svc.Reserve(context.Background(), txID, input, false)
+		_, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 
 		// The pre-fix int64 path would have persisted 10 here.
@@ -278,7 +283,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Denied by resolver (per-transaction cap) returns Denied without a tx", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 
 		deps.resolver.EXPECT().
 			ResolveReservations(gomock.Any(), input).
@@ -286,7 +292,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 		// No BeginTx expected — denial short-circuits before the transaction.
 
-		result, err := svc.Reserve(context.Background(), txID, input, false)
+		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 		assert.True(t, result.Denied)
 		assert.Empty(t, result.ReservationIDs)
@@ -295,7 +301,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Reserve guard denies mid-tx -> rollback, Denied decision", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 
 		deps.resolver.EXPECT().
 			ResolveReservations(gomock.Any(), input).
@@ -312,7 +319,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
-		result, err := svc.Reserve(context.Background(), txID, input, false)
+		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 		assert.True(t, result.Denied, "guard-denied reserve must surface the limit-exceeded decision")
 		assert.Empty(t, result.ReservationIDs)
@@ -321,7 +328,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Scope-lock acquisition failure aborts the reserve", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 
 		deps.resolver.EXPECT().
 			ResolveReservations(gomock.Any(), input).
@@ -339,21 +347,22 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(lockErr).
 			Times(1)
 
-		_, err := svc.Reserve(context.Background(), txID, input, false)
+		_, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.ErrorIs(t, err, lockErr)
 	})
 
 	t.Run("No applicable limits -> allow with empty handle", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 
 		deps.resolver.EXPECT().
 			ResolveReservations(gomock.Any(), input).
 			Return(nil, false, nil).
 			Times(1)
 
-		result, err := svc.Reserve(context.Background(), txID, input, false)
+		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 		assert.False(t, result.Denied)
 		assert.Empty(t, result.ReservationIDs)
@@ -362,14 +371,15 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("Missing transaction id is rejected", func(t *testing.T) {
 		svc, _ := newReservationServiceDeps(t)
 
-		_, err := svc.Reserve(context.Background(), uuid.Nil, testCheckLimitsInput(t), false)
+		_, err := svc.Reserve(context.Background(), uuid.Nil, testReserveRequest(t), ReserveOptions{})
 		require.ErrorIs(t, err, ErrNilReservationTransationID)
 	})
 
 	t.Run("longLived=false sets the short direct TTL on the reservation", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 		now := testutil.FixedTime()
 
 		deps.resolver.EXPECT().
@@ -395,7 +405,7 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		deps.expectScopeLock()
 
-		_, err := svc.Reserve(context.Background(), txID, input, false)
+		_, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
 
 		// Direct transactions use the fixed short TTL, NOT the long-lived knob.
@@ -415,10 +425,11 @@ func TestReservationService_Reserve(t *testing.T) {
 		auditWriter := servicesMocks.NewMockReservationAuditWriter(ctrl)
 		clk := testutil.NewMockClock(testutil.FixedTime())
 
-		svc, err := NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, clk, longLivedTTL)
+		svc, err := NewReservationServiceWithLongLivedTTL(conn, resolver, repo, auditWriter, allowRuleEvaluator{}, clk, longLivedTTL)
 		require.NoError(t, err)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 		now := testutil.FixedTime()
 
 		resolver.EXPECT().
@@ -444,7 +455,7 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		_, err = svc.Reserve(context.Background(), txID, input, true)
+		_, err = svc.Reserve(context.Background(), txID, req, ReserveOptions{LongLived: true})
 		require.NoError(t, err)
 
 		// PENDING reservations expire far out (the configured long-lived TTL), well
@@ -456,7 +467,8 @@ func TestReservationService_Reserve(t *testing.T) {
 	t.Run("longLived=true with default service TTL uses the 30-day ceiling", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		input := testCheckLimitsInput(t)
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
 		now := testutil.FixedTime()
 
 		deps.resolver.EXPECT().
@@ -482,7 +494,7 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		deps.expectScopeLock()
 
-		_, err := svc.Reserve(context.Background(), txID, input, true)
+		_, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{LongLived: true})
 		require.NoError(t, err)
 
 		// newReservationServiceDeps passes longLivedTTL=0, so the service falls back
@@ -500,7 +512,8 @@ func TestReservationService_Reserve(t *testing.T) {
 func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing.T) {
 	svc, deps := newReservationServiceDeps(t)
 
-	input := testCheckLimitsInput(t)
+	req := testReserveRequest(t)
+	input := req.ToCheckLimitsInput()
 	specs := twoSpecs()
 
 	deps.resolver.EXPECT().
@@ -567,7 +580,7 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 	// Deterministic retry: no wall-clock backoff.
 	svc.retrySleep = func(context.Context, time.Duration) error { return nil }
 
-	res, err := svc.Reserve(context.Background(), testutil.MustDeterministicUUID(7050), input, false)
+	res, err := svc.Reserve(context.Background(), testutil.MustDeterministicUUID(7050), req, ReserveOptions{})
 	require.NoError(t, err)
 	require.False(t, res.Denied)
 	assert.Len(t, res.ReservationIDs, len(specs),

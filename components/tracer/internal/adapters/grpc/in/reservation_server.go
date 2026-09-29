@@ -40,7 +40,7 @@ import (
 // (reservation_handler.go), satisfied by *services.ReservationService, so the
 // two transports cannot drift apart in behavior.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, opts services.ReserveOptions) (*services.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -112,9 +112,13 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		attribute.String("app.request.transaction_id", transactionID.String()),
 		attribute.String("app.request.transaction_type", string(validationReq.TransactionType)),
 		attribute.String("app.request.asset", validationReq.Asset),
+		attribute.Bool("app.request.revert", req.GetRevert()),
 	)
 
-	result, err := s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
+	result, err := s.service.Reserve(ctx, transactionID, validationReq, services.ReserveOptions{
+		LongLived: req.GetLongLived(),
+		Revert:    req.GetRevert(),
+	})
 	if err != nil {
 		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}
@@ -123,6 +127,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		libLog.String("operation", "grpc.reservations.reserve"),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Bool("denied", result.Denied),
+		libLog.String("decision", string(result.EffectiveDecision())),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
@@ -130,6 +135,9 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		TransactionId:  transactionID.String(),
 		Denied:         result.Denied,
 		ReservationIds: reservationIDStrings(result.ReservationIDs),
+		Decision:       string(result.EffectiveDecision()),
+		Reason:         result.Reason,
+		MatchedRuleIds: reservationIDStrings(result.MatchedRuleIDs),
 	}, nil
 }
 
@@ -255,10 +263,11 @@ func (s *ReservationServer) terminateByID(
 
 // toValidationRequest builds the model.ValidationRequest the reserve path
 // validates and converts, from the proto request. It mirrors the field set the
-// REST DTO carries: requestId, amount (decimal-as-string), asset, account,
-// optional segment/portfolio/merchant ids, transactionType, transactionTimestamp
-// (RFC3339). Normalization and validation are delegated to the model so the
-// gRPC path never forks the reserve input contract.
+// REST DTO carries: requestId, amount (decimal-as-string), asset, account id and
+// type, optional segment/portfolio/merchant ids, transactionType,
+// transactionTimestamp (RFC3339) and flat metadata. Normalization and
+// validation are delegated to the model so the gRPC path never forks the
+// reserve input contract.
 func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveRequest) (*model.ValidationRequest, error) {
 	requestID, err := uuid.Parse(req.GetRequestId())
 	if err != nil {
@@ -292,7 +301,8 @@ func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveReques
 		Amount:               amount,
 		Asset:                req.GetAsset(),
 		TransactionTimestamp: transactionTimestamp,
-		Account:              model.AccountContext{ID: accountID},
+		Account:              model.AccountContext{ID: accountID, Type: req.GetAccount().GetType()},
+		Metadata:             metadataFromProto(req.GetMetadata()),
 	}
 
 	if segment, err := optionalContextID(req.GetSegmentId()); err != nil {
@@ -318,8 +328,9 @@ func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveReques
 
 // mapServiceError maps a reservation use-case error to a gRPC status error,
 // recording it onto the span by error CLASS (T5): a not-found is a business
-// outcome (span stays green), context cancellation is transport-side, and every
-// other failure is technical (span flips red).
+// outcome (span stays green), context cancellation is transport-side, a rule
+// cache that is not ready yet is Unavailable so the caller treats the tracer as
+// temporarily unavailable, and every other failure is technical (span flips red).
 func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -328,6 +339,9 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 	case errors.Is(err, constant.ErrReservationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 		return status.Error(codes.NotFound, constant.ErrReservationNotFound.Error())
+	case errors.Is(err, constant.ErrRuleCacheNotReady):
+		libOpentelemetry.HandleSpanError(span, "Rule cache not ready", err)
+		return status.Error(codes.Unavailable, constant.ErrRuleCacheNotReady.Error())
 	default:
 		libOpentelemetry.HandleSpanError(span, msg, err)
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
@@ -350,7 +364,22 @@ func optionalContextID(raw string) (*uuid.UUID, error) {
 	return &id, nil
 }
 
-// reservationIDStrings renders the reservation ids as proto-friendly strings.
+// metadataFromProto widens the proto string map into the model's metadata map.
+// An empty map yields nil so an absent field and an empty one validate alike.
+func metadataFromProto(in map[string]string) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+
+	return out
+}
+
+// reservationIDStrings renders reservation or rule ids as proto-friendly strings.
 // A nil/empty input yields a nil slice — proto serializes a repeated field's
 // absence and an empty slice identically, so no [] sentinel is needed (unlike
 // the REST JSON path).

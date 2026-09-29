@@ -230,6 +230,18 @@ var (
 	// instead skipped (a SKIPPED audit is recorded) and the transaction
 	// proceeds, so this error is the fail-closed path only.
 	ErrTransactionReservationUnavailable = errors.New("0178")
+	// ErrTransactionReservationReview is returned when a tracer transaction
+	// validation rule flags the transaction for review, or a rule could not be
+	// evaluated for it, and the ledger's tracer.mode is "enforce". It is raised before the balance commit, and it is
+	// distinct from 0177 so a caller can tell a flagged transaction from one that
+	// exceeds a usage limit.
+	ErrTransactionReservationReview = errors.New("0531")
+	// ErrTransactionReservationRejected is returned when the tracer refuses the
+	// reserve request itself (it answered, but could not evaluate what it
+	// received) and the ledger's tracer.mode is "enforce". It rejects regardless
+	// of tracer.failPosture: the tracer is reachable, so the fail-open escape for
+	// an unavailable tracer does not apply.
+	ErrTransactionReservationRejected = errors.New("0532")
 	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
 	// references a ledger that has not opted in through crossLedger.enabled.
 	ErrCrossLedgerNotEnabled = errors.New("0249")

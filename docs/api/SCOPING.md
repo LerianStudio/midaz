@@ -177,6 +177,63 @@ the transport side, `transaction_fee_seam_structure_test.go` and
 `transaction_route_version_structure_test.go` (every route binds the use case matching its
 version).
 
+#### What a `/v2` reserve sends and how its answer gates the transaction
+
+The reserve request carries the fee-inclusive `amount` and `asset`, the transaction date as
+`transactionTimestamp`, and the scope of the first internal source leg:
+
+- `account.accountId` and `account.type` — the source account's id and its ledger account type,
+  verbatim (free-form; the tracer applies only a 256-character bound). An external-only source
+  sends an account with neither, and the tracer matches only limits that are not account-scoped.
+- `metadata` — the transaction metadata, filtered to what the tracer accepts: keys matching
+  `^[a-zA-Z0-9_]+$` and at most 64 characters, scalar values rendered as strings (numbers in plain
+  decimal notation), at most 50 entries taken in lexicographic key order. Every other entry is
+  dropped, never sent, and counted on the span (`app.tracer.metadata_dropped`); metadata that
+  filters to nothing is omitted. Because every value arrives as a string, a CEL rule evaluated on
+  the reserve path must compare strings: `metadata.priority == "3"` matches a numeric `3`, while
+  `metadata.priority > 2` does not evaluate (see the rule evaluation error row below).
+- `revert` — `true` when the reservation is for a `/v2` revert (singular or an atomic batch item
+  whose action is `revert`), omitted otherwise. The tracer skips its CEL rules for a revert and
+  still reserves its limits: limits measure gross activity, and a rule that could refuse a revert
+  would leave an applied movement impossible to correct.
+
+The asset follows the ledger's asset code grammar exactly: uppercase Unicode letters, at most 100
+characters. An asset the ledger accepts is never refused by the tracer for its shape.
+
+`tracer.timeoutMs` (range `1..30000`) is the deadline of each reserve call, and the per-ledger
+value is always the one applied: a ledger that never stored it reads the default `250`, so
+raising `TRACER_TIMEOUT_MS` alone does not lengthen reserve calls on any ledger. The client
+timeout (`TRACER_TIMEOUT_MS`) is only a ceiling — a per-call deadline can tighten it, never extend
+it — so the effective reserve deadline is the shorter of the two. Confirm and release run under
+the client timeout only.
+
+The tracer evaluates its CEL rules first and its limits second, and answers `decision`
+(`ALLOW`, `DENY` or `REVIEW`) beside the `denied` flag. On the reserve path only a MATCHED rule
+refuses: when no rule matches, the tracer's `DEFAULT_DECISION_WHEN_NO_MATCH` is ignored and the
+reserve continues to the limits. A matched rule's `DENY` or `REVIEW` refuses the reserve before any
+limit counter is touched. A rule the tracer cannot evaluate for the transaction is a refusal too,
+answered as `decision=REVIEW` with `reason=rule_evaluation_error`: that covers every rule-evaluation
+class — a syntax or compile error, a program build error, a cost-estimation failure and a runtime
+error such as a type mismatch against a string metadata value. The ledger maps the outcome as follows:
+
+| Tracer outcome | `mode=enforce` | `mode=advisory` |
+|---|---|---|
+| `ALLOW` | proceeds; the reservation handle is kept for confirm/release | proceeds |
+| `DENY` (a matched rule or a limit) | rejects with `0177` (422) before the balance commit | proceeds, logs a warning |
+| `REVIEW` (a matched rule, or `reason=rule_evaluation_error`) | rejects with `0531` (422) before the balance commit | proceeds, logs a warning |
+| request refused (tracer HTTP 400/422, gRPC `InvalidArgument`/`FailedPrecondition`) | rejects with `0532` (422) whatever `failPosture` says: the tracer answered | proceeds, logs a warning |
+| unavailable (timeout, connection failure, open breaker, a tenant whose rule cache is not loaded yet, the tracer's per-tenant worker cap reached — REST 503 with `Retry-After`, gRPC `Unavailable` with code `0445` — any other tracer error) | `failPosture=open` proceeds with a SKIPPED audit; `failPosture=closed` rejects with `0178` (503) | proceeds, logs a warning |
+
+`mode=off`, an unset `TRACER_BASE_URL` and an honored `skip.tracer` build no request at all. A
+denied or refused result holds no capacity, so none of the rejections leaves a reservation to
+release. The same holds under `mode=advisory`: a transaction the tracer denied, flagged or refused
+still commits, but nothing was reserved for it, so its spend is never counted against any limit.
+Infrastructure failures inside the tracer (its database or cache) stay errors and follow the
+unavailable row; only a rule evaluation error is a refusal. The ledger records a refusal as a
+business event on a span that is not marked as an error, and never forwards the tracer's response
+body to the client. A tracer that predates `decision` answers a `REVIEW` as a plain `denied=true`,
+which the ledger reads as `0177`.
+
 ### Cross-ledger enablement is a `/v2` contract
 
 `crossLedger.enabled` is an operator's per-ledger opt-in. The policy resolver accepts only

@@ -153,22 +153,22 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 //
 // Host ports are reserved from the ephemeral range rather than hardcoded so parallel
 // or repeated runs do not collide on a fixed number.
-func SetupContainerWithFixedPorts(t *testing.T) *ContainerResult {
-	t.Helper()
-	return SetupContainerWithFixedPortsConfig(t, DefaultContainerConfig())
+func SetupContainerWithFixedPorts(tb testing.TB) *ContainerResult {
+	tb.Helper()
+	return SetupContainerWithFixedPortsConfig(tb, DefaultContainerConfig())
 }
 
 // SetupContainerWithFixedPortsConfig is SetupContainerWithFixedPorts with custom config.
-func SetupContainerWithFixedPortsConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupContainerWithFixedPortsConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
 
 	ctx := context.Background()
 
 	amqpHostPort, err := freeHostPort()
-	require.NoError(t, err, "failed to reserve AMQP host port")
+	require.NoError(tb, err, "failed to reserve AMQP host port")
 
 	mgmtHostPort, err := freeHostPort()
-	require.NoError(t, err, "failed to reserve management host port")
+	require.NoError(tb, err, "failed to reserve management host port")
 
 	applyPorts := applyFixedHostPorts(map[string]string{
 		"5672/tcp":  amqpHostPort,
@@ -195,20 +195,20 @@ func SetupContainerWithFixedPortsConfig(t *testing.T, cfg ContainerConfig) *Cont
 		},
 	}
 
-	ctr := startContainerWithRetry(t, ctx, req, "failed to start RabbitMQ container with fixed ports")
+	ctr := startContainerWithRetry(tb, ctx, req, "failed to start RabbitMQ container with fixed ports")
 
 	host, err := ctr.Host(ctx)
-	require.NoError(t, err, "failed to get RabbitMQ container host")
+	require.NoError(tb, err, "failed to get RabbitMQ container host")
 
 	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/", cfg.User, cfg.Password, host, amqpHostPort)
 
 	conn, err := amqp.Dial(uri)
-	require.NoError(t, err, "failed to connect to RabbitMQ container")
+	require.NoError(tb, err, "failed to connect to RabbitMQ container")
 
 	ch, err := conn.Channel()
-	require.NoError(t, err, "failed to open RabbitMQ channel")
+	require.NoError(tb, err, "failed to open RabbitMQ channel")
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if ch != nil {
 			ch.Close()
 		}
@@ -218,7 +218,7 @@ func SetupContainerWithFixedPortsConfig(t *testing.T, cfg ContainerConfig) *Cont
 		}
 
 		if err := ctr.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate RabbitMQ container: %v", err)
+			tb.Logf("failed to terminate RabbitMQ container: %v", err)
 		}
 	})
 
