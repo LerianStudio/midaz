@@ -309,6 +309,54 @@ func TestRevertTransactionV2GrantRefusalReleasesClaimAndReservation(t *testing.T
 	assert.Empty(t, finalizer.envelopes)
 }
 
+// TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation locks the
+// engine's revert-once refusal: a 0087 conflict that frees the claim and the tracer capacity.
+func TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	organizationID := uuid.MustParse("91111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
+	originID := uuid.MustParse("93333333-3333-4333-8333-333333333333")
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &revertEngineReader{
+		revertReader: &revertReader{
+			origin:        revertEngineOrigin(organizationID, ledgerID, originID),
+			versionReader: versionReader{settings: settings},
+		},
+		balances: []*mmodel.Balance{
+			revertEngineBalance(organizationID, ledgerID, "94444444-4444-4444-8444-444444444444", "@payee", 50, 7),
+			revertEngineBalance(organizationID, ledgerID, "95555555-5555-4555-8555-555555555555", "@payer", 20, 3),
+		},
+	}
+	executor := &createEngineErrorExecutor{err: testEngineTechnicalError{
+		code: "transaction_already_reverted", cause: errors.New("origin transaction is already reverted"),
+	}}
+	reservationID := uuid.MustParse("96666666-6666-4666-8666-666666666666")
+	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	finalizer := &createAppliedTransactionCompleter{}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+	}
+
+	got, replayed, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
+		OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: originID,
+	})
+	require.Error(t, err)
+	assert.Equal(t, constant.ErrTransactionIDHasAlreadyParentTransaction.Error(), errorCode(err))
+	assert.Nil(t, got)
+	assert.False(t, replayed)
+	require.Len(t, executor.requests, 1)
+	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
+	assert.Empty(t, reserver.confirmedIDs)
+	assert.Empty(t, finalizer.envelopes)
+}
+
 func TestRevertTransactionEngineIndeterminateFailureRetainsClaim(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)

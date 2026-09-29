@@ -820,6 +820,7 @@ different failure window:
 | Cross-ledger lifecycle claim | Command layer under `group-commit:{groupId}` or `group-cancel:{groupId}` | Concurrent or repeated publication of a grouped commit/cancel that has no caller key | Durable projection of every member or the terminal group status label |
 | Engine receipt | Read first and written last by the accounting Lua execution | Re-executing the same execution ID after a lost response; replay returns the exact recorded result | SQL/MongoDB projection or event delivery |
 | Execution guard | Compared and advanced by Lua with the mutation | Competing lifecycle actions, especially commit versus cancel | Durable completion of the winning action |
+| Revert marker | Guard field `<originId>:reverted`, written by Lua with a revert's mutation | A second revert of one origin applying money before PostgreSQL records the first (refused as 0087) | Durable completion of the revert |
 | Recovery record | Written by Lua with balance changes, then exact-ACKed by recovery | Losing the information needed to complete an already-applied result | Permission to invoke the engine again |
 
 The receipt is therefore not redundant with the HTTP claim. The HTTP claim is a
@@ -939,7 +940,8 @@ score, receipt scope and membership, terminal acknowledgement proof, absence of
 every recovery member from both hashes, and every coordinator deadline in one atomic script. It
 removes only that receipt and its coordinator links. A transaction guard is
 removed only when no other execution remains linked to that transaction, so an
-earlier deadline cannot erase a newer transition's protection. Missing receipts
+earlier deadline cannot erase a newer transition's protection; a revert's origin
+marker goes with the revert's own guard. Missing receipts
 remove only their stale due-index member; changed deadlines are rescheduled.
 Malformed or inconsistent proofs fail without artifact writes.
 

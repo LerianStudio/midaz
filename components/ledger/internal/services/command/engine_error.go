@@ -71,6 +71,8 @@ func mapEngineProtectionFailure(err engineTechnicalError) error {
 	switch err.EngineFailureCode() {
 	case "execution_guard_conflict":
 		return pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, balanceValidationEntity)
+	case "transaction_already_reverted":
+		return pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
 	case "account_closed":
 		return pkg.ValidateBusinessError(constant.ErrAccountClosed, constant.EntityAccount)
 	case "account_closing_in_progress":

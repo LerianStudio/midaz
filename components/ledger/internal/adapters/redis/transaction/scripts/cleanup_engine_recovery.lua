@@ -129,6 +129,7 @@ for index, transactionID in ipairs(protection.transactions) do
     if terminalAt > latestTerminalAt then latestTerminalAt = terminalAt end
     seen[transactionID] = true
 
+    local revertMarker = nil
     if protection.formatVersion == 2 then
         if protection.indexFields[index] ~= transactionID then
             return redis.error_reply("ERR cleanup index protection differs")
@@ -160,6 +161,10 @@ for index, transactionID in ipairs(protection.transactions) do
                 return redis.error_reply("ERR cleanup current transaction index is not durable")
             end
             indexDeletes[#indexDeletes + 1] = { key = indexKey, field = transactionID }
+            -- A revert's origin marker is released with the revert's own guard.
+            if currentIndex.action == "revert" then
+                revertMarker = cjson.decode(evidence.record.payload).parentTransactionId .. ":reverted"
+            end
         else
             for _, dependency in ipairs(currentIndex.dependencies) do
                 if type(dependency) == "table" and dependency.executionId == executionID and
@@ -202,7 +207,7 @@ for index, transactionID in ipairs(protection.transactions) do
         end
         coordinators[#coordinators + 1] = { guardKey = guardKey, protectionKey = protectionKey, field = transactionID, value = cjson.encode(coordinator) }
     else
-        coordinators[#coordinators + 1] = { guardKey = guardKey, protectionKey = protectionKey, field = transactionID, value = false }
+        coordinators[#coordinators + 1] = { guardKey = guardKey, protectionKey = protectionKey, field = transactionID, value = false, marker = revertMarker }
     end
 end
 
@@ -245,6 +250,7 @@ for _, coordinator in ipairs(coordinators) do
     else
         redis.call("HDEL", KEYS[coordinator.protectionKey], coordinator.field)
         redis.call("HDEL", KEYS[coordinator.guardKey], coordinator.field)
+        if coordinator.marker then redis.call("HDEL", KEYS[coordinator.guardKey], coordinator.marker) end
     end
 end
 redis.call("ZREM", KEYS[1], member)
