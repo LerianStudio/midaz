@@ -112,19 +112,27 @@ message ReleaseByIdRequest {
   string reservation_id = 1;
 }
 
-// The confirm/release transitions are idempotent and the REST seam returns a
-// 200 with no meaningful body. Each transition gets its own empty-but-extensible
-// response message (buf forbids sharing a response type across RPCs) so a future
-// flip count can be added per transition without a contract break.
+// The confirm/release transitions are idempotent. Each transition owns its
+// response message (buf forbids sharing a response type across RPCs): the
+// confirm responses report what the call found, the release responses stay
+// empty.
 
 // ConfirmByTransactionResponse is the response to ConfirmByTransaction.
-message ConfirmByTransactionResponse {}
+message ConfirmByTransactionResponse {
+  // Rows this call moved to CONFIRMED (RESERVED or EXPIRED before the call).
+  uint32 confirmed = 1;
+  // Rows of the transaction that were already RELEASED: spend that will never be counted.
+  uint32 already_released = 2;
+}
 
 // ReleaseByTransactionResponse is the response to ReleaseByTransaction.
 message ReleaseByTransactionResponse {}
 
 // ConfirmByIdResponse is the response to ConfirmById.
-message ConfirmByIdResponse {}
+message ConfirmByIdResponse {
+  // True when the row was already RELEASED, so the confirm settled nothing.
+  bool already_released = 1;
+}
 
 // ReleaseByIdResponse is the response to ReleaseById.
 message ReleaseByIdResponse {}
