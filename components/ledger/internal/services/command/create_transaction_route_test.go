@@ -159,6 +159,73 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	assert.Equal(t, expectedTransactionRoute.Title, result.Title)
 }
 
+// TestCreateTransactionRouteSuccessWithEmptyMetadata asserts that an empty
+// metadata map, as produced by the decode path for an absent key, persists no
+// metadata document.
+func TestCreateTransactionRouteSuccessWithEmptyMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	operationRouteID1 := uuid.New()
+	operationRouteID2 := uuid.New()
+
+	payload := &mmodel.CreateTransactionRouteInput{
+		Title:           "Test Transaction Route",
+		Description:     "Test Description",
+		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Metadata:        map[string]any{},
+	}
+
+	expectedOperationRoutes := []*mmodel.OperationRoute{
+		{
+			ID:            operationRouteID1,
+			OperationType: "source",
+		},
+		{
+			ID:            operationRouteID2,
+			OperationType: "destination",
+		},
+	}
+
+	expectedTransactionRoute := &mmodel.TransactionRoute{
+		ID:          uuid.New(),
+		Title:       payload.Title,
+		Description: payload.Description,
+	}
+
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OperationRouteRepo:      mockOperationRouteRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	mockOperationRouteRepo.EXPECT().
+		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
+		Return(expectedOperationRoutes, nil).
+		Times(1)
+
+	mockTransactionRouteRepo.EXPECT().
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+		Return(expectedTransactionRoute, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Metadata)
+}
+
 // TestCreateTransactionRouteErrorOperationRoutesNotFound tests error when operation routes are not found
 func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)

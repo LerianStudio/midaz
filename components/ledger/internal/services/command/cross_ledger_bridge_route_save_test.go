@@ -188,6 +188,8 @@ func TestUpdateOperationRoute_BridgeEntryKeepsOneBridgePerTransactionRoute(t *te
 		transactionRoutes.EXPECT().FindByID(gomock.Any(), organizationID, transactionRouteID).
 			Return(&mmodel.TransactionRoute{ID: transactionRouteID, OrganizationID: organizationID}, nil)
 		cache.EXPECT().SetBytes(gomock.Any(), utils.AccountingRoutesInternalKey(organizationID, transactionRouteID), gomock.Any(), time.Duration(0)).Return(nil)
+		// Nil metadata clears the existing document.
+		metadata.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil)
 		metadata.EXPECT().Update(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String(), gomock.Any()).Return(nil)
 
 		uc := &UseCase{OperationRouteRepo: operationRoutes, TransactionRouteRepo: transactionRoutes, TransactionRedisRepo: cache, TransactionMetadataRepo: metadata}

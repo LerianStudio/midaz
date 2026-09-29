@@ -25356,8 +25356,7 @@
           "source",
           "ttl",
           "createdAt",
-          "updatedAt",
-          "metadata"
+          "updatedAt"
         ],
         "type": "object"
       },

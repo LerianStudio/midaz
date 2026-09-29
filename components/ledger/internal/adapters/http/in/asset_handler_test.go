@@ -119,10 +119,9 @@ func TestCreateAsset_Success(t *testing.T) {
 			a.UpdatedAt = fixedTestTime
 			return a, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it.
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAsset, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAsset, gomock.Any()).Times(0)
 	accountRepo.EXPECT().ListAccountsByAlias(gomock.Any(), orgID, ledgerID, []string{"@external/TST"}).Return([]*mmodel.Account{}, nil).Times(1)
 	accountRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, acc *mmodel.Account) (*mmodel.Account, error) { return acc, nil }).Times(1)

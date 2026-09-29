@@ -62,7 +62,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID uuid
 
 	uc.emitOperationRouteCreatedEvent(ctx, span, logger, createdOperationRoute)
 
-	if payload.Metadata != nil {
+	if len(payload.Metadata) > 0 {
 		meta := mongodb.Metadata{
 			EntityID:   createdOperationRoute.ID.String(),
 			EntityName: constant.EntityOperationRoute,

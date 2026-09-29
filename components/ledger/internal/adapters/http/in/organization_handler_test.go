@@ -120,10 +120,9 @@ func TestCreateOrganization_Success(t *testing.T) {
 			org.UpdatedAt = fixedTestTime
 			return org, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it.
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityOrganization, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityOrganization, gomock.Any()).Times(0)
 
 	handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: orgRepo, OnboardingMetadataRepo: metadataRepo}}
 

@@ -72,7 +72,9 @@ func TestCreateLedger_CrossLedgerEnabled(t *testing.T) {
 		return created, nil
 	})
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityLedger, gomock.Any()).Return(nil)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityLedger, gomock.Any()).Times(0)
 
 	app := buildHumaLedgerApp(t, &LedgerHandler{Command: &command.UseCase{
 		LedgerRepo:             repo,
