@@ -188,3 +188,18 @@ func (mr *MockRepositoryMockRecorder) Update(ctx, collection, id, metadata any) 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, collection, id, metadata)
 }
+
+// UpdateFields mocks base method.
+func (m *MockRepository) UpdateFields(ctx context.Context, collection, id string, fields map[string]any) (*Metadata, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateFields", ctx, collection, id, fields)
+	ret0, _ := ret[0].(*Metadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateFields indicates an expected call of UpdateFields.
+func (mr *MockRepositoryMockRecorder) UpdateFields(ctx, collection, id, fields any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFields", reflect.TypeOf((*MockRepository)(nil).UpdateFields), ctx, collection, id, fields)
+}
