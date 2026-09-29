@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/shopspring/decimal"
-	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -35,6 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
+	Update(context.Context, string, string, map[string]any) error
 }
 
 // TransactionCompletionService durably materializes an applied accounting result
@@ -511,7 +512,7 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 		return nil
 	}
 
-	if err := appendMetadata(constant.EntityTransaction, tran.ID, tran.Metadata); err != nil {
+	if err := appendMetadata(constant.EntityTransaction, tran.ID, flattenLegacyFeeExemption(tran.Metadata)); err != nil {
 		return nil, err
 	}
 
@@ -524,6 +525,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
+// persistMetadata inserts the frozen metadata when no document exists. Only a PATCH
+// writes a document without an entity name, before the frozen keys landed, so those
+// keys are restored under the stored ones; any other stored document is kept as is.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -534,11 +538,20 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return fmt.Errorf("verify recovered metadata: %w", err)
 	}
 
-	if actual == nil || actual.EntityID != expected.EntityID || actual.EntityName != expected.EntityName {
+	if actual == nil {
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
-	return compareFrozenMetadata(expected.Data, actual.Data)
+	if actual.EntityName != "" {
+		return nil
+	}
+
+	merged := libCommons.MergeMaps(actual.Data, maps.Clone(expected.Data))
+	if err := service.metadata.Update(ctx, expected.EntityName, expected.EntityID, merged); err != nil {
+		return fmt.Errorf("restore frozen metadata: %w", err)
+	}
+
+	return nil
 }
 
 func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
@@ -568,43 +581,6 @@ func normalizeFrozenMetadata(data map[string]any) (mongodb.JSON, error) {
 	}
 
 	return normalized, nil
-}
-
-func compareFrozenMetadata(expected, actual mongodb.JSON) error {
-	if len(expected) != len(actual) {
-		return metadataConflict("stored metadata differs from frozen content")
-	}
-
-	for key, value := range expected {
-		other, exists := actual[key]
-		if !exists {
-			return metadataConflict("stored metadata is missing a frozen field")
-		}
-
-		left, leftNumeric, err := canonicalMetadataNumber(value)
-		if err != nil {
-			return err
-		}
-
-		right, rightNumeric, err := canonicalMetadataNumber(other)
-		if err != nil {
-			return err
-		}
-
-		if leftNumeric || rightNumeric {
-			if !leftNumeric || !rightNumeric || left != right {
-				return metadataConflict("stored metadata number differs from frozen content")
-			}
-
-			continue
-		}
-
-		if !metadataScalar(value) || !metadataScalar(other) || value != other {
-			return metadataConflict("stored metadata differs from frozen content")
-		}
-	}
-
-	return nil
 }
 
 func metadataScalar(value any) bool {
@@ -660,8 +636,6 @@ func metadataNumberText(value any) (string, bool, error) {
 		return metadataFloatText(float64(number), 32)
 	case float64:
 		return metadataFloatText(number, 64)
-	case bson.Decimal128:
-		return number.String(), true, nil
 	default:
 		return "", false, nil
 	}
