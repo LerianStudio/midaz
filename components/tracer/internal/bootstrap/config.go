@@ -1295,7 +1295,6 @@ func initHTTPServer(
 		RuleService:                  ruleService,
 		LimitService:                 limitDeps.service,
 		ValidationService:            validationService,
-		ReservationService:           reservationService,
 		TransactionValidationService: transactionValidationService,
 		AuditEventService:            auditEventService,
 		DashboardService:             dashboardService,
@@ -1311,9 +1310,9 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
 	}
 
-	// Secure the REST reservation seam per TRACER_TLS_MODE: mtls ⇒ a verifying
+	// Secure the HTTP listener per TRACER_TLS_MODE: mtls ⇒ a verifying
 	// *tls.Config, mesh/unset ⇒ nil (plaintext, sidecar terminates). Same builder
-	// the gRPC server uses, so both transports share one posture.
+	// the gRPC server uses, so both listeners share one posture.
 	seamTLS, err := buildSeamTLSConfig(cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
@@ -1344,8 +1343,8 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 // an operator configures it. Transport security follows TRACER_TLS_MODE (Epic
 // 1.3): mtls ⇒ the server requires+verifies a client cert (reservation seam
 // unreachable without one); mesh/unset ⇒ plaintext (sidecar terminates). The
-// server delegates to the SAME reservationService the REST handler uses; clk
-// drives the reserve timestamp-window check identically to the REST path.
+// server is the only transport of the reservation lifecycle; clk drives the
+// reserve timestamp-window check.
 // workerEnsurer starts a tenant's workers on its first reservation (nil in
 // single-tenant mode).
 func initGRPCServer(

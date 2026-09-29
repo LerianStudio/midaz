@@ -34,9 +34,7 @@ const humaSpecPath = "../../../../api/openapi.huma.yaml"
 // problem.Install → openapi.New → InstallSchemaNamer → DeclareBearerAuth +
 // ApiKeyAuth setup, then mounts every Huma op via the shared registerTracerHumaRoutes
 // seam (task-2). Registration reads handler types only — it never invokes them — so
-// zero-value handlers are safe. Reservation is wired non-nil (its 5 ops are in the
-// served spec, per routes_openapi_security_test.go's 32-op table); its tenant
-// middleware is a no-op passthrough since registration doesn't execute it. The
+// zero-value handlers are safe. The
 // returned huma.API's OpenAPI() is the same object openapi.ServeSpec serializes at
 // runtime — this just reads it offline, no server or DB.
 func buildTracerHumaAPI() huma.API {
@@ -90,8 +88,6 @@ func buildTracerHumaAPI() huma.API {
 		Limit:                 &LimitHandler{},
 		TransactionValidation: &TransactionValidationHandler{},
 		Validation:            &ValidationHandler{},
-		Reservation:           &ReservationHandler{},
-		ResTenantMW:           func(c fiber.Ctx) error { return c.Next() },
 		AuditEvent:            &AuditEventHandler{},
 		Dashboard:             &DashboardHandler{},
 	})

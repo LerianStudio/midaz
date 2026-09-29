@@ -32,7 +32,7 @@ const (
 
 // newReserveRequest builds a valid proto reserve request whose timestamp sits
 // inside the validation window relative to the injected fixed clock, so the
-// model-level reserve validation (shared with the REST path) accepts it.
+// model-level reserve validation accepts it.
 func newReserveRequest(now time.Time, transactionID, requestID, accountID uuid.UUID) *reservationv1.ReserveRequest {
 	return &reservationv1.ReserveRequest{
 		TransactionId:        transactionID.String(),
@@ -80,7 +80,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
 			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotReq *model.ValidationRequest, _ services.ReserveOptions) (*services.ReserveResult, error) {
 				// The gRPC server must hand the use case the validation request whose
-				// limit input is the SAME one the REST path produces (no fork).
+				// limit input is the canonical ToCheckLimitsInput projection.
 				require.NotNil(t, gotReq)
 				require.Equal(t, requestID, gotReq.RequestID)
 
@@ -312,8 +312,8 @@ func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
 	})
 }
 
-// expectedInput mirrors what the REST path's ToCheckLimitsInput produces for the
-// canonical valid reserve request, so the server's proto->domain mapping can be
+// expectedInput mirrors what ToCheckLimitsInput produces for the canonical
+// valid reserve request, so the server's proto->domain mapping can be
 // asserted against the SAME shape the synchronous validate path uses.
 func expectedInput(now time.Time, requestID, accountID uuid.UUID) *model.CheckLimitsInput {
 	req := &model.ValidationRequest{

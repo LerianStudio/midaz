@@ -3,9 +3,8 @@
 // that can be found in the LICENSE file.
 
 // Package in hosts the tracer's inbound gRPC adapters. The reservation server
-// is the gRPC face of the SAME two-phase reservation use case the REST handler
-// drives (components/tracer/internal/adapters/http/in/reservation_handler.go):
-// it maps the generated proto messages to the domain inputs, delegates to the
+// is the only transport of the two-phase reservation use case: it maps the
+// generated proto messages to the domain inputs, delegates to the
 // identical *services.ReservationService, and maps the results back. The
 // business logic is never duplicated — both transports converge on one service.
 package in
@@ -36,9 +35,7 @@ import (
 )
 
 // ReservationService is the two-phase reservation use case the gRPC server
-// delegates to. It is the SAME interface the REST handler depends on
-// (reservation_handler.go), satisfied by *services.ReservationService, so the
-// two transports cannot drift apart in behavior.
+// delegates to, satisfied by *services.ReservationService.
 type ReservationService interface {
 	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, opts services.ReserveOptions) (*services.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
@@ -58,9 +55,8 @@ type ReservationServer struct {
 }
 
 // NewReservationServer constructs a gRPC reservation server. clk drives the
-// reserve timestamp-window check (injected for MOCK_TIME determinism in tests),
-// mirroring the REST handler's clock dependency. Returns an error if service or
-// clk is nil.
+// reserve timestamp-window check (injected for MOCK_TIME determinism in tests).
+// Returns an error if service or clk is nil.
 func NewReservationServer(service ReservationService, clk clock.Clock) (*ReservationServer, error) {
 	if service == nil {
 		return nil, errors.New("nil ReservationService passed to NewReservationServer")
@@ -77,10 +73,9 @@ func NewReservationServer(service ReservationService, clk clock.Clock) (*Reserva
 }
 
 // Reserve holds limit capacity for a ledger transaction (phase one). The proto
-// request is mapped to the same model.ValidationRequest the REST path builds,
-// normalized and validated with the relaxed reserve rules, then converted to the
-// CheckLimitsInput the use case resolves against — so the gRPC and REST inputs
-// are identical. A limit-exceeded decision comes back as a normal result with
+// request is mapped to a model.ValidationRequest, normalized and validated with
+// the relaxed reserve rules, then converted to the
+// CheckLimitsInput the use case resolves against. A limit-exceeded decision comes back as a normal result with
 // denied=true (NOT an error); only validation and technical failures map to a
 // gRPC status error.
 func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
