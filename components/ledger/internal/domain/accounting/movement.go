@@ -52,6 +52,8 @@ type FeeDebtChange struct {
 	AssetCode           string            `json:"assetCode"`
 	Amount              decimal.Decimal   `json:"amount"`
 	Opened              decimal.Decimal   `json:"opened"`
+	DebitRoute          *FeeDebtRoute     `json:"debitRoute,omitempty"`
+	CreditRoute         *FeeDebtRoute     `json:"creditRoute,omitempty"`
 }
 
 // Movement records a real change in available, on-hold or overdraft-used funds.

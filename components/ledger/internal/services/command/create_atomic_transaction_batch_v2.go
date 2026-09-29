@@ -145,6 +145,7 @@ type atomicTransactionBatchItemRun struct {
 	honoredFeeSkip          bool
 	honoredTracerSkip       bool
 	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
+	feeDebtRefs             feeDebtPoolRefs
 	prepared                enginePreparedTransaction
 	tracerReservation       reservationHandle
 	guard                   ExecutionGuard

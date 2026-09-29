@@ -96,9 +96,14 @@ func (uc *UseCase) prepareCrossLedgerGroupPartWithPool(
 		return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
 	}
 
+	validate, err := feeDebtRouteView(&input.translation)
+	if err != nil {
+		return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
+	}
+
 	var routeCache *mmodel.TransactionRouteCache
 
-	routes := crossLedgerGroupRoutePart{uses: namedAccountingRouteUses(executedAccountingRouteUses(operations, input.translation.Validate))}
+	routes := crossLedgerGroupRoutePart{uses: namedAccountingRouteUses(executedAccountingRouteUses(operations, validate))}
 
 	if validatesRoutes {
 		validator, err := uc.groupAccountingRouteValidator()
@@ -106,7 +111,7 @@ func (uc *UseCase) prepareCrossLedgerGroupPartWithPool(
 			return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
 		}
 
-		routeCache, err = validator.ValidateGroupPartAccountingRules(ctx, input.organizationID, input.ledgerID, operations, input.translation.Validate, input.translation.routeAction())
+		routeCache, err = validator.ValidateGroupPartAccountingRules(ctx, input.organizationID, input.ledgerID, operations, validate, input.translation.routeAction())
 		if err != nil {
 			return enginePreparedTransaction{}, crossLedgerGroupRoutePart{}, err
 		}
@@ -116,7 +121,7 @@ func (uc *UseCase) prepareCrossLedgerGroupPartWithPool(
 				validated:        true,
 				organizationID:   input.organizationID,
 				transactionRoute: crossLedgerTransactionRoute(input.translation.TransactionInput),
-				uses:             executedAccountingRouteUses(operations, input.translation.Validate),
+				uses:             executedAccountingRouteUses(operations, validate),
 			}
 		}
 	}
@@ -271,6 +276,7 @@ func executedAccountingRouteUses(operations []mmodel.BalanceOperation, validate 
 		if _, source := validate.From[operation.Alias]; source {
 			uses = append(uses, mmodel.AccountingRouteUse{
 				Alias: operation.Alias, RouteID: validate.OperationRoutesFrom[operation.Alias], Source: true, Direction: operation.Amount.Direction,
+				FeeDebtTakeBack: validate.FeeDebtLegs[operation.Alias],
 			})
 
 			continue

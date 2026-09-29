@@ -62,8 +62,8 @@ func MapEngineError(request accounting.Execution, err error) error {
 // the caller can act on, rather than a failure of the engine itself. It answers
 // nil for everything else, which keeps its cause for the caller's boundary.
 //
-// Every one of them is decided in the preflight, so an indeterminate outcome can
-// never carry them: such a result may have moved money and must stay technical.
+// Every one of them is raised before the engine commits, so an indeterminate outcome
+// can never carry them: such a result may have moved money and must stay technical.
 func mapEngineProtectionFailure(err engineTechnicalError) error {
 	if err.OutcomeIndeterminate() {
 		return nil
@@ -78,6 +78,8 @@ func mapEngineProtectionFailure(err engineTechnicalError) error {
 		return pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
 	case "admission_not_confirmed", "account_protection_unreadable":
 		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	case "fee_debt_record_pending":
+		return pkg.ValidateBusinessError(constant.ErrFeeDebtRecordPending, constant.EntityTransaction)
 	default:
 		return nil
 	}

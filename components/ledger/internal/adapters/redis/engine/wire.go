@@ -176,16 +176,17 @@ type wireBalanceRequirement struct {
 }
 
 type wirePosting struct {
-	Ref             string                 `json:"ref"`
-	BalanceRef      string                 `json:"balanceRef"`
-	Type            accounting.PostingType `json:"type"`
-	Amount          string                 `json:"amount"`
-	DrawPolicy      accounting.DrawPolicy  `json:"drawPolicy"`
-	OverdraftAmount string                 `json:"overdraftAmount"`
-	DeferShortfall  bool                   `json:"deferShortfall,omitempty"`
-	FundedByRef     string                 `json:"fundedByRef,omitempty"`
-	Items           []string               `json:"items,omitempty"`
-	Refunds         []wireFeeDebtRefund    `json:"refunds,omitempty"`
+	Ref             string                   `json:"ref"`
+	BalanceRef      string                   `json:"balanceRef"`
+	Type            accounting.PostingType   `json:"type"`
+	Amount          string                   `json:"amount"`
+	DrawPolicy      accounting.DrawPolicy    `json:"drawPolicy"`
+	OverdraftAmount string                   `json:"overdraftAmount"`
+	DeferShortfall  bool                     `json:"deferShortfall,omitempty"`
+	FundedByRef     string                   `json:"fundedByRef,omitempty"`
+	DebtRoute       *accounting.FeeDebtRoute `json:"debtRoute,omitempty"`
+	Items           []string                 `json:"items,omitempty"`
+	Refunds         []wireFeeDebtRefund      `json:"refunds,omitempty"`
 }
 
 type wireBalance struct {

@@ -204,15 +204,15 @@ type UseCase struct {
 	// application (the create path stays unchanged).
 	FeeApplier FeeApplier
 
-	// FeeDebts is the Fees projection of fee debts; balance deletion and account
-	// closing read the debts owed to a balance from it.
-	FeeDebts FeeDebtRecorder
-
 	// TracerReserver drives the tracer two-phase reservation lifecycle from the
 	// create seam. It is injected at bootstrap from the tracer client; a nil
 	// reserver means the tracer integration is disabled (the create path stays
 	// unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
+
+	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
+	// from it, and balance deletion and account closing read the debts owed to a balance.
+	FeeDebts FeeDebtRecorder
 
 	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
 	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read

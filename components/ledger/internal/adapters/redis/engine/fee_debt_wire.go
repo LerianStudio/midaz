@@ -40,6 +40,9 @@ type wireFeeDebtReopen struct {
 	Amount    string `json:"amount"`
 	Opened    string `json:"opened"`
 	Seq       string `json:"seq"`
+
+	DebitRoute  *accounting.FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *accounting.FeeDebtRoute `json:"creditRoute,omitempty"`
 }
 
 type feeDebtDeclaration struct {
@@ -127,7 +130,7 @@ func prepareFeeDebts(request accounting.Execution, resolved resolvedExecutionKey
 // prepareFeeDebtPostingFields encodes the fee-debt fields of one posting; the
 // engine owns every pairing rule between them.
 func prepareFeeDebtPostingFields(posting accounting.Posting, prepared *wirePosting, maxBytes int) error {
-	prepared.DeferShortfall, prepared.FundedByRef, prepared.Items = posting.DeferShortfall, posting.FundedByRef, posting.Items
+	prepared.DeferShortfall, prepared.FundedByRef, prepared.DebtRoute, prepared.Items = posting.DeferShortfall, posting.FundedByRef, posting.DebtRoute, posting.Items
 
 	for _, refund := range posting.Refunds {
 		opened, err := boundedDecimal(refund.Opened, maxBytes)
@@ -165,6 +168,7 @@ func prepareFeeDebtReopens(reopens []accounting.FeeDebtReopen, maxBytes int) ([]
 		prepared = append(prepared, wireFeeDebtReopen{
 			DebtID: reopen.DebtID, DebtorRef: reopen.DebtorRef, CreditRef: reopen.CreditRef,
 			Amount: amount, Opened: opened, Seq: strconv.FormatInt(reopen.Seq, 10),
+			DebitRoute: reopen.DebitRoute, CreditRoute: reopen.CreditRoute,
 		})
 	}
 

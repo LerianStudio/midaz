@@ -73,11 +73,14 @@ type Posting struct {
 	// FundedByRef (credit only) names the earlier DeferShortfall debit whose
 	// moved part this credit receives; both carry the same Amount.
 	FundedByRef string `json:"fundedByRef,omitempty"`
+	// DebtRoute (a DeferShortfall debit or its funding credit) is the route the
+	// debt stores for that side of the fee.
+	DebtRoute *FeeDebtRoute `json:"debtRoute,omitempty"`
 	// Items (collect only) are the prepared debt ids, oldest first; the index of an
-	// id is the ordinal of its fee_debt_credit movement.
+	// id is the ordinal of its debtor and creditor movements.
 	Items []string `json:"items,omitempty"`
 	// Refunds (refund only) are the parent's debts of this debtor, in the order
-	// they opened; the index of an entry is the ordinal of its refund debit.
+	// they opened; the index of an entry is the ordinal of its refund movements.
 	Refunds []FeeDebtRefund `json:"refunds,omitempty"`
 }
 

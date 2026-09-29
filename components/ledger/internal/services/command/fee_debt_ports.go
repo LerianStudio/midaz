@@ -31,6 +31,10 @@ type FeeDebtRecorder interface {
 	// TransactionID, PostingRef, Kind), so replays and out-of-order completions converge.
 	Apply(ctx context.Context, record FeeDebtRecord) error
 
+	// Settled sums, per debt id, the recorded settlements less reopens from their
+	// exact amounts; a debt without a record is absent.
+	Settled(ctx context.Context, organizationID, ledgerID uuid.UUID, debtIDs []string) (map[string]decimal.Decimal, error)
+
 	// HasOpenCreditor reports whether an open debt of the ledger names one of
 	// creditRefs (alias#key) as creditor. The projection lags completion.
 	HasOpenCreditor(ctx context.Context, organizationID, ledgerID uuid.UUID, creditRefs []string) (bool, error)
@@ -45,6 +49,9 @@ type FeeDebtOpening struct {
 	CreditRef string          `json:"creditRef"`
 	Opened    decimal.Decimal `json:"opened"`
 	Seq       int64           `json:"seq,string"`
+
+	DebitRoute  *accounting.FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *accounting.FeeDebtRoute `json:"creditRoute,omitempty"`
 }
 
 // FeeDebtSettlement is one element of the feeDebtSettlements transaction metadata, built
@@ -57,4 +64,7 @@ type FeeDebtSettlement struct {
 	Amount    decimal.Decimal `json:"amount"`
 	Opened    decimal.Decimal `json:"opened"`
 	Seq       int64           `json:"seq,string"`
+
+	DebitRoute  *accounting.FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *accounting.FeeDebtRoute `json:"creditRoute,omitempty"`
 }

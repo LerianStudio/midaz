@@ -6,6 +6,7 @@ package command
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -29,11 +31,17 @@ func TestTranslateFeeDebtDeferralPairsBothLegsOnV2Direct(t *testing.T) {
 
 	input := feeDebtFreeCases()["direct_deferrable_v1"]
 	input.FeeDebtEligible = true
+	from, to := "fee-from", "fee-to"
+	input.TransactionInput.Send.Source.From[1].RouteID, input.TransactionInput.Send.Distribute.To[1].RouteID = &from, &to
+	input.RouteCache = feeDebtRouteCache(constant.ActionDirect)
 
 	transaction, projection, err := TranslateEngineTransaction(input)
 	require.NoError(t, err)
 
 	debit, credit := feeDebtPosting(t, transaction, "from:1:debit"), feeDebtPosting(t, transaction, "to:1:credit")
+	assert.Equal(t, &accounting.FeeDebtRoute{ID: from, Code: "D-" + constant.ActionDirect, Description: "debit " + constant.ActionDirect}, debit.DebtRoute)
+	assert.Equal(t, &accounting.FeeDebtRoute{ID: to, Code: "C-" + constant.ActionDirect, Description: "credit " + constant.ActionDirect}, credit.DebtRoute)
+	assert.Nil(t, feeDebtPosting(t, transaction, "from:0:debit").DebtRoute, "only a deferrable fee leg names a debt route")
 	assert.True(t, debit.DeferShortfall)
 	assert.Equal(t, "from:1:debit", credit.FundedByRef)
 	assert.False(t, feeDebtPosting(t, transaction, "from:0:debit").DeferShortfall)
@@ -50,8 +58,9 @@ func TestTranslateFeeDebtDeferralPairsBothLegsOnV2Direct(t *testing.T) {
 func TestTranslateFeeDebtCollectFollowsEligibleCredits(t *testing.T) {
 	t.Parallel()
 
+	routeO := &accounting.FeeDebtRoute{ID: "from-o", Code: "D-O", Description: "debit o"}
 	seeds := map[string][]accounting.FeeDebtItem{"@payee#default": {
-		{ID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default"},
+		{ID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default", DebitRoute: routeO, CreditRoute: &accounting.FeeDebtRoute{ID: "to-o", Code: "C-O"}},
 		{ID: feeDebtOriginX + ":from:1:debit", CreditRef: "@other-fees#default"},
 	}}
 
@@ -101,12 +110,18 @@ func TestTranslateFeeDebtCollectFollowsEligibleCredits(t *testing.T) {
 			}, collect)
 			assert.Equal(t, []string{"@payee#default"}, transaction.FeeDebtRefs)
 
-			debit := feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtDebit, 0)
-			assert.Equal(t, "@payee#default", debit.BalanceRef)
-			assert.Equal(t, constant.FEE_SETTLEMENT, debit.RowType)
-			assert.Empty(t, debit.OriginRef)
-			assert.Equal(t, "@fees#default", feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtCredit, 0).BalanceRef)
-			assert.Equal(t, "@other-fees#default", feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtCredit, 1).BalanceRef)
+			for ordinal, creditRef := range []string{"@fees#default", "@other-fees#default"} {
+				debit := feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtDebit, uint32(ordinal))
+				assert.Equal(t, "@payee#default", debit.BalanceRef)
+				assert.Equal(t, constant.FEE_SETTLEMENT, debit.RowType)
+				assert.Empty(t, debit.OriginRef)
+				assert.Equal(t, creditRef, feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtCredit, uint32(ordinal)).BalanceRef)
+			}
+
+			debit, settled := feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtDebit, 0), feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtCredit, 0)
+			assert.Equal(t, []string{"from-o", "D-O", "debit o"}, []string{*debit.RouteID, debit.RouteCode, debit.RouteDescription})
+			assert.Equal(t, []string{"to-o", "C-O", ""}, []string{*settled.RouteID, settled.RouteCode, settled.RouteDescription})
+			assert.Nil(t, feeDebtContext(t, projection, collect.Ref, accounting.RoleFeeDebtDebit, 1).RouteID, "a debt without a stored route books none")
 		})
 	}
 }
@@ -146,16 +161,21 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 		input := feeDebtFreeCases()["revert"]
 		input.FeeDebtEligible = v2
 		input.TransactionInput.FeeDebtRevertedOrigins = []string{feeDebtOriginY}
+		input.TransactionInput.FeeDebtExpectedRefunds = map[string]decimal.Decimal{feeDebtOriginO + ":from:1:debit": decimal.NewFromInt(25)}
+		input.RouteCache = feeDebtRouteCache(constant.ActionRevert)
 		input.TransactionInput.Metadata = feeDebtRevertMetadata(t,
 			[]FeeDebtOpening{
-				{DebtID: feeDebtOriginO + ":from:1:debit", DebtorRef: "@payer#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3},
+				{
+					DebtID: feeDebtOriginO + ":from:1:debit", DebtorRef: "@payer#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3,
+					DebitRoute: &accounting.FeeDebtRoute{ID: "fee-from", RevertCode: "C-stored"}, CreditRoute: &accounting.FeeDebtRoute{ID: "fee-to", RevertCode: "D-stored"},
+				},
 				{DebtID: feeDebtOriginO + ":from:2:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(10), Seq: 1},
 				{DebtID: feeDebtOriginO + ":from:3:debit", DebtorRef: "@payer#default", CreditRef: "@other-fees#default", Opened: decimal.NewFromInt(30), Seq: 4},
 			},
 			[]FeeDebtSettlement{
-				{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(5), Opened: decimal.NewFromInt(20), Seq: 7},
+				{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(5), Opened: decimal.NewFromInt(20), Seq: 7, DebitRoute: &accounting.FeeDebtRoute{ID: "x-from"}, CreditRoute: &accounting.FeeDebtRoute{ID: "x-to"}},
 				{DebtID: feeDebtOriginY + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(4), Opened: decimal.NewFromInt(9), Seq: 2},
-				{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(7), Opened: decimal.NewFromInt(20), Seq: 7},
+				{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(7), Opened: decimal.NewFromInt(20), Seq: 7, DebitRoute: &accounting.FeeDebtRoute{ID: "x-from"}, CreditRoute: &accounting.FeeDebtRoute{ID: "x-to"}},
 				{DebtID: feeDebtOriginO + ":from:9:debit", DebtorRef: "@payee#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(1), Opened: decimal.NewFromInt(3), Seq: 5},
 			})
 		input.Balances = append(input.Balances, feeDebtBalance("@other-fees"), feeDebtBalance("@debtor"))
@@ -170,23 +190,59 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 			Ref: "fee-refund:0", BalanceRef: "@payer#default", Type: accounting.PostingRefund, Amount: decimal.NewFromInt(100),
 			DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero,
 			Refunds: []accounting.FeeDebtRefund{
-				{DebtID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3},
+				{DebtID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3, ExpectedRefund: decimal.NewFromInt(25)},
 				{DebtID: feeDebtOriginO + ":from:3:debit", CreditRef: "@other-fees#default", Opened: decimal.NewFromInt(30), Seq: 4},
 			},
 		}, feeDebtPosting(t, transaction, "fee-refund:0"))
 		assert.Equal(t, "@debtor#default", feeDebtPosting(t, transaction, "fee-refund:1").BalanceRef)
 
+		for ordinal, opened := range []int64{70, 30} {
+			for _, role := range []string{accounting.RoleFeeDebtRefundCredit, accounting.RoleOverdraftCompanion, accounting.RoleFeeDebtRefundDebit} {
+				leg := feeDebtContext(t, projection, "fee-refund:0", role, uint32(ordinal))
+				assert.Equal(t, constant.FEE_REFUND, leg.RowType, "%s %d", role, ordinal)
+				assert.True(t, leg.RequestedAmount.Equal(decimal.NewFromInt(opened)), "%s %d", role, ordinal)
+			}
+		}
+
 		refundCredit := feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundCredit, 0)
-		assert.Equal(t, constant.FEE_REFUND, refundCredit.RowType)
-		assert.True(t, refundCredit.RequestedAmount.Equal(decimal.NewFromInt(100)))
+		companion := feeDebtContext(t, projection, "fee-refund:0", accounting.RoleOverdraftCompanion, 0)
+		refundDebit := feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundDebit, 0)
+		assert.Equal(t, []string{"fee-from", "C-stored"}, []string{*refundCredit.RouteID, refundCredit.RouteCode}, "a refund books to the rubric its debt stored")
+		assert.Equal(t, []string{"@payer#overdraft", constant.DirectionCredit, "fee-from", "C-" + constant.ActionOverdraft}, []string{companion.BalanceRef, companion.Direction, *companion.RouteID, companion.RouteCode})
+		assert.Equal(t, []string{"@fees#default", "fee-to", "D-stored"}, []string{refundDebit.BalanceRef, *refundDebit.RouteID, refundDebit.RouteCode})
+		assert.Nil(t, feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundCredit, 1).RouteID, "an opening without a route refunds without one")
 		assert.Equal(t, "@other-fees#default", feeDebtContext(t, projection, "fee-refund:0", accounting.RoleFeeDebtRefundDebit, 1).BalanceRef)
+
+		for _, spec := range projection {
+			assert.False(t, spec.PostingRef == "fee-refund:1" && spec.Role == accounting.RoleOverdraftCompanion, "a debtor without an overdraft balance has no companion")
+		}
 
 		assert.Equal(t, []accounting.FeeDebtReopen{
 			{DebtID: feeDebtOriginO + ":from:9:debit", DebtorRef: "@payee#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(1), Opened: decimal.NewFromInt(3), Seq: 5},
-			{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(12), Opened: decimal.NewFromInt(20), Seq: 7},
+			{
+				DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(12), Opened: decimal.NewFromInt(20), Seq: 7,
+				DebitRoute: &accounting.FeeDebtRoute{ID: "x-from"}, CreditRoute: &accounting.FeeDebtRoute{ID: "x-to"},
+			},
 		}, transaction.ReopenFeeDebts, "v2=%v", v2)
 		assert.Equal(t, []string{"@payer#default", "@debtor#default", "@payee#default"}, transaction.FeeDebtRefs, "v2=%v", v2)
 	}
+}
+
+func TestFeeDebtRouteViewTakesBackOnlyLiveSettlements(t *testing.T) {
+	t.Parallel()
+
+	input := feeDebtFreeCases()["revert"]
+	input.TransactionInput.FeeDebtRevertedOrigins = []string{feeDebtOriginY}
+	live := &accounting.FeeDebtRoute{ID: "x-to"}
+	input.TransactionInput.Metadata = feeDebtRevertMetadata(t, nil, []FeeDebtSettlement{
+		{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(5), Opened: decimal.NewFromInt(20), Seq: 7, CreditRoute: live},
+		{DebtID: feeDebtOriginY + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@kept-fees#default", Amount: decimal.NewFromInt(4), Opened: decimal.NewFromInt(9), Seq: 2, CreditRoute: &accounting.FeeDebtRoute{ID: "y-to"}},
+	})
+
+	_, err := feeDebtRouteView(&input)
+	require.NoError(t, err)
+	assert.Equal(t, map[transactionPostgres.FeeSettlementGroup]*accounting.FeeDebtRoute{{Ref: "@fees#default", RouteID: "x-to"}: live}, input.FeeDebtTakeBacks,
+		"a settlement whose origin is already reverted stays with its creditor")
 }
 
 func TestTranslateFeeDebtRevertRefusesMalformedMetadata(t *testing.T) {
@@ -236,6 +292,25 @@ func feeDebtRevertMetadata(t *testing.T, openings []FeeDebtOpening, settlements 
 		constant.MetadataKeyFeeDebtOpenings:    string(encodedOpenings),
 		constant.MetadataKeyFeeDebtSettlements: string(encodedSettlements),
 	}
+}
+
+// feeDebtRouteCache resolves fee-from and fee-to under action and under overdraft,
+// coding each rubric by its direction and action.
+func feeDebtRouteCache(action string) *mmodel.TransactionRouteCache {
+	rubric := func(direction, action string) *mmodel.AccountingRubric {
+		return &mmodel.AccountingRubric{Code: strings.ToUpper(direction[:1]) + "-" + action, Description: direction + " " + action}
+	}
+	entry := func(action string) *mmodel.AccountingEntry {
+		return &mmodel.AccountingEntry{Debit: rubric(constant.DirectionDebit, action), Credit: rubric(constant.DirectionCredit, action)}
+	}
+	routes := map[string]mmodel.OperationRouteCache{
+		"fee-from": {AccountingEntries: &mmodel.AccountingEntries{Direct: entry(constant.ActionDirect), Revert: entry(constant.ActionRevert), Overdraft: entry(constant.ActionOverdraft)}},
+	}
+	routes["fee-to"] = routes["fee-from"]
+
+	return &mmodel.TransactionRouteCache{Actions: map[string]mmodel.ActionRouteCache{
+		action: {Bidirectional: routes}, constant.ActionOverdraft: {Bidirectional: routes},
+	}}
 }
 
 func feeDebtBalance(alias string) *mmodel.Balance {
@@ -328,7 +403,7 @@ func TestAtomicBatchBudgetCountsEveryFeeDebtMovement(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, map[string]int{accounting.RoleFeeDebtDebit: 1, accounting.RoleFeeDebtCredit: 2}, collected)
+	assert.Equal(t, map[string]int{accounting.RoleFeeDebtDebit: 2, accounting.RoleFeeDebtCredit: 2}, collected)
 	assert.Contains(t, balanceSnapshotRefs(result.Final), "@other-fees#default")
 }
 

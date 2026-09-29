@@ -55,6 +55,9 @@ type FeeDebtReopen struct {
 	Amount    decimal.Decimal `json:"amount"`
 	Opened    decimal.Decimal `json:"opened"`
 	Seq       int64           `json:"seq,string"`
+	// DebitRoute and CreditRoute restore the routes of a debt the reopen reinserts.
+	DebitRoute  *FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *FeeDebtRoute `json:"creditRoute,omitempty"`
 }
 
 // Execution is one ordered accounting operation whose organization and ledger

@@ -1,12 +1,13 @@
--- savedMovementRole accepts a saved movement's role and ordinal: 0 for primary,
--- companion and a fee-debt posting's debtor, an item or entry index otherwise.
--- Only a refund's debtor credit, among fee-debt movements, may repay overdraft.
+-- savedMovementRole accepts a saved movement's role and ordinal: 0 for primary
+-- and an ordinary companion, the item or entry index on a fee-debt posting. Only a
+-- refund's debtor credit, among fee-debt movements, may repay overdraft.
 local function savedMovementRole(movement, posting, ordinal, seeds, transaction)
     if not ordinal:match("^%d+$") or (#ordinal > 1 and ordinal:sub(1, 1) == "0") or #ordinal > 9 then return false end
     local index, role, feeDebtPosting = tonumber(ordinal), movement.role, posting.type == "collect" or posting.type == "refund"
-    local onDebtor = movement.balanceRef == posting.balanceRef and index == 0
+    local entries = #(posting.items or posting.refunds or {})
+    local onDebtor = movement.balanceRef == posting.balanceRef and index < entries
     if role == "primary" then return index == 0 and not feeDebtPosting end
-    if role == "overdraft_companion" then return index == 0 and posting.type ~= "collect" end
+    if role == "overdraft_companion" then return (index == 0 and not feeDebtPosting) or (posting.type == "refund" and index < entries) end
     if role == "fee_debt_refund_credit" then
         return posting.type == "refund" and onDebtor and movement.type == "credit" and cmp_decimal(canonicalMoney(movement.overdraftDelta), "0") <= 0
     end

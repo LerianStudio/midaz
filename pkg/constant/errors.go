@@ -667,6 +667,10 @@ var (
 	// ErrBalanceOwedFeeDebt refuses deleting or closing a balance that open fee
 	// debts name as creditor: collecting them credits it.
 	ErrBalanceOwedFeeDebt = errors.New("0528")
+	// ErrFeeDebtRecordPending is returned when the live fee debts a transaction
+	// touches disagree with their record, which lags while completion projects it.
+	// Nothing moved, so a retry is valid once the record catches up.
+	ErrFeeDebtRecordPending = errors.New("0529")
 )
 
 // List of CRM domain errors.

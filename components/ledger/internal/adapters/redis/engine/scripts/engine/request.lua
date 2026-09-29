@@ -27,6 +27,16 @@ end
 
 local function positiveBudget(raw) return positiveLimit(raw, "byte budget") end
 
+-- optionalDebtRoute validates the route of one side of a fee debt: absent, or an
+-- object with a nonempty id and text code and description.
+local function optionalDebtRoute(route)
+    if route == nil then return end
+    requireObject(route)
+    text(route.id, false)
+    text(route.code, true)
+    text(route.description, true)
+end
+
 local postingTypes = { debit = true, credit = true, reserve = true, unreserve = true, hold = true, release = true, collect = true, refund = true }
 
 -- validPosting validates one declarative accounting mutation. It accepts only
@@ -42,6 +52,10 @@ local function validPosting(posting)
     end
     if posting.fundedByRef ~= nil and (text(posting.fundedByRef, false) and posting.type ~= "credit") then
         technical("invalid_protocol", "fundedByRef outside a credit")
+    end
+    optionalDebtRoute(posting.debtRoute)
+    if posting.debtRoute ~= nil and posting.deferShortfall ~= true and posting.fundedByRef == nil then
+        technical("invalid_protocol", "debtRoute outside a deferrable fee")
     end
     if posting.items ~= nil then requireArray(posting.items) end
     if posting.refunds ~= nil then requireArray(posting.refunds) end
@@ -138,6 +152,8 @@ local function validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
         text(entry.debtId, false)
         uuid(entry.debtId:sub(1, 36))
         positiveSeq(entry.seq)
+        optionalDebtRoute(entry.debitRoute)
+        optionalDebtRoute(entry.creditRoute)
         local amount, opened = canonicalMoney(entry.amount), canonicalMoney(entry.opened)
         if reopenIds[entry.debtId] or entry.debtId:sub(37, 37) ~= ":" or #entry.debtId == 37 or not feeDebtKeys[scoped(logicalRef(entry.debtorRef))] or not refs[scoped(entry.debtorRef)] or
             not debited[logicalRef(entry.creditRef)] or cmp_decimal(amount, "0") <= 0 or cmp_decimal(amount, opened) > 0 then

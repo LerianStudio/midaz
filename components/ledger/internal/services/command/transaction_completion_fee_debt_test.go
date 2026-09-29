@@ -30,8 +30,8 @@ const (
 	feeDebtSettledFirst    = "13131313-1313-4131-8131-131313131313:from:1"
 	feeDebtSettledSecond   = "14141414-1414-4141-8141-141414141414:from:0"
 	feeDebtCollectPosting  = "to:0:collect"
-	feeDebtOpeningsGolden  = `[{"debtId":"12121212-1212-4121-8121-121212121212:from:1","debtorRef":"@payer#default","creditRef":"@fees#default","opened":"50","seq":"4"}]`
-	feeDebtSettledGolden   = `[{"debtId":"13131313-1313-4131-8131-131313131313:from:1","debtorRef":"@dest#default","creditRef":"@fees#default","amount":"25","opened":"25","seq":"2"},` + `{"debtId":"14141414-1414-4141-8141-141414141414:from:0","debtorRef":"@dest#default","creditRef":"@fees#default","amount":"5","opened":"30","seq":"3"}]`
+	feeDebtOpeningsGolden  = `[{"debtId":"12121212-1212-4121-8121-121212121212:from:1","debtorRef":"@payer#default","creditRef":"@fees#default","opened":"50","seq":"4",` + `"debitRoute":{"id":"fee-from","code":"FD","description":"fee debit"},"creditRoute":{"id":"fee-to","code":"FC","description":"fee credit"}}]`
+	feeDebtSettledGolden   = `[{"debtId":"13131313-1313-4131-8131-131313131313:from:1","debtorRef":"@dest#default","creditRef":"@fees#default","amount":"25","opened":"25","seq":"2",` + `"debitRoute":{"id":"old-from","code":"OD","description":"old debit"},"creditRoute":{"id":"old-to","code":"OC","description":"old credit"}},` + `{"debtId":"14141414-1414-4141-8141-141414141414:from:0","debtorRef":"@dest#default","creditRef":"@fees#default","amount":"5","opened":"30","seq":"3"}]`
 	feeDebtAppliedAtMicros = 1_789_999_999_123_456
 )
 
@@ -39,6 +39,14 @@ type feeDebtRecorderStub struct {
 	calls   *[]string
 	records []FeeDebtRecord
 	err     error
+	settled map[string]decimal.Decimal
+	asked   []string
+}
+
+func (recorder *feeDebtRecorderStub) Settled(_ context.Context, _, _ uuid.UUID, debtIDs []string) (map[string]decimal.Decimal, error) {
+	recorder.asked = append(recorder.asked, debtIDs...)
+
+	return recorder.settled, recorder.err
 }
 
 func (recorder *feeDebtRecorderStub) Apply(_ context.Context, record FeeDebtRecord) error {
@@ -79,13 +87,32 @@ func feeDebtSpec(tx uuid.UUID, postingRef, role string, ordinal uint32, balance 
 	}
 }
 
+// movementRef is the ref the engine records: <txId>:<len(postingRef)>:<postingRef>:<role>:<ordinal>.
+func movementRef(tx uuid.UUID, postingRef, role string, ordinal uint32) string {
+	return fmt.Sprintf("%s:%d:%s:%s:%d", tx, len(postingRef), postingRef, role, ordinal)
+}
+
 func feeDebtMovement(tx uuid.UUID, postingRef, role string, ordinal uint32, balanceRef string, postingType accounting.PostingType, amount, before, after, version int64) accounting.Movement {
 	return accounting.Movement{
-		Ref: fmt.Sprintf("%s:%d:%s:%s:%d", tx, len(postingRef), postingRef, role, ordinal), TransactionID: tx,
+		Ref: movementRef(tx, postingRef, role, ordinal), TransactionID: tx,
 		PostingRef: postingRef, Role: role, BalanceRef: balanceRef, Type: postingType, Amount: decimal.NewFromInt(amount),
 		Before: accounting.BalanceState{Available: decimal.NewFromInt(before), Version: version},
 		After:  accounting.BalanceState{Available: decimal.NewFromInt(after), Version: version + 1},
 	}
+}
+
+// routedSpec books spec under route, as translation does for a fee-debt movement.
+func routedSpec(spec OperationRecordSpec, route *accounting.FeeDebtRoute) OperationRecordSpec {
+	id := route.ID
+	spec.RouteID, spec.RouteCode, spec.RouteDescription = &id, route.Code, route.Description
+
+	return spec
+}
+
+func withRoutes(change accounting.FeeDebtChange, debit, credit *accounting.FeeDebtRoute) accounting.FeeDebtChange {
+	change.DebitRoute, change.CreditRoute = debit, credit
+
+	return change
 }
 
 func feeDebtChange(tx uuid.UUID, postingRef string, kind accounting.FeeDebtChangeKind, debtID, debtorRef string, seq, amount, opened int64) accounting.FeeDebtChange {
@@ -98,7 +125,7 @@ func feeDebtChange(tx uuid.UUID, postingRef string, kind accounting.FeeDebtChang
 // deferredFeeFixture is one direct transaction of 100: the payer (50 available) pays a 30
 // principal and 20 of a 70 deferrable fee, opening a 50 debt, while the credited destination
 // settles 25 and 5 of two older debts; the first seeded item was already gone, so the
-// settlements land on ordinals 1 and 2.
+// settlements land on ordinals 1 and 2, the first under the routes its debt stored.
 func deferredFeeFixture(t testing.TB) (TransactionCompletionPlan, accounting.ExecutionResult) {
 	t.Helper()
 	payload, _ := recoveryContractFixture(t)
@@ -109,13 +136,17 @@ func deferredFeeFixture(t testing.TB) (TransactionCompletionPlan, accounting.Exe
 	payer, dest, fees := feeDebtRowBalance("@payer", 1), feeDebtRowBalance("@dest", 2), feeDebtRowBalance("@fees", 3)
 	pair := map[string]any{constant.MetadataKeyFeeDeferPair: "pair-0"}
 	feeLeg := map[string]any{constant.MetadataKeyFeeLeg: "true", constant.MetadataKeyFeeDeferPair: "pair-0"}
+	oldFrom := &accounting.FeeDebtRoute{ID: "old-from", Code: "OD", Description: "old debit"}
+	oldTo := &accounting.FeeDebtRoute{ID: "old-to", Code: "OC", Description: "old credit"}
 	payload.OperationSpecs = []OperationRecordSpec{
 		feeDebtSpec(tx, "from:0", accounting.RolePrimary, 0, payer, constant.DEBIT, constant.DirectionDebit, 30, nil),
 		feeDebtSpec(tx, "from:1", accounting.RolePrimary, 0, payer, constant.DEBIT, constant.DirectionDebit, 70, pair),
 		feeDebtSpec(tx, "to:0", accounting.RolePrimary, 0, dest, constant.CREDIT, constant.DirectionCredit, 30, nil),
 		feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtDebit, 0, dest, constant.FEE_SETTLEMENT, constant.DirectionDebit, 30, nil),
 		feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, 0, fees, constant.FEE_SETTLEMENT, constant.DirectionCredit, 30, nil),
-		feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, 1, fees, constant.FEE_SETTLEMENT, constant.DirectionCredit, 30, nil),
+		routedSpec(feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtDebit, 1, dest, constant.FEE_SETTLEMENT, constant.DirectionDebit, 30, nil), oldFrom),
+		routedSpec(feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, 1, fees, constant.FEE_SETTLEMENT, constant.DirectionCredit, 30, nil), oldTo),
+		feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtDebit, 2, dest, constant.FEE_SETTLEMENT, constant.DirectionDebit, 30, nil),
 		feeDebtSpec(tx, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, 2, fees, constant.FEE_SETTLEMENT, constant.DirectionCredit, 30, nil),
 		feeDebtSpec(tx, "to:1", accounting.RolePrimary, 0, fees, constant.CREDIT, constant.DirectionCredit, 70, feeLeg),
 	}
@@ -123,14 +154,16 @@ func deferredFeeFixture(t testing.TB) (TransactionCompletionPlan, accounting.Exe
 		feeDebtMovement(tx, "from:0", accounting.RolePrimary, 0, "@payer#default", accounting.PostingDebit, 30, 50, 20, 0),
 		feeDebtMovement(tx, "from:1", accounting.RolePrimary, 0, "@payer#default", accounting.PostingDebit, 20, 20, 0, 1),
 		feeDebtMovement(tx, "to:0", accounting.RolePrimary, 0, "@dest#default", accounting.PostingCredit, 30, 0, 30, 0),
-		feeDebtMovement(tx, feeDebtCollectPosting, accounting.RoleFeeDebtDebit, 0, "@dest#default", accounting.PostingDebit, 30, 30, 0, 1),
+		feeDebtMovement(tx, feeDebtCollectPosting, accounting.RoleFeeDebtDebit, 1, "@dest#default", accounting.PostingDebit, 25, 30, 5, 1),
 		feeDebtMovement(tx, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, 1, "@fees#default", accounting.PostingCredit, 25, 0, 25, 0),
+		feeDebtMovement(tx, feeDebtCollectPosting, accounting.RoleFeeDebtDebit, 2, "@dest#default", accounting.PostingDebit, 5, 5, 0, 2),
 		feeDebtMovement(tx, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, 2, "@fees#default", accounting.PostingCredit, 5, 25, 30, 1),
 		feeDebtMovement(tx, "to:1", accounting.RolePrimary, 0, "@fees#default", accounting.PostingCredit, 20, 30, 50, 2),
 	}, FeeDebt: []accounting.FeeDebtChange{
-		feeDebtChange(tx, feeDebtCollectPosting, accounting.FeeDebtSettled, feeDebtSettledFirst, "@dest#default", 2, 25, 25),
+		withRoutes(feeDebtChange(tx, feeDebtCollectPosting, accounting.FeeDebtSettled, feeDebtSettledFirst, "@dest#default", 2, 25, 25), oldFrom, oldTo),
 		feeDebtChange(tx, feeDebtCollectPosting, accounting.FeeDebtSettled, feeDebtSettledSecond, "@dest#default", 3, 5, 30),
-		feeDebtChange(tx, "from:1", accounting.FeeDebtOpened, feeDebtTransaction+":from:1", "@payer#default", 4, 50, 50),
+		withRoutes(feeDebtChange(tx, "from:1", accounting.FeeDebtOpened, feeDebtTransaction+":from:1", "@payer#default", 4, 50, 50),
+			&accounting.FeeDebtRoute{ID: "fee-from", Code: "FD", Description: "fee debit"}, &accounting.FeeDebtRoute{ID: "fee-to", Code: "FC", Description: "fee credit"}),
 	}}
 	result.Final = recoveryContractFinal(payload, result.Movements)
 
@@ -144,6 +177,19 @@ func withoutFeeDebtMovements(payload TransactionCompletionPlan, result accountin
 	result.Final = recoveryContractFinal(payload, result.Movements)
 
 	return result
+}
+
+func feeDebtRowRoute(row *postgresOperation.Operation) string {
+	if row.RouteID == nil {
+		return ""
+	}
+
+	code := ""
+	if row.RouteCode != nil {
+		code = *row.RouteCode
+	}
+
+	return *row.RouteID + " " + code
 }
 
 func feeDebtRowViews(rows []*postgresOperation.Operation) []string {
@@ -164,19 +210,25 @@ func TestFeeDebtWriteSetRowsAmountAndMetadata(t *testing.T) {
 	rows := writeSet.Transaction.Operations
 	assert.Equal(t, []string{
 		"DEBIT @payer 30 50->20", "DEBIT @payer 20 20->0", "CREDIT @dest 30 0->30",
-		"FEE_SETTLEMENT @dest 30 30->0", "FEE_SETTLEMENT @fees 25 0->25", "FEE_SETTLEMENT @fees 5 25->30",
+		"FEE_SETTLEMENT @dest 25 30->5", "FEE_SETTLEMENT @fees 25 0->25", "FEE_SETTLEMENT @dest 5 5->0", "FEE_SETTLEMENT @fees 5 25->30",
 		"CREDIT @fees 20 30->50",
-	}, feeDebtRowViews(rows), "a partly paid fee writes its paid part and a collect writes one row per settled item")
+	}, feeDebtRowViews(rows), "a partly paid fee writes its paid part and a collect writes a debit and a credit per settled item")
 
 	for index, ordinal := range []uint32{1, 2} {
-		id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, feeDebtCollectPosting, accounting.RoleFeeDebtCredit, ordinal)
-		require.NoError(t, err)
-		assert.Equal(t, id.String(), rows[4+index].ID, "a settlement row is keyed by the ordinal its movement ref carries")
+		for side, role := range []string{accounting.RoleFeeDebtDebit, accounting.RoleFeeDebtCredit} {
+			id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, feeDebtCollectPosting, role, ordinal)
+			require.NoError(t, err)
+			assert.Equal(t, id.String(), rows[3+2*index+side].ID, "a settlement row is keyed by the ordinal its movement ref carries")
+		}
 	}
 
-	for _, row := range rows[3:6] {
+	routes := make([]string, 0, 4)
+	for _, row := range rows[3:7] {
 		assert.Empty(t, row.Metadata, "fee-debt rows carry no metadata")
+		routes = append(routes, feeDebtRowRoute(row))
 	}
+
+	assert.Equal(t, []string{"old-from OD", "old-to OC", "", ""}, routes, "each settlement books under the routes its debt stored")
 
 	assert.True(t, writeSet.Transaction.Amount.Equal(decimal.NewFromInt(50)), "the amount is what executed: 100 minus the 50 opened")
 	assert.Equal(t, map[string]any{
@@ -194,7 +246,7 @@ func TestFeeDebtCompletionRelaxesOnlyTheOpenedPair(t *testing.T) {
 
 	writeSet, err := BuildTransactionWriteSet(payload, unpaid)
 	require.NoError(t, err, "an unpaid deferrable fee has no movement on its debit or its paired credit")
-	assert.Len(t, writeSet.Transaction.Operations, 5)
+	assert.Len(t, writeSet.Transaction.Operations, 6)
 	assert.True(t, writeSet.Transaction.Amount.Equal(decimal.NewFromInt(30)))
 
 	inherited := unpaid
@@ -241,8 +293,9 @@ func TestFeeDebtRevertWritesRefundRowsAndStripsInheritedKeys(t *testing.T) {
 	payload.OperationSpecs = []OperationRecordSpec{
 		feeDebtSpec(tx, "from:0", accounting.RolePrimary, 0, dest, constant.DEBIT, constant.DirectionDebit, 30, nil),
 		feeDebtSpec(tx, "to:0", accounting.RolePrimary, 0, payer, constant.CREDIT, constant.DirectionCredit, 30, map[string]any{constant.MetadataKeyFeeDeferPair: "inherited"}),
-		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundCredit, 0, payer, constant.FEE_REFUND, constant.DirectionCredit, 120, nil),
+		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundCredit, 0, payer, constant.FEE_REFUND, constant.DirectionCredit, 70, nil),
 		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundDebit, 0, fees, constant.FEE_REFUND, constant.DirectionDebit, 70, nil),
+		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundCredit, 1, payer, constant.FEE_REFUND, constant.DirectionCredit, 50, nil),
 		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundDebit, 1, fees, constant.FEE_REFUND, constant.DirectionDebit, 50, nil),
 	}
 	result := accounting.ExecutionResult{Movements: []accounting.Movement{
@@ -324,6 +377,47 @@ func TestFeeDebtRefundRepaysTheDebtorOverdraft(t *testing.T) {
 			assert.ErrorContains(t, err, "debt change has no matching companion movement")
 		})
 	}
+}
+
+// TestFeeDebtRefundCompanionKeepsItsEntryOrdinal refunds two debts of one debtor: the first
+// refunds 0 and moves nothing, the second repays the debtor's 30 of overdraft, so its
+// companion is entry 1's, booked under entry 1's routes, not the first companion counted.
+func TestFeeDebtRefundCompanionKeepsItsEntryOrdinal(t *testing.T) {
+	payload, _ := recoveryContractFixture(t)
+	tx, parent := uuid.MustParse(feeDebtTransaction), uuid.MustParse("16161616-1616-4161-8161-161616161616")
+	payload.TransactionID, payload.ParentTransactionID, payload.Action = tx, &parent, constant.ActionRevert
+	payload.TransactionInput.Metadata = map[string]any{"purpose": "revert"}
+	payer, fees, overdraft := feeDebtRowBalance("@payer", 1), feeDebtRowBalance("@fees", 3), feeDebtRowBalance("@payer", 4)
+	overdraft.AccountID, overdraft.Key, overdraft.Direction = payer.AccountID, constant.OverdraftBalanceKey, constant.DirectionDebit
+	refund, from, to := "fee-refund:0", &accounting.FeeDebtRoute{ID: "fee-from", Code: "RC"}, &accounting.FeeDebtRoute{ID: "fee-to", Code: "RD"}
+	payload.OperationSpecs = []OperationRecordSpec{
+		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundCredit, 0, payer, constant.FEE_REFUND, constant.DirectionCredit, 10, nil),
+		feeDebtSpec(tx, refund, accounting.RoleOverdraftCompanion, 0, overdraft, constant.FEE_REFUND, constant.DirectionCredit, 10, nil),
+		feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundDebit, 0, fees, constant.FEE_REFUND, constant.DirectionDebit, 10, nil),
+		routedSpec(feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundCredit, 1, payer, constant.FEE_REFUND, constant.DirectionCredit, 50, nil), from),
+		routedSpec(feeDebtSpec(tx, refund, accounting.RoleOverdraftCompanion, 1, overdraft, constant.FEE_REFUND, constant.DirectionCredit, 50, nil), from),
+		routedSpec(feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundDebit, 1, fees, constant.FEE_REFUND, constant.DirectionDebit, 50, nil), to),
+	}
+	credit := feeDebtMovement(tx, refund, accounting.RoleFeeDebtRefundCredit, 1, "@payer#default", accounting.PostingCredit, 20, 0, 20, 1)
+	credit.Before.OverdraftUsed, credit.OverdraftDelta = decimal.NewFromInt(30), decimal.NewFromInt(-30)
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{
+		credit,
+		feeDebtMovement(tx, refund, accounting.RoleOverdraftCompanion, 1, "@payer#overdraft", accounting.PostingCredit, 30, 30, 0, 0),
+		feeDebtMovement(tx, refund, accounting.RoleFeeDebtRefundDebit, 1, "@fees#default", accounting.PostingDebit, 50, 100, 50, 0),
+	}}
+	result.Final = recoveryContractFinal(payload, result.Movements)
+
+	writeSet, err := BuildTransactionWriteSet(payload, result)
+	require.NoError(t, err)
+
+	rows := writeSet.Transaction.Operations
+	assert.Equal(t, []string{"FEE_REFUND @payer 20 0->20", "FEE_REFUND @payer 30 30->0", "FEE_REFUND @fees 50 100->50"}, feeDebtRowViews(rows))
+	assert.Equal(t, []string{"fee-from RC", "fee-from RC", "fee-to RD"}, []string{feeDebtRowRoute(rows[0]), feeDebtRowRoute(rows[1]), feeDebtRowRoute(rows[2])})
+	assert.Equal(t, mmodel.OperationSnapshot{OverdraftUsedBefore: "30", OverdraftUsedAfter: "0"}, rows[1].Snapshot)
+
+	id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, refund, accounting.RoleOverdraftCompanion, 1)
+	require.NoError(t, err)
+	assert.Equal(t, id.String(), rows[1].ID, "the companion row is keyed by the ordinal its movement ref carries")
 }
 
 func TestFeeDebtWriteSetLeavesNoDebtTransactionUnchanged(t *testing.T) {

@@ -176,6 +176,75 @@ func (r *Repository) FindByID(ctx context.Context, organizationID, ledgerID uuid
 	return &debt, nil
 }
 
+// Settled sums, per debt id of the ledger, the settled entries less the reopened
+// ones from their exact text amounts; a debt without a document is absent.
+func (r *Repository) Settled(ctx context.Context, organizationID, ledgerID uuid.UUID, debtIDs []string) (map[string]decimal.Decimal, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.fee_debt.settled")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Int("app.request.fee_debt_ids", len(debtIDs)),
+	)
+
+	coll, err := r.collection(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve fee debt database", err)
+
+		return nil, err
+	}
+
+	_, spanFind := tracer.Start(ctx, "repository.fee_debt.settled.find")
+	defer spanFind.End()
+
+	cur, err := coll.Find(ctx, bson.D{
+		{Key: "_id", Value: bson.D{{Key: "$in", Value: debtIDs}}},
+		{Key: "organization_id", Value: organizationID.String()},
+		{Key: "ledger_id", Value: ledgerID.String()},
+	}, options.Find().SetProjection(bson.D{{Key: "entries", Value: 1}}))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find fee debts", err)
+
+		return nil, err
+	}
+
+	var debts []model.FeeDebt
+	if err := cur.All(ctx, &debts); err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to decode fee debts", err)
+
+		return nil, err
+	}
+
+	settled := make(map[string]decimal.Decimal, len(debts))
+
+	for _, debt := range debts {
+		total := decimal.Zero
+
+		for _, entry := range debt.Entries {
+			amount, err := decimal.NewFromString(entry.Amount)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(spanFind, "Invalid fee debt entry amount", err)
+
+				return nil, fmt.Errorf("decode fee debt entry amount: %w", err)
+			}
+
+			switch accounting.FeeDebtChangeKind(entry.Kind) {
+			case accounting.FeeDebtSettled:
+				total = total.Add(amount)
+			case accounting.FeeDebtReopened:
+				total = total.Sub(amount)
+			}
+		}
+
+		settled[debt.ID] = total
+	}
+
+	return settled, nil
+}
+
 // FindAll pages the ledger's debts oldest first. A cursor that does not decode is
 // reported wrapping libHTTP.ErrInvalidCursor or libHTTP.ErrInvalidCursorDirection.
 func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, query ListQuery) ([]*model.FeeDebt, libHTTP.CursorPagination, error) {

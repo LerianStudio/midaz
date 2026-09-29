@@ -492,3 +492,41 @@ func TestFindByID_ScopedToTheLedger(t *testing.T) {
 	_, err = repo.FindByID(ctx, orgID, uuid.Must(uuid.NewV7()), change.DebtID)
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
 }
+
+func TestSettled_SumsTheExactEntriesOfTheLedgerDebts(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := staticRepository(t, container.Client, container.DBName, nil)
+	ctx := context.Background()
+	paid, reopened, untouched := newDebtScenario(), newDebtScenario(), newDebtScenario()
+	reopened.opened = "70.000000000000000000000000000000001" // past Decimal128 precision
+
+	for _, r := range []command.FeeDebtRecord{
+		record(t0, "", paid.change(paid.origin, "from:1:debit", accounting.FeeDebtOpened, "70")),
+		record(t0, "", paid.change(paid.credit1, "to:0:credit:collect", accounting.FeeDebtSettled, "30")),
+		record(t0, "", paid.change(paid.credit2, "to:0:credit:collect", accounting.FeeDebtSettled, "40")),
+		record(t0, "", reopened.change(reopened.origin, "from:1:debit", accounting.FeeDebtOpened, reopened.opened)),
+		record(t0, "", reopened.change(reopened.credit1, "to:0:credit:collect", accounting.FeeDebtSettled, "30.000000000000000000000000000000005")),
+		record(t0, "", reopened.change(reopened.credit2, "", accounting.FeeDebtReopened, "12.000000000000000000000000000000002")),
+		record(t0, "", untouched.change(untouched.origin, "from:1:debit", accounting.FeeDebtOpened, "70")),
+	} {
+		require.NoError(t, repo.Apply(ctx, r))
+	}
+
+	settled, err := repo.Settled(ctx, orgID, ledgerID, []string{paid.debtID, reopened.debtID, untouched.debtID, "missing"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{paid.debtID: "70", reopened.debtID: "18.000000000000000000000000000000003", untouched.debtID: "0"}, decimalStrings(settled),
+		"settled minus reopened, exact past Decimal128, and nothing for a debt the ledger does not hold")
+
+	other, err := repo.Settled(ctx, orgID, uuid.Must(uuid.NewV7()), []string{paid.debtID})
+	require.NoError(t, err)
+	assert.Empty(t, other, "another ledger's debts are not read")
+}
+
+func decimalStrings(values map[string]decimal.Decimal) map[string]string {
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = value.String()
+	}
+
+	return out
+}

@@ -393,7 +393,11 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		return resolvedExecutionKeys{}, err
 	}
 
-	return resolved, resolveFeeDebtKeys(ctx, request, &resolved)
+	if err := resolveFeeDebtKeys(ctx, request, &resolved); err != nil {
+		return resolvedExecutionKeys{}, err
+	}
+
+	return resolved, nil
 }
 
 // resolveAccountProtectionKeys resolves the closing controls of every account of
@@ -473,7 +477,7 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed",
 			"account_closed", "account_closing_in_progress", "admission_not_confirmed", "account_protection_unreadable",
 			"dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict",
-			"fee_debt_conflict":
+			"fee_debt_conflict", "fee_debt_record_pending":
 			return technical(failure.Code, false, err)
 		case "indeterminate", "execution_outcome_unknown", "invalid_receipt":
 			return technical(failure.Code, true, err)
@@ -847,8 +851,9 @@ func correlateMovement(wire resultMovement, transactionID uuid.UUID, ordinal int
 			return posting, target, order, nil
 		}
 
-		if ordinary && wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
-			return posting, target, order + 1, nil
+		companion := ordinary || posting.Type == accounting.PostingRefund && ordinal < len(posting.Refunds)
+		if companion && wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
+			return posting, target, order + 3*int64(ordinal) + 1, nil
 		}
 
 		if sub, ok := feeDebtMovementSub(wire.Role, ordinal, posting, source, target); ok {

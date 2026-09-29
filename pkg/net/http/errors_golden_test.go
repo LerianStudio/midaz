@@ -299,6 +299,7 @@ func allSentinels() map[string]error {
 		"ErrAccountClosed":                            constant.ErrAccountClosed,
 		"ErrAccountClosingProtectionIndeterminate":    constant.ErrAccountClosingProtectionIndeterminate,
 		"ErrAccountAdministrativeOperationInProgress": constant.ErrAccountAdministrativeOperationInProgress,
+		"ErrFeeDebtRecordPending":                     constant.ErrFeeDebtRecordPending,
 		"ErrBalanceHasOpenFeeDebt":                    constant.ErrBalanceHasOpenFeeDebt,
 		"ErrBalanceOwedFeeDebt":                       constant.ErrBalanceOwedFeeDebt,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,

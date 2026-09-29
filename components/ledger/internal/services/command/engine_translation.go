@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	transactionPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -49,6 +50,9 @@ type EngineTranslationInput struct {
 	FeeDebtEligible bool
 	// FeeDebtSeeds maps a debtor balance ref to its open debts, oldest first.
 	FeeDebtSeeds map[string][]accounting.FeeDebtItem
+	// FeeDebtTakeBacks maps each creditor and route a revert takes back a fee-debt
+	// settlement from to that settlement's stored route; preparation fills it.
+	FeeDebtTakeBacks map[transactionPostgres.FeeSettlementGroup]*accounting.FeeDebtRoute
 }
 
 // TranslateEngineTransaction converts command-layer transaction intent
@@ -195,10 +199,10 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 			Ref: postingRef, BalanceRef: balanceRef, Type: item.postingType, Amount: amount.Value,
 			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap,
 		}
-		debt.markDeferral(transaction, &posting, leg.Metadata)
-		transaction.Postings = append(transaction.Postings, posting)
-
 		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
+		debt.bookTakeBack(&primary)
+		debt.markDeferral(transaction, &posting, primary)
+		transaction.Postings = append(transaction.Postings, posting)
 		*projection = append(*projection, primary)
 
 		if item.mayAffectOverdraft {

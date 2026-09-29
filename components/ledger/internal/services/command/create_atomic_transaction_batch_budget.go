@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -535,7 +536,7 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 	prefixes := make([][]accounting.BalanceSnapshot, len(run.items))
 	for index := range run.items {
 		item := &run.items[index]
-		for _, balance := range run.items[index].prepared.pool.ExplicitBalances {
+		for _, balance := range atomicTransactionBatchOwnedBalances(item) {
 			ref := atomicTransactionBatchPreparedBalanceRef(balance)
 
 			scopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, ref)
@@ -571,6 +572,27 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 	}
 
 	return prefixes, nil
+}
+
+// atomicTransactionBatchOwnedBalances is what an item's execution may move: its
+// explicit balances, which hold its debtors, plus the pooled balances its debtors'
+// seeds name as creditors and its revert's opening and settlement refs.
+func atomicTransactionBatchOwnedBalances(item *atomicTransactionBatchItemRun) []*mmodel.Balance {
+	refs := slices.Clone(item.feeDebtRefs.balances)
+	for _, debtor := range item.feeDebtRefs.debtors {
+		for _, seed := range item.prepared.pool.FeeDebtSeeds[debtor] {
+			refs = appendMissingRefs(refs, []string{seed.CreditRef})
+		}
+	}
+
+	owned := slices.Clone(item.prepared.pool.ExplicitBalances)
+	for _, balance := range item.prepared.pool.Balances {
+		if slices.Contains(refs, atomicTransactionBatchPreparedBalanceRef(balance)) {
+			owned = append(owned, balance)
+		}
+	}
+
+	return owned
 }
 
 func atomicTransactionBatchScopedSnapshotRef(snapshot accounting.BalanceSnapshot) string {
