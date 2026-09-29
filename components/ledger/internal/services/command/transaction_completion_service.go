@@ -35,7 +35,7 @@ var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
-	Update(context.Context, string, string, map[string]any) error
+	UpdateFields(context.Context, string, string, map[string]any) (*mongodb.Metadata, error)
 }
 
 // TransactionCompletionService durably materializes an applied accounting result
@@ -543,9 +543,9 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-// persistMetadata creates the frozen document or confirms the stored one. A stored document
-// that lacks a fee-debt key the frozen one holds (a commit settling debt on its pending's
-// metadata) gains that key and keeps every other stored key.
+// persistMetadata creates the frozen document or confirms the stored one. After creation only
+// the reserved fee-debt keys are ever written, field by field, by the commit that settles its
+// pending's debt; every other stored key must equal the frozen content.
 func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
 	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
@@ -556,17 +556,13 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return err
 	}
 
-	if merged, missing := withMissingFeeDebtMetadata(expected.Data, actual.Data); missing {
-		if err := service.metadata.Update(ctx, expected.EntityName, expected.EntityID, merged); err != nil {
+	if missing := missingFeeDebtMetadata(expected.Data, actual.Data); missing != nil {
+		if actual, err = service.metadata.UpdateFields(ctx, expected.EntityName, expected.EntityID, missing); err != nil {
 			return fmt.Errorf("merge fee-debt metadata: %w", err)
-		}
-
-		if actual, err = service.storedMetadata(ctx, expected); err != nil {
-			return err
 		}
 	}
 
-	return compareFrozenMetadata(expected.Data, actual.Data)
+	return compareFrozenMetadata(expected.Data, withoutUnfrozenFeeDebt(expected.Data, actual.Data))
 }
 
 func (service *TransactionCompletionService) storedMetadata(ctx context.Context, expected *mongodb.Metadata) (*mongodb.Metadata, error) {

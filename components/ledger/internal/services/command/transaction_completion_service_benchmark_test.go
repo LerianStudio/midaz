@@ -36,8 +36,8 @@ func (repo *finalizationBenchmarkMetadata) FindByEntity(_ context.Context, colle
 	return repo.records[collection+":"+id], nil
 }
 
-func (*finalizationBenchmarkMetadata) Update(context.Context, string, string, map[string]any) error {
-	return nil
+func (*finalizationBenchmarkMetadata) UpdateFields(context.Context, string, string, map[string]any) (*mongodb.Metadata, error) {
+	return nil, nil
 }
 
 // BenchmarkTransactionCompletionService characterizes deterministic recovery decoding,

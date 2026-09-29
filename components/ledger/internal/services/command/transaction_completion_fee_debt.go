@@ -114,26 +114,39 @@ func (service *TransactionCompletionService) recordFeeDebts(ctx context.Context,
 	return nil
 }
 
-// withMissingFeeDebtMetadata is the stored document plus each fee-debt key the frozen one holds
-// and the stored one lacks, and whether any was missing.
-func withMissingFeeDebtMetadata(expected, actual mongodb.JSON) (map[string]any, bool) {
-	var merged map[string]any
+// feeDebtMetadataKeys are the only keys written onto a stored metadata document after creation:
+// a commit settles its pending's debt on the transaction the two records share.
+var feeDebtMetadataKeys = [...]string{constant.MetadataKeyFeeDebtOpenings, constant.MetadataKeyFeeDebtSettlements}
 
-	for _, key := range []string{constant.MetadataKeyFeeDebtOpenings, constant.MetadataKeyFeeDebtSettlements} {
+// missingFeeDebtMetadata holds each fee-debt key the frozen document holds and the stored one
+// lacks, or nil when none is missing.
+func missingFeeDebtMetadata(expected, actual mongodb.JSON) map[string]any {
+	var missing map[string]any
+
+	for _, key := range feeDebtMetadataKeys {
 		value, frozen := expected[key]
-		if _, stored := actual[key]; !frozen || stored {
-			continue
-		}
-
-		if merged == nil {
-			merged = maps.Clone(map[string]any(actual))
-			if merged == nil {
-				merged = make(map[string]any, 1)
+		if _, stored := actual[key]; frozen && !stored {
+			if missing == nil {
+				missing = make(map[string]any, len(feeDebtMetadataKeys))
 			}
-		}
 
-		merged[key] = value
+			missing[key] = value
+		}
 	}
 
-	return merged, merged != nil
+	return missing
+}
+
+// withoutUnfrozenFeeDebt is the stored document without the fee-debt keys its frozen content
+// lacks, so a pending still confirms after its commit wrote them.
+func withoutUnfrozenFeeDebt(expected, actual mongodb.JSON) mongodb.JSON {
+	stored := maps.Clone(actual)
+
+	for _, key := range feeDebtMetadataKeys {
+		if _, frozen := expected[key]; !frozen {
+			delete(stored, key)
+		}
+	}
+
+	return stored
 }

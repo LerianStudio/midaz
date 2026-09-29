@@ -162,13 +162,14 @@ func (repo *concurrentFinalizationMetadata) FindByEntity(_ context.Context, coll
 	return &cloned, nil
 }
 
-func (repo *concurrentFinalizationMetadata) Update(_ context.Context, collection, id string, data map[string]any) error {
+func (repo *concurrentFinalizationMetadata) UpdateFields(_ context.Context, collection, id string, fields map[string]any) (*mongodb.Metadata, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	if stored := repo.data[collection+":"+id]; stored != nil {
-		stored.Data = maps.Clone(data)
-	}
-	return nil
+	stored := repo.data[collection+":"+id]
+	maps.Copy(stored.Data, fields)
+	cloned := *stored
+	cloned.Data = maps.Clone(stored.Data)
+	return &cloned, nil
 }
 
 func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
@@ -214,30 +215,27 @@ func (repo *finalizationMetadataStub) Create(_ context.Context, collection strin
 	return nil
 }
 
-func (repo *finalizationMetadataStub) Update(_ context.Context, collection, id string, data map[string]any) error {
+// UpdateFields sets each non-nil field and removes each nil one, like the Mongo adapter.
+func (repo *finalizationMetadataStub) UpdateFields(_ context.Context, collection, id string, fields map[string]any) (*mongodb.Metadata, error) {
 	*repo.calls = append(*repo.calls, "update:"+collection)
 	if repo.updateErr != nil {
-		return repo.updateErr
+		return nil, repo.updateErr
 	}
 
 	stored := repo.data[collection+":"+id]
 	if stored == nil {
-		return errors.New("metadata document not found")
+		return nil, errors.New("metadata document not found")
 	}
 
-	encoded, err := bson.Marshal(bson.M{"metadata": data})
-	if err != nil {
-		return err
+	for key, value := range fields {
+		if value == nil {
+			delete(stored.Data, key)
+		} else {
+			stored.Data[key] = value
+		}
 	}
 
-	var decoded mongodb.MetadataMongoDBModel
-	if err := bson.Unmarshal(encoded, &decoded); err != nil {
-		return err
-	}
-
-	stored.Data = decoded.ToEntity().Data
-
-	return nil
+	return stored, nil
 }
 
 func (repo *finalizationMetadataStub) FindByEntity(_ context.Context, collection, id string) (*mongodb.Metadata, error) {

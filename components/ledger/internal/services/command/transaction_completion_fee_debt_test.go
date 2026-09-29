@@ -442,10 +442,7 @@ func TestFeeDebtCommitMergesIntoPendingMetadata(t *testing.T) {
 	require.NoError(t, completionError(service.Complete(ctx, &envelope)))
 	require.NoError(t, completionError(service.Complete(ctx, &envelope)))
 
-	assert.Equal(t, mongodb.JSON{
-		"purpose": "fee debt", "packageAppliedID": "package-1",
-		constant.MetadataKeyFeeDebtOpenings: feeDebtOpeningsGolden, constant.MetadataKeyFeeDebtSettlements: feeDebtSettledGolden,
-	}, metadata.data[key].Data, "the commit adds its keys and keeps every stored key")
+	assert.Equal(t, feeDebtCommittedMetadata(), metadata.data[key].Data, "the commit adds its keys and keeps every stored key")
 	updates := 0
 	for _, call := range *calls {
 		if call == "update:"+constant.EntityTransaction {
@@ -453,6 +450,74 @@ func TestFeeDebtCommitMergesIntoPendingMetadata(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, updates, "a replay finds the keys already merged")
+}
+
+// TestFeeDebtCommitReplayAndRevertConfirmThePendingMetadata completes the commit of a pending
+// twice and then a revert of that commit; each re-completes its dependencies first, so the
+// pending must still confirm against the document its commit extended.
+func TestFeeDebtCommitReplayAndRevertConfirmThePendingMetadata(t *testing.T) {
+	commit, revert, resolver := feeDebtLifecycleFixture(t)
+	service, _, metadata, _ := finalizationDependencies()
+	ctx := tmcore.ContextWithTenantID(context.Background(), commit.Record.TenantID)
+
+	for _, envelope := range []*TransactionWriteBehindEnvelope{&commit, &commit, &revert} {
+		_, err := CompleteTransactionWriteBehind(ctx, envelope, resolver, service)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, feeDebtCommittedMetadata(), metadata.data[constant.EntityTransaction+":"+feeDebtTransaction].Data)
+}
+
+// feeDebtLifecycleFixture is the commit of a pending that settles and opens debt, carrying the
+// pending as its predecessor, and a revert carrying that commit as its origin.
+func feeDebtLifecycleFixture(t testing.TB) (commit, revert TransactionWriteBehindEnvelope, resolver *transactionEvidenceResolverStub) {
+	t.Helper()
+	tx := uuid.MustParse(feeDebtTransaction)
+	pendingPayload, pendingResult := recoveryContractFixture(t)
+	pendingPayload.TransactionID, pendingPayload.ExecutionID = tx, uuid.MustParse("15151515-1515-4151-8151-151515151515")
+	pendingPayload.Action, pendingPayload.TransactionStatus = constant.ActionHold, constant.PENDING
+	pendingPayload.TransactionInput.Metadata = map[string]any{"purpose": "fee debt", "packageAppliedID": "package-1"}
+	pendingPayload.OperationSpecs[0].TransactionID, pendingResult.Movements[0].TransactionID = tx, tx
+	pending := feeDebtWriteBehind(t, pendingPayload, pendingResult)
+
+	commitPayload, commitResult := deferredFeeFixture(t)
+	commitPayload.Action = constant.ActionCommit
+	commit = feeDebtWriteBehind(t, commitPayload, commitResult, transactionEvidenceReference(TransactionDependencyPredecessor, pending))
+
+	revertPayload, revertResult := recoveryContractFixture(t)
+	revertPayload.ExecutionID = uuid.MustParse("16161616-1616-4161-8161-161616161616")
+	revertPayload.Action, revertPayload.ParentTransactionID = constant.ActionRevert, &tx
+	revert = feeDebtWriteBehind(t, revertPayload, revertResult, transactionEvidenceReference(TransactionDependencyOrigin, commit))
+
+	resolver = &transactionEvidenceResolverStub{records: map[string]*TransactionWriteBehindEnvelope{
+		transactionCompletionEvidenceIdentity(tx, pending.Record.ExecutionID): &pending,
+		transactionCompletionEvidenceIdentity(tx, commit.Record.ExecutionID):  &commit,
+	}}
+
+	return commit, revert, resolver
+}
+
+// feeDebtCommittedMetadata is the transaction document once its commit settled and opened debt.
+func feeDebtCommittedMetadata() mongodb.JSON {
+	return mongodb.JSON{
+		"purpose": "fee debt", "packageAppliedID": "package-1",
+		constant.MetadataKeyFeeDebtOpenings: feeDebtOpeningsGolden, constant.MetadataKeyFeeDebtSettlements: feeDebtSettledGolden,
+	}
+}
+
+func feeDebtWriteBehind(
+	t testing.TB, payload TransactionCompletionPlan, result accounting.ExecutionResult, dependencies ...TransactionEvidenceReference,
+) TransactionWriteBehindEnvelope {
+	t.Helper()
+	fingerprint, err := ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+	payload.IntentFingerprint = fingerprint
+
+	return TransactionWriteBehindEnvelope{
+		FormatVersion: TransactionWriteBehindFormatVersion, ApplicationState: TransactionApplicationConfirmed,
+		ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+		Record: recoveryContractEnvelope(t, payload, result), Dependencies: append([]TransactionEvidenceReference{}, dependencies...),
+	}
 }
 
 func TestPartitionEngineResultRoutesFeeDebtChangesPerTransaction(t *testing.T) {
