@@ -66,6 +66,12 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	// Nil metadata clears the existing document.
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
 		Return(nil).
@@ -129,6 +135,12 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	// Nil metadata clears the existing document.
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
 		Return(nil).
@@ -184,6 +196,12 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	// Nil metadata clears the existing document.
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
 		Return(nil).
@@ -295,6 +313,12 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	// Nil metadata clears the existing document.
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
 		Return(nil).

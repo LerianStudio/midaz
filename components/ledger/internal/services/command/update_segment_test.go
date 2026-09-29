@@ -89,6 +89,12 @@ func TestUpdateSegmentByID(t *testing.T) {
 				mockSegmentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Segment{ID: "123", Name: "Same Segment", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				// Nil metadata clears the existing document.
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+					Times(1)
+
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
@@ -117,6 +123,12 @@ func TestUpdateSegmentByID(t *testing.T) {
 						return s != nil && s.Name == "RETAIL"
 					})).
 					Return(&mmodel.Segment{ID: "123", Name: "RETAIL", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				// Nil metadata clears the existing document.
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+					Times(1)
+
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)

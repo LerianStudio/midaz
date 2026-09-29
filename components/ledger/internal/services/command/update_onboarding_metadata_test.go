@@ -146,3 +146,107 @@ func TestUpdateOnboardingMetadata(t *testing.T) {
 		})
 	}
 }
+
+// TestUpdateOnboardingMetadata_Branches locks the three input branches of UpdateOnboardingMetadata: nil
+// (explicit null) clears an existing document and never creates one, an empty
+// map (absent key or {}) reads the existing document without writing, and a
+// non-empty map merges and upserts.
+func TestUpdateOnboardingMetadata_Branches(t *testing.T) {
+	t.Parallel()
+
+	const (
+		entityName = "TestEntity"
+		entityID   = "123456"
+	)
+
+	existingDoc := func() *mongodb.Metadata {
+		return &mongodb.Metadata{
+			EntityID:   entityID,
+			EntityName: entityName,
+			Data:       map[string]any{"k": "v"},
+		}
+	}
+
+	tests := []struct {
+		name             string
+		inputMetadata    map[string]any
+		existing         *mongodb.Metadata
+		wantUpdate       bool
+		wantUpdateData   map[string]any
+		expectedMetadata map[string]any
+	}{
+		{
+			name:             "nil input without document writes nothing",
+			inputMetadata:    nil,
+			existing:         nil,
+			wantUpdate:       false,
+			expectedMetadata: nil,
+		},
+		{
+			name:             "nil input with document clears it",
+			inputMetadata:    nil,
+			existing:         existingDoc(),
+			wantUpdate:       true,
+			wantUpdateData:   map[string]any{},
+			expectedMetadata: map[string]any{},
+		},
+		{
+			name:             "empty input with document returns existing data without writing",
+			inputMetadata:    map[string]any{},
+			existing:         existingDoc(),
+			wantUpdate:       false,
+			expectedMetadata: map[string]any{"k": "v"},
+		},
+		{
+			name:             "empty input without document writes nothing",
+			inputMetadata:    map[string]any{},
+			existing:         nil,
+			wantUpdate:       false,
+			expectedMetadata: nil,
+		},
+		{
+			name:             "non-empty input without document creates it",
+			inputMetadata:    map[string]any{"k": "v"},
+			existing:         nil,
+			wantUpdate:       true,
+			wantUpdateData:   map[string]any{"k": "v"},
+			expectedMetadata: map[string]any{"k": "v"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+			uc := &UseCase{
+				OnboardingMetadataRepo: mockMetadataRepo,
+			}
+
+			mockMetadataRepo.EXPECT().
+				FindByEntity(gomock.Any(), entityName, entityID).
+				Return(tt.existing, nil).
+				Times(1)
+
+			if tt.wantUpdate {
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), entityName, entityID, tt.wantUpdateData).
+					Return(nil).
+					Times(1)
+			} else {
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			}
+
+			result, err := uc.UpdateOnboardingMetadata(context.Background(), entityName, entityID, tt.inputMetadata)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedMetadata, result)
+		})
+	}
+}

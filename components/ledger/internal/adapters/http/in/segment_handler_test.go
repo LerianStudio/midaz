@@ -108,11 +108,9 @@ func TestCreateSegment_Success(t *testing.T) {
 			s.UpdatedAt = fixedTestTime
 			return s, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it — faithful to the production Fiber WithBody
-	// path (mirrors the asset exemplar).
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntitySegment, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntitySegment, gomock.Any()).Times(0)
 
 	handler := &SegmentHandler{Command: &command.UseCase{
 		SegmentRepo:            segmentRepo,

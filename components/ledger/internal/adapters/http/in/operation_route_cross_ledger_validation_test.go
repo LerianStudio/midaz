@@ -231,7 +231,8 @@ func TestCreateOperationRoute_CrossLedgerEntry(t *testing.T) {
 
 				return or, nil
 			})
-		metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Return(nil)
+		// The body carries no "metadata" key, so no metadata document is written.
+		metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Times(0)
 
 		status, body := post(t, &OperationRouteHandler{Command: &command.UseCase{OperationRouteRepo: orRepo, TransactionMetadataRepo: metaRepo}}, map[string]any{
 			"title": "Cross-ledger bridge", "operationType": "bidirectional",

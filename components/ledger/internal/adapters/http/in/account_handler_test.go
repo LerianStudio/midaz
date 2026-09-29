@@ -129,9 +129,9 @@ func TestCreateAccount_Success(t *testing.T) {
 		}).Times(1)
 	balanceRepo.EXPECT().ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	balanceRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
-	// The shared body pipeline initializes Metadata to a non-nil empty map, so
-	// CreateOnboardingMetadata persists it — faithful to the Fiber WithBody path.
-	metadataRepo.EXPECT().Create(gomock.Any(), cn.EntityAccount, gomock.Any()).Return(nil).AnyTimes()
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), cn.EntityAccount, gomock.Any()).Times(0)
 
 	handler := &AccountHandler{Command: &command.UseCase{
 		AccountRepo:            accountRepo,

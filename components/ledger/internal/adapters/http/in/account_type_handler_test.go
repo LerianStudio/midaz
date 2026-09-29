@@ -115,10 +115,9 @@ func TestCreateAccountType_Success(t *testing.T) {
 			at.UpdatedAt = fixedTestTime
 			return at, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it.
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAccountType, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAccountType, gomock.Any()).Times(0)
 
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accountTypeRepo,
@@ -388,10 +387,10 @@ func TestUpdateAccountType_Success(t *testing.T) {
 
 	accountTypeRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, accountTypeID, gomock.Any()).
 		Return(&mmodel.AccountType{ID: accountTypeID, Name: "Renamed", KeyValue: "current_assets"}, nil).Times(1)
-	// The shared body pipeline initializes Metadata to a non-nil empty map, so
-	// UpdateOnboardingMetadata takes the FindByEntity + Update path.
+	// The body carries no "metadata" key, so the stored metadata is read for the
+	// response and nothing is written.
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).Return(nil, nil).Times(1)
-	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), gomock.Any()).Return(nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), gomock.Any()).Times(0)
 
 	handler := &AccountTypeHandler{Command: &command.UseCase{
 		AccountTypeRepo:        accountTypeRepo,

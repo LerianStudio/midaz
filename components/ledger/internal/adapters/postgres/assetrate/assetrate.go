@@ -140,7 +140,7 @@ type AssetRate struct {
 
 	// Additional custom attributes
 	// example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction

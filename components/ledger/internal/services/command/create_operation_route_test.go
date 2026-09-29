@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -140,6 +141,55 @@ func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 
 	assert.Equal(t, expectedOperationRoute, result)
 	assert.Nil(t, err)
+}
+
+// TestCreateOperationRouteWithEmptyMetadata asserts that an empty metadata map,
+// as produced by the decode path for an absent key, persists no metadata document.
+func TestCreateOperationRouteWithEmptyMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	payload := &mmodel.CreateOperationRouteInput{
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
+		Metadata:      map[string]any{},
+	}
+
+	expectedOperationRoute := &mmodel.OperationRoute{
+		ID:             uuid.New(),
+		OrganizationID: organizationID,
+		LedgerID:       &ledgerID,
+		Title:          payload.Title,
+		Description:    payload.Description,
+		OperationType:  payload.OperationType,
+	}
+
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OperationRouteRepo:      mockOperationRouteRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	mockOperationRouteRepo.EXPECT().
+		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+		Return(expectedOperationRoute, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	result, err := uc.CreateOperationRoute(context.Background(), organizationID, &ledgerID, payload)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Metadata)
 }
 
 // TestCreateOperationRouteError is responsible to test CreateOperationRoute with error

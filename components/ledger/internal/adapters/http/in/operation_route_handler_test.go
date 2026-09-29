@@ -103,7 +103,9 @@ func TestCreateOperationRoute_Success(t *testing.T) {
 			or.UpdatedAt = fixedTestTime
 			return or, nil
 		}).Times(1)
-	metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metaRepo.EXPECT().Create(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).Times(0)
 
 	handler := &OperationRouteHandler{Command: &command.UseCase{
 		OperationRouteRepo:      orRepo,
@@ -412,8 +414,8 @@ func TestUpdateOperationRoute_MergePatch(t *testing.T) {
 
 			// Both cases fetch existing (accountingEntries present as object -> raw probe fires).
 			// FindByEntity fires twice: once for the fetch (Query.GetOperationRouteByID's
-			// metadata join) and once for UpdateMetadata (DecodeAndValidate leaves Metadata a
-			// non-nil empty map, so the nil-skip branch is not taken).
+			// metadata join) and once for UpdateMetadata, which reads the stored metadata
+			// for the response. The body carries no "metadata" key, so nothing is written.
 			orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).Return(existing(orgID, ledgerID, id), nil).Times(1)
 			metaRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOperationRoute, id.String()).Return(nil, nil).Times(2)
 
@@ -424,7 +426,7 @@ func TestUpdateOperationRoute_MergePatch(t *testing.T) {
 					return &mmodel.OperationRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Existing", OperationType: "source"}, nil
 				}).Times(1)
 
-			metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperationRoute, id.String(), gomock.Any()).Return(nil).Times(1)
+			metaRepo.EXPECT().Update(gomock.Any(), constant.EntityOperationRoute, id.String(), gomock.Any()).Times(0)
 
 			// Accounting entries are cached with the transaction routes that link
 			// the operation route, so the update refreshes them.
