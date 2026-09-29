@@ -122,6 +122,9 @@ type ReserveRequest struct {
 	// Metadata is the transaction's flat metadata. The tracer accepts keys
 	// matching ^[a-zA-Z0-9_]+$, at most 64 characters, and at most 50 entries.
 	Metadata map[string]string `json:"metadata,omitempty"`
+	// Revert marks the reservation as the revert of an applied transaction. The
+	// tracer skips rule evaluation for it and still reserves limit capacity.
+	Revert bool `json:"revert,omitempty"`
 }
 
 // ReserveResult is the handle returned by a successful reserve. Denied is the

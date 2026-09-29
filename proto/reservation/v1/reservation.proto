@@ -68,6 +68,9 @@ message ReserveRequest {
   // metadata is the caller's flat transaction metadata. Keys ^[a-zA-Z0-9_]+$,
   // <=64 chars, <=50 entries. Optional.
   map<string, string> metadata = 12;
+  // revert marks the reservation as the revert of an applied transaction. The
+  // tracer skips rule evaluation for it and still reserves limit capacity.
+  bool revert = 13;
 }
 
 // ReserveResult is the handle returned by a successful reserve. denied is the

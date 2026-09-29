@@ -106,7 +106,10 @@ type ReserveRequest struct {
 	LongLived bool `protobuf:"varint,11,opt,name=long_lived,json=longLived,proto3" json:"long_lived,omitempty"`
 	// metadata is the caller's flat transaction metadata. Keys ^[a-zA-Z0-9_]+$,
 	// <=64 chars, <=50 entries. Optional.
-	Metadata      map[string]string `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata map[string]string `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// revert marks the reservation as the revert of an applied transaction. The
+	// tracer skips rule evaluation for it and still reserves limit capacity.
+	Revert        bool `protobuf:"varint,13,opt,name=revert,proto3" json:"revert,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,6 +226,13 @@ func (x *ReserveRequest) GetMetadata() map[string]string {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *ReserveRequest) GetRevert() bool {
+	if x != nil {
+		return x.Revert
+	}
+	return false
 }
 
 // ReserveResult is the handle returned by a successful reserve. denied is the
@@ -655,7 +665,7 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	"\x0eReserveAccount\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\"\xc1\x04\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"\xd9\x04\n" +
 	"\x0eReserveRequest\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
 	"\n" +
@@ -673,7 +683,8 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	" \x01(\tR\x14transactionTimestamp\x12\x1d\n" +
 	"\n" +
 	"long_lived\x18\v \x01(\bR\tlongLived\x12U\n" +
-	"\bmetadata\x18\f \x03(\v29.lerian.midaz.reservation.v1.ReserveRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\bmetadata\x18\f \x03(\v29.lerian.midaz.reservation.v1.ReserveRequest.MetadataEntryR\bmetadata\x12\x16\n" +
+	"\x06revert\x18\r \x01(\bR\x06revert\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd5\x01\n" +

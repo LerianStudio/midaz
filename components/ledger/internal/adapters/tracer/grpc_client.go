@@ -301,6 +301,7 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 		TransactionTimestamp: req.TransactionTimestamp,
 		LongLived:            req.LongLived,
 		Metadata:             req.Metadata,
+		Revert:               req.Revert,
 	}
 }
 
