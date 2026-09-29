@@ -40,11 +40,11 @@ func (s *spyChannel) Publish(_ string, _ string, _ bool, _ bool, msg amqp.Publis
 // a no-op sleep, and a spy channel for republish capture.
 func newTestRetryManager(channel publishChannel) *ConsumerRetryManager {
 	return &ConsumerRetryManager{
-		classifier:  pkgRabbitmq.NewDefaultClassifier(),
-		backoff:     func(int) time.Duration { return 0 },
-		channelFunc: func() publishChannel { return channel },
-		maxRetries:  maxMessageRetries,
-		logger:      testLogger,
+		classifier: pkgRabbitmq.NewDefaultClassifier(),
+		backoff:    func(int) time.Duration { return 0 },
+		channel:    channel,
+		maxRetries: maxMessageRetries,
+		logger:     testLogger,
 	}
 }
 

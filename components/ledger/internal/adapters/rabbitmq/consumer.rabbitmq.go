@@ -88,13 +88,21 @@ type BulkConfig struct {
 	FlushTimeout time.Duration
 }
 
+// consumerGeneration is one consume cycle of a queue: the AMQP channel the supervisor
+// set the cycle up on and the retry manager that republishes on that same channel.
+// Workers of the generation receive it explicitly and never read the connection's
+// shared channel field.
+type consumerGeneration struct {
+	channel *amqp.Channel
+	retry   *ConsumerRetryManager
+}
+
 // ConsumerRoutes struct
 type ConsumerRoutes struct {
 	conn              *libRabbitmq.RabbitMQConnection
 	routes            map[string]QueueHandlerFunc
 	bulkRoutes        map[string]BulkHandlerFunc
 	bulkConfig        *BulkConfig
-	retryManager      *ConsumerRetryManager
 	NumbersOfWorkers  int
 	NumbersOfPrefetch int
 	libLog.Logger
@@ -120,7 +128,6 @@ func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers in
 		conn:              conn,
 		routes:            make(map[string]QueueHandlerFunc),
 		bulkRoutes:        make(map[string]BulkHandlerFunc),
-		retryManager:      NewConsumerRetryManager(channelProviderFor(conn), logger),
 		NumbersOfWorkers:  numbersOfWorkers,
 		NumbersOfPrefetch: numbersOfWorkers * numbersOfPrefetch,
 		Logger:            logger,
@@ -241,7 +248,7 @@ func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string,
 			return
 		}
 
-		messages, notifyClose, shouldRetry := cr.setupChannelAndConsume(ctx, queueName, &backoff)
+		gen, messages, notifyClose, shouldRetry := cr.setupChannelAndConsume(ctx, queueName, &backoff)
 		if shouldRetry {
 			continue
 		}
@@ -254,7 +261,7 @@ func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string,
 		// This ensures workers stop cleanly without acking stale delivery tags.
 		channelCtx, channelCancel := context.WithCancel(ctx)
 
-		cr.startWorkers(channelCtx, queueName, handler, bulkHandler, useBulkMode, messages)
+		cr.startWorkers(channelCtx, gen, queueName, handler, bulkHandler, useBulkMode, messages)
 
 		// Wait for channel close and cancel the channel context
 		cr.waitForChannelCloseAndCancel(ctx, queueName, notifyClose, channelCancel)
@@ -266,38 +273,44 @@ func (cr *ConsumerRoutes) runConsumerLoop(ctx context.Context, queueName string,
 // snapshot is the only read of the connection's shared channel field, taken on the
 // supervisor goroutine that also writes it through EnsureChannel. A nil snapshot is a
 // setup failure retried with backoff.
-// Returns the deliveries, the close notification and whether retry is needed.
-func (cr *ConsumerRoutes) setupChannelAndConsume(ctx context.Context, queueName string, backoff *time.Duration) (<-chan amqp.Delivery, <-chan *amqp.Error, bool) {
+// Returns the generation, its deliveries, its close notification and whether retry is
+// needed.
+func (cr *ConsumerRoutes) setupChannelAndConsume(ctx context.Context, queueName string, backoff *time.Duration) (*consumerGeneration, <-chan amqp.Delivery, <-chan *amqp.Error, bool) {
 	if err := cr.conn.EnsureChannel(); err != nil {
 		cr.logAndSleep(ctx, "failed to ensure channel", "retrying EnsureChannel", queueName, err, backoff)
 
-		return nil, nil, true
+		return nil, nil, nil, true
 	}
 
 	channel := cr.conn.ChannelSnapshot()
 	if channel == nil {
 		cr.logAndSleep(ctx, "failed to ensure channel", "retrying EnsureChannel", queueName, errors.New("rabbitmq channel is nil after ensure channel"), backoff)
 
-		return nil, nil, true
+		return nil, nil, nil, true
+	}
+
+	gen := &consumerGeneration{
+		channel: channel,
+		retry:   NewConsumerRetryManager(channel, cr.Logger),
 	}
 
 	notifyClose := make(chan *amqp.Error, 1)
-	channel.NotifyClose(notifyClose)
+	gen.channel.NotifyClose(notifyClose)
 
-	if err := channel.Qos(cr.NumbersOfPrefetch, 0, false); err != nil {
+	if err := gen.channel.Qos(cr.NumbersOfPrefetch, 0, false); err != nil {
 		cr.logAndSleep(ctx, "failed to set QoS", "retrying QoS", queueName, err, backoff)
 
-		return nil, nil, true
+		return nil, nil, nil, true
 	}
 
-	messages, err := channel.Consume(queueName, "", false, false, false, false, nil)
+	messages, err := gen.channel.Consume(queueName, "", false, false, false, false, nil)
 	if err != nil {
 		cr.logAndSleep(ctx, "failed to start consuming", "retrying Consume", queueName, err, backoff)
 
-		return nil, nil, true
+		return nil, nil, nil, true
 	}
 
-	return messages, notifyClose, false
+	return gen, messages, notifyClose, false
 }
 
 // logAndSleep logs an error, sleeps with backoff, and updates the backoff value.
@@ -319,18 +332,18 @@ func (cr *ConsumerRoutes) logAndSleep(ctx context.Context, errMsg, retryMsg, que
 }
 
 // startWorkers starts the appropriate workers based on bulk mode configuration.
-func (cr *ConsumerRoutes) startWorkers(ctx context.Context, queueName string, handler QueueHandlerFunc, bulkHandler BulkHandlerFunc, useBulkMode bool, messages <-chan amqp.Delivery) {
+func (cr *ConsumerRoutes) startWorkers(ctx context.Context, gen *consumerGeneration, queueName string, handler QueueHandlerFunc, bulkHandler BulkHandlerFunc, useBulkMode bool, messages <-chan amqp.Delivery) {
 	if useBulkMode {
 		// Start N bulk workers, each with its own BulkCollector
 		// Messages are distributed among workers by Go runtime (channel fan-out)
 		for i := 0; i < cr.NumbersOfWorkers; i++ {
-			go cr.startBulkWorker(ctx, queueName, handler, bulkHandler, messages)
+			go cr.startBulkWorker(ctx, gen, queueName, handler, bulkHandler, messages)
 		}
 	} else {
 		// Start individual workers with channel-scoped context.
 		// ctx is derived from channelCtx (not a request context) — this is a long-lived consumer loop.
 		for i := 0; i < cr.NumbersOfWorkers; i++ {
-			go cr.startWorker(ctx, i, queueName, handler, messages) // #nosec G118 -- ctx is channel-scoped, not request-scoped; Background is correct for long-lived consumers
+			go cr.startWorker(ctx, gen, i, queueName, handler, messages) // #nosec G118 -- ctx is channel-scoped, not request-scoped; Background is correct for long-lived consumers
 		}
 	}
 }
@@ -380,7 +393,7 @@ func (cr *ConsumerRoutes) waitForChannelCloseAndCancel(ctx context.Context, queu
 // startWorker starts a worker that processes messages from the queue.
 // Uses channel-scoped context to detect channel closure and skip ack/nack
 // with stale delivery tags, leaving messages for RabbitMQ redelivery.
-func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
+func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, gen *consumerGeneration, workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
 		midazID := resolveMessageHeaderID(msg.Headers)
 
@@ -430,7 +443,7 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 			// the DLQ. The durable copy lives in the Redis backup hash, so DLQ routing is
 			// flow-control, not data loss.
 			retryCount := pkgRabbitmq.RetryCountFromHeaders(msg.Headers)
-			cr.retryManager.HandleFailure(ctx, workerID, queue, msg, err, retryCount, spanConsumer)
+			gen.retry.HandleFailure(ctx, workerID, queue, msg, err, retryCount, spanConsumer)
 			spanConsumer.End()
 
 			continue
@@ -462,6 +475,7 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 // Configured with channel-scoped context to handle channel closure gracefully.
 func (cr *ConsumerRoutes) startBulkWorker(
 	ctx context.Context,
+	gen *consumerGeneration,
 	queue string,
 	individualHandler QueueHandlerFunc,
 	bulkHandler BulkHandlerFunc,
@@ -471,7 +485,7 @@ func (cr *ConsumerRoutes) startBulkWorker(
 
 	// Set the flush callback that processes the bulk
 	collector.SetFlushCallback(func(flushCtx context.Context, deliveries []amqp.Delivery) error {
-		return cr.processBulkFlush(flushCtx, queue, deliveries, bulkHandler)
+		return cr.processBulkFlush(flushCtx, gen.retry, queue, deliveries, bulkHandler)
 	})
 
 	// Set error handler for fallback processing (always enabled for safety)
@@ -482,7 +496,7 @@ func (cr *ConsumerRoutes) startBulkWorker(
 			libLog.Int("message_count", len(deliveries)),
 			libLog.Err(err),
 		)
-		cr.processFallback(errCtx, queue, deliveries, individualHandler)
+		cr.processFallback(errCtx, gen.retry, queue, deliveries, individualHandler)
 	})
 
 	// Set context cancel handler for channel closure scenarios.
@@ -505,7 +519,7 @@ func (cr *ConsumerRoutes) startBulkWorker(
 					libLog.Err(err),
 				)
 				// If we can't add to collector, process individually as fallback (always enabled for safety)
-				cr.processIndividualMessage(ctx, queue, msg, individualHandler)
+				cr.processIndividualMessage(ctx, gen.retry, queue, msg, individualHandler)
 			}
 		}
 
@@ -530,6 +544,7 @@ func (cr *ConsumerRoutes) startBulkWorker(
 // Returns error if bulk processing fails (error handler will be called for fallback).
 func (cr *ConsumerRoutes) processBulkFlush(
 	ctx context.Context,
+	retry *ConsumerRetryManager,
 	queue string,
 	deliveries []amqp.Delivery,
 	bulkHandler BulkHandlerFunc,
@@ -574,7 +589,7 @@ func (cr *ConsumerRoutes) processBulkFlush(
 	}
 
 	// Process results and acknowledge messages
-	cr.acknowledgeByResults(bulkCtx, deliveries, results, logger, queue)
+	cr.acknowledgeByResults(bulkCtx, retry, deliveries, results, logger, queue)
 
 	duration := time.Since(startTime)
 	span.SetAttributes(attribute.Float64("bulk.duration_ms", float64(duration.Milliseconds())))
@@ -596,6 +611,7 @@ func (cr *ConsumerRoutes) processBulkFlush(
 // acknowledges ALL tags <= N, including messages being processed by other workers.
 func (cr *ConsumerRoutes) acknowledgeByResults(
 	ctx context.Context,
+	retry *ConsumerRetryManager,
 	deliveries []amqp.Delivery,
 	results []BulkMessageResult,
 	logger libLog.Logger,
@@ -637,7 +653,7 @@ func (cr *ConsumerRoutes) acknowledgeByResults(
 			// up to maxMessageRetries, then DLQ). Individual handling per message preserves
 			// the multiple=false invariant — a bulk nack would dead-letter or requeue
 			// messages other workers are still processing.
-			cr.handleBulkMessageFailure(ctx, delivery, result.Error, queue, i)
+			cr.handleBulkMessageFailure(ctx, retry, delivery, result.Error, queue, i)
 		} else {
 			// Succeeded or no result (treat as success): individual ack
 			if err := delivery.Ack(false); err != nil {
@@ -654,7 +670,7 @@ func (cr *ConsumerRoutes) acknowledgeByResults(
 
 // handleBulkMessageFailure routes a single failed bulk message through the retry engine,
 // opening a child span for the routing decision so the republish/DLQ outcome is traced.
-func (cr *ConsumerRoutes) handleBulkMessageFailure(ctx context.Context, delivery amqp.Delivery, cause error, queue string, index int) {
+func (cr *ConsumerRoutes) handleBulkMessageFailure(ctx context.Context, retry *ConsumerRetryManager, delivery amqp.Delivery, cause error, queue string, index int) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "rabbitmq.consumer.handle_bulk_failure")
@@ -663,7 +679,7 @@ func (cr *ConsumerRoutes) handleBulkMessageFailure(ctx context.Context, delivery
 	span.SetAttributes(attribute.Int("app.request.bulk_index", index))
 
 	retryCount := pkgRabbitmq.RetryCountFromHeaders(delivery.Headers)
-	cr.retryManager.HandleFailure(ctx, fallbackWorkerID, queue, delivery, cause, retryCount, span)
+	retry.HandleFailure(ctx, fallbackWorkerID, queue, delivery, cause, retryCount, span)
 }
 
 // buildBulkContext creates a context for bulk processing with trace information.
@@ -694,6 +710,7 @@ func (cr *ConsumerRoutes) buildBulkContext(ctx context.Context, deliveries []amq
 // processFallback processes messages individually when bulk processing fails.
 func (cr *ConsumerRoutes) processFallback(
 	ctx context.Context,
+	retry *ConsumerRetryManager,
 	queue string,
 	deliveries []amqp.Delivery,
 	individualHandler QueueHandlerFunc,
@@ -707,7 +724,7 @@ func (cr *ConsumerRoutes) processFallback(
 	)
 
 	for _, delivery := range deliveries {
-		cr.processIndividualMessage(ctx, queue, delivery, individualHandler)
+		cr.processIndividualMessage(ctx, retry, queue, delivery, individualHandler)
 	}
 
 	logger.Log(
@@ -720,6 +737,7 @@ func (cr *ConsumerRoutes) processFallback(
 // processIndividualMessage processes a single message using the individual handler.
 func (cr *ConsumerRoutes) processIndividualMessage(
 	ctx context.Context,
+	retry *ConsumerRetryManager,
 	queue string,
 	msg amqp.Delivery,
 	handler QueueHandlerFunc,
@@ -754,7 +772,7 @@ func (cr *ConsumerRoutes) processIndividualMessage(
 
 		// Classify and route through the retry engine. workerID -1 marks the fallback path.
 		retryCount := pkgRabbitmq.RetryCountFromHeaders(msg.Headers)
-		cr.retryManager.HandleFailure(msgCtx, fallbackWorkerID, queue, msg, err, retryCount, span)
+		retry.HandleFailure(msgCtx, fallbackWorkerID, queue, msg, err, retryCount, span)
 
 		return
 	}
