@@ -74,6 +74,50 @@ type reservationHandle struct {
 	Asset          string
 }
 
+// reservationTTLPolicy selects the reservation lifetime hint passed to the
+// tracer. Direct transactions get the tracer's default (short, reaper-swept)
+// TTL; PENDING transactions get a long-lived hint so a reservation does not
+// expire under a still-valid pending that has no existing sweep.
+type reservationTTLPolicy bool
+
+const (
+	reservationTTLDefault   reservationTTLPolicy = false
+	reservationTTLLongLived reservationTTLPolicy = true
+)
+
+// reservationPurpose tells the tracer whether the reservation is held for the
+// revert of an applied transaction. A revert still reserves capacity, because
+// limits measure gross activity, but the tracer does not evaluate transaction
+// validation rules for it: a rule that could refuse a revert would leave an
+// applied movement impossible to correct.
+type reservationPurpose bool
+
+const (
+	reservationForCreate reservationPurpose = false
+	reservationForRevert reservationPurpose = true
+)
+
+// reservationDecisionReview is the tracer decision for a transaction a rule
+// flagged for review, or one a rule could not be evaluated for. It arrives with denied=true; every other denied result —
+// DENY, or a tracer that predates the decision field — is a limit denial.
+const reservationDecisionReview = "REVIEW"
+
+// Tracer metadata bounds. The tracer refuses the whole reserve request when any
+// key breaks them, so the anchor forwards only what it would accept.
+const (
+	reserveMetadataMaxEntries   = 50
+	reserveMetadataMaxKeyLength = 64
+)
+
+// reserveMetadataKeyPattern is the key grammar the tracer accepts.
+var reserveMetadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
+// reservationRequestIDNamespace is the UUIDv5 namespace used to derive a
+// reserve requestId from a transactionID. A fixed namespace makes the requestId
+// deterministic per transaction, so a retried reserve carries the same requestId
+// and dedups against the prior attempt rather than minting a fresh request.
+var reservationRequestIDNamespace = uuid.MustParse("6f3c2d1e-4b5a-4c6d-8e7f-0a1b2c3d4e5f")
+
 // transitions expands the handle into one addressable transition per held
 // reservation, each carrying the full identity of what is being settled.
 func (h reservationHandle) transitions(action string) []reservationTransition {
@@ -92,33 +136,25 @@ func (h reservationHandle) transitions(action string) []reservationTransition {
 	return out
 }
 
-// reservationTTLPolicy selects the reservation lifetime hint passed to the
-// tracer. Direct transactions get the tracer's default (short, reaper-swept)
-// TTL; PENDING transactions get a long-lived hint so a reservation does not
-// expire under a still-valid pending that has no existing sweep (R18).
-type reservationTTLPolicy bool
-
-const (
-	reservationTTLDefault   reservationTTLPolicy = false
-	reservationTTLLongLived reservationTTLPolicy = true
-)
-
 // reserveTransaction is the reserve anchor. It is called immediately before
 // accounting-engine execution on FEE-INCLUSIVE amounts and gates execution on
 // the per-ledger tracer settings. Only the /v2 pipelines call it: the /v1 contract
 // shipped before the tracer existed, so a /v1 create is never gated by a
 // reservation, builds no request and dials nothing.
 //
-// The request carries the source account id and type and the tracer-accepted
-// subset of the transaction metadata (see reserveMetadata). A positive
-// tracer.timeoutMs bounds the reserve call; the client timeout stays the ceiling.
+// The request carries the source account id and type, the tracer-accepted
+// subset of the transaction metadata (see reserveMetadata), and whether the
+// reservation is for a revert. A positive tracer.timeoutMs bounds the reserve
+// call; the client timeout (TRACER_TIMEOUT_MS) stays the ceiling, because a
+// context deadline can only tighten it.
 //
 //   - mode=off (or nil reserver): skipped — returns proceed with an empty handle.
 //   - mode=advisory: the reserve is called but never blocks — a DENY or REVIEW
 //     decision, a refused request or an unavailable tracer still returns proceed
 //     (advisory observes, the real gate is enforce).
-//   - mode=enforce: a DENY decision rejects with 0177 and a REVIEW decision with
-//     0531, both before the balance commit. A request the tracer refused
+//   - mode=enforce: a DENY decision rejects with 0177 and a REVIEW decision (a
+//     matched rule, or a rule the tracer could not evaluate) with 0531, both
+//     before the balance commit. A request the tracer refused
 //     (tracer.ErrTracerRejected) rejects with 0532 whatever the failPosture,
 //     because the tracer answered. An unavailable tracer branches on failPosture
 //     (open → proceed + SKIPPED audit, closed → reject with 0178).
@@ -137,6 +173,7 @@ func (uc *UseCase) reserveTransaction(
 	metadata map[string]any,
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
+	purpose reservationPurpose,
 	honoredTracerSkip bool,
 ) reservationOutcome {
 	// off, unconfigured, no client injected, or an honored per-call tracer skip:
@@ -162,6 +199,7 @@ func (uc *UseCase) reserveTransaction(
 		Account:              account,
 		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
 		LongLived:            ttl == reservationTTLLongLived,
+		Revert:               purpose == reservationForRevert,
 		Metadata:             reserveMD,
 	}
 
@@ -200,11 +238,6 @@ func (uc *UseCase) reserveTransaction(
 		},
 	}
 }
-
-// reservationDecisionReview is the tracer decision for a transaction a rule
-// flagged for review. It arrives with denied=true; every other denied result —
-// DENY, or a tracer that predates the decision field — is a limit denial.
-const reservationDecisionReview = "REVIEW"
 
 // handleReserveDenied maps a denied reserve result to an outcome. Advisory
 // observes it and proceeds; enforce rejects with the code that tells a review
@@ -286,7 +319,7 @@ func (uc *UseCase) handleReserveError(
 	}
 
 	// failPosture=open (the default): record a SKIPPED audit and proceed so a
-	// degraded tracer cannot block all transactions (R20). The SKIPPED audit is
+	// degraded tracer cannot block all transactions. The SKIPPED audit is
 	// the tracer's own record — best-effort via Release on no ids is a no-op, so
 	// the audit is emitted by the tracer reserve attempt itself; here we mark
 	// the span and continue.
@@ -298,9 +331,9 @@ func (uc *UseCase) handleReserveError(
 	return reservationOutcome{Kind: reservationProceed}
 }
 
-// handleReserveRejected maps a refused reserve request to an outcome. The error
-// is logged, never returned to the client: it may carry the tracer's own
-// description of the request.
+// handleReserveRejected maps a refused reserve request to an outcome. The
+// refusal is a business event on a span that stays green; its error is logged,
+// never returned to the client, which sees only 0532.
 func (uc *UseCase) handleReserveRejected(
 	ctx context.Context,
 	span trace.Span,
@@ -327,12 +360,6 @@ func (uc *UseCase) handleReserveRejected(
 
 	return reservationOutcome{Kind: reservationReject, Err: rejectErr}
 }
-
-// reservationRequestIDNamespace is the UUIDv5 namespace used to derive a
-// reserve requestId from a transactionID. A fixed namespace makes the requestId
-// deterministic per transaction, so a retried reserve carries the same requestId
-// and dedups against the prior attempt rather than minting a fresh request.
-var reservationRequestIDNamespace = uuid.MustParse("6f3c2d1e-4b5a-4c6d-8e7f-0a1b2c3d4e5f")
 
 // reservationRequestID derives the deterministic reserve requestId for a
 // transaction. The tracer reserve contract requires a non-nil requestId; the
@@ -383,16 +410,6 @@ func firstSourceAccount(sources []string, balances []*mmodel.Balance) tracer.Res
 
 	return tracer.ReserveAccount{}
 }
-
-// Tracer metadata bounds. The tracer refuses the whole reserve request when any
-// key breaks them, so the anchor forwards only what it would accept.
-const (
-	reserveMetadataMaxEntries   = 50
-	reserveMetadataMaxKeyLength = 64
-)
-
-// reserveMetadataKeyPattern is the key grammar the tracer accepts.
-var reserveMetadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
 // reserveMetadata projects the transaction metadata onto the tracer's metadata
 // contract. Keys are visited in lexicographic order so the cap is
@@ -474,7 +491,7 @@ func reserveMetadataValue(value any) (string, bool) {
 }
 
 // confirmReservations commits held reservations after a successful balance
-// commit (F3-T14, the success phase). Transport never blocks the request: a
+// commit (the success phase). Transport never blocks the request: a
 // failure is logged at Warn, span-recorded, and never propagated, because the
 // money has already moved and the response is owed now. The failure is NOT
 // dropped, though — it is handed to the retrier, which keeps trying off the
@@ -493,7 +510,7 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 }
 
 // releaseReservations returns held reservations on an aborted transaction
-// (F3-T14, the abort phase). Same non-blocking, retried posture as
+// (the abort phase). Same non-blocking, retried posture as
 // confirmReservations: a failure never fails the request and is redelivered off
 // the request path. The direction of the loss is the opposite one — a release
 // that never lands leaves capacity held against a transaction that moved no
@@ -531,7 +548,7 @@ func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span t
 }
 
 // confirmReservationsByTransaction commits a transaction's held reservations at
-// /commit (F3-T15, PENDING success phase). At /commit the ledger holds only the
+// /commit (the PENDING success phase). At /commit the ledger holds only the
 // transaction id — the reserve handle from create-pending does not survive the
 // separate commit request — so the tracer flips every RESERVED reservation the
 // transaction holds, addressed by transaction id. Only transitionPendingV2 names it:
@@ -559,7 +576,7 @@ func (uc *UseCase) confirmReservationsByTransaction(ctx context.Context, span tr
 }
 
 // releaseReservationsByTransaction returns a transaction's held reservations at
-// /cancel (F3-T15, PENDING abort phase). Same transaction-id addressing, gating,
+// /cancel (the PENDING abort phase). Same transaction-id addressing, gating,
 // and non-blocking posture as confirmReservationsByTransaction.
 func (uc *UseCase) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, identity reservationHandle, honoredTracerSkip bool) {
 	if honoredTracerSkip || !uc.tracerReservationEnabled(settings) {
@@ -602,4 +619,14 @@ func reservationTTLForStatus(transactionStatus string) reservationTTLPolicy {
 	}
 
 	return reservationTTLDefault
+}
+
+// reservationPurposeForAction maps a run's action to the reservation purpose:
+// only a revert is marked as one.
+func reservationPurposeForAction(action string) reservationPurpose {
+	if action == constant.ActionRevert {
+		return reservationForRevert
+	}
+
+	return reservationForCreate
 }

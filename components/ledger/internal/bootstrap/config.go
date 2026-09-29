@@ -331,9 +331,9 @@ type Config struct {
 	// transaction create path stays unchanged. When set, the reservation HTTP
 	// client is constructed and injected. The per-ledger advisory/enforce gate
 	// is a tracer.mode setting read at the call site, not a global flag.
-	// TracerTimeoutMs bounds each reservation call so a slow tracer cannot hold
-	// the transaction create path open; it mirrors the tracer.timeoutMs setting
-	// default (250ms) and is overridden per-ledger by the call site.
+	// TracerTimeoutMs is the client ceiling for every reservation call. The
+	// reserve call is further bounded by the per-ledger tracer.timeoutMs setting
+	// (default 250ms), so raising this value alone does not lengthen a reserve.
 	// TracerTransport selects the reservation transport: "grpc" (default) or
 	// "rest". gRPC is the seam's production transport; REST is retained as a
 	// fallback, selectable by setting TRACER_TRANSPORT=rest. A deploy that wires

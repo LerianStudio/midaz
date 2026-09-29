@@ -48,6 +48,7 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 			item.input.Metadata,
 			item.transactionDate,
 			reservationTTLForStatus(item.status),
+			reservationPurposeForAction(item.action),
 			item.honoredTracerSkip,
 		)
 		if reservation.Kind == reservationReject {

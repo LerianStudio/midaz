@@ -115,7 +115,8 @@ func (uc *UseCase) executeCreateEngine(
 			run.input.Send.Value, run.input.Send.Asset,
 			firstSourceAccount(run.validate.Sources, engineState.pool.ExplicitBalances),
 			run.input.Metadata,
-			run.transactionDate, reservationTTLForStatus(run.status), run.honoredTracerSkip)
+			run.transactionDate, reservationTTLForStatus(run.status), reservationPurposeForAction(run.action),
+			run.honoredTracerSkip)
 		if reservation.Kind == reservationReject {
 			uc.rollbackCreateClaim(ctx, run)
 			return nil, reservation.Err
