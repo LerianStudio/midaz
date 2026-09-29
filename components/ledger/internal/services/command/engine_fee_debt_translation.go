@@ -200,12 +200,12 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 			}
 
 			ordinal, credited := uint32(i), c.refundRoute(opening.DebitRoute, false)
+			expected := c.input.TransactionInput.FeeDebtExpectedRefunds[opening.DebtID]
+			refunded = refunded.Add(expected)
 			posting.Amount = posting.Amount.Add(opening.Opened)
 			posting.Refunds = append(posting.Refunds, accounting.FeeDebtRefund{
-				DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq,
-				ExpectedRefund: c.input.TransactionInput.FeeDebtExpectedRefunds[opening.DebtID],
+				DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq, ExpectedRefund: expected,
 			})
-			refunded = refunded.Add(c.input.TransactionInput.FeeDebtExpectedRefunds[opening.DebtID])
 			*projection = append(*projection, c.spec(ref, debtor, accounting.RoleFeeDebtRefundCredit, ordinal, constant.FEE_REFUND, constant.DirectionCredit, opening.Opened, credited))
 
 			if hasCompanion {

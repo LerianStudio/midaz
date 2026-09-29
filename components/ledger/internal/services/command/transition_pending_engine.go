@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -320,6 +322,10 @@ func clonePendingTransactionInput(input mtransaction.Transaction) (mtransaction.
 	if err := decoder.Decode(&clone); err != nil {
 		return mtransaction.Transaction{}, fmt.Errorf("clone pending transaction body: %w", err)
 	}
+
+	// JSON never carries a reversal's fee-debt inputs, which a caller must not set.
+	clone.FeeDebtRevertedOrigins = slices.Clone(input.FeeDebtRevertedOrigins)
+	clone.FeeDebtExpectedRefunds = maps.Clone(input.FeeDebtExpectedRefunds)
 
 	return clone, nil
 }

@@ -24,6 +24,7 @@ import (
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
+	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -258,19 +259,7 @@ func TestFeeDebtSettlementRevertsOnARouteValidatingLedger(t *testing.T) {
 // to none of the group's routes, the group reverts, and the debt reopens to settle again.
 func TestFeeDebtSettlementGroupRevertsOnARouteValidatingLedger(t *testing.T) {
 	s := newFeeDebtRoutes(t, true)
-	s.enableAtomicBatches(t)
-	s.commandUC.TransactionGroupRepo = transactiongroup.NewTransactionGroupPostgreSQLRepository(s.pgConn)
-
-	remote := s.withSecondLedger(t)
-	for _, ledgerID := range []uuid.UUID{s.ledgerID, remote.ledgerID} {
-		postgrestestutil.SetLedgerSettings(t, s.db, ledgerID, map[string]any{
-			"crossLedger": map[string]any{"enabled": true}, "accounting": map[string]any{"validateRoutes": true},
-		})
-	}
-
-	remote.seedBalance(t, "@debt-remote", "BRL", decimal.NewFromInt(1000), "deposit")
-	remote.seedBalance(t, "@external/BRL", "BRL", decimal.Zero, "external")
-	s.seedBalance(t, "@external/BRL", "BRL", decimal.Zero, "external")
+	remote := s.crossLedger(t, true)
 
 	group := postgrestestutil.CreateTestTransactionRouteSimple(t, s.db, s.orgID, s.ledgerID, "fee debt group credit")
 	source := remote.seedBidirectionalRoute(t, "remote", group)
@@ -285,16 +274,100 @@ func TestFeeDebtSettlementGroupRevertsOnARouteValidatingLedger(t *testing.T) {
 	credited := s.createV2Direct(t, s.app, s.v2RoutedBody("fee debt group credit", "BRL", "10", group,
 		[]string{remote.v2RoutedLeg("@debt-remote", "10", source)}, []string{s.v2RoutedLeg("@debt-payer", "10", s.payer)}),
 		map[string]string{"X-Idempotency": uuid.NewString()})
-	settled := decodeCrossLedgerGroup(t, credited.status, credited.rawBody, 201)
 	s.balances(t, "0", "80", "30", "1000")
 
-	reverted := s.post(t, s.app, s.v2StatePath(groupMember(t, settled, s.ledgerID), "revert"), "", nil)
-	decodeCrossLedgerGroup(t, reverted.status, reverted.rawBody, 201)
+	s.revertGroup(t, decodeCrossLedgerGroup(t, credited.status, credited.rawBody, 201))
 	s.balances(t, "0", "80", "20", "1000")
 	assertLiveBalance(t, remote, "@debt-remote", "default", "1000")
 
 	s.settle(t)
 	s.balances(t, "0", "80", "30", "990")
+}
+
+// TestFeeDebtGroupRevertRefundsASettledDebt reverts a cross-ledger group whose part
+// opened a 30 debt that a later credit settled 10 of: the revert refunds the 10,
+// cancels the 20 still owed and gives every balance back what it held.
+func TestFeeDebtGroupRevertRefundsASettledDebt(t *testing.T) {
+	s := newFeeDebtRoutes(t, false)
+	remote := s.crossLedger(t, false)
+
+	opened := s.createV2Direct(t, s.app, s.v2Body("fee debt group origin", "BRL", "80",
+		[]string{s.v2Leg("@debt-payer", "80")}, []string{remote.v2Leg("@debt-remote", "80")}),
+		map[string]string{"X-Idempotency": uuid.NewString()})
+	group := decodeCrossLedgerGroup(t, opened.status, opened.rawBody, 201)
+	s.balances(t, "0", "0", "20", "1000")
+
+	s.settle(t)
+	s.balances(t, "0", "0", "30", "990")
+
+	s.revertGroup(t, group)
+	s.balances(t, "110", "0", "0", "990")
+	assertLiveBalance(t, remote, "@debt-remote", "default", "1000")
+
+	open, err := s.commandUC.FeeDebts.(*fee_debt.Repository).OpenTotal(s.ctx(), s.orgID, s.ledgerID, "@debt-payer#default")
+	require.NoError(t, err)
+	assert.Truef(t, open.IsZero(), "the payer still owes %s", open)
+}
+
+// TestFeeDebtGroupRevertKeepsASettlementOfARevertedOrigin reverts a cross-ledger group
+// whose credit settled 10 of a debt whose origin was reverted since: that origin's
+// refund paid the 10 back, so the group revert takes it from the payer and reopens nothing.
+func TestFeeDebtGroupRevertKeepsASettlementOfARevertedOrigin(t *testing.T) {
+	s := newFeeDebtRoutes(t, false)
+	remote := s.crossLedger(t, false)
+
+	origin := s.open(t)
+	credited := s.createV2Direct(t, s.app, s.v2Body("fee debt group credit", "BRL", "10",
+		[]string{remote.v2Leg("@debt-remote", "10")}, []string{s.v2Leg("@debt-payer", "10")}),
+		map[string]string{"X-Idempotency": uuid.NewString()})
+	group := decodeCrossLedgerGroup(t, credited.status, credited.rawBody, 201)
+	s.balances(t, "0", "80", "30", "1000")
+
+	s.revert(t, origin)
+	s.balances(t, "110", "0", "0", "1000")
+
+	s.revertGroup(t, group)
+	s.balances(t, "100", "0", "0", "1000")
+	assertLiveBalance(t, remote, "@debt-remote", "default", "1000")
+
+	open, err := s.commandUC.FeeDebts.(*fee_debt.Repository).OpenTotal(s.ctx(), s.orgID, s.ledgerID, "@debt-payer#default")
+	require.NoError(t, err)
+	assert.Truef(t, open.IsZero(), "the payer owes %s after the group revert", open)
+}
+
+// crossLedger enables cross-ledger, with the given route validation, on the harness
+// ledger and on a second one where @debt-remote holds 1000, and returns the second.
+func (s *feeDebtRoutes) crossLedger(t *testing.T, validated bool) *feeHarness {
+	t.Helper()
+
+	s.enableAtomicBatches(t)
+	s.commandUC.TransactionGroupRepo = transactiongroup.NewTransactionGroupPostgreSQLRepository(s.pgConn)
+
+	engineRedis, ok := s.redisRepo.(*redistransaction.RedisConsumerRepository)
+	require.True(t, ok)
+
+	s.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: engineRedis}
+
+	remote := s.withSecondLedger(t)
+	for _, ledgerID := range []uuid.UUID{s.ledgerID, remote.ledgerID} {
+		postgrestestutil.SetLedgerSettings(t, s.db, ledgerID, map[string]any{
+			"crossLedger": map[string]any{"enabled": true}, "accounting": map[string]any{"validateRoutes": validated},
+		})
+	}
+
+	remote.seedBalance(t, "@debt-remote", "BRL", decimal.NewFromInt(1000), "deposit")
+	remote.seedBalance(t, "@external/BRL", "BRL", decimal.Zero, "external")
+	s.seedBalance(t, "@external/BRL", "BRL", decimal.Zero, "external")
+
+	return remote
+}
+
+// revertGroup reverts a cross-ledger group through its member in the harness ledger.
+func (s *feeDebtRoutes) revertGroup(t *testing.T, group CreateTransactionV2Response) {
+	t.Helper()
+
+	reverted := s.post(t, s.app, s.v2StatePath(groupMember(t, group, s.ledgerID), "revert"), "", nil)
+	decodeCrossLedgerGroup(t, reverted.status, reverted.rawBody, 201)
 }
 
 // enableAtomicBatches wires what the atomic batch create reads beyond a singular create.
