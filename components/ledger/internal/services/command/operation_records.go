@@ -148,10 +148,14 @@ func operationLifecycles(payload TransactionCompletionPlan, movements []accounti
 		contexts[operationMovementKey{context.PostingRef, context.Role, context.Ordinal}] = context
 	}
 
-	groups := make(map[string]operationLifecycle)
+	groups, refunds := make(map[string]operationLifecycle), make(map[string]operationLifecycle)
 	ordinals := make(map[operationMovementKey]uint32)
 
 	for _, movement := range movements {
+		if movement.Role == accounting.RoleFeeDebtRefundCredit {
+			refunds[movement.PostingRef] = operationLifecycle{Before: movement.Before, After: movement.After}
+		}
+
 		if movement.Role != accounting.RolePrimary {
 			continue
 		}
@@ -181,6 +185,11 @@ func operationLifecycles(payload TransactionCompletionPlan, movements []accounti
 
 		key := operationMovementKey{context.PostingRef, context.Role, context.Ordinal}
 		if context.Role == accounting.RoleOverdraftCompanion {
+			if refund, repaid := refunds[context.PostingRef]; repaid {
+				byContext[key] = refund
+				continue
+			}
+
 			context = contexts[operationMovementKey{PostingRef: context.PostingRef, Role: accounting.RolePrimary}]
 		}
 
@@ -348,6 +357,19 @@ func feeDebtOperationRole(role string) bool {
 	}
 }
 
+// overdraftAnchor returns the context whose overdraft change the companion at key mirrors: its
+// posting's primary, or a refund's debtor credit, which repays the overdraft before it credits.
+func overdraftAnchor(contexts map[operationMovementKey]OperationRecordSpec, key operationMovementKey) (operationMovementKey, bool) {
+	for _, role := range []string{accounting.RolePrimary, accounting.RoleFeeDebtRefundCredit} {
+		anchor := operationMovementKey{PostingRef: key.PostingRef, Role: role, Ordinal: key.Ordinal}
+		if _, exists := contexts[anchor]; exists {
+			return anchor, true
+		}
+	}
+
+	return operationMovementKey{}, false
+}
+
 func validateOperationRecordCompleteness(contexts map[operationMovementKey]OperationRecordSpec, movements map[operationMovementKey]accounting.Movement, deferred map[string]bool) error {
 	for key, context := range contexts {
 		if _, exists := movements[key]; !exists && context.Role == accounting.RolePrimary && !deferred[context.PostingRef] {
@@ -355,7 +377,7 @@ func validateOperationRecordCompleteness(contexts map[operationMovementKey]Opera
 		}
 
 		if context.Role == accounting.RoleOverdraftCompanion {
-			if _, exists := contexts[operationMovementKey{PostingRef: context.PostingRef, Role: accounting.RolePrimary}]; !exists {
+			if _, exists := overdraftAnchor(contexts, operationMovementKey{PostingRef: key.PostingRef}); !exists {
 				return invalidTransactionCompletionRecord("companion operation spec has no primary")
 			}
 		}
@@ -363,7 +385,8 @@ func validateOperationRecordCompleteness(contexts map[operationMovementKey]Opera
 
 	for key, movement := range movements {
 		if movement.Role == accounting.RoleOverdraftCompanion {
-			primary, exists := movements[operationMovementKey{PostingRef: key.PostingRef, Role: accounting.RolePrimary, Ordinal: key.Ordinal}]
+			anchor, _ := overdraftAnchor(contexts, key)
+			primary, exists := movements[anchor]
 
 			expectedType := accounting.PostingCredit
 			if primary.OverdraftDelta.IsPositive() {
@@ -375,7 +398,7 @@ func validateOperationRecordCompleteness(contexts map[operationMovementKey]Opera
 			}
 		}
 
-		if movement.Role != accounting.RolePrimary || movement.OverdraftDelta.IsZero() {
+		if (movement.Role != accounting.RolePrimary && movement.Role != accounting.RoleFeeDebtRefundCredit) || movement.OverdraftDelta.IsZero() {
 			continue
 		}
 
@@ -418,7 +441,9 @@ func validateOperationRecordAttribution(contexts map[operationMovementKey]Operat
 
 	for _, context := range contexts {
 		if context.Role == accounting.RoleOverdraftCompanion {
-			primary, exists := contexts[operationMovementKey{PostingRef: context.PostingRef, Role: accounting.RolePrimary}]
+			anchor, exists := overdraftAnchor(contexts, operationMovementKey{PostingRef: context.PostingRef})
+			primary := contexts[anchor]
+
 			if !exists || primary.Balance.AccountID != context.Balance.AccountID || primary.Balance.AssetCode != context.Balance.AssetCode || mtransaction.SplitAlias(primary.Balance.Alias) != mtransaction.SplitAlias(context.Balance.Alias) || !sameOperationRoute(primary.RouteID, context.RouteID) {
 				return invalidTransactionCompletionRecord("companion attribution disagrees with primary")
 			}

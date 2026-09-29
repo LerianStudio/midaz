@@ -22,6 +22,7 @@ import (
 	postgresOperation "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 const (
@@ -266,6 +267,59 @@ func TestFeeDebtRevertWritesRefundRowsAndStripsInheritedKeys(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"purpose": "revert", constant.MetadataKeyFeeDebtSettlements: `[{"debtId":"` + feeDebtSettledFirst + `","debtorRef":"@dest#default","creditRef":"@fees#default","amount":"25","opened":"25","seq":"2"}]`,
 	}, own, "a revert writes only what its own result settled")
+}
+
+// TestFeeDebtRefundRepaysTheDebtorOverdraft uses the engine's refund shapes: a debtor with 30
+// of overdraft used takes the refund into the overdraft first, so its credit may be 0, and the
+// overdraft companion mirrors the repayment; both write FEE_REFUND rows.
+func TestFeeDebtRefundRepaysTheDebtorOverdraft(t *testing.T) {
+	payload, _ := recoveryContractFixture(t)
+	tx, parent := uuid.MustParse(feeDebtTransaction), uuid.MustParse("16161616-1616-4161-8161-161616161616")
+	payload.TransactionID, payload.ParentTransactionID, payload.Action = tx, &parent, constant.ActionRevert
+	payload.TransactionInput.Metadata = map[string]any{"purpose": "revert"}
+	payer, fees, overdraft := feeDebtBalance("@payer", 1), feeDebtBalance("@fees", 3), feeDebtBalance("@payer", 4)
+	overdraft.AccountID, overdraft.Key, overdraft.Direction = payer.AccountID, constant.OverdraftBalanceKey, constant.DirectionDebit
+	refund, settled := "fee-refund:0", parent.String()+":from:1"
+
+	for _, tc := range []struct {
+		name                   string
+		refund, credited, left int64
+		rows                   []string
+	}{
+		{"smaller than the overdraft", 20, 0, 10, []string{"FEE_REFUND @payer 0 0->0", "FEE_REFUND @payer 20 30->10", "FEE_REFUND @fees 20 100->80"}},
+		{"equal to the overdraft", 30, 0, 0, []string{"FEE_REFUND @payer 0 0->0", "FEE_REFUND @payer 30 30->0", "FEE_REFUND @fees 30 100->70"}},
+		{"larger than the overdraft", 50, 20, 0, []string{"FEE_REFUND @payer 20 0->20", "FEE_REFUND @payer 30 30->0", "FEE_REFUND @fees 50 100->50"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repaid := 30 - tc.left
+			payload.OperationSpecs = []OperationRecordSpec{
+				feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundCredit, 0, payer, constant.FEE_REFUND, constant.DirectionCredit, tc.refund, nil),
+				feeDebtSpec(tx, refund, accounting.RoleOverdraftCompanion, 0, overdraft, constant.FEE_REFUND, constant.DirectionCredit, tc.refund, nil),
+				feeDebtSpec(tx, refund, accounting.RoleFeeDebtRefundDebit, 0, fees, constant.FEE_REFUND, constant.DirectionDebit, tc.refund, nil),
+			}
+			credit := feeDebtMovement(tx, refund, accounting.RoleFeeDebtRefundCredit, 0, "@payer#default", accounting.PostingCredit, tc.credited, 0, tc.credited, 1)
+			credit.Before.OverdraftUsed, credit.After.OverdraftUsed, credit.OverdraftDelta = decimal.NewFromInt(30), decimal.NewFromInt(tc.left), decimal.NewFromInt(-repaid)
+			companion := feeDebtMovement(tx, refund, accounting.RoleOverdraftCompanion, 0, "@payer#overdraft", accounting.PostingCredit, repaid, 30, tc.left, 0)
+			result := accounting.ExecutionResult{Movements: []accounting.Movement{
+				credit, companion,
+				feeDebtMovement(tx, refund, accounting.RoleFeeDebtRefundDebit, 0, "@fees#default", accounting.PostingDebit, tc.refund, 100, 100-tc.refund, 0),
+			}, FeeDebt: []accounting.FeeDebtChange{feeDebtChange(tx, refund, accounting.FeeDebtRefunded, settled, "@payer#default", 4, tc.refund, tc.refund)}}
+			result.Final = recoveryContractFinal(payload, result.Movements)
+
+			writeSet, err := BuildTransactionWriteSet(payload, result)
+			require.NoError(t, err)
+			assert.Equal(t, tc.rows, feeDebtRowViews(writeSet.Transaction.Operations))
+			assert.Equal(t, mmodel.OperationSnapshot{OverdraftUsedBefore: "30", OverdraftUsedAfter: fmt.Sprint(tc.left)}, writeSet.Transaction.Operations[1].Snapshot,
+				"the companion row carries the debtor's overdraft, like any companion")
+
+			unpaired := result
+			unpaired.Movements = []accounting.Movement{credit, result.Movements[2]}
+			unpaired.Final = recoveryContractFinal(payload, unpaired.Movements)
+			_, err = BuildTransactionWriteSet(payload, unpaired)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
+			assert.ErrorContains(t, err, "debt change has no matching companion movement")
+		})
+	}
 }
 
 func TestFeeDebtWriteSetLeavesNoDebtTransactionUnchanged(t *testing.T) {
