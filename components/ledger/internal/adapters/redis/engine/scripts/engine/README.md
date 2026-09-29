@@ -220,8 +220,12 @@ Top level, omitted when empty:
   `#KEYS = 7 + 3*balances + grants + 3*accounts + 5*extraScopes + #feeDebts`
   and no existing index moves. `keyIndex` is the 1-based `KEYS` index, as for
   balances. Each key ends with the unprefixed `FeeDebtInternalKey` of its entry.
-- A declared debtor need not appear in `balances`. On a revert Go declares
-  every revert destination.
+- Collect, refund and deferral debtors are always postings. A reopen debtor is
+  in `balances` as a touch, with no movement, because a revert can fold its
+  legs to zero; a debtor that only cancel reaches need not appear in
+  `balances`. A revert declares the debtors of its parent's `feeDebtOpenings`
+  and `feeDebtSettlements` and, on `/v2`, each debtor that gets a collect (see
+  "Revert").
 
 Per transaction, omitted when empty:
 
@@ -264,10 +268,11 @@ and refuses with `invalid_protocol` when:
 - `items` is on a non-collect; a collect has no items or a duplicate, or its
   debtor key is not declared;
 - `reopenFeeDebts` appears when `action` is not `revert`; a `debtId` repeats
-  within its transaction; a reopen names an undeclared debtor key, a `debtId`
-  whose first 36 characters are not a UUID followed by `:`, a non-positive
-  amount, opened or seq, an amount above its opened, or a `creditRef` that no
-  debit posting of the same transaction debits;
+  within its transaction; a reopen names an undeclared debtor key or a debtor
+  absent from `balances`, a `debtId` whose first 36 characters are not a UUID
+  followed by `:`, a non-positive amount, opened or seq, an amount above its
+  opened, or a `creditRef` that no debit posting of the same transaction
+  debits;
 - `refunds` is on a non-refund; a refund posting appears when `action` is not
   `revert`, has no entries, an amount other than the sum of their `opened`, or
   an undeclared debtor key; an entry has a non-positive `opened` or seq, a
@@ -281,17 +286,19 @@ and refuses with `invalid_protocol` when:
 `take(available, owed) = min(max(available, 0), owed)`. Per transaction, before
 its first posting:
 
-1. Cancel (only when `action` is `revert`): every item whose
-   `originTransactionId` is the transaction's `parentTransactionId`, in any
-   declared list of its scope, is removed; one `canceled` change each, oldest
-   first per list, amount = its `remaining`, remembered per debt for the refund.
+1. Cancel (only when `action` is `revert`) runs over the declared lists of the
+   transaction's scope: every item whose `originTransactionId` is its
+   `parentTransactionId` is removed; one `canceled` change each, oldest first
+   per list, amount = its `remaining`, remembered per debt for the refund.
 2. Reopen, in array order: a live item with that `debtId` gains `amount` on its
    `remaining` (its `seq`, `creditRef` and `opened` must match, and `remaining`
    stays at most `opened`); otherwise the item is inserted where `seq` keeps
    ascending, with `remaining = amount`, the entry's `opened`, the UUID that
    leads `debtId` as `originTransactionId` and the `creditRef` balance's asset,
-   and its `seq` must be below `nextSeq`. A mismatch is a technical error. One
-   `reopened` change each.
+   and its `seq` must be below `nextSeq`. A mismatch is a technical error. Each
+   reopen first touches its debtor, so a deleted debtor refuses with
+   `balance_deleted` and a closed or closing account refuses exactly as for any
+   touched balance. One `reopened` change each.
 
 Then the posting loop:
 
@@ -393,7 +400,8 @@ array in result order and is absent when the result has no change of its kind:
 - `feeDebtOpenings`: one `command.FeeDebtOpening` (`debtId`, `debtorRef`,
   `creditRef`, `opened`, `seq`) per `opened` change.
 - `feeDebtSettlements`: one `command.FeeDebtSettlement` (`debtId`, `debtorRef`,
-  `creditRef`, `amount`, `opened`, `seq`) per `settled` change.
+  `creditRef`, `amount`, `opened`, `seq`) per `settled` change, so a debt that
+  two collects settled appears twice.
 
 A pending commit's completion merges them into the transaction's existing
 metadata and never replaces it. `TransactionRevert` copies the parent's metadata
@@ -421,14 +429,24 @@ the evidence is reaped. Rows are not the source: the primary route loads
 operations without metadata, and an unpaid fee writes none. The Fees `fee_debt`
 documents are not either: they lag completion and round past 34 digits.
 
+- Declared lists: the debtors of P's `feeDebtOpenings` (refund and cancel) and
+  `feeDebtSettlements` (reopen) and, on `/v2`, each debtor that gets a collect.
+  An item whose origin is P lives only in the list of a debtor P opened it for,
+  since a reopen restores it to the same `debtorRef`, so the openings debtors
+  cover every item cancel can find, a payer that is a source of the reversal
+  included. A revert with nothing owed declares no key and stays byte-identical.
+- `/v1`: a `/v1` revert composes refund, reopen and cancel but never a collect,
+  so reverting a `/v2` transaction through `/v1` still reverses its fee fully;
+  a parent without fee-debt metadata reverts on `/v1` byte-identically.
 - P opened debts: the payer gets the whole fee back. The row reversal returns
   what P paid, one refund posting per debtor of `feeDebtOpenings` returns what
   later credits settled, and step 1 cancels what is still open.
-- P settled debts: each `feeDebtSettlements` entry becomes one `reopenFeeDebts`
-  entry with its `amount`, `opened` and `seq`, unless the debt's origin is
-  already reverted. Go learns that with `GetParentByTransactionID` on the origin
-  (the UUID leading `debtId`) in the debtor's scope, the same read the revert
-  gate uses.
+- P settled debts: Go sums the `feeDebtSettlements` entries of each `debtId`
+  into one `reopenFeeDebts` entry (`amount` = the sum; `debtorRef`,
+  `creditRef`, `opened` and `seq` are the same on every entry), the reopens
+  ordered by `seq`, and skips a debt whose origin is already reverted. Go
+  learns that with `GetParentByTransactionID` on the origin (the UUID leading
+  `debtId`) in the debtor's scope, the same read the revert gate uses.
 - C, a credit that settled an O debt, reverted before O: C's revert reopened
   the debt, so O's revert cancels `opened` and refunds 0.
 - C reverted after O: Go reopens no debt whose origin is already reverted, and
