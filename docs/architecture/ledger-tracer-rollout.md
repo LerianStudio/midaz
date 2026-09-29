@@ -26,8 +26,32 @@ checks do not certify the remote Tracer's version, policies or readiness.
      and `PLUGIN_AUTH_HOST` (or a plugin-auth address that service discovery
      resolves under `SD_ENABLED=true`). Map the application's client ID (the token's `azp`)
      to the `ledger` service in the Tracer's `TRACER_PLATFORM_PRODUCERS`
-     (`clientId`), and point the Tracer's `CONTEXT_M2M_JWKS_URL` and
-     `CONTEXT_M2M_ISSUER` at the same Access Manager.
+     (`clientId`), and run the Tracer with `PLUGIN_AUTH_ENABLED=true` against
+     the same Access Manager: the Tracer authorizes every reservation request
+     there as `tracer/reservations:post`, and a denied token, or an `azp` that
+     is not mapped, is 403 `0043`. With the platform default
+     `AUTH_M2M_INVERSION_ENABLED=false`, lib-auth authorizes an application
+     token as the fabricated role `admin/tracer-editor-role`, which the seed
+     grants `tracer/reservations:post`: the Access Manager validates the token
+     but does not check the calling application's own grant, so the producer
+     filter is the `TRACER_PLATFORM_PRODUCERS` roster. Only with
+     `AUTH_M2M_INVERSION_ENABLED=true` on the Tracer is the calling
+     application's own permission checked; grant the Ledger's M2M application
+     `tracer/reservations:post` before enabling it.
+     The Ledger's client-credentials token must carry `sub`: the Tracer's
+     route guard answers a token without it with 401 `0474`, which the Ledger
+     treats as a persistent 401, that is, as Tracer unavailability. Every HTTP
+     reservation, confirm and release makes one Access Manager authorization
+     call; lib-auth caches decisions only when the Tracer sets
+     `AUTH_CACHE_TTL` to a positive duration (unset or `0`, the default,
+     disables the cache), and a revocation then takes up to that TTL to apply.
+     An Access Manager denial (403 `0043`) rejects accounting in every
+     `tracer.mode` that calls the Tracer, `advisory` included. On a confirm or
+     release it is terminal for the Ledger, like every refusal before
+     evaluation: do not remove `tracer/reservations:post` from the tracer roles
+     (inversion off) or from the Ledger's application (inversion on) while
+     PENDING transactions exist, or their confirm is refused and dropped, and
+     the reservation expires by TTL instead of being counted.
    - **gRPC** (`TRACER_TRANSPORT=grpc`, the default): issue the Ledger a client
      certificate with exactly one URI subject alternative name (for example
      `spiffe://<trust-domain>/ledger`), signed by a CA in the Tracer's
@@ -41,12 +65,13 @@ checks do not certify the remote Tracer's version, policies or readiness.
    `TRACER_PLATFORM_PRODUCERS` enables the Tracer's reservation surface; empty,
    the Tracer serves validations only, mounts no reservation route, refuses a
    `TRACER_GRPC_PORT`, and accepts limits of any scope. Once it is set, limits
-   must be account-only, and outside `DEPLOYMENT_MODE=local`
-   `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are required, even when only
-   gRPC is used. `TRACER_PLATFORM_PRODUCERS` is at most 64 KiB and
-   rejects an unknown entry key. Under `DEPLOYMENT_MODE=local` the Tracer does
-   not verify producer tokens and attributes every HTTP reservation to the
-   ledger; that mode is refused together with `MULTI_TENANT_ENABLED=true`. A
+   must be account-only, and outside `DEPLOYMENT_MODE=local` the Tracer
+   requires `PLUGIN_AUTH_ENABLED=true`, even when only gRPC is used.
+   `TRACER_PLATFORM_PRODUCERS` is at most 64 KiB and rejects an unknown entry
+   key. Under `DEPLOYMENT_MODE=local` with plugin auth disabled the Tracer
+   verifies no caller and attributes every HTTP reservation to the ledger;
+   plugin auth disabled is refused together with `MULTI_TENANT_ENABLED=true`.
+   With plugin auth enabled the Access Manager check applies in every mode. A
    multi-tenant Tracer that serves gRPC refuses boot without its tenant
    authorizer and tenant pool manager.
 
@@ -325,7 +350,7 @@ reaper:
 - A Tracer `DEPLOYMENT_MODE=saas` sets `TRACER_TLS_MODE` (`mtls`, or `mesh` when
   a sidecar terminates TLS).
 - Both sides agree on `MULTI_TENANT_ENABLED`, parsed as each boot parses it.
-  When it is true, the Tracer does not run `DEPLOYMENT_MODE=local` and sets
+  When it is true, the Tracer sets `PLUGIN_AUTH_ENABLED=true`,
   `MULTI_TENANT_URL` and `MULTI_TENANT_SERVICE_API_KEY`.
 - The Ledger sets `TRACER_BASE_URL`.
 - The Ledger's `APPLICATION_NAME` (unset means `ledger`) is in the producer
@@ -349,12 +374,12 @@ reaper:
   - The Ledger sets `IDP_M2M_CLIENT_ID` and a non-empty
     `IDP_M2M_CLIENT_SECRET`, and `TRACER_PLATFORM_PRODUCERS` maps that client
     ID onto the Ledger's service.
-  - Unless the Tracer runs `DEPLOYMENT_MODE=local`, the Tracer sets
-    `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`.
 - For `grpc`:
   - Both sides run `TRACER_TLS_MODE=mtls`.
   - The Tracer sets `TRACER_GRPC_PORT`.
   - `TRACER_PLATFORM_PRODUCERS` maps a `certUri` onto the Ledger's service.
+- For either transport, the Tracer sets `PLUGIN_AUTH_ENABLED=true` unless it
+  runs `DEPLOYMENT_MODE=local`.
 - The Tracer does not set `RESERVATION_REAPER_ENABLED` to false or to an
   unparsable value; unset keeps the default (on).
 

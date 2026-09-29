@@ -519,8 +519,12 @@ The ledger reaches Tracer through the reservation contract, served on `/v1/reser
 by setting `TRACER_BASE_URL` (empty wires no reservation client, so no transaction path dials the
 tracer). `TRACER_TRANSPORT` selects gRPC (default) or REST. Every caller is a platform producer from
 the roster `{ledger}`, and each transport has its own identity: REST presents an Access Manager M2M
-token (`Authorization: Bearer`) that the tracer verifies locally against `CONTEXT_M2M_JWKS_URL` and
-maps by `azp`; gRPC presents a client certificate (`TRACER_TLS_MODE=mtls` on both sides) whose URI
+token (`Authorization: Bearer`) that the tracer authorizes through the Access Manager as
+`tracer/reservations:post` (with the default `AUTH_M2M_INVERSION_ENABLED=false` lib-auth authorizes
+application tokens as the fabricated role `admin/tracer-editor-role`, so the Access Manager validates
+the token but not the application's own grant and the roster is the producer filter; only with
+inversion on does the Ledger's M2M application need the grant itself), then
+requires to be an application token and maps by `azp`; gRPC presents a client certificate (`TRACER_TLS_MODE=mtls` on both sides) whose URI
 subject alternative name the tracer maps by `certUri`. Both maps live in the tracer's
 `TRACER_PLATFORM_PRODUCERS`. The tenant (`X-Tenant-Id` / `x-tenant-id` metadata) is then authorized
 against a cached set of the tenants active for the producer's service, read from the tenant-manager
@@ -1052,8 +1056,8 @@ Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVE
 plus the standard OTEL exporter vars. Reservation producer identity is `TRACER_PLATFORM_PRODUCERS`
 (JSON map of roster service → M2M `clientId` and/or certificate `certUri`; set, it enables the
 reservation surface and account-only limit scopes; empty, the Tracer serves validations only with
-unrestricted limit scopes), `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` (both required with
-producers set unless `DEPLOYMENT_MODE=local`, where token verification is off). Under multi-tenancy `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list
+unrestricted limit scopes); with producers set, `PLUGIN_AUTH_ENABLED=true` is required unless
+`DEPLOYMENT_MODE=local`, where plugin auth disabled attributes every HTTP reservation to the ledger. Under multi-tenancy `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list
 active tenants for `service=ledger`, and `MULTI_TENANT_CACHE_TTL_SEC` bounds how late a revoked tenant
 association takes effect. `TRACER_GRPC_PORT` starts the gRPC seam and requires `TRACER_TLS_MODE=mtls`
 plus a `certUri` mapping. Under `mtls` the HTTP listener serves server-only TLS and the gRPC listener

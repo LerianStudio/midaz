@@ -156,7 +156,7 @@ next edit to the file, and four of the eight that used to sit in this table had 
 | Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
 |-----------|-------------|----------------------|------------------------|
 | `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `account-block-exceptions`, `balances`, `transactions`, `operations`, `settings`, `account-types`, `operation-routes`, `transaction-routes`, `holders`, `instruments`, `encryption`, `protection`, `streaming-manifest`, `packages`, `estimates`, `billing-packages`, `billing-calculate`, `fee-debts` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `holder_routes.go` + `holder_accounts_routes.go` for `holders`, `instrument_routes.go` for `instruments`, `encryption_routes.go` for `encryption`, `audit_routes.go` for `protection`, `streaming_manifest_routes.go` for `streaming-manifest`; `fee_package_routes.go`, `fee_estimate_routes.go`, `billing_package_routes.go`, `billing_calculate_routes.go` and `fee_debt_routes.go` (each calling `protectedMidaz` → `midazName`) for `packages`/`estimates`/`billing-packages`/`billing-calculate`/`fee-debts` — there is no dedicated fees authz const; the fee surface is served on `/v2` only |
-| `tracer` | tracer (`:4020`) | `audit-events` (reservations are not RBAC-checked; see below) | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
+| `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
 > **Audit-ref check:** every symbol above resolves in the tree as written — `midazName` and
 > `protectedMidaz` (`routes.go`); the fee/billing registrars (`fee_package_routes.go`,
@@ -319,13 +319,23 @@ namespace break integrators ever absorb is the single coordinated X1 migration. 
 
 ## Tracer reservations
 
-`/v1/reservations` and the gRPC reservation seam are not authorized through
-`auth.Authorize`: no `tracer:reservations:*` tuple is checked. HTTP producers
-present an Access Manager M2M token, verified locally with lib-auth
-`RequireM2M` and mapped from its `azp` to a platform producer through
-`TRACER_PLATFORM_PRODUCERS`; gRPC producers are identified by their client
-certificate. The tenant is then authorized by its tenant-manager association
-with the producer's service. User tokens are refused (403). See
+Every `/v1/reservations` route is authorized through `auth.Authorize` as
+`tracer:reservations:post`, like every other Tracer route. With the platform
+default `AUTH_M2M_INVERSION_ENABLED=false`, lib-auth authorizes an application
+token as the fabricated role `admin/tracer-editor-role`, which the seed grants
+`tracer:reservations:post`: the Access Manager validates the token but does not
+check the calling application's own grant, so the producer filter is the
+`TRACER_PLATFORM_PRODUCERS` roster. Only with `AUTH_M2M_INVERSION_ENABLED=true`
+is the calling application's own permission checked, and the Ledger's M2M
+application then needs `tracer:reservations:post`. Do not remove that
+permission from the tracer roles (inversion off) or from the Ledger's
+application (inversion on) while PENDING transactions exist: a denied confirm
+is terminal for the Ledger. After the Access Manager authorizes the request, the token must be an
+application token whose `azp` maps to a platform producer through
+`TRACER_PLATFORM_PRODUCERS`; a user token, or an unmapped `azp`, is 403 `0043`.
+The gRPC reservation seam is not RBAC-checked: gRPC producers are identified by
+their client certificate. On both transports the tenant is then authorized by
+its tenant-manager association with the producer's service. See
 [Tracer invariants](../tracer/INVARIANTS.md#producer-identity-for-reservations).
 
 ## Tracer policy administration

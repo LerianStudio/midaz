@@ -308,20 +308,30 @@ both resolve to the same `Producer{Service}` value, and everything after identit
 | Transport | Ledger presents | Tracer verifies | Mapped by |
 |---|---|---|---|
 | gRPC (`TRACER_TRANSPORT=grpc`, default) | its client certificate over native mTLS; tenant in `x-tenant-id` metadata; no token | `RequireAndVerifyClientCert` against `TRACER_TLS_CLIENT_CA_FILE`; the verified leaf must carry exactly one URI subject alternative name | `certUri` in `TRACER_PLATFORM_PRODUCERS` |
-| REST (`TRACER_TRANSPORT=rest`) | `Authorization: Bearer <M2M token>` from the Access Manager plus `X-Tenant-Id` | lib-auth `RequireM2M`, locally against the cached JWKS at `CONTEXT_M2M_JWKS_URL` and the issuer `CONTEXT_M2M_ISSUER` | the token's `azp` as `clientId` in `TRACER_PLATFORM_PRODUCERS` |
+| REST (`TRACER_TRANSPORT=rest`) | `Authorization: Bearer <M2M token>` from the Access Manager plus `X-Tenant-Id` | lib-auth `Authorize("tracer", "reservations", "post")` through the Access Manager, then an application token (`type=application`) | the token's `azp` as `clientId` in `TRACER_PLATFORM_PRODUCERS` |
 
 `TRACER_PLATFORM_PRODUCERS` is a JSON array such as
 `[{"service":"ledger","clientId":"<azp>","certUri":"spiffe://<trust-domain>/ledger"}]`; its boot
 rules are in [Tracer invariants](../tracer/INVARIANTS.md#producer-identity-for-reservations). An
-unmapped `azp` or certificate is 403 / `PermissionDenied` with `0043`. On REST the rejections are
-`application/problem+json`: a missing token is 401 `0041`, an invalid or expired token is 401 `0042`
-(also when the JWKS cannot be fetched), and a user token or unmapped `azp` is 403 `0043`. Under
-`DEPLOYMENT_MODE=local` the Tracer skips token verification and attributes every HTTP reservation to
-the ledger producer, logging a Warn at boot; `DEPLOYMENT_MODE=local` together with
-`MULTI_TENANT_ENABLED=true` refuses boot. `TRACER_PLATFORM_PRODUCERS` (at most 64 KiB; an unknown entry key is rejected) enables
+unmapped `azp` or certificate is 403 / `PermissionDenied` with `0043`. On REST the Access Manager
+round-trip is the trust anchor: the Tracer reads the token's claims only after the Access Manager
+authorized `tracer/reservations:post`. With the platform default `AUTH_M2M_INVERSION_ENABLED=false`,
+lib-auth authorizes an application token as the fabricated role `admin/tracer-editor-role`, which the
+seed grants `tracer/reservations:post`: the Access Manager validates the token but does not check the
+calling application's own grant, so the producer filter is the `TRACER_PLATFORM_PRODUCERS` roster.
+Only with `AUTH_M2M_INVERSION_ENABLED=true` is the calling application's own permission checked. The
+rejections are `application/problem+json`: a missing
+token is 401 `0042`, a token the Access Manager denies is 403 `0043`, an Access Manager that cannot
+decide is 503 `0525` (the Ledger treats it as Tracer unavailability, so `failPosture` applies), and an
+authorized token that is not an application token, or whose `azp` is unmapped, is 403 `0043`. A bearer
+token without `sub` is 401 `0474` from the route guard. Tokens are never echoed. Under
+`DEPLOYMENT_MODE=local` with `PLUGIN_AUTH_ENABLED=false` the Tracer verifies no caller and attributes
+every HTTP reservation to the ledger producer, logging a Warn at boot; plugin auth disabled together
+with `MULTI_TENANT_ENABLED=true` refuses boot. With plugin auth enabled the Access Manager check
+applies in every mode. `TRACER_PLATFORM_PRODUCERS` (at most 64 KiB; an unknown entry key is rejected) enables
 the reservation surface; empty, the Tracer serves validations only, mounts no reservation route,
 refuses `TRACER_GRPC_PORT` and accepts limits of any scope. Once it is set, outside `local`,
-`CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are required, whichever transports it serves. A multi-tenant Tracer that serves gRPC refuses boot
+`PLUGIN_AUTH_ENABLED=true` is required, whichever transports it serves. A multi-tenant Tracer that serves gRPC refuses boot
 without its tenant authorizer and tenant pool manager.
 
 **Ledger side.** The integration ID is the Ledger's `APPLICATION_NAME` (unset means `ledger`),
@@ -344,6 +354,10 @@ REST refuses boot when `PLUGIN_AUTH_ENABLED=false` or either credential is empty
 `PLUGIN_AUTH_HOST` nor service discovery provides the plugin-auth address. Under
 `DEPLOYMENT_MODE=saas` it also refuses an `http://` `TRACER_BASE_URL` or plugin-auth address unless
 `TRACER_TLS_MODE=mesh`.
+The Ledger's M2M application (`IDP_M2M_CLIENT_ID`) must be a `clientId` in the Tracer's
+`TRACER_PLATFORM_PRODUCERS`, and with `AUTH_M2M_INVERSION_ENABLED=true` on the Tracer it must also
+hold `tracer/reservations:post`; otherwise every REST reservation is 403 `0043`. Its token must carry
+`sub`.
 gRPC refuses boot unless `TRACER_TLS_MODE=mtls` with `TRACER_TLS_CERT_FILE`, `TRACER_TLS_KEY_FILE` and
 `TRACER_TLS_CA_FILE`.
 
@@ -417,8 +431,8 @@ end. Ledger `TRACER_TLS_CA_FILE` verifies the **tracer's** server leaf; Tracer
 `TRACER_TLS_CLIENT_CA_FILE` verifies the **ledger's** gRPC client leaf.
 
 **Rotation / hot-reload:** both sides load their cert/key through the lib-commons
-`certificate.Manager`, so certificates rotate without restart. JWKS keys refresh in the background
-of the Tracer's key source; M2M tokens renew before they expire.
+`certificate.Manager`, so certificates rotate without restart. M2M tokens renew before they
+expire.
 
 ---
 
@@ -476,8 +490,7 @@ truth for their **existence and semantics**.
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** gRPC client leaf; required in `mtls` |
 | `TRACER_PLATFORM_PRODUCERS` | tracer | roster service → `clientId` and/or `certUri`; set enables the reservation surface, empty is validations-only; at most 64 KiB, unknown keys rejected |
-| `CONTEXT_M2M_JWKS_URL` | tracer | JWKS verifying producer tokens; required with producers set outside `DEPLOYMENT_MODE=local` |
-| `CONTEXT_M2M_ISSUER` | tracer | expected token issuer; required unless `DEPLOYMENT_MODE=local` |
+| `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS` | tracer | Access Manager that authorizes REST reservation callers; required with producers set unless `DEPLOYMENT_MODE=local` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) |
 
 The Ledger and Tracer `.env.example` files expose these variables. The Ledger

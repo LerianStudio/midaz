@@ -774,10 +774,17 @@ completion to the Tracer reservation TTL.
 
 Every caller is a platform producer (the roster is `{ledger}`):
 
-- **HTTP**: an Access Manager M2M token, verified locally against
-  `CONTEXT_M2M_JWKS_URL` / `CONTEXT_M2M_ISSUER` and mapped by its `azp`. A
-  missing token is 401 `0041`, an invalid one 401 `0042`, and a user token or
-  unmapped `azp` 403 `0043`, all as `application/problem+json`.
+- **HTTP**: an Access Manager M2M token, authorized through the Access Manager
+  as `tracer/reservations:post` like every other Tracer route, then required to
+  be an application token whose `azp` is mapped. A missing token is 401 `0042`,
+  a denied one 403 `0043`, and an Access Manager that cannot decide 503 `0525`;
+  an authorized token that is not an application token, or whose `azp` is
+  unmapped, is 403 `0043`. All are `application/problem+json`. With the
+  platform default `AUTH_M2M_INVERSION_ENABLED=false`, lib-auth authorizes an
+  application token as the fabricated role `admin/tracer-editor-role`, so the
+  Access Manager validates the token but not the application's own grant and
+  the roster is the producer filter; only with inversion on must the Ledger's
+  M2M application hold `tracer/reservations:post` itself.
 - **gRPC** (`TRACER_GRPC_PORT`, requires `TRACER_TLS_MODE=mtls`): the verified
   client certificate, mapped by its URI subject alternative name.
 
@@ -787,11 +794,10 @@ Both maps live in `TRACER_PLATFORM_PRODUCERS`, e.g.
 enables the reservation surface: empty or unset, the Tracer serves validations
 only, the reservation routes return 404, `TRACER_GRPC_PORT` refuses boot, and
 limits accept any scope. When it is set, limits must be account-only, and
-outside `DEPLOYMENT_MODE=local` `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`
-are required, whichever transports are served. Under
-`local` producer tokens are not verified and every HTTP reservation is
-attributed to the ledger; `local` together with `MULTI_TENANT_ENABLED=true`
-refuses boot.
+`PLUGIN_AUTH_ENABLED=true` is required unless `DEPLOYMENT_MODE=local`,
+whichever transports are served. Under `local` with plugin auth disabled no
+caller is verified and every HTTP reservation is attributed to the ledger;
+plugin auth disabled together with `MULTI_TENANT_ENABLED=true` refuses boot.
 
 In multi-tenant mode the tenant from `X-Tenant-Id` (REST) or `x-tenant-id`
 metadata (gRPC) must be in the cached set of

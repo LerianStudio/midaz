@@ -23,10 +23,14 @@
 //                    "asset":"USD","contextId":"<ledger UUID bound to a policy>"}
 //     The contextId must have a policy binding for the "ledger" integration, and
 //     the account is reported as an ACTIVE, unblocked deposit account.
-//   - TRACER_M2M_TOKEN: an Access Manager M2M access token whose azp is mapped to
-//     the "ledger" service in the tracer's TRACER_PLATFORM_PRODUCERS. Leave it
-//     unset only against a tracer running with DEPLOYMENT_MODE=local, where
-//     producer token verification is off.
+//   - TRACER_M2M_TOKEN: an Access Manager M2M access token of an application
+//     whose azp is mapped to the "ledger" service in the tracer's
+//     TRACER_PLATFORM_PRODUCERS. With the default AUTH_M2M_INVERSION_ENABLED=false
+//     the tracer authorizes it as the fabricated admin/tracer-editor-role; only
+//     with inversion on must the application itself hold
+//     tracer/reservations:post. Leave it unset only against a
+//     tracer running with PLUGIN_AUTH_ENABLED=false under DEPLOYMENT_MODE=local,
+//     which attributes every reservation to the ledger.
 //   - TRACER_TENANT_ID: the X-Tenant-Id to send when the tracer runs with
 //     MULTI_TENANT_ENABLED=true. The tenant must be associated with the "ledger"
 //     service in the tenant-manager.

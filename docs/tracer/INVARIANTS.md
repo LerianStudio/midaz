@@ -401,15 +401,38 @@ Each transport has its own credential, and both resolve to the same
 `Producer{Service}` value; everything after identity is shared.
 
 - **HTTP** (`/v1/reservations`): the producer presents an M2M access token issued
-  by the Access Manager (`Authorization: Bearer`). lib-auth `RequireM2M` verifies
-  it locally against the JWKS at `CONTEXT_M2M_JWKS_URL`, with keys cached and
-  refreshed in the background, and pins the issuer to `CONTEXT_M2M_ISSUER`; no
-  call to the Access Manager happens on the request path. Rejections are
-  `application/problem+json`: a missing token is 401 `0041`, an invalid or
-  expired token is 401 `0042` (also when the JWKS cannot be fetched), and a user
-  token is 403 `0043`. The token's `azp` is then looked up exactly in
-  `TRACER_PLATFORM_PRODUCERS` (`clientId`); an unmapped `azp` is 403 `0043`. The
-  HTTP listener never asks for a client certificate.
+  by the Access Manager (`Authorization: Bearer`). Like every other Tracer
+  route, the request is first authorized through the Access Manager by lib-auth
+  `Authorize("tracer", "reservations", "post")`. That round-trip is the trust
+  anchor; the token's claims are read only after it succeeds. The authorized
+  token must be an application token (`type=application`) whose `azp` is looked
+  up exactly in `TRACER_PLATFORM_PRODUCERS` (`clientId`). With the platform
+  default `AUTH_M2M_INVERSION_ENABLED=false`, lib-auth authorizes an
+  application token as the fabricated role `admin/tracer-editor-role`, which the
+  seed grants `tracer/reservations:post`: the Access Manager validates the token
+  but does not check the calling application's own grant, so the producer
+  filter is the roster. Only with `AUTH_M2M_INVERSION_ENABLED=true` is the
+  calling application's own permission checked, and the Ledger's M2M
+  application then needs a grant of `tracer/reservations:post`. Rejections are
+  `application/problem+json`: a missing token is 401 `0042`, a token the Access
+  Manager denies is 403 `0043`, and an Access Manager that cannot decide is 503
+  `0525`, which the Ledger treats as Tracer unavailability. An authorized token
+  that is not an application token, or whose `azp` is unmapped, is 403 `0043`. A
+  bearer token without `sub` is 401 `0474` from the route guard, in the flat
+  guard body, so the Ledger's client-credentials token must carry `sub`. Tokens
+  are never echoed. The HTTP listener never asks for a client certificate.
+  The claim fallback that reads `type` and `azp` without verifying the
+  signature is reachable only through the chain that mounts the guard in front
+  of it, because the Access Manager introspects the token on `/v1/authorize`.
+  Both read the token with the same extraction, so a bare token without the
+  `Bearer` scheme is authorized and resolved as one token. Every HTTP
+  reservation, confirm and release makes one Access Manager authorization call;
+  lib-auth caches decisions only when `AUTH_CACHE_TTL` is a positive duration
+  (unset or `0`, the default, disables the cache). An Access Manager denial
+  (403 `0043`) on a confirm or release is terminal for the Ledger: do not remove
+  `tracer/reservations:post` from the tracer roles (inversion off) or from the
+  Ledger's application (inversion on) while PENDING transactions exist, or
+  their confirm is dropped and the reservation expires by TTL.
 - **gRPC**: the producer presents a client certificate on the mutually
   authenticated listener. The handshake must be complete, the leaf must equal
   the first verified chain's leaf, and the certificate must carry exactly one URI
@@ -433,11 +456,14 @@ Tracer serves validations only: the reservation routes are not mounted (404),
 `TRACER_GRPC_PORT` refuses boot because the gRPC listener serves only
 reservations, limits accept any scope (the account-only definition policy is
 not installed), none of the reservation settings is read, and boot logs one
-Info. When it is set, `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are
-required unless `DEPLOYMENT_MODE=local`, whichever transports it serves. Under `local` producer token verification is off: every
-HTTP reservation is attributed to the ledger producer, and boot logs a Warn.
-`DEPLOYMENT_MODE=local` together with `MULTI_TENANT_ENABLED=true` refuses boot,
-because an unverified caller would choose its own tenant. A multi-tenant Tracer
+Info. When it is set, `PLUGIN_AUTH_ENABLED=true` is required unless
+`DEPLOYMENT_MODE=local`, whichever transports it serves. Under `local` with
+plugin auth disabled no caller is verified: every HTTP reservation is attributed
+to the ledger producer without asking for a token or an API key (the route guard
+is not mounted, so `API_KEY_ENABLED` does not apply), and boot logs a Warn. With plugin auth enabled the
+Access Manager check applies in every mode. Plugin auth disabled together with
+`MULTI_TENANT_ENABLED=true` refuses boot, because an unverified caller would
+choose its own tenant. A multi-tenant Tracer
 that serves gRPC refuses boot without its tenant authorizer and tenant pool
 manager.
 
