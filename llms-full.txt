@@ -481,6 +481,14 @@ several apply, the one carrying the most selectors wins, each metadata pair coun
 is refused (`0198`). Two packages on overlapping bands collide (`0184`/`0199`) only when their
 selectors are identical.
 
+A fee may set `deferrable` (optional, default `false`, returned on every read). When the payer
+cannot fund a deferrable fee, the unfunded share opens a fee debt that the payer's later credits
+settle, oldest first, instead of refusing the transaction with `0018`; the debt is listed on
+`{base}/fee-debts`. Only a fee with `isDeductibleFrom: false` can be deferrable: create or update
+leaving a fee both deductible and deferrable is refused with `0530` (422). The transaction then
+records the executed amount, the send less the debt opened. Enable it only once every ledger pod
+runs a release that knows fee debt (see `docs/architecture/engine.md`).
+
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
 

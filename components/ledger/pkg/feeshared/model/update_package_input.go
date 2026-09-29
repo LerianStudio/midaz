@@ -175,7 +175,7 @@ func (f *Fee) settlesTheMinimumCheck() bool {
 
 // removesTheFee reports whether this patch entry deletes the fee rather than editing
 // it. The update removes a fee whose entry sets no field at all, so this is the exact
-// negation of the eight field writers SetAndValidateHasFieldsToUpdate runs, read
+// negation of the nine field writers SetAndValidateHasFieldsToUpdate runs, read
 // through the same emptiness test they use. It is the only place that decision is
 // made: SetAndValidateHasFieldsToUpdate asks it too, so the check that skips a fee
 // its patch settles and the write that applies the patch cannot disagree.
@@ -190,7 +190,8 @@ func (f *Fee) removesTheFee() bool {
 		commons.IsNilOrEmpty(f.RouteFrom) &&
 		commons.IsNilOrEmpty(f.RouteTo) &&
 		f.Priority == 0 &&
-		f.IsDeductibleFrom == nil
+		f.IsDeductibleFrom == nil &&
+		f.Deferrable == nil
 }
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
@@ -303,6 +304,12 @@ func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeducti
 		hasValueToUpdate = hasValueToUpdate || updated
 	}
 
+	if updated, err := f.updateDeferrable(existingFees[feeKey], feeKey, upFields); err != nil {
+		return hasValueToUpdate, err
+	} else {
+		hasValueToUpdate = hasValueToUpdate || updated
+	}
+
 	if updated := f.updateFeeLabel(feeKey, upFields); updated {
 		hasValueToUpdate = true
 	}
@@ -396,6 +403,22 @@ func (f *Fee) updateIsDeductibleFrom(hasUpdatedCalculationModel bool, existingFe
 	}
 
 	upFields["fees."+feeKey+".is_deductible_from"] = f.IsDeductibleFrom
+
+	return true, nil
+}
+
+// updateDeferrable writes a patched deferrable flag. It runs on every patch, because
+// setting isDeductibleFrom alone can leave a stored deferrable fee deductible.
+func (f *Fee) updateDeferrable(stored Fee, feeKey string, upFields bson.M) (bool, error) {
+	if err := f.validateDeferrable(stored, feeKey); err != nil {
+		return false, err
+	}
+
+	if f.Deferrable == nil {
+		return false, nil
+	}
+
+	upFields["fees."+feeKey+".deferrable"] = *f.Deferrable
 
 	return true, nil
 }

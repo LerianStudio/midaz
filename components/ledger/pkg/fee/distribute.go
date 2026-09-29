@@ -514,7 +514,7 @@ func emitNonDeductibleLeg(
 	// Both halves of the pair are minted here, so both are marked here, from one flag on the
 	// amount the two writes below copy.
 	resultAmount.FeeLeg = true
-	if feeModel.Deferrable {
+	if feeModel.GetDeferrable() {
 		resultAmount.FeeDeferPair = strconv.Itoa(feeIndex) + ":" + key
 	}
 

@@ -73,7 +73,7 @@ func deferFeeLegs(t *testing.T, deductible, deferrable bool) ([]transaction.From
 			Calculations:    []model.Calculation{{Type: feeconstant.FeeTypeFlat, Value: "10"}},
 		},
 		ReferenceAmount: "originalAmount", Priority: 1, IsDeductibleFrom: &deductible,
-		CreditAccount: "@fee_account", Deferrable: deferrable,
+		CreditAccount: "@fee_account", Deferrable: &deferrable,
 	}
 	resp := &transaction.Responses{
 		From: map[string]transaction.Amount{"@from_account": {Asset: "BRL", Value: value}},

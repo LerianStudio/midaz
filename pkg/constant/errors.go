@@ -671,6 +671,9 @@ var (
 	// touches disagree with their record, which lags while completion projects it.
 	// Nothing moved, so a retry is valid once the record catches up.
 	ErrFeeDebtRecordPending = errors.New("0529")
+	// ErrDeferrableDeductibleFee refuses a fee both deducted from the payment and
+	// deferrable: fee debt defers only a fee charged on top of the payment.
+	ErrDeferrableDeductibleFee = errors.New("0530")
 )
 
 // List of CRM domain errors.

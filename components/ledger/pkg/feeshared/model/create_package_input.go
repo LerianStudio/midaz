@@ -47,6 +47,10 @@ func (cp *CreatePackageInput) ValidateFees() error {
 			return pkg.ValidateBusinessError(constant.ErrIsDeductibleFrom, "", key)
 		}
 
+		if err := fee.validateDeferrable(Fee{}, key); err != nil {
+			return err
+		}
+
 		if err := validateCalculationModel(fee.CalculationModel, cp.MinAmount, key, fee.GetIsDeductibleFrom()); err != nil {
 			return err
 		}

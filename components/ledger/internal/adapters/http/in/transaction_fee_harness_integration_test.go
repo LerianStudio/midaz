@@ -528,6 +528,7 @@ type feeSpec struct {
 	rule          string // "flatFee" | "percentual" | "maxBetweenTypes"
 	calcs         []feemodel.Calculation
 	deductible    bool
+	deferrable    bool
 	creditAccount string
 	priority      int
 	referenceAmt  string // defaults to originalAmount
@@ -582,6 +583,7 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 			CreditAccount:    f.creditAccount,
 			RouteFrom:        f.routeFrom,
 			RouteTo:          f.routeTo,
+			Deferrable:       &f.deferrable,
 		}
 	}
 

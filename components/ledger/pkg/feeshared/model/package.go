@@ -33,9 +33,8 @@ type Fee struct {
 	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
 	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
 	// Deferrable turns an unfunded non-deductible fee into a fee debt instead of a
-	// refusal. It is off every JSON surface, the package cache included, until
-	// packages persist it.
-	Deferrable bool `json:"-"`
+	// refusal. Nil means false; a deductible fee cannot be deferrable.
+	Deferrable *bool `json:"deferrable,omitempty" example:"false" doc:"Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false."`
 }
 
 func (f *Fee) GetIsDeductibleFrom() bool {
@@ -44,6 +43,28 @@ func (f *Fee) GetIsDeductibleFrom() bool {
 	}
 
 	return *f.IsDeductibleFrom
+}
+
+func (f *Fee) GetDeferrable() bool {
+	return f.Deferrable != nil && *f.Deferrable
+}
+
+// validateDeferrable refuses a fee left both deductible and deferrable, reading
+// stored for each field this entry does not set.
+func (f *Fee) validateDeferrable(stored Fee, feeKey string) error {
+	if f.IsDeductibleFrom != nil {
+		stored.IsDeductibleFrom = f.IsDeductibleFrom
+	}
+
+	if f.Deferrable != nil {
+		stored.Deferrable = f.Deferrable
+	}
+
+	if stored.GetIsDeductibleFrom() && stored.GetDeferrable() {
+		return pkg.ValidateBusinessError(constant.ErrDeferrableDeductibleFee, "", feeKey)
+	}
+
+	return nil
 }
 
 func (f *Fee) GetRouteFrom() string {
@@ -174,6 +195,10 @@ func (f *Fee) ValidateIfFeeIsNil() bool {
 
 func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
 	if err := f.validateRequiredFields(feeKey); err != nil {
+		return err
+	}
+
+	if err := f.validateDeferrable(Fee{}, feeKey); err != nil {
 		return err
 	}
 

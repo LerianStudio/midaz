@@ -2086,6 +2086,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Query Parameter Not Accepted",
 			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
 		},
+		constant.ErrDeferrableDeductibleFee: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeferrableDeductibleFee.Error(),
+			Title:      "Deductible fee cannot be deferrable",
+			Message:    fmt.Sprintf("Fee %v is deducted from the payment (isDeductibleFrom true), so it cannot be deferrable. Set deferrable to false or isDeductibleFrom to false.", args...),
+		},
 		constant.ErrDuplicateFeeKey: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateFeeKey.Error(),

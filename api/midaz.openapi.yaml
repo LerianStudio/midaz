@@ -17886,6 +17886,15 @@ components:
           examples:
             - conta_receita_taxas_adm
           type: string
+        deferrable:
+          description: >-
+            Whether the share of this fee the payer cannot fund becomes a fee
+            debt, settled by the payer's next credits, instead of refusing the
+            transaction. Only a fee whose isDeductibleFrom is false can be
+            deferrable. Defaults to false.
+          examples:
+            - false
+          type: boolean
         feeLabel:
           examples:
             - Taxa Administrativa

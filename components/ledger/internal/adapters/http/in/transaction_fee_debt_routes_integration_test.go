@@ -8,6 +8,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
-	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
+	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
@@ -50,11 +51,6 @@ func newFeeDebtRoutes(t *testing.T, validated bool) *feeDebtRoutes {
 
 	h.commandUC.FeeDebts = debts
 	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo).WithFeeDebtRecorder(debts)
-	resolver, err := feesservices.NewQueryResolver(h.queryUC)
-	require.NoError(t, err)
-	h.feeUC, err = feesservices.NewUseCase(deferrablePackages{h.packageRepo}, resolver)
-	require.NoError(t, err)
-	h.commandUC.FeeApplier = h.feeUC
 
 	s := &feeDebtRoutes{feeHarness: h, app: h.newV2App()}
 	s.origin = postgrestestutil.CreateTestTransactionRouteSimple(t, h.db, h.orgID, h.ledgerID, "fee origin")
@@ -73,9 +69,16 @@ func newFeeDebtRoutes(t *testing.T, validated bool) *feeDebtRoutes {
 	h.seedBalance(t, "@debt-fee", "BRL", decimal.Zero, "deposit")
 	h.seedBalance(t, "@debt-funder", "BRL", decimal.NewFromInt(1000), "deposit")
 
-	fee := flatFee("deferrable_fee", "@debt-fee", "50", false)
-	fee.routeFrom, fee.routeTo = routeString(s.from), routeString(s.to)
-	h.seedPackage(t, packageSpec{label: "fee_debt_routes", minAmount: decimal.NewFromInt(50), fees: []feeSpec{fee}})
+	// The package goes through the create body and service, so the flag reaches the engine
+	// only through the package's own JSON, Mongo document and read path.
+	var input feemodel.CreatePackageInput
+	require.NoError(t, json.Unmarshal(fmt.Appendf(nil, `{"feeGroupLabel":"fee_debt_routes","minimumAmount":"50","maximumAmount":"1000000000","enable":true,
+		"fees":{"deferrable_fee":{"feeLabel":"deferrable_fee","priority":1,"referenceAmount":"originalAmount","isDeductibleFrom":false,"deferrable":true,
+		"creditAccount":"@debt-fee","routeFrom":%q,"routeTo":%q,"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50"}]}}}}`,
+		s.from, s.to), &input))
+	require.NoError(t, input.ValidateFees())
+	_, err = h.feeUC.CreatePackage(h.ctx(), &input, h.orgID, h.ledgerID, uuid.Nil)
+	require.NoError(t, err)
 
 	return s
 }

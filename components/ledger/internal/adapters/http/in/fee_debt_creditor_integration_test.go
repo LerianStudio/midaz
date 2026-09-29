@@ -7,7 +7,6 @@
 package in
 
 import (
-	"context"
 	nethttp "net/http"
 	"testing"
 	"time"
@@ -23,28 +22,10 @@ import (
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/fee_debt"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
-	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
-
-// deferrablePackages serves the stored packages with every fee deferrable, which no
-// package surface persists yet.
-type deferrablePackages struct{ pack.Repository }
-
-func (r deferrablePackages) FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*pack.Package, error) {
-	packages, err := r.Repository.FindByOrganizationIDAndLedgerID(ctx, organizationID, ledgerID)
-	for _, p := range packages {
-		for key, fee := range p.Fees {
-			fee.Deferrable = true
-			p.Fees[key] = fee
-		}
-	}
-
-	return packages, err
-}
 
 // newAccountAdminV2App mounts the /v2 account and balance surfaces over the harness.
 func (h *feeHarness) newAccountAdminV2App() *fiber.App {
@@ -87,11 +68,6 @@ func TestFeeDebtCreditorGuard(t *testing.T) {
 		}
 	}
 
-	resolver, err := feesservices.NewQueryResolver(h.queryUC)
-	require.NoError(t, err)
-	h.commandUC.FeeApplier, err = feesservices.NewUseCase(deferrablePackages{h.packageRepo}, resolver)
-	require.NoError(t, err)
-
 	txApp, adminApp := h.newV2App(), h.newAccountAdminV2App()
 
 	h.seedBalance(t, "@payer", "BRL", decimal.NewFromInt(100), "deposit")
@@ -102,10 +78,9 @@ func TestFeeDebtCreditorGuard(t *testing.T) {
 	lateFeeBalanceID := h.seedBalance(t, "@late-fees", "BRL", decimal.Zero, "deposit")
 
 	for label, creditor := range map[string]string{"deferred": "@fees", "late": "@late-fees"} {
-		h.seedPackage(t, packageSpec{
-			label: label, metadataSelector: map[string]string{"fee": label},
-			fees: []feeSpec{flatFee(label+"_fee", creditor, "10", false)},
-		})
+		fee := flatFee(label+"_fee", creditor, "10", false)
+		fee.deferrable = true
+		h.seedPackage(t, packageSpec{label: label, metadataSelector: map[string]string{"fee": label}, fees: []feeSpec{fee}})
 	}
 
 	var feeAccountID uuid.UUID
