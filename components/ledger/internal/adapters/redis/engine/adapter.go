@@ -851,9 +851,9 @@ func correlateMovement(wire resultMovement, transactionID uuid.UUID, ordinal int
 			return posting, target, order, nil
 		}
 
-		companion := ordinary || ordinal == 0 && posting.Type == accounting.PostingRefund
+		companion := ordinary || posting.Type == accounting.PostingRefund && ordinal < len(posting.Refunds)
 		if companion && wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
-			return posting, target, order + 1, nil
+			return posting, target, order + 3*int64(ordinal) + 1, nil
 		}
 
 		if sub, ok := feeDebtMovementSub(wire.Role, ordinal, posting, source, target); ok {

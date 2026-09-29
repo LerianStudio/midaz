@@ -130,7 +130,7 @@ func recoveryContractAddRepaymentCompanion(payload *TransactionCompletionPlan, r
 	companion.Balance.Available, companion.Balance.OnHold, companion.Balance.OverdraftUsed = primary.OverdraftDelta.Abs(), decimal.Zero, decimal.Zero
 	payload.OperationSpecs = append(payload.OperationSpecs, companion)
 	movement := accounting.Movement{
-		Ref: "companion:" + primary.PostingRef, TransactionID: payload.TransactionID, PostingRef: primary.PostingRef,
+		Ref: movementRef(payload.TransactionID, primary.PostingRef, accounting.RoleOverdraftCompanion, 0), TransactionID: payload.TransactionID, PostingRef: primary.PostingRef,
 		Role: accounting.RoleOverdraftCompanion, BalanceRef: companion.BalanceRef, Type: accounting.PostingCredit, Amount: primary.OverdraftDelta.Abs(),
 		Before: accounting.BalanceState{Available: primary.OverdraftDelta.Abs()}, After: accounting.BalanceState{Version: 1},
 	}
@@ -564,7 +564,7 @@ func TestTransactionCompletionCompanionProjection(t *testing.T) {
 	result.Movements[0].After = accounting.BalanceState{Version: 1}
 	result.Movements[0].OverdraftDelta = decimal.NewFromInt(-50)
 	result.Movements = append(result.Movements, accounting.Movement{
-		Ref: "companion", TransactionID: payload.TransactionID, PostingRef: primary.PostingRef, Role: accounting.RoleOverdraftCompanion,
+		Ref: movementRef(payload.TransactionID, primary.PostingRef, accounting.RoleOverdraftCompanion, 0), TransactionID: payload.TransactionID, PostingRef: primary.PostingRef, Role: accounting.RoleOverdraftCompanion,
 		BalanceRef: companion.BalanceRef, Type: accounting.PostingCredit, Amount: decimal.NewFromInt(50), Before: accounting.BalanceState{Available: decimal.NewFromInt(50)}, After: accounting.BalanceState{Version: 1},
 	})
 	result.Final = recoveryContractFinal(payload, result.Movements)

@@ -98,7 +98,7 @@ local postingAlgebra = {
 -- mirrorOverdraft records an overdraft draw (delta > 0) or repayment (delta < 0)
 -- of item's posting on its account's companion, so both sides of the debt stay
 -- explicit. It is called after item's own movement is recorded.
-local function mirrorOverdraft(step, postingIndex, posting, item, delta)
+local function mirrorOverdraft(step, postingIndex, posting, item, delta, ordinal)
     if cmp_decimal(delta, "0") == 0 then return end
     local transaction, txIndex, current = step.transaction, step.txIndex, item.current
     local companion = step.companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, current.accountId)]
@@ -117,5 +117,5 @@ local function mirrorOverdraft(step, postingIndex, posting, item, delta)
         end
         companionNext.available = sub_decimal(companion.current.available, amount)
     end
-    step.record(companion, companionNext, posting, "overdraft_companion", companionType, amount, "0")
+    step.record(companion, companionNext, posting, "overdraft_companion", companionType, amount, "0", ordinal)
 end

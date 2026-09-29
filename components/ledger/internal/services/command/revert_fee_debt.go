@@ -12,6 +12,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -30,7 +31,7 @@ func (uc *UseCase) reverseTransaction(ctx context.Context, in RevertTransactionI
 
 	var (
 		origins []string
-		kept    map[string]decimal.Decimal
+		kept    map[transaction.FeeSettlementGroup]decimal.Decimal
 	)
 
 	for _, settlement := range settlements {
@@ -54,11 +55,12 @@ func (uc *UseCase) reverseTransaction(ctx context.Context, in RevertTransactionI
 		}
 
 		if kept == nil {
-			kept = make(map[string]decimal.Decimal)
+			kept = make(map[transaction.FeeSettlementGroup]decimal.Decimal)
 		}
 
-		kept[settlement.CreditRef] = kept[settlement.CreditRef].Add(settlement.Amount)
-		kept[settlement.DebtorRef] = kept[settlement.DebtorRef].Sub(settlement.Amount)
+		credit := transaction.FeeSettlementGroup{Ref: settlement.CreditRef, RouteID: feeDebtRouteID(settlement.CreditRoute)}
+		debit := transaction.FeeSettlementGroup{Ref: settlement.DebtorRef, RouteID: feeDebtRouteID(settlement.DebitRoute)}
+		kept[credit], kept[debit] = kept[credit].Add(settlement.Amount), kept[debit].Sub(settlement.Amount)
 	}
 
 	reversal := tran.TransactionRevert(kept)
@@ -85,4 +87,13 @@ func (uc *UseCase) feeDebtOriginReverted(ctx context.Context, in RevertTransacti
 	}
 
 	return reversal != nil, nil
+}
+
+// feeDebtRouteID is the id of a stored fee-debt route, empty without one.
+func feeDebtRouteID(route *accounting.FeeDebtRoute) string {
+	if route == nil {
+		return ""
+	}
+
+	return route.ID
 }

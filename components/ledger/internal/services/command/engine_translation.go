@@ -195,10 +195,9 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 			Ref: postingRef, BalanceRef: balanceRef, Type: item.postingType, Amount: amount.Value,
 			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap,
 		}
-		debt.markDeferral(transaction, &posting, leg.Metadata)
-		transaction.Postings = append(transaction.Postings, posting)
-
 		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
+		debt.markDeferral(transaction, &posting, primary)
+		transaction.Postings = append(transaction.Postings, posting)
 		*projection = append(*projection, primary)
 
 		if item.mayAffectOverdraft {

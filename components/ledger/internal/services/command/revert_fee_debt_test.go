@@ -16,6 +16,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -41,14 +42,15 @@ func TestReverseTransactionKeepsSettlementsOfRevertedOrigins(t *testing.T) {
 		return FeeDebtSettlement{
 			DebtID: origin + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default",
 			Amount: decimal.NewFromInt(amount), Opened: decimal.NewFromInt(20), Seq: 1,
+			DebitRoute: &accounting.FeeDebtRoute{ID: "from-" + origin}, CreditRoute: &accounting.FeeDebtRoute{ID: "to-" + origin},
 		}
 	}
-	row := func(kind, alias, direction string, value int64) *operation.Operation {
+	row := func(kind, alias, direction, route string, value int64) *operation.Operation {
 		amount := decimal.NewFromInt(value)
 
 		return &operation.Operation{
 			Type: kind, Direction: direction, AccountAlias: alias, BalanceKey: pkgConstant.DefaultBalanceKey,
-			AssetCode: "USD", Amount: operation.Amount{Value: &amount},
+			AssetCode: "USD", Amount: operation.Amount{Value: &amount}, RouteID: &route,
 		}
 	}
 
@@ -57,8 +59,11 @@ func TestReverseTransactionKeepsSettlementsOfRevertedOrigins(t *testing.T) {
 		AssetCode: "USD", Amount: &amount,
 		Metadata: feeDebtRevertMetadata(t, nil, []FeeDebtSettlement{settle(feeDebtOriginX, 5), settle(feeDebtOriginX, 7), settle(feeDebtOriginO, 3)}),
 		Operations: []*operation.Operation{
-			row(constant.DEBIT, "@source", pkgConstant.DirectionDebit, 20), row(constant.CREDIT, "@debtor", pkgConstant.DirectionCredit, 20),
-			row(pkgConstant.FEE_SETTLEMENT, "@debtor", pkgConstant.DirectionDebit, 15), row(pkgConstant.FEE_SETTLEMENT, "@fees", pkgConstant.DirectionCredit, 15),
+			row(constant.DEBIT, "@source", pkgConstant.DirectionDebit, "", 20), row(constant.CREDIT, "@debtor", pkgConstant.DirectionCredit, "", 20),
+			row(pkgConstant.FEE_SETTLEMENT, "@debtor", pkgConstant.DirectionDebit, "from-"+feeDebtOriginX, 12),
+			row(pkgConstant.FEE_SETTLEMENT, "@fees", pkgConstant.DirectionCredit, "to-"+feeDebtOriginX, 12),
+			row(pkgConstant.FEE_SETTLEMENT, "@debtor", pkgConstant.DirectionDebit, "from-"+feeDebtOriginO, 3),
+			row(pkgConstant.FEE_SETTLEMENT, "@fees", pkgConstant.DirectionCredit, "to-"+feeDebtOriginO, 3),
 		},
 	}
 
@@ -74,10 +79,10 @@ func TestReverseTransactionKeepsSettlementsOfRevertedOrigins(t *testing.T) {
 
 	sources := make(map[string]int64)
 	for _, from := range reversal.Send.Source.From {
-		sources[from.AccountAlias] = from.Amount.Value.IntPart()
+		sources[from.AccountAlias+"|"+*from.RouteID] = from.Amount.Value.IntPart()
 	}
 
-	assert.Equal(t, map[string]int64{"@debtor": 17, "@fees": 3}, sources, "the reverted origin's 12 stays with the creditor")
+	assert.Equal(t, map[string]int64{"@debtor|": 17, "@fees|to-" + feeDebtOriginO: 3}, sources, "the reverted origin's 12 stays with the creditor")
 
 	credited.Metadata = map[string]any{pkgConstant.MetadataKeyFeeDebtSettlements: `[{"debtId":"not-a-transaction:from:1:debit","debtorRef":"@debtor#default","creditRef":"@fees#default","amount":"1","opened":"1","seq":1}]`}
 

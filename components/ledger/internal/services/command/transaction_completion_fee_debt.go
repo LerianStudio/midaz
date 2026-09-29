@@ -34,10 +34,14 @@ func completedTransactionFeeDebt(payload TransactionCompletionPlan, changes []ac
 		switch change.Kind {
 		case accounting.FeeDebtOpened:
 			amount = amount.Sub(change.Amount)
-			openings = append(openings, FeeDebtOpening{DebtID: change.DebtID, DebtorRef: change.DebtorRef, CreditRef: change.CreditRef, Opened: change.Opened, Seq: change.Seq})
+			openings = append(openings, FeeDebtOpening{
+				DebtID: change.DebtID, DebtorRef: change.DebtorRef, CreditRef: change.CreditRef, Opened: change.Opened, Seq: change.Seq,
+				DebitRoute: change.DebitRoute, CreditRoute: change.CreditRoute,
+			})
 		case accounting.FeeDebtSettled:
 			settlements = append(settlements, FeeDebtSettlement{
 				DebtID: change.DebtID, DebtorRef: change.DebtorRef, CreditRef: change.CreditRef, Amount: change.Amount, Opened: change.Opened, Seq: change.Seq,
+				DebitRoute: change.DebitRoute, CreditRoute: change.CreditRoute,
 			})
 		}
 	}

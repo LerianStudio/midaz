@@ -36,6 +36,8 @@ type resultFeeDebtChange struct {
 	AssetCode           string                       `json:"assetCode"`
 	Amount              string                       `json:"amount"`
 	Opened              string                       `json:"opened"`
+	DebitRoute          *accounting.FeeDebtRoute     `json:"debitRoute,omitempty"`
+	CreditRoute         *accounting.FeeDebtRoute     `json:"creditRoute,omitempty"`
 }
 
 // movementOrdinal returns the canonical nonnegative ordinal that follows prefix
@@ -48,19 +50,20 @@ func movementOrdinal(ref, prefix string) (int, bool) {
 }
 
 // feeDebtMovementSub correlates a fee-debt movement with its collect or refund
-// posting and returns its sub-position: 0 on the debtor, 2+ordinal per item.
+// posting and returns its sub-position: per item, 3*ordinal on the debtor, then
+// its overdraft companion, then 3*ordinal+2 on the creditor.
 func feeDebtMovementSub(role string, ordinal int, posting accounting.Posting, source, target accounting.BalanceSnapshot) (int64, bool) {
-	onDebtor := ordinal == 0 && target.BalanceRef == source.BalanceRef
+	debtor, creditor := 3*int64(ordinal), 3*int64(ordinal)+2
 
 	switch {
 	case role == accounting.RoleFeeDebtDebit && posting.Type == accounting.PostingCollect:
-		return 0, onDebtor
+		return debtor, ordinal < len(posting.Items) && target.BalanceRef == source.BalanceRef
 	case role == accounting.RoleFeeDebtRefundCredit && posting.Type == accounting.PostingRefund:
-		return 0, onDebtor
+		return debtor, ordinal < len(posting.Refunds) && target.BalanceRef == source.BalanceRef
 	case role == accounting.RoleFeeDebtCredit && posting.Type == accounting.PostingCollect:
-		return int64(ordinal) + 2, ordinal < len(posting.Items) && target.BalanceRef != source.BalanceRef
+		return creditor, ordinal < len(posting.Items) && target.BalanceRef != source.BalanceRef
 	case role == accounting.RoleFeeDebtRefundDebit && posting.Type == accounting.PostingRefund:
-		return int64(ordinal) + 2, ordinal < len(posting.Refunds) && target.BalanceRef == posting.Refunds[ordinal].CreditRef
+		return creditor, ordinal < len(posting.Refunds) && target.BalanceRef == posting.Refunds[ordinal].CreditRef
 	default:
 		return 0, false
 	}
@@ -112,7 +115,7 @@ func decodeFeeDebtChanges(raw []json.RawMessage, request accounting.Execution) (
 		changes = append(changes, accounting.FeeDebtChange{
 			TransactionID: transactionID, PostingRef: wire.PostingRef, Kind: wire.Kind, DebtID: wire.DebtID,
 			DebtorRef: wire.DebtorRef, CreditRef: wire.CreditRef, OriginTransactionID: origin, Seq: seq,
-			AssetCode: wire.AssetCode, Amount: amount, Opened: opened,
+			AssetCode: wire.AssetCode, Amount: amount, Opened: opened, DebitRoute: wire.DebitRoute, CreditRoute: wire.CreditRoute,
 		})
 	}
 
@@ -213,22 +216,23 @@ func validatePostingFeeDebt(transaction accounting.Transaction, posting accounti
 	return nil
 }
 
-// pairFeeDebtItems checks one collect or refund posting: at most one debtor
-// movement for the total, overdraft repaid included, and one item movement per
-// change, in order, naming the item at its ordinal, on its creditor, for its amount.
+// pairFeeDebtItems checks one collect or refund posting: per change, in order, a
+// debtor and an item movement at one ordinal, naming the item at that ordinal, on
+// its creditor, both for the change amount, the debtor's repaid overdraft included.
 func pairFeeDebtItems(posting accounting.Posting, debtor, items []accounting.Movement, changes []accounting.FeeDebtChange, item func(int) (string, string, decimal.Decimal, bool)) error {
-	if len(items) != len(changes) || (len(debtor) != 1 && len(items) > 0) || (len(debtor) != 0 && len(items) == 0) {
+	if len(debtor) != len(changes) || len(items) != len(changes) {
 		return errors.New("accounting fee-debt movements do not pair with changes")
 	}
 
 	total := decimal.Zero
 
 	for i, movement := range items {
-		ordinal, _ := strconv.Atoi(movement.Ref[strings.LastIndexByte(movement.Ref, ':')+1:])
+		ordinal := refOrdinal(movement.Ref)
 		debtID, creditRef, amount, exact := item(ordinal)
 		change := changes[i]
 
-		if change.DebtID != debtID || change.DebtorRef != posting.BalanceRef || change.CreditRef != movement.BalanceRef ||
+		if refOrdinal(debtor[i].Ref) != ordinal || !debtor[i].Amount.Sub(debtor[i].OverdraftDelta).Equal(change.Amount) ||
+			change.DebtID != debtID || change.DebtorRef != posting.BalanceRef || change.CreditRef != movement.BalanceRef ||
 			!change.Amount.Equal(movement.Amount) || (exact && (change.CreditRef != creditRef || !change.Amount.Equal(amount))) {
 			return errors.New("accounting fee-debt movement does not match its change")
 		}
@@ -236,11 +240,18 @@ func pairFeeDebtItems(posting accounting.Posting, debtor, items []accounting.Mov
 		total = total.Add(movement.Amount)
 	}
 
-	if len(debtor) == 1 && (!debtor[0].Amount.Sub(debtor[0].OverdraftDelta).Equal(total) || total.GreaterThan(posting.Amount)) {
-		return errors.New("accounting fee-debt total does not match its debtor movement")
+	if total.GreaterThan(posting.Amount) {
+		return errors.New("accounting fee-debt movements exceed their posting")
 	}
 
 	return nil
+}
+
+// refOrdinal is the ordinal that ends a movement ref already decoded as valid.
+func refOrdinal(ref string) int {
+	ordinal, _ := strconv.Atoi(ref[strings.LastIndexByte(ref, ':')+1:])
+
+	return ordinal
 }
 
 func fundingCreditRef(transaction accounting.Transaction, debitRef string) string {

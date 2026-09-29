@@ -28,12 +28,19 @@ func TestTransactionRevert_FoldsFeeSettlements(t *testing.T) {
 	credit := func(alias string, value int64) *operation.Operation {
 		return feeDebtRow(constant.CREDIT, alias, "", value)
 	}
+	routed := func(route string, rows ...*operation.Operation) []*operation.Operation {
+		for _, row := range rows {
+			row.RouteID = ptr(route)
+		}
+
+		return rows
+	}
 
 	for _, tc := range []struct {
 		name    string
 		credits []*operation.Operation
 		rows    []*operation.Operation
-		kept    map[string]decimal.Decimal
+		kept    map[FeeSettlementGroup]decimal.Decimal
 		froms   map[string]int64
 	}{
 		{
@@ -58,8 +65,30 @@ func TestTransactionRevert_FoldsFeeSettlements(t *testing.T) {
 			name:    "a kept settlement stays where it was paid",
 			credits: []*operation.Operation{credit("@debtor", 20)},
 			rows:    paid("@debtor", "@fees", 20),
-			kept:    map[string]decimal.Decimal{"@fees#default": decimal.NewFromInt(12), "@debtor#default": decimal.NewFromInt(-12)},
+			kept:    map[FeeSettlementGroup]decimal.Decimal{{Ref: "@fees#default"}: decimal.NewFromInt(12), {Ref: "@debtor#default"}: decimal.NewFromInt(-12)},
 			froms:   map[string]int64{"@debtor": 12, "@fees": 8},
+		},
+		{
+			name:    "each fee route takes back under its own route",
+			credits: []*operation.Operation{credit("@debtor", 20)},
+			rows: append(append(routed("fee-a", paid("@debtor", "@fees", 5)...), routed("fee-b", paid("@debtor", "@fees", 3)...)...),
+				routed("fee-a", paid("@debtor", "@fees", 2)...)...),
+			froms: map[string]int64{"@debtor": 10, "@fees|fee-a": 7, "@fees|fee-b": 3},
+		},
+		{
+			name:    "a creditor that is also a destination under another route keeps both legs",
+			credits: append([]*operation.Operation{credit("@debtor", 15)}, routed("leg", credit("@fees", 5))...),
+			rows:    routed("fee-a", paid("@debtor", "@fees", 5)...),
+			froms:   map[string]int64{"@debtor": 10, "@fees|leg": 5, "@fees|fee-a": 5},
+		},
+		{
+			name:    "a kept settlement stays under its route",
+			credits: []*operation.Operation{credit("@debtor", 20)},
+			rows:    append(routed("fee-a", paid("@debtor", "@fees", 5)...), routed("fee-b", paid("@debtor", "@fees", 3)...)...),
+			kept: map[FeeSettlementGroup]decimal.Decimal{
+				{Ref: "@fees#default", RouteID: "fee-b"}: decimal.NewFromInt(3), {Ref: "@debtor#default", RouteID: "fee-b"}: decimal.NewFromInt(-3),
+			},
+			froms: map[string]int64{"@debtor": 15, "@fees|fee-a": 5},
 		},
 		{
 			name:    "refund rows are never reversed",
@@ -82,7 +111,12 @@ func TestTransactionRevert_FoldsFeeSettlements(t *testing.T) {
 
 			froms, total := make(map[string]int64), decimal.Zero
 			for _, from := range reverted.Send.Source.From {
-				froms[from.AccountAlias] = from.Amount.Value.IntPart()
+				key := from.AccountAlias
+				if from.RouteID != nil {
+					key += "|" + *from.RouteID
+				}
+
+				froms[key] = from.Amount.Value.IntPart()
 				total = total.Add(from.Amount.Value)
 			}
 

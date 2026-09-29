@@ -26,13 +26,15 @@ import (
 )
 
 type integrationFeeDebt struct {
-	ID                  string `json:"id"`
-	CreditRef           string `json:"creditRef"`
-	Remaining           string `json:"remaining"`
-	Opened              string `json:"opened"`
-	OriginTransactionID string `json:"originTransactionId"`
-	Seq                 string `json:"seq"`
-	AssetCode           string `json:"assetCode"`
+	ID                  string                   `json:"id"`
+	CreditRef           string                   `json:"creditRef"`
+	Remaining           string                   `json:"remaining"`
+	Opened              string                   `json:"opened"`
+	OriginTransactionID string                   `json:"originTransactionId"`
+	Seq                 string                   `json:"seq"`
+	AssetCode           string                   `json:"assetCode"`
+	DebitRoute          *accounting.FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute         *accounting.FeeDebtRoute `json:"creditRoute,omitempty"`
 }
 
 type integrationFeeDebtList struct {
@@ -46,6 +48,17 @@ func feeDebt(origin uuid.UUID, debitRef, creditRef, remaining, opened string, se
 		ID: origin.String() + ":" + debitRef, CreditRef: creditRef, Remaining: remaining, Opened: opened,
 		OriginTransactionID: origin.String(), Seq: strconv.Itoa(seq), AssetCode: "USD",
 	}
+}
+
+// debtRoute is a route whose code and description derive from its id.
+func debtRoute(id string) *accounting.FeeDebtRoute {
+	return &accounting.FeeDebtRoute{ID: id, Code: "code-" + id, Description: "rubric " + id}
+}
+
+// routed gives a seeded debt the routes of its two sides.
+func routed(debt integrationFeeDebt, debit, credit string) integrationFeeDebt {
+	debt.DebitRoute, debt.CreditRoute = debtRoute(debit), debtRoute(credit)
+	return debt
 }
 
 func feePosting(ref, balanceRef string, kind accounting.PostingType, amount string) accounting.Posting {
@@ -164,10 +177,22 @@ func movementLines(result *accounting.ExecutionResult) []string {
 func changeLines(result *accounting.ExecutionResult) []string {
 	lines := make([]string, 0, len(result.FeeDebt))
 	for _, c := range result.FeeDebt {
-		lines = append(lines, fmt.Sprintf("%s %q %s %s->%s %s/%s seq %d %s", c.Kind, c.PostingRef, c.DebtID, c.DebtorRef, c.CreditRef, c.Amount, c.Opened, c.Seq, c.AssetCode))
+		line := fmt.Sprintf("%s %q %s %s->%s %s/%s seq %d %s", c.Kind, c.PostingRef, c.DebtID, c.DebtorRef, c.CreditRef, c.Amount, c.Opened, c.Seq, c.AssetCode)
+		if c.DebitRoute != nil || c.CreditRoute != nil {
+			line += " routes " + routeLine(c.DebitRoute) + "/" + routeLine(c.CreditRoute)
+		}
+		lines = append(lines, line)
 	}
 
 	return lines
+}
+
+func routeLine(route *accounting.FeeDebtRoute) string {
+	if route == nil {
+		return "-"
+	}
+
+	return route.ID + "|" + route.Code + "|" + route.Description
 }
 
 func finalAvailable(result *accounting.ExecutionResult) map[string]string {
@@ -237,6 +262,28 @@ func TestIntegrationFeeDebtDeferralOpensTheShortfall(t *testing.T) {
 	f.requireReplay(t, raw)
 }
 
+func TestIntegrationFeeDebtDeferralKeepsTheFeeRoutes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	f := newDeferralFixture(t, container.Client)
+	postings := f.input.Execution.Transactions[0].Postings
+	postings[0].DebtRoute, postings[1].DebtRoute = debtRoute("r-from"), debtRoute("r-to")
+	tx := f.input.Execution.Transactions[0].ID.String()
+
+	raw, result := f.execute(t)
+
+	require.Equal(t, []string{
+		`opened "fee-debit" ` + tx + `:fee-debit @source#default->@fees#default 70/70 seq 1 USD routes r-from|code-r-from|rubric r-from/r-to|code-r-to|rubric r-to`,
+	}, changeLines(result))
+	debt := routed(feeDebt(f.input.Execution.Transactions[0].ID, "fee-debit", "@fees#default", "70", "70", 1), "r-from", "r-to")
+	require.Equal(t, integrationFeeDebtList{V: 1, NextSeq: "2", Items: []integrationFeeDebt{debt}}, f.storedFeeDebts(t, "@source#default"))
+
+	f.requireReplay(t, raw)
+}
+
 func TestIntegrationFeeDebtDeferralCap(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -297,7 +344,7 @@ func TestIntegrationFeeDebtCollectSettlesOldestFirst(t *testing.T) {
 	o1, o2, o3 := uuid.MustParse("0a4b6d8e-1111-4a1a-8a1a-000000000001"), uuid.MustParse("0a4b6d8e-1111-4a1a-8a1a-000000000002"), uuid.MustParse("0a4b6d8e-1111-4a1a-8a1a-000000000003")
 
 	t.Run("a credit of 1000 settles 200 and leaves 800", func(t *testing.T) {
-		d1, d2 := feeDebt(o1, "fee-debit", "@fees#default", "150", "150", 1), feeDebt(o2, "fee-debit", "@fees#default", "50", "70", 2)
+		d1, d2 := routed(feeDebt(o1, "fee-debit", "@fees#default", "150", "150", 1), "a-from", "a-to"), feeDebt(o2, "fee-debit", "@fees#default", "50", "70", 2)
 		f := newCollectFixture(t, container.Client, d1.ID, d2.ID)
 		f.seedFeeDebts(t, "@source#default", 3, d1, d2)
 
@@ -305,14 +352,15 @@ func TestIntegrationFeeDebtCollectSettlesOldestFirst(t *testing.T) {
 		require.Equal(t, []string{
 			"inflow-debit primary:0 @dest#default debit 1000",
 			"inflow primary:0 @source#default credit 1000",
-			"inflow:collect fee_debt_debit:0 @source#default debit 200",
+			"inflow:collect fee_debt_debit:0 @source#default debit 150",
 			"inflow:collect fee_debt_credit:0 @fees#default credit 150",
+			"inflow:collect fee_debt_debit:1 @source#default debit 50",
 			"inflow:collect fee_debt_credit:1 @fees#default credit 50",
 		}, movementLines(result))
 		// @fees is in no other leg: the settlement alone moves it.
 		require.Equal(t, map[string]string{"@dest#default": "0", "@source#default": "800", "@fees#default": "200"}, finalAvailable(result))
 		require.Equal(t, []string{
-			`settled "inflow:collect" ` + d1.ID + ` @source#default->@fees#default 150/150 seq 1 USD`,
+			`settled "inflow:collect" ` + d1.ID + ` @source#default->@fees#default 150/150 seq 1 USD routes a-from|code-a-from|rubric a-from/a-to|code-a-to|rubric a-to`,
 			`settled "inflow:collect" ` + d2.ID + ` @source#default->@fees#default 50/70 seq 2 USD`,
 		}, changeLines(result))
 		require.Equal(t, integrationFeeDebtList{V: 1, NextSeq: "3", Items: []integrationFeeDebt{}}, f.storedFeeDebts(t, "@source#default"))
@@ -323,8 +371,8 @@ func TestIntegrationFeeDebtCollectSettlesOldestFirst(t *testing.T) {
 			Record struct{ Result accounting.ExecutionResult }
 		}
 		require.NoError(t, json.Unmarshal([]byte(recovery), &saved))
-		require.Equal(t, result.Movements[4].Ref, saved.Record.Result.Movements[4].Ref)
-		require.True(t, strings.HasSuffix(saved.Record.Result.Movements[4].Ref, ":inflow:collect:fee_debt_credit:1"))
+		require.Equal(t, result.Movements[5].Ref, saved.Record.Result.Movements[5].Ref)
+		require.True(t, strings.HasSuffix(saved.Record.Result.Movements[5].Ref, ":inflow:collect:fee_debt_credit:1"))
 		require.Equal(t, result.FeeDebt, saved.Record.Result.FeeDebt)
 
 		f.requireReplay(t, raw)
@@ -342,8 +390,9 @@ func TestIntegrationFeeDebtCollectSettlesOldestFirst(t *testing.T) {
 		require.Equal(t, []string{
 			"inflow-debit primary:0 @dest#default debit 100",
 			"inflow primary:0 @source#default credit 100",
-			"inflow:collect fee_debt_debit:0 @source#default debit 100",
+			"inflow:collect fee_debt_debit:0 @source#default debit 50",
 			"inflow:collect fee_debt_credit:0 @fees#default credit 50",
+			"inflow:collect fee_debt_debit:1 @source#default debit 50",
 			"inflow:collect fee_debt_credit:1 @fees2#default credit 50",
 		}, movementLines(result))
 		d2.Remaining = "30"
@@ -446,6 +495,13 @@ func TestIntegrationFeeDebtRejectsMalformedProtocol(t *testing.T) {
 			second.Ref = "fee-credit-2"
 			*postings = append(*postings, second)
 		}},
+		{name: "a debt route outside a deferrable fee", shape: func(f *integrationFixture) {
+			postings := f.input.Execution.Transactions[0].Postings
+			postings[0].DeferShortfall, postings[0].DebtRoute, postings[1].FundedByRef = false, debtRoute("r"), ""
+		}},
+		{name: "a debt route without an id", shape: func(f *integrationFixture) {
+			f.input.Execution.Transactions[0].Postings[0].DebtRoute = &accounting.FeeDebtRoute{}
+		}},
 		{name: "a collect without items", shape: func(f *integrationFixture) {
 			f.input.Execution.Transactions[0].Postings = append(f.input.Execution.Transactions[0].Postings, feePosting("collect", "@source#default", accounting.PostingCollect, "1"))
 		}},
@@ -526,7 +582,12 @@ func TestIntegrationFeeDebtRejectsMalformedProtocol(t *testing.T) {
 		f.requireUnchanged(t, "fee_debt_conflict")
 	})
 
-	for name, raw := range map[string]string{"invalid json": `not json`, "a zero nextSeq": `{"items":[],"nextSeq":"0","v":1}`} {
+	for name, raw := range map[string]string{
+		"invalid json": `not json`, "a zero nextSeq": `{"items":[],"nextSeq":"0","v":1}`,
+		"a route without an id": `{"items":[{"assetCode":"USD","creditRef":"@fees#default","debitRoute":{"code":"","description":"","id":""},` +
+			`"id":"0a4b6d8e-3333-4a1a-8a1a-000000000009:fee-debit","opened":"1","originTransactionId":"0a4b6d8e-3333-4a1a-8a1a-000000000009",` +
+			`"remaining":"1","seq":"1"}],"nextSeq":"2","v":1}`,
+	} {
 		t.Run("a stored list with "+name+" is a conflict", func(t *testing.T) {
 			f := newDeferralFixture(t, container.Client)
 			require.NoError(t, f.client.Set(context.Background(), f.feeDebtKey("@source#default"), raw, 0).Err())

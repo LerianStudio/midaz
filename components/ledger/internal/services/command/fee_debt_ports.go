@@ -41,6 +41,9 @@ type FeeDebtOpening struct {
 	CreditRef string          `json:"creditRef"`
 	Opened    decimal.Decimal `json:"opened"`
 	Seq       int64           `json:"seq,string"`
+
+	DebitRoute  *accounting.FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *accounting.FeeDebtRoute `json:"creditRoute,omitempty"`
 }
 
 // FeeDebtSettlement is one element of the feeDebtSettlements transaction metadata, built
@@ -53,4 +56,7 @@ type FeeDebtSettlement struct {
 	Amount    decimal.Decimal `json:"amount"`
 	Opened    decimal.Decimal `json:"opened"`
 	Seq       int64           `json:"seq,string"`
+
+	DebitRoute  *accounting.FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *accounting.FeeDebtRoute `json:"creditRoute,omitempty"`
 }

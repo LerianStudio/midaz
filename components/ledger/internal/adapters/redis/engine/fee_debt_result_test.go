@@ -113,8 +113,9 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 
 	settle := func() ([]feeDebtStep, []resultFeeDebtChange) {
 		return []feeDebtStep{
-				{"c", core.RoleFeeDebtDebit, 0, "@source#default", core.PostingDebit, 60},
+				{"c", core.RoleFeeDebtDebit, 0, "@source#default", core.PostingDebit, 50},
 				{"c", core.RoleFeeDebtCredit, 0, "@fees#default", core.PostingCredit, 50},
+				{"c", core.RoleFeeDebtDebit, 1, "@source#default", core.PostingDebit, 10},
 				{"c", core.RoleFeeDebtCredit, 1, "@fees#default", core.PostingCredit, 10},
 			}, []resultFeeDebtChange{
 				feeDebtChange(core.FeeDebtSettled, "c", "a", "50", "50", 1),
@@ -131,8 +132,9 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 	}
 	reimburse := func() ([]feeDebtStep, []resultFeeDebtChange) {
 		return []feeDebtStep{
-				{"r", core.RoleFeeDebtRefundCredit, 0, "@source#default", core.PostingCredit, 50},
+				{"r", core.RoleFeeDebtRefundCredit, 0, "@source#default", core.PostingCredit, 30},
 				{"r", core.RoleFeeDebtRefundDebit, 0, "@fees#default", core.PostingDebit, 30},
+				{"r", core.RoleFeeDebtRefundCredit, 1, "@source#default", core.PostingCredit, 20},
 				{"r", core.RoleFeeDebtRefundDebit, 1, "@fees#default", core.PostingDebit, 20},
 			}, []resultFeeDebtChange{
 				feeDebtChange(core.FeeDebtCanceled, "", "a", "40", "70", 1),
@@ -169,11 +171,15 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 		},
 		{
 			name: "an ordinal outside the items", postings: []core.Posting{collect}, scenario: settle,
-			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) { (*s)[2].ordinal = 2 },
+			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) { (*s)[3].ordinal = 2 },
 		},
 		{
-			name: "a debtor total other than its settlements", postings: []core.Posting{collect}, scenario: settle,
-			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) { (*s)[0].amount = 61 },
+			name: "a debtor debit other than its settlement", postings: []core.Posting{collect}, scenario: settle,
+			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) { (*s)[0].amount = 51 },
+		},
+		{
+			name: "a settlement without its debtor debit", postings: []core.Posting{collect}, scenario: settle,
+			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) { *s = append((*s)[:2], (*s)[3]) },
 		},
 		{
 			name: "an unknown change kind", postings: []core.Posting{collect}, scenario: settle,
@@ -198,7 +204,7 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 		{
 			name: "a refund other than its expected refund", postings: []core.Posting{refund}, scenario: reimburse,
 			mutate: func(s *[]feeDebtStep, c *[]resultFeeDebtChange) {
-				(*s)[0].amount, (*s)[1].amount, (*c)[1].Amount = 90, 70, "70"
+				(*s)[0].amount, (*s)[1].amount, (*c)[1].Amount = 70, 70, "70"
 			},
 		},
 	}

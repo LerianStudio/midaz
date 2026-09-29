@@ -39,15 +39,20 @@ func newFeeDebtComposition(input EngineTranslationInput, balances map[string]*mm
 
 // markDeferral flags the two legs of one deferrable fee on a /v2 direct
 // transaction: the payer debit defers its shortfall and the fee credit is funded
-// by that debit. Pairing is validated by the engine, not here.
-func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, posting *accounting.Posting, metadata map[string]any) {
+// by that debit, each carrying its primary's route for the debt to keep. Pairing
+// is validated by the engine, not here.
+func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, posting *accounting.Posting, primary OperationRecordSpec) {
 	if !c.input.FeeDebtEligible || c.input.Action != constant.ActionDirect {
 		return
 	}
 
-	token, _ := metadata[constant.MetadataKeyFeeDeferPair].(string)
+	token, _ := primary.Metadata[constant.MetadataKeyFeeDeferPair].(string)
 	if token == "" {
 		return
+	}
+
+	if primary.RouteID != nil {
+		posting.DebtRoute = &accounting.FeeDebtRoute{ID: *primary.RouteID, Code: primary.RouteCode, Description: primary.RouteDescription}
 	}
 
 	switch posting.Type {
@@ -61,7 +66,8 @@ func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, p
 }
 
 // appendCollect follows a /v2 credit with a collect of the credited balance's
-// open debts, named oldest first, when its seed holds any.
+// open debts, named oldest first, when its seed holds any. Each debt books its
+// debtor debit and creditor credit under the routes it stored.
 func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, projection *[]OperationRecordSpec, credit accounting.Posting) {
 	if !c.input.FeeDebtEligible || credit.Type != accounting.PostingCredit ||
 		(c.input.Action != constant.ActionDirect && c.input.Action != constant.ActionCommit && c.input.Action != constant.ActionRevert) {
@@ -73,8 +79,8 @@ func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, 
 		return
 	}
 
-	ref := credit.Ref + ":collect"
-	contexts := []OperationRecordSpec{c.spec(ref, c.balances[credit.BalanceRef], accounting.RoleFeeDebtDebit, 0, constant.FEE_SETTLEMENT, constant.DirectionDebit, credit.Amount)}
+	ref, debtor := credit.Ref+":collect", c.balances[credit.BalanceRef]
+	contexts := make([]OperationRecordSpec, 0, 2*len(seed))
 	items := make([]string, 0, len(seed))
 
 	var ordinal uint32
@@ -86,7 +92,9 @@ func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, 
 			break
 		}
 
-		contexts = append(contexts, c.spec(ref, creditor, accounting.RoleFeeDebtCredit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionCredit, credit.Amount))
+		contexts = append(contexts,
+			c.spec(ref, debtor, accounting.RoleFeeDebtDebit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionDebit, credit.Amount, item.DebitRoute),
+			c.spec(ref, creditor, accounting.RoleFeeDebtCredit, ordinal, constant.FEE_SETTLEMENT, constant.DirectionCredit, credit.Amount, item.CreditRoute))
 		items = append(items, item.ID)
 		ordinal++
 	}
@@ -136,7 +144,8 @@ func (c *feeDebtComposition) appendRevert(transaction *accounting.Transaction, p
 }
 
 // appendRefunds appends one refund posting per debtor of the parent's openings,
-// in first-appearance order, after every other posting.
+// in first-appearance order, after every other posting. Each debt refunds as the
+// inverse of its fee, under its routes.
 func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, projection *[]OperationRecordSpec, openings []FeeDebtOpening) error {
 	debtors := make([]string, 0)
 	byDebtor := make(map[string][]FeeDebtOpening)
@@ -157,25 +166,29 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 
 		ref := "fee-refund:" + strconv.Itoa(n)
 		posting := accounting.Posting{Ref: ref, BalanceRef: debtorRef, Type: accounting.PostingRefund, DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero}
-		debits := make([]OperationRecordSpec, 0, len(byDebtor[debtorRef]))
+		companion, hasCompanion := c.balances[mtransaction.AliasKey(mtransaction.SplitAlias(debtor.Alias), constant.OverdraftBalanceKey)]
 
-		var ordinal uint32
-
-		for _, opening := range byDebtor[debtorRef] {
+		for i, opening := range byDebtor[debtorRef] {
 			creditor, found := c.balances[opening.CreditRef]
 			if !found {
 				return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 			}
 
+			ordinal, credited := uint32(i), c.refundRoute(opening.DebitRoute, constant.DirectionCredit, false)
 			posting.Amount = posting.Amount.Add(opening.Opened)
 			posting.Refunds = append(posting.Refunds, accounting.FeeDebtRefund{DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq})
-			debits = append(debits, c.spec(ref, creditor, accounting.RoleFeeDebtRefundDebit, ordinal, constant.FEE_REFUND, constant.DirectionDebit, opening.Opened))
-			ordinal++
+			*projection = append(*projection, c.spec(ref, debtor, accounting.RoleFeeDebtRefundCredit, ordinal, constant.FEE_REFUND, constant.DirectionCredit, opening.Opened, credited))
+
+			if hasCompanion {
+				*projection = append(*projection, c.spec(ref, companion, accounting.RoleOverdraftCompanion, ordinal, constant.FEE_REFUND, constant.DirectionCredit, opening.Opened,
+					c.refundRoute(opening.DebitRoute, constant.DirectionCredit, true)))
+			}
+
+			*projection = append(*projection, c.spec(ref, creditor, accounting.RoleFeeDebtRefundDebit, ordinal, constant.FEE_REFUND, constant.DirectionDebit, opening.Opened,
+				c.refundRoute(opening.CreditRoute, constant.DirectionDebit, false)))
 		}
 
 		transaction.Postings = append(transaction.Postings, posting)
-		*projection = append(*projection, c.spec(ref, debtor, accounting.RoleFeeDebtRefundCredit, 0, constant.FEE_REFUND, constant.DirectionCredit, posting.Amount))
-		*projection = append(*projection, debits...)
 
 		c.declare(transaction, debtorRef)
 	}
@@ -192,10 +205,27 @@ func (c *feeDebtComposition) declare(transaction *accounting.Transaction, balanc
 	transaction.FeeDebtRefs = append(transaction.FeeDebtRefs, balanceRef)
 }
 
-// spec is the context of a fee-debt movement: no origin leg, no route
-// and no metadata, matched by posting ref, role and ordinal. The requested
-// amount bounds the movement the engine may record.
-func (c *feeDebtComposition) spec(postingRef string, balance *mmodel.Balance, role string, ordinal uint32, rowType, direction string, requested decimal.Decimal) OperationRecordSpec {
+// refundRoute is route with the rubric the revert resolves for a refund movement,
+// or for the overdraft its debtor credit repays; nil without a route.
+func (c *feeDebtComposition) refundRoute(route *accounting.FeeDebtRoute, direction string, overdraft bool) *accounting.FeeDebtRoute {
+	if route == nil {
+		return nil
+	}
+
+	action := crossLedgerRubricAction(c.input.RouteCache, route.ID, c.input.routeAction())
+	if overdraft {
+		action = constant.ActionOverdraft
+	}
+
+	code, description := translationRubric(c.input.RouteCache, route.ID, action, direction)
+
+	return &accounting.FeeDebtRoute{ID: route.ID, Code: code, Description: description}
+}
+
+// spec is the context of a fee-debt movement: no origin leg and no metadata,
+// matched by posting ref, role and ordinal, booked under route when it has one.
+// The requested amount bounds the movement the engine may record.
+func (c *feeDebtComposition) spec(postingRef string, balance *mmodel.Balance, role string, ordinal uint32, rowType, direction string, requested decimal.Decimal, route *accounting.FeeDebtRoute) OperationRecordSpec {
 	side := OperationSpecSideTo
 	if direction == constant.DirectionDebit {
 		side = OperationSpecSideFrom
@@ -203,12 +233,19 @@ func (c *feeDebtComposition) spec(postingRef string, balance *mmodel.Balance, ro
 
 	stable := cloneTranslationBalance(balance)
 
-	return OperationRecordSpec{
+	spec := OperationRecordSpec{
 		TransactionID: c.input.TransactionID, PostingRef: postingRef,
 		BalanceRef: mtransaction.AliasKey(stable.Alias, stable.Key), Role: role, Ordinal: ordinal,
 		Side: side, RowType: rowType, Direction: direction, Description: c.input.TransactionInput.Description,
 		Metadata: map[string]any{}, Balance: stable, RequestedAmount: requested, CompatibilityPath: OperationRecordStandard,
 	}
+
+	if route != nil {
+		id := route.ID
+		spec.RouteID, spec.RouteCode, spec.RouteDescription = &id, route.Code, route.Description
+	}
+
+	return spec
 }
 
 // feeDebtReopens sums the settlements of each debt into one reopen, ordered by
@@ -232,6 +269,7 @@ func feeDebtReopens(settlements []FeeDebtSettlement, revertedOrigins []string) [
 		reopens = append(reopens, accounting.FeeDebtReopen{
 			DebtID: settlement.DebtID, DebtorRef: settlement.DebtorRef, CreditRef: settlement.CreditRef,
 			Amount: settlement.Amount, Opened: settlement.Opened, Seq: settlement.Seq,
+			DebitRoute: settlement.DebitRoute, CreditRoute: settlement.CreditRoute,
 		})
 	}
 

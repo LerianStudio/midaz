@@ -45,8 +45,18 @@ type BalanceState struct {
 }
 
 // FeeDebtItem is one open debt of a debtor balance as read before execution: the
-// two fields Go reads of a live item. It is a seed only; the engine re-reads the list.
+// fields Go reads of a live item. It is a seed only; the engine re-reads the list.
 type FeeDebtItem struct {
-	ID        string `json:"id"`
-	CreditRef string `json:"creditRef"`
+	ID          string        `json:"id"`
+	CreditRef   string        `json:"creditRef"`
+	DebitRoute  *FeeDebtRoute `json:"debitRoute,omitempty"`
+	CreditRoute *FeeDebtRoute `json:"creditRoute,omitempty"`
+}
+
+// FeeDebtRoute is the accounting route of one side of a fee, fixed when its debt
+// opens: every later movement of that debt books under it.
+type FeeDebtRoute struct {
+	ID          string `json:"id"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
 }

@@ -67,8 +67,9 @@ func TestIntegrationFeeDebtRevertRefundsWhatWasSettled(t *testing.T) {
 		require.Equal(t, []string{
 			"rev-fees primary:0 @fees#default debit 30",
 			"rev-source primary:0 @source#default credit 30",
-			"fee-refund:0 fee_debt_refund_credit:0 @source#default credit 50",
+			"fee-refund:0 fee_debt_refund_credit:0 @source#default credit 30",
 			"fee-refund:0 fee_debt_refund_debit:0 @fees#default debit 30",
+			"fee-refund:0 fee_debt_refund_credit:1 @source#default credit 20",
 			"fee-refund:0 fee_debt_refund_debit:1 @fees2#default debit 20",
 		}, movementLines(result))
 		require.Equal(t, map[string]string{"@fees#default": "40", "@source#default": "180", "@fees2#default": "30"}, finalAvailable(result))
@@ -136,8 +137,10 @@ func TestIntegrationFeeDebtRevertRefundsWhatWasSettled(t *testing.T) {
 			"rev-source primary:0 @source#default credit 0",
 			"rev-source overdraft_companion:0 @source#overdraft credit 30",
 			"fee-refund:0 fee_debt_refund_credit:0 @source#default credit 0",
-			"fee-refund:0 overdraft_companion:0 @source#overdraft credit 50",
+			"fee-refund:0 overdraft_companion:0 @source#overdraft credit 30",
 			"fee-refund:0 fee_debt_refund_debit:0 @fees#default debit 30",
+			"fee-refund:0 fee_debt_refund_credit:1 @source#default credit 0",
+			"fee-refund:0 overdraft_companion:1 @source#overdraft credit 20",
 			"fee-refund:0 fee_debt_refund_debit:1 @fees2#default debit 20",
 		}, movementLines(result))
 		require.Equal(t, map[string]string{"@fees#default": "40", "@source#default": "0", "@source#overdraft": "0", "@fees2#default": "30"}, finalAvailable(result))
@@ -163,7 +166,10 @@ func newReopenFixture(t *testing.T, client redis.UniversalClient) *integrationFi
 		feePosting("rev-source", "@source#default", accounting.PostingCredit, "45"),
 	}
 	f.input.Execution.Transactions[0].ReopenFeeDebts = []accounting.FeeDebtReopen{
-		{DebtID: revertOther.String() + ":fee-debit-3", DebtorRef: "@source#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(30), Opened: decimal.NewFromInt(30), Seq: 3},
+		{
+			DebtID: revertOther.String() + ":fee-debit-3", DebtorRef: "@source#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(30), Opened: decimal.NewFromInt(30), Seq: 3,
+			DebitRoute: debtRoute("g-from"), CreditRoute: debtRoute("g-to"),
+		},
 		{DebtID: revertOther.String() + ":fee-debit-2", DebtorRef: "@source#default", CreditRef: "@fees#default", Amount: decimal.NewFromInt(15), Opened: decimal.NewFromInt(20), Seq: 2},
 	}
 
@@ -189,13 +195,13 @@ func TestIntegrationFeeDebtRevertReopensWhatWasSettled(t *testing.T) {
 			"rev-source primary:0 @source#default credit 45",
 		}, movementLines(result))
 		require.Equal(t, []string{
-			`reopened "" ` + revertOther.String() + `:fee-debit-3 @source#default->@fees#default 30/30 seq 3 USD`,
+			`reopened "" ` + revertOther.String() + `:fee-debit-3 @source#default->@fees#default 30/30 seq 3 USD routes g-from|code-g-from|rubric g-from/g-to|code-g-to|rubric g-to`,
 			`reopened "" ` + second.ID + ` @source#default->@fees#default 15/20 seq 2 USD`,
 		}, changeLines(result))
 		grown := second
 		grown.Remaining = "20"
 		require.Equal(t, integrationFeeDebtList{V: 1, NextSeq: "6", Items: []integrationFeeDebt{
-			grown, feeDebt(revertOther, "fee-debit-3", "@fees#default", "30", "30", 3), fifth,
+			grown, routed(feeDebt(revertOther, "fee-debit-3", "@fees#default", "30", "30", 3), "g-from", "g-to"), fifth,
 		}}, f.storedFeeDebts(t, "@source#default"))
 
 		f.requireReplay(t, raw)

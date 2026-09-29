@@ -32,6 +32,8 @@ local function decodeFeeDebtList(raw)
             logicalRef(item.creditRef)
             uuid(item.originTransactionId)
             text(item.assetCode, false)
+            optionalDebtRoute(item.debitRoute)
+            optionalDebtRoute(item.creditRoute)
             local remaining, opened = canonicalMoney(item.remaining), canonicalMoney(item.opened)
             if ids[item.id] or cmp_decimal(remaining, "0") <= 0 or cmp_decimal(remaining, opened) > 0 or
                 cmp_decimal(positiveSeq(item.seq), previous) <= 0 or cmp_decimal(item.seq, list.nextSeq) >= 0 then
@@ -75,7 +77,8 @@ local function emitFeeDebtChange(step, kind, postingRef, debtorRef, debt, amount
     local change = {
         transactionId = step.transaction.id, postingRef = postingRef, kind = kind, debtId = debt.id,
         debtorRef = debtorRef, creditRef = debt.creditRef, originTransactionId = debt.originTransactionId,
-        seq = debt.seq, assetCode = debt.assetCode, amount = amount, opened = debt.opened
+        seq = debt.seq, assetCode = debt.assetCode, amount = amount, opened = debt.opened,
+        debitRoute = debt.debitRoute, creditRoute = debt.creditRoute
     }
     step.changes[#step.changes + 1] = change
     step.feeDebts.changes[#step.feeDebts.changes + 1] = change
@@ -125,7 +128,8 @@ local function reopenFeeDebts(step)
             debt = {
                 id = entry.debtId, creditRef = entry.creditRef, remaining = entry.amount, opened = entry.opened,
                 originTransactionId = entry.debtId:sub(1, 36), seq = entry.seq,
-                assetCode = feeDebtBalance(step, entry.creditRef).current.assetCode
+                assetCode = feeDebtBalance(step, entry.creditRef).current.assetCode,
+                debitRoute = entry.debitRoute, creditRoute = entry.creditRoute
             }
             table.insert(items, position, debt)
         end
@@ -148,7 +152,9 @@ local function deferShortfall(step, postingIndex, posting, item)
         end
         list.reserved = list.reserved + 1
     end
-    step.deferrals[posting.ref] = { paid = paid, shortfall = shortfall, payerRef = posting.balanceRef, assetCode = current.assetCode }
+    step.deferrals[posting.ref] = {
+        paid = paid, shortfall = shortfall, payerRef = posting.balanceRef, assetCode = current.assetCode, debitRoute = posting.debtRoute
+    }
     return paid
 end
 
@@ -160,7 +166,7 @@ local function openFeeDebt(step, posting)
     local debt = {
         id = step.transaction.id .. ":" .. posting.fundedByRef, creditRef = posting.balanceRef,
         remaining = deferral.shortfall, opened = deferral.shortfall, originTransactionId = step.transaction.id,
-        seq = list.value.nextSeq, assetCode = deferral.assetCode
+        seq = list.value.nextSeq, assetCode = deferral.assetCode, debitRoute = deferral.debitRoute, creditRoute = posting.debtRoute
     }
     list.value.items[#list.value.items + 1] = debt
     list.value.nextSeq = add_decimal(list.value.nextSeq, "1")
@@ -169,12 +175,13 @@ local function openFeeDebt(step, posting)
 end
 
 -- collectFeeDebts settles the debtor's list from its head with at most
--- take(available, amount). It never refuses: it stops at the first debt it may
--- not settle, and settles nothing when the debtor itself may not pay.
+-- take(available, amount), one debtor debit and one creditor credit per debt. It
+-- never refuses: it stops at the first debt it may not settle, and settles nothing
+-- when the debtor itself may not pay.
 local function collectFeeDebts(step, posting, debtor)
     local current, list = debtor.current, feeDebtList(step, posting.balanceRef)
     if current.direction == "debit" or not current.allowSending or not step.settleable(debtor) then return end
-    local budget, total, settled, ordinals, last = take(current.available, posting.amount), "0", {}, {}, -1
+    local budget, settled, ordinals, last = take(current.available, posting.amount), {}, {}, -1
     for i, id in ipairs(posting.items) do ordinals[id] = i - 1 end
     local items = list.value.items
     while items[1] and cmp_decimal(budget, "0") > 0 do
@@ -186,17 +193,17 @@ local function collectFeeDebts(step, posting, debtor)
             break
         end
         local amount = min_decimal(budget, debt.remaining)
-        budget, total, last = sub_decimal(budget, amount), add_decimal(total, amount), ordinal
+        budget, last = sub_decimal(budget, amount), ordinal
         debt.remaining = sub_decimal(debt.remaining, amount)
         if debt.remaining == "0" then table.remove(items, 1) end
         settled[#settled + 1] = { debt = debt, creditor = creditor, amount = amount, ordinal = ordinal }
     end
     if #settled == 0 then return end
     list.changed = true
-    local nextState = clone(current)
-    nextState.available = sub_decimal(current.available, total)
-    step.record(debtor, nextState, posting, "fee_debt_debit", "debit", total, "0", 0)
     for _, settlement in ipairs(settled) do
+        local debtorNext = clone(debtor.current)
+        debtorNext.available = sub_decimal(debtorNext.available, settlement.amount)
+        step.record(debtor, debtorNext, posting, "fee_debt_debit", "debit", settlement.amount, "0", settlement.ordinal)
         local creditorNext = clone(settlement.creditor.current)
         creditorNext.available = add_decimal(creditorNext.available, settlement.amount)
         step.record(settlement.creditor, creditorNext, posting, "fee_debt_credit", "credit", settlement.amount, "0", settlement.ordinal)
@@ -204,9 +211,9 @@ local function collectFeeDebts(step, posting, debtor)
     end
 end
 
--- refundFeeDebts pays the debtor, as an ordinary credit, opened minus canceled of
--- each debt the parent opened; it must equal the entry's expectedRefund and each
--- creditor pays its part as a debit without overdraft, never partially.
+-- refundFeeDebts pays the debtor, as an ordinary credit per debt, opened minus
+-- canceled of each debt the parent opened; it must equal the entry's expectedRefund
+-- and each creditor pays its part as a debit without overdraft, never partially.
 local function refundFeeDebts(step, postingIndex, posting, debtor)
     local list, transaction = feeDebtList(step, posting.balanceRef), step.transaction
     for _, entry in ipairs(posting.refunds) do
@@ -215,7 +222,7 @@ local function refundFeeDebts(step, postingIndex, posting, debtor)
             feeDebtConflict("refund does not match its live list")
         end
     end
-    local refunds, pending, total = {}, {}, "0"
+    local refunds, pending = {}, {}
     for index, entry in ipairs(posting.refunds) do
         local amount = entry.expectedRefund
         if cmp_decimal(amount, "0") > 0 then
@@ -226,15 +233,13 @@ local function refundFeeDebts(step, postingIndex, posting, debtor)
                 refuse("insufficient_funds", step.txIndex, postingIndex, entry.creditRef)
             end
             refunds[#refunds + 1] = { entry = entry, creditor = creditor, amount = amount, ordinal = index - 1 }
-            total = add_decimal(total, amount)
         end
     end
-    if #refunds == 0 then return end
-    local nextState = clone(debtor.current)
-    local credited, delta = applyCreditPosting(debtor.current, nextState, { amount = total, overdraftAmount = posting.overdraftAmount })
-    step.record(debtor, nextState, posting, "fee_debt_refund_credit", "credit", credited, delta, 0)
-    mirrorOverdraft(step, postingIndex, posting, debtor, delta)
     for _, refund in ipairs(refunds) do
+        local debtorNext = clone(debtor.current)
+        local credited, delta = applyCreditPosting(debtor.current, debtorNext, { amount = refund.amount, overdraftAmount = posting.overdraftAmount })
+        step.record(debtor, debtorNext, posting, "fee_debt_refund_credit", "credit", credited, delta, refund.ordinal)
+        mirrorOverdraft(step, postingIndex, posting, debtor, delta, refund.ordinal)
         local creditorNext = clone(refund.creditor.current)
         creditorNext.available = sub_decimal(creditorNext.available, refund.amount)
         step.record(refund.creditor, creditorNext, posting, "fee_debt_refund_debit", "debit", refund.amount, "0", refund.ordinal)

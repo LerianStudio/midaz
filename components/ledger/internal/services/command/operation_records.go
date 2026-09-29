@@ -148,23 +148,20 @@ func operationLifecycles(payload TransactionCompletionPlan, movements []accounti
 		contexts[operationMovementKey{context.PostingRef, context.Role, context.Ordinal}] = context
 	}
 
-	groups, refunds := make(map[string]operationLifecycle), make(map[string]operationLifecycle)
+	groups, refunds := make(map[string]operationLifecycle), make(map[operationMovementKey]operationLifecycle)
 	ordinals := make(map[operationMovementKey]uint32)
 
 	for _, movement := range movements {
+		ordinal, _ := operationMovementOrdinal(movement, ordinals)
 		if movement.Role == accounting.RoleFeeDebtRefundCredit {
-			refunds[movement.PostingRef] = operationLifecycle{Before: movement.Before, After: movement.After}
+			refunds[operationMovementKey{PostingRef: movement.PostingRef, Ordinal: ordinal}] = operationLifecycle{Before: movement.Before, After: movement.After}
 		}
 
 		if movement.Role != accounting.RolePrimary {
 			continue
 		}
 
-		base := operationMovementKey{PostingRef: movement.PostingRef, Role: movement.Role}
-		key := base
-		key.Ordinal = ordinals[base]
-		ordinals[base]++
-		context := contexts[key]
+		context := contexts[operationMovementKey{movement.PostingRef, movement.Role, ordinal}]
 		origin := operationOrigin(context)
 
 		lifecycle, seen := groups[origin]
@@ -185,7 +182,7 @@ func operationLifecycles(payload TransactionCompletionPlan, movements []accounti
 
 		key := operationMovementKey{context.PostingRef, context.Role, context.Ordinal}
 		if context.Role == accounting.RoleOverdraftCompanion {
-			if refund, repaid := refunds[context.PostingRef]; repaid {
+			if refund, repaid := refunds[operationMovementKey{PostingRef: context.PostingRef, Ordinal: context.Ordinal}]; repaid {
 				byContext[key] = refund
 				continue
 			}
@@ -288,10 +285,10 @@ func validateOperationMovement(movement accounting.Movement, requested decimal.D
 	return nil
 }
 
-// operationMovementOrdinal counts primary and companion movements per posting and role; a
-// fee-debt movement's ordinal is the tail of its ref <txId>:<len(postingRef)>:<postingRef>:<role>:<ordinal>.
+// operationMovementOrdinal counts primary movements per posting; any other movement's
+// ordinal is the tail of its ref <txId>:<len(postingRef)>:<postingRef>:<role>:<ordinal>.
 func operationMovementOrdinal(movement accounting.Movement, counted map[operationMovementKey]uint32) (uint32, bool) {
-	if !feeDebtOperationRole(movement.Role) {
+	if movement.Role == accounting.RolePrimary {
 		key := operationMovementKey{PostingRef: movement.PostingRef, Role: movement.Role}
 		counted[key]++
 
@@ -377,7 +374,7 @@ func validateOperationRecordCompleteness(contexts map[operationMovementKey]Opera
 		}
 
 		if context.Role == accounting.RoleOverdraftCompanion {
-			if _, exists := overdraftAnchor(contexts, operationMovementKey{PostingRef: key.PostingRef}); !exists {
+			if _, exists := overdraftAnchor(contexts, key); !exists {
 				return invalidTransactionCompletionRecord("companion operation spec has no primary")
 			}
 		}
@@ -441,7 +438,7 @@ func validateOperationRecordAttribution(contexts map[operationMovementKey]Operat
 
 	for _, context := range contexts {
 		if context.Role == accounting.RoleOverdraftCompanion {
-			anchor, exists := overdraftAnchor(contexts, operationMovementKey{PostingRef: context.PostingRef})
+			anchor, exists := overdraftAnchor(contexts, operationMovementKey{PostingRef: context.PostingRef, Ordinal: context.Ordinal})
 			primary := contexts[anchor]
 
 			if !exists || primary.Balance.AccountID != context.Balance.AccountID || primary.Balance.AssetCode != context.Balance.AssetCode || mtransaction.SplitAlias(primary.Balance.Alias) != mtransaction.SplitAlias(context.Balance.Alias) || !sameOperationRoute(primary.RouteID, context.RouteID) {
