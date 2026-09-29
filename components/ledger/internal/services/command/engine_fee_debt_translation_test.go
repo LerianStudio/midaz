@@ -201,6 +201,28 @@ func TestTranslateFeeDebtRevertRefusesMalformedMetadata(t *testing.T) {
 	}
 }
 
+func TestTranslateFeeDebtRevertRefusesADeletedBalance(t *testing.T) {
+	t.Parallel()
+
+	opened, one := decimal.NewFromInt(2), decimal.NewFromInt(1)
+	opening := func(debtor, creditor string) []FeeDebtOpening {
+		return []FeeDebtOpening{{DebtID: feeDebtOriginO + ":from:1:debit", DebtorRef: debtor, CreditRef: creditor, Opened: opened, Seq: 1}}
+	}
+	settled := []FeeDebtSettlement{{DebtID: feeDebtOriginX + ":from:1:debit", DebtorRef: "@gone#default", CreditRef: "@fees#default", Amount: one, Opened: opened, Seq: 1}}
+
+	for name, metadata := range map[string]map[string]any{
+		"refund debtor":   feeDebtRevertMetadata(t, opening("@gone#default", "@fees#default"), nil),
+		"refund creditor": feeDebtRevertMetadata(t, opening("@payer#default", "@gone#default"), nil),
+		"reopen debtor":   feeDebtRevertMetadata(t, nil, settled),
+	} {
+		input := feeDebtFreeCases()["revert"]
+		input.TransactionInput.Metadata = metadata
+
+		_, _, err := TranslateEngineTransaction(input)
+		assert.Equal(t, "0019", errorCode(err), "%s: %v", name, err)
+	}
+}
+
 func feeDebtRevertMetadata(t *testing.T, openings []FeeDebtOpening, settlements []FeeDebtSettlement) map[string]any {
 	t.Helper()
 

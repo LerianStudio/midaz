@@ -14,6 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -127,7 +128,7 @@ func (c *feeDebtComposition) appendRevert(transaction *accounting.Transaction, p
 	transaction.ReopenFeeDebts = feeDebtReopens(settlements, c.input.TransactionInput.FeeDebtRevertedOrigins)
 	for _, reopen := range transaction.ReopenFeeDebts {
 		if _, exists := c.balances[reopen.DebtorRef]; !exists {
-			return invalidEngineTranslation("fee debt reopen debtor has no balance in scoped pool")
+			return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 		}
 	}
 
@@ -151,7 +152,7 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 	for n, debtorRef := range debtors {
 		debtor, exists := c.balances[debtorRef]
 		if !exists {
-			return invalidEngineTranslation("fee debt refund debtor has no balance in scoped pool")
+			return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 		}
 
 		ref := "fee-refund:" + strconv.Itoa(n)
@@ -163,7 +164,7 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 		for _, opening := range byDebtor[debtorRef] {
 			creditor, found := c.balances[opening.CreditRef]
 			if !found {
-				return invalidEngineTranslation("fee debt refund creditor has no balance in scoped pool")
+				return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 			}
 
 			posting.Amount = posting.Amount.Add(opening.Opened)
