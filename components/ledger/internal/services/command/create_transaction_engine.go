@@ -405,7 +405,7 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 		if failure.PostingIndex == -1 {
 			_, _, valid := engineFailureRequirement(request, failure)
 
-			return valid
+			return valid || engineFailureReopensDebt(request, failure)
 		}
 
 		_, valid := engineFailurePosting(request, failure)
