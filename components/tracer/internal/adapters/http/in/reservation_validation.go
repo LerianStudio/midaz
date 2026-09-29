@@ -32,7 +32,11 @@ type ReserveRequest struct {
 	// still-valid pending that has no existing sweep (R18). It is a sibling wire
 	// field, NOT part of the embedded ValidationRequest, so the relaxed reserve
 	// validation never sees it.
-	LongLived               bool `json:"longLived,omitempty" example:"false"`
+	LongLived bool `json:"longLived,omitempty" example:"false"`
+	// Revert marks the reservation as the revert of an applied transaction. Rules
+	// are not evaluated for it; limit capacity is still reserved. A sibling wire
+	// field like LongLived, outside the embedded ValidationRequest.
+	Revert                  bool `json:"revert,omitempty" example:"false"`
 	model.ValidationRequest `swaggerignore:"true"`
 }
 
@@ -87,14 +91,4 @@ type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
-}
-
-// matchedRuleIDsOrEmpty returns a non-nil slice so the JSON body serializes
-// matchedRuleIds as [] rather than null when no rule matched.
-func matchedRuleIDsOrEmpty(ids []uuid.UUID) []uuid.UUID {
-	if ids == nil {
-		return []uuid.UUID{}
-	}
-
-	return ids
 }

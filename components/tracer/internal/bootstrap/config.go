@@ -1346,10 +1346,13 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 // unreachable without one); mesh/unset ⇒ plaintext (sidecar terminates). The
 // server delegates to the SAME reservationService the REST handler uses; clk
 // drives the reserve timestamp-window check identically to the REST path.
+// workerEnsurer starts a tenant's workers on its first reservation (nil in
+// single-tenant mode).
 func initGRPCServer(
 	cfg *Config,
 	reservationService *services.ReservationService,
 	pgManager *tmpostgres.Manager,
+	workerEnsurer grpcin.WorkerEnsurer,
 	clk clock.Clock,
 	logger libLog.Logger,
 	telemetry *libOtel.Telemetry,
@@ -1377,7 +1380,7 @@ func initGRPCServer(
 
 	var tenantInterceptor grpc.UnaryServerInterceptor
 	if tenantResolver.Active() {
-		tenantInterceptor = grpcin.TenantUnaryInterceptor(tenantResolver)
+		tenantInterceptor = grpcin.TenantUnaryInterceptor(tenantResolver, workerEnsurer)
 	}
 
 	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, tenantInterceptor, logger, telemetry)
@@ -2283,12 +2286,20 @@ func finalizeStartup(
 	streamingClose func() error,
 	authHost string,
 ) (*Service, error) {
-	var pgManager *tmpostgres.Manager
+	var (
+		pgManager     *tmpostgres.Manager
+		workerEnsurer grpcin.WorkerEnsurer
+	)
+
 	if mtComponents != nil {
 		pgManager = mtComponents.pgManager
+
+		if mtComponents.supervisor != nil {
+			workerEnsurer = mtComponents.supervisor
+		}
 	}
 
-	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, clk, logger, telemetry)
+	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, workerEnsurer, clk, logger, telemetry)
 	if err != nil {
 		return nil, err
 	}

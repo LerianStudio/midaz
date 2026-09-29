@@ -94,8 +94,8 @@ func resWireServiceRealAudit(t *testing.T, db *sql.DB, resolver services.LimitRe
 		resolver,
 		resRepo,
 		auditWriter,
-		nil, // no rule step: these proofs exercise the limit lifecycle only
-		nil, // RealClock
+		allowRuleEvaluator{}, // these proofs exercise the limit lifecycle only
+		nil,                  // RealClock
 	)
 	require.NoError(t, err, "failed to wire reservation service with real audit writer")
 
@@ -230,7 +230,7 @@ func TestIntegration_ReservationConcurrentSameAccount_NoDeadlock(t *testing.T) {
 
 			txID := testutil.MustDeterministicUUID(int64(93100 + idx))
 
-			res, err := svc.Reserve(ctx, txID, input, false)
+			res, err := svc.Reserve(ctx, txID, input, services.ReserveOptions{})
 			switch {
 			case err != nil:
 				hardError.Add(1)
@@ -322,7 +322,7 @@ func TestIntegration_ReservationConcurrentDistinctAccounts_Parallelizes(t *testi
 
 			txID := testutil.MustDeterministicUUID(int64(93600 + idx))
 
-			res, err := svc.Reserve(ctx, txID, inputs[idx], false)
+			res, err := svc.Reserve(ctx, txID, inputs[idx], services.ReserveOptions{})
 			switch {
 			case err != nil:
 				hardError.Add(1)
@@ -413,7 +413,7 @@ func TestIntegration_ReservationConcurrentSameAccount_OverLimitStillDenies(t *te
 
 			txID := testutil.MustDeterministicUUID(int64(93700 + idx))
 
-			res, err := svc.Reserve(ctx, txID, input, false)
+			res, err := svc.Reserve(ctx, txID, input, services.ReserveOptions{})
 			switch {
 			case err != nil:
 				hardError.Add(1)

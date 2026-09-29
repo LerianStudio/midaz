@@ -6,6 +6,9 @@ package in
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 const mwTenantID = "tenant-007"
@@ -36,7 +41,7 @@ func mwStubDB(t *testing.T) dbresolver.DB {
 // records the resolved request context for assertion.
 func newReservationTenantApp(resolver *seamtenant.Resolver, captured *context.Context) *fiber.App {
 	app := fiber.New()
-	app.Post("/v1/reservations", reservationTenantMiddleware(resolver), func(c fiber.Ctx) error {
+	app.Post("/v1/reservations", reservationTenantMiddleware(resolver, nil), func(c fiber.Ctx) error {
 		*captured = c.Context()
 		return c.SendStatus(http.StatusCreated)
 	})
@@ -121,4 +126,82 @@ func TestReservationTenantMiddleware_SingleTenantNoOpPassesThrough(t *testing.T)
 	require.NotNil(t, captured)
 	require.Empty(t, tmcore.GetTenantIDContext(captured))
 	require.Nil(t, tmcore.GetPGContext(captured))
+}
+
+// failingEnsurer answers every EnsureWorkers call with err, recording the tenant.
+type failingEnsurer struct {
+	tenants []string
+	err     error
+}
+
+func (f *failingEnsurer) EnsureWorkers(_ context.Context, tenantID string) error {
+	f.tenants = append(f.tenants, tenantID)
+
+	return f.err
+}
+
+func TestReservationTenantMiddleware_EnsuresWorkersForTheResolvedTenant(t *testing.T) {
+	tests := []struct {
+		name           string
+		ensureErr      error
+		wantStatus     int
+		wantRetryAfter bool
+	}{
+		{name: "workers started", wantStatus: http.StatusCreated},
+		{name: "ensure failure still serves the request", ensureErr: errors.New("spawn failed"), wantStatus: http.StatusCreated},
+		{name: "tenant cap reached is 503", ensureErr: fmt.Errorf("ensure: %w", workers.ErrTenantCapReached), wantStatus: http.StatusServiceUnavailable, wantRetryAfter: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver := seamtenant.NewResolverWithPool(
+				func(context.Context, string) (dbresolver.DB, error) { return mwStubDB(t), nil },
+				true,
+			)
+			ensurer := &failingEnsurer{err: tt.ensureErr}
+
+			handlerCalled := false
+
+			app := fiber.New()
+			app.Post("/v1/reservations", reservationTenantMiddleware(resolver, ensurer), func(c fiber.Ctx) error {
+				handlerCalled = true
+				return c.SendStatus(http.StatusCreated)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/v1/reservations", nil)
+			req.Header.Set(seamtenant.HeaderName, mwTenantID)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, []string{mwTenantID}, ensurer.tenants)
+			require.Equal(t, tt.wantStatus, resp.StatusCode)
+			require.Equal(t, tt.wantStatus == http.StatusCreated, handlerCalled)
+
+			if tt.wantRetryAfter {
+				require.NotEmpty(t, resp.Header.Get("Retry-After"))
+
+				body, readErr := io.ReadAll(resp.Body)
+				require.NoError(t, readErr)
+				require.Contains(t, string(body), constant.ErrTenantCapReached.Error())
+			}
+		})
+	}
+}
+
+func TestReservationTenantMiddleware_SingleTenantNeverEnsuresWorkers(t *testing.T) {
+	ensurer := &recordingEnsurer{}
+
+	app := fiber.New()
+	app.Post("/v1/reservations", reservationTenantMiddleware(seamtenant.NewResolver(nil, false), ensurer), func(c fiber.Ctx) error {
+		return c.SendStatus(http.StatusCreated)
+	})
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodPost, "/v1/reservations", nil))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.Zero(t, ensurer.callCount())
 }

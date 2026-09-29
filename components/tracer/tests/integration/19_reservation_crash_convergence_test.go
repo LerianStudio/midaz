@@ -185,8 +185,8 @@ func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, a
 		resolver,
 		resRepo,
 		audit,
-		nil, // no rule step: these proofs exercise the limit lifecycle only
-		nil, // RealClock for reserve/confirm/release timestamps
+		allowRuleEvaluator{}, // these proofs exercise the limit lifecycle only
+		nil,                  // RealClock for reserve/confirm/release timestamps
 	)
 	require.NoError(t, err, "failed to wire reservation service")
 
@@ -280,7 +280,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		// Phase one: reserve. Capacity is held in reserved_usage.
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.False(t, res.Denied)
 		require.Len(t, res.ReservationIDs, 1)
@@ -333,7 +333,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		ctx := context.Background()
 
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 1)
 
@@ -396,7 +396,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 				specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, c.amount, 10000)},
 			}, audit)
 
-			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), false)
+			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), services.ReserveOptions{})
 			require.NoError(t, err)
 			require.Len(t, res.ReservationIDs, 1)
 
@@ -466,7 +466,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		// One transaction, two reservations, in ONE service call.
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 2, "one reservation per counter-backed limit")
 
@@ -576,7 +576,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 
 				txID := testutil.MustDeterministicUUID(8820 + int64(idx))
 
-				res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
+				res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), services.ReserveOptions{})
 				switch {
 				case err != nil:
 					hardError.Add(1)
@@ -657,7 +657,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 
 					txID := testutil.MustDeterministicUUID(int64(810000 + round*100 + idx))
 
-					res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
+					res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), services.ReserveOptions{})
 					if err == nil && !res.Denied {
 						acceptedSum.Add(amounts[idx])
 
@@ -719,7 +719,7 @@ func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
 
 	ctx := context.Background()
 
-	res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+	res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 	require.NoError(t, err)
 	require.False(t, res.Denied)
 	require.Len(t, res.ReservationIDs, 1)

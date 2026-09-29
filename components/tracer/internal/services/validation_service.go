@@ -306,7 +306,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// If limit exceeded, rollback counters and persist DENY outside tx
 	if !limitOutput.Allowed {
 		response.Decision = model.DecisionDeny
-		response.Reason = "limit_exceeded"
+		response.Reason = reasonLimitExceeded
 		response.ProcessingTimeMs = float64(time.Since(startTime).Nanoseconds()) / 1e6
 
 		out := s.finalizeNonAllow(ctx, tx, req, response, logger, "limit exceeded")

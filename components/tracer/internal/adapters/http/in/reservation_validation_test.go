@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMatchedRuleIDsOrEmpty(t *testing.T) {
+func TestIDsOrEmpty(t *testing.T) {
 	ruleID := uuid.MustParse("00000000-0000-0000-0000-000000000005")
 
-	assert.Equal(t, []uuid.UUID{}, matchedRuleIDsOrEmpty(nil))
-	assert.Equal(t, []uuid.UUID{ruleID}, matchedRuleIDsOrEmpty([]uuid.UUID{ruleID}))
+	assert.Equal(t, []uuid.UUID{}, idsOrEmpty(nil))
+	assert.Equal(t, []uuid.UUID{ruleID}, idsOrEmpty([]uuid.UUID{ruleID}))
 }
 
 func TestReserveResponse_JSONShape(t *testing.T) {
@@ -25,8 +25,8 @@ func TestReserveResponse_JSONShape(t *testing.T) {
 		body, err := json.Marshal(ReserveResponse{
 			TransactionID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 			Decision:       "ALLOW",
-			ReservationIDs: reservationIDsOrEmpty(nil),
-			MatchedRuleIDs: matchedRuleIDsOrEmpty(nil),
+			ReservationIDs: idsOrEmpty(nil),
+			MatchedRuleIDs: idsOrEmpty(nil),
 		})
 		require.NoError(t, err)
 
@@ -47,8 +47,8 @@ func TestReserveResponse_JSONShape(t *testing.T) {
 			Denied:         true,
 			Decision:       "REVIEW",
 			Reason:         "manual review required",
-			ReservationIDs: reservationIDsOrEmpty(nil),
-			MatchedRuleIDs: matchedRuleIDsOrEmpty([]uuid.UUID{ruleID}),
+			ReservationIDs: idsOrEmpty(nil),
+			MatchedRuleIDs: idsOrEmpty([]uuid.UUID{ruleID}),
 		})
 		require.NoError(t, err)
 

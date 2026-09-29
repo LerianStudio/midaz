@@ -435,7 +435,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 			return nil, fmt.Errorf("failed to create reservation handler: %w", err)
 		}
 
-		resTenantMW = reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
+		resTenantMW = reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled), supervisor)
 	}
 
 	// Single seam that mounts every Huma route (and its pre-Huma Fiber auth chain)

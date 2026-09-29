@@ -6,6 +6,8 @@ package in
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -18,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -46,7 +49,7 @@ func TestTenantUnaryInterceptor_PresentMetadataBindsPool(t *testing.T) {
 		true,
 	)
 
-	interceptor := TenantUnaryInterceptor(resolver)
+	interceptor := TenantUnaryInterceptor(resolver, nil)
 
 	ctx := metadata.NewIncomingContext(
 		context.Background(),
@@ -80,7 +83,7 @@ func TestTenantUnaryInterceptor_MissingMetadataUnderMTFailsInvalidArgument(t *te
 		true,
 	)
 
-	interceptor := TenantUnaryInterceptor(resolver)
+	interceptor := TenantUnaryInterceptor(resolver, nil)
 
 	// No incoming metadata at all.
 	handler := func(context.Context, any) (any, error) {
@@ -103,7 +106,7 @@ func TestTenantUnaryInterceptor_EmptyMetadataValueFailsInvalidArgument(t *testin
 		true,
 	)
 
-	interceptor := TenantUnaryInterceptor(resolver)
+	interceptor := TenantUnaryInterceptor(resolver, nil)
 
 	ctx := metadata.NewIncomingContext(
 		context.Background(),
@@ -128,7 +131,7 @@ func TestTenantUnaryInterceptor_SingleTenantNoOpPassesThrough(t *testing.T) {
 	resolver := seamtenant.NewResolver(nil, true)
 	require.False(t, resolver.Active())
 
-	interceptor := TenantUnaryInterceptor(resolver)
+	interceptor := TenantUnaryInterceptor(resolver, nil)
 
 	var handlerCtx context.Context
 
@@ -148,4 +151,75 @@ func TestTenantUnaryInterceptor_MetadataKeyMatchesLedgerClient(t *testing.T) {
 	// The gRPC metadata key must be the lower-cased X-Tenant-Id header the
 	// ledger client appends, or propagation silently breaks.
 	require.Equal(t, "x-tenant-id", seamtenant.MetadataKey)
+}
+
+// recordingEnsurer records the tenants it is asked to start workers for and
+// answers with err.
+type recordingEnsurer struct {
+	tenants []string
+	err     error
+}
+
+func (r *recordingEnsurer) EnsureWorkers(_ context.Context, tenantID string) error {
+	r.tenants = append(r.tenants, tenantID)
+
+	return r.err
+}
+
+func TestTenantUnaryInterceptor_EnsuresWorkersForTheResolvedTenant(t *testing.T) {
+	tests := []struct {
+		name          string
+		ensureErr     error
+		wantCode      codes.Code
+		wantHandlerOK bool
+	}{
+		{name: "workers started", wantCode: codes.OK, wantHandlerOK: true},
+		{name: "ensure failure still serves the request", ensureErr: errors.New("spawn failed"), wantCode: codes.OK, wantHandlerOK: true},
+		{name: "tenant cap reached is unavailable", ensureErr: fmt.Errorf("ensure: %w", workers.ErrTenantCapReached), wantCode: codes.Unavailable},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver := seamtenant.NewResolverWithPool(
+				func(context.Context, string) (dbresolver.DB, error) { return stubPoolDB(t), nil },
+				true,
+			)
+			ensurer := &recordingEnsurer{err: tt.ensureErr}
+
+			interceptor := TenantUnaryInterceptor(resolver, ensurer)
+
+			ctx := metadata.NewIncomingContext(
+				context.Background(),
+				metadata.Pairs(seamtenant.MetadataKey, interceptorTenantID),
+			)
+
+			handlerCalled := false
+			handler := func(context.Context, any) (any, error) {
+				handlerCalled = true
+				return "ok", nil
+			}
+
+			_, err := interceptor(ctx, nil, unaryInfo(), handler)
+
+			require.Equal(t, []string{interceptorTenantID}, ensurer.tenants)
+			require.Equal(t, tt.wantCode, status.Code(err))
+			require.Equal(t, tt.wantHandlerOK, handlerCalled)
+
+			if tt.wantCode == codes.Unavailable {
+				require.Equal(t, constant.ErrTenantCapReached.Error(), status.Convert(err).Message())
+			}
+		})
+	}
+}
+
+func TestTenantUnaryInterceptor_SingleTenantNeverEnsuresWorkers(t *testing.T) {
+	ensurer := &recordingEnsurer{}
+
+	interceptor := TenantUnaryInterceptor(seamtenant.NewResolver(nil, false), ensurer)
+
+	_, err := interceptor(context.Background(), nil, unaryInfo(), func(context.Context, any) (any, error) {
+		return "ok", nil
+	})
+	require.NoError(t, err)
+	require.Empty(t, ensurer.tenants)
 }

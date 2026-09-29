@@ -32,7 +32,7 @@ import (
 // depends on. Interface defined locally per Ring pattern; satisfied by
 // *services.ReservationService.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, longLived bool) (*services.ReserveResult, error)
+	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, opts services.ReserveOptions) (*services.ReserveResult, error)
 	Confirm(ctx context.Context, reservationID uuid.UUID) error
 	Release(ctx context.Context, reservationID uuid.UUID) error
 	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
@@ -140,9 +140,13 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		attribute.String("app.request.transaction_id", request.TransactionID.String()),
 		attribute.String("app.request.transaction_type", string(request.TransactionType)),
 		attribute.String("app.request.asset", request.Asset),
+		attribute.Bool("app.request.revert", request.Revert),
 	)
 
-	result, err := h.service.Reserve(ctx, request.TransactionID, &request.ValidationRequest, request.LongLived)
+	result, err := h.service.Reserve(ctx, request.TransactionID, &request.ValidationRequest, services.ReserveOptions{
+		LongLived: request.LongLived,
+		Revert:    request.Revert,
+	})
 	if err != nil {
 		return nil, classifyReservationServiceError(span, err)
 	}
@@ -151,17 +155,17 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 		libLog.String("operation", "handler.reservations.reserve"),
 		libLog.String("transaction_id", request.TransactionID.String()),
 		libLog.Bool("denied", result.Denied),
-		libLog.String("decision", reserveDecision(result)),
+		libLog.String("decision", string(result.EffectiveDecision())),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
 	return &ReserveResponse{
 		TransactionID:  request.TransactionID,
 		Denied:         result.Denied,
-		ReservationIDs: reservationIDsOrEmpty(result.ReservationIDs),
-		Decision:       reserveDecision(result),
+		ReservationIDs: idsOrEmpty(result.ReservationIDs),
+		Decision:       string(result.EffectiveDecision()),
 		Reason:         result.Reason,
-		MatchedRuleIDs: matchedRuleIDsOrEmpty(result.MatchedRuleIDs),
+		MatchedRuleIDs: idsOrEmpty(result.MatchedRuleIDs),
 	}, nil
 }
 
@@ -294,8 +298,9 @@ func (h *ReservationHandler) terminate(
 // classification the Fiber wrappers (which render via pkgHTTP.WithError) and the
 // Huma funcs (humaProblem -> *pkgHTTP.Detail) both consume, so both transports emit
 // field/status/code/type-identical envelopes. ErrReservationNotFound (a
-// confirm/release against a missing id) maps to 404; everything else is a technical
-// failure mapped to 500.
+// confirm/release against a missing id) maps to 404; ErrRuleCacheNotReady (the
+// rule cache has not loaded yet) maps to 503 so the caller treats the tracer as
+// temporarily unavailable; everything else is a technical failure mapped to 500.
 func classifyReservationServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -306,6 +311,10 @@ func classifyReservationServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 
 		return pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation)
+	case errors.Is(err, constant.ErrRuleCacheNotReady):
+		libOpentelemetry.HandleSpanError(span, "Rule cache not ready", err)
+
+		return pkg.ValidateBusinessError(constant.ErrRuleCacheNotReady, constant.EntityReservation)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 
@@ -313,27 +322,12 @@ func classifyReservationServiceError(span trace.Span, err error) error {
 	}
 }
 
-// reservationIDsOrEmpty returns a non-nil slice so the JSON body serializes
-// reservationIds as [] rather than null on the denied / no-counter-limit paths.
-func reservationIDsOrEmpty(ids []uuid.UUID) []uuid.UUID {
+// idsOrEmpty returns a non-nil slice so the JSON body serializes an id list
+// (reservationIds, matchedRuleIds) as [] rather than null when it is empty.
+func idsOrEmpty(ids []uuid.UUID) []uuid.UUID {
 	if ids == nil {
 		return []uuid.UUID{}
 	}
 
 	return ids
-}
-
-// reserveDecision is the decision the reserve response carries. The service's
-// Decision wins when set; otherwise it is derived from Denied, so the response
-// always names a decision.
-func reserveDecision(result *services.ReserveResult) string {
-	if result.Decision != "" {
-		return string(result.Decision)
-	}
-
-	if result.Denied {
-		return string(model.DecisionDeny)
-	}
-
-	return string(model.DecisionAllow)
 }

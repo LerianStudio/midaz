@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,7 +66,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{}).
 					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
 				return m
 			},
@@ -92,7 +93,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), true).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{LongLived: true}).
 					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
 				return m
 			},
@@ -102,6 +103,42 @@ func TestReservationHandler_Reserve(t *testing.T) {
 				require.NoError(t, json.Unmarshal(body, &resp))
 				assert.False(t, resp.Denied)
 				require.Len(t, resp.ReservationIDs, 1)
+			},
+		},
+		{
+			name: "revert - revert=true is forwarded to the service",
+			requestBody: func() any {
+				r := newValidReserveRequest()
+				r.Revert = true
+				return r
+			}(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{Revert: true}).
+					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
+				return m
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody: func(t *testing.T, body []byte) {
+				var resp ReserveResponse
+				require.NoError(t, json.Unmarshal(body, &resp))
+				require.Len(t, resp.ReservationIDs, 1)
+			},
+		},
+		{
+			name:        "rule cache not ready - 503 so the caller treats the tracer as unavailable",
+			requestBody: newValidReserveRequest(),
+			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
+				m := mocks.NewMockReservationService(ctrl)
+				m.EXPECT().
+					Reserve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("rule evaluation failed: %w", constant.ErrRuleCacheNotReady))
+				return m
+			},
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), constant.ErrRuleCacheNotReady.Error())
 			},
 		},
 		{
@@ -131,7 +168,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{}).
 					Return(&services.ReserveResult{
 						Denied:         true,
 						Decision:       model.DecisionDeny,
@@ -157,7 +194,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{}).
 					Return(&services.ReserveResult{
 						Denied:         true,
 						Decision:       model.DecisionReview,
@@ -182,7 +219,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{}).
 					Return(&services.ReserveResult{Decision: model.DecisionAllow, ReservationIDs: []uuid.UUID{reservationID}}, nil)
 				return m
 			},
@@ -230,7 +267,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 							req.RequestID == testutil.MustDeterministicUUID(2) &&
 							req.Account.Type == "deposit" &&
 							req.Metadata["channel"] == "app"
-					}), false).
+					}), services.ReserveOptions{}).
 					Return(&services.ReserveResult{Decision: model.DecisionAllow}, nil)
 				return m
 			},
@@ -264,7 +301,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{}).
 					Return(&services.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}, nil)
 				return m
 			},
@@ -289,7 +326,7 @@ func TestReservationHandler_Reserve(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockReservationService {
 				m := mocks.NewMockReservationService(ctrl)
 				m.EXPECT().
-					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), false).
+					Reserve(gomock.Any(), testutil.MustDeterministicUUID(1), gomock.Any(), services.ReserveOptions{}).
 					Return(&services.ReserveResult{}, nil)
 				return m
 			},

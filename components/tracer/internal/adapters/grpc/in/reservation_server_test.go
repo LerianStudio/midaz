@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -76,8 +77,8 @@ func TestReservationServer_Reserve(t *testing.T) {
 		expected := expectedInput(now, requestID, accountID)
 
 		svc.EXPECT().
-			Reserve(gomock.Any(), transactionID, gomock.Any(), false).
-			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotReq *model.ValidationRequest, _ bool) (*services.ReserveResult, error) {
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
+			DoAndReturn(func(_ context.Context, _ uuid.UUID, gotReq *model.ValidationRequest, _ services.ReserveOptions) (*services.ReserveResult, error) {
 				// The gRPC server must hand the use case the validation request whose
 				// limit input is the SAME one the REST path produces (no fork).
 				require.NotNil(t, gotReq)
@@ -109,7 +110,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 		clk := testutil.NewMockClock(now)
 
 		svc.EXPECT().
-			Reserve(gomock.Any(), transactionID, gomock.Any(), false).
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
 			Return(&services.ReserveResult{Denied: true}, nil)
 
 		server, err := NewReservationServer(svc, clk)
@@ -127,7 +128,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 		clk := testutil.NewMockClock(now)
 
 		svc.EXPECT().
-			Reserve(gomock.Any(), transactionID, gomock.Any(), true).
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{LongLived: true}).
 			Return(&services.ReserveResult{}, nil)
 
 		server, err := NewReservationServer(svc, clk)
@@ -138,6 +139,42 @@ func TestReservationServer_Reserve(t *testing.T) {
 
 		_, err = server.Reserve(context.Background(), req)
 		require.NoError(t, err)
+	})
+
+	t.Run("revert hint is forwarded to the use case", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{Revert: true}).
+			Return(&services.ReserveResult{}, nil)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		req := newReserveRequest(now, transactionID, requestID, accountID)
+		req.Revert = true
+
+		_, err = server.Reserve(context.Background(), req)
+		require.NoError(t, err)
+	})
+
+	t.Run("rule cache not ready is Unavailable", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
+			Return(nil, fmt.Errorf("rule evaluation failed: %w", constant.ErrRuleCacheNotReady))
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		_, err = server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+		require.Equal(t, codes.Unavailable, status.Code(err))
+		require.Equal(t, constant.ErrRuleCacheNotReady.Error(), status.Convert(err).Message())
 	})
 
 	t.Run("invalid transaction id is InvalidArgument", func(t *testing.T) {
@@ -338,7 +375,7 @@ func TestReservationServer_Reserve_Decision(t *testing.T) {
 			svc := mocks.NewMockReservationService(ctrl)
 
 			svc.EXPECT().
-				Reserve(gomock.Any(), transactionID, gomock.Any(), false).
+				Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
 				Return(tt.serviceResult, nil)
 
 			server, err := NewReservationServer(svc, testutil.NewMockClock(now))
@@ -412,7 +449,7 @@ func TestReservationServer_Reserve_ForwardsRuleContext(t *testing.T) {
 			return req != nil &&
 				req.Account.Type == "deposit" &&
 				req.Metadata["channel"] == "app"
-		}), false).
+		}), services.ReserveOptions{}).
 		Return(&services.ReserveResult{
 			Denied:         true,
 			Decision:       model.DecisionDeny,

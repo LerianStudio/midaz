@@ -27,6 +27,24 @@ var ErrNilSingleRuleEvaluator = errors.New("single rule evaluator is nil")
 // ErrNilRequest is returned when EvaluateAll is called with a nil request.
 var ErrNilRequest = errors.New("request cannot be nil")
 
+// RuleEvaluationError reports that one rule could not be evaluated against a
+// request. It carries the failing rule's id so a caller can attribute the
+// failure, and unwraps to the evaluator's cause.
+type RuleEvaluationError struct {
+	RuleID uuid.UUID
+	Err    error
+}
+
+// Error renders the failing rule id and its cause.
+func (e *RuleEvaluationError) Error() string {
+	return fmt.Sprintf("failed to evaluate rule %s: %v", e.RuleID.String(), e.Err)
+}
+
+// Unwrap exposes the evaluator's cause to errors.Is and errors.As.
+func (e *RuleEvaluationError) Unwrap() error {
+	return e.Err
+}
+
 // SingleRuleEvaluator evaluates a single rule against a validation request.
 // Interface defined in the package that USES it (per PROJECT_RULES.md).
 type SingleRuleEvaluator interface {
@@ -148,7 +166,7 @@ func (e *CompleteEvaluator) EvaluateAll(
 				libLog.String("error.message", err.Error()),
 			).Log(ctx, libLog.LevelError, "Failed to evaluate rule")
 
-			return nil, fmt.Errorf("failed to evaluate rule %s: %w", rule.ID.String(), err)
+			return nil, &RuleEvaluationError{RuleID: rule.ID, Err: err}
 		}
 
 		// c. Track in EvaluatedRuleIDs
