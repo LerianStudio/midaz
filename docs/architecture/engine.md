@@ -1004,7 +1004,9 @@ single-tenant metadata fallback. Legacy tenant-readiness rules remain unchanged.
 The concrete `TransactionCompletionService` implements the
 `AppliedTransactionCompleter` port and persists or verifies transaction and operation rows
 atomically in the existing PostgreSQL tables, then creates or verifies metadata
-in MongoDB. Existing metadata is never overwritten to force replay equivalence.
+in MongoDB. Existing metadata is never overwritten and never compared with the
+frozen copy: it is the client-editable truth, so only its presence under the
+entity id is verified.
 A late pending-hold record after terminal completion is accepted only when every
 historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.

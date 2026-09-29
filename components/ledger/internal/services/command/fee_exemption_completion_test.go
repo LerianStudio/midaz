@@ -19,6 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	fees "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
@@ -191,4 +192,26 @@ func TestPendingCommitFlattensLegacyNestedFeeExemption(t *testing.T) {
 	require.Len(t, finalizer.envelopes, 1)
 	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
 	assert.Equal(t, `{"exempt":true,"reason":"all_source_accounts_exempt"}`, payload.TransactionInput.Metadata["feeExemption"])
+}
+
+// TestLegacyFeeExemptionDocumentCompletesPendingCommit completes a plan carrying the
+// JSON string over a stored document Mongo returns with the legacy object: the stored
+// document is kept and the record completes.
+func TestLegacyFeeExemptionDocumentCompletesPendingCommit(t *testing.T) {
+	payload, result := recoveryContractFixture(t)
+	payload.TransactionInput.Metadata = map[string]any{"feeExemption": `{"exempt":true,"reason":"all_source_accounts_exempt"}`}
+	var err error
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+
+	envelope := recoveryContractEnvelope(t, payload, result)
+	ctx, _ := finalizationFixture(t)
+	finalizer, store, metadata, _ := finalizationDependencies()
+	key := constant.EntityTransaction + ":" + payload.TransactionID.String()
+	legacy := mongodb.JSON{"feeExemption": bson.D{{Key: "exempt", Value: true}, {Key: "reason", Value: "all_source_accounts_exempt"}}}
+	metadata.data[key] = &mongodb.Metadata{EntityID: payload.TransactionID.String(), EntityName: constant.EntityTransaction, Data: legacy}
+
+	require.NoError(t, completionError(finalizer.Complete(ctx, &envelope)))
+	require.Len(t, store.records, 1)
+	assert.Equal(t, legacy, metadata.data[key].Data)
 }
