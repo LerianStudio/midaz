@@ -222,7 +222,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
-	transactionReverted := tran.TransactionRevert()
+	transactionReverted := flattenLegacyFeeExemption(tran.TransactionRevert())
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
 

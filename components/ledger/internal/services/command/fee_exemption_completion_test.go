@@ -15,6 +15,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
@@ -136,4 +137,58 @@ func TestFrozenNestedMetadataPlanDecodes(t *testing.T) {
 	decoded, err := DecodeTransactionCompletionPlan(frozen)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"exempt": true}, decoded.TransactionInput.Metadata["feeExemption"])
+}
+
+// TestRevertFlattensLegacyNestedFeeExemption reverts an origin whose feeExemption Mongo
+// returns as a document: the reversal plan carries it as the JSON string.
+func TestRevertFlattensLegacyNestedFeeExemption(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	idempotencySet := make(chan struct{})
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error { close(idempotencySet); return nil },
+	).Times(1)
+
+	organizationID := uuid.MustParse("c1111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("c2222222-2222-4222-8222-222222222222")
+	originID := uuid.MustParse("c3333333-3333-4333-8333-333333333333")
+	origin := revertEngineOrigin(organizationID, ledgerID, originID)
+	origin.Metadata = map[string]any{"feeExemption": bson.D{{Key: "exempt", Value: true}, {Key: "reason", Value: "all_source_accounts_exempt"}}}
+	reader := &revertEngineReader{revertReader: &revertReader{origin: origin}, balances: []*mmodel.Balance{
+		revertEngineBalance(organizationID, ledgerID, "c4444444-4444-4444-8444-444444444444", "@payee", 50, 7),
+		revertEngineBalance(organizationID, ledgerID, "c5555555-5555-4555-8555-555555555555", "@payer", 20, 3),
+	}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader, Engine: &revertLiteralEngine{t: t},
+		AppliedTransactionCompleter: finalizer, EngineRecoveryAcknowledger: &recordingEngineRecoveryAcknowledger{},
+	}
+
+	_, _, err := uc.RevertTransactionV1(context.Background(), RevertTransactionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: originID})
+	require.NoError(t, err)
+	require.Len(t, finalizer.envelopes, 1)
+	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
+	assert.Equal(t, `{"exempt":true,"reason":"all_source_accounts_exempt"}`, payload.TransactionInput.Metadata["feeExemption"])
+	assert.IsType(t, bson.D{}, origin.Metadata["feeExemption"], "the origin keeps its own value")
+	select {
+	case <-idempotencySet:
+	case <-time.After(time.Second):
+		t.Fatal("the revert did not populate the idempotency value")
+	}
+}
+
+// TestPendingCommitFlattensLegacyNestedFeeExemption commits a PENDING whose stored body
+// holds feeExemption as an object: the commit plan carries it as the JSON string.
+func TestPendingCommitFlattensLegacyNestedFeeExemption(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, _, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	reader.persisted.Body.Metadata = map[string]any{"feeExemption": map[string]any{"exempt": true, "reason": "all_source_accounts_exempt"}}
+
+	_, err := uc.CommitTransactionV2(context.Background(), in)
+	require.NoError(t, err)
+	require.Len(t, finalizer.envelopes, 1)
+	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
+	assert.Equal(t, `{"exempt":true,"reason":"all_source_accounts_exempt"}`, payload.TransactionInput.Metadata["feeExemption"])
 }
