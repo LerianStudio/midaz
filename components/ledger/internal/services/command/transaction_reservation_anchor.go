@@ -495,7 +495,8 @@ func reserveMetadataValue(value any) (string, bool) {
 // failure is logged at Warn, span-recorded, and never propagated, because the
 // money has already moved and the response is owed now. The failure is NOT
 // dropped, though — it is handed to the retrier, which keeps trying off the
-// request path until the tracer accepts it or the budget runs out. A nil
+// request path until the tracer accepts it or the budget runs out. A confirm
+// that found its reservation already released is flagged, not retried. A nil
 // reserver or empty handle is a no-op.
 func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if uc.TracerReserver == nil {
@@ -503,9 +504,14 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 	}
 
 	for _, transition := range handle.transitions(reservationActionConfirm) {
-		if err := uc.TracerReserver.Confirm(ctx, transition.ReservationID); err != nil {
+		outcome, err := uc.TracerReserver.Confirm(ctx, transition.ReservationID)
+		if err != nil {
 			uc.recordReservationTransportFailure(ctx, span, logger, transition, err)
+
+			continue
 		}
+
+		recordReservationConfirmOutcome(ctx, span, uc.MetricsFactory, logger, transition, outcome)
 	}
 }
 
@@ -556,7 +562,8 @@ func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span t
 // settings (off / nil reserver → no call) and on an honored per-call tracer skip (so a
 // skip honored at create removes the gRPC cost here rather than relocating it to
 // commit); same non-blocking posture as the by-id transport: a failure is logged at
-// Warn, span-recorded and never propagated, and then retried off the request path.
+// Warn, span-recorded and never propagated, and then retried off the request path. Rows the
+// tracer reports already released are flagged, not retried.
 //
 // Living only on the /v2 pipeline carries an accepted cost. A by-transaction call cannot
 // tell whether the transaction holds reservations, so a PENDING created on /v2 and
@@ -570,9 +577,16 @@ func (uc *UseCase) confirmReservationsByTransaction(ctx context.Context, span tr
 		return
 	}
 
-	if err := uc.TracerReserver.ConfirmByTransaction(ctx, identity.TransactionID); err != nil {
-		uc.recordReservationByTransactionFailure(ctx, span, logger, identity.transitionByTransaction(reservationActionConfirm), err)
+	transition := identity.transitionByTransaction(reservationActionConfirm)
+
+	outcome, err := uc.TracerReserver.ConfirmByTransaction(ctx, identity.TransactionID)
+	if err != nil {
+		uc.recordReservationByTransactionFailure(ctx, span, logger, transition, err)
+
+		return
 	}
+
+	recordReservationConfirmOutcome(ctx, span, uc.MetricsFactory, logger, transition, outcome)
 }
 
 // releaseReservationsByTransaction returns a transaction's held reservations at

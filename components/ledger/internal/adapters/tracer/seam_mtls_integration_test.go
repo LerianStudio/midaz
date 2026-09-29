@@ -90,8 +90,9 @@ func TestSeamMTLS(t *testing.T) {
 		require.Equal(t, fixedTransactionID, result.TransactionID)
 		require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
 
-		require.NoError(t, client.Confirm(ctx, fixedReservationID),
-			"confirm over the secured seam must succeed")
+		outcome, err := client.Confirm(ctx, fixedReservationID)
+		require.NoError(t, err, "confirm over the secured seam must succeed")
+		require.Equal(t, ConfirmOutcome{Confirmed: 1}, outcome)
 	})
 
 	t.Run("gRPC reserve is rejected without a valid client cert", func(t *testing.T) {

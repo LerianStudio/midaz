@@ -175,24 +175,28 @@ type scriptedReserver struct {
 
 	// confirm returns the error for attempt n (1-indexed); nil means accept.
 	confirm func(attempt int) error
+
+	// outcome is what an accepted confirm reports.
+	outcome tracer.ConfirmOutcome
 }
 
 func (s *scriptedReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
 	return &tracer.ReserveResult{}, nil
 }
 
-func (s *scriptedReserver) Confirm(_ context.Context, _ uuid.UUID) error {
+func (s *scriptedReserver) Confirm(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.confirmCalls++
 
-	err := s.confirm(s.confirmCalls)
-	if err == nil {
-		s.confirmDelivered = true
+	if err := s.confirm(s.confirmCalls); err != nil {
+		return tracer.ConfirmOutcome{}, err
 	}
 
-	return err
+	s.confirmDelivered = true
+
+	return s.outcome, nil
 }
 
 func (s *scriptedReserver) Release(_ context.Context, _ uuid.UUID) error {
@@ -204,18 +208,19 @@ func (s *scriptedReserver) Release(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (s *scriptedReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
+func (s *scriptedReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.confirmByTxn++
 
-	err := s.confirm(s.confirmByTxn)
-	if err == nil {
-		s.confirmDelivered = true
+	if err := s.confirm(s.confirmByTxn); err != nil {
+		return tracer.ConfirmOutcome{}, err
 	}
 
-	return err
+	s.confirmDelivered = true
+
+	return s.outcome, nil
 }
 
 func (s *scriptedReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {
@@ -268,7 +273,7 @@ func TestRetryDeliversAConfirmTheTransportRefused(t *testing.T) {
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	cause := fmt.Errorf("inline attempt: %w", tracer.ErrTracerUnavailable)
-	retrier.schedule(context.Background(), reserver, logger, retryTransition(), cause)
+	retrier.schedule(context.Background(), reserver, nil, logger, retryTransition(), cause)
 	retrier.wait()
 
 	attempts, delivered := reserver.attempts()
@@ -296,7 +301,7 @@ func TestRetryDeliversAConfirmThatTimedOut(t *testing.T) {
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	started := time.Now()
-	retrier.schedule(context.Background(), client, logger,
+	retrier.schedule(context.Background(), client, nil, logger,
 		retryTransition(), fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -347,7 +352,7 @@ func TestRetryKeepsTryingPastTheHoldExpiry(t *testing.T) {
 	policy.MaxDelay = 5 * time.Millisecond
 
 	retrier := newReservationRetrier(policy)
-	retrier.schedule(context.Background(), reserver, &capturingLogger{},
+	retrier.schedule(context.Background(), reserver, nil, &capturingLogger{},
 		retryTransition(), fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -405,7 +410,7 @@ func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	transition := retryTransition()
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), client, logger, transition,
+	retrier.schedule(context.Background(), client, nil, logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -441,7 +446,7 @@ func TestRetryReportsALostReleaseAsHeldCapacity(t *testing.T) {
 	transition.Action = reservationActionRelease
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), client, logger, transition,
+	retrier.schedule(context.Background(), client, nil, logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -469,7 +474,7 @@ func TestRetryReportsALateReleaseAsOverEnforcement(t *testing.T) {
 	transition.Action = reservationActionRelease
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), reserver, logger, transition,
+	retrier.schedule(context.Background(), reserver, nil, logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -496,14 +501,14 @@ func TestRetryReportsATransitionItHasNoCapacityFor(t *testing.T) {
 	}}
 
 	// Fill the single slot with a sequence that will keep retrying.
-	retrier.schedule(context.Background(), occupy, &capturingLogger{}, retryTransition(),
+	retrier.schedule(context.Background(), occupy, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	logger := &capturingLogger{}
 	turnedAway := retryTransition()
 	rejected := &scriptedReserver{confirm: func(_ int) error { return nil }}
 
-	retrier.schedule(context.Background(), rejected, logger, turnedAway,
+	retrier.schedule(context.Background(), rejected, nil, logger, turnedAway,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
@@ -562,7 +567,7 @@ func TestRepeatedConfirmDoesNotCountTheSpendTwice(t *testing.T) {
 	}
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), tracerLike, &capturingLogger{}, retryTransition(),
+	retrier.schedule(context.Background(), tracerLike, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -583,7 +588,7 @@ func (s *tenantSpy) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer
 	return &tracer.ReserveResult{}, nil
 }
 
-func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
+func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -591,14 +596,16 @@ func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
 	s.seen = append(s.seen, tmcore.GetTenantIDContext(ctx))
 
 	if s.calls < 3 {
-		return fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)
+		return tracer.ConfirmOutcome{}, fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)
 	}
 
-	return nil
+	return tracer.ConfirmOutcome{Confirmed: 1}, nil
 }
 
-func (s *tenantSpy) Release(_ context.Context, _ uuid.UUID) error              { return nil }
-func (s *tenantSpy) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *tenantSpy) Release(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *tenantSpy) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, nil
+}
 func (s *tenantSpy) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
 
 func (s *tenantSpy) tenants() []string {
@@ -626,7 +633,7 @@ func TestRetryKeepsTheTenantAfterTheRequestEnds(t *testing.T) {
 	spy := &tenantSpy{}
 	retrier := newReservationRetrier(fastRetryPolicy())
 
-	retrier.schedule(requestCtx, spy, &capturingLogger{}, retryTransition(),
+	retrier.schedule(requestCtx, spy, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	// The response is written and the request context is cancelled while the
@@ -661,7 +668,7 @@ func TestShutdownNamesTheTransitionsItAbandons(t *testing.T) {
 	}}
 
 	stranded := retryTransition()
-	retrier.schedule(context.Background(), stillDown, &capturingLogger{}, stranded,
+	retrier.schedule(context.Background(), stillDown, nil, &capturingLogger{}, stranded,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	// Let the sequence get going, then take the shutdown snapshot.
@@ -690,7 +697,7 @@ func TestShutdownIsSilentWhenNothingIsOwed(t *testing.T) {
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	delivered := &scriptedReserver{confirm: failNTimes(1)}
-	retrier.schedule(context.Background(), delivered, &capturingLogger{}, retryTransition(),
+	retrier.schedule(context.Background(), delivered, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 

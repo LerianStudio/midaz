@@ -132,9 +132,9 @@ func TestNewTracerGRPCClient_ImplementsTracerReserver(t *testing.T) {
 
 	var _ interface {
 		Reserve(context.Context, ReserveRequest) (*ReserveResult, error)
-		Confirm(context.Context, uuid.UUID) error
+		Confirm(context.Context, uuid.UUID) (ConfirmOutcome, error)
 		Release(context.Context, uuid.UUID) error
-		ConfirmByTransaction(context.Context, uuid.UUID) error
+		ConfirmByTransaction(context.Context, uuid.UUID) (ConfirmOutcome, error)
 		ReleaseByTransaction(context.Context, uuid.UUID) error
 	} = client
 }
@@ -281,9 +281,26 @@ func TestTracerGRPCClient_Confirm(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		require.NoError(t, client.Confirm(context.Background(), reservationID))
+		outcome, err := client.Confirm(context.Background(), reservationID)
+		require.NoError(t, err)
 		require.NotNil(t, captured)
 		assert.Equal(t, reservationID.String(), captured.GetReservationId())
+		assert.Equal(t, ConfirmOutcome{Confirmed: 1, AlreadyReleased: 0}, outcome)
+	})
+
+	t.Run("already released maps onto the outcome", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			confirmByIDFn: func(_ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
+				return &reservationv1.ConfirmByIdResponse{AlreadyReleased: true}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		outcome, err := client.Confirm(context.Background(), reservationID)
+		require.NoError(t, err)
+		assert.Equal(t, ConfirmOutcome{Confirmed: 0, AlreadyReleased: 1}, outcome)
 	})
 
 	t.Run("unavailable maps to ErrTracerUnavailable", func(t *testing.T) {
@@ -296,8 +313,9 @@ func TestTracerGRPCClient_Confirm(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		err := client.Confirm(context.Background(), reservationID)
+		outcome, err := client.Confirm(context.Background(), reservationID)
 		require.Error(t, err)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 		assert.ErrorIs(t, err, ErrTracerUnavailable)
 	})
 
@@ -311,8 +329,9 @@ func TestTracerGRPCClient_Confirm(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		err := client.Confirm(context.Background(), reservationID)
+		outcome, err := client.Confirm(context.Background(), reservationID)
 		require.Error(t, err)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 		assert.NotErrorIs(t, err, ErrTracerUnavailable)
 		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
@@ -358,9 +377,26 @@ func TestTracerGRPCClient_ConfirmByTransaction(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		require.NoError(t, client.ConfirmByTransaction(context.Background(), transactionID))
+		outcome, err := client.ConfirmByTransaction(context.Background(), transactionID)
+		require.NoError(t, err)
 		require.NotNil(t, captured)
 		assert.Equal(t, transactionID.String(), captured.GetTransactionId())
+		assert.Equal(t, ConfirmOutcome{}, outcome, "an empty response confirms nothing and found nothing released")
+	})
+
+	t.Run("counts map onto the outcome", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			confirmByTransactionFn: func(_ *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+				return &reservationv1.ConfirmByTransactionResponse{Confirmed: 3, AlreadyReleased: 2}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		outcome, err := client.ConfirmByTransaction(context.Background(), transactionID)
+		require.NoError(t, err)
+		assert.Equal(t, ConfirmOutcome{Confirmed: 3, AlreadyReleased: 2}, outcome)
 	})
 
 	t.Run("unavailable maps to ErrTracerUnavailable", func(t *testing.T) {
@@ -373,8 +409,9 @@ func TestTracerGRPCClient_ConfirmByTransaction(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		err := client.ConfirmByTransaction(context.Background(), transactionID)
+		outcome, err := client.ConfirmByTransaction(context.Background(), transactionID)
 		require.Error(t, err)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 		assert.ErrorIs(t, err, ErrTracerUnavailable)
 	})
 }

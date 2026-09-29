@@ -113,3 +113,12 @@ type ReserveResult struct {
 	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds"`
 	ReservationIDs []uuid.UUID `json:"reservationIds"`
 }
+
+// ConfirmOutcome is what a successful confirm found. Confirmed counts the
+// reservations the call settled; AlreadyReleased counts the ones the tracer had
+// already released (by expiry or an earlier release), so their spend was never
+// counted against the limit. A by-id confirm reports exactly one of the two.
+type ConfirmOutcome struct {
+	Confirmed       int
+	AlreadyReleased int
+}

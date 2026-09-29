@@ -168,7 +168,7 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 }
 
 // Confirm commits a held reservation by id (phase two — commit).
-func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID) error {
+func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID) (ConfirmOutcome, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "tracer.grpc_client.confirm")
@@ -179,15 +179,19 @@ func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID)
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
 
-	_, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+	resp, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
 		recordRPCFailure(span, "Reservation confirm failed", mapped)
 
-		return mapped
+		return ConfirmOutcome{}, mapped
 	}
 
-	return nil
+	if resp.GetAlreadyReleased() {
+		return ConfirmOutcome{Confirmed: 0, AlreadyReleased: 1}, nil
+	}
+
+	return ConfirmOutcome{Confirmed: 1, AlreadyReleased: 0}, nil
 }
 
 // Release returns a held reservation's capacity by id (phase two — abort).
@@ -215,7 +219,7 @@ func (c *TracerGRPCClient) Release(ctx context.Context, reservationID uuid.UUID)
 
 // ConfirmByTransaction commits every reservation a transaction holds (phase two
 // — commit by transaction).
-func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error {
+func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (ConfirmOutcome, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "tracer.grpc_client.confirm_by_transaction")
@@ -226,15 +230,18 @@ func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transaction
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
 
-	_, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+	resp, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
 		recordRPCFailure(span, "Reservation confirm-by-transaction failed", mapped)
 
-		return mapped
+		return ConfirmOutcome{}, mapped
 	}
 
-	return nil
+	return ConfirmOutcome{
+		Confirmed:       int(resp.GetConfirmed()),
+		AlreadyReleased: int(resp.GetAlreadyReleased()),
+	}, nil
 }
 
 // ReleaseByTransaction returns every reservation a transaction holds (phase two

@@ -323,8 +323,8 @@ func (*atomicTransactionBatchRecoveryTracerFake) Reserve(
 	return nil, errors.New("unexpected recovery reservation")
 }
 
-func (*atomicTransactionBatchRecoveryTracerFake) Confirm(context.Context, uuid.UUID) error {
-	return errors.New("unexpected recovery confirmation by reservation")
+func (*atomicTransactionBatchRecoveryTracerFake) Confirm(context.Context, uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, errors.New("unexpected recovery confirmation by reservation")
 }
 
 func (*atomicTransactionBatchRecoveryTracerFake) Release(context.Context, uuid.UUID) error {
@@ -334,10 +334,10 @@ func (*atomicTransactionBatchRecoveryTracerFake) Release(context.Context, uuid.U
 func (fake *atomicTransactionBatchRecoveryTracerFake) ConfirmByTransaction(
 	_ context.Context,
 	transactionID uuid.UUID,
-) error {
+) (tracer.ConfirmOutcome, error) {
 	fake.confirmed = append(fake.confirmed, transactionID)
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (fake *atomicTransactionBatchRecoveryTracerFake) ReleaseByTransaction(

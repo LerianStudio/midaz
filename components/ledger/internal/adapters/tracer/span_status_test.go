@@ -79,7 +79,8 @@ func TestTracerGRPCClient_Reserve_SpanStatusByFailureClass(t *testing.T) {
 			span := endedSpan(t, recorder, "tracer.grpc_client.reserve")
 			assert.Equal(t, tt.wantError, span.Status().Code == otelcodes.Error)
 
-			require.Error(t, client.Confirm(ctx, fixedReservationID))
+			_, err = client.Confirm(ctx, fixedReservationID)
+			require.Error(t, err)
 
 			span = endedSpan(t, recorder, "tracer.grpc_client.confirm")
 			assert.Equal(t, tt.wantError, span.Status().Code == otelcodes.Error)
