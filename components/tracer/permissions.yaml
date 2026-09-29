@@ -26,11 +26,12 @@
 #   editor       -> rules/limits at post/get/patch/delete
 #   contributor  -> rules/limits at post/get/patch (no delete)
 #   viewer       -> rules/limits/validations at get
-#   validator    -> validations at get/post, plus reservations/post
-#   audit-viewer -> audit-events at get, plus reservations/post
+#   validator    -> validations at get/post
+#   audit-viewer -> audit-events at get
 #
-# reservations (called by the ledger over the reservation seam) is therefore NOT
-# editor-only: the seed grants it to editor, validator and audit-viewer alike.
+# The reservation lifecycle (reserve, confirm, release) is not an HTTP resource
+# and has no grant here: the ledger reaches it over the gRPC/mTLS reservation
+# seam, whose caller identity is the client certificate, not a role.
 #
 # This manifest must stay a SUPERSET of the seed. The tenant-manager's
 # template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
@@ -53,9 +54,6 @@ permissions:
   # validations — transaction validation (routes.go:533)
   - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer] }
   - { resource: validations, action: post, effect: allow, roles: [editor, validator] }
-
-  # reservations — limit reservation (M2M; called by the ledger) (routes.go:565)
-  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer] }
 
   # audit-events — hash-chained audit read (routes.go:574)
   - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer] }
@@ -91,10 +89,8 @@ roles:
   #
   # All FIVE seeded tiers are declared, because once the tenant-manager's
   # template-origin prune runs, whatever this manifest does not declare stops
-  # existing. `validator` and `audit-viewer` are the ones that would hurt: the
-  # seed grants them reservations/post — the surface the ledger calls over the
-  # reservation seam — and audit-events/get, neither of which the editor/viewer
-  # pair covers.
+  # existing: a seeded tier absent here loses its group's access on the next
+  # reconcile, even though the seed still binds members to that group.
   #
   # NOTE: the seed defines tracer-contributor-role, but at least one provisioned
   # tenant carries tracer-contributor-group with no matching role (seeded before
@@ -123,8 +119,9 @@ roles:
       - group: tracer-viewer-group
 
 m2m:
-  # EXPORT: tracer exposes its M2M surface — the `reservations` API guarded by
-  # tracer's own reservation permission. The ledger (midaz) reaches it over the
-  # gRPC/mTLS reservation seam, not an RI declaration M2M edge. tracer imports
-  # nothing over M2M.
+  # EXPORT: tracer exposes its M2M surface — the validation API
+  # (`/v1/validations`), which application tokens call under the validations
+  # grants above. The reservation lifecycle is served only on the gRPC/mTLS
+  # reservation seam, which the ledger (midaz) dials directly; it is not an RI
+  # declaration M2M edge. tracer imports nothing over M2M.
   exposed: true
