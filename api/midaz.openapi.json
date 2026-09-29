@@ -3078,6 +3078,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
         "deprecated": true,
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteAccount",
         "parameters": [
           {
@@ -4380,6 +4381,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
         "deprecated": true,
+        "description": "Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteBalance",
         "parameters": [
           {
@@ -13506,6 +13508,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteAccountV2",
         "parameters": [
           {
@@ -14465,6 +14468,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
+        "description": "Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteBalanceV2",
         "parameters": [
           {

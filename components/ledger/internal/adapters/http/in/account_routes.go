@@ -37,6 +37,11 @@ const accountClosePath = accountListPath + "/{account_id}/close"
 const accountClosedAtInputDoc = "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, " +
 	"and the stored instant is only ever written by the close command."
 
+// balanceDeletionRefusalDoc lists the refusals a balance deletion shares with the account
+// deletion that deletes every balance of the account.
+const balanceDeletionRefusalDoc = "A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. " +
+	"A state that cannot be established answers 503 (0520) and may be retried."
+
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
 // the humafiber adapter registers on that group and Fiber prepends the version prefix).
@@ -117,6 +122,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -213,6 +219,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
