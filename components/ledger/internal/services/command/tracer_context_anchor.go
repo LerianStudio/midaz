@@ -164,6 +164,8 @@ func warnContextReservationOutcomeUnknown(ctx context.Context, logger libLog.Log
 // tracerFailureCauseTokenUnavailable marks a failure the ledger caused by
 // holding no token the Tracer accepts. It shares the unavailable response code
 // with an outage, so the span attribute is what tells them apart.
+//
+// #nosec G101 -- span attribute value, not a credential value.
 const tracerFailureCauseTokenUnavailable = "token_unavailable"
 
 // recordTracerFailureCause names on span a tracer failure cause the response
