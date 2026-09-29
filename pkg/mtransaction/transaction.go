@@ -364,6 +364,9 @@ type Transaction struct {
 	// FeeDebtRevertedOrigins, on a reversal, lists the fee-debt origins already reverted
 	// when it was built; a settlement of such a debt is taken back, never reopened.
 	FeeDebtRevertedOrigins []string `json:"-" swaggerignore:"true"`
+	// FeeDebtExpectedRefunds, on a reversal, is per debt id what the parent's debts
+	// had settled net of reopens when it was built: the refund the engine expects.
+	FeeDebtExpectedRefunds map[string]decimal.Decimal `json:"-" swaggerignore:"true"`
 } // @name TransactionInput
 
 // TransactionSkip carries per-call control opt-outs requested on the transaction

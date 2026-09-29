@@ -160,6 +160,7 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 		input := feeDebtFreeCases()["revert"]
 		input.FeeDebtEligible = v2
 		input.TransactionInput.FeeDebtRevertedOrigins = []string{feeDebtOriginY}
+		input.TransactionInput.FeeDebtExpectedRefunds = map[string]decimal.Decimal{feeDebtOriginO + ":from:1:debit": decimal.NewFromInt(25)}
 		input.RouteCache = feeDebtRouteCache(constant.ActionRevert)
 		input.TransactionInput.Metadata = feeDebtRevertMetadata(t,
 			[]FeeDebtOpening{
@@ -188,7 +189,7 @@ func TestTranslateFeeDebtRevertRefundsAndReopens(t *testing.T) {
 			Ref: "fee-refund:0", BalanceRef: "@payer#default", Type: accounting.PostingRefund, Amount: decimal.NewFromInt(100),
 			DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero,
 			Refunds: []accounting.FeeDebtRefund{
-				{DebtID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3},
+				{DebtID: feeDebtOriginO + ":from:1:debit", CreditRef: "@fees#default", Opened: decimal.NewFromInt(70), Seq: 3, ExpectedRefund: decimal.NewFromInt(25)},
 				{DebtID: feeDebtOriginO + ":from:3:debit", CreditRef: "@other-fees#default", Opened: decimal.NewFromInt(30), Seq: 4},
 			},
 		}, feeDebtPosting(t, transaction, "fee-refund:0"))

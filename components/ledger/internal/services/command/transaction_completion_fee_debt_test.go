@@ -39,6 +39,14 @@ type feeDebtRecorderStub struct {
 	calls   *[]string
 	records []FeeDebtRecord
 	err     error
+	settled map[string]decimal.Decimal
+	asked   []string
+}
+
+func (recorder *feeDebtRecorderStub) Settled(_ context.Context, _, _ uuid.UUID, debtIDs []string) (map[string]decimal.Decimal, error) {
+	recorder.asked = append(recorder.asked, debtIDs...)
+
+	return recorder.settled, recorder.err
 }
 
 func (recorder *feeDebtRecorderStub) Apply(_ context.Context, record FeeDebtRecord) error {

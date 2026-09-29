@@ -55,9 +55,10 @@ func TestReverseTransactionKeepsSettlementsOfRevertedOrigins(t *testing.T) {
 	}
 
 	amount := decimal.NewFromInt(20)
+	opened := []FeeDebtOpening{{DebtID: feeDebtOriginY + ":from:1:debit", DebtorRef: "@debtor#default", CreditRef: "@fees#default", Opened: decimal.NewFromInt(9), Seq: 4}}
 	credited := &transaction.Transaction{
 		AssetCode: "USD", Amount: &amount,
-		Metadata: feeDebtRevertMetadata(t, nil, []FeeDebtSettlement{settle(feeDebtOriginX, 5), settle(feeDebtOriginX, 7), settle(feeDebtOriginO, 3)}),
+		Metadata: feeDebtRevertMetadata(t, opened, []FeeDebtSettlement{settle(feeDebtOriginX, 5), settle(feeDebtOriginX, 7), settle(feeDebtOriginO, 3)}),
 		Operations: []*operation.Operation{
 			row(constant.DEBIT, "@source", pkgConstant.DirectionDebit, "", 20), row(constant.CREDIT, "@debtor", pkgConstant.DirectionCredit, "", 20),
 			row(pkgConstant.FEE_SETTLEMENT, "@debtor", pkgConstant.DirectionDebit, "from-"+feeDebtOriginX, 12),
@@ -69,7 +70,8 @@ func TestReverseTransactionKeepsSettlementsOfRevertedOrigins(t *testing.T) {
 
 	var reads []uuid.UUID
 
-	uc := &UseCase{TransactionReader: feeDebtOriginReader{reverted: map[uuid.UUID]bool{uuid.MustParse(feeDebtOriginX): true}, reads: &reads}}
+	recorder := &feeDebtRecorderStub{settled: map[string]decimal.Decimal{feeDebtOriginY + ":from:1:debit": decimal.RequireFromString("2.5")}}
+	uc := &UseCase{TransactionReader: feeDebtOriginReader{reverted: map[uuid.UUID]bool{uuid.MustParse(feeDebtOriginX): true}, reads: &reads}, FeeDebts: recorder}
 
 	reversal, err := uc.reverseTransaction(context.Background(), RevertTransactionInput{}, credited)
 	require.NoError(t, err)
@@ -83,6 +85,8 @@ func TestReverseTransactionKeepsSettlementsOfRevertedOrigins(t *testing.T) {
 	}
 
 	assert.Equal(t, map[string]int64{"@debtor|": 17, "@fees|to-" + feeDebtOriginO: 3}, sources, "the reverted origin's 12 stays with the creditor")
+	assert.Equal(t, []string{feeDebtOriginY + ":from:1:debit"}, recorder.asked)
+	assert.Equal(t, recorder.settled, reversal.FeeDebtExpectedRefunds, "each opened debt expects what its record says was paid")
 
 	credited.Metadata = map[string]any{pkgConstant.MetadataKeyFeeDebtSettlements: `[{"debtId":"not-a-transaction:from:1:debit","debtorRef":"@debtor#default","creditRef":"@fees#default","amount":"1","opened":"1","seq":1}]`}
 

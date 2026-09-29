@@ -145,7 +145,7 @@ func (c *feeDebtComposition) appendRevert(transaction *accounting.Transaction, p
 
 // appendRefunds appends one refund posting per debtor of the parent's openings,
 // in first-appearance order, after every other posting. Each debt refunds as the
-// inverse of its fee, under its routes.
+// inverse of its fee, under its routes, expecting what its record says was paid.
 func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, projection *[]OperationRecordSpec, openings []FeeDebtOpening) error {
 	debtors := make([]string, 0)
 	byDebtor := make(map[string][]FeeDebtOpening)
@@ -176,7 +176,10 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 
 			ordinal, credited := uint32(i), c.refundRoute(opening.DebitRoute, constant.DirectionCredit, false)
 			posting.Amount = posting.Amount.Add(opening.Opened)
-			posting.Refunds = append(posting.Refunds, accounting.FeeDebtRefund{DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq})
+			posting.Refunds = append(posting.Refunds, accounting.FeeDebtRefund{
+				DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq,
+				ExpectedRefund: c.input.TransactionInput.FeeDebtExpectedRefunds[opening.DebtID],
+			})
 			*projection = append(*projection, c.spec(ref, debtor, accounting.RoleFeeDebtRefundCredit, ordinal, constant.FEE_REFUND, constant.DirectionCredit, opening.Opened, credited))
 
 			if hasCompanion {

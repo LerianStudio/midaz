@@ -25,11 +25,14 @@ type FeeDebtRecord struct {
 	Changes        []accounting.FeeDebtChange
 }
 
-// FeeDebtRecorder projects applied fee-debt changes into Fees, resolving the
-// tenant from ctx. Apply is idempotent per (DebtID, TransactionID, PostingRef,
-// Kind), so replays and out-of-order completions converge.
+// FeeDebtRecorder is the Fees record of fee debts, resolving the tenant from ctx.
+// Apply projects applied changes idempotently per (DebtID, TransactionID,
+// PostingRef, Kind), so replays and out-of-order completions converge. Settled
+// sums, per debt id, the recorded settlements less reopens from their exact
+// amounts; a debt without a record is absent.
 type FeeDebtRecorder interface {
 	Apply(ctx context.Context, record FeeDebtRecord) error
+	Settled(ctx context.Context, organizationID, ledgerID uuid.UUID, debtIDs []string) (map[string]decimal.Decimal, error)
 }
 
 // FeeDebtOpening is one element of the feeDebtOpenings transaction metadata, built by
