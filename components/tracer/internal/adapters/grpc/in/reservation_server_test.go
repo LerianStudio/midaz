@@ -212,18 +212,34 @@ func TestReservationServer_ConfirmReleaseById(t *testing.T) {
 	reservationID := testutil.MustDeterministicUUID(10)
 	now := testutil.FixedTime()
 
-	t.Run("confirm by id succeeds", func(t *testing.T) {
+	t.Run("confirm by id settles the row and reports it as not already released", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		svc := mocks.NewMockReservationService(ctrl)
 		clk := testutil.NewMockClock(now)
 
-		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(nil)
+		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{Confirmed: 1}, nil)
 
 		server, err := NewReservationServer(svc, clk)
 		require.NoError(t, err)
 
-		_, err = server.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+		resp, err := server.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 		require.NoError(t, err)
+		require.False(t, resp.GetAlreadyReleased())
+	})
+
+	t.Run("confirm by id on a RELEASED row reports already_released", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{AlreadyReleased: 1}, nil)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		resp, err := server.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+		require.NoError(t, err)
+		require.True(t, resp.GetAlreadyReleased())
 	})
 
 	t.Run("release by id succeeds", func(t *testing.T) {
@@ -245,7 +261,7 @@ func TestReservationServer_ConfirmReleaseById(t *testing.T) {
 		svc := mocks.NewMockReservationService(ctrl)
 		clk := testutil.NewMockClock(now)
 
-		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(constant.ErrReservationNotFound)
+		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{}, constant.ErrReservationNotFound)
 
 		server, err := NewReservationServer(svc, clk)
 		require.NoError(t, err)
@@ -276,13 +292,31 @@ func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
 		svc := mocks.NewMockReservationService(ctrl)
 		clk := testutil.NewMockClock(now)
 
-		svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(0, nil)
+		svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(services.ConfirmOutcome{}, nil)
 
 		server, err := NewReservationServer(svc, clk)
 		require.NoError(t, err)
 
-		_, err = server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+		resp, err := server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
 		require.NoError(t, err)
+		require.Zero(t, resp.GetConfirmed())
+		require.Zero(t, resp.GetAlreadyReleased())
+	})
+
+	t.Run("confirm by transaction carries the confirmed and already-released counts", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		clk := testutil.NewMockClock(now)
+
+		svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(services.ConfirmOutcome{Confirmed: 2, AlreadyReleased: 1}, nil)
+
+		server, err := NewReservationServer(svc, clk)
+		require.NoError(t, err)
+
+		resp, err := server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+		require.NoError(t, err)
+		require.EqualValues(t, 2, resp.GetConfirmed())
+		require.EqualValues(t, 1, resp.GetAlreadyReleased())
 	})
 
 	t.Run("release by transaction succeeds", func(t *testing.T) {
@@ -310,6 +344,141 @@ func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
 		_, err = server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: ""})
 		require.Equal(t, codes.InvalidArgument, status.Code(err))
 	})
+}
+
+// TestReservationServer_MapServiceError_ReservationCodes locks the gRPC code and
+// message each reservation sentinel maps to, on every RPC that can surface it:
+// the ledger's client keys its own behavior off the code, and the message is
+// the sentinel code string the ledger parses.
+func TestReservationServer_MapServiceError_ReservationCodes(t *testing.T) {
+	now := testutil.FixedTime()
+	transactionID := testutil.MustDeterministicUUID(30)
+	requestID := testutil.MustDeterministicUUID(31)
+	accountID := testutil.MustDeterministicUUID(32)
+	reservationID := testutil.MustDeterministicUUID(33)
+
+	tests := []struct {
+		name        string
+		serviceErr  error
+		expect      func(svc *mocks.MockReservationService, serviceErr error)
+		call        func(server *ReservationServer) error
+		wantCode    codes.Code
+		wantMessage string
+	}{
+		{
+			name:       "settled replay on reserve is FailedPrecondition with the 0533 code",
+			serviceErr: constant.ErrReservationAlreadySettled,
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).Return(nil, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+
+				return err
+			},
+			wantCode:    codes.FailedPrecondition,
+			wantMessage: constant.ErrReservationAlreadySettled.Error(),
+		},
+		{
+			name:       "wrapped settled replay still maps by errors.Is",
+			serviceErr: fmt.Errorf("failed to reserve: %w", constant.ErrReservationAlreadySettled),
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).Return(nil, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+
+				return err
+			},
+			wantCode:    codes.FailedPrecondition,
+			wantMessage: constant.ErrReservationAlreadySettled.Error(),
+		},
+		{
+			name:       "inactive tenant on reserve is Unavailable with the 0534 code",
+			serviceErr: constant.ErrReservationTenantInactive,
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).Return(nil, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
+
+				return err
+			},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+		{
+			name:       "inactive tenant on confirm by transaction is Unavailable with the 0534 code",
+			serviceErr: constant.ErrReservationTenantInactive,
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(services.ConfirmOutcome{}, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+
+				return err
+			},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+		{
+			name:       "inactive tenant on confirm by id is Unavailable with the 0534 code",
+			serviceErr: constant.ErrReservationTenantInactive,
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{}, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+
+				return err
+			},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+		{
+			name:       "inactive tenant on release by transaction is Unavailable with the 0534 code",
+			serviceErr: constant.ErrReservationTenantInactive,
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(0, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.ReleaseByTransaction(context.Background(), &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
+
+				return err
+			},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+		{
+			name:       "inactive tenant on release by id is Unavailable with the 0534 code",
+			serviceErr: constant.ErrReservationTenantInactive,
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().Release(gomock.Any(), reservationID).Return(serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.ReleaseById(context.Background(), &reservationv1.ReleaseByIdRequest{ReservationId: reservationID.String()})
+
+				return err
+			},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			svc := mocks.NewMockReservationService(ctrl)
+			tt.expect(svc, tt.serviceErr)
+
+			server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+			require.NoError(t, err)
+
+			err = tt.call(server)
+			require.Equal(t, tt.wantCode, status.Code(err))
+			require.Equal(t, tt.wantMessage, status.Convert(err).Message())
+		})
+	}
 }
 
 // expectedInput mirrors what ToCheckLimitsInput produces for the canonical

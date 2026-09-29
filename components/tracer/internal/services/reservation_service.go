@@ -187,6 +187,14 @@ func (r *ReserveResult) EffectiveDecision() model.Decision {
 	return model.DecisionAllow
 }
 
+// ConfirmOutcome reports what a confirm found. Confirmed counts the rows this
+// call settled onto the counter; AlreadyReleased counts the rows the call found
+// in RELEASED, whose spend will never be counted.
+type ConfirmOutcome struct {
+	Confirmed       int
+	AlreadyReleased int
+}
+
 // ReserveOptions carries the per-call hints of a reserve that are not part of
 // the validation request.
 type ReserveOptions struct {
@@ -381,12 +389,14 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 	scopeLockKey := reserveScopeLockKey(req.Account.ID)
 
 	guardDenied := false
+	settled := false
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
 		// inTx may re-run this closure on a transient abort; reset the per-attempt
 		// accumulators so a retry holds exactly one id per spec, never a duplicate.
 		reservationIDs = reservationIDs[:0]
 		guardDenied = false
+		settled = false
 
 		// Deterministic lock order: acquire the per-account advisory lock FIRST, so
 		// no reserve can hold a counter row while another waits on the audit
@@ -413,7 +423,8 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return err
 			}
 
-			if _, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount); err != nil {
+			replayed, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount)
+			if err != nil {
 				// The reserve guard denied this limit: roll back the whole tx so no
 				// partial capacity is held, and surface the limit-exceeded decision.
 				if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
@@ -421,7 +432,22 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 					return err
 				}
 
+				// The transaction's row is already past RESERVED: a replay cannot
+				// hold capacity again. Roll back so no sibling limit stays held.
+				if errors.Is(err, constant.ErrReservationAlreadySettled) {
+					settled = true
+					return err
+				}
+
 				return err
+			}
+
+			// A replay adopted the RESERVED row the original reserve created and
+			// audited; the handle carries that row's id and no second audit row.
+			if replayed {
+				reservationIDs = append(reservationIDs, reservation.ID)
+
+				continue
 			}
 
 			if err := s.auditWriter.RecordReservationEventWithTx(
@@ -452,6 +478,17 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 			// Limit-exceeded is a business decision, not a service failure: the
 			// rollback already released any partial holds.
 			return s.limitDenied(ctx, span, logger, transactionID), nil
+		}
+
+		if settled {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve replayed onto a settled reservation", txErr)
+
+			logger.With(
+				libLog.String("operation", "service.reservation.reserve"),
+				libLog.String("transaction_id", transactionID.String()),
+			).Log(ctx, libLog.LevelWarn, "Reserve replayed onto a settled reservation")
+
+			return nil, txErr
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to reserve capacity", txErr)
@@ -584,13 +621,15 @@ func (s *ReservationService) decided(span trace.Span, result *ReserveResult) *Re
 
 // Confirm commits a reservation: the held amount moves reserved_usage ->
 // current_usage and the row flips to CONFIRMED, with the audit row, in one
-// transaction. A confirm against an already-terminal row is an idempotent success
-// (the repo's WHERE status='RESERVED' guard returns no rows; the service maps
-// ErrReservationAlreadyTerminal to nil so a retried confirm does not error).
+// transaction. The outcome names what the confirm found: a settled row counts
+// as Confirmed; a row already CONFIRMED is an idempotent no-op with an empty
+// outcome; a row already RELEASED is reported as AlreadyReleased, because its
+// spend will never be counted and the caller decides what that means. None of
+// the already-terminal cases is an error, and none moves the counter again.
 //
 // Confirm does NOT re-resolve limits (R38): the reservation row already carries
 // limit_id / scope_key / period_key / amount.
-func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUID) error {
+func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUID) (ConfirmOutcome, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.reservation.confirm")
@@ -598,13 +637,107 @@ func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUI
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.terminate(
-		ctx, span, logger, reservationID,
-		model.StatusConfirmed,
-		model.AuditEventReservationConfirmed,
-		model.AuditActionConfirm,
-		"service.reservation.confirm",
+	if reservationID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing reservation id", constant.ErrReservationNotFound)
+		return ConfirmOutcome{}, constant.ErrReservationNotFound
+	}
+
+	var (
+		alreadyTerminal bool
+		priorStatus     model.ReservationStatus
 	)
+
+	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		status, repoErr := s.repo.ConfirmWithTx(ctx, db, reservationID)
+		if repoErr != nil {
+			// Already terminal: the original transition moved the counter. Commit
+			// nothing further; the prior status decides the outcome.
+			if errors.Is(repoErr, constant.ErrReservationAlreadyTerminal) {
+				alreadyTerminal = true
+				priorStatus = status
+
+				return repoErr
+			}
+
+			return repoErr
+		}
+
+		if err := s.auditWriter.RecordReservationEventWithTx(
+			ctx,
+			db,
+			model.AuditEventReservationConfirmed,
+			model.AuditActionConfirm,
+			reservationID,
+			command.ReservationAuditContext{
+				Status: string(model.StatusConfirmed),
+			},
+		); err != nil {
+			return fmt.Errorf("failed to record confirm audit event: %w", err)
+		}
+
+		return nil
+	})
+	if txErr != nil {
+		if alreadyTerminal {
+			return s.confirmAlreadyTerminal(ctx, span, logger, reservationID, priorStatus), nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to confirm reservation", txErr)
+
+		return ConfirmOutcome{}, txErr
+	}
+
+	return ConfirmOutcome{Confirmed: 1}, nil
+}
+
+// confirmAlreadyTerminal resolves the outcome of a confirm that found its row
+// past RESERVED. A RELEASED row is a divergence worth an operator's attention;
+// a CONFIRMED row is the idempotent retry the lifecycle expects.
+func (s *ReservationService) confirmAlreadyTerminal(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	reservationID uuid.UUID,
+	priorStatus model.ReservationStatus,
+) ConfirmOutcome {
+	const operation = "service.reservation.confirm"
+
+	if priorStatus == model.StatusReleased {
+		outcome := ConfirmOutcome{AlreadyReleased: 1}
+
+		s.noteAlreadyReleased(ctx, span, logger, operation, libLog.String("reservation_id", reservationID.String()), outcome.AlreadyReleased)
+
+		return outcome
+	}
+
+	logger.With(
+		libLog.String("operation", operation),
+		libLog.String("reservation_id", reservationID.String()),
+	).Log(ctx, libLog.LevelDebug, "Reservation already confirmed — idempotent no-op")
+
+	return ConfirmOutcome{}
+}
+
+// noteAlreadyReleased records a confirm that found rows already RELEASED: a Warn
+// naming the resource and the count, and a span event. It is a business
+// observation, so the span stays green.
+func (s *ReservationService) noteAlreadyReleased(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	operation string,
+	resource libLog.Field,
+	alreadyReleased int,
+) {
+	span.AddEvent("reservation.confirm.already_released", trace.WithAttributes(
+		attribute.Int("app.reservation.already_released", alreadyReleased),
+	))
+
+	logger.With(
+		libLog.String("operation", operation),
+		resource,
+		libLog.Int("already_released", alreadyReleased),
+	).Log(ctx, libLog.LevelWarn, "Confirm found reservations already released")
 }
 
 // Release returns a reservation's held capacity on an aborted ledger transaction:
@@ -637,24 +770,82 @@ func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUI
 // move, the row flip, and one audit row per flip all commit in ONE transaction.
 //
 // A transaction with no RESERVED rows is an idempotent no-op success: it never
-// reserved, or every reservation already reached a terminal state. ConfirmByTransaction
-// does NOT re-resolve limits (R38) — each reservation row already carries its limit
-// coordinates.
-func (s *ReservationService) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
+// reserved, or every reservation already reached a terminal state. The outcome
+// also counts the transaction's rows found in RELEASED, read on the same handle
+// after the flip, so the caller learns about spend that will never be counted.
+// ConfirmByTransaction does NOT re-resolve limits (R38) — each reservation row
+// already carries its limit coordinates.
+func (s *ReservationService) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (ConfirmOutcome, error) {
+	const operation = "service.reservation.confirm_by_transaction"
+
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.reservation.confirm_by_transaction")
+	ctx, span := tracer.Start(ctx, operation)
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.terminateByTransaction(
-		ctx, span, logger, transactionID,
-		model.StatusConfirmed,
-		model.AuditEventReservationConfirmed,
-		model.AuditActionConfirm,
-		"service.reservation.confirm_by_transaction",
-	)
+	if transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing transaction id", ErrNilReservationTransationID)
+		return ConfirmOutcome{}, ErrNilReservationTransationID
+	}
+
+	var outcome ConfirmOutcome
+
+	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
+		outcome = ConfirmOutcome{}
+
+		reservations, repoErr := s.repo.ConfirmByTransactionWithTx(ctx, db, transactionID)
+		if repoErr != nil {
+			return repoErr
+		}
+
+		for _, res := range reservations {
+			if err := s.auditWriter.RecordReservationEventWithTx(
+				ctx,
+				db,
+				model.AuditEventReservationConfirmed,
+				model.AuditActionConfirm,
+				res.ID,
+				command.ReservationAuditContext{
+					TransactionID: transactionID,
+					LimitID:       res.LimitID,
+					ScopeKey:      res.ScopeKey,
+					PeriodKey:     res.PeriodKey,
+					Amount:        res.Amount,
+					Status:        string(model.StatusConfirmed),
+				},
+			); err != nil {
+				return fmt.Errorf("failed to record confirm audit event: %w", err)
+			}
+		}
+
+		alreadyReleased, countErr := s.repo.CountReleasedByTransactionWithTx(ctx, db, transactionID)
+		if countErr != nil {
+			return fmt.Errorf("failed to count released reservations: %w", countErr)
+		}
+
+		outcome = ConfirmOutcome{Confirmed: len(reservations), AlreadyReleased: alreadyReleased}
+
+		return nil
+	})
+	if txErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to confirm reservations by transaction", txErr)
+		return ConfirmOutcome{}, txErr
+	}
+
+	logger.With(
+		libLog.String("operation", operation),
+		libLog.String("transaction_id", transactionID.String()),
+		libLog.Int("confirmed", outcome.Confirmed),
+		libLog.Int("already_released", outcome.AlreadyReleased),
+	).Log(ctx, libLog.LevelDebug, "Reservations confirmed by transaction")
+
+	if outcome.AlreadyReleased > 0 {
+		s.noteAlreadyReleased(ctx, span, logger, operation, libLog.String("transaction_id", transactionID.String()), outcome.AlreadyReleased)
+	}
+
+	return outcome, nil
 }
 
 // ReleaseByTransaction returns the held capacity for EVERY RESERVED reservation a
@@ -680,11 +871,12 @@ func (s *ReservationService) ReleaseByTransaction(ctx context.Context, transacti
 	)
 }
 
-// terminateByTransaction is the shared confirm/release-by-transaction body: open a
-// tx, flip every RESERVED row the transaction holds via the repo, record one audit
-// row per flipped reservation in the same tx, then commit. Returns the flipped
-// count; zero rows commits cleanly and reports a no-op success (the by-transaction
-// transitions are idempotent over an absent or already-terminal transaction).
+// terminateByTransaction is the release-by-transaction body: open a tx, flip
+// every RESERVED row the transaction holds to terminalStatus via the repo, record
+// one audit row per flipped reservation in the same tx, then commit. Returns the
+// flipped count; zero rows commits cleanly and reports a no-op success (the
+// by-transaction transitions are idempotent over an absent or already-terminal
+// transaction).
 func (s *ReservationService) terminateByTransaction(
 	ctx context.Context,
 	span trace.Span,
@@ -703,17 +895,7 @@ func (s *ReservationService) terminateByTransaction(
 	flipped := 0
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
-		var (
-			reservations []*model.Reservation
-			repoErr      error
-		)
-
-		if terminalStatus == model.StatusConfirmed {
-			reservations, repoErr = s.repo.ConfirmByTransactionWithTx(ctx, db, transactionID)
-		} else {
-			reservations, repoErr = s.repo.ReleaseByTransactionWithTx(ctx, db, transactionID, terminalStatus)
-		}
-
+		reservations, repoErr := s.repo.ReleaseByTransactionWithTx(ctx, db, transactionID, terminalStatus)
 		if repoErr != nil {
 			return repoErr
 		}
@@ -757,9 +939,10 @@ func (s *ReservationService) terminateByTransaction(
 	return flipped, nil
 }
 
-// terminate is the shared confirm/release transaction body: open a tx, apply the
-// counter move + row flip via the repo, record the audit row in the same tx, then
-// commit. An already-terminal reservation is mapped to success (idempotent retry).
+// terminate is the release-by-id transaction body: open a tx, apply the counter
+// move + row flip to terminalStatus via the repo, record the audit row in the
+// same tx, then commit. An already-terminal reservation is mapped to success
+// (idempotent retry).
 func (s *ReservationService) terminate(
 	ctx context.Context,
 	span trace.Span,
@@ -778,14 +961,7 @@ func (s *ReservationService) terminate(
 	terminal := false
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
-		var repoErr error
-
-		if terminalStatus == model.StatusConfirmed {
-			_, repoErr = s.repo.ConfirmWithTx(ctx, db, reservationID)
-		} else {
-			repoErr = s.repo.ReleaseWithTx(ctx, db, reservationID, terminalStatus)
-		}
-
+		repoErr := s.repo.ReleaseWithTx(ctx, db, reservationID, terminalStatus)
 		if repoErr != nil {
 			// Already terminal: idempotent retry. Commit nothing further and treat
 			// as success — the original transition already moved the counter.
