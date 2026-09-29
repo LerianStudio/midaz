@@ -664,6 +664,10 @@ var (
 	// deferred fee: the debt is keyed by the balance alias, so a new account
 	// reusing the alias would pay the previous holder's fee.
 	ErrBalanceHasOpenFeeDebt = errors.New("0527")
+	// ErrFeeDebtRecordPending is returned when the live fee debts a transaction
+	// touches disagree with their record, which lags while completion projects it.
+	// Nothing moved, so a retry is valid once the record catches up.
+	ErrFeeDebtRecordPending = errors.New("0528")
 )
 
 // List of CRM domain errors.

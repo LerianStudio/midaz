@@ -78,6 +78,8 @@ func mapEngineProtectionFailure(err engineTechnicalError) error {
 		return pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
 	case "admission_not_confirmed", "account_protection_unreadable":
 		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	case "fee_debt_conflict":
+		return pkg.ValidateBusinessError(constant.ErrFeeDebtRecordPending, constant.EntityTransaction)
 	default:
 		return nil
 	}

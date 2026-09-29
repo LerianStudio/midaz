@@ -237,3 +237,32 @@ func TestFeeDebtMovementsCarryTheFeeRubrics(t *testing.T) {
 	}, s.rows(t, s.revert(t, origin)))
 	s.balances(t, "110", "0", "0", "990")
 }
+
+// laggingFeeDebts answers the fee-debt record as it stood before any settlement.
+type laggingFeeDebts struct{ command.FeeDebtRecorder }
+
+func (laggingFeeDebts) Settled(context.Context, uuid.UUID, uuid.UUID, []string) (map[string]decimal.Decimal, error) {
+	return nil, nil
+}
+
+// TestFeeDebtRevertWaitsForTheRecord reverts an origin whose debt's record lags a
+// settlement: the client is told to retry, nothing moves, and the retry refunds once
+// the record catches up.
+func TestFeeDebtRevertWaitsForTheRecord(t *testing.T) {
+	s := newFeeDebtRoutes(t, false)
+
+	origin := s.open(t)
+	s.settle(t)
+
+	debts := s.commandUC.FeeDebts
+	s.commandUC.FeeDebts = laggingFeeDebts{debts}
+
+	refused := s.post(t, s.app, s.v2StatePath(origin, "revert"), "", nil)
+	assert.Equal(t, 409, refused.status, "body: %s", string(refused.rawBody))
+	assert.Equal(t, "0528", refused.body["code"])
+	s.balances(t, "0", "80", "30", "990")
+
+	s.commandUC.FeeDebts = debts
+	s.revert(t, origin)
+	s.balances(t, "110", "0", "0", "990")
+}

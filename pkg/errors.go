@@ -683,6 +683,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Administrative Operation In Progress Error",
 			Message:    "Another operation on this account is in progress. Please try again shortly.",
 		},
+		constant.ErrFeeDebtRecordPending: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrFeeDebtRecordPending.Error(),
+			Title:      "Fee Debt Record Pending Error",
+			Message:    "The pending fees this transaction touches have not finished being recorded. No transaction is reapplied; please try again shortly.",
+		},
 		constant.ErrBalanceHasOpenFeeDebt: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrBalanceHasOpenFeeDebt.Error(),
