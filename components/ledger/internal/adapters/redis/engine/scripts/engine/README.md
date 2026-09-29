@@ -501,7 +501,9 @@ revert refuse with `fee_debt_conflict`, never refund the wrong amount.
   and routes from `feeDebtSettlements`.
 - The reversal folds C's `FEE_SETTLEMENT` rows per balance and route: a fee
   account's net settlement is taken back under the route its row carries, so a
-  fee account that C also credited under another route keeps both legs.
+  fee account that C also credited under another route keeps both legs. The
+  take-back books to the rubric its settlement stored, and route validation
+  holds it to none of C's transaction routes, which never list the fee's.
 - Both reverts in flight at once is an accepted ceiling: when O's executes
   first but C's read O as not reverted, C reopens the debt and charges the fee
   account again; the reopened debt converges when a later collect settles it.

@@ -29,12 +29,30 @@ type feeDebtComposition struct {
 	input    EngineTranslationInput
 	balances map[string]*mmodel.Balance
 	// pairs maps a feeDeferPair token to the ref of the payer debit it marked.
-	pairs    map[string]string
-	declared map[string]struct{}
+	pairs     map[string]string
+	declared  map[string]struct{}
+	takeBacks map[[2]string]*accounting.FeeDebtRoute
 }
 
-func newFeeDebtComposition(input EngineTranslationInput, balances map[string]*mmodel.Balance) *feeDebtComposition {
-	return &feeDebtComposition{input: input, balances: balances, pairs: map[string]string{}, declared: map[string]struct{}{}}
+func newFeeDebtComposition(input EngineTranslationInput, balances map[string]*mmodel.Balance) (*feeDebtComposition, error) {
+	takeBacks, err := feeDebtTakeBacks(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &feeDebtComposition{input: input, balances: balances, pairs: map[string]string{}, declared: map[string]struct{}{}, takeBacks: takeBacks}, nil
+}
+
+// bookTakeBack books a revert source that takes back a fee-debt settlement under the
+// rubric the settlement credited, which no route of the reverted credit resolves.
+func (c *feeDebtComposition) bookTakeBack(primary *OperationRecordSpec) {
+	if primary.Side != OperationSpecSideFrom || primary.RouteID == nil {
+		return
+	}
+
+	if route := c.takeBacks[[2]string{primary.BalanceRef, *primary.RouteID}]; route != nil {
+		primary.RouteCode, primary.RouteDescription = route.Code, route.Description
+	}
 }
 
 // markDeferral flags the two legs of one deferrable fee on a /v2 direct
@@ -287,21 +305,11 @@ func feeDebtOrigin(debtID string) string {
 }
 
 // feeDebtRouteView is the intent route validation reads: on a revert, it names the
-// sources taking back what the reverted credit settled, each a creditor under the
-// route its settlement booked.
+// sources taking back what the reverted credit settled.
 func feeDebtRouteView(translation EngineTranslationInput) (*mtransaction.Responses, error) {
-	if translation.Action != constant.ActionRevert {
-		return translation.Validate, nil
-	}
-
-	_, settlements, err := feeDebtRevertFacts(translation.TransactionInput.Metadata)
-	if err != nil || len(settlements) == 0 {
+	takeBacks, err := feeDebtTakeBacks(translation)
+	if err != nil || len(takeBacks) == 0 {
 		return translation.Validate, err
-	}
-
-	settled := make(map[[2]string]bool, len(settlements))
-	for _, settlement := range settlements {
-		settled[[2]string{settlement.CreditRef, feeDebtRouteID(settlement.CreditRoute)}] = true
 	}
 
 	view := *translation.Validate
@@ -313,12 +321,32 @@ func feeDebtRouteView(translation EngineTranslationInput) (*mtransaction.Respons
 			route = *leg.RouteID
 		}
 
-		if settled[[2]string{mtransaction.SplitAliasWithKey(leg.AccountAlias), route}] {
+		if _, taken := takeBacks[[2]string{mtransaction.SplitAliasWithKey(leg.AccountAlias), route}]; taken {
 			view.FeeDebtLegs[leg.AccountAlias] = true
 		}
 	}
 
 	return &view, nil
+}
+
+// feeDebtTakeBacks maps each creditor ref and route a revert takes back a settlement
+// from to that settlement's stored route; empty outside a revert.
+func feeDebtTakeBacks(input EngineTranslationInput) (map[[2]string]*accounting.FeeDebtRoute, error) {
+	if input.Action != constant.ActionRevert {
+		return nil, nil
+	}
+
+	_, settlements, err := feeDebtRevertFacts(input.TransactionInput.Metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	takeBacks := make(map[[2]string]*accounting.FeeDebtRoute, len(settlements))
+	for _, settlement := range settlements {
+		takeBacks[[2]string{settlement.CreditRef, feeDebtRouteID(settlement.CreditRoute)}] = settlement.CreditRoute
+	}
+
+	return takeBacks, nil
 }
 
 // feeDebtRevertFacts reads the debts a transaction opened and settled from its

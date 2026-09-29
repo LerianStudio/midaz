@@ -74,7 +74,11 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 		Postings:              make([]accounting.Posting, 0),
 	}
 	projection := make([]OperationRecordSpec, 0)
-	debt := newFeeDebtComposition(input, balances)
+
+	debt, err := newFeeDebtComposition(input, balances)
+	if err != nil {
+		return accounting.Transaction{}, nil, err
+	}
 
 	for index, leg := range input.TransactionInput.Send.Source.From {
 		amount, exists := input.Validate.From[leg.AccountAlias]
@@ -196,6 +200,7 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap,
 		}
 		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
+		debt.bookTakeBack(&primary)
 		debt.markDeferral(transaction, &posting, primary)
 		transaction.Postings = append(transaction.Postings, posting)
 		*projection = append(*projection, primary)
