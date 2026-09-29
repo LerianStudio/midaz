@@ -37,10 +37,13 @@ checks do not certify the remote Tracer's version, policies or readiness.
 
    An entry may carry both a `clientId` and a `certUri`, so one Tracer serves
    both transports. The Ledger's integration ID is its `APPLICATION_NAME`
-   (unset means `ledger`) and must equal the entry's `service`. Every Tracer
-   boot requires `TRACER_PLATFORM_PRODUCERS`, and, outside
-   `DEPLOYMENT_MODE=local`, `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`, even
-   when only gRPC is used. `TRACER_PLATFORM_PRODUCERS` is at most 64 KiB and
+   (unset means `ledger`) and must equal the entry's `service`.
+   `TRACER_PLATFORM_PRODUCERS` enables the Tracer's reservation surface; empty,
+   the Tracer serves validations only, mounts no reservation route, refuses a
+   `TRACER_GRPC_PORT`, and accepts limits of any scope. Once it is set, limits
+   must be account-only, and outside `DEPLOYMENT_MODE=local`
+   `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are required, even when only
+   gRPC is used. `TRACER_PLATFORM_PRODUCERS` is at most 64 KiB and
    rejects an unknown entry key. Under `DEPLOYMENT_MODE=local` the Tracer does
    not verify producer tokens and attributes every HTTP reservation to the
    ledger; that mode is refused together with `MULTI_TENANT_ENABLED=true`. A
@@ -327,8 +330,9 @@ reaper:
 - The Ledger sets `TRACER_BASE_URL`.
 - The Ledger's `APPLICATION_NAME` (unset means `ledger`) is in the producer
   roster.
-- The Tracer's `TRACER_PLATFORM_PRODUCERS` parses under the Tracer's own boot
-  rules and maps a `clientId` or `certUri` onto that service.
+- The Tracer's `TRACER_PLATFORM_PRODUCERS` is set (empty leaves a
+  validations-only Tracer), parses under the Tracer's own boot rules, and maps
+  a `clientId` or `certUri` onto that service.
 - The Ledger's `TRACER_TRANSPORT` is `grpc` (the default when empty) or `rest`;
   any other value fails.
 - For `rest`:

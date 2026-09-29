@@ -1050,9 +1050,10 @@ Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVE
 `DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
 `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` / `DB_SSL_MODE` (its own PostgreSQL),
 plus the standard OTEL exporter vars. Reservation producer identity is `TRACER_PLATFORM_PRODUCERS`
-(JSON map of roster service → M2M `clientId` and/or certificate `certUri`, always required),
-`CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` (both required unless `DEPLOYMENT_MODE=local`, where
-token verification is off). Under multi-tenancy `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list
+(JSON map of roster service → M2M `clientId` and/or certificate `certUri`; set, it enables the
+reservation surface and account-only limit scopes; empty, the Tracer serves validations only with
+unrestricted limit scopes), `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` (both required with
+producers set unless `DEPLOYMENT_MODE=local`, where token verification is off). Under multi-tenancy `MULTI_TENANT_SERVICE_API_KEY` must be allowed to list
 active tenants for `service=ledger`, and `MULTI_TENANT_CACHE_TTL_SEC` bounds how late a revoked tenant
 association takes effect. `TRACER_GRPC_PORT` starts the gRPC seam and requires `TRACER_TLS_MODE=mtls`
 plus a `certUri` mapping. Under `mtls` the HTTP listener serves server-only TLS and the gRPC listener

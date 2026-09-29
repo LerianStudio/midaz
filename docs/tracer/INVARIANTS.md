@@ -428,9 +428,13 @@ info, query, fragment, wildcard or space. Any violation refuses boot. The map is
 copied at construction and applies no normalization or wildcards; rotation adds
 a second entry for the same service.
 
-Every Tracer boot requires `TRACER_PLATFORM_PRODUCERS`, whichever transports it
-serves; `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are required unless
-`DEPLOYMENT_MODE=local`. Under `local` producer token verification is off: every
+`TRACER_PLATFORM_PRODUCERS` enables the reservation surface. Empty or unset, the
+Tracer serves validations only: the reservation routes are not mounted (404),
+`TRACER_GRPC_PORT` refuses boot because the gRPC listener serves only
+reservations, limits accept any scope (the account-only definition policy is
+not installed), none of the reservation settings is read, and boot logs one
+Info. When it is set, `CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are
+required unless `DEPLOYMENT_MODE=local`, whichever transports it serves. Under `local` producer token verification is off: every
 HTTP reservation is attributed to the ledger producer, and boot logs a Warn.
 `DEPLOYMENT_MODE=local` together with `MULTI_TENANT_ENABLED=true` refuses boot,
 because an unverified caller would choose its own tenant. A multi-tenant Tracer

@@ -318,9 +318,10 @@ unmapped `azp` or certificate is 403 / `PermissionDenied` with `0043`. On REST t
 (also when the JWKS cannot be fetched), and a user token or unmapped `azp` is 403 `0043`. Under
 `DEPLOYMENT_MODE=local` the Tracer skips token verification and attributes every HTTP reservation to
 the ledger producer, logging a Warn at boot; `DEPLOYMENT_MODE=local` together with
-`MULTI_TENANT_ENABLED=true` refuses boot. Every Tracer boot requires `TRACER_PLATFORM_PRODUCERS` (at
-most 64 KiB; an unknown entry key is rejected), whichever transports it serves, and, outside `local`,
-`CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER`. A multi-tenant Tracer that serves gRPC refuses boot
+`MULTI_TENANT_ENABLED=true` refuses boot. `TRACER_PLATFORM_PRODUCERS` (at most 64 KiB; an unknown entry key is rejected) enables
+the reservation surface; empty, the Tracer serves validations only, mounts no reservation route,
+refuses `TRACER_GRPC_PORT` and accepts limits of any scope. Once it is set, outside `local`,
+`CONTEXT_M2M_JWKS_URL` and `CONTEXT_M2M_ISSUER` are required, whichever transports it serves. A multi-tenant Tracer that serves gRPC refuses boot
 without its tenant authorizer and tenant pool manager.
 
 **Ledger side.** The integration ID is the Ledger's `APPLICATION_NAME` (unset means `ledger`),
@@ -474,8 +475,8 @@ truth for their **existence and semantics**.
 | `TRACER_TLS_MODE` | tracer | `mtls` (HTTP server-only TLS, gRPC mutual TLS)\|`mesh`/empty; empty refuses boot under `DEPLOYMENT_MODE=saas` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** gRPC client leaf; required in `mtls` |
-| `TRACER_PLATFORM_PRODUCERS` | tracer | roster service → `clientId` and/or `certUri`; always required, at most 64 KiB, unknown keys rejected |
-| `CONTEXT_M2M_JWKS_URL` | tracer | JWKS verifying producer tokens; always required |
+| `TRACER_PLATFORM_PRODUCERS` | tracer | roster service → `clientId` and/or `certUri`; set enables the reservation surface, empty is validations-only; at most 64 KiB, unknown keys rejected |
+| `CONTEXT_M2M_JWKS_URL` | tracer | JWKS verifying producer tokens; required with producers set outside `DEPLOYMENT_MODE=local` |
 | `CONTEXT_M2M_ISSUER` | tracer | expected token issuer; required unless `DEPLOYMENT_MODE=local` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) |
 
