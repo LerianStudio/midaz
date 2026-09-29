@@ -48,7 +48,6 @@ var envVarNames = []string{
 	"MIGRATIONS_PATH",
 	"FAULT_INJECTION_ENABLED",
 	"READYZ_DRAIN_GRACE_SECONDS",
-	"CONTEXT_M2M_JWKS_URL",
 	"TRACER_PLATFORM_PRODUCERS",
 	"DEPLOYMENT_MODE",
 }
@@ -164,7 +163,6 @@ func SetupTestSuite(m *testing.M) int {
 	// the reservation surface stays unmounted and limits accept any scope. A
 	// test that needs reservations sets its own roster on restart.
 	os.Setenv("DEPLOYMENT_MODE", "local")
-	os.Unsetenv("CONTEXT_M2M_JWKS_URL")
 	os.Unsetenv("TRACER_PLATFORM_PRODUCERS")
 
 	// Initialize local env config

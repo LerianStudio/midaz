@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 
-	libAuth "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
@@ -157,14 +156,14 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 //     active, or NewRoutes refuses.
 type RoutesDeps struct {
 	ContextReservation *ContextReservationHandler
-	// ContextReservationM2M verifies producer access tokens and
-	// ContextReservationProducers maps their authorized party onto the
-	// platform roster. Both are required when ContextReservation is set.
-	ContextReservationM2M       *libAuth.M2MAuthenticator
+	// ContextReservationProducers maps the authorized party of a token the
+	// Guard authorized onto the platform roster. It is required when
+	// ContextReservation is set, and so is a Guard that authorizes callers
+	// against the Access Manager unless ContextReservationUnverifiedProducers.
 	ContextReservationProducers *producerauth.Registry
 	// ContextReservationUnverifiedProducers attributes every reservation to
-	// the ledger producer without reading a token. Set only when
-	// DEPLOYMENT_MODE=local disabled producer token verification.
+	// the ledger producer without reading a token. Set only when plugin auth
+	// is disabled under DEPLOYMENT_MODE=local.
 	ContextReservationUnverifiedProducers bool
 	// ContextReservationTenants authorizes the producer's requested tenant.
 	// Multi-tenant context reservations require an active authorizer.
@@ -434,8 +433,12 @@ func validateReservationDeps(deps RoutesDeps) error {
 		return nil
 	}
 
-	if deps.ContextReservationM2M == nil || deps.ContextReservationProducers == nil {
-		return fmt.Errorf("context reservations require verified producer identity")
+	if deps.ContextReservationProducers == nil {
+		return fmt.Errorf("context reservations require the platform producer roster")
+	}
+
+	if !deps.ContextReservationUnverifiedProducers && !deps.Guard.AuthorizesCallers() {
+		return fmt.Errorf("context reservations require a guard that authorizes callers against the Access Manager")
 	}
 
 	if deps.MultiTenantEnabled && !deps.ContextReservationTenants.Active() {
@@ -445,7 +448,7 @@ func validateReservationDeps(deps RoutesDeps) error {
 	return nil
 }
 
-// buildReservationChain returns the producer authentication handlers and the
+// buildReservationChain returns the producer authentication chain and the
 // tenant middleware of the reservation routes, or nils when the reservation
 // surface is not mounted. In single-tenant mode the tenant middleware ignores
 // the requested tenant.
@@ -459,7 +462,7 @@ func buildReservationChain(deps RoutesDeps) ([]fiber.Handler, fiber.Handler) {
 		options = append(options, WithProducerVerificationDisabled())
 	}
 
-	producerAuth := NewProducerAuthMiddleware(deps.ContextReservationM2M, deps.ContextReservationProducers, options...)
+	producerAuth := NewProducerAuthMiddleware(deps.Guard, deps.ContextReservationProducers, options...)
 	tenantMW := reservationTenantMiddleware(deps.ContextReservationTenants, seamtenant.NewResolver(deps.PgManager, deps.MultiTenantEnabled))
 
 	return producerAuth, tenantMW
@@ -525,13 +528,15 @@ func handleWorkerEnsureError(c fiber.Ctx, logger libLog.Logger, tenantID string,
 //
 // Zero-value semantics:
 //   - ContextReservation: if nil, the /v1/reservations routes are not mounted.
-//     ProducerAuth and ResTenantMW are only consulted when it is non-nil.
+//     ProducerAuth and ResTenantMW are only consulted when it is non-nil; an
+//     empty ProducerAuth fails every reservation request closed.
 //   - ResTenantMW: the reservation-scoped tenant Fiber middleware, built in
 //     NewRoutes from pgManager+multiTenantEnabled.
 type tracerHumaHandlers struct {
 	ContextReservation *ContextReservationHandler
-	// ProducerAuth authenticates the platform producer on the context
-	// reservation routes; ResTenantMW then authorizes its tenant.
+	// ProducerAuth is the NewProducerAuthMiddleware chain: it authorizes the
+	// caller and resolves its platform producer on the context reservation
+	// routes; ResTenantMW then authorizes its tenant.
 	ProducerAuth          []fiber.Handler
 	ContextPolicy         *ContextPolicyHandler
 	Guard                 *middleware.AuthGuard
@@ -656,28 +661,40 @@ func newDashboardHandlerOrNil(service DashboardService, clk clock.Clock) *Dashbo
 	return NewDashboardHandler(service, clk)
 }
 
-// registerReservationTransportRoutes mounts the reservation routes. Every route
-// authenticates the platform producer by its M2M access token, then authorizes
-// the tenant it asks for. User/admin API credentials never substitute for a
-// registered producer identity.
+// registerReservationTransportRoutes mounts the reservation routes. Before the
+// Huma handler each route runs the ProducerAuth chain, which authorizes the
+// caller against the Access Manager as the tracer's own "reservations"
+// resource and resolves the platform producer the authorized token belongs
+// to, and then ResTenantMW, which authorizes the tenant it asks for. The
+// by-transaction routes are declared before the "/reservations/:id/..." param
+// routes so Fiber matches the static "transaction" segment first.
 func registerReservationTransportRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
 	if h.ContextReservation == nil {
 		return
 	}
 
-	handlers := make([]any, 0, len(h.ProducerAuth)+1)
-	for _, handler := range h.ProducerAuth {
-		handlers = append(handlers, handler)
+	producerAuth := h.ProducerAuth
+	if len(producerAuth) == 0 {
+		producerAuth = []fiber.Handler{producerAuthUnavailable}
 	}
 
-	handlers = append(handlers, h.ResTenantMW)
-	first, rest := handlers[0], handlers[1:]
+	chain := make([]any, 0, len(producerAuth))
+	for _, handler := range producerAuth[1:] {
+		chain = append(chain, handler)
+	}
 
-	api.Post("/reservations", first, rest...)
-	api.Post("/reservations/transaction/:transaction_id/confirm", first, rest...)
-	api.Post("/reservations/transaction/:transaction_id/release", first, rest...)
-	// Reservation IDs address their whole coordinated operation.
-	api.Post("/reservations/:id/confirm", first, rest...)
-	api.Post("/reservations/:id/release", first, rest...)
+	chain = append(chain, h.ResTenantMW)
+
+	for _, path := range []string{
+		"/reservations",
+		"/reservations/transaction/:transaction_id/confirm",
+		"/reservations/transaction/:transaction_id/release",
+		// Reservation IDs address their whole coordinated operation.
+		"/reservations/:id/confirm",
+		"/reservations/:id/release",
+	} {
+		api.Post(path, producerAuth[0], chain...)
+	}
+
 	RegisterContextReservationRoutes(humaAPI, h.ContextReservation)
 }

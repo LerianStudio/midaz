@@ -76,8 +76,7 @@ func fetchTracerSpec(t *testing.T) openAPISpec {
 	deps := newTestRouterDeps(t, guardCfg)
 	deps.openAPIDocsEnabled = true // gate ServeSpec on
 
-	key, _ := testProducerAuthChain(t)
-	reservation := withProducerVerifier(t, contextReservationRoutesDeps(t), key)
+	reservation := withProducerVerifier(t, contextReservationRoutesDeps(t), startAccessManagerFake(t))
 	deps.contextReservation = &reservation
 	app := deps.build()
 

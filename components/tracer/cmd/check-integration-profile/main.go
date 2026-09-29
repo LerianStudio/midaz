@@ -118,7 +118,8 @@ func checkTracerListenerTLS(tracerEnv map[string]string) error {
 
 // checkTenancy requires both services to agree on multi-tenancy, parsed as
 // each boot parses it, and a multi-tenant Tracer to reach the tenant-manager
-// and verify producer tokens. Setting values are never reported.
+// and authorize producers through plugin-auth. Setting values are never
+// reported.
 func checkTenancy(ledgerEnv, tracerEnv map[string]string) error {
 	tracerMT := bootBool(tracerEnv, "MULTI_TENANT_ENABLED")
 	if bootBool(ledgerEnv, "MULTI_TENANT_ENABLED") != tracerMT {
@@ -129,8 +130,8 @@ func checkTenancy(ledgerEnv, tracerEnv map[string]string) error {
 		return nil
 	}
 
-	if deploymentMode(tracerEnv) == deploymentModeLocal {
-		return fmt.Errorf("tracer MULTI_TENANT_ENABLED=true is refused under tracer DEPLOYMENT_MODE=local: local mode verifies no producer token, so any caller could name any tenant")
+	if !bootBool(tracerEnv, "PLUGIN_AUTH_ENABLED") {
+		return fmt.Errorf("tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true: without plugin-auth the tracer verifies no producer, so any caller could name any tenant")
 	}
 
 	if strings.TrimSpace(tracerEnv["MULTI_TENANT_URL"]) == "" {
@@ -146,8 +147,9 @@ func checkTenancy(ledgerEnv, tracerEnv map[string]string) error {
 
 // checkProducerIdentity verifies that the Tracer will recognize the Ledger as
 // a platform producer over the transport the Ledger selects: by its M2M client
-// id on REST, by its client certificate over native mTLS on gRPC. Messages
-// name settings only, never their values.
+// id on REST, by its client certificate over native mTLS on gRPC. It then
+// requires the plugin-auth posture the Tracer's reservation surface boots
+// under. Messages name settings only, never their values.
 func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 	if strings.TrimSpace(ledgerEnv["TRACER_BASE_URL"]) == "" {
 		return fmt.Errorf("ledger TRACER_BASE_URL must be set: without it the ledger builds no tracer integration")
@@ -183,28 +185,29 @@ func checkProducerIdentity(ledgerEnv, tracerEnv map[string]string) error {
 
 	switch transport {
 	case transportREST:
-		return checkTokenIdentity(ledgerEnv, tracerEnv, registry, service)
+		err = checkTokenIdentity(ledgerEnv, tracerEnv, registry, service)
 	case transportGRPC:
-		return checkCertificateIdentity(ledgerEnv, tracerEnv, certURIs)
+		err = checkCertificateIdentity(ledgerEnv, tracerEnv, certURIs)
 	default:
-		return fmt.Errorf("ledger TRACER_TRANSPORT must be %q or %q", transportGRPC, transportREST)
+		err = fmt.Errorf("ledger TRACER_TRANSPORT must be %q or %q", transportGRPC, transportREST)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	return checkTokenAuthorization(tracerEnv)
 }
 
 // checkTokenIdentity requires the Ledger to reach the Tracer's REST listener
-// over the scheme it serves, to obtain M2M tokens from plugin-auth under a
-// client id the Tracer maps onto the Ledger's service, and the Tracer to be
-// able to verify those tokens.
+// over the scheme it serves and to obtain M2M tokens from plugin-auth under a
+// client id the Tracer maps onto the Ledger's service.
 func checkTokenIdentity(ledgerEnv, tracerEnv map[string]string, registry *producerauth.Registry, service string) error {
 	if err := checkTokenTransport(ledgerEnv, tracerEnv); err != nil {
 		return err
 	}
 
-	if err := checkTokenIssuance(ledgerEnv, registry, service); err != nil {
-		return err
-	}
-
-	return checkTokenVerification(tracerEnv)
+	return checkTokenIssuance(ledgerEnv, registry, service)
 }
 
 // checkTokenTransport requires both ends of the REST call to agree on TLS: a
@@ -249,11 +252,11 @@ func checkSaaSTokenTLS(ledgerEnv map[string]string) error {
 // reached statically or through service discovery, with a complete client
 // credential whose id the Tracer maps onto the Ledger's service.
 func checkTokenIssuance(ledgerEnv map[string]string, registry *producerauth.Registry, service string) error {
-	if !isTrue(ledgerEnv, "PLUGIN_AUTH_ENABLED") {
+	if !bootBool(ledgerEnv, "PLUGIN_AUTH_ENABLED") {
 		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires ledger PLUGIN_AUTH_ENABLED=true: the ledger obtains its tracer token from plugin-auth")
 	}
 
-	if strings.TrimSpace(ledgerEnv["PLUGIN_AUTH_HOST"]) == "" && !isTrue(ledgerEnv, "SD_ENABLED") {
+	if strings.TrimSpace(ledgerEnv["PLUGIN_AUTH_HOST"]) == "" && !discoveryEnabled(ledgerEnv) {
 		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires ledger PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true resolves plugin-auth: the ledger obtains its tracer token from plugin-auth")
 	}
 
@@ -274,23 +277,25 @@ func checkTokenIssuance(ledgerEnv map[string]string, registry *producerauth.Regi
 	return nil
 }
 
-// checkTokenVerification requires a Tracer that verifies tokens to know where
-// its keys live and which issuer to pin. A Tracer in DEPLOYMENT_MODE=local
-// verifies no token and needs neither.
-func checkTokenVerification(tracerEnv map[string]string) error {
-	if strings.EqualFold(strings.TrimSpace(tracerEnv["DEPLOYMENT_MODE"]), "local") {
+// checkTokenAuthorization mirrors the Tracer's refusal to boot a reservation
+// surface without plugin-auth outside DEPLOYMENT_MODE=local, and its refusal
+// to boot plugin-auth without an Access Manager address: its reservation
+// routes authorize the caller through the Access Manager. A local Tracer
+// without plugin-auth attributes every HTTP reservation to the ledger.
+func checkTokenAuthorization(tracerEnv map[string]string) error {
+	if bootBool(tracerEnv, "PLUGIN_AUTH_ENABLED") {
+		if strings.TrimSpace(tracerEnv["PLUGIN_AUTH_ADDRESS"]) == "" {
+			return fmt.Errorf("tracer PLUGIN_AUTH_ENABLED=true requires tracer PLUGIN_AUTH_ADDRESS: the tracer authorizes reservation callers through the Access Manager and otherwise refuses to boot")
+		}
+
 		return nil
 	}
 
-	if strings.TrimSpace(tracerEnv["CONTEXT_M2M_JWKS_URL"]) == "" {
-		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires tracer CONTEXT_M2M_JWKS_URL unless tracer DEPLOYMENT_MODE=local: the tracer verifies the ledger's M2M token against it")
+	if deploymentMode(tracerEnv) == deploymentModeLocal {
+		return nil
 	}
 
-	if strings.TrimSpace(tracerEnv["CONTEXT_M2M_ISSUER"]) == "" {
-		return fmt.Errorf("ledger TRACER_TRANSPORT=rest requires tracer CONTEXT_M2M_ISSUER unless tracer DEPLOYMENT_MODE=local: the tracer pins the token issuer")
-	}
-
-	return nil
+	return fmt.Errorf("tracer TRACER_PLATFORM_PRODUCERS requires tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local: the tracer authorizes reservation callers through the Access Manager and otherwise refuses to boot")
 }
 
 // checkCertificateIdentity requires native mTLS on both sides, a Tracer gRPC
@@ -337,18 +342,19 @@ func isCleartextURL(raw string) bool {
 
 // bootBool parses key as both services parse a boolean setting at boot:
 // strconv.ParseBool on the raw value, with unset or unparsable read as false.
+// The value is deliberately not trimmed: the services do not trim it either,
+// so a quoted, padded "true" boots as false and must be reported as false.
 func bootBool(values map[string]string, key string) bool {
 	enabled, err := strconv.ParseBool(values[key])
 
 	return err == nil && enabled
 }
 
-// isTrue reports whether key holds a boolean true; unset or unparsable is
-// false.
-func isTrue(values map[string]string, key string) bool {
-	enabled, err := strconv.ParseBool(strings.TrimSpace(values[key]))
-
-	return err == nil && enabled
+// discoveryEnabled parses service discovery's switch as the ledger reads it
+// at boot: only the literal "true" enables it, under SD_ENABLED or its legacy
+// name SERVICE_DISCOVERY_ENABLED.
+func discoveryEnabled(values map[string]string) bool {
+	return values["SD_ENABLED"] == "true" || values["SERVICE_DISCOVERY_ENABLED"] == "true"
 }
 
 // requireReaperEnabled rejects a Tracer that admits decisions without the

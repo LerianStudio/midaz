@@ -347,8 +347,7 @@ func (r *streamingProducerRunnable) drain() {
 //     READYZ_DRAIN_GRACE_SECONDS) sized for periodSeconds=5 ×
 //     failureThreshold=2 plus buffer.
 //  3. ShutdownWithContext — stops accepting new HTTP requests; in-flight
-//     requests get fiber's per-handler context to drain. The reservation
-//     producer JWKS refresher stops right after, even when this step fails.
+//     requests get fiber's per-handler context to drain.
 //  4. Worker / multi-tenant cleanup — listener, supervisor, pgManager, then
 //     tmClient (see shutdownTenancy for why the order matters).
 //  5. PostgreSQL pool close — last so any worker shutting down can still use
@@ -361,13 +360,7 @@ func (app *Service) Shutdown(ctx context.Context) error {
 
 	app.drain(ctx, logger)
 
-	err := app.shutdownHTTP(ctx, logger)
-
-	// The JWKS refresher stops whether or not the HTTP server drained cleanly:
-	// nothing restarts it, so a failed drain must not leak its goroutine.
-	app.closeReservationVerifier(ctx, logger)
-
-	if err != nil {
+	if err := app.shutdownHTTP(ctx, logger); err != nil {
 		return err
 	}
 
@@ -424,20 +417,6 @@ func (app *Service) shutdownHTTP(ctx context.Context, logger libLog.Logger) erro
 	}
 
 	return nil
-}
-
-// closeReservationVerifier stops the reservation producer JWKS refresher,
-// when one was started.
-func (app *Service) closeReservationVerifier(ctx context.Context, logger libLog.Logger) {
-	if app.HTTPServer == nil || app.contextReservations == nil {
-		return
-	}
-
-	if err := app.contextReservations.config.close(); err != nil {
-		logger.With(
-			libLog.String("service.name", "Reservation Producer Verifier"),
-		).Log(ctx, libLog.LevelWarn, "Failed to stop JWKS key source", libLog.Err(err))
-	}
 }
 
 // logLauncherManagedWorkers records that the cleanup and sync workers stop on

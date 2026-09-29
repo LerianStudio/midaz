@@ -29,7 +29,7 @@ const (
 	certProducer  = "TRACER_PLATFORM_PRODUCERS='[{\"service\":\"ledger\",\"certUri\":\"" + ledgerCertURI + "\"}]'\n"
 
 	grpcPort   = "TRACER_GRPC_PORT=:4021\n"
-	tokenCheck = "CONTEXT_M2M_JWKS_URL=https://access-manager.example.test/.well-known/jwks\nCONTEXT_M2M_ISSUER=https://access-manager.example.test\n"
+	tokenCheck = "PLUGIN_AUTH_ENABLED=true\nPLUGIN_AUTH_ADDRESS=http://plugin-auth:4000\n"
 	grpcTracer = "TRACER_TLS_MODE=mtls\n" + grpcPort + tokenCheck + bothProducers
 	restTracer = tokenCheck + tokenProducer
 
@@ -86,18 +86,22 @@ func TestProfileCheckAcceptsBothTransports(t *testing.T) {
 		tracer string
 	}{
 		{name: "grpc by default", ledger: grpcLedger, tracer: grpcTracer},
-		{name: "grpc explicit and case-insensitive", ledger: grpcLedger + "TRACER_TRANSPORT= GRPC \n", tracer: "TRACER_TLS_MODE=MTLS\n" + grpcPort + certProducer},
-		{name: "grpc with rotating certificates", ledger: grpcLedger, tracer: "TRACER_TLS_MODE=mtls\n" + grpcPort + "TRACER_PLATFORM_PRODUCERS='[{\"service\":\"ledger\",\"certUri\":\"spiffe://example.test/old\"},{\"service\":\"ledger\",\"certUri\":\"spiffe://example.test/new\"}]'\n"},
+		{name: "grpc explicit and case-insensitive", ledger: grpcLedger + "TRACER_TRANSPORT= GRPC \n", tracer: "TRACER_TLS_MODE=MTLS\n" + grpcPort + tokenCheck + certProducer},
+		{name: "grpc with rotating certificates", ledger: grpcLedger, tracer: "TRACER_TLS_MODE=mtls\n" + grpcPort + tokenCheck + "TRACER_PLATFORM_PRODUCERS='[{\"service\":\"ledger\",\"certUri\":\"spiffe://example.test/old\"},{\"service\":\"ledger\",\"certUri\":\"spiffe://example.test/new\"}]'\n"},
 		{name: "rest behind a mesh", ledger: restLedger, tracer: restTracer},
 		{name: "rest over mtls", ledger: restLedger + "TRACER_TLS_MODE=mtls\n", tracer: grpcTracer},
 		{name: "rest with a rotated client id", ledger: restLedger, tracer: tokenCheck + "TRACER_PLATFORM_PRODUCERS='[{\"service\":\"ledger\",\"clientId\":\"old\"},{\"service\":\"ledger\",\"clientId\":\"" + ledgerClientID + "\"}]'\n"},
 		{name: "explicit ledger application name", ledger: restLedger + "APPLICATION_NAME=ledger\n", tracer: restTracer},
-		{name: "rest to a local tracer without an issuer", ledger: restLedger, tracer: "DEPLOYMENT_MODE= Local \nCONTEXT_M2M_JWKS_URL=http://localhost:8000/.well-known/jwks\n" + tokenProducer},
+		{name: "rest to a local tracer without plugin auth, mode case-insensitive", ledger: restLedger, tracer: "DEPLOYMENT_MODE= Local \n" + tokenProducer},
+		{name: "grpc to a local tracer without plugin auth", ledger: grpcLedger, tracer: "DEPLOYMENT_MODE=local\nTRACER_TLS_MODE=mtls\n" + grpcPort + certProducer},
+		{name: "rest to a local tracer with plugin auth", ledger: restLedger, tracer: "DEPLOYMENT_MODE=local\n" + tokenCheck + tokenProducer},
+		{name: "multi-tenant local tracer with plugin auth", ledger: restLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\n" + tokenCheck + tokenProducer + multiTenant + tenantManager},
 		{name: "rest with plugin auth case-insensitive", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED= TRUE \nPLUGIN_AUTH_HOST=http://plugin-auth:4000\n", tracer: restTracer},
 		{name: "rest to a local tracer without token verification settings", ledger: restLedger, tracer: "DEPLOYMENT_MODE=local\n" + tokenProducer},
 		{name: "rest over https to an mtls tracer", ledger: "TRACER_BASE_URL=HTTPS://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + pluginAuth, tracer: grpcTracer},
 		{name: "rest through a mesh to an mtls tracer", ledger: restLedger + "TRACER_TLS_MODE=mesh\n", tracer: grpcTracer},
 		{name: "rest resolving plugin auth through discovery", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSD_ENABLED=true\n", tracer: restTracer},
+		{name: "rest resolving plugin auth through discovery's legacy name", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSERVICE_DISCOVERY_ENABLED=true\n", tracer: restTracer},
 		{name: "reaper explicitly on", ledger: grpcLedger, tracer: grpcTracer + "RESERVATION_REAPER_ENABLED=true\n"},
 		{name: "unrelated ledger settings", ledger: grpcLedger + "TRANSACTION_BATCH_MAX_SIZE=50\n", tracer: grpcTracer},
 		{name: "both multi-tenant", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + tenantManager},
@@ -150,9 +154,23 @@ func TestProfileCheckRejectsIdentityDrift(t *testing.T) {
 		{name: "rest with plugin auth disabled", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=false\nPLUGIN_AUTH_HOST=http://plugin-auth:4000\n", tracer: restTracer, reason: "PLUGIN_AUTH_ENABLED=true"},
 		{name: "rest with plugin auth unparsable", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=yes\nPLUGIN_AUTH_HOST=http://plugin-auth:4000\n", tracer: restTracer, reason: "PLUGIN_AUTH_ENABLED=true"},
 		{name: "rest without a plugin auth host", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nPLUGIN_AUTH_HOST= \n", tracer: restTracer, reason: "PLUGIN_AUTH_HOST"},
-		{name: "rest without a tracer jwks url", ledger: restLedger, tracer: "CONTEXT_M2M_ISSUER=https://access-manager.example.test\n" + tokenProducer, reason: "CONTEXT_M2M_JWKS_URL"},
-		{name: "rest without a tracer issuer", ledger: restLedger, tracer: "CONTEXT_M2M_JWKS_URL=https://access-manager.example.test/.well-known/jwks\n" + tokenProducer, reason: "CONTEXT_M2M_ISSUER"},
-		{name: "rest without a tracer issuer outside local", ledger: restLedger, tracer: "DEPLOYMENT_MODE=byoc\nCONTEXT_M2M_JWKS_URL=https://access-manager.example.test/.well-known/jwks\n" + tokenProducer, reason: "CONTEXT_M2M_ISSUER"},
+		{name: "rest to a tracer without plugin auth", ledger: restLedger, tracer: tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local"},
+		{name: "rest to a byoc tracer with plugin auth disabled", ledger: restLedger, tracer: "DEPLOYMENT_MODE=byoc\nPLUGIN_AUTH_ENABLED=false\n" + tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local"},
+		{name: "rest to a tracer with plugin auth unparsable", ledger: restLedger, tracer: "PLUGIN_AUTH_ENABLED=yes\n" + tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local"},
+		// The tracer refuses to boot plugin auth without an address in every
+		// deployment mode, local included.
+		{name: "tracer plugin auth without an address", ledger: restLedger, tracer: "PLUGIN_AUTH_ENABLED=true\n" + tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true requires tracer PLUGIN_AUTH_ADDRESS"},
+		{name: "tracer plugin auth with a blank address", ledger: restLedger, tracer: "PLUGIN_AUTH_ENABLED=true\nPLUGIN_AUTH_ADDRESS=' '\n" + tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true requires tracer PLUGIN_AUTH_ADDRESS"},
+		{name: "local tracer with plugin auth without an address", ledger: restLedger, tracer: "DEPLOYMENT_MODE=local\nPLUGIN_AUTH_ENABLED=true\n" + tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true requires tracer PLUGIN_AUTH_ADDRESS"},
+		{name: "grpc to a tracer with plugin auth without an address", ledger: grpcLedger, tracer: "TRACER_TLS_MODE=mtls\n" + grpcPort + "PLUGIN_AUTH_ENABLED=true\n" + bothProducers, reason: "tracer PLUGIN_AUTH_ENABLED=true requires tracer PLUGIN_AUTH_ADDRESS"},
+		// Neither service trims a boolean before parsing it, so a quoted,
+		// padded "true" boots as false and is reported as false.
+		{name: "rest with a padded ledger plugin auth flag", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=' true'\nPLUGIN_AUTH_HOST=http://plugin-auth:4000\n", tracer: restTracer, reason: "requires ledger PLUGIN_AUTH_ENABLED=true"},
+		{name: "rest to a tracer with a padded plugin auth flag", ledger: restLedger, tracer: "PLUGIN_AUTH_ENABLED=' true'\nPLUGIN_AUTH_ADDRESS=http://plugin-auth:4000\n" + tokenProducer, reason: "tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local"},
+		{name: "multi-tenancy padded on the tracer", ledger: grpcLedger + multiTenant, tracer: grpcTracer + "MULTI_TENANT_ENABLED=' true'\n" + tenantManager, reason: "MULTI_TENANT_ENABLED differ"},
+		// Service discovery enables only on the literal "true".
+		{name: "rest without a plugin auth host and discovery as 1", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSD_ENABLED=1\n", tracer: restTracer, reason: "PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true"},
+		{name: "grpc to a saas tracer without plugin auth", ledger: grpcLedger, tracer: "DEPLOYMENT_MODE=saas\nTRACER_TLS_MODE=mtls\n" + grpcPort + bothProducers, reason: "tracer PLUGIN_AUTH_ENABLED=true unless tracer DEPLOYMENT_MODE=local"},
 		{name: "rest with only a certificate mapped", ledger: restLedger, tracer: certProducer, reason: "is not a clientId"},
 		{name: "rest without a client secret", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\nIDP_M2M_CLIENT_ID=" + ledgerClientID + "\nIDP_M2M_CLIENT_SECRET= \n" + pluginAuth, tracer: restTracer, reason: "requires IDP_M2M_CLIENT_SECRET"},
 		{name: "rest without a plugin auth host and discovery off", ledger: "TRACER_BASE_URL=http://tracer:4020\nTRACER_TRANSPORT=rest\n" + clientCredential + "PLUGIN_AUTH_ENABLED=true\nSD_ENABLED=false\n", tracer: restTracer, reason: "PLUGIN_AUTH_HOST unless ledger SD_ENABLED=true"},
@@ -166,7 +184,7 @@ func TestProfileCheckRejectsIdentityDrift(t *testing.T) {
 		{name: "multi-tenancy unparsable on the tracer", ledger: grpcLedger + multiTenant, tracer: grpcTracer + "MULTI_TENANT_ENABLED=on\n" + tenantManager, reason: "MULTI_TENANT_ENABLED differ"},
 		{name: "multi-tenant tracer without a tenant-manager url", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + "MULTI_TENANT_SERVICE_API_KEY=svc-api-key\n", reason: "requires tracer MULTI_TENANT_URL"},
 		{name: "multi-tenant tracer without a service api key", ledger: grpcLedger + multiTenant, tracer: grpcTracer + multiTenant + "MULTI_TENANT_URL=https://tenant-manager.example.test\nMULTI_TENANT_SERVICE_API_KEY= \n", reason: "requires tracer MULTI_TENANT_SERVICE_API_KEY"},
-		{name: "multi-tenant tracer in local mode", ledger: restLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\n" + tokenProducer + multiTenant + tenantManager, reason: "refused under tracer DEPLOYMENT_MODE=local"},
+		{name: "multi-tenant local tracer without plugin auth", ledger: restLedger + multiTenant, tracer: "DEPLOYMENT_MODE=local\n" + tokenProducer + multiTenant + tenantManager, reason: "tracer MULTI_TENANT_ENABLED=true requires tracer PLUGIN_AUTH_ENABLED=true"},
 		{name: "saas tracer without a tls mode", ledger: grpcLedger, tracer: "DEPLOYMENT_MODE=saas\n" + grpcPort + tokenCheck + bothProducers, reason: "tracer DEPLOYMENT_MODE=saas requires tracer TRACER_TLS_MODE"},
 		{name: "saas ledger with an http tracer url", ledger: restLedger + "DEPLOYMENT_MODE=saas\n", tracer: restTracer, reason: "refuses an http:// TRACER_BASE_URL"},
 		{name: "saas ledger with an http tracer url and an empty tls mode", ledger: restLedger + "DEPLOYMENT_MODE= SAAS \nTRACER_TLS_MODE=\n", tracer: restTracer, reason: "refuses an http:// TRACER_BASE_URL"},

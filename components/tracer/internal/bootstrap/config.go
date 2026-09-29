@@ -215,11 +215,9 @@ type Config struct {
 	// authorized parties and client certificate URIs onto the platform
 	// producer roster; a non-empty value enables the reservation surface, and
 	// an empty one leaves a validations-only Tracer that reads none of the
-	// settings below. CONTEXT_M2M_JWKS_URL is the JWKS the producer access
-	// tokens are verified against; CONTEXT_M2M_ISSUER pins their "iss" claim.
-	// Both are required outside DEPLOYMENT_MODE=local.
-	ContextM2MJWKSURL       string `env:"CONTEXT_M2M_JWKS_URL"`
-	ContextM2MIssuer        string `env:"CONTEXT_M2M_ISSUER"`
+	// settings below. The HTTP reservation routes authorize their caller
+	// through the Access Manager, so they require PLUGIN_AUTH_ENABLED=true
+	// outside DEPLOYMENT_MODE=local.
 	TracerPlatformProducers string `env:"TRACER_PLATFORM_PRODUCERS"`
 
 	// Shared-context resource bounds.
@@ -1238,7 +1236,7 @@ func initHTTPServer(
 	mtMetrics metrics.MultiTenantMetrics,
 	txBeginner pgdb.TxBeginner,
 	authHost string,
-) (_ *HTTPServer, err error) {
+) (*HTTPServer, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 
 	// Init the dashboard read stack: bounded postgres aggregations behind a
@@ -1298,14 +1296,6 @@ func initHTTPServer(
 	if err != nil {
 		return nil, fmt.Errorf("initialize context reservations: %w", err)
 	}
-
-	// Past this point the reservation runtime owns a running JWKS refresher; a
-	// server that is never built must stop it.
-	defer func() {
-		if err != nil && contextReservations != nil {
-			err = closeOnFailure(err, contextReservations.config)
-		}
-	}()
 
 	contextPolicyService, err := initContextPolicyService(cfg, pgConn, txBeginner, auditEventRepo, clk)
 	if err != nil {
@@ -1409,7 +1399,6 @@ func initHTTPServer(
 	// A nil runtime leaves the reservation routes unmounted.
 	if contextReservations != nil {
 		routesDeps.ContextReservation = contextReservations.handler
-		routesDeps.ContextReservationM2M = contextReservations.config.m2m
 		routesDeps.ContextReservationProducers = contextReservations.config.producers
 		routesDeps.ContextReservationUnverifiedProducers = contextReservations.config.unverifiedProducers
 		routesDeps.ContextReservationTenants = reservationTenantAuthorizer(mtComponents)
@@ -2414,15 +2403,7 @@ func finalizeStartup(
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
 	authHost string,
-) (_ *Service, err error) {
-	// A Service that is never returned never runs Shutdown, so a failed
-	// finalization stops the reservation producer JWKS refresher itself.
-	defer func() {
-		if err != nil && serverAPI != nil && serverAPI.contextReservations != nil {
-			err = closeOnFailure(err, serverAPI.contextReservations.config)
-		}
-	}()
-
+) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
 		pgManager = mtComponents.pgManager

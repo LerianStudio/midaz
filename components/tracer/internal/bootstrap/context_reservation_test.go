@@ -6,8 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -19,36 +17,13 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
-const (
-	testPlatformProducers = `[{"service":"ledger","clientId":"ledger-m2m-client","certUri":"spiffe://example.test/service/ledger"}]`
-	testJWKSURL           = "https://access-manager.example.test/.well-known/jwks"
-	testM2MIssuer         = "https://access-manager.example.test"
-)
+const testPlatformProducers = `[{"service":"ledger","clientId":"ledger-m2m-client","certUri":"spiffe://example.test/service/ledger"}]`
 
-// serveTestJWKS publishes an empty key set on a loopback listener, so a test
-// that starts the JWKS refresher never reaches the network. Loopback URLs are
-// accepted without TLS by the JWKS key source.
-func serveTestJWKS(t *testing.T) string {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if _, err := w.Write([]byte(`{"keys":[]}`)); err != nil {
-			return
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return server.URL + "/.well-known/jwks"
-}
-
-// validContextReservationConfig is a local-mode configuration that loads
-// without starting a JWKS refresher.
+// validContextReservationConfig is a local-mode configuration with plugin
+// auth enabled, so the reservation routes authorize their caller.
 func validContextReservationConfig() *Config {
 	cfg := validContextPolicyConfig()
 	cfg.DeploymentMode = "local"
-	cfg.ContextM2MJWKSURL = testJWKSURL
 	cfg.TracerPlatformProducers = testPlatformProducers
 	cfg.ContextLimitMaxScopes = 10
 	cfg.ContextLimitMaxScopeBytes = 4096
@@ -61,45 +36,36 @@ func validContextReservationConfig() *Config {
 	return cfg
 }
 
+// withoutPluginAuth disables plugin auth, and with it the context policy
+// administration that requires it.
+func withoutPluginAuth(cfg *Config) *Config {
+	cfg.PluginAuthEnabled = false
+	cfg.ContextPolicyAdminEnabled = false
+
+	return cfg
+}
+
 func loadTestContextReservationConfig(t *testing.T, cfg *Config) (*contextReservationConfig, error) {
 	t.Helper()
 
-	result, err := loadContextReservationConfig(cfg, libLog.NewNop())
-	if result != nil {
-		t.Cleanup(func() { require.NoError(t, result.close()) })
-	}
-
-	return result, err
+	return loadContextReservationConfig(cfg, libLog.NewNop())
 }
 
 func TestContextReservationConfigRefusesInvalidProducerIdentity(t *testing.T) {
 	t.Parallel()
+
+	const pluginAuthRequired = "reservations require PLUGIN_AUTH_ENABLED=true unless DEPLOYMENT_MODE=local"
 
 	for _, tc := range []struct {
 		name   string
 		mutate func(*Config)
 		reason string
 	}{
-		{name: "JWKS URL missing outside local", mutate: func(c *Config) {
-			c.DeploymentMode = "byoc"
-			c.ContextM2MIssuer = testM2MIssuer
-			c.ContextM2MJWKSURL = ""
-		}, reason: "CONTEXT_M2M_JWKS_URL is required"},
-		{name: "JWKS URL blank with deployment mode unset", mutate: func(c *Config) {
-			c.DeploymentMode = ""
-			c.ContextM2MIssuer = testM2MIssuer
-			c.ContextM2MJWKSURL = "  "
-		}, reason: "CONTEXT_M2M_JWKS_URL is required"},
-		{name: "issuer missing outside local", mutate: func(c *Config) { c.DeploymentMode = "saas" }, reason: "CONTEXT_M2M_ISSUER is required unless DEPLOYMENT_MODE=local"},
-		{name: "issuer missing in byoc", mutate: func(c *Config) { c.DeploymentMode = "byoc" }, reason: "CONTEXT_M2M_ISSUER is required unless DEPLOYMENT_MODE=local"},
-		{name: "issuer missing with deployment mode unset", mutate: func(c *Config) { c.DeploymentMode = "" }, reason: "CONTEXT_M2M_ISSUER is required unless DEPLOYMENT_MODE=local"},
-		{name: "issuer missing with blank deployment mode", mutate: func(c *Config) { c.DeploymentMode = "   " }, reason: "CONTEXT_M2M_ISSUER is required unless DEPLOYMENT_MODE=local"},
-		{name: "issuer missing with unknown deployment mode", mutate: func(c *Config) { c.DeploymentMode = "localhost" }, reason: "CONTEXT_M2M_ISSUER is required unless DEPLOYMENT_MODE=local"},
-		{name: "plaintext JWKS outside local", mutate: func(c *Config) {
-			c.DeploymentMode = "saas"
-			c.ContextM2MIssuer = testM2MIssuer
-			c.ContextM2MJWKSURL = "http://access-manager.internal/.well-known/jwks"
-		}, reason: "invalid CONTEXT_M2M_JWKS_URL"},
+		{name: "plugin auth off in saas", mutate: func(c *Config) { withoutPluginAuth(c).DeploymentMode = "saas" }, reason: pluginAuthRequired},
+		{name: "plugin auth off in byoc", mutate: func(c *Config) { withoutPluginAuth(c).DeploymentMode = "byoc" }, reason: pluginAuthRequired},
+		{name: "plugin auth off with deployment mode unset", mutate: func(c *Config) { withoutPluginAuth(c).DeploymentMode = "" }, reason: pluginAuthRequired},
+		{name: "plugin auth off with blank deployment mode", mutate: func(c *Config) { withoutPluginAuth(c).DeploymentMode = "   " }, reason: pluginAuthRequired},
+		{name: "plugin auth off with unknown deployment mode", mutate: func(c *Config) { withoutPluginAuth(c).DeploymentMode = "localhost" }, reason: pluginAuthRequired},
 		{name: "producer map lists no producer", mutate: func(c *Config) { c.TracerPlatformProducers = "[]" }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
 		{name: "producer outside roster", mutate: func(c *Config) { c.TracerPlatformProducers = `[{"service":"fees","clientId":"fees"}]` }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
 		{name: "producer map malformed", mutate: func(c *Config) { c.TracerPlatformProducers = `{"service":"ledger"}` }, reason: "invalid TRACER_PLATFORM_PRODUCERS"},
@@ -131,7 +97,7 @@ func TestContextReservationSurfaceDisabledWithoutProducers(t *testing.T) {
 	t.Parallel()
 
 	for _, producers := range []string{"", " \t "} {
-		// Outside local mode, multi-tenant, with no JWKS, issuer or bounds: a
+		// Outside local mode, multi-tenant, without plugin auth or bounds: a
 		// validations-only Tracer reads none of the reservation settings.
 		cfg := &Config{TracerPlatformProducers: producers, DeploymentMode: "saas", MultiTenantEnabled: true}
 		logger := testutil.NewMockLogger()
@@ -171,16 +137,12 @@ func reservationDisabledInfos(logger *testutil.MockLogger) int {
 	return count
 }
 
-func TestContextReservationConfigLocalModeNeedsNoJWKS(t *testing.T) {
+func TestContextReservationConfigLocalModeWithoutPluginAuthAttributesTheLedger(t *testing.T) {
 	t.Parallel()
 
-	cfg := validContextReservationConfig()
-	cfg.ContextM2MJWKSURL = ""
-
-	result, err := loadTestContextReservationConfig(t, cfg)
-	require.NoError(t, err, "local mode verifies no token, so it reads no JWKS")
+	result, err := loadTestContextReservationConfig(t, withoutPluginAuth(validContextReservationConfig()))
+	require.NoError(t, err, "explicit local mode may serve reservations without plugin auth")
 	require.True(t, result.unverifiedProducers)
-	require.Nil(t, result.keySource)
 }
 
 func TestContextReservationConfigLoadsHTTPOnlyWithoutTLSMode(t *testing.T) {
@@ -191,9 +153,7 @@ func TestContextReservationConfigLoadsHTTPOnlyWithoutTLSMode(t *testing.T) {
 	result, err := loadTestContextReservationConfig(t, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, result.m2m)
-	require.Nil(t, result.keySource, "local mode must not start a JWKS refresher")
-	require.True(t, result.unverifiedProducers, "explicit local mode attributes reservations without a token")
+	require.False(t, result.unverifiedProducers, "plugin auth verifies the caller even in local mode")
 
 	producer, ok := result.producers.ByClientID("ledger-m2m-client")
 	require.True(t, ok)
@@ -205,16 +165,12 @@ func TestContextReservationConfigLoadsHTTPAndGRPCUnderMTLS(t *testing.T) {
 
 	cfg := validContextReservationConfig()
 	cfg.DeploymentMode = "saas"
-	cfg.ContextM2MIssuer = testM2MIssuer
-	cfg.ContextM2MJWKSURL = serveTestJWKS(t)
 	cfg.TracerGRPCPort = ":4021"
 	cfg.TracerTLSMode = "MTLS"
 
 	result, err := loadTestContextReservationConfig(t, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, result.m2m)
-	require.NotNil(t, result.keySource, "verification outside local mode must use the JWKS key source")
 	require.False(t, result.unverifiedProducers)
 	require.True(t, result.producers.HasCertificateMappings())
 }
@@ -224,34 +180,26 @@ func TestContextReservationConfigVerifiesProducersWhenDeploymentModeIsUnset(t *t
 
 	cfg := validContextReservationConfig()
 	cfg.DeploymentMode = ""
-	cfg.ContextM2MIssuer = testM2MIssuer
-	cfg.ContextM2MJWKSURL = serveTestJWKS(t)
 
 	logger := testutil.NewMockLogger()
 
 	result, err := loadContextReservationConfig(cfg, logger)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, result.close()) })
-
-	require.False(t, result.unverifiedProducers)
-	require.NotNil(t, result.keySource, "an unset DEPLOYMENT_MODE must verify producer tokens")
+	require.False(t, result.unverifiedProducers, "plugin auth verifies the caller whatever the deployment mode")
 	require.Zero(t, producerAuthDisabledWarnings(logger))
 }
 
 func TestContextReservationConfigWarnsOnceWhenProducerVerificationIsDisabled(t *testing.T) {
 	t.Parallel()
 
-	cfg := validContextReservationConfig()
+	cfg := withoutPluginAuth(validContextReservationConfig())
 	cfg.DeploymentMode = " LOCAL "
 
 	logger := testutil.NewMockLogger()
 
 	result, err := loadContextReservationConfig(cfg, logger)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, result.close()) })
-
 	require.True(t, result.unverifiedProducers)
-	require.Nil(t, result.keySource)
 	require.Equal(t, 1, producerAuthDisabledWarnings(logger))
 }
 
@@ -270,19 +218,18 @@ func producerAuthDisabledWarnings(logger *testutil.MockLogger) int {
 func TestContextReservationConfigRefusesUnverifiedProducersUnderMultiTenancy(t *testing.T) {
 	t.Parallel()
 
-	cfg := validContextReservationConfig()
+	cfg := withoutPluginAuth(validContextReservationConfig())
 	cfg.MultiTenantEnabled = true
 
 	result, err := loadTestContextReservationConfig(t, cfg)
-	require.ErrorContains(t, err, "MULTI_TENANT_ENABLED=true requires producer token verification")
+	require.ErrorContains(t, err, "MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true for reservations")
 	require.Nil(t, result)
 
+	cfg.PluginAuthEnabled = true
 	cfg.DeploymentMode = "byoc"
-	cfg.ContextM2MIssuer = testM2MIssuer
-	cfg.ContextM2MJWKSURL = serveTestJWKS(t)
 
 	result, err = loadTestContextReservationConfig(t, cfg)
-	require.NoError(t, err, "multi-tenancy boots once producer tokens are verified")
+	require.NoError(t, err, "multi-tenancy boots once the Access Manager authorizes the caller")
 	require.False(t, result.unverifiedProducers)
 }
 

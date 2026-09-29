@@ -188,7 +188,7 @@ func extractPrincipalFromBearer(c fiber.Ctx) (rejected bool, err error) {
 // WithPolicyPermission never falls back to the validation API key or disabled
 // authentication. Bootstrap requires plugin auth before exposing administration.
 func (g *AuthGuard) WithPolicyPermission(resource, method string) fiber.Handler {
-	if g == nil || !g.cfg.PluginAuthEnabled || g.authClient == nil || !g.authClient.Enabled || g.authClient.Address == "" {
+	if !g.AuthorizesCallers() {
 		return func(c fiber.Ctx) error {
 			return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrContextPolicyUnavailable, constant.EntityContextPolicy))
 		}

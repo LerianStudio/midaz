@@ -368,13 +368,7 @@ func bootServiceInMTMode(t *testing.T, h *mtHarness, extra map[string]string) fu
 	redisHost, redisPort := h.RedisAddr(t)
 
 	env := map[string]string{
-		"MULTI_TENANT_ENABLED": "true",
-		// A reservation surface under multi-tenancy refuses
-		// DEPLOYMENT_MODE=local, which skips producer token verification, so
-		// the MT boot runs as byoc with an issuer for a test that adds a
-		// producer roster.
-		"DEPLOYMENT_MODE":              "byoc",
-		"CONTEXT_M2M_ISSUER":           "https://access-manager.example.test",
+		"MULTI_TENANT_ENABLED":         "true",
 		"MULTI_TENANT_URL":             h.URL(),
 		"MULTI_TENANT_SERVICE_API_KEY": "test-svc-api-key",
 		"MULTI_TENANT_REDIS_HOST":      redisHost,

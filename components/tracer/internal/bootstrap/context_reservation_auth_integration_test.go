@@ -9,14 +9,10 @@ package bootstrap
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -60,8 +56,9 @@ import (
 )
 
 const (
-	sharedDeployIssuer      = "https://access-manager.example.test"
-	sharedDeployClientID    = "ledger-m2m-client"
+	sharedDeployClientID = "ledger-m2m-client"
+	// sharedDeployDeniedSub is the application subject plugin-auth refuses.
+	sharedDeployDeniedSub   = "unauthorized-application"
 	sharedDeployCertURI     = "spiffe://example.test/service/ledger"
 	sharedDeployUnmappedURI = "spiffe://example.test/service/unknown"
 
@@ -86,11 +83,13 @@ const (
 
 // TestContextReservationAuthSharedDeploy boots, in one process, the HTTP and
 // gRPC listeners of a shared multi-tenant deploy in TRACER_TLS_MODE=mtls, wired
-// through the bootstrap's own TLS builders, producer credential loader and
+// through the bootstrap's own TLS builders, producer roster loader and
 // tenant-manager clients. The collaborators outside the process are httptest
-// fakes: the access-manager JWKS signing producer and user tokens, the
-// tenant-manager answering tenant associations and the tracer pool config, and
-// plugin-auth answering the user-route guard. The tracer pool points at a
+// fakes: plugin-auth authorizing the route guard of every route, reservations
+// included, and the tenant-manager answering tenant associations and the tracer
+// pool config. The Tracer never verifies a token signature — plugin-auth
+// decides it — so the test tokens are well formed but signed with a throwaway
+// key. The tracer pool points at a
 // PostgreSQL wire fake, so the production pool manager resolves tenant pools
 // without Docker. Admission and completion are mocks: the test covers who may
 // reach them, not what they do.
@@ -119,21 +118,35 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 
 	t.Run("user token on the reservation route is forbidden before the body is read", func(t *testing.T) {
 		token := deploy.userToken(t)
+		before := deploy.tenantManager.listCalls()
 		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", token, tenantHeader(tenantAssociated), []byte(sharedDeployLegacyReserveBody))
 		requireErrorCode(t, response, http.StatusForbidden, "0043")
 		require.NotContains(t, response.body, token, "the rejection never echoes the token")
-		require.Zero(t, deploy.tenantManager.listCalls(), "a non-application token is refused before any tenant lookup")
+		require.Equal(t, before, deploy.tenantManager.listCalls(), "a non-application token is refused before any tenant lookup")
 	})
 
 	t.Run("reservation route without a token is unauthorized", func(t *testing.T) {
+		before := deploy.pluginAuth.calls("reservations", "post")
 		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", "", tenantHeader(tenantAssociated), deploy.reserveJSON)
-		requireErrorCode(t, response, http.StatusUnauthorized, "0041")
+		requireErrorCode(t, response, http.StatusUnauthorized, "0042")
+		require.Equal(t, before, deploy.pluginAuth.calls("reservations", "post"), "a missing token never reaches plugin-auth")
+	})
+
+	t.Run("producer token plugin-auth refuses is forbidden", func(t *testing.T) {
+		token := deploy.applicationToken(t, sharedDeployDeniedSub, sharedDeployClientID)
+		before := deploy.tenantManager.listCalls()
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", token, tenantHeader(tenantAssociated), deploy.reserveJSON)
+		requireErrorCode(t, response, http.StatusForbidden, "0043")
+		require.NotContains(t, response.body, token, "the rejection never echoes the token")
+		require.Equal(t, before, deploy.tenantManager.listCalls(), "a refused token is rejected before any tenant lookup")
 	})
 
 	t.Run("producer token for an associated tenant reaches the handler", func(t *testing.T) {
+		before := deploy.pluginAuth.calls("reservations", "post")
 		deploy.expectAdmission(t, tenantAssociated, producerauth.ViaToken)
 		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantAssociated), deploy.reserveJSON)
 		require.Equal(t, http.StatusCreated, response.status, response.body)
+		require.Equal(t, before+1, deploy.pluginAuth.calls("reservations", "post"), "plugin-auth decided tracer/reservations:post")
 	})
 
 	t.Run("producer token for a tenant without the ledger association is forbidden", func(t *testing.T) {
@@ -146,6 +159,17 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantSuspended), deploy.reserveJSON)
 		requireErrorCode(t, response, http.StatusForbidden, "0043")
 		require.Zero(t, deploy.tenantManager.calls(tenantSuspended, trcConstant.ApplicationName), "a suspended tenant never resolves a tracer pool")
+	})
+
+	t.Run("plugin-auth outage is an availability failure on HTTP", func(t *testing.T) {
+		deploy.pluginAuth.down.Store(true)
+		t.Cleanup(func() { deploy.pluginAuth.down.Store(false) })
+
+		// Neither a denial nor the policy-configuration code 0527: the ledger
+		// reads an unrecognized 503 as tracer unavailability, so its fail
+		// posture decides.
+		response := deploy.httpCall(t, http.MethodPost, "/v1/reservations", deploy.producerToken(t), tenantHeader(tenantAssociated), deploy.reserveJSON)
+		requireErrorCode(t, response, http.StatusServiceUnavailable, "0525")
 	})
 
 	t.Run("gRPC without a client certificate fails the handshake", func(t *testing.T) {
@@ -209,7 +233,6 @@ func TestContextReservationAuthSharedDeploy(t *testing.T) {
 }
 
 type sharedDeploy struct {
-	signingKey     *rsa.PrivateKey
 	tenantManager  *tenantManagerFake
 	pluginAuth     *pluginAuthFake
 	admission      *mocks.MockContextReserveAdmitter
@@ -227,23 +250,18 @@ type sharedDeploy struct {
 func startSharedDeploy(t *testing.T) *sharedDeploy {
 	t.Helper()
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-
 	pg := startFakePostgres(t)
-	jwksURL := serveJWKS(t, &key.PublicKey)
 	tenantManager := startTenantManagerFake(t, pg.port())
 	pluginAuth := startPluginAuthFake(t)
 
 	mapped := testutil.GenerateMTLSFixture(t, sharedDeployCertURI)
 	unmapped := testutil.GenerateMTLSFixture(t, sharedDeployUnmappedURI)
-	cfg := sharedDeployConfig(t, mapped, unmapped, jwksURL, tenantManager.server.URL)
+	cfg := sharedDeployConfig(t, mapped, unmapped, pluginAuth.server.URL, tenantManager.server.URL)
 	logger := libLog.NewNop()
 
 	reservation, err := loadContextReservationConfig(cfg, logger)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, reservation.close()) })
-	require.False(t, reservation.unverifiedProducers, "the shared deploy verifies producer tokens")
+	require.False(t, reservation.unverifiedProducers, "the shared deploy authorizes reservation callers through plugin-auth")
 
 	tmOptions, err := buildTMClientOptions(cfg, logger)
 	require.NoError(t, err)
@@ -273,7 +291,6 @@ func startSharedDeploy(t *testing.T) *sharedDeploy {
 	telemetry := &libOtel.Telemetry{TelemetryConfig: libOtel.TelemetryConfig{Logger: logger}}
 	app, err := in.NewRoutes(in.RoutesDeps{
 		ContextReservation:                    handler,
-		ContextReservationM2M:                 reservation.m2m,
 		ContextReservationProducers:           reservation.producers,
 		ContextReservationUnverifiedProducers: reservation.unverifiedProducers,
 		ContextReservationTenants:             authz,
@@ -286,8 +303,8 @@ func startSharedDeploy(t *testing.T) *sharedDeploy {
 		ValidationService:                     mocks.NewMockValidationService(ctrl),
 		TransactionValidationService:          mocks.NewMockTransactionValidationService(ctrl),
 		AuditEventService:                     in.NewMockAuditEventService(ctrl),
-		Guard: middleware.NewAuthGuard(middleware.AuthGuardConfig{PluginAuthEnabled: true, AppName: trcConstant.ApplicationName},
-			libAuth.NewAuthClient(pluginAuth.server.URL, true, logger)),
+		Guard: middleware.NewAuthGuard(middleware.AuthGuardConfig{PluginAuthEnabled: cfg.PluginAuthEnabled, AppName: trcConstant.ApplicationName},
+			libAuth.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, logger)),
 		Clock:              clock.New(),
 		MultiTenantEnabled: true,
 		PgManager:          pgManager,
@@ -342,17 +359,18 @@ func startSharedDeploy(t *testing.T) *sharedDeploy {
 	t.Cleanup(transport.CloseIdleConnections)
 
 	return &sharedDeploy{
-		signingKey: key, tenantManager: tenantManager, pluginAuth: pluginAuth, admission: admission,
+		tenantManager: tenantManager, pluginAuth: pluginAuth, admission: admission,
 		request: request, reserveJSON: raw, bounds: bounds,
 		httpURL: "https://" + cfg.ServerAddress, httpClient: &http.Client{Transport: transport, Timeout: 10 * time.Second},
 		grpcAddr: grpcListener.Addr().String(), serverRoots: serverRoots, mappedClient: mappedClient, unmappedClient: unmappedClient,
 	}
 }
 
-// sharedDeployConfig is a multi-tenant mtls deploy that verifies producer
-// tokens. Both client CAs are trusted, so the unmapped certificate is refused
-// by the producer registry rather than by the TLS handshake.
-func sharedDeployConfig(t *testing.T, mapped, unmapped testutil.MTLSFixture, jwksURL, tenantManagerURL string) *Config {
+// sharedDeployConfig is a multi-tenant mtls deploy whose route guard
+// authorizes through plugin-auth. Both client CAs are trusted, so the unmapped
+// certificate is refused by the producer registry rather than by the TLS
+// handshake.
+func sharedDeployConfig(t *testing.T, mapped, unmapped testutil.MTLSFixture, pluginAuthURL, tenantManagerURL string) *Config {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -366,8 +384,8 @@ func sharedDeployConfig(t *testing.T, mapped, unmapped testutil.MTLSFixture, jwk
 
 	cfg := validContextReservationConfig()
 	cfg.DeploymentMode = "byoc"
-	cfg.ContextM2MJWKSURL = jwksURL
-	cfg.ContextM2MIssuer = sharedDeployIssuer
+	cfg.PluginAuthEnabled = true
+	cfg.PluginAuthAddress = pluginAuthURL
 	cfg.TracerPlatformProducers = `[{"service":"ledger","clientId":"` + sharedDeployClientID + `","certUri":"` + sharedDeployCertURI + `"}]`
 	cfg.TracerTLSMode = tlsModeMTLS
 	cfg.TracerTLSCertFile = certFile
@@ -391,10 +409,16 @@ func sharedDeployConfig(t *testing.T, mapped, unmapped testutil.MTLSFixture, jwk
 func (d *sharedDeploy) producerToken(t *testing.T) string {
 	t.Helper()
 
-	return d.sign(t, jwt.MapClaims{"type": "application", "sub": "lerian/ledger-application", "azp": sharedDeployClientID})
+	return d.applicationToken(t, "ledger-application", sharedDeployClientID)
 }
 
-// userToken is a normal-user token signed by the same key, so only its type
+func (d *sharedDeploy) applicationToken(t *testing.T, sub, clientID string) string {
+	t.Helper()
+
+	return d.sign(t, jwt.MapClaims{"type": "application", "sub": sub, "azp": clientID})
+}
+
+// userToken is a normal-user token plugin-auth grants, so only its type
 // separates it from a producer token.
 func (d *sharedDeploy) userToken(t *testing.T) string {
 	t.Helper()
@@ -402,23 +426,21 @@ func (d *sharedDeploy) userToken(t *testing.T) string {
 	return d.sign(t, jwt.MapClaims{"type": "normal-user", "owner": "lerian", "sub": "operator", "tenantId": tenantAssociated})
 }
 
+// sign issues a well-formed token under a throwaway key: the Tracer reads its
+// claims only after plugin-auth authorized it and never checks the signature.
 func (d *sharedDeploy) sign(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
 
-	claims["iss"] = sharedDeployIssuer
 	claims["iat"] = float64(time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC).Unix())
 	claims["exp"] = float64(time.Date(2100, time.January, 1, 0, 0, 0, 0, time.UTC).Unix())
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "shared-deploy"
-
-	signed, err := token.SignedString(d.signingKey)
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("shared-deploy-unverified-signature"))
 	require.NoError(t, err)
 
 	return signed
 }
 
-// expectAdmission expects exactly one admission carrying the verified ledger
+// expectAdmission expects exactly one admission carrying the authorized ledger
 // producer and the tenant's own pool.
 func (d *sharedDeploy) expectAdmission(t *testing.T, tenantID, via string) {
 	t.Helper()
@@ -544,27 +566,6 @@ func waitForListener(t *testing.T, address string) {
 	}, 5*time.Second, 20*time.Millisecond, "HTTP listener did not start on %s", address)
 }
 
-// serveJWKS publishes key as the access-manager signing key. Loopback URLs are
-// accepted without TLS by the JWKS key source.
-func serveJWKS(t *testing.T, key *rsa.PublicKey) string {
-	t.Helper()
-
-	document, err := json.Marshal(map[string]any{"keys": []map[string]string{{
-		"kty": "RSA", "use": "sig", "alg": "RS256", "kid": "shared-deploy",
-		"n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
-		"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
-	}}})
-	require.NoError(t, err)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(document)
-	}))
-	t.Cleanup(server.Close)
-
-	return server.URL + "/.well-known/jwks"
-}
-
 // tenantManagerFake answers GET /v1/tenants/active?service=ledger with the
 // ledger's tenant list, and GET
 // /v1/tenants/{tenant}/associations/tracer/connections with a tracer pool.
@@ -667,10 +668,12 @@ func (f *tenantManagerFake) listOutages() int {
 	return f.outages
 }
 
-// pluginAuthFake grants every authorization request and counts them by
-// resource and action.
+// pluginAuthFake grants every authorization request except for a token whose
+// sub is sharedDeployDeniedSub, answers 503 while down, and counts the
+// decisions by resource and action.
 type pluginAuthFake struct {
 	server *httptest.Server
+	down   atomic.Bool
 	mu     sync.Mutex
 	counts map[string]int
 }
@@ -684,6 +687,11 @@ func startPluginAuthFake(t *testing.T) *pluginAuthFake {
 		case r.Method == http.MethodGet && r.URL.Path == "/health":
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/authorize":
+			if fake.down.Load() {
+				http.Error(w, "plugin-auth unavailable", http.StatusServiceUnavailable)
+				return
+			}
+
 			var decision struct {
 				Resource string `json:"resource"`
 				Action   string `json:"action"`
@@ -697,7 +705,9 @@ func startPluginAuthFake(t *testing.T) *pluginAuthFake {
 			fake.counts[decision.Resource+"/"+decision.Action]++
 			fake.mu.Unlock()
 
-			writeJSON(w, http.StatusOK, map[string]any{"authorized": true})
+			claims := jwt.MapClaims{}
+			_, _, err := jwt.NewParser().ParseUnverified(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), &claims)
+			writeJSON(w, http.StatusOK, map[string]any{"authorized": err == nil && claims["sub"] != sharedDeployDeniedSub})
 		default:
 			http.NotFound(w, r)
 		}

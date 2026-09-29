@@ -299,9 +299,8 @@ m2m:
   # EXPORT: midaz exposes its M2M editor surface so a peer service that declares a
   # `needs: [midaz]` edge can reconcile against it.
   exposed: true
-  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL) as a
-  # platform producer, authenticated by M2M token (REST) or mTLS client
-  # certificate (gRPC) plus its tenant-manager association. tracer's
-  # `reservations/post` permission is declared for the Access Manager seed; not
-  # checked by any route. This is NOT an RI declaration M2M edge, so midaz
+  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL) over the
+  # reservation seam, authorized on REST by tracer's own `reservations`
+  # permission (tracer-inbound authz; the gRPC/mTLS seam identifies the ledger by
+  # its client certificate). This is NOT an RI declaration M2M edge, so midaz
   # declares no `needs`.

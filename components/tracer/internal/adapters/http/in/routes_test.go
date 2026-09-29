@@ -115,8 +115,12 @@ func (d *testRouterDeps) build() *fiber.App {
 
 	if d.contextReservation != nil {
 		deps.ContextReservation = d.contextReservation.ContextReservation
-		deps.ContextReservationM2M = d.contextReservation.ContextReservationM2M
 		deps.ContextReservationProducers = d.contextReservation.ContextReservationProducers
+		deps.ContextReservationUnverifiedProducers = d.contextReservation.ContextReservationUnverifiedProducers
+
+		if d.contextReservation.Guard != nil {
+			deps.Guard = d.contextReservation.Guard
+		}
 	}
 
 	app, err := NewRoutes(deps)

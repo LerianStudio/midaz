@@ -5,7 +5,6 @@
 package in
 
 import (
-	"crypto/rsa"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +14,7 @@ import (
 	libAuth "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -55,20 +55,29 @@ func contextReservationRoutesDeps(t *testing.T) RoutesDeps {
 	}
 }
 
-func TestNewRoutes_ContextReservationRequiresProducerVerifier(t *testing.T) {
+func TestNewRoutes_ContextReservationRequiresProducerRoster(t *testing.T) {
 	_, err := NewRoutes(contextReservationRoutesDeps(t))
-	require.ErrorContains(t, err, "context reservations require verified producer identity")
+	require.ErrorContains(t, err, "context reservations require the platform producer roster")
+}
+
+func TestNewRoutes_ContextReservationRequiresAuthorizingGuard(t *testing.T) {
+	deps := contextReservationRoutesDeps(t)
+	deps.ContextReservationProducers = testProducerRegistry(t)
+
+	_, err := NewRoutes(deps)
+	require.ErrorContains(t, err, "context reservations require a guard that authorizes callers against the Access Manager",
+		"a guard with plugin auth off cannot vouch for the token the producer check reads")
 }
 
 func TestNewRoutes_MultiTenantContextReservationRequiresTenantAuthorizer(t *testing.T) {
-	key, _ := testProducerAuthChain(t)
+	fake := startAccessManagerFake(t)
 
 	for name, authorizer := range map[string]*producerauth.TenantAuthorizer{
 		"no authorizer":            nil,
 		"single-tenant authorizer": producerauth.NewTenantAuthorizer(nil, false),
 	} {
 		t.Run(name, func(t *testing.T) {
-			deps := withProducerVerifier(t, contextReservationRoutesDeps(t), key)
+			deps := withProducerVerifier(t, contextReservationRoutesDeps(t), fake)
 			deps.MultiTenantEnabled = true
 			deps.ContextReservationTenants = authorizer
 
@@ -80,27 +89,21 @@ func TestNewRoutes_MultiTenantContextReservationRequiresTenantAuthorizer(t *test
 	}
 }
 
-// withProducerVerifier completes deps with a producer verifier that trusts key
-// and maps producerAuthClientID onto the ledger producer.
-func withProducerVerifier(t *testing.T, deps RoutesDeps, key *rsa.PrivateKey) RoutesDeps {
+// withProducerVerifier completes deps with a guard that authorizes callers
+// against fake and a roster that maps producerAuthClientID onto the ledger.
+func withProducerVerifier(t *testing.T, deps RoutesDeps, fake *accessManagerFake) RoutesDeps {
 	t.Helper()
 
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(&fakeKeySource{keys: []*rsa.PublicKey{&key.PublicKey}}, producerAuthIssuer, true, libLog.NewNop())
-	require.NoError(t, err)
-
-	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
-	require.NoError(t, err)
-
-	deps.ContextReservationM2M = m2m
-	deps.ContextReservationProducers = reg
+	deps.Guard = producerAuthGuard(fake, false)
+	deps.ContextReservationProducers = testProducerRegistry(t)
 
 	return deps
 }
 
 func TestNewRoutes_ContextReservationRoutesAuthenticateProducer(t *testing.T) {
-	key, _ := testProducerAuthChain(t)
+	fake := startAccessManagerFake(t)
 
-	app, err := NewRoutes(withProducerVerifier(t, contextReservationRoutesDeps(t), key))
+	app, err := NewRoutes(withProducerVerifier(t, contextReservationRoutesDeps(t), fake))
 	require.NoError(t, err)
 
 	for _, path := range []string{
@@ -112,24 +115,30 @@ func TestNewRoutes_ContextReservationRoutesAuthenticateProducer(t *testing.T) {
 	} {
 		t.Run(path, func(t *testing.T) {
 			for name, tc := range map[string]struct {
-				token string
-				want  int
-				code  string
+				token  string
+				header http.Header
+				want   int
+				code   string
 			}{
-				"no token":     {want: http.StatusUnauthorized, code: constant.ErrTokenMissing.Error()},
-				"invalid":      {token: "not-a-jwt", want: http.StatusUnauthorized, code: constant.ErrInvalidToken.Error()},
-				"user token":   {token: signProducerToken(t, key, func(c jwt.MapClaims) { c["type"] = "normal-user" }), want: http.StatusForbidden, code: constant.ErrInsufficientPrivileges.Error()},
-				"unmapped azp": {token: signProducerToken(t, key, func(c jwt.MapClaims) { c["azp"] = "someone-else" }), want: http.StatusForbidden, code: constant.ErrInsufficientPrivileges.Error()},
+				"no token":      {want: http.StatusUnauthorized, code: constant.ErrInvalidToken.Error()},
+				"API key alone": {header: http.Header{"X-Api-Key": []string{producerAuthAPIKey}}, want: http.StatusUnauthorized, code: constant.ErrInvalidToken.Error()},
+				"denied":        {token: producerToken(t, func(c jwt.MapClaims) { c["sub"] = deniedApplicationSub }), want: http.StatusForbidden, code: constant.ErrInsufficientPrivileges.Error()},
+				"user token":    {token: producerToken(t, func(c jwt.MapClaims) { c["type"] = "normal-user"; c["owner"] = "lerian" }), want: http.StatusForbidden, code: constant.ErrInsufficientPrivileges.Error()},
+				"unmapped azp":  {token: producerToken(t, func(c jwt.MapClaims) { c["azp"] = "someone-else" }), want: http.StatusForbidden, code: constant.ErrInsufficientPrivileges.Error()},
 			} {
 				t.Run(name, func(t *testing.T) {
 					req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
 					req.Header.Set("Content-Type", "application/json")
 
+					for key, values := range tc.header {
+						req.Header[key] = values
+					}
+
 					if tc.token != "" {
 						req.Header.Set("Authorization", "Bearer "+tc.token)
 					}
 
-					resp, err := app.Test(req)
+					resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 					require.NoError(t, err)
 
 					defer resp.Body.Close()
@@ -140,33 +149,54 @@ func TestNewRoutes_ContextReservationRoutesAuthenticateProducer(t *testing.T) {
 					require.Equal(t, tc.want, resp.StatusCode, string(body))
 					require.Contains(t, resp.Header.Get("Content-Type"), "application/problem+json", "the declared problem media type")
 					require.Equal(t, tc.code, errorCode(t, body))
+
+					if tc.token != "" {
+						require.NotContains(t, string(body), tc.token, "the rejection never echoes the token")
+					}
 				})
 			}
 		})
 	}
+
+	var reservationDecisions int
+
+	for _, decision := range fake.recorded() {
+		require.Equal(t, "reservations", decision["resource"])
+		require.Equal(t, "post", decision["action"])
+
+		reservationDecisions++
+	}
+
+	require.Equal(t, 5*3, reservationDecisions, "every presented token was decided as tracer/reservations:post")
 }
 
 func TestNewRoutes_ContextReservationProducerVerificationDisabled(t *testing.T) {
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(nil, "", false, libLog.NewNop())
-	require.NoError(t, err)
-
-	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
-	require.NoError(t, err)
-
 	for name, tc := range map[string]struct {
 		unverified bool
+		apiKey     bool
 		want       int
 	}{
-		"explicitly disabled attributes the ledger":  {unverified: true, want: http.StatusBadRequest},
-		"verifier off without the flag fails closed": {unverified: false, want: http.StatusForbidden},
+		"explicitly disabled attributes the ledger":                   {unverified: true, want: http.StatusBadRequest},
+		"explicitly disabled asks for no API key when one is enabled": {unverified: true, apiKey: true, want: http.StatusBadRequest},
+		"plugin auth off without the flag refuses":                    {unverified: false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			deps := contextReservationRoutesDeps(t)
-			deps.ContextReservationM2M = m2m
-			deps.ContextReservationProducers = reg
+			deps.ContextReservationProducers = testProducerRegistry(t)
 			deps.ContextReservationUnverifiedProducers = tc.unverified
 
+			if tc.apiKey {
+				deps.Guard = middleware.NewAuthGuard(middleware.AuthGuardConfig{AppName: "tracer", APIKeyEnabled: true, APIKey: producerAuthAPIKey}, libAuth.NewAuthClient("", false, libLog.NewNop()))
+			}
+
 			app, err := NewRoutes(deps)
+			if !tc.unverified {
+				require.ErrorContains(t, err, "context reservations require a guard that authorizes callers against the Access Manager")
+				require.Nil(t, app)
+
+				return
+			}
+
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/reservations", strings.NewReader(`{}`))
@@ -177,7 +207,12 @@ func TestNewRoutes_ContextReservationProducerVerificationDisabled(t *testing.T) 
 
 			defer resp.Body.Close()
 
-			require.Equal(t, tc.want, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			// 400 is the handler rejecting the empty body: the request passed
+			// producer attribution and the tenant middleware without X-API-Key.
+			require.Equal(t, tc.want, resp.StatusCode, string(body))
 		})
 	}
 }

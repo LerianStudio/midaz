@@ -42,17 +42,17 @@ func TestContextReservationNativeProducerRoutes(t *testing.T) {
 			completion := mocks.NewMockContextReserveCompleter(ctrl)
 			completionByID := mocks.NewMockContextReserveIDCompleter(ctrl)
 			bounds := tracercontract.Limits{MaxAccounts: 10, MaxEntries: 20, MaxTextBytes: 256, MaxIntegerDigits: 128, MaxFractionDigits: 128}
-			key, producerAuth := testProducerAuthChain(t)
+			guard := producerAuthGuard(startAccessManagerFake(t), false)
 			handler, err := NewContextReservationHandler(admission, completion, completionByID, bounds, 65536, 100)
 			require.NoError(t, err)
 			app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 			problem.Install()
 			routes := app.Group("/v1")
 			api := openapi.New(app, routes, openapi.Config{Title: "context reserve auth", Version: "test"})
-			registerReservationTransportRoutes(routes, api, tracerHumaHandlers{ContextReservation: handler, ProducerAuth: producerAuth, ResTenantMW: func(c fiber.Ctx) error { return c.Next() }})
-			token := signProducerToken(t, key, nil)
+			registerReservationTransportRoutes(routes, api, tracerHumaHandlers{ContextReservation: handler, Guard: guard, ProducerAuth: NewProducerAuthMiddleware(guard, testProducerRegistry(t)), ResTenantMW: func(c fiber.Ctx) error { return c.Next() }})
+			token := producerToken(t, nil)
 			if scenario == "unknown producer" || scenario == "unbound completion" {
-				token = signProducerToken(t, key, func(claims jwt.MapClaims) { claims["azp"] = "unknown-producer" })
+				token = producerToken(t, func(claims jwt.MapClaims) { claims["azp"] = "unknown-producer" })
 			}
 			endpoint, client := serveProducerTLS(t, app)
 			raw, err := os.ReadFile("../../../../../../pkg/tracercontract/testdata/reserve_request.json")

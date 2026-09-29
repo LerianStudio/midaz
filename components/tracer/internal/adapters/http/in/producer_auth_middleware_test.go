@@ -6,14 +6,14 @@ package in
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
-	"time"
 
 	libAuth "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -21,87 +21,135 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/producerauth"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 const (
-	producerAuthIssuer   = "https://access-manager.example.test"
 	producerAuthClientID = "ledger-m2m-client"
+	// deniedApplicationSub marks a token the fake Access Manager refuses.
+	deniedApplicationSub = "denied-application"
+	producerAuthAPIKey   = "reservation-test-api-key-32-characters" // gitleaks:allow -- test fixture, not a credential
 )
 
-// fakeKeySource serves a fixed verification key without any network access.
-type fakeKeySource struct{ keys []*rsa.PublicKey }
-
-func (f *fakeKeySource) Keys(context.Context) []*rsa.PublicKey { return f.keys }
-
-func (f *fakeKeySource) Refresh(context.Context) error { return nil }
-
-func (f *fakeKeySource) Close() error { return nil }
-
-type producerAuthFixture struct {
-	key *rsa.PrivateKey
-	app *fiber.App
-	got *context.Context
+// accessManagerFake answers /v1/authorize: it refuses a token whose sub is
+// deniedApplicationSub, answers 503 while down, and grants everything else.
+// It records each decision's resource/action/product.
+type accessManagerFake struct {
+	server    *httptest.Server
+	down      atomic.Bool
+	mu        sync.Mutex
+	decisions []map[string]any
 }
 
-// testProducerAuthChain builds the producer authentication chain over a key
-// generated for the test, mapping producerAuthClientID onto the ledger.
-func testProducerAuthChain(t *testing.T) (*rsa.PrivateKey, []fiber.Handler) {
+func startAccessManagerFake(t *testing.T) *accessManagerFake {
 	t.Helper()
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	fake := &accessManagerFake{}
+	fake.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(&fakeKeySource{keys: []*rsa.PublicKey{&key.PublicKey}}, producerAuthIssuer, true, libLog.NewNop())
-	require.NoError(t, err)
+		if fake.down.Load() {
+			http.Error(w, "access manager unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		var decision map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&decision); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		fake.mu.Lock()
+		fake.decisions = append(fake.decisions, decision)
+		fake.mu.Unlock()
+
+		claims := jwt.MapClaims{}
+		_, _, err := jwt.NewParser().ParseUnverified(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), &claims)
+		authorized := err == nil && claims["sub"] != deniedApplicationSub
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(libAuth.AuthResponse{Authorized: authorized})
+	}))
+	t.Cleanup(fake.server.Close)
+
+	return fake
+}
+
+func (f *accessManagerFake) recorded() []map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]map[string]any(nil), f.decisions...)
+}
+
+// producerAuthGuard is the reservation route guard over fake, with the API key
+// enabled so a test can present it instead of a token.
+func producerAuthGuard(fake *accessManagerFake, inversion bool) *middleware.AuthGuard {
+	client := libAuth.NewAuthClient(fake.server.URL, true, libLog.NewNop())
+	client.M2MInversionEnabled = inversion
+
+	return middleware.NewAuthGuard(middleware.AuthGuardConfig{
+		AppName: "tracer", PluginAuthEnabled: true, APIKeyEnabled: true, APIKey: producerAuthAPIKey,
+	}, client)
+}
+
+func testProducerRegistry(t *testing.T) *producerauth.Registry {
+	t.Helper()
 
 	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
 	require.NoError(t, err)
 
-	return key, NewProducerAuthMiddleware(m2m, reg)
+	return reg
 }
 
-// signProducerToken signs an application token for producerAuthClientID;
+// producerToken is an application token for producerAuthClientID. Its
+// signature is never verified by the Tracer: the Access Manager decides it.
 // mutate may alter the claims before signing.
-func signProducerToken(t *testing.T, key *rsa.PrivateKey, mutate func(jwt.MapClaims)) string {
+func producerToken(t *testing.T, mutate func(jwt.MapClaims)) string {
 	t.Helper()
 
-	claims := jwt.MapClaims{
-		"type": "application",
-		"sub":  "lerian/ledger-application",
-		"azp":  producerAuthClientID,
-		"iss":  producerAuthIssuer,
-		"iat":  float64(time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC).Unix()),
-		"exp":  float64(time.Date(2100, time.January, 1, 0, 0, 0, 0, time.UTC).Unix()),
-	}
+	claims := jwt.MapClaims{"type": "application", "sub": "ledger-application", "azp": producerAuthClientID}
 	if mutate != nil {
 		mutate(claims)
 	}
 
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(key)
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("unverified-test-signature"))
 	require.NoError(t, err)
 
 	return signed
 }
 
-func newProducerAuthFixture(t *testing.T) *producerAuthFixture {
+type producerAuthFixture struct {
+	accessManager *accessManagerFake
+	app           *fiber.App
+	got           *context.Context
+}
+
+func newProducerAuthFixture(t *testing.T, inversion bool) *producerAuthFixture {
 	t.Helper()
 
-	key, chain := testProducerAuthChain(t)
-
-	fixture := &producerAuthFixture{key: key, got: new(context.Context)}
-	fixture.app = newProducerAuthApp(chain, fixture.got)
+	fake := startAccessManagerFake(t)
+	fixture := &producerAuthFixture{accessManager: fake, got: new(context.Context)}
+	fixture.app = newProducerAuthApp(NewProducerAuthMiddleware(producerAuthGuard(fake, inversion), testProducerRegistry(t)), fixture.got)
 
 	return fixture
 }
 
-func newProducerAuthApp(chain []fiber.Handler, got *context.Context) *fiber.App {
-	app := fiber.New()
+// newProducerAuthApp mounts the producerAuth chain exactly as the reservation
+// routes do, in front of a handler that records the request context.
+func newProducerAuthApp(producerAuth []fiber.Handler, got *context.Context) *fiber.App {
+	app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 
-	handlers := make([]any, 0, len(chain)+1)
-	for _, handler := range chain {
+	handlers := make([]any, 0, len(producerAuth))
+	for _, handler := range producerAuth[1:] {
 		handlers = append(handlers, handler)
 	}
 
@@ -111,34 +159,36 @@ func newProducerAuthApp(chain []fiber.Handler, got *context.Context) *fiber.App 
 		return c.SendStatus(http.StatusCreated)
 	})
 
-	app.Post("/v1/reservations", handlers[0], handlers[1:]...)
+	app.Post("/v1/reservations", producerAuth[0], handlers...)
 
 	return app
 }
 
-func (f *producerAuthFixture) token(t *testing.T, mutate func(jwt.MapClaims)) string {
-	t.Helper()
-
-	return signProducerToken(t, f.key, mutate)
+type producerAuthResponse struct {
+	status      int
+	body        []byte
+	contentType string
 }
 
-func (f *producerAuthFixture) post(t *testing.T, bearer string) (int, []byte) {
+func (f *producerAuthFixture) post(t *testing.T, bearer string, header http.Header) producerAuthResponse {
 	t.Helper()
 
-	status, body, _ := f.postWithContentType(t, bearer)
-
-	return status, body
+	return postProducerAuth(t, f.app, bearer, header)
 }
 
-func (f *producerAuthFixture) postWithContentType(t *testing.T, bearer string) (int, []byte, string) {
+func postProducerAuth(t *testing.T, app *fiber.App, bearer string, header http.Header) producerAuthResponse {
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations", nil)
+	for name, values := range header {
+		req.Header[name] = values
+	}
+
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
 
-	resp, err := f.app.Test(req)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -146,20 +196,20 @@ func (f *producerAuthFixture) postWithContentType(t *testing.T, bearer string) (
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return resp.StatusCode, body, resp.Header.Get("Content-Type")
+	return producerAuthResponse{status: resp.StatusCode, body: body, contentType: resp.Header.Get("Content-Type")}
 }
 
 // requireProblem asserts a problem document carrying code, whose body never
 // echoes the presented token.
-func requireProblem(t *testing.T, status int, body []byte, contentType string, wantStatus int, wantCode, token string) {
+func requireProblem(t *testing.T, response producerAuthResponse, wantStatus int, wantCode, token string) {
 	t.Helper()
 
-	require.Equal(t, wantStatus, status, string(body))
-	require.Contains(t, contentType, "application/problem+json")
-	require.Equal(t, wantCode, errorCode(t, body))
+	require.Equal(t, wantStatus, response.status, string(response.body))
+	require.Contains(t, response.contentType, "application/problem+json")
+	require.Equal(t, wantCode, errorCode(t, response.body))
 
 	if token != "" {
-		require.NotContains(t, string(body), token, "the rejection never echoes the token")
+		require.NotContains(t, string(response.body), token, "the rejection never echoes the token")
 	}
 }
 
@@ -175,68 +225,128 @@ func errorCode(t *testing.T, body []byte) string {
 	return envelope.Code
 }
 
+func requireLedgerProducer(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	require.NotNil(t, ctx)
+
+	producer, ok := producerauth.ProducerFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, producerauth.Producer{Service: producerauth.ServiceLedger, Via: producerauth.ViaToken}, producer)
+
+	identity, ok := contextutil.GetIntegrationIdentity(ctx)
+	require.True(t, ok)
+	require.Equal(t, contextutil.IntegrationIdentity{ID: producerauth.ServiceLedger}, identity)
+}
+
 func TestProducerAuthMiddleware_MissingTokenIsUnauthorized(t *testing.T) {
 	t.Parallel()
 
-	fixture := newProducerAuthFixture(t)
+	fixture := newProducerAuthFixture(t, false)
 
-	status, body, contentType := fixture.postWithContentType(t, "")
-	requireProblem(t, status, body, contentType, http.StatusUnauthorized, constant.ErrTokenMissing.Error(), "")
+	requireProblem(t, fixture.post(t, "", nil), http.StatusUnauthorized, constant.ErrInvalidToken.Error(), "")
 	require.Nil(t, *fixture.got)
+	require.Empty(t, fixture.accessManager.recorded(), "a missing token never reaches the Access Manager")
 }
 
-func TestProducerAuthMiddleware_UnverifiableTokenIsUnauthorized(t *testing.T) {
+func TestProducerAuthMiddleware_APIKeyAloneIsUnauthorized(t *testing.T) {
 	t.Parallel()
 
-	fixture := newProducerAuthFixture(t)
-	other := newProducerAuthFixture(t)
+	fixture := newProducerAuthFixture(t, false)
 
-	for name, token := range map[string]string{
-		"foreign signing key": other.token(t, nil),
-		"wrong issuer":        fixture.token(t, func(c jwt.MapClaims) { c["iss"] = "https://other-issuer.example.test" }),
-		"expired": fixture.token(t, func(c jwt.MapClaims) {
-			c["exp"] = float64(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC).Unix())
-		}),
-		"malformed": "not-a-jwt",
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+	response := fixture.post(t, "", http.Header{"X-Api-Key": []string{producerAuthAPIKey}})
+	requireProblem(t, response, http.StatusUnauthorized, constant.ErrInvalidToken.Error(), "")
+	require.NotContains(t, string(response.body), producerAuthAPIKey)
+	require.Nil(t, *fixture.got, "an API key never substitutes for a producer token")
+}
 
-			status, body, contentType := fixture.postWithContentType(t, token)
-			requireProblem(t, status, body, contentType, http.StatusUnauthorized, constant.ErrInvalidToken.Error(), token)
-			require.Nil(t, *fixture.got)
-		})
-	}
+func TestProducerAuthMiddleware_AccessManagerDenialIsForbidden(t *testing.T) {
+	t.Parallel()
+
+	fixture := newProducerAuthFixture(t, false)
+	token := producerToken(t, func(c jwt.MapClaims) { c["sub"] = deniedApplicationSub })
+
+	requireProblem(t, fixture.post(t, token, nil), http.StatusForbidden, constant.ErrInsufficientPrivileges.Error(), token)
+	require.Nil(t, *fixture.got)
+	require.Len(t, fixture.accessManager.recorded(), 1, "the refusal is the Access Manager's single decision")
+}
+
+func TestProducerAuthMiddleware_AccessManagerOutageIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	fixture := newProducerAuthFixture(t, false)
+	fixture.accessManager.down.Store(true)
+	token := producerToken(t, nil)
+
+	requireProblem(t, fixture.post(t, token, nil), http.StatusServiceUnavailable, constant.ErrAuthorizationServiceUnavailable.Error(), token)
+	require.Nil(t, *fixture.got)
 }
 
 func TestProducerAuthMiddleware_UserTokenIsForbidden(t *testing.T) {
 	t.Parallel()
 
-	fixture := newProducerAuthFixture(t)
+	fixture := newProducerAuthFixture(t, false)
+	token := producerToken(t, func(c jwt.MapClaims) {
+		c["type"] = "normal-user"
+		c["owner"] = "lerian"
+	})
 
-	token := fixture.token(t, func(c jwt.MapClaims) { c["type"] = "normal-user" })
-
-	status, body, contentType := fixture.postWithContentType(t, token)
-	requireProblem(t, status, body, contentType, http.StatusForbidden, constant.ErrInsufficientPrivileges.Error(), token)
+	requireProblem(t, fixture.post(t, token, nil), http.StatusForbidden, constant.ErrInsufficientPrivileges.Error(), token)
 	require.Nil(t, *fixture.got)
+	require.Len(t, fixture.accessManager.recorded(), 1, "the Access Manager authorized the user before the producer check refused it")
 }
 
-func TestProducerAuthMiddleware_UnknownAuthorizedPartyIsForbidden(t *testing.T) {
+func TestProducerAuthMiddleware_LegacyUnknownCallerIsForbidden(t *testing.T) {
 	t.Parallel()
 
-	fixture := newProducerAuthFixture(t)
-
+	// The legacy derivation authorizes any non-user type under a fabricated
+	// role, so every one of these reaches the producer check, which refuses it.
 	for name, mutate := range map[string]func(jwt.MapClaims){
-		"unmapped azp": func(c jwt.MapClaims) { c["azp"] = "someone-else" },
-		"missing azp":  func(c jwt.MapClaims) { delete(c, "azp") },
+		"unmapped azp":    func(c jwt.MapClaims) { c["azp"] = "someone-else" },
+		"missing azp":     func(c jwt.MapClaims) { delete(c, "azp") },
+		"non-string azp":  func(c jwt.MapClaims) { c["azp"] = 42 },
+		"padded azp":      func(c jwt.MapClaims) { c["azp"] = " " + producerAuthClientID },
+		"missing type":    func(c jwt.MapClaims) { delete(c, "type") },
+		"unexpected type": func(c jwt.MapClaims) { c["type"] = "service" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			status, body := fixture.post(t, fixture.token(t, mutate))
-			require.Equal(t, http.StatusForbidden, status)
-			require.Equal(t, constant.ErrInsufficientPrivileges.Error(), errorCode(t, body))
+			fixture := newProducerAuthFixture(t, false)
+			token := producerToken(t, mutate)
+
+			requireProblem(t, fixture.post(t, token, nil), http.StatusForbidden, constant.ErrInsufficientPrivileges.Error(), token)
 			require.Nil(t, *fixture.got)
+			require.Len(t, fixture.accessManager.recorded(), 1, "the Access Manager authorized the token before the producer check refused it")
+		})
+	}
+}
+
+func TestProducerAuthMiddleware_InversionUnknownCallerIsRefused(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		mutate     func(jwt.MapClaims)
+		wantStatus int
+		wantCode   string
+		decisions  int
+	}{
+		"missing type":    {mutate: func(c jwt.MapClaims) { delete(c, "type") }, wantStatus: http.StatusUnauthorized, wantCode: constant.ErrInvalidToken.Error()},
+		"unexpected type": {mutate: func(c jwt.MapClaims) { c["type"] = "service" }, wantStatus: http.StatusUnauthorized, wantCode: constant.ErrInvalidToken.Error()},
+		"unmapped azp":    {mutate: func(c jwt.MapClaims) { c["azp"] = "someone-else" }, wantStatus: http.StatusForbidden, wantCode: constant.ErrInsufficientPrivileges.Error(), decisions: 1},
+		"missing azp":     {mutate: func(c jwt.MapClaims) { delete(c, "azp") }, wantStatus: http.StatusForbidden, wantCode: constant.ErrInsufficientPrivileges.Error(), decisions: 1},
+		"padded azp":      {mutate: func(c jwt.MapClaims) { c["azp"] = " " + producerAuthClientID }, wantStatus: http.StatusForbidden, wantCode: constant.ErrInsufficientPrivileges.Error(), decisions: 1},
+		"non-string azp":  {mutate: func(c jwt.MapClaims) { c["azp"] = 42 }, wantStatus: http.StatusForbidden, wantCode: constant.ErrInsufficientPrivileges.Error(), decisions: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newProducerAuthFixture(t, true)
+			token := producerToken(t, tc.mutate)
+
+			requireProblem(t, fixture.post(t, token, nil), tc.wantStatus, tc.wantCode, token)
+			require.Nil(t, *fixture.got)
+			require.Len(t, fixture.accessManager.recorded(), tc.decisions, "lib-auth refuses an unsupported type before asking the Access Manager")
 		})
 	}
 }
@@ -244,145 +354,138 @@ func TestProducerAuthMiddleware_UnknownAuthorizedPartyIsForbidden(t *testing.T) 
 func TestProducerAuthMiddleware_MappedAuthorizedPartyResolvesProducer(t *testing.T) {
 	t.Parallel()
 
-	fixture := newProducerAuthFixture(t)
+	for name, tc := range map[string]struct {
+		inversion bool
+		raw       bool
+	}{
+		"legacy derivation, bearer token": {},
+		"legacy derivation, raw token":    {raw: true},
+		"M2M inversion, bearer token":     {inversion: true},
+		"M2M inversion, raw token":        {inversion: true, raw: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	status, _ := fixture.post(t, fixture.token(t, nil))
-	require.Equal(t, http.StatusCreated, status)
-	require.NotNil(t, *fixture.got)
+			fixture := newProducerAuthFixture(t, tc.inversion)
+			token := producerToken(t, nil)
 
-	producer, ok := producerauth.ProducerFromContext(*fixture.got)
-	require.True(t, ok)
-	require.Equal(t, producerauth.Producer{Service: producerauth.ServiceLedger, Via: producerauth.ViaToken}, producer)
+			var response producerAuthResponse
+			if tc.raw {
+				response = fixture.post(t, "", http.Header{"Authorization": []string{token}})
+			} else {
+				response = fixture.post(t, token, nil)
+			}
 
-	identity, ok := contextutil.GetIntegrationIdentity(*fixture.got)
-	require.True(t, ok)
-	require.Equal(t, contextutil.IntegrationIdentity{ID: producerauth.ServiceLedger}, identity)
-}
+			require.Equal(t, http.StatusCreated, response.status, string(response.body))
+			requireLedgerProducer(t, *fixture.got)
 
-func TestProducerAuthMiddleware_DisabledVerifierWithoutOptionFailsClosed(t *testing.T) {
-	t.Parallel()
+			// The guard publishes an actor principal for a Bearer token only;
+			// whenever one is published, the producer is recorded as a system
+			// actor, never as a user.
+			principal, ok := contextutil.GetPrincipal(*fixture.got)
+			require.Equal(t, !tc.raw, ok)
 
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(nil, "", false, libLog.NewNop())
-	require.NoError(t, err)
+			if ok {
+				require.Equal(t, contextutil.Principal{Type: string(model.ActorTypeSystem), ID: "ledger-application"}, principal)
+			}
 
-	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
-	require.NoError(t, err)
-
-	var got context.Context
-
-	app := newProducerAuthApp(NewProducerAuthMiddleware(m2m, reg), &got)
-
-	resp, err := app.Test(httptest.NewRequest(http.MethodPost, "/v1/reservations", nil))
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusForbidden, resp.StatusCode, "a request without a verified identity is never promoted to a producer")
-	require.Nil(t, got)
+			decisions := fixture.accessManager.recorded()
+			require.Len(t, decisions, 1)
+			require.Equal(t, "reservations", decisions[0]["resource"])
+			require.Equal(t, "post", decisions[0]["action"])
+		})
+	}
 }
 
 func TestProducerAuthMiddleware_VerificationDisabledAttributesTheLedger(t *testing.T) {
 	t.Parallel()
 
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(nil, "", false, libLog.NewNop())
-	require.NoError(t, err)
+	// The unverified chain mounts no guard: an API-key guard would demand an
+	// X-API-Key the Ledger never sends.
+	apiKeyGuard := middleware.NewAuthGuard(middleware.AuthGuardConfig{AppName: "tracer", APIKeyEnabled: true, APIKey: producerAuthAPIKey}, libAuth.NewAuthClient("", false, libLog.NewNop()))
 
-	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
-	require.NoError(t, err)
-
-	for name, bearer := range map[string]string{
-		"no token":         "",
-		"unverified token": "not-a-jwt",
+	for name, tc := range map[string]struct {
+		guard  *middleware.AuthGuard
+		bearer string
+	}{
+		"no token":          {guard: apiKeyGuard},
+		"unverified token":  {guard: apiKeyGuard, bearer: "not-a-jwt"},
+		"application token": {guard: apiKeyGuard, bearer: "application"},
+		"no guard":          {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			var got context.Context
 
-			app := newProducerAuthApp(NewProducerAuthMiddleware(m2m, reg, WithProducerVerificationDisabled()), &got)
+			app := newProducerAuthApp(NewProducerAuthMiddleware(tc.guard, testProducerRegistry(t), WithProducerVerificationDisabled()), &got)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/reservations", nil)
-			if bearer != "" {
-				req.Header.Set("Authorization", "Bearer "+bearer)
+			bearer := tc.bearer
+			if bearer == "application" {
+				bearer = producerToken(t, nil)
 			}
 
-			resp, err := app.Test(req)
-			require.NoError(t, err)
+			response := postProducerAuth(t, app, bearer, nil)
+			require.Equal(t, http.StatusCreated, response.status, string(response.body))
+			requireLedgerProducer(t, got)
 
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusCreated, resp.StatusCode)
-			require.NotNil(t, got)
-
-			producer, ok := producerauth.ProducerFromContext(got)
-			require.True(t, ok)
-			require.Equal(t, producerauth.Producer{Service: producerauth.ServiceLedger, Via: producerauth.ViaToken}, producer)
-
-			identity, ok := contextutil.GetIntegrationIdentity(got)
-			require.True(t, ok)
-			require.Equal(t, contextutil.IntegrationIdentity{ID: producerauth.ServiceLedger}, identity)
+			_, ok := contextutil.GetPrincipal(got)
+			require.False(t, ok, "no guard ran, so no actor principal is published and the audit actor falls back to system")
 		})
 	}
 }
 
-func TestProducerAuthMiddleware_VerificationDisabledStillRequiresDependencies(t *testing.T) {
+func TestProducerAuthMiddleware_UnverifiedRequestIsNeverPromoted(t *testing.T) {
 	t.Parallel()
 
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(nil, "", false, libLog.NewNop())
-	require.NoError(t, err)
+	// Plugin auth off lets the guard pass everything; without the explicit
+	// option the producer check still demands an authorized application token.
+	guard := middleware.NewAuthGuard(middleware.AuthGuardConfig{AppName: "tracer"}, libAuth.NewAuthClient("", false, libLog.NewNop()))
 
-	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
-	require.NoError(t, err)
+	var got context.Context
 
-	for name, chain := range map[string][]fiber.Handler{
-		"nil authenticator": NewProducerAuthMiddleware(nil, reg, WithProducerVerificationDisabled()),
-		"nil registry":      NewProducerAuthMiddleware(m2m, nil, WithProducerVerificationDisabled()),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+	app := newProducerAuthApp(NewProducerAuthMiddleware(guard, testProducerRegistry(t)), &got)
 
-			var got context.Context
-
-			resp, err := newProducerAuthApp(chain, &got).Test(httptest.NewRequest(http.MethodPost, "/v1/reservations", nil))
-			require.NoError(t, err)
-
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
-			require.Nil(t, got)
-		})
-	}
+	response := postProducerAuth(t, app, "", nil)
+	requireProblem(t, response, http.StatusForbidden, constant.ErrInsufficientPrivileges.Error(), "")
+	require.Nil(t, got)
 }
 
-func TestProducerAuthMiddleware_MissingDependenciesAreUnavailable(t *testing.T) {
+func TestProducerAuthMiddleware_MissingDependencyIsUnavailable(t *testing.T) {
 	t.Parallel()
 
-	m2m, err := libAuth.NewM2MAuthenticatorWithKeySource(&fakeKeySource{}, producerAuthIssuer, true, libLog.NewNop())
-	require.NoError(t, err)
-
-	reg, err := producerauth.ParsePlatformProducers(`[{"service":"ledger","clientId":"` + producerAuthClientID + `"}]`)
-	require.NoError(t, err)
-
-	for name, chain := range map[string][]fiber.Handler{
-		"nil authenticator": NewProducerAuthMiddleware(nil, reg),
-		"nil registry":      NewProducerAuthMiddleware(m2m, nil),
+	for name, tc := range map[string]struct {
+		noGuard    bool
+		noRegistry bool
+		opts       []ProducerAuthOption
+	}{
+		"verified without a registry":              {noRegistry: true},
+		"verification disabled without a registry": {noRegistry: true, opts: []ProducerAuthOption{WithProducerVerificationDisabled()}},
+		"verified without a guard":                 {noGuard: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
+			fixture := newProducerAuthFixture(t, false)
+
+			guard := producerAuthGuard(fixture.accessManager, false)
+			if tc.noGuard {
+				guard = nil
+			}
+
+			reg := testProducerRegistry(t)
+			if tc.noRegistry {
+				reg = nil
+			}
+
 			var got context.Context
 
-			resp, err := newProducerAuthApp(chain, &got).Test(httptest.NewRequest(http.MethodPost, "/v1/reservations", nil))
-			require.NoError(t, err)
+			app := newProducerAuthApp(NewProducerAuthMiddleware(guard, reg, tc.opts...), &got)
 
-			defer resp.Body.Close()
-
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
-			require.Equal(t, constant.ErrContextPolicyUnavailable.Error(), errorCode(t, body))
+			response := postProducerAuth(t, app, producerToken(t, nil), nil)
+			requireProblem(t, response, http.StatusServiceUnavailable, constant.ErrContextPolicyUnavailable.Error(), "")
 			require.Nil(t, got)
+			require.Empty(t, fixture.accessManager.recorded(), "an incomplete chain never consults the Access Manager")
 		})
 	}
 }
