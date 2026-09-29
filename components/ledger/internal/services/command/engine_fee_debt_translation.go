@@ -86,11 +86,11 @@ func (c *feeDebtComposition) markDeferral(transaction *accounting.Transaction, p
 	}
 }
 
-// appendCollect follows a /v2 credit with a collect of the credited balance's
+// appendCollect follows a /v2 credit or refund with a collect of the credited balance's
 // open debts, named oldest first, when its seed holds any. Each debt books its
 // debtor debit and creditor credit under the routes it stored.
 func (c *feeDebtComposition) appendCollect(transaction *accounting.Transaction, projection *[]OperationRecordSpec, credit accounting.Posting) {
-	if !c.input.FeeDebtEligible || credit.Type != accounting.PostingCredit ||
+	if !c.input.FeeDebtEligible || (credit.Type != accounting.PostingCredit && credit.Type != accounting.PostingRefund) ||
 		(c.input.Action != constant.ActionDirect && c.input.Action != constant.ActionCommit && c.input.Action != constant.ActionRevert) {
 		return
 	}
@@ -187,6 +187,7 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 
 		ref := "fee-refund:" + strconv.Itoa(n)
 		posting := accounting.Posting{Ref: ref, BalanceRef: debtorRef, Type: accounting.PostingRefund, DrawPolicy: accounting.DrawForbidden, OverdraftAmount: decimal.Zero}
+		refunded := decimal.Zero
 		companion, hasCompanion := c.balances[mtransaction.AliasKey(mtransaction.SplitAlias(debtor.Alias), constant.OverdraftBalanceKey)]
 
 		for i, opening := range byDebtor[debtorRef] {
@@ -201,6 +202,7 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 				DebtID: opening.DebtID, CreditRef: opening.CreditRef, Opened: opening.Opened, Seq: opening.Seq,
 				ExpectedRefund: c.input.TransactionInput.FeeDebtExpectedRefunds[opening.DebtID],
 			})
+			refunded = refunded.Add(c.input.TransactionInput.FeeDebtExpectedRefunds[opening.DebtID])
 			*projection = append(*projection, c.spec(ref, debtor, accounting.RoleFeeDebtRefundCredit, ordinal, constant.FEE_REFUND, constant.DirectionCredit, opening.Opened, credited))
 
 			if hasCompanion {
@@ -215,6 +217,12 @@ func (c *feeDebtComposition) appendRefunds(transaction *accounting.Transaction, 
 		transaction.Postings = append(transaction.Postings, posting)
 
 		c.declare(transaction, debtorRef)
+
+		// The refund credits the debtor what it pays, so it settles the debtor's other debts
+		// like any credit; the parent's own were canceled before any posting runs.
+		if refunded.IsPositive() {
+			c.appendCollect(transaction, projection, accounting.Posting{Ref: ref, BalanceRef: debtorRef, Type: accounting.PostingRefund, Amount: refunded})
+		}
 	}
 
 	return nil
