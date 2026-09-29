@@ -559,7 +559,8 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 		return metadataConflict("metadata identity is not confirmed")
 	}
 
-	missing := missingFeeDebtMetadata(expected.Data, actual.Data)
+	var missing map[string]any
+
 	if actual.EntityName == "" {
 		missing = make(map[string]any, len(expected.Data))
 		for key, value := range expected.Data {
@@ -567,6 +568,8 @@ func (service *TransactionCompletionService) persistMetadata(ctx context.Context
 				missing[key] = value
 			}
 		}
+	} else {
+		missing = missingFeeDebtMetadata(expected.Data, actual.Data)
 	}
 
 	if missing == nil {

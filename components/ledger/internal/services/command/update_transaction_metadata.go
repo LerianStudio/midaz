@@ -19,9 +19,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// metadataUpdateAttempts bounds the reads and conditional writes of one transaction or operation
-// metadata update that keeps losing to concurrent writes.
-const metadataUpdateAttempts = 3
+// metadataUpdateAttempts bounds the reads and writes of one transaction or operation metadata
+// update: its own create plus three conditional writes, more than two completions can defeat.
+const metadataUpdateAttempts = 4
 
 // UpdateTransactionMetadata merges metadata into the stored document; nil clears it. A
 // transaction or operation keeps every reserved key the ledger wrote, read fresh.
@@ -76,7 +76,6 @@ func (uc *UseCase) updateLedgerWrittenMetadata(
 		}
 
 		if stored == nil {
-			// No entity name: completion adds the frozen keys this document lacks and names it.
 			now := time.Now()
 			document := &mongodb.Metadata{EntityID: entityID, Data: mongodb.JSON{}, CreatedAt: now, UpdatedAt: now}
 
