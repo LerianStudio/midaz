@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
+	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -79,7 +80,7 @@ func (r *Repository) Read(ctx context.Context, organizationID, ledgerID uuid.UUI
 	// dbresolver.BeginTx always selects ReadWrite, even with ReadOnly=true.
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	if err != nil {
-		return nil, fmt.Errorf("begin official record snapshot: %w", err)
+		return nil, fmt.Errorf("%w: begin official record snapshot: %w", traceradapter.ErrOfficialRecordsUnavailable, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -93,7 +94,7 @@ func (r *Repository) Read(ctx context.Context, organizationID, ledgerID uuid.UUI
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("finish official record snapshot: %w", err)
+		return nil, fmt.Errorf("%w: finish official record snapshot: %w", traceradapter.ErrOfficialRecordsUnavailable, err)
 	}
 
 	return accounts, nil
@@ -134,7 +135,12 @@ func (r *Repository) database(ctx context.Context) (dbresolver.DB, error) {
 		return nil, constant.ErrInternalServer
 	}
 
-	return r.connection.Resolver(ctx)
+	db, err := r.connection.Resolver(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: resolve official record store: %w", traceradapter.ErrOfficialRecordsUnavailable, err)
+	}
+
+	return db, nil
 }
 
 func (r *Repository) readAccounts(ctx context.Context, tx dbresolver.Tx, org, ledger uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
@@ -146,7 +152,7 @@ func (r *Repository) readAccounts(ctx context.Context, tx dbresolver.Tx, org, le
  FROM account WHERE organization_id=$1 AND ledger_id=$2 AND id=ANY($3)
  AND deleted_at IS NULL ORDER BY id LIMIT $5`, org, ledger, pq.Array(ids), r.bounds.MaxTextBytes, len(ids), utils.MaxAssetCodeLength)
 	if err != nil {
-		return nil, fmt.Errorf("read official accounts: %w", err)
+		return nil, fmt.Errorf("%w: read official accounts: %w", traceradapter.ErrOfficialRecordsUnavailable, err)
 	}
 	defer rows.Close()
 
@@ -178,7 +184,7 @@ func (r *Repository) readAccounts(ctx context.Context, tx dbresolver.Tx, org, le
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate official accounts: %w", err)
+		return nil, fmt.Errorf("%w: iterate official accounts: %w", traceradapter.ErrOfficialRecordsUnavailable, err)
 	}
 
 	if len(requested) != 0 {

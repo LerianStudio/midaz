@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -32,7 +33,7 @@ func testBounds() tracercontract.Limits {
 }
 
 func TestReadOfficialRecords(t *testing.T) {
-	for _, scenario := range []string{"success", "missing account", "duplicate account", "invalid text", "query failure", "commit failure"} {
+	for _, scenario := range []string{"success", "missing account", "duplicate account", "invalid text", "query failure", "iteration failure", "commit failure", "begin failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
@@ -41,6 +42,14 @@ func TestReadOfficialRecords(t *testing.T) {
 			ctx := tmcore.ContextWithPG(t.Context(), resolver)
 			repo, err := NewRepository(nil, testBounds(), true)
 			require.NoError(t, err)
+			if scenario == "begin failure" {
+				mock.ExpectBegin().WillReturnError(errors.New("connection refused"))
+				_, err := repo.Read(ctx, orgID, ledgerID, []uuid.UUID{accountID})
+				require.ErrorIs(t, err, traceradapter.ErrOfficialRecordsUnavailable)
+				require.NoError(t, mock.ExpectationsWereMet())
+
+				return
+			}
 			mock.ExpectBegin()
 			accounts := sqlmock.NewRows([]string{"id", "asset_code", "type", "status", "blocked"})
 			switch scenario {
@@ -52,6 +61,9 @@ func TestReadOfficialRecords(t *testing.T) {
 			}
 			if scenario == "duplicate account" {
 				accounts.AddRow(accountID, "BTC", "deposit", "ACTIVE", false)
+			}
+			if scenario == "iteration failure" {
+				accounts.RowError(0, errors.New("connection reset"))
 			}
 			query := mock.ExpectQuery("SELECT").WillReturnRows(accounts)
 			if scenario == "query failure" {
@@ -75,6 +87,15 @@ func TestReadOfficialRecords(t *testing.T) {
 				require.Error(t, err)
 				require.Nil(t, accountsResult)
 			}
+			// Only a store failure is an availability failure; records that were
+			// read and found missing, duplicated or invalid stay deterministic.
+			switch scenario {
+			case "query failure", "iteration failure", "commit failure":
+				require.ErrorIs(t, err, traceradapter.ErrOfficialRecordsUnavailable)
+			case "missing account", "duplicate account", "invalid text":
+				require.ErrorIs(t, err, constant.ErrTracerFactsUnavailable)
+				require.NotErrorIs(t, err, traceradapter.ErrOfficialRecordsUnavailable)
+			}
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
@@ -89,6 +110,7 @@ func TestReadOfficialRecordsGuards(t *testing.T) {
 	}
 	_, err = repo.Read(t.Context(), orgID, ledgerID, []uuid.UUID{accountID})
 	require.Error(t, err) // A multi-tenant reader never falls back to a static pool.
+	require.NotErrorIs(t, err, traceradapter.ErrOfficialRecordsUnavailable)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = repo.Read(ctx, orgID, ledgerID, []uuid.UUID{accountID})
@@ -144,6 +166,7 @@ func TestReadOfficialRecordsBoundsAssetCodeByCharacters(t *testing.T) {
 				require.Equal(t, tc.code, accounts[0].AssetCode)
 			} else {
 				tc.wantErr(t, err)
+				require.NotErrorIs(t, err, traceradapter.ErrOfficialRecordsUnavailable, "a record read and found invalid is not a store failure")
 				require.Nil(t, accounts)
 			}
 			require.NoError(t, mock.ExpectationsWereMet())

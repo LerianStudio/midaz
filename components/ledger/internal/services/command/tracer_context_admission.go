@@ -75,15 +75,22 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 		return attempt, constant.ErrInvalidRequestBody
 	}
 
+	// One deadline bounds fact loading and Reserve together, so slow facts
+	// shorten the time left for Tracer instead of extending the admission.
+	parent := ctx
 	budget := min(time.Duration(input.Settings.TimeoutMs)*time.Millisecond, c.config.AdmissionTimeout)
-
-	request, err := c.requestWithLocalDeadline(ctx, input, budget)
-	if err != nil {
-		return attempt, err
-	}
 
 	ctx, cancelAdmission := context.WithTimeout(ctx, budget)
 	defer cancelAdmission()
+
+	request, err := c.request(ctx, input, c.now().UTC())
+	if errors.Is(err, context.DeadlineExceeded) && parent.Err() == nil {
+		return attempt, constant.ErrTracerFactsUnavailable
+	}
+
+	if err != nil {
+		return attempt, err
+	}
 
 	attempt.Dispatched = true
 
@@ -108,19 +115,6 @@ func (c *ContextTracerCoordinator) Admit(ctx context.Context, input ContextTrace
 	attempt.Result = result
 
 	return attempt, nil
-}
-
-func (c *ContextTracerCoordinator) requestWithLocalDeadline(ctx context.Context, input ContextTracerInput, budget time.Duration) (tracercontract.ReserveRequest, error) {
-	factsCtx, cancel := context.WithTimeout(ctx, budget)
-	request, err := c.request(factsCtx, input, c.now().UTC())
-
-	cancel()
-
-	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-		return tracercontract.ReserveRequest{}, constant.ErrTracerFactsUnavailable
-	}
-
-	return request, err
 }
 
 func (c *ContextTracerCoordinator) request(ctx context.Context, input ContextTracerInput, admittedAt time.Time) (tracercontract.ReserveRequest, error) {

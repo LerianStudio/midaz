@@ -92,7 +92,8 @@ func contextTracerDisposition(settings mmodel.TracerSettings, attempt ContextTra
 }
 
 func tracerAdmissionUnavailable(err error) bool {
-	return errors.Is(err, traceradapter.ErrTracerUnavailable) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+	return errors.Is(err, traceradapter.ErrTracerUnavailable) || errors.Is(err, traceradapter.ErrOfficialRecordsUnavailable) ||
+		errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
 // Failure posture applies only to positively identified availability failures.
