@@ -321,7 +321,7 @@ func TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation(t *
 	ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
 	originID := uuid.MustParse("93333333-3333-4333-8333-333333333333")
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	settings.Tracer = enforceSettings(mmodel.TracerFailPostureOpen)
 	reader := &revertEngineReader{
 		revertReader: &revertReader{
 			origin:        revertEngineOrigin(organizationID, ledgerID, originID),
@@ -335,12 +335,11 @@ func TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation(t *
 	executor := &createEngineErrorExecutor{err: testEngineTechnicalError{
 		code: "transaction_already_reverted", cause: errors.New("origin transaction is already reverted"),
 	}}
-	reservationID := uuid.MustParse("96666666-6666-4666-8666-666666666666")
-	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	reserver := &stubContextTracer{}
 	finalizer := &createAppliedTransactionCompleter{}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: finalizer, ContextTracer: reserver.coordinatorFor(t),
 	}
 
 	got, replayed, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
@@ -351,8 +350,9 @@ func TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation(t *
 	assert.Nil(t, got)
 	assert.False(t, replayed)
 	require.Len(t, executor.requests, 1)
-	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
-	assert.Empty(t, reserver.confirmedIDs)
+	require.Len(t, reserver.reserves(), 1)
+	assert.Equal(t, []uuid.UUID{reserver.reserves()[0].TransactionID}, reserver.releasedTransactions())
+	assert.Empty(t, reserver.confirmedTransactions())
 	assert.Empty(t, finalizer.envelopes)
 }
 
