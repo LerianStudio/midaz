@@ -30,7 +30,7 @@ import (
 )
 
 // TestIntegration_GRPCSeamWiring_ClientAllowlist boots the reservation gRPC
-// server through initGRPCServer in mtls mode on a real TRACER_GRPC_PORT, with
+// server through initGRPCServer in mtls mode on a real loopback listener, with
 // an allowlist naming one client identity. Both clients present a certificate
 // the configured CA signed; only the allowlisted one reaches the handler. The
 // accepted RPC carries an empty transaction id, so the handler answers
@@ -40,7 +40,7 @@ func TestIntegration_GRPCSeamWiring_ClientAllowlist(t *testing.T) {
 
 	cfg := writeMTLSConfig(t, fixture)
 	cfg.TracerTLSClientAllowedNames = "ledger-seam-client"
-	cfg.TracerGRPCPort = freeLoopbackAddress(t)
+	cfg.TracerGRPCPort = "127.0.0.1:0"
 
 	addr := startSeamThroughInitGRPCServer(t, cfg)
 
@@ -63,8 +63,9 @@ func TestIntegration_GRPCSeamWiring_ClientAllowlist(t *testing.T) {
 }
 
 // startSeamThroughInitGRPCServer builds the gRPC seam via initGRPCServer over a
-// ReservationService of doubles, serves it on cfg.TracerGRPCPort and returns
-// that address. The server is stopped on cleanup.
+// ReservationService of doubles, serves it on a listener bound to
+// cfg.TracerGRPCPort and returns the bound address, so a ":0" port is resolved
+// by the same listener that serves it. The server is stopped on cleanup.
 func startSeamThroughInitGRPCServer(t *testing.T, cfg *Config) string {
 	t.Helper()
 
@@ -103,7 +104,7 @@ func startSeamThroughInitGRPCServer(t *testing.T, cfg *Config) string {
 		<-served
 	})
 
-	return cfg.TracerGRPCPort
+	return lis.Addr().String()
 }
 
 // confirmOverSeam issues one ConfirmByTransaction with an empty transaction id
@@ -139,17 +140,4 @@ func clientTLSConfig(t *testing.T, certPEM, keyPEM []byte, caPool *x509.CertPool
 		RootCAs:      caPool,
 		ServerName:   "localhost",
 	}
-}
-
-// freeLoopbackAddress returns a loopback host:port that was free when probed.
-func freeLoopbackAddress(t *testing.T) string {
-	t.Helper()
-
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	addr := lis.Addr().String()
-	require.NoError(t, lis.Close())
-
-	return addr
 }

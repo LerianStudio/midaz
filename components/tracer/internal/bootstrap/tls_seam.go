@@ -18,15 +18,15 @@ import (
 )
 
 // TLS modes for the reservation seam (TRACER_TLS_MODE). Empty builds no TLS,
-// like tlsModeMesh, and ValidateSeamTransportPosture admits it only in local
-// deployments.
+// like tlsModeMesh, and ValidateSeamTransportPosture admits it only with
+// DEPLOYMENT_MODE=local.
 const (
 	tlsModeMTLS = "mtls"
 	tlsModeMesh = "mesh"
 )
 
-// buildSeamTLSConfig builds the base *tls.Config of both seam listeners. The
-// Fiber listener uses it as-is; the gRPC server uses it through
+// buildSeamTLSConfig builds the base *tls.Config shared by the gRPC seam and
+// the HTTP listener. The HTTP listener uses it as-is; the gRPC server uses it through
 // buildGRPCSeamTLSConfig, which adds only the client identity allowlist, so the
 // two transports cannot drift on the rest of the mutual-TLS posture.
 //
@@ -36,7 +36,8 @@ const (
 //   - mode "mesh"       ⇒ (nil, nil). The app listens plaintext; a service-mesh
 //     sidecar (Istio/Linkerd) terminates mTLS. No cert material is consulted.
 //   - mode ""           ⇒ (nil, nil). Plaintext with no verified peer; the
-//     boot gate ValidateSeamTransportPosture refuses it outside local.
+//     boot gate ValidateSeamTransportPosture refuses it unless
+//     DEPLOYMENT_MODE=local.
 //   - mode "mtls"       ⇒ (*tls.Config, nil) presenting the tracer's own server
 //     certificate and enforcing tls.RequireAndVerifyClientCert against the
 //     loaded client CA pool. The reservation seam is unreachable without a

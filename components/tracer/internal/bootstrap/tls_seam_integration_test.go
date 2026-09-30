@@ -27,14 +27,13 @@ import (
 )
 
 // TestReservationMTLS proves the tracer enforces client-certificate
-// verification on the reservation seam in TRACER_TLS_MODE=mtls, on BOTH
-// transports:
+// verification in TRACER_TLS_MODE=mtls on both listeners:
 //
-//   - gRPC: a client presenting a CA-signed cert completes the Reserve RPC; a
-//     client without a cert is rejected at the TLS layer (the RPC never reaches
-//     the service).
-//   - REST (Fiber): a tls.Dial with a CA-signed client cert handshakes; a dial
-//     without a client cert is rejected by the server.
+//   - gRPC reservation seam: a client presenting a CA-signed cert completes the
+//     Reserve RPC; a client without a cert is rejected at the TLS layer (the
+//     RPC never reaches the service).
+//   - HTTP listener (Fiber, user routes): a tls.Dial with a CA-signed client
+//     cert handshakes; a dial without a client cert is rejected by the server.
 //
 // It runs under the integration tag because it binds real loopback sockets and
 // performs real TLS handshakes. No Docker is required: certs come from the

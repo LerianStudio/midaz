@@ -808,9 +808,12 @@ func TestReservationService_Confirm(t *testing.T) {
 			Return(model.ReservationStatus(""), constant.ErrReservationNotFound).
 			Times(1)
 
-		outcome, err := svc.Confirm(context.Background(), resID)
+		outcome, err := svc.Confirm(deps.ctx(), resID)
 		require.ErrorIs(t, err, constant.ErrReservationNotFound)
 		assert.Equal(t, ConfirmOutcome{}, outcome)
+
+		_, status := deps.spanEvents(t, "service.reservation.confirm")
+		assert.NotEqual(t, otelCodes.Error, status, "an unknown reservation is a business outcome: the span stays green")
 	})
 
 	t.Run("Missing reservation id is rejected before a tx", func(t *testing.T) {
@@ -851,6 +854,21 @@ func TestReservationService_Release(t *testing.T) {
 			Times(1)
 
 		require.NoError(t, svc.Release(context.Background(), resID))
+	})
+
+	t.Run("Not found propagates with a green span", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxRollback()
+		deps.repo.EXPECT().
+			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
+			Return(constant.ErrReservationNotFound).
+			Times(1)
+
+		require.ErrorIs(t, svc.Release(deps.ctx(), resID), constant.ErrReservationNotFound)
+
+		_, status := deps.spanEvents(t, "service.reservation.release")
+		assert.NotEqual(t, otelCodes.Error, status, "an unknown reservation is a business outcome: the span stays green")
 	})
 }
 
@@ -926,7 +944,7 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 		assert.Contains(t, events, "reservation.confirm.already_released")
 		assert.NotEqual(t, otelCodes.Error, status, "an already-released row is a business observation: the span stays green")
 
-		releasedCount, ok := deps.spanIntAttribute(t, "service.reservation.confirm_by_transaction", "app.reservation.released_count")
+		releasedCount, ok := deps.spanIntAttribute(t, "service.reservation.confirm_by_transaction", "app.reservation.already_released")
 		require.True(t, ok, "the confirm span carries the released count")
 		assert.EqualValues(t, 1, releasedCount)
 	})

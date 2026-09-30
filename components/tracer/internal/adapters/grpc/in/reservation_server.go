@@ -5,8 +5,7 @@
 // Package in hosts the tracer's inbound gRPC adapters. The reservation server
 // is the only transport of the two-phase reservation use case: it maps the
 // generated proto messages to the domain inputs, delegates to the
-// identical *services.ReservationService, and maps the results back. The
-// business logic is never duplicated — both transports converge on one service.
+// *services.ReservationService, and maps the results back.
 package in
 
 //go:generate mockgen -source=reservation_server.go -destination=mocks/reservation_server_service_mock.go -package=mocks
@@ -167,30 +166,19 @@ func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reser
 // ConfirmByTransaction: the service treats an absent or already-terminal
 // transaction as a no-op.
 func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
-	const operation = "grpc.reservations.release_by_transaction"
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, operation)
+	ctx, span := tracer.Start(ctx, "grpc.reservations.release_by_transaction")
 	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
 
 	transactionID, err := parseTransactionID(span, req.GetTransactionId())
 	if err != nil {
 		return nil, err
 	}
 
-	released, err := s.service.ReleaseByTransaction(ctx, transactionID)
-	if err != nil {
+	if _, err := s.service.ReleaseByTransaction(ctx, transactionID); err != nil {
 		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}
-
-	logger.With(
-		libLog.String("operation", operation),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.Int("released", released),
-	).Log(ctx, libLog.LevelDebug, "Reservations released by transaction")
 
 	return &reservationv1.ReleaseByTransactionResponse{}, nil
 }
@@ -334,8 +322,7 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 
 // reservationIDStrings renders reservation or rule ids as proto-friendly strings.
 // A nil/empty input yields a nil slice — proto serializes a repeated field's
-// absence and an empty slice identically, so no [] sentinel is needed (unlike
-// the REST JSON path).
+// absence and an empty slice identically, so no [] sentinel is needed.
 func reservationIDStrings(ids []uuid.UUID) []string {
 	if len(ids) == 0 {
 		return nil

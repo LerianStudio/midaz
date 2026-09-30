@@ -432,6 +432,24 @@ func expectReservedByTransactionSelect(mock sqlmock.Sqlmock, txID uuid.UUID, row
 		WillReturnRows(r)
 }
 
+// expectReleaseByTransactionSelect scripts the release lock and pins its
+// RESERVED-only predicate: an EXPIRED row's hold was already returned by the
+// sweep, so a release that locked it would return the same capacity twice.
+func expectReleaseByTransactionSelect(mock sqlmock.Sqlmock, txID uuid.UUID, rows ...[4]any) {
+	r := sqlmock.NewRows(reservationLockColumns())
+
+	for _, row := range rows {
+		r = r.AddRow(
+			row[0], row[1], row[2], row[3], int64(400), "RESERVED",
+			txID, testutil.FixedTime(), testutil.FixedTime(), nil, nil,
+		)
+	}
+
+	mock.ExpectQuery(`FROM usage_reservations\s+WHERE transaction_id = \$1 AND status = 'RESERVED'\s+FOR UPDATE`).
+		WithArgs(txID).
+		WillReturnRows(r)
+}
+
 func TestUsageReservationRepository_ConfirmByTransaction(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
@@ -558,7 +576,7 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		expectReservedByTransactionSelect(
+		expectReleaseByTransactionSelect(
 			mock, txID,
 			[4]any{res1, limit1, "acct:8701", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
@@ -575,6 +593,7 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		flipped, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusReleased)
 		require.NoError(t, err)
 		assert.Len(t, flipped, 2)
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Invalid status rejected before any SQL", func(t *testing.T) {
@@ -589,11 +608,12 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		expectReservedByTransactionSelect(mock, txID)
+		expectReleaseByTransactionSelect(mock, txID)
 
 		flipped, err := repo.ReleaseByTransactionWithTx(context.Background(), db, txID, model.StatusReleased)
 		require.NoError(t, err)
 		assert.Empty(t, flipped)
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 

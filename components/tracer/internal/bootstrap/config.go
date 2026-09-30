@@ -82,7 +82,8 @@ type Config struct {
 	// credential (no shared secret). "mesh" lets a service-mesh sidecar
 	// (Istio/Linkerd) terminate mTLS, so the app listens plaintext and skips its
 	// own TLS. Empty serves plaintext with no peer verification and is accepted
-	// only with DEPLOYMENT_MODE=local (ValidateSeamTransportPosture).
+	// only when DEPLOYMENT_MODE is explicitly local; an unset DEPLOYMENT_MODE
+	// refuses it (ValidateSeamTransportPosture).
 	TracerTLSMode string `env:"TRACER_TLS_MODE"`
 	// TracerTLSCertFile / TracerTLSKeyFile are the PEM paths for the tracer's
 	// OWN server certificate and private key, presented on both transports in
@@ -1344,12 +1345,12 @@ func initHTTPServer(
 	// Secure the HTTP listener per TRACER_TLS_MODE: mtls ⇒ a verifying
 	// *tls.Config, mesh/unset ⇒ nil (plaintext, sidecar terminates). Same builder
 	// the gRPC server uses, so both listeners share one posture.
-	seamTLS, err := buildSeamTLSConfig(cfg)
+	httpTLS, err := buildSeamTLSConfig(cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
+		return nil, nil, fmt.Errorf("failed to build HTTP listener TLS config: %w", err)
 	}
 
-	httpServer, err := NewHTTPServer(cfg, httpApp, seamTLS, logger, telemetry)
+	httpServer, err := NewHTTPServer(cfg, httpApp, httpTLS, logger, telemetry)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1375,8 +1376,8 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 // the defaults. Transport security follows TRACER_TLS_MODE: mtls ⇒ the server
 // requires+verifies a client cert (reservation seam unreachable without one);
 // mesh ⇒ plaintext behind a terminating sidecar; empty ⇒ plaintext, which
-// ValidateSeamTransportPosture admits only in local deployments. clk drives the reserve
-// timestamp-window check.
+// ValidateSeamTransportPosture admits only with DEPLOYMENT_MODE=local. clk
+// drives the reserve timestamp-window check.
 // workerEnsurer starts a tenant's workers on its first reservation (nil in
 // single-tenant mode).
 func initGRPCServer(
@@ -1884,7 +1885,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	}
 
 	// The gRPC reservation seam trusts x-tenant-id only from a verified peer:
-	// outside local deployments it refuses to boot plaintext, before any
+	// unless DEPLOYMENT_MODE=local it refuses to boot plaintext, before any
 	// listener binds.
 	if err := ValidateSeamTransportPosture(ctx, cfg, logger); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("seam transport posture: %w", err)

@@ -34,8 +34,8 @@ func (s *HTTPServer) ServerAddress() string {
 	return s.serverAddress
 }
 
-// NewHTTPServer creates an instance of HTTPServer. tlsConfig secures the REST
-// reservation seam in mtls mode (non-nil) or is nil for plaintext (mesh mode).
+// NewHTTPServer creates an instance of HTTPServer. tlsConfig secures the HTTP
+// listener in mtls mode (non-nil) or is nil for plaintext (mesh mode).
 // Returns error instead of panic per Ring standards (no panic outside main.go).
 func NewHTTPServer(cfg *Config, app *fiber.App, tlsConfig *tls.Config, logger libObsLog.Logger, telemetry *libObsOtel.Telemetry) (*HTTPServer, error) {
 	if cfg == nil {

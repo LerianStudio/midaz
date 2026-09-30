@@ -82,7 +82,7 @@ func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUI
 			return s.confirmAlreadyTerminal(ctx, span, logger, reservationID, priorStatus), nil
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to confirm reservation", txErr)
+		handleSettleSpanError(span, "Failed to confirm reservation", txErr)
 
 		return ConfirmOutcome{}, txErr
 	}
@@ -148,7 +148,7 @@ func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUI
 			return nil
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to release reservation", txErr)
+		handleSettleSpanError(span, "Failed to release reservation", txErr)
 
 		return txErr
 	}
@@ -213,14 +213,7 @@ func (s *ReservationService) ConfirmByTransaction(ctx context.Context, transacti
 		return ConfirmOutcome{}, txErr
 	}
 
-	span.SetAttributes(attribute.Int("app.reservation.released_count", outcome.AlreadyReleased))
-
-	logger.With(
-		libLog.String("operation", operation),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.Int("confirmed", outcome.Confirmed),
-		libLog.Int("already_released", outcome.AlreadyReleased),
-	).Log(ctx, libLog.LevelDebug, "Reservations confirmed by transaction")
+	span.SetAttributes(attribute.Int("app.reservation.already_released", outcome.AlreadyReleased))
 
 	if outcome.AlreadyReleased > 0 {
 		s.noteAlreadyReleased(ctx, span, logger, operation, libLog.String("transaction_id", transactionID.String()), outcome.AlreadyReleased)
@@ -237,14 +230,10 @@ func (s *ReservationService) ConfirmByTransaction(ctx context.Context, transacti
 // an idempotent no-op success like ConfirmByTransaction. Does NOT re-resolve
 // limits (R38).
 func (s *ReservationService) ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
-	const operation = "service.reservation.release_by_transaction"
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, operation)
+	ctx, span := tracer.Start(ctx, "service.reservation.release_by_transaction")
 	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
 
 	if transactionID == uuid.Nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing transaction id", ErrNilReservationTransationID)
@@ -276,12 +265,6 @@ func (s *ReservationService) ReleaseByTransaction(ctx context.Context, transacti
 		libOpentelemetry.HandleSpanError(span, "Failed to release reservations by transaction", txErr)
 		return 0, txErr
 	}
-
-	logger.With(
-		libLog.String("operation", operation),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.Int("released", released),
-	).Log(ctx, libLog.LevelDebug, "Reservations released by transaction")
 
 	return released, nil
 }
@@ -369,4 +352,16 @@ func (s *ReservationService) noteAlreadyReleased(
 		resource,
 		libLog.Int("already_released", alreadyReleased),
 	).Log(ctx, libLog.LevelWarn, "Confirm found reservations already released")
+}
+
+// handleSettleSpanError records a failed by-id settle on the span by error
+// class: an unknown reservation is a business outcome the transport maps to
+// NotFound, so the span stays green; anything else is technical.
+func handleSettleSpanError(span trace.Span, msg string, err error) {
+	if errors.Is(err, constant.ErrReservationNotFound) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err)
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, msg, err)
 }

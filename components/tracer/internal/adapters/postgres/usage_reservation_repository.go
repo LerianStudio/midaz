@@ -494,10 +494,7 @@ func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Cont
 		}
 	}
 
-	span.SetAttributes(
-		attribute.Int("db.rows_flipped", len(settled)),
-		attribute.Int("app.reservation.released_count", released),
-	)
+	span.SetAttributes(attribute.Int("db.rows_flipped", len(settled)))
 
 	logger.With(
 		libLog.String("operation", "repository.usage_reservation.confirm_by_transaction"),

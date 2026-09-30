@@ -1051,3 +1051,76 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_CountsRelea
 	assert.Empty(t, flipped)
 	assert.Equal(t, 0, released, "a transaction with no rows counts as 0")
 }
+
+// TestIntegration_UsageReservationRepository_ReleaseByTransaction_OnlyReleasesReserved
+// proves the /cancel-driven release locks and settles RESERVED rows only. The
+// transaction holds one row per state: the EXPIRED row's hold was already
+// returned by the sweep and the CONFIRMED row's spend is already counted, so
+// releasing either would move capacity a second time.
+func TestIntegration_UsageReservationRepository_ReleaseByTransaction_OnlyReleasesReserved(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+	txID := testutil.MustDeterministicUUID(8593)
+	periodKey := "2026-06"
+	amount := decimal.NewFromInt(250)
+	capacity := decimal.NewFromInt(1000)
+
+	reserve := func(seed int64, name string) (*model.Reservation, uuid.UUID) {
+		limitID := createTestLimitNamed(t, db, seed, "by-txn-release-"+name)
+		t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+		scopeKey := "acct:by-txn-release-" + name
+
+		res, err := model.NewReservation(limitID, txID, scopeKey, periodKey, amount, now.Add(5*time.Minute), now)
+		require.NoError(t, err)
+
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			_, err := repo.ReserveWithTx(ctx, tx, res, capacity)
+			return err
+		}))
+
+		return res, limitID
+	}
+
+	expired, expiredLimit := reserve(8594, "expired")
+	confirmed, confirmedLimit := reserve(8595, "confirmed")
+	reserved, reservedLimit := reserve(8596, "reserved")
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReleaseWithTx(ctx, tx, expired.ID, model.StatusExpired)
+	}))
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		_, err := repo.ConfirmWithTx(ctx, tx, confirmed.ID)
+		return err
+	}))
+
+	var flipped []*model.Reservation
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var rErr error
+		flipped, rErr = repo.ReleaseByTransactionWithTx(ctx, tx, txID, model.StatusReleased)
+
+		return rErr
+	}))
+
+	require.Len(t, flipped, 1, "only the RESERVED row is released")
+	assert.Equal(t, reserved.ID, flipped[0].ID)
+
+	assert.Equal(t, string(model.StatusReleased), readReservationStatus(t, db, reserved.ID))
+	assert.Equal(t, string(model.StatusExpired), readReservationStatus(t, db, expired.ID))
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, confirmed.ID))
+
+	current, held := readCounterDecimal(t, db, reservedLimit, reserved.ScopeKey, periodKey)
+	assert.True(t, current.IsZero() && held.IsZero(), "the released hold returns to capacity; got current=%s held=%s", current, held)
+
+	current, held = readCounterDecimal(t, db, expiredLimit, expired.ScopeKey, periodKey)
+	assert.True(t, current.IsZero() && held.IsZero(), "the expired hold is not returned twice; got current=%s held=%s", current, held)
+
+	current, held = readCounterDecimal(t, db, confirmedLimit, confirmed.ScopeKey, periodKey)
+	assert.True(t, amount.Equal(current) && held.IsZero(), "the confirmed spend stays counted; got current=%s held=%s", current, held)
+}

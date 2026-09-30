@@ -14,16 +14,17 @@ import (
 )
 
 const (
-	wantEmptyModeErr = `TRACER_TLS_MODE must be set to "mtls" or "mesh" outside local deployments: the gRPC reservation seam trusts x-tenant-id only from a verified peer`
+	wantEmptyModeErr = `not "local": set TRACER_TLS_MODE to "mtls" or "mesh" (a plaintext seam boots only with DEPLOYMENT_MODE=local): the gRPC reservation seam trusts x-tenant-id only from a verified peer`
+	wantUnsetModeErr = `DEPLOYMENT_MODE is unset, ` + wantEmptyModeErr
 	wantAllowlistErr = `set TRACER_TLS_CLIENT_ALLOWED_NAMES so the gRPC seam accepts only the ledger's client certificate`
 	wantMeshWarn     = "gRPC reservation seam trusts x-tenant-id from the mesh-verified peer: the mesh must enforce STRICT mTLS and restrict the gRPC port to the ledger identity"
 )
 
 // TestValidateSeamTransportPosture locks the boot gate on the gRPC
-// reservation seam's transport: outside local deployments the seam must run
-// behind a verified peer (mtls or mesh), saas additionally pins mtls to a
-// client identity allowlist, and mesh mode always warns that the mesh carries
-// the trust.
+// reservation seam's transport: unless DEPLOYMENT_MODE is explicitly local the
+// seam must run behind a verified peer (mtls or mesh), saas additionally pins
+// mtls to a client identity allowlist, and mesh mode always warns that the
+// mesh carries the trust.
 func TestValidateSeamTransportPosture(t *testing.T) {
 	t.Parallel()
 
@@ -36,13 +37,16 @@ func TestValidateSeamTransportPosture(t *testing.T) {
 		wantMeshWarn   bool
 	}{
 		{name: "local with empty mode boots plaintext", deploymentMode: "local"},
-		{name: "unset deployment mode resolves to local", deploymentMode: ""},
+		{name: "unset deployment mode with empty mode is refused", deploymentMode: "", wantErr: wantUnsetModeErr},
+		{name: "blank deployment mode with empty mode is refused", deploymentMode: "  ", wantErr: wantUnsetModeErr},
+		{name: "unset deployment mode with mesh warns", deploymentMode: "", tlsMode: "mesh", wantMeshWarn: true},
+		{name: "unset deployment mode with mtls boots", deploymentMode: "", tlsMode: "mtls"},
 		{name: "padded mixed-case local is local", deploymentMode: " Local "},
 		{name: "local with mtls and no allowlist boots", deploymentMode: "local", tlsMode: "mtls"},
 		{name: "local with mesh warns", deploymentMode: "local", tlsMode: "mesh", wantMeshWarn: true},
 
 		{name: "saas with empty mode is refused", deploymentMode: "saas", wantErr: wantEmptyModeErr},
-		{name: "byoc with empty mode is refused", deploymentMode: "byoc", wantErr: wantEmptyModeErr},
+		{name: "byoc with empty mode is refused", deploymentMode: "byoc", wantErr: `DEPLOYMENT_MODE="byoc" is ` + wantEmptyModeErr},
 		{name: "undocumented mode with empty mode is refused", deploymentMode: "onprem", wantErr: wantEmptyModeErr},
 		{name: "blank TLS mode is empty", deploymentMode: "byoc", tlsMode: "  ", wantErr: wantEmptyModeErr},
 
@@ -99,4 +103,19 @@ func TestValidateSeamTransportPosture_NilConfig(t *testing.T) {
 	t.Parallel()
 
 	require.Error(t, ValidateSeamTransportPosture(t.Context(), nil, testutil.NewMockLogger()))
+}
+
+// TestInitCoreInfra_RefusesPlaintextSeamWhenDeploymentModeUnset proves the
+// posture gate is wired into boot: with DEPLOYMENT_MODE unset every earlier
+// gate treats the deployment as local, so only the seam posture gate can
+// refuse the empty TRACER_TLS_MODE.
+func TestInitCoreInfra_RefusesPlaintextSeamWhenDeploymentModeUnset(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{LogLevel: "error", TracerGRPCPort: DefaultTracerGRPCPort}
+
+	_, _, _, _, err := initCoreInfra(t.Context(), cfg)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "seam transport posture: "+wantUnsetModeErr)
 }

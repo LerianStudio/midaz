@@ -112,14 +112,6 @@ func TestGRPCServer_Stop_BoundsAHangingRPC(t *testing.T) {
 	}
 }
 
-// TestGRPCServer_StopTimeout_IsBounded locks the fallback shutdown bound used
-// when the caller's context has no deadline.
-func TestGRPCServer_StopTimeout_IsBounded(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, 10*time.Second, grpcStopTimeout)
-}
-
 // startHangingGRPCServer serves a handler that blocks until its RPC is
 // cancelled, issues one call to it, and returns the server plus a channel
 // closed once the call reached the handler.
