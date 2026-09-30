@@ -5,9 +5,14 @@
 package mmodel
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -504,86 +509,76 @@ type BalanceRedis struct {
 	BalanceScope string `json:"balanceScope"`
 }
 
-// UnmarshalJSON is a custom unmarshal function for BalanceRedis
+// UnmarshalJSON decodes a balance cache entry.
+//
+// Keys match case-insensitively, as with the default decoder. An entry can
+// carry the same field twice, as a CamelCase key and as a lowerCamel key: newer
+// releases write both, and an older writer updates only the CamelCase keys of
+// such an entry, leaving the lowerCamel ones stale. The CamelCase key therefore
+// wins whenever both exist; the default decoder would let whichever key comes
+// last in the document win instead.
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
-	type Alias BalanceRedis
-
-	aux := struct {
-		Available     any `json:"available"`
-		OnHold        any `json:"onHold"`
-		OverdraftUsed any `json:"overdraftUsed"`
-		*Alias
-	}{
-		Alias: (*Alias)(b),
-	}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
-	switch v := aux.Available.(type) {
-	case float64:
-		b.Available = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
-		}
+	fields := newBalanceRedisFields(raw)
 
-		b.Available = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
-			}
-
-			b.Available = decimal.NewFromFloat(f)
-		} else {
-			b.Available = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
-		}
-
-		b.Available = decimal.NewFromFloat(f)
+	if err := fields.checkSchemaVersion(); err != nil {
+		return err
 	}
 
-	switch v := aux.OnHold.(type) {
-	case float64:
-		b.OnHold = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
-		}
-
-		b.OnHold = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
+	for _, text := range []struct {
+		name string
+		dst  *string
+	}{
+		{"id", &b.ID},
+		{"alias", &b.Alias},
+		{"key", &b.Key},
+		{"accountId", &b.AccountID},
+		{"assetCode", &b.AssetCode},
+		{"accountType", &b.AccountType},
+		{"direction", &b.Direction},
+		{"overdraftLimit", &b.OverdraftLimit},
+		{"balanceScope", &b.BalanceScope},
+	} {
+		if value := fields.get(text.name); value != nil {
+			if err := json.Unmarshal(value, text.dst); err != nil {
+				return fmt.Errorf("invalid %s field: %w", text.name, err)
 			}
-
-			b.OnHold = decimal.NewFromFloat(f)
-		} else {
-			b.OnHold = decimal.NewFromInt(i)
 		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
-		}
-
-		b.OnHold = decimal.NewFromFloat(f)
 	}
 
-	b.OverdraftUsed = utils.ParseDecimalString(aux.OverdraftUsed, "0")
+	var err error
+
+	if b.Available, err = fields.decimal("available"); err != nil {
+		return err
+	}
+
+	if b.OnHold, err = fields.decimal("onHold"); err != nil {
+		return err
+	}
+
+	if err := fields.version(&b.Version); err != nil {
+		return err
+	}
+
+	for _, flag := range []struct {
+		name string
+		dst  *int
+	}{
+		{"allowSending", &b.AllowSending},
+		{"allowReceiving", &b.AllowReceiving},
+		{"allowOverdraft", &b.AllowOverdraft},
+		{"overdraftLimitEnabled", &b.OverdraftLimitEnabled},
+	} {
+		if err := fields.flag(flag.name, flag.dst); err != nil {
+			return err
+		}
+	}
+
+	b.OverdraftUsed = utils.ParseDecimalString(decodeAny(fields.get("overdraftUsed")), "0")
 
 	if b.OverdraftLimit == "" {
 		b.OverdraftLimit = "0"
@@ -595,6 +590,175 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+// dualShapeSchemaVersion tags a cache entry that carries every field twice:
+// lowerCamel keys with boolean flags and a string version, and CamelCase keys
+// with 0/1 flags and a numeric version. Any other tag is a layout this release
+// cannot interpret.
+const dualShapeSchemaVersion = 2
+
+// balanceRedisFields indexes a cache entry's keys by their lowercase form so a
+// field can be found in any casing.
+type balanceRedisFields map[string][]balanceRedisField
+
+type balanceRedisField struct {
+	key   string
+	value json.RawMessage
+}
+
+func newBalanceRedisFields(raw map[string]json.RawMessage) balanceRedisFields {
+	fields := make(balanceRedisFields, len(raw))
+
+	for key, value := range raw {
+		folded := strings.ToLower(key)
+		fields[folded] = append(fields[folded], balanceRedisField{key: key, value: value})
+	}
+
+	return fields
+}
+
+// get returns the value stored for name in any casing, or nil when absent.
+// Among several casings it prefers a key starting with an upper case letter,
+// then the exact name, then the alphabetically first key.
+func (f balanceRedisFields) get(name string) json.RawMessage {
+	candidates := f[strings.ToLower(name)]
+
+	var chosen *balanceRedisField
+
+	for i := range candidates {
+		if chosen == nil || fieldPrecedes(candidates[i].key, chosen.key, name) {
+			chosen = &candidates[i]
+		}
+	}
+
+	if chosen == nil {
+		return nil
+	}
+
+	return chosen.value
+}
+
+func fieldPrecedes(key, other, name string) bool {
+	if keyCamel, otherCamel := startsUpper(key), startsUpper(other); keyCamel != otherCamel {
+		return keyCamel
+	}
+
+	if keyExact, otherExact := key == name, other == name; keyExact != otherExact {
+		return keyExact
+	}
+
+	return key < other
+}
+
+func startsUpper(key string) bool {
+	first, _ := utf8.DecodeRuneInString(key)
+
+	return unicode.IsUpper(first)
+}
+
+func (f balanceRedisFields) checkSchemaVersion() error {
+	raw := f.get("SchemaVersion")
+	if raw == nil {
+		return nil
+	}
+
+	var version int64
+	if err := json.Unmarshal(raw, &version); err != nil {
+		return fmt.Errorf("invalid balance cache schema version: %w", err)
+	}
+
+	if version != dualShapeSchemaVersion {
+		return fmt.Errorf("unsupported balance cache schema version %d", version)
+	}
+
+	return nil
+}
+
+// decimal reads a required money field given as a JSON number or string.
+func (f balanceRedisFields) decimal(name string) (decimal.Decimal, error) {
+	switch v := decodeAny(f.get(name)).(type) {
+	case float64:
+		return decimal.NewFromFloat(v), nil
+	case string:
+		value, err := decimal.NewFromString(v)
+		if err != nil {
+			return decimal.Zero, fmt.Errorf("err to converter %s field from string to decimal: %w", name, err)
+		}
+
+		return value, nil
+	default:
+		return decimal.Zero, fmt.Errorf("type unsuported to %s: %T", name, v)
+	}
+}
+
+// version reads the balance version as a JSON number or a digit string.
+func (f balanceRedisFields) version(dst *int64) error {
+	raw := f.get("version")
+	if raw == nil {
+		return nil
+	}
+
+	if !isJSONString(raw) {
+		if err := json.Unmarshal(raw, dst); err != nil {
+			return fmt.Errorf("invalid version field: %w", err)
+		}
+
+		return nil
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return fmt.Errorf("invalid version field: %w", err)
+	}
+
+	version, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid version field: %w", err)
+	}
+
+	*dst = version
+
+	return nil
+}
+
+// flag reads a flag given as 0/1 or as a JSON boolean.
+func (f balanceRedisFields) flag(name string, dst *int) error {
+	raw := f.get(name)
+	if raw == nil {
+		return nil
+	}
+
+	var enabled bool
+	if err := json.Unmarshal(raw, &enabled); err == nil {
+		*dst = 0
+		if enabled {
+			*dst = 1
+		}
+
+		return nil
+	}
+
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return fmt.Errorf("invalid %s field: %w", name, err)
+	}
+
+	return nil
+}
+
+func decodeAny(raw json.RawMessage) any {
+	var value any
+	if raw == nil || json.Unmarshal(raw, &value) != nil {
+		return nil
+	}
+
+	return value
+}
+
+func isJSONString(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+
+	return len(trimmed) > 0 && trimmed[0] == '"'
 }
 
 // BalanceErrorResponse represents an error response for balance operations.
