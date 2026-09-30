@@ -30,7 +30,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -116,19 +115,6 @@ type RouteConfig struct {
 	OpenAPIDocsEnabled bool
 }
 
-// reservationPathPrefix is the full mounted prefix of the reservation surface
-// (the /v1 group + the /reservations resource).
-const reservationPathPrefix = "/v1/reservations"
-
-// isReservationPath reports whether the request path targets the reservation
-// service-to-service seam. Used to exempt those routes from the JWT-claim tenant
-// middleware: the seam resolves its tenant from the trusted X-Tenant-Id header
-// instead. Matches both the collection ("/v1/reservations") and its
-// sub-resources ("/v1/reservations/...").
-func isReservationPath(path string) bool {
-	return path == reservationPathPrefix || strings.HasPrefix(path, reservationPathPrefix+"/")
-}
-
 // skipTelemetryPaths lists the request paths excluded from detailed telemetry.
 // Health/readiness/metrics probes generate high-frequency, low-value spans, so
 // they are handed to lib-observability's WithTelemetry as excluded routes. This
@@ -149,9 +135,9 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 //   - MultiTenantEnabled + PgManager + Supervisor are a tri-state per the
 //     guard inside NewRoutes (`MultiTenantEnabled && PgManager != nil`). All
 //     three may be nil in single-tenant mode.
-//   - ReservationService: if nil, the /v1/reservations routes are not mounted.
-//     The two-phase reservation API is additive; a build that has not wired the
-//     reservation service simply does not expose it.
+//
+// The reservation lifecycle (reserve, confirm, release) is not part of this
+// surface: it is served only on the gRPC seam.
 type RoutesDeps struct {
 	Logger                       libLog.Logger
 	Telemetry                    *libOtel.Telemetry
@@ -160,7 +146,6 @@ type RoutesDeps struct {
 	RuleService                  RuleService
 	LimitService                 LimitService
 	ValidationService            ValidationService
-	ReservationService           ReservationService
 	TransactionValidationService TransactionValidationService
 	AuditEventService            AuditEventService
 	DashboardService             DashboardService
@@ -201,7 +186,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	ruleService := deps.RuleService
 	limitService := deps.LimitService
 	validationService := deps.ValidationService
-	reservationService := deps.ReservationService
 	transactionValidationService := deps.TransactionValidationService
 	auditEventService := deps.AuditEventService
 	dashboardService := deps.DashboardService
@@ -307,20 +291,10 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 			tmmiddleware.WithPG(pgManager),
 		)
 
-		// The reservation surface is the service-to-service seam: the ledger
-		// authenticates over mTLS (not a user JWT) and forwards a TRUSTED
-		// X-Tenant-Id header. Those routes resolve their tenant via their own
-		// reservationTenantMiddleware, so the JWT-claim path must NOT gate them
-		// (it would 401 the seam for lacking a Bearer token). Skip the shared
-		// middleware on /v1/reservations* and leave it intact for every other
-		// /v1 user route.
-		api.Use(func(c fiber.Ctx) error {
-			if isReservationPath(c.Path()) {
-				return c.Next()
-			}
-
-			return tenantMW.WithTenantDB(c)
-		})
+		// Every /v1 route is a user route, so the JWT-claim tenant path gates
+		// all of them; the service-to-service seam lives on the gRPC server and
+		// resolves its tenant there.
+		api.Use(tenantMW.WithTenantDB)
 
 		// Second middleware: lazy-spawn per-tenant workers on the first request
 		// that surfaces a tenant. Covers pod restarts where the Pub/Sub
@@ -418,26 +392,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		return nil, fmt.Errorf("failed to create validation handler: %w", err)
 	}
 
-	// Reservation handler + its dedicated tenant middleware are wired ONLY when the
-	// reservation service is present — the API is additive, so a build without it
-	// simply does not expose /v1/reservations. resTenantMW needs pgManager +
-	// multiTenantEnabled (production-only inputs), so it is built here and handed to
-	// the seam; in single-tenant mode the resolver is a no-op. A nil reservation
-	// handler tells the seam to skip the reservation routes entirely.
-	var (
-		reservationHandler *ReservationHandler
-		resTenantMW        fiber.Handler
-	)
-
-	if reservationService != nil {
-		reservationHandler, err = NewReservationHandler(reservationService, clk)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create reservation handler: %w", err)
-		}
-
-		resTenantMW = reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
-	}
-
 	// Single seam that mounts every Huma route (and its pre-Huma Fiber auth chain)
 	// on the shared /v1 group + Huma API. Production (here) and the http/in tests
 	// call the SAME function, so the registered surface is byte-for-byte identical
@@ -449,8 +403,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Limit:                 NewLimitHandler(limitService),
 		TransactionValidation: NewTransactionValidationHandler(transactionValidationService),
 		Validation:            validationHandler,
-		Reservation:           reservationHandler,
-		ResTenantMW:           resTenantMW,
 		AuditEvent:            NewAuditEventHandler(auditEventService),
 		Dashboard:             newDashboardHandlerOrNil(dashboardService, clk),
 	})
@@ -484,13 +436,6 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 // ledger's humaMount closure inputs — a struct instead of captured locals so the
 // http/in tests can hand in zero-value handlers (e.g. &Handler{}) and exercise
 // the exact production registration path without a running server or DB.
-//
-// Zero-value semantics:
-//   - Reservation: if nil, the /v1/reservations routes are not mounted (the API
-//     is additive). ResTenantMW is only consulted when Reservation is non-nil.
-//   - ResTenantMW: the reservation-scoped tenant Fiber middleware, built in
-//     NewRoutes from pgManager+multiTenantEnabled. Tests may pass nil (the
-//     reservation routes are skipped when Reservation is nil anyway).
 type tracerHumaHandlers struct {
 	Guard                 *middleware.AuthGuard
 	APIKeyOnlyValidation  bool
@@ -498,18 +443,16 @@ type tracerHumaHandlers struct {
 	Limit                 *LimitHandler
 	TransactionValidation *TransactionValidationHandler
 	Validation            *ValidationHandler
-	Reservation           *ReservationHandler
-	ResTenantMW           fiber.Handler
 	AuditEvent            *AuditEventHandler
 
 	// Dashboard is the operator dashboard read handler. If nil, the
 	// /v1/dashboard routes are not mounted — the surface is additive, so a
 	// build that has not wired the dashboard service simply does not expose
-	// it, exactly as the reservation surface behaves.
+	// it.
 	Dashboard *DashboardHandler
 }
 
-// registerTracerHumaRoutes mounts all 32 tracer Huma operations on the given
+// registerTracerHumaRoutes mounts all 27 tracer Huma operations on the given
 // Huma API, attaching each op's pre-Huma Fiber auth chain to the SAME /v1 group
 // first. It is the single registration seam shared by production (NewRoutes) and
 // the http/in tests, so the mounted surface is identical without a running
@@ -572,36 +515,6 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 	// The 3rd guard arg is APIKeyOnlyValidation (config-driven), NOT a literal.
 	api.Post("/validations", guard.With("validations", "post", h.APIKeyOnlyValidation))
 	RegisterValidationRoutes(humaAPI, h.Validation)
-
-	// Reservation endpoints (two-phase capacity hold) — Huma. Mounted only when the
-	// reservation handler is wired — the API is additive, so a build without it
-	// simply does not expose /v1/reservations. The "reservations" resource is the
-	// tracer's OWN authz resource string (API-key / Access-Manager guard), not a
-	// ledger plugin namespace.
-	if h.Reservation != nil {
-		// Reservation-scoped tenant resolution: on the mTLS/mesh-verified seam
-		// the ledger forwards a TRUSTED X-Tenant-Id header. resTenantMW (built in
-		// NewRoutes) resolves the per-tenant PG pool from it here, on the
-		// reservation routes ONLY — the shared JWT-claim tenant middleware on the
-		// other /v1 user routes is left intact, and no header-trust path is opened
-		// elsewhere. In single-tenant mode the resolver is a no-op.
-		//
-		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
-		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
-		// authenticates, then c.Next() advances into the Huma handler. The
-		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
-		// param routes so Fiber matches the static "transaction" segment first
-		// (otherwise it binds the literal "transaction" to :id). Ordering and both
-		// middlewares are preserved exactly from the pre-Huma inline routes.
-		resTenantMW := h.ResTenantMW
-
-		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
-		RegisterReservationRoutes(humaAPI, h.Reservation)
-	}
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements) — Huma.
 	api.Get("/audit-events", guard.With("audit-events", "get", false))

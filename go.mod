@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v5 v5.0.1
+	github.com/LerianStudio/lib-auth/v5 v5.1.0
 	github.com/LerianStudio/lib-commons/v7 v7.13.1
 	github.com/LerianStudio/lib-observability/v4 v4.6.1
 	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
@@ -63,7 +63,6 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/sync v0.23.0
-	golang.org/x/text v0.42.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/go-playground/validator.v9 v9.31.0
@@ -201,6 +200,7 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/api v0.298.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260921155816-b14227669459 // indirect

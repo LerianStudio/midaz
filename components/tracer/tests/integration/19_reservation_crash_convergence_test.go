@@ -185,7 +185,8 @@ func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, a
 		resolver,
 		resRepo,
 		audit,
-		nil, // RealClock for reserve/confirm/release timestamps
+		allowRuleEvaluator{}, // these proofs exercise the limit lifecycle only
+		nil,                  // RealClock for reserve/confirm/release timestamps
 	)
 	require.NoError(t, err, "failed to wire reservation service")
 
@@ -235,22 +236,13 @@ func resSpecDec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount
 	}
 }
 
-// resCheckInput is a minimal valid CheckLimitsInput. The stub resolver ignores
+// resCheckInput is a minimal valid reserve request. The stub resolver ignores
 // its contents, but ReservationService.Reserve forwards it and a nil input is
 // rejected, so the proofs pass a well-formed one.
-func resCheckInput(t *testing.T) *model.CheckLimitsInput {
+func resCheckInput(t *testing.T) *model.ValidationRequest {
 	t.Helper()
 
-	input, err := model.NewCheckLimitsInput(
-		decimal.NewFromInt(100),
-		"USD",
-		testutil.MustDeterministicUUID(900001),
-		nil, nil, nil, nil, nil,
-		testutil.TestNow(),
-	)
-	require.NoError(t, err)
-
-	return input
+	return resCheckInputForAccount(t, testutil.MustDeterministicUUID(900001))
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +280,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		// Phase one: reserve. Capacity is held in reserved_usage.
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.False(t, res.Denied)
 		require.Len(t, res.ReservationIDs, 1)
@@ -341,7 +333,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		ctx := context.Background()
 
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 1)
 
@@ -404,11 +396,14 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 				specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, c.amount, 10000)},
 			}, audit)
 
-			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), false)
+			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), services.ReserveOptions{})
 			require.NoError(t, err)
 			require.Len(t, res.ReservationIDs, 1)
 
-			require.NoError(t, svc.Confirm(ctx, res.ReservationIDs[0]))
+			outcome, err := svc.Confirm(ctx, res.ReservationIDs[0])
+			require.NoError(t, err)
+			assert.Equal(t, services.ConfirmOutcome{Confirmed: 1}, outcome)
+
 			confirmedIDs = append(confirmedIDs, res.ReservationIDs[0])
 		}
 
@@ -474,7 +469,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		// One transaction, two reservations, in ONE service call.
-		res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 2, "one reservation per counter-backed limit")
 
@@ -584,7 +579,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 
 				txID := testutil.MustDeterministicUUID(8820 + int64(idx))
 
-				res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
+				res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), services.ReserveOptions{})
 				switch {
 				case err != nil:
 					hardError.Add(1)
@@ -665,7 +660,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 
 					txID := testutil.MustDeterministicUUID(int64(810000 + round*100 + idx))
 
-					res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), false)
+					res, err := svc.Reserve(context.Background(), txID, resCheckInput(t), services.ReserveOptions{})
 					if err == nil && !res.Denied {
 						acceptedSum.Add(amounts[idx])
 
@@ -727,7 +722,7 @@ func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
 
 	ctx := context.Background()
 
-	res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+	res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 	require.NoError(t, err)
 	require.False(t, res.Denied)
 	require.Len(t, res.ReservationIDs, 1)
@@ -736,9 +731,9 @@ func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
 	assert.True(t, current.IsZero(), "reserve must not touch current_usage")
 	assert.True(t, want.Equal(reserved), "reserve must hold the exact fraction, got %s", reserved)
 
-	flipped, err := svc.ConfirmByTransaction(ctx, txID)
+	outcome, err := svc.ConfirmByTransaction(ctx, txID)
 	require.NoError(t, err)
-	assert.Equal(t, 1, flipped)
+	assert.Equal(t, services.ConfirmOutcome{Confirmed: 1}, outcome)
 
 	current, reserved = resReadCounterDecimal(t, db, limitID, scopeKey, periodKey)
 	assert.True(t, want.Equal(current), "confirm must move the exact fraction into current_usage, got %s", current)

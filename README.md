@@ -50,7 +50,7 @@ Both Go units build from the single root module (`github.com/LerianStudio/midaz/
 
 Infrastructure: PostgreSQL 17 (primary/replica), MongoDB replica set, RabbitMQ, Valkey, and Grafana/OpenTelemetry.
 
-The ledger reaches Tracer over an opt-in reservation seam, enabled by setting `TRACER_BASE_URL`. The transport is gRPC by default with a selectable REST fallback (`TRACER_TRANSPORT`), authenticated by mutual TLS (`TRACER_TLS_MODE=mtls`) or delegated to a service-mesh sidecar (`mesh`), forwarding a trusted `x-tenant-id` for per-tenant pool resolution. See [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
+The ledger reaches Tracer over an opt-in reservation seam, enabled by setting `TRACER_BASE_URL` to the seam address. The seam is a gRPC service the tracer always serves on `:4021` (`TRACER_GRPC_PORT`); it is the only way to drive the reservation lifecycle, and the ledger is its only caller. It is authenticated by mutual TLS (`TRACER_TLS_MODE=mtls`, with the accepted client identities pinned by `TRACER_TLS_CLIENT_ALLOWED_NAMES`) or delegated to a service-mesh sidecar (`mesh`), and forwards a trusted `x-tenant-id` metadata key for per-tenant pool resolution. See [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 CRM routes register under the `midaz` authorization namespace; the coordinated tenant-manager RBAC policy migration is the X1 release gate (see [docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)).
 

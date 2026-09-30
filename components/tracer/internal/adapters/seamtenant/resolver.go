@@ -6,18 +6,17 @@
 // service-to-service reservation seam from a TRUSTED tenant id, rather than
 // from a JWT claim.
 //
-// The reservation surface is reachable only over the mTLS/mesh-protected
-// transport (gRPC or REST behind the verified peer). On that connection the
-// ledger is a verified service, so the `x-tenant-id` it forwards is trusted as
-// the tenant key — the verified peer IS the identity. User-facing tracer routes
-// keep their JWT-claim tenant path; this resolver is wired ONLY onto the
-// reservation routes/RPCs, never onto a header-trust path reachable without the
-// verified peer.
+// The reservation surface is reachable only over the mTLS/mesh-protected gRPC
+// seam. On that connection the ledger is a verified service, so the
+// `x-tenant-id` it forwards is trusted as the tenant key — the verified peer IS
+// the identity. User-facing tracer routes keep their JWT-claim tenant path;
+// this resolver is wired ONLY onto the reservation RPCs, never onto a
+// header-trust path reachable without the verified peer.
 package seamtenant
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
@@ -26,17 +25,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// HeaderName is the canonical trusted-tenant header/metadata name. The REST
-// adapter reads it as an HTTP header; the gRPC adapter reads its lower-cased
-// form from incoming metadata (gRPC normalizes metadata keys to lower case).
-// It matches the ledger client's TenantHeader so the wire key cannot drift.
-const HeaderName = "X-Tenant-Id"
-
-// MetadataKey is the gRPC metadata key for the trusted tenant id — the
-// lower-cased HeaderName, since gRPC normalizes metadata keys to lower case.
-// Derived from HeaderName so the two cannot drift, mirroring how the ledger
-// client derives its gRPC key from TenantHeader.
-var MetadataKey = strings.ToLower(HeaderName)
+// MetadataKey is the gRPC metadata key for the trusted tenant id, the key the
+// ledger client appends to every seam RPC. It is lower case because gRPC
+// normalizes metadata keys to lower case.
+const MetadataKey = "x-tenant-id"
 
 // PoolFunc resolves the tenant-scoped PostgreSQL pool for tenantID. It is
 // satisfied in production by a thin wrapper over the lib-commons
@@ -102,8 +94,10 @@ func (r *Resolver) Active() bool {
 //
 // In no-op mode it returns ctx unchanged with a nil error, regardless of whether
 // a tenant key was supplied. Under MT an empty/invalid tenant key yields
-// ErrReservationTenantRequired; a pool-resolution failure is returned so the
-// caller can classify it as technical.
+// ErrReservationTenantRequired. A pool failure the tenant manager reports as a
+// not-provisioned, suspended or purged tenant is wrapped in
+// ErrReservationTenantInactive (the original stays in the chain); any other
+// pool failure is returned unchanged so the caller classifies it as technical.
 func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Context, error) {
 	if !r.Active() {
 		return ctx, nil
@@ -115,6 +109,10 @@ func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Contex
 
 	db, err := r.pool(ctx, tenantID)
 	if err != nil {
+		if isInactiveTenantError(err) {
+			return ctx, fmt.Errorf("%w: %w", constant.ErrReservationTenantInactive, err)
+		}
+
 		return ctx, err
 	}
 
@@ -122,4 +120,13 @@ func (r *Resolver) Resolve(ctx context.Context, tenantID string) (context.Contex
 	ctx = tmcore.ContextWithPG(ctx, db)
 
 	return ctx, nil
+}
+
+// isInactiveTenantError reports whether err is one of the tenant-manager
+// classes that mean the tenant cannot be served: not provisioned, suspended or
+// purged.
+func isInactiveTenantError(err error) bool {
+	return tmcore.IsTenantNotProvisionedError(err) ||
+		tmcore.IsTenantSuspendedError(err) ||
+		tmcore.IsTenantPurgedError(err)
 }

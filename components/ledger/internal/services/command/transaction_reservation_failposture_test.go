@@ -29,29 +29,29 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// F3-T19 — fail-posture PROOFS (Gates 4 and 5). These complement the
+// Fail-posture PROOFS (fail-open and fail-closed). These complement the
 // branch-Kind assertions in transaction_reservation_anchor_test.go with the two
 // behaviors the spec names explicitly:
 //
-//	Gate 4 (fail-open):  enforce + unavailable tracer COMMITS and the SKIPPED
-//	                     decision is recorded. On a timeout the tracer never
-//	                     received the call, so no tracer-side audit row can
-//	                     exist; the ledger's own record of the skip IS the
-//	                     `app.tracer.reservation_skipped=true` span attribute set
-//	                     by handleReserveError. This test captures it with a real
-//	                     recording span (the noop span used elsewhere discards
-//	                     attributes) and proves fail-closed does NOT set it.
-//	Gate 5 (fail-closed): enforce + unavailable tracer REJECTS, and the create
-//	                     seam releases the idempotency key + removes the
-//	                     Redis-queue seed BEFORE — and instead of —
-//	                     ProcessBalanceOperations, so no balance is mutated. The
-//	                     reject-Kind is proven at the helper level; the call-site
-//	                     mechanics (idempotency release + no balance commit) are a
-//	                     structural guarantee asserted directly over the live
-//	                     executeCreateTransaction source AST, mirroring the
-//	                     fee-seam structural gate. A "bites" fixture proves the
-//	                     gate fails if the release is dropped or the reject falls
-//	                     through to the balance commit.
+//	Fail-open:   enforce + unavailable tracer COMMITS and the SKIPPED
+//	             decision is recorded. On a timeout the tracer never
+//	             received the call, so no tracer-side audit row can
+//	             exist; the ledger's own record of the skip IS the
+//	             `app.tracer.reservation_skipped=true` span attribute set
+//	             by handleReserveError. This test captures it with a real
+//	             recording span (the noop span used elsewhere discards
+//	             attributes) and proves fail-closed does NOT set it.
+//	Fail-closed: enforce + unavailable tracer REJECTS, and the create
+//	             seam releases the idempotency key + removes the
+//	             Redis-queue seed BEFORE — and instead of —
+//	             ProcessBalanceOperations, so no balance is mutated. The
+//	             reject-Kind is proven at the helper level; the call-site
+//	             mechanics (idempotency release + no balance commit) are a
+//	             structural guarantee asserted directly over the live
+//	             executeCreateTransaction source AST, mirroring the
+//	             fee-seam structural gate. A "bites" fixture proves the
+//	             gate fails if the release is dropped or the reject falls
+//	             through to the balance commit.
 
 // recordingSpan returns a ctx, the real SDK span the helper writes into, and an
 // `ended` closure that ends the span and returns the recorded spans. Unlike
@@ -87,7 +87,7 @@ func spanHasSkippedMarker(spans []sdktrace.ReadOnlySpan) bool {
 	return false
 }
 
-// TestTracerFailOpenSkipped — Gate 4. enforce + unavailable tracer proceeds
+// TestTracerFailOpenSkipped — fail-open proof. enforce + unavailable tracer proceeds
 // (COMMITS) and records the SKIPPED decision on the span.
 func TestTracerFailOpenSkipped(t *testing.T) {
 	ctx, span, ended := recordingSpan(t)
@@ -98,7 +98,7 @@ func TestTracerFailOpenSkipped(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must COMMIT (proceed) when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs, "no reservation is held when the reserve call never succeeded")
@@ -109,7 +109,7 @@ func TestTracerFailOpenSkipped(t *testing.T) {
 
 // TestTracerFailClosedDoesNotMarkSkipped is the discriminator: fail-closed
 // rejects rather than skips, so it must NOT set the SKIPPED marker — otherwise
-// the Gate-4 assertion above would pass vacuously.
+// the fail-open assertion above would pass vacuously.
 func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 	ctx, span, ended := recordingSpan(t)
 
@@ -119,7 +119,7 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	require.Equal(t, reservationReject, out.Kind)
 
@@ -131,11 +131,36 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 		"fail-closed rejects; it must NOT record the SKIPPED marker")
 }
 
-// ---- Gate 5 (fail-closed): structural proof of the call-site mechanics --------
+// TestTracerRejectionBypassesFailPosture: a tracer that answered and refused the
+// request is not unavailable, so the fail-open escape must not let an enforce
+// ledger commit unchecked. The refusal rejects with its own 422 and records no
+// SKIPPED marker.
+func TestTracerRejectionBypassesFailPosture(t *testing.T) {
+	ctx, span, ended := recordingSpan(t)
+
+	logger := &libLog.NopLogger{}
+	reserver := &stubReserver{reserveErr: fmt.Errorf("%w: invalid asset", tracer.ErrTracerRejected)}
+	uc := &UseCase{TracerReserver: reserver}
+
+	out := uc.reserveTransaction(ctx, span, logger,
+		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+
+	require.Equal(t, reservationReject, out.Kind, "fail-open must not swallow a tracer refusal")
+
+	var unprocessable pkg.UnprocessableOperationError
+	require.ErrorAs(t, out.Err, &unprocessable)
+	assert.Equal(t, constant.ErrTransactionReservationRejected.Error(), unprocessable.Code)
+
+	assert.False(t, spanHasSkippedMarker(ended()),
+		"a refusal must not be recorded as a skipped reservation")
+}
+
+// ---- Fail-closed: structural proof of the call-site mechanics --------
 
 const createEngineSeamFuncName = "executeCreateEngine"
 
-// failClosedSeamMetrics captures the statement-list ordering facts the Gate-5
+// failClosedSeamMetrics captures the statement-list ordering facts the fail-closed
 // structural assertion relies on, all within CreateTransactionV2.
 type failClosedSeamMetrics struct {
 	reservePos          int  // index of the reserveTransaction call (-1 if absent)
@@ -247,7 +272,7 @@ func blockEndsInReturn(block *ast.BlockStmt) bool {
 	return ok
 }
 
-// TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit — Gate 5.
+// TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit — fail-closed proof.
 // The fail-closed reject (proven at the helper in
 // TestReserveTransaction_FailClosed_Rejects and
 // TestTracerFailClosedDoesNotMarkSkipped) must, at the call site, release the
@@ -272,7 +297,7 @@ func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *test
 		"fail-closed reject branch must return — it must NOT fall through to ProcessBalanceOperations")
 }
 
-// TestTracerFailClosedSeam_Bites proves the Gate-5 analyzer actually fails on a
+// TestTracerFailClosedSeam_Bites proves the fail-closed analyzer actually fails on a
 // reject branch that drops the rollback or falls through to the balance commit — a
 // gate that cannot bite is not a guard.
 func TestTracerFailClosedSeam_Bites(t *testing.T) {
@@ -292,15 +317,15 @@ func (uc *UseCase) executeCreateEngine() error {
 	m := analyzeFailClosedSeam(t, leaky)
 
 	if m.reservePos == -1 || m.executeEnginePos == -1 {
-		t.Fatalf("Gate 5 fixture sanity: missing positions reserve=%d executeEngine=%d", m.reservePos, m.executeEnginePos)
+		t.Fatalf("fail-closed fixture sanity: missing positions reserve=%d executeEngine=%d", m.reservePos, m.executeEnginePos)
 	}
 
 	if m.rejectRollbackClaim {
-		t.Error("Gate 5 failed to bite: a reject branch with no rollbackCreateClaim was reported as rolling back")
+		t.Error("fail-closed gate failed to bite: a reject branch with no rollbackCreateClaim was reported as rolling back")
 	}
 
 	if m.rejectReturnsBefore {
-		t.Error("Gate 5 failed to bite: a reject branch with no return was reported as returning before the balance commit")
+		t.Error("fail-closed gate failed to bite: a reject branch with no return was reported as returning before the balance commit")
 	}
 
 	// Fixture 2: the canonical, correct shape must pass both reject facts.
@@ -318,11 +343,11 @@ func (uc *UseCase) executeCreateEngine() error {
 
 	mc := analyzeFailClosedSeam(t, correct)
 	if !(mc.rejectRollbackClaim && mc.rejectReturnsBefore) {
-		t.Errorf("Gate 5 fixture sanity: the correct shape was not fully recognized: rollback=%v returns=%v",
+		t.Errorf("fail-closed fixture sanity: the correct shape was not fully recognized: rollback=%v returns=%v",
 			mc.rejectRollbackClaim, mc.rejectReturnsBefore)
 	}
 
 	if !(mc.reservePos < mc.executeEnginePos) {
-		t.Error("Gate 5 fixture sanity: reserve should precede the balance commit in the correct shape")
+		t.Error("fail-closed fixture sanity: reserve should precede the balance commit in the correct shape")
 	}
 }

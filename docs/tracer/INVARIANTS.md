@@ -53,14 +53,82 @@ Rules evaluate against the complete transaction context. Available variables:
 transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
 subType               // String: "debit", "credit", "instant", etc.
 amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
-currency              // String (ISO 4217)
+asset                 // String: asset code, 1 to 100 uppercase Unicode letters ("USD", "BTC", a points code)
 transactionTimestamp  // int64 Unix timestamp in nanoseconds
-account               // Map: account["id"], account["type"], account["status"]
-segment               // Map: segment["id"] (optional)
-portfolio             // Map: portfolio["id"] (optional)
-merchant              // Map: merchant["id"], merchant["name"], merchant["category"] (optional)
-metadata              // Map of custom fields
+account               // Map: account["accountId"], account["type"], account["status"], account["metadata"]
+segment               // Map: segment["segmentId"], segment["name"], segment["metadata"] (empty map when absent)
+portfolio             // Map: portfolio["portfolioId"], portfolio["name"], portfolio["metadata"] (empty map when absent)
+merchant              // Map: merchant["merchantId"], merchant["name"], merchant["category"], merchant["country"] (empty map when absent)
+metadata              // Map of custom fields (empty map when absent)
 ```
+
+`asset` follows the Midaz ledger's asset code grammar exactly: every rune an uppercase Unicode
+letter, at most 100 runes. No ISO 4217 list is applied, so any asset the ledger accepts is
+accepted here, on limits and on reserve alike.
+
+`account["type"]` and `account["status"]` are the caller's own vocabulary, compared verbatim with
+no case normalization (the Midaz ledger sends its free-form account type, e.g. `"deposit"`).
+
+### Reserve context
+
+The reserve path is the `Reserve` RPC of the gRPC reservation seam
+(`lerian.midaz.reservation.v1.ReservationService`, `TRACER_GRPC_PORT`, default `:4021`), which the
+ledger calls for its `/v2` transactions; the HTTP API has no reservation route. It evaluates the
+same rules with the same evaluator as `POST /v1/validations`, BEFORE any limit is resolved. The
+response carries `decision`, `reason` and `matched_rule_ids` beside `denied`, which stays `true` for both `DENY` and
+`REVIEW`. Three rules differ from `POST /v1/validations`:
+
+- **Only a matched rule refuses.** A matched rule's `DENY` or `REVIEW` refuses the reserve with no
+  limit counter touched. When no rule matches, `DEFAULT_DECISION_WHEN_NO_MATCH` is ignored and the
+  reserve goes on to the limits, exactly as an `ALLOW` does.
+- **A rule evaluation error is a refusal.** When a rule cannot be evaluated for the transaction —
+  a syntax or compile error, a program build error, a cost-estimation failure, or a CEL runtime
+  error such as comparing a string metadata value with a number — the reserve is refused with
+  `decision=REVIEW` and `reason=rule_evaluation_error`, and no limit counter is touched.
+  Infrastructure failures (database, cache) stay errors. Two conditions answer Unavailable
+  instead of evaluating: a tenant whose rule cache is not loaded yet, and a tenant that reached
+  its per-tenant worker cap on the reservation seam (gRPC `Unavailable` with code `0445`). The ledger treats both as an unavailable tracer and routes
+  them through its `failPosture`.
+- **A revert skips the rules.** A reserve with `revert=true` evaluates no rule and still reserves
+  its limits: limits measure gross activity, and a rule that could refuse a revert would leave an
+  applied movement impossible to correct.
+
+A reserve from the ledger fills only part of the context, so rules meant for ledger traffic must
+be written against these variables:
+
+- `amount`, `asset` and `transactionTimestamp` — the fee-inclusive amount, its asset and the
+  transaction date.
+- `account["accountId"]` and `account["type"]` — the first internal source account. Without an
+  internal source the id is the nil UUID and the type is empty.
+- `metadata` — the transaction metadata the ledger forwards: keys matching `^[a-zA-Z0-9_]+$` of
+  at most 64 characters, at most 50 entries, and every value a STRING (the ledger renders numbers
+  and booleans as strings, so compare `metadata["tier"] == "1"`, not `== 1`).
+- `transactionType` and `subType` are empty strings, `account["status"]` is empty, and
+  `account["metadata"]`, `segment`, `portfolio` and `merchant` are empty maps.
+
+On reserve the transaction timestamp is only checked for being in the future; the maximum-age
+window applies to `POST /v1/validations` alone.
+
+### Reservation state machine
+
+A reservation row is `RESERVED`, then settles once into `CONFIRMED`, `RELEASED` or `EXPIRED`
+(the TTL reaper). The seam holds these rules:
+
+- **A reserve never reopens a settled row.** A reserve replayed onto a transaction whose row is
+  still `RESERVED` adopts that row and moves no counter twice. A replay onto a row in any other
+  status answers gRPC `FailedPrecondition` with `0533` (`ErrReservationAlreadySettled`) and moves
+  no counter.
+- **A confirm reports what it found.** `ConfirmByTransaction` returns `confirmed` (rows it moved
+  to `CONFIRMED` from `RESERVED` or `EXPIRED`) and `already_released` (rows already `RELEASED`,
+  whose spend is never counted); `ConfirmById` returns `already_released`. A confirm on an
+  `EXPIRED` row counts the spend without disturbing the capacity the reaper already returned.
+- **The tenant must be active.** Under multi-tenant mode the tenant comes from the trusted
+  `x-tenant-id` gRPC metadata key; a tenant that is not provisioned, suspended or purged answers
+  gRPC `Unavailable` with `0534` (`ErrReservationTenantInactive`) and never falls back to another
+  pool.
+- **Every settling confirm and release is audited.** Each writes a `RESERVATION_CONFIRMED` /
+  `RESERVATION_RELEASED` audit event in the same database transaction as the row flip, readable
+  through `GET /v1/audit-events`.
 
 ### `amount` precision (MANDATORY caveat)
 
@@ -238,3 +306,13 @@ Kubernetes `ClusterIP` Service, NetworkPolicy, or equivalent firewall — never 
 public ingress. Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`.
 Everything else requires auth (API Key `X-API-Key` with constant-time comparison, plus the
 Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`).
+
+The gRPC reservation seam (`:4021`) carries no token and no role: its caller identity is the
+transport. Under `TRACER_TLS_MODE=mtls` the listener requires a client certificate signed by
+`TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate without SANs, Subject CN)
+matches `TRACER_TLS_CLIENT_ALLOWED_NAMES` (an empty allowlist accepts any CA-signed certificate:
+refused boot under `DEPLOYMENT_MODE=saas`, a boot warning elsewhere); under `mesh` a service-mesh
+sidecar owns mTLS and must admit only the ledger. An empty `TRACER_TLS_MODE` boots only with an
+explicit `DEPLOYMENT_MODE=local`; an unset `DEPLOYMENT_MODE` refuses boot. The allowlist is never
+applied to the HTTP listener. Do not add a reservation route to the HTTP API: the reservation
+lifecycle has one caller, the ledger, and one surface.

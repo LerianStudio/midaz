@@ -481,7 +481,7 @@ func TestValidation_MissingAsset_ReturnsError(t *testing.T) {
 }
 
 // TestValidation_InvalidAsset_ReturnsError verifies that invalid asset code returns an error.
-// 0417: asset must be valid ISO 4217 code (e.g., BRL, USD)
+// 0417: asset must be 1 to 100 uppercase letters (e.g., BRL, BTC, POINTS)
 func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -497,14 +497,14 @@ func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 			description: "Lowercase asset code",
 		},
 		{
-			name:        "invalid_length_4_chars",
-			asset:       "USDD",
-			description: "Asset code with 4 characters",
+			name:        "longer_than_100_letters",
+			asset:       strings.Repeat("A", 101),
+			description: "Asset code with 101 letters",
 		},
 		{
-			name:        "invalid_length_2_chars",
-			asset:       "US",
-			description: "Asset code with 2 characters",
+			name:        "letters_and_digit",
+			asset:       "BR1",
+			description: "Asset code with a digit",
 		},
 		{
 			name:        "numeric_asset",
@@ -512,9 +512,9 @@ func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 			description: "Numeric asset code",
 		},
 		{
-			name:        "invalid_but_formatted",
-			asset:       "XYZ",
-			description: "Properly formatted but invalid ISO 4217 code",
+			name:        "punctuation",
+			asset:       "US-D",
+			description: "Asset code with punctuation",
 		},
 	}
 
@@ -550,10 +550,10 @@ func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// 0417 (ErrValidationInvalidCurrency): asset must be valid ISO 4217 code (e.g., BRL, USD)
+			// 0417 (ErrValidationInvalidCurrency): asset must be 1 to 100 uppercase letters
 			assert.Equal(t, "0417", errResp.Code, "Test case: %s - Expected 0417 for invalid asset", tc.description)
 			assert.Equal(t, "Validation Invalid Asset", errResp.Title)
-			assert.Equal(t, "Asset must be valid ISO 4217.", errResp.Detail)
+			assert.Equal(t, "Asset must be 1 to 100 uppercase letters.", errResp.Detail)
 		})
 	}
 }
@@ -1092,7 +1092,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 // 0414: ErrValidationInvalidTransactionType - transactionType invalid
 // 0415: ErrValidationAmountNonPositive - amount must be positive
 // 0416: ErrValidationCurrencyRequired - asset is required
-// 0417: ErrValidationInvalidCurrency - asset invalid ISO 4217
+// 0417: ErrValidationInvalidCurrency - asset is not 1 to 100 uppercase letters
 // 0418: ErrValidationTimestampRequired - transactionTimestamp is required
 // 0419: ErrValidationTimestampFuture - transactionTimestamp in future
 // 0420: ErrValidationAccountRequired - account is required

@@ -12,6 +12,7 @@ package reservationv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -34,13 +35,12 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// ReservationService is the tracer's two-phase reservation seam: reserve, then
+// the per-id and by-transaction confirm/release transitions. It is the only
+// surface that drives the reservation lifecycle, and the ledger is its only
+// caller. Identity on this seam is mutual TLS (or the service mesh); the tenant
+// is propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key
+// (never a message field).
 type ReservationServiceClient interface {
 	// Reserve holds limit capacity for a transaction (phase one). A denied
 	// decision is a successful response with denied=true and empty
@@ -118,13 +118,12 @@ func (c *reservationServiceClient) ReleaseById(ctx context.Context, in *ReleaseB
 // All implementations must embed UnimplementedReservationServiceServer
 // for forward compatibility.
 //
-// ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// ReservationService is the tracer's two-phase reservation seam: reserve, then
+// the per-id and by-transaction confirm/release transitions. It is the only
+// surface that drives the reservation lifecycle, and the ledger is its only
+// caller. Identity on this seam is mutual TLS (or the service mesh); the tenant
+// is propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key
+// (never a message field).
 type ReservationServiceServer interface {
 	// Reserve holds limit capacity for a transaction (phase one). A denied
 	// decision is a successful response with denied=true and empty
@@ -151,15 +150,19 @@ type UnimplementedReservationServiceServer struct{}
 func (UnimplementedReservationServiceServer) Reserve(context.Context, *ReserveRequest) (*ReserveResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reserve not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmByTransaction not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ReleaseByTransaction(context.Context, *ReleaseByTransactionRequest) (*ReleaseByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseByTransaction not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ConfirmById(context.Context, *ConfirmByIdRequest) (*ConfirmByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmById not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseById not implemented")
 }

@@ -273,18 +273,34 @@ func TestValidateOptionalFields_AccountType(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Error - invalid account type", func(t *testing.T) {
+	t.Run("Success - free-form ledger account type", func(t *testing.T) {
 		req := createValidRequest()
-		req.Account.Type = "investment"
+		req.Account.Type = "deposit"
 
 		err := req.validateOptionalFields()
-		require.Error(t, err)
-		assert.ErrorIs(t, err, constant.ErrValidationInvalidAccountType)
+		assert.NoError(t, err)
 	})
 
-	t.Run("Error - uppercase account type (case sensitive)", func(t *testing.T) {
+	t.Run("Success - account type kept verbatim (no case normalization)", func(t *testing.T) {
 		req := createValidRequest()
 		req.Account.Type = "CHECKING"
+
+		err := req.validateOptionalFields()
+		assert.NoError(t, err)
+		assert.Equal(t, "CHECKING", req.Account.Type)
+	})
+
+	t.Run("Success - account type at the 256-rune limit", func(t *testing.T) {
+		req := createValidRequest()
+		req.Account.Type = strings.Repeat("ç", MaxAccountTypeLength)
+
+		err := req.validateOptionalFields()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Error - account type longer than 256 runes", func(t *testing.T) {
+		req := createValidRequest()
+		req.Account.Type = strings.Repeat("a", MaxAccountTypeLength+1)
 
 		err := req.validateOptionalFields()
 		require.Error(t, err)
@@ -340,18 +356,34 @@ func TestValidateOptionalFields_AccountStatus(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Error - invalid account status", func(t *testing.T) {
+	t.Run("Success - ledger account status ACTIVE", func(t *testing.T) {
+		req := createValidRequest()
+		req.Account.Status = "ACTIVE"
+
+		err := req.validateOptionalFields()
+		assert.NoError(t, err)
+		assert.Equal(t, "ACTIVE", req.Account.Status)
+	})
+
+	t.Run("Success - free-form account status", func(t *testing.T) {
 		req := createValidRequest()
 		req.Account.Status = "pending"
 
 		err := req.validateOptionalFields()
-		require.Error(t, err)
-		assert.ErrorIs(t, err, constant.ErrValidationInvalidAccountStatus)
+		assert.NoError(t, err)
 	})
 
-	t.Run("Error - uppercase account status (case sensitive)", func(t *testing.T) {
+	t.Run("Success - account status at the 50-rune limit", func(t *testing.T) {
 		req := createValidRequest()
-		req.Account.Status = "ACTIVE"
+		req.Account.Status = strings.Repeat("ç", MaxAccountStatusLength)
+
+		err := req.validateOptionalFields()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Error - account status longer than 50 runes", func(t *testing.T) {
+		req := createValidRequest()
+		req.Account.Status = strings.Repeat("A", MaxAccountStatusLength+1)
 
 		err := req.validateOptionalFields()
 		require.Error(t, err)

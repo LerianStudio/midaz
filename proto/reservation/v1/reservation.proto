@@ -8,13 +8,12 @@ package lerian.midaz.reservation.v1;
 
 option go_package = "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1;reservationv1";
 
-// ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// ReservationService is the tracer's two-phase reservation seam: reserve, then
+// the per-id and by-transaction confirm/release transitions. It is the only
+// surface that drives the reservation lifecycle, and the ledger is its only
+// caller. Identity on this seam is mutual TLS (or the service mesh); the tenant
+// is propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key
+// (never a message field).
 service ReservationService {
   // Reserve holds limit capacity for a transaction (phase one). A denied
   // decision is a successful response with denied=true and empty
@@ -34,12 +33,14 @@ service ReservationService {
   rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
 }
 
-// ReserveAccount is the account scope the tracer matches limits against. It
-// mirrors the ledger-side ReserveAccount: only the account id is carried; an
-// empty value parses to the nil UUID, which the relaxed reserve validation
-// accepts (external-only source).
+// ReserveAccount is the account scope the tracer matches limits and rules
+// against. It mirrors the ledger-side ReserveAccount. An empty account_id parses
+// to the nil UUID, which the relaxed reserve validation accepts (external-only
+// source).
 message ReserveAccount {
   string account_id = 1;
+  // type is the caller's account type, free-form (ledger Account.Type). Optional.
+  string type = 2;
 }
 
 // ReserveRequest is the gRPC form of the reserve body. It mirrors the ledger's
@@ -57,22 +58,37 @@ message ReserveRequest {
   string merchant_id = 8;
   // transaction_type is optional on reserve; the ledger leaves it empty.
   string transaction_type = 9;
-  // transaction_timestamp is RFC3339; the tracer enforces a not-future /
-  // not-too-far-past window against its injected clock.
+  // transaction_timestamp is RFC3339; the tracer rejects a future timestamp
+  // against its injected clock.
   string transaction_timestamp = 10;
   // long_lived hints the tracer to assign a long-lived reservation lifetime to
   // a PENDING-transaction reservation.
   bool long_lived = 11;
+  // metadata is the caller's flat transaction metadata. Keys ^[a-zA-Z0-9_]+$,
+  // <=64 chars, <=50 entries. Optional.
+  map<string, string> metadata = 12;
+  // revert marks the reservation as the revert of an applied transaction. The
+  // tracer skips rule evaluation for it and still reserves limit capacity.
+  bool revert = 13;
 }
 
 // ReserveResult is the handle returned by a successful reserve. denied is the
-// limit-exceeded decision (no capacity held, reservation_ids empty). Otherwise
-// reservation_ids holds one id per counter-backed limit the ledger must later
-// confirm or release.
+// refusal flag every client reads: when true no capacity is held and
+// reservation_ids is empty. Otherwise reservation_ids holds one id per
+// counter-backed limit the ledger must later confirm or release. decision
+// refines denied without replacing it, so a client that ignores decision keeps
+// its behavior.
 message ReserveResult {
   string transaction_id = 1;
   bool denied = 2;
   repeated string reservation_ids = 3;
+  // decision is ALLOW, DENY or REVIEW. denied is true for DENY and REVIEW.
+  string decision = 4;
+  // reason is a short machine/human hint: "limit_exceeded" or the rule
+  // evaluator's reason. Empty on ALLOW.
+  string reason = 5;
+  // matched_rule_ids lists the rules that produced a DENY or REVIEW decision.
+  repeated string matched_rule_ids = 6;
 }
 
 // ConfirmByTransactionRequest commits every reservation held by a transaction.
@@ -95,19 +111,27 @@ message ReleaseByIdRequest {
   string reservation_id = 1;
 }
 
-// The confirm/release transitions are idempotent and the REST seam returns a
-// 200 with no meaningful body. Each transition gets its own empty-but-extensible
-// response message (buf forbids sharing a response type across RPCs) so a future
-// flip count can be added per transition without a contract break.
+// The confirm/release transitions are idempotent. Each transition owns its
+// response message (buf forbids sharing a response type across RPCs): the
+// confirm responses report what the call found, the release responses stay
+// empty.
 
 // ConfirmByTransactionResponse is the response to ConfirmByTransaction.
-message ConfirmByTransactionResponse {}
+message ConfirmByTransactionResponse {
+  // Rows this call moved to CONFIRMED (RESERVED or EXPIRED before the call).
+  uint32 confirmed = 1;
+  // Rows of the transaction that were already RELEASED: spend that will never be counted.
+  uint32 already_released = 2;
+}
 
 // ReleaseByTransactionResponse is the response to ReleaseByTransaction.
 message ReleaseByTransactionResponse {}
 
 // ConfirmByIdResponse is the response to ConfirmById.
-message ConfirmByIdResponse {}
+message ConfirmByIdResponse {
+  // True when the row was already RELEASED, so the confirm settled nothing.
+  bool already_released = 1;
+}
 
 // ReleaseByIdResponse is the response to ReleaseById.
 message ReleaseByIdResponse {}

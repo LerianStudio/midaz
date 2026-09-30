@@ -12,10 +12,13 @@ import (
 	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 )
 
 // reservationRetryComponent scopes the retrier's panic-observability signals
@@ -173,7 +176,7 @@ func (uc *UseCase) scheduleReservationRetry(ctx context.Context, logger libLog.L
 		return
 	}
 
-	sharedReservationRetrier.schedule(ctx, uc.TracerReserver, logger, transition, cause)
+	sharedReservationRetrier.schedule(ctx, uc.TracerReserver, uc.MetricsFactory, logger, transition, cause)
 }
 
 // schedule starts a retry sequence for one transition, or reports it as
@@ -185,7 +188,14 @@ func (uc *UseCase) scheduleReservationRetry(ctx context.Context, logger libLog.L
 // Detaching keeps the values the transport needs — the tenant the tracer client
 // reads off the context, and the trace correlation — while dropping only the
 // cancellation.
-func (r *reservationRetrier) schedule(ctx context.Context, reserver TracerReserver, logger libLog.Logger, transition reservationTransition, cause error) {
+func (r *reservationRetrier) schedule(
+	ctx context.Context,
+	reserver TracerReserver,
+	factory *metrics.MetricsFactory,
+	logger libLog.Logger,
+	transition reservationTransition,
+	cause error,
+) {
 	select {
 	case r.slots <- struct{}{}:
 	default:
@@ -216,17 +226,25 @@ func (r *reservationRetrier) schedule(ctx context.Context, reserver TracerReserv
 			c, cancel := context.WithTimeout(c, r.policy.Budget)
 			defer cancel()
 
-			r.run(c, reserver, logger, transition, cause)
+			r.run(c, reserver, factory, logger, transition, cause)
 		})
 }
 
 // run is the retry sequence for one transition. It returns as soon as the
 // tracer accepts the transition, and otherwise keeps trying until the attempt
-// count or the wall-clock budget runs out.
-func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, logger libLog.Logger, transition reservationTransition, cause error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// count or the wall-clock budget runs out. A delivered confirm that found
+// released reservations is flagged the same way the inline attempt flags it.
+func (r *reservationRetrier) run(
+	ctx context.Context,
+	reserver TracerReserver,
+	factory *metrics.MetricsFactory,
+	logger libLog.Logger,
+	transition reservationTransition,
+	cause error,
+) {
+	_, retryTracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.reservation_retry")
+	ctx, span := retryTracer.Start(ctx, "command.reservation_retry")
 	defer span.End()
 
 	span.SetAttributes(
@@ -244,7 +262,7 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 			return
 		}
 
-		err := r.deliver(ctx, reserver, transition)
+		outcome, err := r.deliver(ctx, reserver, transition)
 		if err == nil {
 			span.SetAttributes(attribute.Int("app.reservation.retry_attempts", attempt))
 
@@ -256,6 +274,8 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 				append(transition.logFields(),
 					libLog.Int("attempts", attempt),
 					libLog.String("elapsed", time.Since(started).String())))
+
+			recordReservationConfirmOutcome(ctx, span, factory, logger, transition, outcome)
 
 			return
 		}
@@ -269,18 +289,19 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 // deliver makes one attempt, choosing the address the transition carries. Both
 // forms are idempotent on the tracer's side, which is what makes retrying safe:
 // a confirm only settles a reservation still in a settleable state, so a repeat
-// after a response the ledger never saw moves no counter a second time.
-func (r *reservationRetrier) deliver(ctx context.Context, reserver TracerReserver, transition reservationTransition) error {
+// after a response the ledger never saw moves no counter a second time. A
+// release reports the zero outcome.
+func (r *reservationRetrier) deliver(ctx context.Context, reserver TracerReserver, transition reservationTransition) (tracer.ConfirmOutcome, error) {
 	if transition.byTransaction() {
 		if transition.Action == reservationActionRelease {
-			return reserver.ReleaseByTransaction(ctx, transition.TransactionID)
+			return tracer.ConfirmOutcome{}, reserver.ReleaseByTransaction(ctx, transition.TransactionID)
 		}
 
 		return reserver.ConfirmByTransaction(ctx, transition.TransactionID)
 	}
 
 	if transition.Action == reservationActionRelease {
-		return reserver.Release(ctx, transition.ReservationID)
+		return tracer.ConfirmOutcome{}, reserver.Release(ctx, transition.ReservationID)
 	}
 
 	return reserver.Confirm(ctx, transition.ReservationID)

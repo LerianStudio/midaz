@@ -185,9 +185,9 @@ func (s *Service) launcherApps() []launcherApp {
 		})
 	}
 
-	// Tracer reservation client: register only when the active transport
-	// exposes a close hook. The REST client needs no teardown and leaves
-	// TracerClose nil, so the Launcher app list stays lean.
+	// Tracer reservation client: register only when the reserver exposes a
+	// close hook. With the integration off TracerClose stays nil, so the
+	// Launcher app list stays lean.
 	if s.TracerClose != nil {
 		apps = append(apps, launcherApp{
 			"Tracer Reservation Client",

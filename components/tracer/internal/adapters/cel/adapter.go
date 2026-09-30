@@ -285,7 +285,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *model.ValidationRequest) (bool, error) {
 	start := time.Now()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()

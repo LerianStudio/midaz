@@ -611,6 +611,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrTransactionReservationReview: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationReview.Error(),
+			Title:      "Transaction Reservation Review Error",
+			Message:    "The transaction was flagged for review by a transaction validation rule, or a rule could not be evaluated for it, and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.",
+		},
+		constant.ErrTransactionReservationRejected: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationRejected.Error(),
+			Title:      "Transaction Reservation Rejected Error",
+			Message:    "The usage-limit service rejected the reservation request for this transaction. Verify that the asset, account type and transaction date are accepted by the tracer configuration.",
+		},
 		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
@@ -2475,7 +2487,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
 			Title:      "Limit Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset must be 1 to 100 uppercase letters.",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,
@@ -2673,7 +2685,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidCurrency.Error(),
 			Title:      "Check Limits Invalid Asset",
-			Message:    "Check limits asset must be valid ISO 4217.",
+			Message:    "Check limits asset must be 1 to 100 uppercase letters.",
 		},
 		constant.ErrCheckLimitsUnknownLimitType: ValidationError{
 			EntityType: entityType,
@@ -2775,7 +2787,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidCurrency.Error(),
 			Title:      "Validation Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset must be 1 to 100 uppercase letters.",
 		},
 		constant.ErrValidationTimestampRequired: ValidationError{
 			EntityType: entityType,
@@ -2829,13 +2841,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidAccountType.Error(),
 			Title:      "Validation Invalid Account Type",
-			Message:    "Account.type must be checking, savings, or credit.",
+			Message:    "Account.type must be at most 256 characters.",
 		},
 		constant.ErrValidationInvalidAccountStatus: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidAccountStatus.Error(),
 			Title:      "Validation Invalid Account Status",
-			Message:    "Account.status must be active, suspended, or closed.",
+			Message:    "Account.status must be at most 50 characters.",
 		},
 		constant.ErrValidationInvalidMerchantCategory: ValidationError{
 			EntityType: entityType,
@@ -3208,6 +3220,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrReservationAlreadyTerminal.Error(),
 			Title:      "Reservation Already Terminal",
 			Message:    "Reservation: reservation is already in a terminal state.",
+		},
+		constant.ErrReservationAlreadySettled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationAlreadySettled.Error(),
+			Title:      "Reservation Already Settled",
+			Message:    "The reservation for this transaction was already settled and cannot be reserved again.",
+		},
+		constant.ErrReservationTenantInactive: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTenantInactive.Error(),
+			Title:      "Reservation Tenant Inactive",
+			Message:    "The tenant is not provisioned or not active for reservations.",
 		},
 	}
 

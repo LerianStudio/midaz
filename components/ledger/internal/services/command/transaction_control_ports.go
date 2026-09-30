@@ -26,7 +26,7 @@ type FeeApplier interface {
 
 // TracerReserver is the narrow port the transaction create seam depends on to
 // drive the tracer's two-phase reservation lifecycle. It is declared here, at
-// the consuming seam, so the concrete HTTP client can be injected at bootstrap
+// the consuming seam, so the concrete gRPC client can be injected at bootstrap
 // and faked in tests — mirroring the FeeApplier precedent.
 //
 // Reserve holds limit capacity for the fee-inclusive transaction (phase one)
@@ -45,14 +45,18 @@ type FeeApplier interface {
 // create-pending does not survive them), so the tracer resolves and flips every
 // RESERVED reservation for the transaction.
 //
+// A successful confirm reports a tracer.ConfirmOutcome: how many reservations it
+// settled and how many it found already released, whose spend the limit never
+// counts.
+//
 // Availability failures (timeout, transport error, open breaker) surface as
 // tracer.ErrTracerUnavailable so the anchor can branch on tracer.failPosture;
 // a DENIED decision is a successful Reserve return (handle.Denied=true), not an
 // error.
 type TracerReserver interface {
 	Reserve(ctx context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error)
-	Confirm(ctx context.Context, reservationID uuid.UUID) error
+	Confirm(ctx context.Context, reservationID uuid.UUID) (tracer.ConfirmOutcome, error)
 	Release(ctx context.Context, reservationID uuid.UUID) error
-	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error
+	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (tracer.ConfirmOutcome, error)
 	ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error
 }

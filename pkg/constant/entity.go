@@ -31,7 +31,6 @@ const (
 	EntityPortfolio             = "Portfolio"
 	EntityProtectionAuditEvent  = "ProtectionAuditEvent"
 	EntityRelatedParty          = "RelatedParty"
-	EntityReservation           = "Reservation"
 	EntityRule                  = "Rule"
 	EntitySegment               = "Segment"
 	EntityTransaction           = "Transaction"

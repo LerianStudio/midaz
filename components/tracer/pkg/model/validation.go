@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -21,15 +22,12 @@ import (
 // metadataKeyPattern allows only alphanumeric characters and underscores
 var metadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
-// Valid account types per API design
-var validAccountTypes = map[string]bool{
-	"checking": true, "savings": true, "credit": true,
-}
-
-// Valid account statuses per API design
-var validAccountStatuses = map[string]bool{
-	"active": true, "suspended": true, "closed": true,
-}
+// Account type and status are free-form caller vocabulary (the ledger's
+// Account.Type and status reach CEL verbatim); only their length is bounded.
+const (
+	MaxAccountTypeLength   = 256
+	MaxAccountStatusLength = 50
+)
 
 // mccPattern validates 4-digit MCC codes (ISO 18245)
 var mccPattern = regexp.MustCompile(`^\d{4}$`)
@@ -46,8 +44,9 @@ const DefaultClockSkewTolerance = 1 * time.Minute
 // this value at startup to adjust tolerance (e.g., 100-500ms for stricter checks).
 var ClockSkewTolerance = DefaultClockSkewTolerance
 
-// DefaultMaxTimestampAge is the default maximum age allowed for a transaction timestamp.
-// Transactions with timestamps older than this duration from the current time are rejected.
+// DefaultMaxTimestampAge is the default maximum age allowed for a transaction timestamp
+// on the synchronous validation path. Transactions with timestamps older than this
+// duration from the current time are rejected there; the reserve path does not bound age.
 // This prevents replay attacks and stale transaction processing.
 const DefaultMaxTimestampAge = 24 * time.Hour
 
@@ -156,14 +155,14 @@ func NewValidationRequest(
 // - Top-level Metadata map is shallow-copied
 // - Nested context metadata (Segment.Metadata, Portfolio.Metadata, Merchant.Metadata) are also shallow-copied
 // Note: Values within metadata maps remain shared references if they are maps/slices themselves.
-// Asset is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
+// Asset is NOT normalized - API enforces strict uppercase asset codes (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
 //
 // Atomicity: If validation fails, the receiver is NOT modified. Normalization is only applied
 // after successful validation. This allows callers to safely retry or inspect the original values.
 //
 // Use this method when:
-// - Validating after JSON deserialization where strict ISO 4217 uppercase asset is required
+// - Validating after JSON deserialization where a strict uppercase asset code is required
 // - You want to enforce that clients send properly formatted asset codes
 //
 // For programmatic construction with automatic asset normalization, use NewValidationRequest() instead.
@@ -338,7 +337,11 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 		return constant.ErrValidationInvalidTransactionType
 	}
 
-	if err := r.validateAmountAssetTimestamp(now); err != nil {
+	if err := r.validateAmountAsset(); err != nil {
+		return err
+	}
+
+	if err := r.validateTimestampWindow(now, true); err != nil {
 		return err
 	}
 
@@ -359,8 +362,8 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 
 // ValidateForReserve validates the request for the two-phase reserve path. It
 // runs the SAME core checks as the synchronous validate path (requestId,
-// positive amount, ISO-4217 asset, in-window timestamp) but relaxes two
-// fields the ledger legitimately cannot supply at the reserve anchor:
+// positive amount, asset code, non-future timestamp) but relaxes three
+// constraints the ledger legitimately cannot satisfy at the reserve anchor:
 //
 //   - transactionType: optional. The ledger is a double-entry ledger with no
 //     card-rail nature; when empty the tracer matches account-scoped limits
@@ -370,15 +373,21 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 //     account has no internal account UUID to scope on; when absent the tracer
 //     matches non-account-scoped (segment/portfolio/global) limits. When
 //     present it must be a non-nil UUID.
+//   - timestamp age: not bounded. The ledger owns transactionDate and accepts
+//     backdated transactions, so only the future (clock-skew) bound applies.
 //
-// The synchronous /v1/validations path keeps both fields mandatory via
-// Validate; this relaxation is scoped to reserve only.
+// The synchronous /v1/validations path keeps both fields mandatory and the
+// MaxTimestampAge bound via Validate; this relaxation is scoped to reserve only.
 func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 	if r.RequestID == uuid.Nil {
 		return constant.ErrValidationRequestIDRequired
 	}
 
-	if err := r.validateAmountAssetTimestamp(now); err != nil {
+	if err := r.validateAmountAsset(); err != nil {
+		return err
+	}
+
+	if err := r.validateTimestampWindow(now, false); err != nil {
 		return err
 	}
 
@@ -397,13 +406,12 @@ func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 	return r.validateMetadata()
 }
 
-// validateAmountAssetTimestamp validates the value/asset/timestamp core
-// shared by the synchronous validate path and the reserve path: a positive
-// amount, an ISO-4217 asset, and an in-window (not-future / not-too-far-past)
-// timestamp. The requestId, transactionType-enum, and account-presence checks
-// live in the orchestrators (Validate / ValidateForReserve) because their
+// validateAmountAsset validates the value/asset core shared by the synchronous
+// validate path and the reserve path: a positive amount and a ledger asset
+// code. The requestId, transactionType-enum, and account-presence checks live
+// in the orchestrators (Validate / ValidateForReserve) because their
 // requiredness differs between the two paths.
-func (r *ValidationRequest) validateAmountAssetTimestamp(now time.Time) error {
+func (r *ValidationRequest) validateAmountAsset() error {
 	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrValidationAmountNonPositive
 	}
@@ -412,10 +420,17 @@ func (r *ValidationRequest) validateAmountAssetTimestamp(now time.Time) error {
 		return constant.ErrValidationCurrencyRequired
 	}
 
-	if !pkg.IsValidCurrency(r.Asset) {
+	if !pkg.IsValidAssetCode(r.Asset) {
 		return constant.ErrValidationInvalidCurrency
 	}
 
+	return nil
+}
+
+// validateTimestampWindow requires a timestamp that is not beyond
+// ClockSkewTolerance in the future. With enforceMaxAge it also rejects a
+// timestamp at or older than now minus MaxTimestampAge.
+func (r *ValidationRequest) validateTimestampWindow(now time.Time, enforceMaxAge bool) error {
 	if r.TransactionTimestamp.IsZero() {
 		return constant.ErrValidationTimestampRequired
 	}
@@ -424,6 +439,10 @@ func (r *ValidationRequest) validateAmountAssetTimestamp(now time.Time) error {
 	maxAllowedTime := now.Add(ClockSkewTolerance)
 	if r.TransactionTimestamp.After(maxAllowedTime) {
 		return constant.ErrValidationTimestampFuture
+	}
+
+	if !enforceMaxAge {
+		return nil
 	}
 
 	minAllowedTime := now.Add(-MaxTimestampAge)
@@ -447,11 +466,11 @@ func (r *ValidationRequest) validateOptionalFields() error {
 		return constant.ErrValidationPortfolioIDRequired
 	}
 
-	if r.Account.Type != "" && !validAccountTypes[r.Account.Type] {
+	if utf8.RuneCountInString(r.Account.Type) > MaxAccountTypeLength {
 		return constant.ErrValidationInvalidAccountType
 	}
 
-	if r.Account.Status != "" && !validAccountStatuses[r.Account.Status] {
+	if utf8.RuneCountInString(r.Account.Status) > MaxAccountStatusLength {
 		return constant.ErrValidationInvalidAccountStatus
 	}
 
