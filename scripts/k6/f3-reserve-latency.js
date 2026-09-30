@@ -60,6 +60,9 @@ const tCconfirm = new Trend('lat_C_confirm_ms', true);
 const errA = new Counter('err_A_baseline');
 const errB = new Counter('err_B_enforce');
 const errC = new Counter('err_C_tracer');
+// A reserve the tracer refused (rule or limit) answers gRPC OK with denied=true
+// and holds no capacity; it is counted apart from transport/technical errors.
+const errCdenied = new Counter('err_C_denied');
 
 const headers = {
   'Content-Type': 'application/json',
@@ -174,13 +177,31 @@ export function legTracerReserve() {
   let t0 = Date.now();
   const rsv = grpcClient.invoke(`${RESERVATION_SERVICE}/Reserve`, req, params);
   tCreserve.add(Date.now() - t0);
-  const rsvOk = check(rsv, { 'reserve 201': (r) => r && r.status === grpc.StatusOK });
-  if (!rsvOk) { errC.add(1); return; }
+  // k6 renders the response with protojson, so fields arrive in lowerCamelCase
+  // (reservation_ids -> reservationIds). A refusal is gRPC OK with denied=true
+  // and no reservation ids, so OK alone does not mean capacity was held.
+  const rsvOk = check(rsv, {
+    'reserve 201': (r) => !!r && r.status === grpc.StatusOK && !!r.message &&
+      !r.message.denied && (r.message.reservationIds || []).length > 0,
+  });
+  if (!rsvOk) {
+    if (rsv && rsv.status === grpc.StatusOK && rsv.message && rsv.message.denied) {
+      errCdenied.add(1);
+    } else {
+      errC.add(1);
+    }
+    return; // nothing was held, so there is nothing to confirm
+  }
 
   t0 = Date.now();
   const cf = grpcClient.invoke(`${RESERVATION_SERVICE}/ConfirmByTransaction`, { transaction_id: tx }, params);
   tCconfirm.add(Date.now() - t0);
-  if (!check(cf, { 'confirm 200': (r) => r && r.status === grpc.StatusOK })) { errC.add(1); }
+  // confirmed is a uint32; coerce in case it arrives as a string.
+  const cfOk = check(cf, {
+    'confirm 200': (r) => !!r && r.status === grpc.StatusOK && !!r.message &&
+      Number(r.message.confirmed) > 0,
+  });
+  if (!cfOk) { errC.add(1); }
 }
 
 // default runs the gRPC leg alone, so `k6 run --vus N --iterations M` smoke-tests
