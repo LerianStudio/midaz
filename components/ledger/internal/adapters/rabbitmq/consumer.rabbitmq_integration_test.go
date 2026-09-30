@@ -9,6 +9,7 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -718,6 +719,121 @@ func TestIntegration_Consumer_ReconnectionOnChannelClose(t *testing.T) {
 	receivedMu.Unlock()
 
 	t.Log("Integration test passed: consumer reconnects after channel close")
+}
+
+// TestIntegration_Consumer_TransientFailureDuringChannelLoss is a convergence regression
+// after channel loss, not a race reproduction. It fails every message transiently while
+// the consumer channel is closed underneath the workers and the supervisor swaps the
+// connection's channel on the existing connection, and asserts that every message is
+// processed successfully on the next generation and the queue ends empty.
+func TestIntegration_Consumer_TransientFailureDuringChannelLoss(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	numWorkers := 5
+	infra := setupConsumerInfra(t, numWorkers, 10)
+
+	var attemptsMu sync.Mutex
+	attempts := make(map[string]int)
+	succeeded := make(map[string]bool)
+
+	// arrived receives one signal per message blocked in its first attempt; release
+	// unblocks all of them at once after the test has closed the consumer channel.
+	arrived := make(chan string, numWorkers)
+	release := make(chan struct{})
+
+	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
+		var msg consumerTestMessage
+		if err := json.Unmarshal(body, &msg); err != nil {
+			return err
+		}
+
+		attemptsMu.Lock()
+		attempts[msg.ID]++
+		currentAttempt := attempts[msg.ID]
+		attemptsMu.Unlock()
+
+		if currentAttempt == 1 {
+			arrived <- msg.ID
+
+			select {
+			case <-release:
+			case <-time.After(30 * time.Second):
+			}
+
+			// Plain (non-business) error: the default classifier treats it as retryable.
+			return errors.New("simulated transient failure during channel loss")
+		}
+
+		attemptsMu.Lock()
+		succeeded[msg.ID] = true
+		attemptsMu.Unlock()
+
+		return nil
+	})
+
+	err := infra.consumer.RunConsumers()
+	require.NoError(t, err, "RunConsumers should succeed")
+
+	// Publish on the container's own connection so no publish shares the consumer's
+	// channel while the supervisor sets it up or replaces it.
+	publishedAt := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	publishedIDs := make([]string, numWorkers)
+
+	for i := 0; i < numWorkers; i++ {
+		msg := consumerTestMessage{
+			ID:        uuid.New().String(),
+			Timestamp: publishedAt,
+			Data:      fmt.Sprintf("Channel loss message %d", i+1),
+		}
+		publishTestMessageDirect(t, infra.rmqContainer.Channel, infra.exchange, infra.routingKey, msg)
+		publishedIDs[i] = msg.ID
+	}
+
+	// Wait until every worker holds one message in its first, blocked attempt.
+	for i := 0; i < numWorkers; i++ {
+		select {
+		case id := <-arrived:
+			t.Logf("Message %s blocked in first attempt", id)
+		case <-time.After(15 * time.Second):
+			t.Fatalf("timeout: only %d/%d messages reached the handler", i, numWorkers)
+		}
+	}
+
+	// Close the generation's channel on a live connection: the next EnsureChannel
+	// replaces the connection's channel through commitChannelOnExistingConnection.
+	closedChannel := infra.conn.ChannelSnapshot()
+	require.NotNil(t, closedChannel, "consumer channel should be open before the loss")
+	require.NoError(t, closedChannel.Close(), "closing the consumer channel should succeed")
+
+	// Fail every blocked attempt while the supervisor swaps the channel.
+	close(release)
+
+	require.Eventually(t, func() bool {
+		current := infra.conn.ChannelSnapshot()
+
+		return current != nil && current != closedChannel && !current.IsClosed()
+	}, 15*time.Second, 50*time.Millisecond, "consumer should reconnect on a new channel")
+
+	require.Eventually(t, func() bool {
+		attemptsMu.Lock()
+		defer attemptsMu.Unlock()
+
+		return len(succeeded) == numWorkers
+	}, 30*time.Second, 100*time.Millisecond, "every message should be processed after the channel loss")
+
+	require.Eventually(t, func() bool {
+		return rmqtestutil.GetQueueMessageCount(t, infra.rmqContainer.Channel, infra.queue) == 0
+	}, 10*time.Second, 100*time.Millisecond, "queue should be empty after convergence")
+
+	attemptsMu.Lock()
+	defer attemptsMu.Unlock()
+
+	for _, id := range publishedIDs {
+		assert.True(t, succeeded[id], "message %s should be processed successfully", id)
+		assert.GreaterOrEqual(t, attempts[id], 2, "message %s should be attempted again after the transient failure", id)
+	}
 }
 
 // TestIntegration_Consumer_QoSRespected tests that the prefetch count (QoS) limits
