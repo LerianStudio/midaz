@@ -71,6 +71,8 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 		return nil, err
 	}
 
+	domainKey := settingsPatchDomainKey(fields, qualifiedKey)
+
 	settings, err := encodeSettingsPatch(patch)
 	if err != nil {
 		return nil, err
@@ -97,7 +99,7 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 		}
 
 		legacy, modern, err := settingsPatchDualField(
-			name, source, uppercase, legacyLowerShape, qualifiedKey,
+			name, source, uppercase, legacyLowerShape, qualifiedKey, domainKey,
 		)
 		if err != nil {
 			return nil, err
@@ -148,11 +150,38 @@ func settingsPatchQualifiedKey(fields map[string]json.RawMessage) (*qualifiedLim
 	return qualifiedKey, nil
 }
 
+// settingsPatchDomainKey resolves the balance key an indexed legacy alias must
+// name: the domain part of a qualified key, else the authoritative Key text,
+// with the codec's "default" for an absent or empty key. A malformed Key yields
+// no key here and is rejected when the Key field itself is dualized.
+func settingsPatchDomainKey(fields map[string]json.RawMessage, qualifiedKey *qualifiedLimitRepairKey) string {
+	if qualifiedKey != nil {
+		return qualifiedKey.domainKey
+	}
+
+	keyRaw, keyExists, _ := authoritativeField(fields, "Key")
+	if !keyExists {
+		return "default"
+	}
+
+	var key string
+	if json.Unmarshal(keyRaw, &key) != nil {
+		return ""
+	}
+
+	if key == "" {
+		return "default"
+	}
+
+	return key
+}
+
 func settingsPatchDualField(
 	name string,
 	source json.RawMessage,
 	uppercase, legacyLowerShape bool,
 	qualifiedKey *qualifiedLimitRepairKey,
+	domainKey string,
 ) (json.RawMessage, json.RawMessage, error) {
 	legacyRepresentation := uppercase || legacyLowerShape
 
@@ -184,7 +213,7 @@ func settingsPatchDualField(
 			return source, modern, err
 		}
 
-		return dualTextField(name, source)
+		return indexedAliasDualField(name, source, domainKey)
 	default:
 		return dualTextField(name, source)
 	}
