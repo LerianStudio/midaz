@@ -303,12 +303,12 @@ func (s *ReservationServer) terminateByID(
 }
 
 // toValidationRequest builds the model.ValidationRequest the reserve path
-// validates and converts, from the proto request. It mirrors the field set the
-// REST DTO carries: requestId, amount (decimal-as-string), asset, account id and
-// type, optional segment/portfolio/merchant ids, transactionType,
-// transactionTimestamp (RFC3339) and flat metadata. Normalization and
-// validation are delegated to the model so the gRPC path never forks the
-// reserve input contract.
+// validates and converts, from the proto request: requestId, amount
+// (decimal-as-string), asset, account id and type, optional
+// segment/portfolio/merchant ids, transactionType, transactionTimestamp
+// (RFC3339) and flat metadata. Normalization and validation are delegated to
+// the model so the reserve input contract is the one POST /v1/validations
+// applies.
 func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveRequest) (*model.ValidationRequest, error) {
 	requestID, err := uuid.Parse(req.GetRequestId())
 	if err != nil {

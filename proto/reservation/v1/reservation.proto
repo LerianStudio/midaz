@@ -8,13 +8,12 @@ package lerian.midaz.reservation.v1;
 
 option go_package = "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1;reservationv1";
 
-// ReservationService is the gRPC transport for the tracer's two-phase
-// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
-// the per-id and by-transaction confirm/release transitions) field-for-field so
-// the ledger can select gRPC or REST behind the TracerReserver interface without
-// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
-// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
-// message field).
+// ReservationService is the tracer's two-phase reservation seam: reserve, then
+// the per-id and by-transaction confirm/release transitions. It is the only
+// surface that drives the reservation lifecycle, and the ledger is its only
+// caller. Identity on this seam is mutual TLS (or the service mesh); the tenant
+// is propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key
+// (never a message field).
 service ReservationService {
   // Reserve holds limit capacity for a transaction (phase one). A denied
   // decision is a successful response with denied=true and empty

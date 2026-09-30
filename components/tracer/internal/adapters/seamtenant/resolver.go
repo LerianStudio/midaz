@@ -6,13 +6,12 @@
 // service-to-service reservation seam from a TRUSTED tenant id, rather than
 // from a JWT claim.
 //
-// The reservation surface is reachable only over the mTLS/mesh-protected
-// transport (gRPC or REST behind the verified peer). On that connection the
-// ledger is a verified service, so the `x-tenant-id` it forwards is trusted as
-// the tenant key — the verified peer IS the identity. User-facing tracer routes
-// keep their JWT-claim tenant path; this resolver is wired ONLY onto the
-// reservation routes/RPCs, never onto a header-trust path reachable without the
-// verified peer.
+// The reservation surface is reachable only over the mTLS/mesh-protected gRPC
+// seam. On that connection the ledger is a verified service, so the
+// `x-tenant-id` it forwards is trusted as the tenant key — the verified peer IS
+// the identity. User-facing tracer routes keep their JWT-claim tenant path;
+// this resolver is wired ONLY onto the reservation RPCs, never onto a
+// header-trust path reachable without the verified peer.
 package seamtenant
 
 import (
@@ -27,16 +26,13 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// HeaderName is the canonical trusted-tenant header/metadata name. The REST
-// adapter reads it as an HTTP header; the gRPC adapter reads its lower-cased
-// form from incoming metadata (gRPC normalizes metadata keys to lower case).
-// It matches the ledger client's TenantHeader so the wire key cannot drift.
+// HeaderName is the canonical trusted-tenant name. The gRPC adapter reads its
+// lower-cased form (MetadataKey) from incoming metadata, which is the key the
+// ledger client appends to every seam RPC.
 const HeaderName = "X-Tenant-Id"
 
 // MetadataKey is the gRPC metadata key for the trusted tenant id — the
 // lower-cased HeaderName, since gRPC normalizes metadata keys to lower case.
-// Derived from HeaderName so the two cannot drift, mirroring how the ledger
-// client derives its gRPC key from TenantHeader.
 var MetadataKey = strings.ToLower(HeaderName)
 
 // PoolFunc resolves the tenant-scoped PostgreSQL pool for tenantID. It is
