@@ -200,8 +200,18 @@ result*, not an error. A request the tracer **refused** — gRPC `InvalidArgumen
 including a reserve replayed onto a settled reservation (`0533`) — is classified as `ErrTracerRejected`,
 not as unavailability: the tracer answered, so under `enforce` it rejects with `0532` whatever the
 `failPosture`. `handleReserveError` treats **any other** reserve error as fail-posture-gated, so a
-tracer defect cannot let an `enforce`+`closed` ledger commit unchecked. The full outcome table lives in
-`docs/api/SCOPING.md`.
+tracer defect cannot let an `enforce`+`closed` ledger commit unchecked. A deadline or cancellation on a
+sent call is additionally marked `ErrTracerNoAnswer`; only such an unanswered reserve may still have
+reserved capacity, so only it is settled by transaction once the accounting outcome is known (confirm
+when the movement applied outside PENDING, release on `0178` or an engine abort), best-effort. The
+settle runs on a dedicated queue (64 in flight, separate from the by-id retrier so an outage cannot
+crowd out real confirms), each attempt after a fixed `3s` tracer lock wait plus `TRACER_TIMEOUT_MS`;
+a confirm that fails or settles nothing gets one more attempt, then a Warn with the transaction id. An atomic batch or cross-ledger v2 commit
+whose execution hand-off fails releases the reservations held for its items, because no movement follows.
+A rule the tracer cannot evaluate does not stop evaluation: a matched `DENY` wins, otherwise the answer is
+`REVIEW` with `reason=rule_evaluation_error`, on reserve and on `POST /v1/validations` alike.
+Under `enforce` a limit `DENY` rejects with `0177`, a rule `DENY` with `0535` and a `REVIEW` with `0531`.
+The full outcome table lives in `docs/api/SCOPING.md`.
 
 **Boot-time graceful absence even when configured.** The gRPC client uses one persistent lazy
 connection — `grpc.NewClient` does not dial until the first RPC — so wiring the client never blocks on
