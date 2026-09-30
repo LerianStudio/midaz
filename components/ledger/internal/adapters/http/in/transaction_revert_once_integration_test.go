@@ -42,13 +42,10 @@ func setupRevertOnceHarness(t *testing.T) *revertOnceHarness {
 	t.Helper()
 
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 
 	engineRedis, ok := h.redisRepo.(*redistransaction.RedisConsumerRepository)
 	require.True(t, ok)
 
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
-	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: engineRedis}
 	h.commandUC.EngineRecoveryAcknowledger = &atomicBatchHTTPRecoveryAcknowledger{repository: engineRedis, completedAt: time.Now()}
 
 	return &revertOnceHarness{feeHarness: h, engineRedis: engineRedis, v1: h.newApp(), v2: h.newV2App()}

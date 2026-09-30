@@ -8,10 +8,9 @@ package in
 
 // This file is the shared harness for the P4 third-rail fee proof suite. The
 // proof classes themselves live in transaction_fee_proof_integration_test.go
-// (T16), transaction_fee_revert_integration_test.go (T14), and
-// transaction_fee_async_integration_test.go (T25). The harness wires a
-// fee-enabled TransactionHandler against real Postgres + Mongo + Redis (and, for
-// the async file, RabbitMQ) by reusing the production composition: the same
+// (T16) and transaction_fee_revert_integration_test.go (T14). The harness wires a
+// fee-enabled TransactionHandler against real Postgres + Mongo + Redis by reusing
+// the production composition: the same
 // command/query/fees use cases the unified ledger bootstrap builds at
 // config.go:798 (transactionHandler := &TransactionHandler{Command, Query,
 // FeeApplier: fees.useCase}).
@@ -105,9 +104,13 @@ type feeHarness struct {
 // and an in-process MidazResolver over the same query.UseCase, and injected as
 // the handler's FeeApplier — the seam exercised by executeCreateTransaction.
 //
-// RabbitMQ is intentionally absent: the default sync path persists inline, which
-// is what every proof class except the T25 async file needs. The async file
-// builds its own RabbitMQ-backed variant.
+// Monetary commands run through the accounting engine exactly as the bootstrap
+// wires them: the engine, the applied-transaction completer, the write-behind
+// evidence codec the lifecycle reads decode, and the evidence resolver a commit,
+// cancel or revert needs to complete behind its predecessor.
+//
+// RabbitMQ is intentionally absent: the default sync path persists inline. A proof
+// of the async path swaps in TransactionWriteBehindAsync and a dispatcher.
 func setupFeeHarness(t *testing.T) *feeHarness {
 	t.Helper()
 
@@ -209,24 +212,20 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	h.commandUC.TransactionReader = h.queryUC
 	h.handler = &TransactionHandler{Query: h.queryUC, Command: h.commandUC}
 
+	engineAdapter, err := redisengine.NewAdapter(h.engineProvider)
+	require.NoError(t, err, "accounting engine")
+
+	h.commandUC.Engine = engineAdapter
+	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo)
+	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: redisRepo}
+	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
+
 	// Seed a real organization + ledger so GetParsedLedgerSettings succeeds and
 	// the fee resolver resolves accounts against a real ledger.
 	h.orgID = postgrestestutil.CreateTestOrganization(t, h.db)
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 
 	return h
-}
-
-// enableAccountingEngine opts this harness into the same engine-backed create
-// and synchronous completion path used by the production bootstrap. Existing
-// fee proof tests keep their legacy-path fixture unless they explicitly opt in.
-func (h *feeHarness) enableAccountingEngine(t *testing.T) {
-	t.Helper()
-
-	engineAdapter, err := redisengine.NewAdapter(h.engineProvider)
-	require.NoError(t, err, "accounting engine")
-	h.commandUC.Engine = engineAdapter
-	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo)
 }
 
 // dropFeePrecisionTable is a no-op assertion that the ISO-4217 precision table
