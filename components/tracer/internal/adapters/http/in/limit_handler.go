@@ -500,7 +500,7 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 		return err
 	}
 
-	if classified, ok := classifyLimitPeriodValidationError(span, err); ok {
+	if classified := classifyLimitPeriodValidationError(span, err); classified != nil {
 		return classified
 	}
 
@@ -553,39 +553,32 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	}
 }
 
-// classifyLimitPeriodValidationError maps the domain's period-related sentinels
-// to their registered client errors. Keep this allow-list limited to errors
-// raised by request validation; storage decoding failures remain technical.
-func classifyLimitPeriodValidationError(span trace.Span, err error) (error, bool) {
-	switch {
-	case errors.Is(err, constant.ErrLimitTimeWindowMismatch):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit time window mismatch", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitTimeWindowMismatch, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitTimeWindowZeroWidth):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit time window has zero width", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitTimeWindowZeroWidth, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitCustomDatesNotAllowed):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom dates are not allowed for this limit type", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitCustomDatesNotAllowed, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitCustomPeriodTooLong):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit period is too long", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitCustomPeriodTooLong, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitCustomPeriodExpired):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit period has expired", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitCustomPeriodExpired, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitInvalidCustomStartFormat):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid custom start date format", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitInvalidCustomStartFormat, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitInvalidCustomEndFormat):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid custom end date format", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitInvalidCustomEndFormat, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitCustomDatesRequired):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit dates are required", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitCustomDatesRequired, constant.EntityLimit), true
-	case errors.Is(err, constant.ErrLimitCustomDatesOrder):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit dates are out of order", err)
-		return pkg.ValidateBusinessError(constant.ErrLimitCustomDatesOrder, constant.EntityLimit), true
-	default:
-		return nil, false
+// limitPeriodValidationErrors contains request-validation sentinels. Storage
+// decoding failures intentionally remain outside this client-error allow-list.
+var limitPeriodValidationErrors = [...]struct {
+	sentinel    error
+	spanMessage string
+}{
+	{constant.ErrLimitTimeWindowMismatch, "Limit time window mismatch"},
+	{constant.ErrLimitTimeWindowZeroWidth, "Limit time window has zero width"},
+	{constant.ErrLimitCustomDatesNotAllowed, "Custom dates are not allowed for this limit type"},
+	{constant.ErrLimitCustomPeriodTooLong, "Custom limit period is too long"},
+	{constant.ErrLimitCustomPeriodExpired, "Custom limit period has expired"},
+	{constant.ErrLimitInvalidCustomStartFormat, "Invalid custom start date format"},
+	{constant.ErrLimitInvalidCustomEndFormat, "Invalid custom end date format"},
+	{constant.ErrLimitCustomDatesRequired, "Custom limit dates are required"},
+	{constant.ErrLimitCustomDatesOrder, "Custom limit dates are out of order"},
+}
+
+// classifyLimitPeriodValidationError maps a period sentinel to its registered
+// client error and records it on the span as a business failure.
+func classifyLimitPeriodValidationError(span trace.Span, err error) error {
+	for _, candidate := range limitPeriodValidationErrors {
+		if errors.Is(err, candidate.sentinel) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, candidate.spanMessage, err)
+			return pkg.ValidateBusinessError(candidate.sentinel, constant.EntityLimit)
+		}
 	}
+
+	return nil
 }
