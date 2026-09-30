@@ -236,8 +236,10 @@ which the ledger reads as `0177`.
 
 The ledger reaches the tracer only over the gRPC reservation seam (`TRACER_BASE_URL` is its
 `host:port`, default tracer port `:4021`); the tracer's HTTP API has no reservation route. A confirm
-reports `already_released`, the rows of the transaction the tracer had already released (by a cancel
-or its TTL reaper) and whose spend it therefore never counts. The ledger does not fail the commit on
+reports `already_released`, the rows of the transaction an explicit release (a cancel) had already
+moved to RELEASED before the confirm arrived, and whose spend the tracer therefore never counts. Its
+TTL reaper does not produce `already_released`: it marks an unsettled row EXPIRED and returns its
+capacity, and a later confirm still settles that EXPIRED row and counts its spend. The ledger does not fail the commit on
 them: it logs a Warn, adds the span event `tracer.reservation.confirm_already_released` and increments
 `tracer_reservation_confirm_already_released_total{operation}`.
 
@@ -277,8 +279,9 @@ account body.
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
 confirm/release cannot tell whether the transaction holds reservations, so a PENDING created on
 `/v2` and committed through `/v1` never receives its confirm — `transitionPendingV1` names no
-reservation seam: the reservation stays RESERVED until the TTL reaper releases it, and the
-committed amount is never counted against the usage limit. Commit and cancel a transaction on the
+reservation seam: the reservation stays RESERVED until the TTL reaper marks it EXPIRED and
+returns its capacity, and because no confirm ever arrives the committed amount is never counted
+against the usage limit. Commit and cancel a transaction on the
 same contract that created it. Closing this needs create-time reservation state persisted on the
 transaction row for the `/v1` pipeline to read.
 
