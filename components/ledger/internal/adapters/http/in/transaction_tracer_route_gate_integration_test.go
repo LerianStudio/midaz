@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -28,19 +27,6 @@ import (
 //
 // The unit gates prove the seam returns early; these prove the wiring that reaches it is
 // correct on every mounted /v1 route.
-
-// setupTracerGateHarness is the fee harness on the production accounting path: every
-// create executes through the engine, and the lifecycle reads that commit, cancel and
-// revert make of an engine-created transaction decode its write-behind evidence.
-func setupTracerGateHarness(t *testing.T) *feeHarness {
-	t.Helper()
-
-	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
-
-	return h
-}
 
 // seedEnforceClosedTracer writes mode=enforce + failPosture=closed onto the harness
 // ledger and drops the settings cache entry, so the next GetParsedLedgerSettings on the
@@ -69,7 +55,7 @@ func unavailableReserver() *stubReserver {
 // the reservation lifecycle against a reserver that fails the test if it is called.
 func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	t.Run("create modes and revert", func(t *testing.T) {
-		h := setupTracerGateHarness(t)
+		h := setupFeeHarness(t)
 		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
@@ -92,7 +78,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	})
 
 	t.Run("pending commit", func(t *testing.T) {
-		h := setupTracerGateHarness(t)
+		h := setupFeeHarness(t)
 		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
@@ -112,7 +98,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	})
 
 	t.Run("pending cancel", func(t *testing.T) {
-		h := setupTracerGateHarness(t)
+		h := setupFeeHarness(t)
 		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
@@ -136,7 +122,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 // same down tracer, on /v2. Without this the /v1 assertions above could pass for the wrong
 // reason — a globally disabled tracer rather than a route-scoped gate.
 func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
-	h := setupTracerGateHarness(t)
+	h := setupFeeHarness(t)
 	reserver := unavailableReserver()
 	h.handler.Command.TracerReserver = reserver
 	h.seedEnforceClosedTracer(t)
@@ -171,7 +157,7 @@ func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
 // reservation state persisted on the transaction row for the gate to read instead of the
 // route version — at which point this test should be inverted, deliberately.
 func TestTracerRouteGate_V2CreateCommittedOnV1_SkipsConfirm(t *testing.T) {
-	h := setupTracerGateHarness(t)
+	h := setupFeeHarness(t)
 
 	reservationID := uuid.New()
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}

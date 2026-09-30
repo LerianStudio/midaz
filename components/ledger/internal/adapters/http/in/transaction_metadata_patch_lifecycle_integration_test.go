@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -29,13 +28,10 @@ import (
 // over the edited document: the record persists and the money moves once.
 func TestMetadataPatchBeforeLifecycleCompletes(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 
 	engineRedis, ok := h.redisRepo.(*redistransaction.RedisConsumerRepository)
 	require.True(t, ok)
 
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
-	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: engineRedis}
 	h.commandUC.EngineRecoveryAcknowledger = &atomicBatchHTTPRecoveryAcknowledger{repository: engineRedis, completedAt: time.Now()}
 	app := h.newV2App()
 
