@@ -15,9 +15,7 @@ import (
 	"context"
 	"errors"
 	"math"
-	"time"
 
-	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -31,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/reservationmap"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
@@ -93,7 +92,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
 	}
 
-	validationReq, err := s.toValidationRequest(req)
+	validationReq, err := reservationmap.ValidationRequestFromReserveProto(req)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reserve request", err)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -261,71 +260,6 @@ func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.
 	return &reservationv1.ReleaseByIdResponse{}, nil
 }
 
-// toValidationRequest builds the model.ValidationRequest the reserve path
-// validates and converts, from the proto request: requestId, amount
-// (decimal-as-string), asset, account id and type, optional
-// segment/portfolio/merchant ids, transactionType, transactionTimestamp
-// (RFC3339) and flat metadata. Normalization and validation are delegated to
-// the model so the reserve input contract is the one POST /v1/validations
-// applies.
-func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveRequest) (*model.ValidationRequest, error) {
-	requestID, err := uuid.Parse(req.GetRequestId())
-	if err != nil {
-		return nil, constant.ErrValidationRequestIDRequired
-	}
-
-	amount, err := safe.ParseDecimal(req.GetAmount())
-	if err != nil {
-		return nil, constant.ErrValidationAmountNonPositive
-	}
-
-	var transactionTimestamp time.Time
-	if ts := req.GetTransactionTimestamp(); ts != "" {
-		transactionTimestamp, err = time.Parse(time.RFC3339, ts)
-		if err != nil {
-			return nil, constant.ErrValidationTimestampRequired
-		}
-	}
-
-	var accountID uuid.UUID
-	if acc := req.GetAccount(); acc != nil && acc.GetAccountId() != "" {
-		accountID, err = uuid.Parse(acc.GetAccountId())
-		if err != nil {
-			return nil, constant.ErrInvalidPathParameter
-		}
-	}
-
-	validationReq := &model.ValidationRequest{
-		RequestID:            requestID,
-		TransactionType:      model.TransactionType(req.GetTransactionType()),
-		Amount:               amount,
-		Asset:                req.GetAsset(),
-		TransactionTimestamp: transactionTimestamp,
-		Account:              model.AccountContext{ID: accountID, Type: req.GetAccount().GetType()},
-		Metadata:             metadataFromProto(req.GetMetadata()),
-	}
-
-	if segment, err := optionalContextID(req.GetSegmentId()); err != nil {
-		return nil, err
-	} else if segment != nil {
-		validationReq.Segment = &model.SegmentContext{ID: *segment}
-	}
-
-	if portfolio, err := optionalContextID(req.GetPortfolioId()); err != nil {
-		return nil, err
-	} else if portfolio != nil {
-		validationReq.Portfolio = &model.PortfolioContext{ID: *portfolio}
-	}
-
-	if merchant, err := optionalContextID(req.GetMerchantId()); err != nil {
-		return nil, err
-	} else if merchant != nil {
-		validationReq.Merchant = &model.MerchantContext{ID: *merchant}
-	}
-
-	return validationReq, nil
-}
-
 // parseTransactionID parses the ledger transaction id of a by-transaction RPC
 // and records it on the span. An absent or malformed id is InvalidArgument.
 func parseTransactionID(span trace.Span, raw string) (uuid.UUID, error) {
@@ -396,37 +330,6 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 		libOpentelemetry.HandleSpanError(span, msg, err)
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
-}
-
-// optionalContextID parses an optional uuid-bearing context id (segment /
-// portfolio / merchant). An empty string means the field is absent (nil);
-// a present-but-malformed value is rejected.
-func optionalContextID(raw string) (*uuid.UUID, error) {
-	if raw == "" {
-		return nil, nil
-	}
-
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return nil, constant.ErrInvalidPathParameter
-	}
-
-	return &id, nil
-}
-
-// metadataFromProto widens the proto string map into the model's metadata map.
-// An empty map yields nil so an absent field and an empty one validate alike.
-func metadataFromProto(in map[string]string) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
-
-	out := make(map[string]any, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-
-	return out
 }
 
 // reservationIDStrings renders reservation or rule ids as proto-friendly strings.

@@ -31,6 +31,11 @@ const (
 	canonicalAsset  = "USD"
 )
 
+// reserveFixtureTime is the fixed server clock of the reserve tests. It carries
+// a fractional second because the ledger formats transactionTimestamp as
+// RFC3339Nano, so the fixtures exercise the same wire shape.
+var reserveFixtureTime = time.Date(2026, time.March, 15, 12, 34, 56, 123456789, time.UTC)
+
 // newReserveRequest builds a valid proto reserve request whose timestamp sits
 // inside the validation window relative to the injected fixed clock, so the
 // model-level reserve validation accepts it.
@@ -42,7 +47,7 @@ func newReserveRequest(now time.Time, transactionID, requestID, accountID uuid.U
 		Asset:                canonicalAsset,
 		Account:              &reservationv1.ReserveAccount{AccountId: accountID.String()},
 		TransactionType:      string(model.TransactionTypeCard),
-		TransactionTimestamp: now.Add(-1 * time.Second).Format(time.RFC3339),
+		TransactionTimestamp: now.Add(-1 * time.Second).Format(time.RFC3339Nano),
 	}
 }
 
@@ -64,7 +69,7 @@ func TestNewReservationServer_NilDeps(t *testing.T) {
 }
 
 func TestReservationServer_Reserve(t *testing.T) {
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 	transactionID := testutil.MustDeterministicUUID(1)
 	requestID := testutil.MustDeterministicUUID(2)
 	accountID := testutil.MustDeterministicUUID(3)
@@ -211,7 +216,7 @@ func TestReservationServer_Reserve(t *testing.T) {
 
 func TestReservationServer_ConfirmReleaseById(t *testing.T) {
 	reservationID := testutil.MustDeterministicUUID(10)
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 
 	t.Run("confirm by id settles the row and reports it as not already released", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -286,7 +291,7 @@ func TestReservationServer_ConfirmReleaseById(t *testing.T) {
 
 func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
 	transactionID := testutil.MustDeterministicUUID(20)
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 
 	t.Run("confirm by transaction succeeds (idempotent zero flips)", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -352,7 +357,7 @@ func TestReservationServer_ConfirmReleaseByTransaction(t *testing.T) {
 // the ledger's client keys its own behavior off the code, and the message is
 // the sentinel code string the ledger parses.
 func TestReservationServer_MapServiceError_ReservationCodes(t *testing.T) {
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 	transactionID := testutil.MustDeterministicUUID(30)
 	requestID := testutil.MustDeterministicUUID(31)
 	accountID := testutil.MustDeterministicUUID(32)
@@ -485,7 +490,7 @@ func expectedInput(now time.Time, requestID, accountID uuid.UUID) *model.CheckLi
 }
 
 func TestReservationServer_Reserve_Decision(t *testing.T) {
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 	transactionID := testutil.MustDeterministicUUID(1)
 	requestID := testutil.MustDeterministicUUID(2)
 	accountID := testutil.MustDeterministicUUID(3)
@@ -548,50 +553,8 @@ func TestReservationServer_Reserve_Decision(t *testing.T) {
 	}
 }
 
-func TestReservationServer_ToValidationRequest_AccountTypeAndMetadata(t *testing.T) {
-	now := testutil.FixedTime()
-	transactionID := testutil.MustDeterministicUUID(1)
-	requestID := testutil.MustDeterministicUUID(2)
-	accountID := testutil.MustDeterministicUUID(3)
-
-	ctrl := gomock.NewController(t)
-	server, err := NewReservationServer(mocks.NewMockReservationService(ctrl), testutil.NewMockClock(now))
-	require.NoError(t, err)
-
-	t.Run("account type and metadata reach the validation request", func(t *testing.T) {
-		req := newReserveRequest(now, transactionID, requestID, accountID)
-		req.Account.Type = "deposit"
-		req.Metadata = map[string]string{"channel": "app"}
-
-		validationReq, err := server.toValidationRequest(req)
-		require.NoError(t, err)
-		require.Equal(t, accountID, validationReq.Account.ID)
-		require.Equal(t, "deposit", validationReq.Account.Type)
-		require.Equal(t, map[string]any{"channel": "app"}, validationReq.Metadata)
-	})
-
-	t.Run("empty metadata stays nil", func(t *testing.T) {
-		req := newReserveRequest(now, transactionID, requestID, accountID)
-		req.Metadata = map[string]string{}
-
-		validationReq, err := server.toValidationRequest(req)
-		require.NoError(t, err)
-		require.Nil(t, validationReq.Metadata)
-	})
-
-	t.Run("account type without an account id is carried", func(t *testing.T) {
-		req := newReserveRequest(now, transactionID, requestID, accountID)
-		req.Account = &reservationv1.ReserveAccount{Type: "deposit"}
-
-		validationReq, err := server.toValidationRequest(req)
-		require.NoError(t, err)
-		require.Equal(t, uuid.Nil, validationReq.Account.ID)
-		require.Equal(t, "deposit", validationReq.Account.Type)
-	})
-}
-
 func TestReservationServer_Reserve_ForwardsRuleContext(t *testing.T) {
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 	transactionID := testutil.MustDeterministicUUID(1)
 	requestID := testutil.MustDeterministicUUID(2)
 	accountID := testutil.MustDeterministicUUID(3)
@@ -630,7 +593,7 @@ func TestReservationServer_Reserve_ForwardsRuleContext(t *testing.T) {
 }
 
 func TestReservationServer_Reserve_InvalidMetadataKey(t *testing.T) {
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 	transactionID := testutil.MustDeterministicUUID(1)
 	requestID := testutil.MustDeterministicUUID(2)
 	accountID := testutil.MustDeterministicUUID(3)

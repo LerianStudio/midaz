@@ -52,7 +52,7 @@ func newReserveE2E(t *testing.T) *reserveE2E {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
-	now := testutil.FixedTime()
+	now := reserveFixtureTime
 
 	evaluator := servicesMocks.NewMockRuleEvaluator(ctrl)
 	resolver := servicesMocks.NewMockLimitResolver(ctrl)
@@ -119,8 +119,8 @@ func (e *reserveE2E) expectTxRollback() {
 	e.tx.EXPECT().Rollback().Return(nil).Times(1)
 }
 
-// ledgerShapedRequest is the reserve the ledger sends: free-form account type,
-// flat metadata, no transaction type.
+// ledgerShapedRequest is the reserve the ledger sends: RFC3339Nano timestamp,
+// free-form account type, flat metadata, no transaction type.
 func (e *reserveE2E) ledgerShapedRequest(revert bool) *reservationv1.ReserveRequest {
 	return &reservationv1.ReserveRequest{
 		TransactionId:        testutil.MustDeterministicUUID(9101).String(),
@@ -128,7 +128,7 @@ func (e *reserveE2E) ledgerShapedRequest(revert bool) *reservationv1.ReserveRequ
 		Amount:               "100.00",
 		Asset:                "BRL",
 		Account:              &reservationv1.ReserveAccount{AccountId: testutil.MustDeterministicUUID(9103).String(), Type: "deposit"},
-		TransactionTimestamp: e.now.Add(-1 * time.Minute).Format(time.RFC3339),
+		TransactionTimestamp: e.now.Add(-1 * time.Minute).Format(time.RFC3339Nano),
 		Metadata:             map[string]string{"channel": "app"},
 		Revert:               revert,
 	}

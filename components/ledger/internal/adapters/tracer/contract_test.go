@@ -5,28 +5,25 @@
 package tracer
 
 // This is the cross-component contract lock between the ledger's outbound
-// reserve client and the tracer's reserve validation. The two shapes once
-// drifted silently (the ledger omitted requestId and a valid
-// transactionTimestamp, and smuggled a lifetime hint through transactionType),
-// so the tracer rejected every reserve and `tracer.mode=enforce` never
-// enforced. This lock fails when either side moves.
+// reserve client and the tracer's reserve validation. It fails when the ledger's
+// wire shape and the tracer's acceptance rules move apart — a drift that makes
+// the tracer reject every reserve and leaves `tracer.mode=enforce` enforcing
+// nothing.
 //
 // What is REAL on each side here:
 //   - LEDGER: the real *TracerGRPCClient.Reserve — the production mapping of
 //     the outbound ReserveRequest onto the proto message and the real RPC.
-//   - TRACER: the real github.com/.../tracer/pkg/model.ValidationRequest plus
-//     the real NormalizeAndValidateForReserve validation rules — the side that
-//     rejects a drifted payload. The gRPC endpoint below runs the SAME
-//     proto-to-model mapping and the SAME validation the production tracer
-//     reservation server runs; on success it returns the scripted reserve
-//     decision, exactly as the server does.
+//   - TRACER: the real proto-to-model mapping
+//     (reservationmap.ValidationRequestFromReserveProto) and the real reserve
+//     validation rules (model.ValidationRequest.NormalizeAndValidateForReserve),
+//     the two steps the production tracer reservation server runs before the
+//     use case. On success the endpoint returns a scripted reserve decision in
+//     place of the use case.
 //
-// Why the endpoint is reconstructed rather than the literal tracer server:
-// Go's `internal` rule walls components/tracer/internal/... off from
-// components/ledger/..., so the ledger test package physically cannot import the
-// tracer's internal ReservationServer. The load-bearing half of the contract —
-// the proto message and the reserve validation RULES — lives in the importable
-// pkg/proto and the tracer's non-internal pkg/model, so both real sides meet
+// The endpoint is a thin stand-in rather than the tracer's ReservationServer
+// because Go's `internal` rule walls components/tracer/internal/... off from
+// components/ledger/.... Everything that decides whether a payload is accepted
+// lives in the importable components/tracer/pkg tree, so both real sides meet
 // over the real wire.
 
 import (
@@ -35,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,16 +42,17 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	tracermodel "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	tracerreservationmap "github.com/LerianStudio/midaz/v4/components/tracer/pkg/reservationmap"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
-// tracerReserveEndpoint is the real tracer reserve validation mounted over an
-// in-memory gRPC server. It maps the proto request onto the tracer's REAL
-// ValidationRequest and runs the tracer's REAL reserve validation rules
-// (NormalizeAndValidateForReserve) — the same mapping + validation the
-// production server runs. denied/reservationIDs let a test script the
-// post-validation decision so the success-decision-flows-back assertion is
-// meaningful.
+// tracerReserveEndpoint is the tracer's real reserve mapping and validation
+// mounted over an in-memory gRPC server: it calls the shared
+// ValidationRequestFromReserveProto and then NormalizeAndValidateForReserve,
+// exactly as the production reservation server does. denied/reservationIDs let
+// a test script the post-validation decision so the
+// success-decision-flows-back assertion is meaningful.
 type tracerReserveEndpoint struct {
 	reservationv1.UnimplementedReservationServiceServer
 
@@ -77,17 +74,16 @@ type tracerReserveEndpoint struct {
 func (e *tracerReserveEndpoint) Reserve(_ context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
 	transactionID, err := uuid.Parse(req.GetTransactionId())
 	if err != nil || transactionID == uuid.Nil {
-		return nil, status.Error(codes.InvalidArgument, "transactionId is required")
+		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
 	}
 
-	validationReq, err := reserveValidationRequest(req)
+	validationReq, err := tracerreservationmap.ValidationRequestFromReserveProto(req)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid reserve request: "+err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// The REAL tracer reserve validation rules.
 	if err := validationReq.NormalizeAndValidateForReserve(e.now); err != nil {
-		return nil, status.Error(codes.InvalidArgument, "reserve validation failed: "+err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if e.rejectCode != codes.OK {
@@ -107,92 +103,6 @@ func (e *tracerReserveEndpoint) Reserve(_ context.Context, req *reservationv1.Re
 	}, nil
 }
 
-// reserveValidationRequest is the proto-to-model mapping the tracer's
-// reservation server performs before validating: requestId, amount
-// (decimal-as-string), asset, account id and type, optional
-// segment/portfolio/merchant ids, transactionType, transactionTimestamp
-// (RFC3339) and flat metadata. An empty account id is an absent account.
-func reserveValidationRequest(req *reservationv1.ReserveRequest) (*tracermodel.ValidationRequest, error) {
-	requestID, err := uuid.Parse(req.GetRequestId())
-	if err != nil {
-		return nil, err
-	}
-
-	amount, err := safe.ParseDecimal(req.GetAmount())
-	if err != nil {
-		return nil, err
-	}
-
-	var transactionTimestamp time.Time
-	if ts := req.GetTransactionTimestamp(); ts != "" {
-		transactionTimestamp, err = time.Parse(time.RFC3339, ts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	var accountID uuid.UUID
-	if acc := req.GetAccount(); acc != nil && acc.GetAccountId() != "" {
-		accountID, err = uuid.Parse(acc.GetAccountId())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	var metadata map[string]any
-	if len(req.GetMetadata()) > 0 {
-		metadata = make(map[string]any, len(req.GetMetadata()))
-		for key, value := range req.GetMetadata() {
-			metadata[key] = value
-		}
-	}
-
-	validationReq := &tracermodel.ValidationRequest{
-		RequestID:            requestID,
-		TransactionType:      tracermodel.TransactionType(req.GetTransactionType()),
-		Amount:               amount,
-		Asset:                req.GetAsset(),
-		TransactionTimestamp: transactionTimestamp,
-		Account:              tracermodel.AccountContext{ID: accountID, Type: req.GetAccount().GetType()},
-		Metadata:             metadata,
-	}
-
-	if segment, err := optionalContextID(req.GetSegmentId()); err != nil {
-		return nil, err
-	} else if segment != nil {
-		validationReq.Segment = &tracermodel.SegmentContext{ID: *segment}
-	}
-
-	if portfolio, err := optionalContextID(req.GetPortfolioId()); err != nil {
-		return nil, err
-	} else if portfolio != nil {
-		validationReq.Portfolio = &tracermodel.PortfolioContext{ID: *portfolio}
-	}
-
-	if merchant, err := optionalContextID(req.GetMerchantId()); err != nil {
-		return nil, err
-	} else if merchant != nil {
-		validationReq.Merchant = &tracermodel.MerchantContext{ID: *merchant}
-	}
-
-	return validationReq, nil
-}
-
-// optionalContextID parses an optional scope id: an empty string is absent, a
-// present-but-malformed value is rejected.
-func optionalContextID(raw string) (*uuid.UUID, error) {
-	if raw == "" {
-		return nil, nil
-	}
-
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return nil, err
-	}
-
-	return &id, nil
-}
-
 // uuidStrings renders ids as the proto's repeated string field.
 func uuidStrings(ids []uuid.UUID) []string {
 	if len(ids) == 0 {
@@ -207,7 +117,7 @@ func uuidStrings(ids []uuid.UUID) []string {
 	return out
 }
 
-// newContractClient serves the reconstructed tracer on an in-memory bufconn
+// newContractClient serves the tracer stand-in on an in-memory bufconn
 // listener and returns the real ledger client, built through its production
 // constructor, dialed to it. The server stops and the client closes via
 // t.Cleanup.
