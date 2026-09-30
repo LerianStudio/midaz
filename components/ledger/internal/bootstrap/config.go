@@ -1034,8 +1034,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Resolve the optional SIGTERM teardown hook for the tracer transport.
 	// The gRPC client holds a persistent grpc.ClientConn and exposes
-	// Close() error; the REST client does not implement the interface, so
-	// tracerClose stays nil and Run() registers no teardown app for it.
+	// Close() error; a reserver without that hook (the nil reserver when the
+	// integration is off) leaves tracerClose nil and Run() registers no
+	// teardown app for it.
 	var tracerClose func() error
 	if closer, ok := tracerReserver.(interface{ Close() error }); ok {
 		tracerClose = closer.Close
