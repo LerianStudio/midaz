@@ -50,8 +50,8 @@ func RegisterFeeDebtV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 
 	parse := pkgHTTP.ParseUUIDPathParameters("fee-debts")
 
-	routeGet(group, feeDebtsPath, protectedMidaz(auth, "fee-debts", "get", routeOptions, parse))
-	routeGet(group, feeDebtsPath+"/:debt_id", protectedMidaz(auth, "fee-debts", "get", routeOptions, parse))
+	routeGet(group, feeDebtsPath, protectedMidaz(auth, feeDebtsPath, "fee-debts", "get", routeOptions, parse))
+	routeGet(group, feeDebtsPath+"/:debt_id", protectedMidaz(auth, feeDebtsPath+"/:debt_id", "fee-debts", "get", routeOptions, parse))
 
 	RegisterFeeDebtRoutes(api, h, v2OpSuffix)
 }

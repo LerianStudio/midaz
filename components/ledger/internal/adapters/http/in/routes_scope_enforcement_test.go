@@ -107,6 +107,13 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 		RegisterTransactionV2RoutesToApp(group, api, auth, &TransactionHandler{}, nil)
 	}
 
+	feeDebtRegistrar := func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
+		RegisterFeeDebtV2RoutesToApp(group, api, auth, &FeeDebtHandler{}, nil)
+	}
+	feeDebtCollectRegistrar := func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
+		RegisterFeeDebtCollectV2RoutesToApp(group, api, auth, &TransactionHandler{}, nil)
+	}
+
 	rows := []scopeEnforcementRow{
 		{
 			name:     "list ledgers carries the organization only",
@@ -220,6 +227,27 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			register: transactionV2Registrar,
 			method:   fiber.MethodPost,
 			path:     orgLedger + "/transactions/" + entityID + "/commit",
+			want:     bothDims,
+		},
+		{
+			name:     "list fee debts carries organization and ledger",
+			register: feeDebtRegistrar,
+			method:   fiber.MethodGet,
+			path:     orgLedger + "/fee-debts",
+			want:     bothDims,
+		},
+		{
+			name:     "get one fee debt carries organization and ledger",
+			register: feeDebtRegistrar,
+			method:   fiber.MethodGet,
+			path:     orgLedger + "/fee-debts/some-debt",
+			want:     bothDims,
+		},
+		{
+			name:     "collect fee debts carries organization and ledger",
+			register: feeDebtCollectRegistrar,
+			method:   fiber.MethodPost,
+			path:     orgLedger + "/fee-debts/collect",
 			want:     bothDims,
 		},
 	}
