@@ -267,10 +267,34 @@ func limitRepairDualField(
 			return source, modern, err
 		}
 
-		return dualTextField(name, source)
+		return indexedAliasDualField(name, source, snapshot.Key)
 	default:
 		return dualTextField(name, source)
 	}
+}
+
+// indexedAliasDualField keeps an indexed legacy alias in the uppercase field,
+// where older readers expect it, and writes the logical alias to the modern
+// field so the entry key form does not spread into new-only readers.
+func indexedAliasDualField(name string, source json.RawMessage, key string) (json.RawMessage, json.RawMessage, error) {
+	legacy, modern, err := dualTextField(name, source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var alias string
+	if err := json.Unmarshal(source, &alias); err != nil {
+		return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+	}
+
+	entryAlias, indexed := indexedEntryAlias(alias, key)
+	if !indexed {
+		return legacy, modern, nil
+	}
+
+	_, modern, err = quotedDualField(name, entryAlias)
+
+	return legacy, modern, err
 }
 
 func quotedDualField(name, value string) (json.RawMessage, json.RawMessage, error) {
