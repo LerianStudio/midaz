@@ -12,10 +12,14 @@ import (
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	operationPostgres "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -314,6 +318,10 @@ func (reader *atomicTransactionBatchProjectionReaderFake) GetAtomicTransactionBa
 type atomicTransactionBatchRecoveryTracerFake struct {
 	confirmed []uuid.UUID
 	released  []uuid.UUID
+
+	// confirmOutcome is what a by-transaction confirm reports; the zero value is
+	// a confirm that found nothing released.
+	confirmOutcome tracer.ConfirmOutcome
 }
 
 func (*atomicTransactionBatchRecoveryTracerFake) Reserve(
@@ -337,7 +345,7 @@ func (fake *atomicTransactionBatchRecoveryTracerFake) ConfirmByTransaction(
 ) (tracer.ConfirmOutcome, error) {
 	fake.confirmed = append(fake.confirmed, transactionID)
 
-	return tracer.ConfirmOutcome{}, nil
+	return fake.confirmOutcome, nil
 }
 
 func (fake *atomicTransactionBatchRecoveryTracerFake) ReleaseByTransaction(
@@ -414,6 +422,51 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_IntermediateMemberAvo
 		fixture.executionID,
 		fixture.transactionIDs[0],
 	}, fixture.repository.identity)
+}
+
+// TestPrepareAtomicTransactionBatchRecoveryFinalization_AlreadyReleasedConfirmIsFlaggedOnce
+// covers recovery reconciling a member whose reservations the tracer had
+// already released: the outcome is flagged under the by-transaction operation
+// and the confirm is not redelivered, because a retry cannot count the spend.
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_AlreadyReleasedConfirmIsFlaggedOnce(t *testing.T) {
+	withFastSharedRetrier(t)
+
+	reader, factory := newReaderFactory(t)
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	logger := &capturingLogger{}
+	ctx := libObservability.ContextWithTracer(context.Background(), tp.Tracer("recovery-test"))
+	ctx = libObservability.ContextWithLogger(ctx, logger)
+
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Candidate = false
+	fixture.tracer.confirmOutcome = tracer.ConfirmOutcome{AlreadyReleased: 1}
+	fixture.useCase.MetricsFactory = factory
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(
+		ctx,
+		fixture.record,
+		fixture.completion,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+
+	sharedReservationRetrier.wait()
+
+	assert.Equal(t, []uuid.UUID{fixture.transactionIDs[0]}, fixture.tracer.confirmed,
+		"a confirm that found released rows is not retried")
+	assert.Empty(t, fixture.tracer.released)
+
+	warns := alreadyReleasedWarns(logger)
+	require.Len(t, warns, 1)
+	assert.Equal(t, libLog.LevelWarn, warns[0].Level)
+	assert.Contains(t, warns[0].Fields, fixture.transactionIDs[0].String())
+
+	events, red := alreadyReleasedEvents(recorder.Ended())
+	assert.Equal(t, 1, events)
+	assert.False(t, red, "a business observation keeps the span green")
+
+	assert.Equal(t, map[string]int64{reservationConfirmOperationByTransaction: 1}, alreadyReleasedSeries(t, reader))
 }
 
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_LastMemberReadsOnceAndRestoresCreated(t *testing.T) {

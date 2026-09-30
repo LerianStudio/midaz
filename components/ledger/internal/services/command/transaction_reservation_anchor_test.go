@@ -80,6 +80,9 @@ type stubReserver struct {
 	// reports; the zero value is a confirm that found nothing released.
 	confirmOutcome      tracer.ConfirmOutcome
 	confirmByTxnOutcome tracer.ConfirmOutcome
+
+	// confirmOutcomeByID overrides confirmOutcome for the listed reservation ids.
+	confirmOutcomeByID map[uuid.UUID]tracer.ConfirmOutcome
 }
 
 func (s *stubReserver) Reserve(_ context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error) {
@@ -104,6 +107,10 @@ func (s *stubReserver) Confirm(_ context.Context, id uuid.UUID) (tracer.ConfirmO
 
 	if s.confirmErr != nil {
 		return tracer.ConfirmOutcome{}, s.confirmErr
+	}
+
+	if outcome, ok := s.confirmOutcomeByID[id]; ok {
+		return outcome, nil
 	}
 
 	return s.confirmOutcome, nil

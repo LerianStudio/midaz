@@ -53,9 +53,9 @@ type ReserveAccount struct {
 	// AccountID is empty when the ledger has no internal source account (an
 	// external-only source). The tracer treats an empty account id as an absent
 	// account, which the relaxed reserve validation accepts.
-	AccountID string `json:"accountId,omitempty"`
+	AccountID string
 	// Type is the ledger account type, verbatim. Optional.
-	Type string `json:"type,omitempty"`
+	Type string
 }
 
 // ReserveRequest is the reserve input the ledger sends the tracer. It is typed
@@ -65,38 +65,37 @@ type ReserveAccount struct {
 // populates it from the fee-inclusive transaction state; the client only
 // transports it.
 //
-// The tracer's reserve validation requires requestId, a positive amount, a
-// valid asset code (1 to 100 uppercase letters), and a transactionTimestamp that
-// is not in the future. account.accountId is OPTIONAL on the relaxed reserve
-// path: an external-only source omits it and the tracer accepts the accountless
-// request.
-// transactionType is OPTIONAL too (the ledger has no card-rail nature to
-// honestly report; when empty the tracer matches account-scoped limits without
-// a transaction-type constraint).
+// The tracer's reserve validation requires request_id, a positive amount, a
+// valid asset code (1 to 100 uppercase letters), and a transaction_timestamp
+// that is not in the future. account.account_id is OPTIONAL on the relaxed
+// reserve path: an external-only source omits it and the tracer accepts the
+// accountless request. transaction_type is OPTIONAL too (the ledger has no
+// card-rail nature to honestly report; when empty the tracer matches
+// account-scoped limits without a transaction-type constraint).
 type ReserveRequest struct {
-	TransactionID uuid.UUID      `json:"transactionId"`
-	RequestID     string         `json:"requestId"`
-	Amount        string         `json:"amount"`
-	Asset         string         `json:"asset"`
-	Account       ReserveAccount `json:"account"`
-	SegmentID     string         `json:"segmentId,omitempty"`
-	PortfolioID   string         `json:"portfolioId,omitempty"`
-	MerchantID    string         `json:"merchantId,omitempty"`
+	TransactionID uuid.UUID
+	RequestID     string
+	Amount        string
+	Asset         string
+	Account       ReserveAccount
+	SegmentID     string
+	PortfolioID   string
+	MerchantID    string
 	// TransactionType is optional on reserve. When set it must be a valid
 	// tracer transaction type; the ledger leaves it empty.
-	TransactionType string `json:"transactionType,omitempty"`
+	TransactionType string
 	// TransactionTimestamp is RFC3339; the tracer rejects a future timestamp
 	// against its injected clock and does not bound its age on reserve.
-	TransactionTimestamp string `json:"transactionTimestamp"`
+	TransactionTimestamp string
 	// LongLived hints the tracer to assign a long-lived reservation lifetime to
 	// a PENDING-transaction reservation.
-	LongLived bool `json:"longLived,omitempty"`
+	LongLived bool
 	// Metadata is the transaction's flat metadata. The tracer accepts keys
 	// matching ^[a-zA-Z0-9_]+$, at most 64 characters, and at most 50 entries.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata map[string]string
 	// Revert marks the reservation as the revert of an applied transaction. The
 	// tracer skips rule evaluation for it and still reserves limit capacity.
-	Revert bool `json:"revert,omitempty"`
+	Revert bool
 }
 
 // ReserveResult is the handle returned by a successful reserve. Denied is the
@@ -106,18 +105,24 @@ type ReserveRequest struct {
 // MatchedRuleIDs refine Denied; a tracer that predates them leaves them zero,
 // and Denied stays authoritative either way.
 type ReserveResult struct {
-	TransactionID  uuid.UUID   `json:"transactionId"`
-	Denied         bool        `json:"denied"`
-	Decision       string      `json:"decision"`
-	Reason         string      `json:"reason,omitempty"`
-	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds"`
-	ReservationIDs []uuid.UUID `json:"reservationIds"`
+	TransactionID  uuid.UUID
+	Denied         bool
+	Decision       string
+	Reason         string
+	MatchedRuleIDs []uuid.UUID
+	ReservationIDs []uuid.UUID
 }
 
-// ConfirmOutcome is what a successful confirm found. Confirmed counts the
-// reservations the call settled; AlreadyReleased counts the ones the tracer had
-// already released (by expiry or an earlier release), so their spend was never
-// counted against the limit. A by-id confirm reports exactly one of the two.
+// ConfirmOutcome is what a successful confirm found. AlreadyReleased counts the
+// reservations the tracer had already released by an earlier release, so their
+// spend is never counted against the limit. An expired reservation is not among
+// them: confirm settles it and counts its spend.
+//
+// Confirmed means different things per call. A by-transaction confirm counts
+// the reservations the call settled. A by-id confirm reports exactly one of the
+// two fields, and there Confirmed means only "not already released": the wire
+// cannot tell a reservation settled by this call from one an earlier confirm
+// already settled, so an idempotent re-confirm also reports Confirmed 1.
 type ConfirmOutcome struct {
 	Confirmed       int
 	AlreadyReleased int

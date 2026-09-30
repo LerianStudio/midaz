@@ -205,6 +205,46 @@ func TestConfirmReservations_AlreadyReleased(t *testing.T) {
 		assert.Equal(t, map[string]int64{reservationConfirmOperationByID: 1}, alreadyReleasedSeries(t, reader))
 	})
 
+	t.Run("each released reservation of a multi-id handle is flagged on its own", func(t *testing.T) {
+		withFastSharedRetrier(t)
+
+		reader, factory := newReaderFactory(t)
+		ctx, span, ended := recordingSpan(t)
+		logger := &capturingLogger{}
+		txID := uuid.New()
+		ids := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+		released := tracer.ConfirmOutcome{Confirmed: 0, AlreadyReleased: 1}
+		reserver := &stubReserver{
+			confirmOutcome:     tracer.ConfirmOutcome{Confirmed: 1},
+			confirmOutcomeByID: map[uuid.UUID]tracer.ConfirmOutcome{ids[0]: released, ids[2]: released},
+		}
+		uc := &UseCase{TracerReserver: reserver, MetricsFactory: factory}
+
+		handle := alreadyReleasedIdentity(txID)
+		handle.ReservationIDs = ids
+
+		uc.confirmReservations(ctx, span, logger, handle)
+
+		sharedReservationRetrier.wait()
+
+		assert.Equal(t, ids, reserver.confirmed(), "each id confirmed once, none retried")
+
+		warns := alreadyReleasedWarns(logger)
+		require.Len(t, warns, 2)
+
+		for _, warn := range warns {
+			assert.Contains(t, warn.Fields, txID.String())
+		}
+
+		assert.NotContains(t, rendered(logger.snapshot()), alreadyReleasedAmount)
+
+		events, red := alreadyReleasedEvents(ended())
+		assert.Equal(t, 2, events)
+		assert.False(t, red)
+
+		assert.Equal(t, map[string]int64{reservationConfirmOperationByID: 2}, alreadyReleasedSeries(t, reader))
+	})
+
 	t.Run("a clean confirm records nothing", func(t *testing.T) {
 		withFastSharedRetrier(t)
 
