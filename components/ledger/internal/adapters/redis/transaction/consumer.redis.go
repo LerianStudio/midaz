@@ -104,6 +104,10 @@ type RedisRepository interface {
 	// ProcessBalanceAtomicOperation executes the Lua balance mutation script.
 	// Atomically updates balances, records backup, and schedules sync in a single round-trip.
 	// Returns before/after balance snapshots for event emission.
+	//
+	// An *UnusableBalanceResultError means the script completed, so balances may
+	// already have moved, but its answer could not be mapped to the requested
+	// balances. Callers must not treat it as a rejected operation.
 	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error)
 	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
@@ -167,6 +171,20 @@ type RedisRepository interface {
 	// A cache miss (key absent) is a no-op: the next transaction will load the
 	// freshly-updated settings directly from PostgreSQL on its first SETNX.
 	UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error
+}
+
+// UnusableBalanceResultError reports that the balance script completed but its
+// answer could not be turned into snapshots of the requested balances.
+type UnusableBalanceResultError struct {
+	Err error
+}
+
+func (e *UnusableBalanceResultError) Error() string {
+	return "balance operation applied but its result is unusable: " + e.Err.Error()
+}
+
+func (e *UnusableBalanceResultError) Unwrap() error {
+	return e.Err
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -416,7 +434,8 @@ type balanceAtomicOperationPlan struct {
 //
 // The implementation uses json.RawMessage to keep each element's raw bytes and
 // unmarshal directly into BalanceRedis, avoiding the double marshal/unmarshal
-// round-trip of parsing into any and re-serializing.
+// round-trip of parsing into any and re-serializing. An element that does not
+// decode fails the whole list, since the balance it describes may have moved.
 type balanceRedisList []mmodel.BalanceRedis
 
 func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
@@ -436,14 +455,14 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 
 		result := make([]mmodel.BalanceRedis, 0, len(items))
 
-		for _, raw := range items {
+		for i, raw := range items {
 			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 				continue
 			}
 
 			var b mmodel.BalanceRedis
 			if err := json.Unmarshal(raw, &b); err != nil {
-				continue
+				return fmt.Errorf("balanceRedisList: element %d: %w", i, err)
 			}
 
 			result = append(result, b)
@@ -478,14 +497,14 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 
 		result := make([]mmodel.BalanceRedis, 0, len(nested))
 
-		for _, raw := range nested {
+		for key, raw := range nested {
 			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 				continue
 			}
 
 			var b mmodel.BalanceRedis
 			if err := json.Unmarshal(raw, &b); err != nil {
-				continue
+				return fmt.Errorf("balanceRedisList: element %q: %w", key, err)
 			}
 
 			result = append(result, b)
@@ -831,54 +850,64 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 	}
 }
 
-func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) []*mmodel.Balance {
-	logger := libObservability.NewLoggerFromContext(ctx)
-
+func collectBalanceSnapshots(balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) ([]*mmodel.Balance, error) {
 	collected := make([]*mmodel.Balance, 0, len(balances))
 	for _, balanceRedis := range balances {
 		balance := balanceRedisToBalance(balanceRedis, mapBalances)
 		if balance == nil {
-			logger.Log(
-				ctx, libLog.LevelWarn, "Balance not found in map during snapshot collection",
-				libLog.String("phase", phase),
-				libLog.String("alias", balanceRedis.Alias),
-				libLog.String("balance_id", balanceRedis.ID),
-			)
-
-			continue
+			return nil, fmt.Errorf("%s snapshot for balance %s is not part of the operation", phase, balanceRedis.ID)
 		}
 
 		collected = append(collected, balance)
 	}
 
-	return collected
+	return collected, nil
 }
 
+// decodeBalanceAtomicResult maps the script's answer onto the requested
+// balances. Every failure is an *UnusableBalanceResultError: the script has
+// already run, so the balances it reports may have moved.
 func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
 	defer span.End()
 
+	decoded, err := mapBalanceAtomicResult(result, mapBalances)
+	if err != nil {
+		unusable := &UnusableBalanceResultError{Err: err}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to map Lua script response", unusable)
+		logger.Log(ctx, libLog.LevelError, "Failed to map Lua script response", libLog.Err(unusable))
+
+		return nil, unusable
+	}
+
+	return decoded, nil
+}
+
+func mapBalanceAtomicResult(result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, error) {
 	balanceJSON, err := normalizeBalanceAtomicResult(result)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Unexpected result type from Lua script", libLog.Err(err))
-
 		return nil, err
 	}
 
 	var atomicResp balanceAtomicResponse
 	if err := json.Unmarshal(balanceJSON, &atomicResp); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to deserialize Lua script response", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to deserialize Lua script response", libLog.Err(err))
-
 		return nil, err
 	}
 
-	return &mmodel.BalanceAtomicResult{
-		Before: collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before"),
-		After:  collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after"),
-	}, nil
+	before, err := collectBalanceSnapshots(atomicResp.Before, mapBalances, "before")
+	if err != nil {
+		return nil, err
+	}
+
+	after, err := collectBalanceSnapshots(atomicResp.After, mapBalances, "after")
+	if err != nil {
+		return nil, err
+	}
+
+	return &mmodel.BalanceAtomicResult{Before: before, After: after}, nil
 }
 
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {

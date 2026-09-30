@@ -121,6 +121,39 @@ func TestBalanceRedisList_UnmarshalJSON_NestedNumericKeys(t *testing.T) {
 	assert.True(t, ids["b2"], "should contain b2")
 }
 
+// An element that does not decode must fail the list: dropping it would hide a
+// balance the Lua script already moved.
+func TestBalanceRedisList_UnmarshalJSON_UnreadableElementFails(t *testing.T) {
+	tests := map[string]string{
+		"array element": `[
+			{"id":"b1","alias":"@src","accountId":"a1","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
+			{"id":"b2","alias":"@dst","accountId":"a2","available":true,"onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
+		]`,
+		"numeric key element": `{
+			"1": {"id":"b1","alias":"@src","accountId":"a1","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
+			"2": {"id":"b2","alias":"@dst","accountId":"a2","available":true,"onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
+		}`,
+		"bare object": `{"id":"b1","alias":"@src","available":true,"onHold":"0","version":1}`,
+	}
+
+	for name, input := range tests {
+		t.Run(name, func(t *testing.T) {
+			var list balanceRedisList
+
+			assert.Error(t, json.Unmarshal([]byte(input), &list), "decoded %d balances", len(list))
+		})
+	}
+}
+
+func TestBalanceAtomicResponse_UnmarshalJSON_UnreadableBalanceFails(t *testing.T) {
+	input := `{"before":[{"id":"b1","alias":"@src","available":"100","onHold":"0","version":1},{"id":"b2","alias":"@dst","available":true,"onHold":"0","version":1}],` +
+		`"after":[{"id":"b1","alias":"@src","available":"90","onHold":"0","version":2}]}`
+
+	var resp balanceAtomicResponse
+
+	assert.Error(t, json.Unmarshal([]byte(input), &resp))
+}
+
 func TestBalanceRedisList_UnmarshalJSON_InvalidJSON(t *testing.T) {
 	var list balanceRedisList
 	err := json.Unmarshal([]byte(`not json`), &list)
