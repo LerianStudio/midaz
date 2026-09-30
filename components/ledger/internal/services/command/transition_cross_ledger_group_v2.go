@@ -299,7 +299,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 		}
 	}
 
-	if err := uc.handoffAtomicTransactionBatchExecution(ctx, idempotencyRun); err != nil {
+	if err := uc.handoffReservedAtomicTransactionBatchExecution(ctx, span, logger, idempotencyRun, destinationRun); err != nil {
 		releaseOnPreparationError = false
 		return nil, err
 	}

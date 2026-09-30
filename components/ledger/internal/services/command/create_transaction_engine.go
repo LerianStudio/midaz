@@ -119,6 +119,8 @@ func (uc *UseCase) executeCreateEngine(
 			run.honoredTracerSkip)
 		if reservation.Kind == reservationReject {
 			uc.rollbackCreateClaim(ctx, run)
+			uc.releaseReservations(ctx, span, logger, reservation.Handle)
+
 			return nil, reservation.Err
 		}
 	}
@@ -142,6 +144,8 @@ func (uc *UseCase) executeCreateEngine(
 		return nil, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
 
+	// A PENDING create leaves an unanswered reserve to its commit or cancel,
+	// which settle by transaction.
 	if run.status != constant.PENDING && tracerEligible {
 		uc.confirmReservations(ctx, span, logger, reservation.Handle)
 	}

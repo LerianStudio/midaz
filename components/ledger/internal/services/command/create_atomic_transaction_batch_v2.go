@@ -255,7 +255,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "reservation", time.Since(phaseStartedAt))
 
-	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
+	if err := uc.handoffReservedAtomicTransactionBatchExecution(ctx, span, logger, run, run); err != nil {
 		return nil, err
 	}
 

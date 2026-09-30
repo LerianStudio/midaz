@@ -81,6 +81,7 @@ func TestReserveTransaction_ClassifiesDenials(t *testing.T) {
 				reservationTTLDefault, reservationForCreate, false)
 
 			assert.Empty(t, out.Handle.ReservationIDs, "a denied result holds no capacity")
+			assert.False(t, out.Handle.Unanswered, "a denied result was answered, so nothing is left to settle")
 
 			if tc.wantCode == "" {
 				assert.Equal(t, reservationProceed, out.Kind, "advisory observes a denial but never blocks")

@@ -24,9 +24,10 @@ const (
 )
 
 // reserveAtomicTransactionBatch reserves fee-inclusive capacity in request
-// order. A rejection at item k releases only handles acquired for items before
-// k, also in request order, and returns the singular Tracer business error
-// correlated to the rejected item.
+// order. A rejection at item k releases the handles acquired for items before
+// k, also in request order, plus item k's own when its reserve went unanswered,
+// and returns the singular Tracer business error correlated to the rejected
+// item.
 func (uc *UseCase) reserveAtomicTransactionBatch(
 	ctx context.Context,
 	span trace.Span,
@@ -51,6 +52,8 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 			reservationPurposeForAction(item.action),
 			item.honoredTracerSkip,
 		)
+		item.tracerReservation = reservation.Handle
+
 		if reservation.Kind == reservationReject {
 			uc.settleAtomicTransactionBatchReservations(
 				ctx,
@@ -66,8 +69,6 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 				"tracer reservation rejected",
 			)
 		}
-
-		item.tracerReservation = reservation.Handle
 	}
 
 	return nil
@@ -88,13 +89,42 @@ func (uc *UseCase) settleAtomicTransactionBatchReservations(
 	}
 
 	for index := range run.items {
-		handle := run.items[index].tracerReservation
+		item := &run.items[index]
 
 		switch settlement {
 		case atomicTransactionBatchReservationConfirmedAbort:
-			uc.releaseReservations(ctx, span, logger, handle)
+			uc.releaseReservations(ctx, span, logger, item.tracerReservation)
 		case atomicTransactionBatchReservationKnownSuccess:
-			uc.confirmReservations(ctx, span, logger, handle)
+			uc.confirmReservations(ctx, span, logger, item.tracerReservation)
 		}
 	}
+}
+
+// handoffReservedAtomicTransactionBatchExecution hands idempotencyRun's
+// execution to the engine phase. A failed hand-off returns before the engine
+// runs, and a hand-off record never runs the engine later, so no movement can
+// follow: the reservations held for reserved's items go back. A nil reserved
+// holds none.
+func (uc *UseCase) handoffReservedAtomicTransactionBatchExecution(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	idempotencyRun *atomicTransactionBatchRun,
+	reserved *atomicTransactionBatchRun,
+) error {
+	if err := uc.handoffAtomicTransactionBatchExecution(ctx, idempotencyRun); err != nil {
+		if reserved != nil {
+			uc.settleAtomicTransactionBatchReservations(
+				ctx,
+				span,
+				logger,
+				reserved,
+				atomicTransactionBatchReservationConfirmedAbort,
+			)
+		}
+
+		return err
+	}
+
+	return nil
 }

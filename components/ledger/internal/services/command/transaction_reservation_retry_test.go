@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -763,4 +764,100 @@ func TestAnchorHandsAFailedTransitionToTheRetrier(t *testing.T) {
 
 		sharedReservationRetrier.wait()
 	})
+}
+
+// TestRetryOfAByTransactionConfirmAfterTransportFailureStillReportsDelivery pins
+// that a by-transaction confirm the transport refused keeps its delivered-on-retry
+// line.
+func TestRetryOfAByTransactionConfirmAfterTransportFailureStillReportsDelivery(t *testing.T) {
+	t.Parallel()
+
+	logger := &capturingLogger{}
+	reserver := &scriptedReserver{confirm: failNTimes(1)}
+	retrier := newReservationRetrier(fastRetryPolicy())
+
+	transition := retryTransition()
+	transition.ReservationID = uuid.Nil
+
+	retrier.schedule(context.Background(), reserver, nil, logger, transition,
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+	retrier.wait()
+
+	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelWarn))
+	assert.Contains(t, reported, "delivered on retry")
+	assert.NotContains(t, reported, "No reservation found to confirm")
+}
+
+func TestRetrier_CompletedSequenceFreesItsSlotAndLeavesNoOutstanding(t *testing.T) {
+	t.Parallel()
+
+	const maxInFlight = 3
+
+	cases := []struct {
+		name  string
+		gated bool
+	}{
+		{name: "delivered sequences free every slot for the next round"},
+		{name: "a held retrier accepts exactly its bound and drops the next", gated: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy := fastRetryPolicy()
+			policy.MaxInFlight = maxInFlight
+			retrier := newReservationRetrier(policy)
+			logger := &capturingLogger{}
+			cause := fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable)
+
+			if tc.gated {
+				gate := make(chan struct{})
+				held := &scriptedReserver{confirm: func(int) error { <-gate; return nil }}
+
+				for range maxInFlight {
+					retrier.schedule(context.Background(), held, nil, logger, retryTransition(), cause)
+				}
+
+				assert.NotContains(t, rendered(logger.snapshot()), "dropped", "the bound itself is accepted")
+
+				dropped := retryTransition()
+				retrier.schedule(context.Background(), held, nil, logger, dropped, cause)
+
+				reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
+				assert.Contains(t, reported, "Tracer reservation transition dropped")
+				assert.Contains(t, reported, dropped.TransactionID.String())
+				assert.Equal(t, 1, strings.Count(reported, "transition dropped"), "only the sequence past the bound is dropped")
+
+				close(gate)
+				retrier.wait()
+
+				attempts, _ := held.attempts()
+				assert.Equal(t, maxInFlight, attempts, "only the accepted sequences reach the tracer")
+
+				return
+			}
+
+			delivered := &scriptedReserver{confirm: failNTimes(0)}
+
+			for round := 1; round <= 2; round++ {
+				for range maxInFlight {
+					retrier.schedule(context.Background(), delivered, nil, logger, retryTransition(), cause)
+				}
+
+				retrier.wait()
+
+				assert.Zero(t, len(retrier.slots), "round %d: every finished sequence returns its slot", round)
+				assert.Empty(t, retrier.outstanding(), "round %d: every finished sequence is deregistered", round)
+
+				shutdown := &capturingLogger{}
+				retrier.reportOutstanding(context.Background(), shutdown)
+				assert.Empty(t, shutdown.snapshot(), "round %d: nothing is reported as abandoned", round)
+			}
+
+			attempts, _ := delivered.attempts()
+			assert.Equal(t, 2*maxInFlight, attempts, "both rounds are delivered in full")
+			assert.NotContains(t, rendered(logger.snapshot()), "dropped")
+		})
+	}
 }

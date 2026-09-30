@@ -168,7 +168,20 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 
 	var failure *accounting.Failure
 
-	if !outcome.Executed || !confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
+	// An engine that never ran moved nothing, so every reservation goes back.
+	if !outcome.Executed {
+		uc.settleAtomicTransactionBatchReservations(
+			ctx,
+			span,
+			logger,
+			run,
+			atomicTransactionBatchReservationConfirmedAbort,
+		)
+
+		return outcome, MapEngineError(prepared.Execution.Execution, executeErr)
+	}
+
+	if !confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 		return outcome, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
 
