@@ -145,7 +145,6 @@ func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context
 		return pgdb.ErrNilConnection
 	}
 
-	//nolint:dogsled // NewTrackingFromContext returns four values; this lock-only path needs just the tracer.
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.usage_reservation.acquire_scope_lock")

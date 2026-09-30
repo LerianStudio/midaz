@@ -875,7 +875,7 @@ func (s *ValidationService) persistAuditEventWithTx(ctx context.Context, tx pgdb
 	}
 
 	// Extract metricsFactory for observability on error path
-	_, _, _, metricsFactory := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only metricsFactory needed
+	_, _, _, metricsFactory := libObservability.NewTrackingFromContext(ctx)
 
 	if err := s.auditWriter.RecordValidationEventWithTx(
 		ctx,

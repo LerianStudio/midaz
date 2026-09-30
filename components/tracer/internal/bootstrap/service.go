@@ -355,7 +355,7 @@ func (r *streamingProducerRunnable) drain() {
 // Reversing steps 1-3 is FORBIDDEN: it produces dropped in-flight requests
 // during rolling deploys.
 func (app *Service) Shutdown(ctx context.Context) error {
-	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Step 1: flip drainingState. /readyz starts returning 503 immediately
 	// so K8s removes the pod from service endpoints during the grace window.

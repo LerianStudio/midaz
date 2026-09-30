@@ -278,7 +278,6 @@ func spanCause(cause, fallback error) error {
 // (SetRedisTLS) — never by reflecting on the live connection (anti-pattern
 // N4/N5).
 func (h *HealthChecker) probeReadyzRedis(ctx context.Context) api.ReadyzCheck {
-	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "readyz.probe.redis")
@@ -345,7 +344,6 @@ func (h *HealthChecker) probeReadyzRedis(ctx context.Context) api.ReadyzCheck {
 // breaker is open. Tenant manager is multi-tenant-only: single-tenant reports
 // "skipped".
 func (h *HealthChecker) probeReadyzTenantManager(ctx context.Context) api.ReadyzCheck {
-	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "readyz.probe.tenant_manager")
@@ -419,7 +417,6 @@ func (h *HealthChecker) probeReadyzTenantManager(ctx context.Context) api.Readyz
 // "skipped" when disabled (more honest than probing a NoopEmitter that always
 // reports healthy).
 func (h *HealthChecker) probeReadyzStreaming(ctx context.Context) api.ReadyzCheck {
-	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "readyz.probe.streaming")
@@ -540,7 +537,6 @@ func aggregateStatus(checks map[string]api.ReadyzCheck) string {
 // `tls` field is omitted (nil); the probe still reports up/down based on
 // the ping result.
 func (h *HealthChecker) probeReadyzPostgres(ctx context.Context) api.ReadyzCheck {
-	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "readyz.probe.postgres")
@@ -650,7 +646,6 @@ func (h *HealthChecker) detectPostgresTLS(span trace.Span) *bool {
 // distinct from "tls=false", which would (incorrectly) imply the dep was
 // configured without TLS.
 func (h *HealthChecker) probeReadyzRuleCache(ctx context.Context) api.ReadyzCheck {
-	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "readyz.probe.rule_cache")

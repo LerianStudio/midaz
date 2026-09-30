@@ -169,7 +169,7 @@ func (w *UsageCleanupWorker) runLoop(ctx context.Context) error {
 // runCleanupCycle executes a single cleanup and logs the result.
 // Errors are logged but not returned - the worker continues running.
 func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "worker.usage_cleanup.run_cycle")
 	defer span.End()
@@ -229,7 +229,7 @@ func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
 //
 //	Uses expires_at column for accurate cleanup timing.
 func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "worker.usage_cleanup.run_once")
 	defer span.End()
