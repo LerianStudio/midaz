@@ -522,11 +522,14 @@ the seam on by setting `TRACER_BASE_URL` to the seam address (an `http://`/`http
 tolerated and stripped; empty injects a nil reserver, leaving the transaction-create path unchanged).
 Identity is mutual TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated
 with no shared secret (the ledger presents a client cert, the tracer verifies it against its client
-CA, and the ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates
-mTLS to a service-mesh sidecar. Under `mtls` the tracer's gRPC listener also requires the client
-cert's DNS SAN, URI SAN or Subject CN to match `TRACER_TLS_CLIENT_ALLOWED_NAMES` (exact,
-case-insensitive; empty accepts any cert signed by the client CA and logs a boot Warn); the HTTP
-listener never applies that allowlist. Over the verified connection the ledger forwards a trusted
+CA, and the ledger verifies the tracer's server cert), while `mesh` runs plaintext and delegates
+mTLS to a service-mesh sidecar that must enforce STRICT mTLS and admit only the ledger to `:4021`.
+An empty tracer `TRACER_TLS_MODE` is plaintext with no verified peer and boots only with
+`DEPLOYMENT_MODE=local`. Under `mtls` the tracer's gRPC listener also requires the client cert's DNS
+SAN or URI SAN (or, on a cert without SANs, Subject CN) to match `TRACER_TLS_CLIENT_ALLOWED_NAMES`
+(exact, case-insensitive; empty accepts any cert signed by the client CA, which refuses boot under
+`DEPLOYMENT_MODE=saas` and logs a boot Warn elsewhere); the HTTP listener never applies that
+allowlist. Over the verified connection the ledger forwards a trusted
 `x-tenant-id` metadata key that the tracer's gRPC interceptor uses to resolve the per-tenant pool in
 multi-tenant mode; a tenant that is not provisioned, suspended or purged answers `Unavailable`
 (`0534`). A reserve replayed onto a transaction whose reservation already settled (released,
@@ -1069,8 +1072,10 @@ REST API) is governed server-side by `TRACER_GRPC_PORT` (the gRPC seam's listen 
 empty resolves to `:4021`, distinct from `SERVER_PORT`) and the `TRACER_TLS_*` settings —
 `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the server identity, `TRACER_TLS_CLIENT_CA_FILE` to
 verify the ledger's client cert under `TRACER_TLS_MODE=mtls`, and `TRACER_TLS_CLIENT_ALLOWED_NAMES`
-(comma-separated DNS SAN / URI SAN / CN identities the gRPC listener accepts; empty accepts any
-CA-signed cert with a boot Warn); see
+(comma-separated DNS SAN / URI SAN identities, or CN on a cert without SANs, the gRPC listener
+accepts; empty accepts any CA-signed cert with a boot Warn, and refuses boot under
+`DEPLOYMENT_MODE=saas`). Outside `DEPLOYMENT_MODE=local` the tracer's `TRACER_TLS_MODE` must be `mtls`
+or `mesh`; see
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 ### 6.4 Infrastructure

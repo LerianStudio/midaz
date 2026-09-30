@@ -153,10 +153,13 @@ serves on `TRACER_GRPC_PORT` (default `:4021`, beside the `:4020` HTTP API). The
 reservation route, and the ledger is the only caller:
 
 - **Identity.** Under `TRACER_TLS_MODE=mtls` the gRPC listener requires a client certificate signed
-  by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN, URI SAN or Subject CN equals an entry of
-  `TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated, exact, case-insensitive). An empty allowlist
-  accepts any CA-signed certificate and logs a warning at boot. The HTTP listener never applies the
-  allowlist. Under `mesh` or empty mode a service-mesh sidecar owns mTLS.
+  by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate without SANs, Subject
+  CN) equals an entry of `TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated, exact,
+  case-insensitive). An empty allowlist accepts any CA-signed certificate: it refuses boot under
+  `DEPLOYMENT_MODE=saas` and logs a warning elsewhere. The HTTP listener never applies the allowlist.
+  Under `mesh` a service-mesh sidecar owns mTLS; it must enforce STRICT mTLS and admit only the
+  ledger to `:4021`, and the tracer logs a warning at boot. An empty `TRACER_TLS_MODE` is plaintext
+  with no verified peer and boots only with `DEPLOYMENT_MODE=local`.
 - **Tenant.** The tenant travels in the trusted `x-tenant-id` gRPC metadata key. A tenant that is not
   provisioned, suspended or purged answers `Unavailable` with code `0534`.
 - **Settled rows.** A reserve replayed onto a transaction whose reservation is already released,

@@ -221,8 +221,11 @@ no static key.** This is stated explicitly in code: *"identity on the reservatio
 (`ledger/tls_seam.go:51-62`, server-side mirror `tracer/tls_seam.go:48-59`):
 
 - **`mtls`** — the app presents and verifies certificates directly.
-- **`mesh` / empty** — the app dials/listens **plaintext** and delegates mTLS origination/termination to
-  a local **Istio/Linkerd** service-mesh sidecar.
+- **`mesh`** — the app dials/listens **plaintext** and delegates mTLS origination/termination to a
+  local **Istio/Linkerd** service-mesh sidecar.
+- **empty** — plaintext with no verified peer. The tracer accepts it only with
+  `DEPLOYMENT_MODE=local`; any other deployment mode refuses boot
+  (`ValidateSeamTransportPosture`, `tracer/seam_posture.go`).
 
 **`mtls` mode, ledger (client) side** (`ledger/tls_seam.go:82-103`): presents its leaf via
 `GetClientCertificate`, verifies the tracer's server leaf against `RootCAs` loaded from
@@ -237,13 +240,14 @@ and the insecure default is gated off (`len(conf.dialOptions)==0`) so it cannot 
 
 **Client identity allowlist (gRPC listener only).** A CA-signed certificate is not enough on the seam:
 `TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated) names the client identities the gRPC listener
-accepts. The handshake passes only when one of the leaf's DNS SANs, URI SANs (e.g. `spiffe://...`) or
-its Subject CN equals an entry, compared exactly after trimming and case-folding
-(`buildGRPCSeamTLSConfig` → `verifyClientAllowedName` / `clientCertAllowed`). A refused handshake reaches
-the ledger as gRPC `Unavailable`, so it follows `failPosture`. An empty allowlist accepts any
-certificate the client CA signed and logs one Warn at boot (`warnGRPCSeamAcceptsAnyClient`). The list is
-ignored in `mesh`/empty mode and never applied to the HTTP listener, which keeps the base
-`buildSeamTLSConfig`.
+accepts. The handshake passes only when one of the leaf's DNS SANs or URI SANs (e.g. `spiffe://...`)
+equals an entry, or, on a leaf that carries no SAN, its Subject CN does, compared exactly after
+trimming and case-folding (`buildGRPCSeamTLSConfig` → `verifyClientAllowedName` / `clientCertAllowed`).
+A refused handshake reaches the ledger as gRPC `Unavailable`, so it follows `failPosture`. An empty
+allowlist accepts any certificate the client CA signed: under `DEPLOYMENT_MODE=saas` the tracer refuses
+to boot (`ValidateSeamTransportPosture`); elsewhere it logs one Warn at boot
+(`warnGRPCSeamAcceptsAnyClient`). The list is ignored in `mesh`/empty mode and never applied to the
+HTTP listener, which keeps the base `buildSeamTLSConfig`.
 
 **CA env-var asymmetry (deliberate and correct):** each side names the CA var by what it verifies on the
 *other* end. Ledger `TRACER_TLS_CA_FILE` holds the CA that verifies the **tracer's** server leaf
@@ -270,8 +274,17 @@ the key on every RPC (`tenantMetadataKey` in the ledger `adapters/tracer` packag
 `AppendToOutgoingContext`); the tracer reads the same key (`seamtenant.MetadataKey`).
 
 The tenant resolver is wired **only** onto the reservation RPCs (`seamtenant.Resolver`,
-`grpc/in/tenant_interceptor.go`); user-facing tracer routes keep their JWT-claim tenant path, so there
-is no header-trust path reachable without the verified peer. Under multi-tenant mode a
+`grpc/in/tenant_interceptor.go`); user-facing tracer routes keep their JWT-claim tenant path. The
+header is only as trustworthy as the peer, so the deployment must verify it one of two ways:
+
+- **`mtls`** with `TRACER_TLS_CLIENT_ALLOWED_NAMES` naming the ledger's certificate identity
+  (required under `DEPLOYMENT_MODE=saas`).
+- **`mesh`** with STRICT `PeerAuthentication` (or the Linkerd equivalent) on the tracer workload plus an
+  `AuthorizationPolicy` or `NetworkPolicy` that admits only the ledger's identity to `:4021`. The app
+  cannot check this itself and logs a boot Warn in `mesh` mode.
+
+An empty `TRACER_TLS_MODE` serves the seam plaintext with no verified peer, so the tracer refuses to
+boot with it outside `DEPLOYMENT_MODE=local` (`ValidateSeamTransportPosture`). Under multi-tenant mode a
 missing/empty/invalid trusted tenant key is a **clean failure** (`ErrReservationTenantRequired` →
 gRPC `InvalidArgument`) and never falls back to a default or wrong pool. A tenant the tenant manager
 reports as not provisioned, suspended or purged answers gRPC `Unavailable` with
@@ -364,8 +377,8 @@ in `components/ledger/.env.example` and `components/tracer/.env.example`.
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `buildClientMTLSConfig` |
 | `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `buildClientMTLSConfig` |
 | `TRACER_GRPC_PORT` | tracer | gRPC seam listen address; empty → `:4021`; always on | `DefaultTracerGRPCPort`, `ApplyGRPCSeamDefaults` |
-| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`/empty (mirrors ledger) | `buildSeamTLSConfig` |
+| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`\|empty; empty (plaintext, no verified peer) boots only with `DEPLOYMENT_MODE=local`; `mesh` logs a boot Warn | `buildSeamTLSConfig`, `ValidateSeamTransportPosture` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `buildMTLSConfig` |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `buildMTLSConfig` |
-| `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN / CN) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed` |
+| `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas`; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamTransportPosture` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | HTTP 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example` |
