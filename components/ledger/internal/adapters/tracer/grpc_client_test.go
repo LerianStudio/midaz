@@ -24,6 +24,13 @@ import (
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
+// fixedTransactionID and fixedReservationID are deterministic UUID literals
+// shared by this package's tests so they carry no uuid.New() randomness.
+var (
+	fixedTransactionID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	fixedReservationID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+)
+
 // stubReservationServer is an in-memory ReservationService used to exercise the
 // gRPC client's wire mapping. Each handler is a swappable func so a test case
 // can return a canned response or status error.
@@ -125,9 +132,9 @@ func TestNewTracerGRPCClient_ImplementsTracerReserver(t *testing.T) {
 
 	var _ interface {
 		Reserve(context.Context, ReserveRequest) (*ReserveResult, error)
-		Confirm(context.Context, uuid.UUID) error
+		Confirm(context.Context, uuid.UUID) (ConfirmOutcome, error)
 		Release(context.Context, uuid.UUID) error
-		ConfirmByTransaction(context.Context, uuid.UUID) error
+		ConfirmByTransaction(context.Context, uuid.UUID) (ConfirmOutcome, error)
 		ReleaseByTransaction(context.Context, uuid.UUID) error
 	} = client
 }
@@ -274,9 +281,26 @@ func TestTracerGRPCClient_Confirm(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		require.NoError(t, client.Confirm(context.Background(), reservationID))
+		outcome, err := client.Confirm(context.Background(), reservationID)
+		require.NoError(t, err)
 		require.NotNil(t, captured)
 		assert.Equal(t, reservationID.String(), captured.GetReservationId())
+		assert.Equal(t, ConfirmOutcome{Confirmed: 1, AlreadyReleased: 0}, outcome)
+	})
+
+	t.Run("already released maps onto the outcome", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			confirmByIDFn: func(_ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
+				return &reservationv1.ConfirmByIdResponse{AlreadyReleased: true}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		outcome, err := client.Confirm(context.Background(), reservationID)
+		require.NoError(t, err)
+		assert.Equal(t, ConfirmOutcome{Confirmed: 0, AlreadyReleased: 1}, outcome)
 	})
 
 	t.Run("unavailable maps to ErrTracerUnavailable", func(t *testing.T) {
@@ -289,8 +313,9 @@ func TestTracerGRPCClient_Confirm(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		err := client.Confirm(context.Background(), reservationID)
+		outcome, err := client.Confirm(context.Background(), reservationID)
 		require.Error(t, err)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 		assert.ErrorIs(t, err, ErrTracerUnavailable)
 	})
 
@@ -304,8 +329,9 @@ func TestTracerGRPCClient_Confirm(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		err := client.Confirm(context.Background(), reservationID)
+		outcome, err := client.Confirm(context.Background(), reservationID)
 		require.Error(t, err)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 		assert.NotErrorIs(t, err, ErrTracerUnavailable)
 		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
@@ -351,9 +377,26 @@ func TestTracerGRPCClient_ConfirmByTransaction(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		require.NoError(t, client.ConfirmByTransaction(context.Background(), transactionID))
+		outcome, err := client.ConfirmByTransaction(context.Background(), transactionID)
+		require.NoError(t, err)
 		require.NotNil(t, captured)
 		assert.Equal(t, transactionID.String(), captured.GetTransactionId())
+		assert.Equal(t, ConfirmOutcome{}, outcome, "an empty response confirms nothing and found nothing released")
+	})
+
+	t.Run("counts map onto the outcome", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubReservationServer{
+			confirmByTransactionFn: func(_ *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+				return &reservationv1.ConfirmByTransactionResponse{Confirmed: 3, AlreadyReleased: 2}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		outcome, err := client.ConfirmByTransaction(context.Background(), transactionID)
+		require.NoError(t, err)
+		assert.Equal(t, ConfirmOutcome{Confirmed: 3, AlreadyReleased: 2}, outcome)
 	})
 
 	t.Run("unavailable maps to ErrTracerUnavailable", func(t *testing.T) {
@@ -366,8 +409,9 @@ func TestTracerGRPCClient_ConfirmByTransaction(t *testing.T) {
 		}
 		client := newTestGRPCClient(t, stub)
 
-		err := client.ConfirmByTransaction(context.Background(), transactionID)
+		outcome, err := client.ConfirmByTransaction(context.Background(), transactionID)
 		require.Error(t, err)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 		assert.ErrorIs(t, err, ErrTracerUnavailable)
 	})
 }
@@ -395,15 +439,15 @@ func TestTracerGRPCClient_ReleaseByTransaction(t *testing.T) {
 
 // TestTracerGRPCClient_PropagatesTenantMetadata pins trusted tenant propagation
 // on the gRPC transport: when the request context carries a tenant, the client
-// appends it to the outgoing metadata under the lower-cased TenantHeader key,
-// and when the context carries none it appends nothing.
+// appends it to the outgoing metadata under the x-tenant-id key, and when the
+// context carries none it appends nothing.
 func TestTracerGRPCClient_PropagatesTenantMetadata(t *testing.T) {
 	t.Parallel()
 
 	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 
-	// The gRPC metadata key MUST be the lower-cased REST TenantHeader so the two
-	// transports cannot drift.
+	// The gRPC metadata key MUST equal the key the tracer's seam tenant
+	// resolver reads; the tracer's own interceptor test pins the other end.
 	assert.Equal(t, "x-tenant-id", tenantMetadataKey)
 
 	t.Run("tenant in context lands on outgoing metadata", func(t *testing.T) {

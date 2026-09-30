@@ -30,6 +30,11 @@ type MTLSFixture struct {
 	ServerKeyPEM  []byte
 	ClientCertPEM []byte
 	ClientKeyPEM  []byte
+	// OtherClientCertPEM / OtherClientKeyPEM are a second CA-signed client
+	// leaf with a distinct identity (CN "other-seam-client"), for proving an
+	// identity allowlist refuses a client the CA trusts.
+	OtherClientCertPEM []byte
+	OtherClientKeyPEM  []byte
 }
 
 // mtlsFixtureNotBefore / mtlsFixtureNotAfter bound the validity window of every
@@ -83,12 +88,20 @@ func GenerateMTLSFixture(t *testing.T) MTLSFixture {
 		clientAuth: true,
 	})
 
+	otherClientCertPEM, otherClientKeyPEM := signLeaf(t, caCert, caKey, leafSpec{
+		commonName: "other-seam-client",
+		serial:     4,
+		clientAuth: true,
+	})
+
 	return MTLSFixture{
-		CACertPEM:     pemEncode("CERTIFICATE", caDER),
-		ServerCertPEM: serverCertPEM,
-		ServerKeyPEM:  serverKeyPEM,
-		ClientCertPEM: clientCertPEM,
-		ClientKeyPEM:  clientKeyPEM,
+		CACertPEM:          pemEncode("CERTIFICATE", caDER),
+		ServerCertPEM:      serverCertPEM,
+		ServerKeyPEM:       serverKeyPEM,
+		ClientCertPEM:      clientCertPEM,
+		ClientKeyPEM:       clientKeyPEM,
+		OtherClientCertPEM: otherClientCertPEM,
+		OtherClientKeyPEM:  otherClientKeyPEM,
 	}
 }
 

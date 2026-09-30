@@ -12,6 +12,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -222,4 +224,87 @@ func TestTenantUnaryInterceptor_SingleTenantNeverEnsuresWorkers(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, ensurer.tenants)
+}
+
+func TestTenantUnaryInterceptor_ResolveFailureMapping(t *testing.T) {
+	tests := []struct {
+		name        string
+		poolErr     error
+		wantCode    codes.Code
+		wantMessage string
+		wantWarn    bool
+	}{
+		{
+			name:        "suspended tenant is unavailable",
+			poolErr:     &tmcore.TenantSuspendedError{TenantID: interceptorTenantID, Status: "suspended"},
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+			wantWarn:    true,
+		},
+		{
+			name:        "unprovisioned tenant is unavailable",
+			poolErr:     fmt.Errorf("get connection: %w", tmcore.ErrTenantNotProvisioned),
+			wantCode:    codes.Unavailable,
+			wantMessage: constant.ErrReservationTenantInactive.Error(),
+			wantWarn:    true,
+		},
+		{
+			name:        "other pool failure is internal",
+			poolErr:     errors.New("pool down"),
+			wantCode:    codes.Internal,
+			wantMessage: constant.ErrInternalServer.Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver := seamtenant.NewResolverWithPool(
+				func(context.Context, string) (dbresolver.DB, error) { return nil, tt.poolErr },
+				true,
+			)
+			ensurer := &recordingEnsurer{}
+
+			interceptor := TenantUnaryInterceptor(resolver, ensurer)
+
+			logger := testutil.NewMockLogger()
+
+			ctx := metadata.NewIncomingContext(
+				libObservability.ContextWithLogger(context.Background(), logger),
+				metadata.Pairs(seamtenant.MetadataKey, interceptorTenantID),
+			)
+
+			handlerCalled := false
+			handler := func(context.Context, any) (any, error) {
+				handlerCalled = true
+				return "ok", nil
+			}
+
+			resp, err := interceptor(ctx, nil, unaryInfo(), handler)
+			require.Nil(t, resp)
+			require.False(t, handlerCalled)
+			require.Empty(t, ensurer.tenants)
+
+			st, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tt.wantCode, st.Code())
+			require.Equal(t, tt.wantMessage, st.Message())
+
+			var warns []testutil.LogCall
+
+			for _, call := range logger.Calls {
+				if call.Level == "warn" {
+					warns = append(warns, call)
+				}
+			}
+
+			if !tt.wantWarn {
+				require.Empty(t, warns)
+				return
+			}
+
+			require.Len(t, warns, 1, "an inactive tenant is logged once at Warn")
+			require.Equal(t, interceptorTenantID, testutil.FieldsToMap(warns[0].Fields)["tenant_id"],
+				"the Warn names the tenant so an operator can find it")
+		})
+	}
 }

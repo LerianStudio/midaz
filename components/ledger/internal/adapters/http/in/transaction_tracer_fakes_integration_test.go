@@ -45,9 +45,9 @@ func (s *stubReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tra
 	return s.result, nil
 }
 
-func (s *stubReserver) Confirm(_ context.Context, id uuid.UUID) error {
+func (s *stubReserver) Confirm(_ context.Context, id uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.confirmedIDs = append(s.confirmedIDs, id)
-	return s.confirmErr
+	return tracer.ConfirmOutcome{}, s.confirmErr
 }
 
 func (s *stubReserver) Release(_ context.Context, id uuid.UUID) error {
@@ -55,9 +55,9 @@ func (s *stubReserver) Release(_ context.Context, id uuid.UUID) error {
 	return s.releaseErr
 }
 
-func (s *stubReserver) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) error {
+func (s *stubReserver) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.confirmedTxns = append(s.confirmedTxns, transactionID)
-	return s.confirmByTxnErr
+	return tracer.ConfirmOutcome{}, s.confirmByTxnErr
 }
 
 func (s *stubReserver) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) error {
@@ -83,10 +83,10 @@ func (f *forbiddenReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) 
 	return nil, nil
 }
 
-func (f *forbiddenReserver) Confirm(_ context.Context, _ uuid.UUID) error {
+func (f *forbiddenReserver) Confirm(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	f.fail("Confirm")
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (f *forbiddenReserver) Release(_ context.Context, _ uuid.UUID) error {
@@ -95,10 +95,10 @@ func (f *forbiddenReserver) Release(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (f *forbiddenReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
+func (f *forbiddenReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	f.fail("ConfirmByTransaction")
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (f *forbiddenReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {

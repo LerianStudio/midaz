@@ -5,33 +5,39 @@
 package bootstrap
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	libCert "github.com/LerianStudio/lib-commons/v7/commons/certificate"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-// TLS modes for the reservation seam (TRACER_TLS_MODE). Empty is treated as
-// tlsModeMesh so local dev and the Phase-1 toggle default keep working without
-// cert material.
+// TLS modes for the reservation seam (TRACER_TLS_MODE). Empty builds no TLS,
+// like tlsModeMesh, and ValidateSeamTransportPosture admits it only with
+// DEPLOYMENT_MODE=local.
 const (
 	tlsModeMTLS = "mtls"
 	tlsModeMesh = "mesh"
 )
 
-// buildSeamTLSConfig builds the *tls.Config that secures BOTH reservation-seam
-// listeners (the gRPC server and the Fiber REST listener). It is the single
-// place the seam's mutual-TLS posture is decided, so the two transports cannot
-// drift.
+// buildSeamTLSConfig builds the base *tls.Config shared by the gRPC seam and
+// the HTTP listener. The HTTP listener uses it as-is; the gRPC server uses it through
+// buildGRPCSeamTLSConfig, which adds only the client identity allowlist, so the
+// two transports cannot drift on the rest of the mutual-TLS posture.
 //
 // Behavior contract (per the Seam Contract — identity is mutual TLS, no shared
 // secret):
 //
-//   - mode "" / "mesh"  ⇒ (nil, nil). The app listens plaintext; a service-mesh
+//   - mode "mesh"       ⇒ (nil, nil). The app listens plaintext; a service-mesh
 //     sidecar (Istio/Linkerd) terminates mTLS. No cert material is consulted.
+//   - mode ""           ⇒ (nil, nil). Plaintext with no verified peer; the
+//     boot gate ValidateSeamTransportPosture refuses it unless
+//     DEPLOYMENT_MODE=local.
 //   - mode "mtls"       ⇒ (*tls.Config, nil) presenting the tracer's own server
 //     certificate and enforcing tls.RequireAndVerifyClientCert against the
 //     loaded client CA pool. The reservation seam is unreachable without a
@@ -109,4 +115,114 @@ func loadCertPool(path string) (*x509.CertPool, error) {
 	}
 
 	return pool, nil
+}
+
+// errClientNotAllowed refuses a verified client certificate whose identity is
+// outside TRACER_TLS_CLIENT_ALLOWED_NAMES. It names no certificate contents.
+var errClientNotAllowed = errors.New("client certificate identity is not in TRACER_TLS_CLIENT_ALLOWED_NAMES")
+
+// grpcSeamAcceptsAnyClientMsg is the boot Warn logged when the gRPC seam runs
+// mtls without a client identity allowlist.
+const grpcSeamAcceptsAnyClientMsg = "gRPC seam accepts any client certificate signed by TRACER_TLS_CLIENT_CA_FILE; set TRACER_TLS_CLIENT_ALLOWED_NAMES"
+
+// buildGRPCSeamTLSConfig builds the gRPC listener's *tls.Config. It returns
+// nil in mesh/empty mode (the allowlist is ignored there). In mtls it returns a
+// clone of buildSeamTLSConfig's result and, when TRACER_TLS_CLIENT_ALLOWED_NAMES
+// names at least one identity, a VerifyConnection hook that refuses a verified
+// client whose leaf matches none of them. The HTTP listener keeps
+// buildSeamTLSConfig, so the allowlist never reaches it. Pure: no logging.
+func buildGRPCSeamTLSConfig(cfg *Config) (*tls.Config, error) {
+	base, err := buildSeamTLSConfig(cfg)
+	if err != nil || base == nil {
+		return base, err
+	}
+
+	grpcTLS := base.Clone()
+
+	if allowed := parseClientAllowedNames(cfg.TracerTLSClientAllowedNames); len(allowed) > 0 {
+		grpcTLS.VerifyConnection = verifyClientAllowedName(allowed)
+	}
+
+	return grpcTLS, nil
+}
+
+// warnGRPCSeamAcceptsAnyClient logs one Warn when the gRPC seam runs mtls with
+// an empty allowlist, because any certificate the client CA signed is then
+// accepted as the ledger. Under DEPLOYMENT_MODE=saas that posture never
+// reaches it: ValidateSeamTransportPosture refuses the boot.
+func warnGRPCSeamAcceptsAnyClient(ctx context.Context, cfg *Config, logger libLog.Logger) {
+	if strings.ToLower(strings.TrimSpace(cfg.TracerTLSMode)) != tlsModeMTLS {
+		return
+	}
+
+	if len(parseClientAllowedNames(cfg.TracerTLSClientAllowedNames)) > 0 {
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, grpcSeamAcceptsAnyClientMsg)
+}
+
+// parseClientAllowedNames splits the comma-separated allowlist into a set of
+// trimmed, lowercased identities, dropping empty entries.
+func parseClientAllowedNames(raw string) map[string]struct{} {
+	allowed := make(map[string]struct{})
+
+	for _, entry := range strings.Split(raw, ",") {
+		name := strings.ToLower(strings.TrimSpace(entry))
+		if name == "" {
+			continue
+		}
+
+		allowed[name] = struct{}{}
+	}
+
+	return allowed
+}
+
+// verifyClientAllowedName returns a tls.Config.VerifyConnection hook that
+// accepts the connection only when the verified leaf (PeerCertificates[0])
+// carries an allowlisted DNS SAN or URI SAN, or, on a leaf without SANs, an
+// allowlisted Subject CN.
+func verifyClientAllowedName(allowed map[string]struct{}) func(tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		if len(cs.PeerCertificates) == 0 || !clientCertAllowed(cs.PeerCertificates[0], allowed) {
+			return errClientNotAllowed
+		}
+
+		return nil
+	}
+}
+
+// clientCertAllowed reports whether any identity field of cert is allowlisted.
+// The Subject CN counts only on a certificate without DNS or URI SANs: once a
+// SAN is present it is the identity (RFC 6125), so a CN cannot stand in for a
+// SAN that names a different workload.
+func clientCertAllowed(cert *x509.Certificate, allowed map[string]struct{}) bool {
+	if cert == nil {
+		return false
+	}
+
+	isAllowed := func(name string) bool {
+		_, ok := allowed[strings.ToLower(strings.TrimSpace(name))]
+
+		return ok
+	}
+
+	for _, dnsName := range cert.DNSNames {
+		if isAllowed(dnsName) {
+			return true
+		}
+	}
+
+	for _, uri := range cert.URIs {
+		if uri != nil && isAllowed(uri.String()) {
+			return true
+		}
+	}
+
+	if len(cert.DNSNames) > 0 || len(cert.URIs) > 0 {
+		return false
+	}
+
+	return cert.Subject.CommonName != "" && isAllowed(cert.Subject.CommonName)
 }

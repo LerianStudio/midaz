@@ -509,14 +509,20 @@ var (
 	ErrMethodNotAllowed                       = errors.New("0485")
 	ErrPendingTransactionLocked               = errors.New("0486")
 	ErrReservationTenantRequired              = errors.New("0487")
-	ErrInstrumentLedgerReferenceNotFound      = errors.New("0488")
-	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
-	ErrSkipNotPermitted                       = errors.New("0490")
-	ErrHolderRequired                         = errors.New("0491")
-	ErrReadyzRedisConnectionNotEstablished    = errors.New("0493")
-	ErrReadyzRedisPingFailed                  = errors.New("0494")
-	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
-	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// ErrReservationAlreadySettled is returned when a reserve replays onto a
+	// row that already left RESERVED (confirmed, released or expired).
+	ErrReservationAlreadySettled = errors.New("0533")
+	// ErrReservationTenantInactive is returned when the tenant on the
+	// reservation seam is not provisioned, suspended or purged.
+	ErrReservationTenantInactive           = errors.New("0534")
+	ErrInstrumentLedgerReferenceNotFound   = errors.New("0488")
+	ErrInstrumentAccountReferenceNotFound  = errors.New("0489")
+	ErrSkipNotPermitted                    = errors.New("0490")
+	ErrHolderRequired                      = errors.New("0491")
+	ErrReadyzRedisConnectionNotEstablished = errors.New("0493")
+	ErrReadyzRedisPingFailed               = errors.New("0494")
+	ErrReadyzTenantManagerUnavailable      = errors.New("0495")
+	ErrReadyzStreamingUnhealthy            = errors.New("0496")
 	// ErrInvalidDashboardWindow is returned when a dashboard read names an
 	// unsupported period, supplies period together with startDate/endDate, or
 	// asks for a range longer than 90 days. The window is what bounds every

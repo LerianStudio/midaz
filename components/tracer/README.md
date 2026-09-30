@@ -146,8 +146,32 @@ Every validation creates an immutable audit record:
 
 ### Reserve Path (Midaz ledger seam)
 
-The Midaz ledger reserves limit capacity before its balance commit (gRPC, or `POST /v1/reservations`
-over REST). The reserve evaluates the same CEL rules before any limit, with three differences from
+The Midaz ledger reserves limit capacity before its balance commit, then confirms the reservation
+on commit or releases it on cancel. That lifecycle is the gRPC service
+`lerian.midaz.reservation.v1.ReservationService` (`proto/reservation/v1`), which the tracer always
+serves on `TRACER_GRPC_PORT` (default `:4021`, beside the `:4020` HTTP API). The HTTP API has no
+reservation route, and the ledger is the only caller:
+
+- **Identity.** Under `TRACER_TLS_MODE=mtls` the gRPC listener requires a client certificate signed
+  by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate without SANs, Subject
+  CN) equals an entry of `TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated, exact,
+  case-insensitive). An empty allowlist accepts any CA-signed certificate: it refuses boot under
+  `DEPLOYMENT_MODE=saas` and logs a warning elsewhere. The HTTP listener never applies the allowlist.
+  Under `mesh` a service-mesh sidecar owns mTLS; it must enforce STRICT mTLS and admit only the
+  ledger to `:4021`, and the tracer logs a warning at boot. An empty `TRACER_TLS_MODE` is plaintext
+  with no verified peer and boots only with an explicit `DEPLOYMENT_MODE=local`; an unset
+  `DEPLOYMENT_MODE` refuses boot.
+- **Tenant.** The tenant travels in the trusted `x-tenant-id` gRPC metadata key. A tenant that is not
+  provisioned, suspended or purged answers `Unavailable` with code `0534`.
+- **Settled rows.** A reserve replayed onto a transaction whose reservation is already released,
+  expired or confirmed answers `FailedPrecondition` with code `0533` and moves no counter.
+- **Confirm outcome.** `ConfirmByTransaction` returns `confirmed` (rows it moved to CONFIRMED) and
+  `already_released` (rows it found RELEASED, spend that is never counted); `ConfirmById` returns
+  `already_released`. The ledger records a non-zero `already_released` without failing the commit.
+- **Audit.** Every confirm and release that settles a row writes a `RESERVATION_CONFIRMED` /
+  `RESERVATION_RELEASED` audit event, readable through `GET /v1/audit-events`.
+
+The reserve evaluates the same CEL rules before any limit, with three differences from
 `POST /v1/validations`:
 
 - **Only a matched rule refuses.** A matched `DENY` or `REVIEW` refuses the reserve with no limit
@@ -156,8 +180,8 @@ over REST). The reserve evaluates the same CEL rules before any limit, with thre
 - **A rule evaluation error is a refusal.** A rule that cannot be evaluated for the transaction
   answers `decision=REVIEW`, `reason=rule_evaluation_error`. Infrastructure failures stay errors,
   and a tenant whose rule cache is not loaded yet, or that reached its per-tenant worker cap on
-  the reservation seam, answers Unavailable (HTTP 503 with `Retry-After` / gRPC `Unavailable`,
-  code `0445` for the cap). Every rule-evaluation class — syntax or compile, program build, cost
+  the reservation seam, answers gRPC `Unavailable` (code `0445` for
+  the cap). Every rule-evaluation class — syntax or compile, program build, cost
   estimation, runtime — counts as an evaluation error.
 - **A revert skips the rules.** A reserve with `revert=true` evaluates no rule and still reserves
   its limits.
@@ -165,8 +189,7 @@ over REST). The reserve evaluates the same CEL rules before any limit, with thre
 The ledger sends metadata values as strings, so a rule meant for ledger traffic compares strings
 (`metadata["tier"] == "1"`, not `== 1`). The asset follows the ledger's asset-code grammar: 1 to
 100 uppercase Unicode letters. Deploy the tracer before the ledger, and do not roll it back below
-this contract while such a ledger runs: an older tracer refuses a REST reserve with a free-form
-`account.type`. See `docs/tracer/INVARIANTS.md` and `docs/api/SCOPING.md` at the repository root.
+this contract while such a ledger runs. See `docs/tracer/INVARIANTS.md` and `docs/api/SCOPING.md` at the repository root.
 
 ---
 

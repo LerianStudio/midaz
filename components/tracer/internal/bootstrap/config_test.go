@@ -1204,3 +1204,48 @@ func TestLoadCleanupWorkerConfig_NilLogger(t *testing.T) {
 	assert.Contains(t, err.Error(), "logger cannot be nil")
 	assert.Nil(t, result)
 }
+
+// TestApplyGRPCSeamDefaults covers the listen address of the reservation seam
+// an operator never configured: the gRPC seam is the only reservation
+// transport, so an empty port resolves to the canonical :4021.
+func TestApplyGRPCSeamDefaults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		port string
+		want string
+	}{
+		{name: "empty port defaults to :4021", port: "", want: ":4021"},
+		{name: "explicit port is kept", port: ":5021", want: ":5021"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{TracerGRPCPort: tt.port}
+
+			ApplyGRPCSeamDefaults(cfg)
+
+			assert.Equal(t, tt.want, cfg.TracerGRPCPort)
+		})
+	}
+
+	t.Run("nil config is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		assert.NotPanics(t, func() { ApplyGRPCSeamDefaults(nil) })
+	})
+}
+
+// TestInitGRPCServer_EmptyPort_ReturnsError proves a caller that skipped the
+// seam defaults fails boot instead of silently running without the seam.
+func TestInitGRPCServer_EmptyPort_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	server, err := initGRPCServer(&Config{}, nil, nil, nil, nil, nil, nil)
+
+	require.ErrorIs(t, err, errGRPCPortEmpty)
+	assert.Nil(t, server)
+}

@@ -167,8 +167,7 @@ const (
 const defaultTracerTimeoutMs = 250
 
 // Accepted range for TracerSettings.TimeoutMs, checked at write time.
-// The ceiling matches the tracer REST client's 30s global HTTP timeout: a
-// per-call timeout above that safety net could never take effect.
+// The ceiling caps the per-call tracer deadline at 30s.
 const (
 	TracerTimeoutMsMin = 1
 	TracerTimeoutMsMax = 30000

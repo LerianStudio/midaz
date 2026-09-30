@@ -33,8 +33,7 @@ const maxPayloadSize = 100 * 1024
 
 // payloadTooLargeMessage is the shared HTTP 413 detail for an oversized request
 // body. It is derived from maxPayloadSize so the stated limit can never drift
-// from the enforced one, and is shared by the validation and reservation
-// handlers so both emit an identical message.
+// from the enforced one.
 var payloadTooLargeMessage = fmt.Sprintf("payload too large: exceeds %dKB limit", maxPayloadSize/1024)
 
 // ValidationService defines the interface for validation operations.
