@@ -258,13 +258,10 @@ func TestReservationE2E_ConfirmOutcomesReachTheClient(t *testing.T) {
 		e.expectTxCommit()
 		e.repo.EXPECT().
 			ConfirmByTransactionWithTx(gomock.Any(), e.tx, transactionID).
-			Return([]*model.Reservation{confirmed}, nil)
+			Return([]*model.Reservation{confirmed}, 1, nil)
 		e.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), e.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, confirmed.ID, gomock.Any()).
 			Return(nil)
-		e.repo.EXPECT().
-			CountReleasedByTransactionWithTx(gomock.Any(), e.tx, transactionID).
-			Return(1, nil)
 
 		got, err := e.client.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
 		require.NoError(t, err)

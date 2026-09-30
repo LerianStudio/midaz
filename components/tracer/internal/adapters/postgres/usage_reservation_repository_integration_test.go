@@ -349,7 +349,7 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var cErr error
-		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+		flipped, _, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
 
 		return cErr
 	}))
@@ -368,7 +368,7 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 	// do NOT double-move.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var cErr error
-		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+		flipped, _, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
 
 		return cErr
 	}))
@@ -772,7 +772,7 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransactionAfterExpiry_
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var cErr error
-		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+		flipped, _, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
 
 		return cErr
 	}))
@@ -787,7 +787,7 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransactionAfterExpiry_
 	// Re-running the commit confirm must be a no-op.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var cErr error
-		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+		flipped, _, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
 
 		return cErr
 	}))
@@ -971,11 +971,12 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoReleased_Leave
 	assert.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, resB.ID))
 }
 
-// TestIntegration_UsageReservationRepository_CountReleasedByTransaction proves the
-// by-transaction confirm can learn how much of a transaction's spend will never be
-// counted: one RELEASED and one CONFIRMED row count as 1, a transaction with no
-// rows counts as 0.
-func TestIntegration_UsageReservationRepository_CountReleasedByTransaction(t *testing.T) {
+// TestIntegration_UsageReservationRepository_ConfirmByTransaction_CountsReleased
+// proves the by-transaction confirm learns, from its own locked read, how much of
+// a transaction's spend will never be counted: one RELEASED and one CONFIRMED row
+// report a released count of 1 and settle nothing, and a transaction with no rows
+// reports 0.
+func TestIntegration_UsageReservationRepository_ConfirmByTransaction_CountsReleased(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -1011,23 +1012,19 @@ func TestIntegration_UsageReservationRepository_CountReleasedByTransaction(t *te
 		return err
 	}))
 
-	countReleased := func(id uuid.UUID) int {
+	confirmByTransaction := func(id uuid.UUID) (flipped []*model.Reservation, released int) {
 		t.Helper()
-
-		var count int
 
 		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 			var err error
 
-			count, err = repo.CountReleasedByTransactionWithTx(ctx, tx, id)
+			flipped, released, err = repo.ConfirmByTransactionWithTx(ctx, tx, id)
 
 			return err
 		}))
 
-		return count
+		return flipped, released
 	}
-
-	assert.Equal(t, 0, countReleased(txID), "two RESERVED rows: nothing released yet")
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		return repo.ReleaseWithTx(ctx, tx, resA.ID, model.StatusReleased)
@@ -1037,6 +1034,20 @@ func TestIntegration_UsageReservationRepository_CountReleasedByTransaction(t *te
 		return err
 	}))
 
-	assert.Equal(t, 1, countReleased(txID), "one RELEASED and one CONFIRMED row count as 1")
-	assert.Equal(t, 0, countReleased(testutil.MustDeterministicUUID(8852)), "a transaction with no rows counts as 0")
+	currentB, _ := readCounter(t, db, limitB, scopeKey, periodKey)
+
+	flipped, released := confirmByTransaction(txID)
+	assert.Empty(t, flipped, "neither a RELEASED nor a CONFIRMED row settles again")
+	assert.Equal(t, 1, released, "one RELEASED and one CONFIRMED row count as 1")
+
+	currentA, reservedA := readCounter(t, db, limitA, scopeKey, periodKey)
+	assert.Equal(t, int64(0), currentA, "the released spend is never counted")
+	assert.Equal(t, int64(0), reservedA)
+
+	currentBAfter, _ := readCounter(t, db, limitB, scopeKey, periodKey)
+	assert.Equal(t, currentB, currentBAfter, "the confirmed row does not double-move")
+
+	flipped, released = confirmByTransaction(testutil.MustDeterministicUUID(8852))
+	assert.Empty(t, flipped)
+	assert.Equal(t, 0, released, "a transaction with no rows counts as 0")
 }

@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -394,36 +395,8 @@ func TestReservationServer_MapServiceError_ReservationCodes(t *testing.T) {
 			wantMessage: constant.ErrReservationAlreadySettled.Error(),
 		},
 		{
-			name:       "inactive tenant on reserve is Unavailable with the 0534 code",
-			serviceErr: constant.ErrReservationTenantInactive,
-			expect: func(svc *mocks.MockReservationService, serviceErr error) {
-				svc.EXPECT().Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).Return(nil, serviceErr)
-			},
-			call: func(server *ReservationServer) error {
-				_, err := server.Reserve(context.Background(), newReserveRequest(now, transactionID, requestID, accountID))
-
-				return err
-			},
-			wantCode:    codes.Unavailable,
-			wantMessage: constant.ErrReservationTenantInactive.Error(),
-		},
-		{
-			name:       "inactive tenant on confirm by transaction is Unavailable with the 0534 code",
-			serviceErr: constant.ErrReservationTenantInactive,
-			expect: func(svc *mocks.MockReservationService, serviceErr error) {
-				svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(services.ConfirmOutcome{}, serviceErr)
-			},
-			call: func(server *ReservationServer) error {
-				_, err := server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
-
-				return err
-			},
-			wantCode:    codes.Unavailable,
-			wantMessage: constant.ErrReservationTenantInactive.Error(),
-		},
-		{
-			name:       "inactive tenant on confirm by id is Unavailable with the 0534 code",
-			serviceErr: constant.ErrReservationTenantInactive,
+			name:       "unknown reservation on confirm by id is NotFound",
+			serviceErr: constant.ErrReservationNotFound,
 			expect: func(svc *mocks.MockReservationService, serviceErr error) {
 				svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{}, serviceErr)
 			},
@@ -432,26 +405,12 @@ func TestReservationServer_MapServiceError_ReservationCodes(t *testing.T) {
 
 				return err
 			},
-			wantCode:    codes.Unavailable,
-			wantMessage: constant.ErrReservationTenantInactive.Error(),
+			wantCode:    codes.NotFound,
+			wantMessage: constant.ErrReservationNotFound.Error(),
 		},
 		{
-			name:       "inactive tenant on release by transaction is Unavailable with the 0534 code",
-			serviceErr: constant.ErrReservationTenantInactive,
-			expect: func(svc *mocks.MockReservationService, serviceErr error) {
-				svc.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(0, serviceErr)
-			},
-			call: func(server *ReservationServer) error {
-				_, err := server.ReleaseByTransaction(context.Background(), &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
-
-				return err
-			},
-			wantCode:    codes.Unavailable,
-			wantMessage: constant.ErrReservationTenantInactive.Error(),
-		},
-		{
-			name:       "inactive tenant on release by id is Unavailable with the 0534 code",
-			serviceErr: constant.ErrReservationTenantInactive,
+			name:       "unknown reservation on release by id is NotFound",
+			serviceErr: constant.ErrReservationNotFound,
 			expect: func(svc *mocks.MockReservationService, serviceErr error) {
 				svc.EXPECT().Release(gomock.Any(), reservationID).Return(serviceErr)
 			},
@@ -460,8 +419,36 @@ func TestReservationServer_MapServiceError_ReservationCodes(t *testing.T) {
 
 				return err
 			},
-			wantCode:    codes.Unavailable,
-			wantMessage: constant.ErrReservationTenantInactive.Error(),
+			wantCode:    codes.NotFound,
+			wantMessage: constant.ErrReservationNotFound.Error(),
+		},
+		{
+			name:       "technical failure on confirm by transaction is Internal with the generic code",
+			serviceErr: errors.New("database unreachable"),
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().ConfirmByTransaction(gomock.Any(), transactionID).Return(services.ConfirmOutcome{}, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.ConfirmByTransaction(context.Background(), &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+
+				return err
+			},
+			wantCode:    codes.Internal,
+			wantMessage: constant.ErrInternalServer.Error(),
+		},
+		{
+			name:       "technical failure on release by transaction is Internal with the generic code",
+			serviceErr: errors.New("database unreachable"),
+			expect: func(svc *mocks.MockReservationService, serviceErr error) {
+				svc.EXPECT().ReleaseByTransaction(gomock.Any(), transactionID).Return(0, serviceErr)
+			},
+			call: func(server *ReservationServer) error {
+				_, err := server.ReleaseByTransaction(context.Background(), &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
+
+				return err
+			},
+			wantCode:    codes.Internal,
+			wantMessage: constant.ErrInternalServer.Error(),
 		},
 	}
 

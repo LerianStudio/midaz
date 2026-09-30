@@ -142,7 +142,33 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 // success. The response carries the rows this call confirmed and the rows it
 // found already RELEASED.
 func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
-	const operation = "grpc.reservations.confirm_by_transaction"
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.reservations.confirm_by_transaction")
+	defer span.End()
+
+	transactionID, err := parseTransactionID(span, req.GetTransactionId())
+	if err != nil {
+		return nil, err
+	}
+
+	outcome, err := s.service.ConfirmByTransaction(ctx, transactionID)
+	if err != nil {
+		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+	}
+
+	return &reservationv1.ConfirmByTransactionResponse{
+		Confirmed:       countToUint32(outcome.Confirmed),
+		AlreadyReleased: countToUint32(outcome.AlreadyReleased),
+	}, nil
+}
+
+// ReleaseByTransaction returns the held capacity for every reservation a
+// transaction holds (phase two, /cancel-driven). Idempotent like
+// ConfirmByTransaction: the service treats an absent or already-terminal
+// transaction as a no-op.
+func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+	const operation = "grpc.reservations.release_by_transaction"
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -156,7 +182,7 @@ func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reser
 		return nil, err
 	}
 
-	outcome, err := s.service.ConfirmByTransaction(ctx, transactionID)
+	released, err := s.service.ReleaseByTransaction(ctx, transactionID)
 	if err != nil {
 		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}
@@ -164,23 +190,8 @@ func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reser
 	logger.With(
 		libLog.String("operation", operation),
 		libLog.String("transaction_id", transactionID.String()),
-		libLog.Int("confirmed", outcome.Confirmed),
-		libLog.Int("already_released", outcome.AlreadyReleased),
-	).Log(ctx, libLog.LevelDebug, "Reservations confirmed by transaction")
-
-	return &reservationv1.ConfirmByTransactionResponse{
-		Confirmed:       countToUint32(outcome.Confirmed),
-		AlreadyReleased: countToUint32(outcome.AlreadyReleased),
-	}, nil
-}
-
-// ReleaseByTransaction returns the held capacity for every reservation a
-// transaction holds (phase two, /cancel-driven). Idempotent like
-// ConfirmByTransaction.
-func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
-	if err := s.terminateByTransaction(ctx, "grpc.reservations.release_by_transaction", string(model.StatusReleased), req.GetTransactionId(), s.service.ReleaseByTransaction); err != nil {
-		return nil, err
-	}
+		libLog.Int("released", released),
+	).Log(ctx, libLog.LevelDebug, "Reservations released by transaction")
 
 	return &reservationv1.ReleaseByTransactionResponse{}, nil
 }
@@ -221,85 +232,33 @@ func (s *ReservationServer) ConfirmById(ctx context.Context, req *reservationv1.
 }
 
 // ReleaseById returns a single reservation's held capacity addressed by its id
-// (phase two). Idempotent like ConfirmById.
+// (phase two). Idempotent like ConfirmById: the service maps an already-terminal
+// reservation to success.
 func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
-	if err := s.terminateByID(ctx, "grpc.reservations.release", string(model.StatusReleased), req.GetReservationId(), s.service.Release); err != nil {
+	const operation = "grpc.reservations.release"
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, operation)
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	reservationID, err := parseReservationID(span, req.GetReservationId())
+	if err != nil {
 		return nil, err
 	}
 
-	return &reservationv1.ReleaseByIdResponse{}, nil
-}
-
-// terminateByTransaction is the release-by-transaction body: parse the
-// transaction id, invoke the use case, log the flipped count. The service
-// treats an absent or already-terminal transaction as an idempotent no-op.
-func (s *ReservationServer) terminateByTransaction(
-	ctx context.Context,
-	operation string,
-	terminalStatus string,
-	rawTransactionID string,
-	action func(ctx context.Context, transactionID uuid.UUID) (int, error),
-) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, operation)
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	transactionID, err := parseTransactionID(span, rawTransactionID)
-	if err != nil {
-		return err
-	}
-
-	flipped, err := action(ctx, transactionID)
-	if err != nil {
-		return s.mapServiceError(span, "Reservation processing failed", err)
-	}
-
-	logger.With(
-		libLog.String("operation", operation),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.String("status", terminalStatus),
-		libLog.Int("flipped", flipped),
-	).Log(ctx, libLog.LevelDebug, "Reservations transitioned by transaction")
-
-	return nil
-}
-
-// terminateByID is the release-by-id body: parse the reservation id, invoke the
-// use case. The service maps an already-terminal reservation to a nil error
-// (idempotent retry).
-func (s *ReservationServer) terminateByID(
-	ctx context.Context,
-	operation string,
-	terminalStatus string,
-	rawReservationID string,
-	action func(ctx context.Context, reservationID uuid.UUID) error,
-) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, operation)
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	reservationID, err := parseReservationID(span, rawReservationID)
-	if err != nil {
-		return err
-	}
-
-	if err := action(ctx, reservationID); err != nil {
-		return s.mapServiceError(span, "Reservation processing failed", err)
+	if err := s.service.Release(ctx, reservationID); err != nil {
+		return nil, s.mapServiceError(span, "Reservation processing failed", err)
 	}
 
 	logger.With(
 		libLog.String("operation", operation),
 		libLog.String("reservation_id", reservationID.String()),
-		libLog.String("status", terminalStatus),
-	).Log(ctx, libLog.LevelDebug, "Reservation transition processed")
+	).Log(ctx, libLog.LevelDebug, "Reservation release processed")
 
-	return nil
+	return &reservationv1.ReleaseByIdResponse{}, nil
 }
 
 // toValidationRequest builds the model.ValidationRequest the reserve path
@@ -413,10 +372,11 @@ func countToUint32(n int) uint32 {
 // mapServiceError maps a reservation use-case error to a gRPC status error,
 // recording it onto the span by error CLASS (T5): a not-found and a replay onto
 // a settled reservation are business outcomes (span stays green), context
-// cancellation is transport-side, a rule cache that is not ready yet and an
-// inactive tenant are Unavailable so the caller treats the tracer as
-// temporarily unavailable, and every other failure is technical (span flips
-// red). A sentinel maps with its code string as the message so the ledger can
+// cancellation is transport-side, a rule cache that is not ready yet is
+// Unavailable so the caller treats the tracer as temporarily unavailable, and
+// every other failure is technical (span flips red). An inactive tenant never
+// reaches this mapping: the tenant interceptor answers it before the handler
+// runs. A sentinel maps with its code string as the message so the ledger can
 // parse it.
 func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err error) error {
 	switch {
@@ -429,9 +389,6 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 	case errors.Is(err, constant.ErrReservationAlreadySettled):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already settled", err)
 		return status.Error(codes.FailedPrecondition, constant.ErrReservationAlreadySettled.Error())
-	case errors.Is(err, constant.ErrReservationTenantInactive):
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation tenant inactive", err)
-		return status.Error(codes.Unavailable, constant.ErrReservationTenantInactive.Error())
 	case errors.Is(err, constant.ErrRuleCacheNotReady):
 		libOpentelemetry.HandleSpanError(span, "Rule cache not ready", err)
 		return status.Error(codes.Unavailable, constant.ErrRuleCacheNotReady.Error())

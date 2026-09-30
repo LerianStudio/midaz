@@ -101,12 +101,13 @@ func (mr *MockReservationRepositoryMockRecorder) AcquireReserveScopeLock(ctx, ar
 }
 
 // ConfirmByTransactionWithTx mocks base method.
-func (m *MockReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
+func (m *MockReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) ([]*model.Reservation, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConfirmByTransactionWithTx", ctx, arg1, transactionID)
 	ret0, _ := ret[0].([]*model.Reservation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // ConfirmByTransactionWithTx indicates an expected call of ConfirmByTransactionWithTx.
@@ -128,21 +129,6 @@ func (m *MockReservationRepository) ConfirmWithTx(ctx context.Context, arg1 db.D
 func (mr *MockReservationRepositoryMockRecorder) ConfirmWithTx(ctx, arg1, reservationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmWithTx", reflect.TypeOf((*MockReservationRepository)(nil).ConfirmWithTx), ctx, arg1, reservationID)
-}
-
-// CountReleasedByTransactionWithTx mocks base method.
-func (m *MockReservationRepository) CountReleasedByTransactionWithTx(ctx context.Context, arg1 db.DB, transactionID uuid.UUID) (int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountReleasedByTransactionWithTx", ctx, arg1, transactionID)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountReleasedByTransactionWithTx indicates an expected call of CountReleasedByTransactionWithTx.
-func (mr *MockReservationRepositoryMockRecorder) CountReleasedByTransactionWithTx(ctx, arg1, transactionID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountReleasedByTransactionWithTx", reflect.TypeOf((*MockReservationRepository)(nil).CountReleasedByTransactionWithTx), ctx, arg1, transactionID)
 }
 
 // ReleaseByTransactionWithTx mocks base method.

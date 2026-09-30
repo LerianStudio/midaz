@@ -17,7 +17,6 @@ package seamtenant
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
@@ -26,14 +25,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// HeaderName is the canonical trusted-tenant name. The gRPC adapter reads its
-// lower-cased form (MetadataKey) from incoming metadata, which is the key the
-// ledger client appends to every seam RPC.
-const HeaderName = "X-Tenant-Id"
-
-// MetadataKey is the gRPC metadata key for the trusted tenant id — the
-// lower-cased HeaderName, since gRPC normalizes metadata keys to lower case.
-var MetadataKey = strings.ToLower(HeaderName)
+// MetadataKey is the gRPC metadata key for the trusted tenant id, the key the
+// ledger client appends to every seam RPC. It is lower case because gRPC
+// normalizes metadata keys to lower case.
+const MetadataKey = "x-tenant-id"
 
 // PoolFunc resolves the tenant-scoped PostgreSQL pool for tenantID. It is
 // satisfied in production by a thin wrapper over the lib-commons

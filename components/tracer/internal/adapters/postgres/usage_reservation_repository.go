@@ -30,18 +30,12 @@ import (
 // Using a constant prevents SQL injection via table name interpolation.
 const usageReservationsTable = "usage_reservations"
 
-// Status predicates for the by-transaction lookups. They are fixed literals, never
-// built from caller input, so composing them into the statement text is safe.
-//
-// A confirm settles an EXPIRED row as well as a RESERVED one, because the ledger
-// only confirms a transaction that committed and that spend has to reach the
-// customer's cap even though the sweep already returned its hold. A release must
-// not: the hold was returned once when the row expired, and releasing it again
+// settleableByReleasePredicate restricts the by-transaction release lock to
+// RESERVED rows. It is a fixed literal, never built from caller input, so
+// composing it into the statement text is safe. An EXPIRED row is excluded
+// because its hold was returned once when the row expired, and releasing it again
 // would take the same capacity out of the bucket twice.
-const (
-	settleableByConfirmPredicate = `status IN ('RESERVED', 'EXPIRED')`
-	settleableByReleasePredicate = `status = 'RESERVED'`
-)
+const settleableByReleasePredicate = `status = 'RESERVED'`
 
 // reserveScopeLockSQL takes a transaction-scoped advisory lock. pg_advisory_xact_lock
 // blocks until the key is free and releases it automatically at commit or rollback,
@@ -121,8 +115,9 @@ const reserveLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
 //     that status to the caller.
 //   - ReleaseWithTx: returns the amount from reserved_usage AND flips the row to
 //     RELEASED/EXPIRED, guarded WHERE status='RESERVED'.
-//   - CountReleasedByTransactionWithTx: counts a transaction's RELEASED rows so a
-//     by-transaction confirm can report spend that will never be counted.
+//   - ConfirmByTransactionWithTx: settles every RESERVED/EXPIRED row a
+//     transaction holds and counts its RELEASED rows from the same locked read,
+//     so the confirm can report spend that will never be counted.
 //
 // A partial apply is exactly the divergence the TTL reaper would otherwise have to
 // reconcile, so the counter move and the row flip MUST share the transaction.
@@ -446,22 +441,26 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 	return nil
 }
 
-// ConfirmByTransactionWithTx confirms EVERY RESERVED reservation row that carries
-// the given transaction_id, on the supplied handle, in one transaction owned by
-// the caller. For each row it applies the same counter move (reserved_usage ->
-// current_usage) and row flip (-> CONFIRMED) the by-id ConfirmWithTx performs. The
-// 4-tuple unique index leads with transaction_id, so the lookup is index-efficient.
+// ConfirmByTransactionWithTx settles EVERY reservation row of the given
+// transaction that a confirm can still settle, on the supplied handle, in one
+// transaction owned by the caller. It locks all of the transaction's rows in one
+// read and splits them by status: RESERVED and EXPIRED rows get the same counter
+// move and row flip (-> CONFIRMED) the by-id ConfirmWithTx performs, RELEASED rows
+// are counted, and CONFIRMED rows are left alone. The 4-tuple unique index leads
+// with transaction_id, so the lookup is index-efficient.
 //
 // Returns the flipped reservations (their ids and resolved limit coordinates) so
-// the caller can record one audit row per flip in the SAME transaction. The flipped
-// count is len(result). Zero rows is an idempotent no-op success: either the
-// transaction never reserved (tracer disabled / no counter-backed limit applied) or
-// every reservation already reached a terminal state (a retried confirm). The
-// caller maps an empty result to a success either way — this is the by-transaction
+// the caller can record one audit row per flip in the SAME transaction, and the
+// number of RELEASED rows, whose spend will never be counted. Counting from the
+// lock keeps the caller from issuing another read after its audit inserts, while
+// the audit hash-chain lock and the counter row locks are held. No settleable row
+// is an idempotent no-op success: either the transaction never reserved (tracer
+// disabled / no counter-backed limit applied) or every reservation already
+// reached a terminal state (a retried confirm). This is the by-transaction
 // confirm the ledger /commit drives with only the transaction id.
-func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, error) {
+func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) ([]*model.Reservation, int, error) {
 	if db == nil {
-		return nil, pgdb.ErrNilConnection
+		return nil, 0, pgdb.ErrNilConnection
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -471,28 +470,43 @@ func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Cont
 
 	logger = logging.WithTrace(ctx, logger)
 
-	reservations, err := r.lockSettleableByTransaction(ctx, db, transactionID,
-		settleableByConfirmPredicate)
+	locked, err := r.lockByTransaction(ctx, db, transactionID, "")
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to load settleable rows for transaction", err)
-		return nil, err
+		libOtel.HandleSpanError(span, "Failed to load rows for transaction", err)
+		return nil, 0, err
 	}
 
-	for i := range reservations {
-		if err := r.applyConfirm(ctx, span, db, reservations[i]); err != nil {
-			return nil, err
+	var (
+		settled  []*model.Reservation
+		released int
+	)
+
+	for _, res := range locked {
+		switch {
+		case settleableByConfirm(res.Status):
+			if err := r.applyConfirm(ctx, span, db, res); err != nil {
+				return nil, 0, err
+			}
+
+			settled = append(settled, res)
+		case res.Status == model.StatusReleased:
+			released++
 		}
 	}
 
-	span.SetAttributes(attribute.Int("db.rows_flipped", len(reservations)))
+	span.SetAttributes(
+		attribute.Int("db.rows_flipped", len(settled)),
+		attribute.Int("app.reservation.released_count", released),
+	)
 
 	logger.With(
 		libLog.String("operation", "repository.usage_reservation.confirm_by_transaction"),
 		libLog.String("transaction_id", transactionID.String()),
-		libLog.Int("flipped", len(reservations)),
+		libLog.Int("flipped", len(settled)),
+		libLog.Int("already_released", released),
 	).Log(ctx, libLog.LevelDebug, "Confirmed reservations by transaction")
 
-	return reservations, nil
+	return settled, released, nil
 }
 
 // ReleaseByTransactionWithTx releases EVERY RESERVED reservation row that carries
@@ -525,8 +539,7 @@ func (r *UsageReservationRepository) ReleaseByTransactionWithTx(ctx context.Cont
 
 	// RESERVED only: an EXPIRED row's hold was already returned by the sweep, and
 	// releasing it again would decrement the same capacity twice.
-	reservations, err := r.lockSettleableByTransaction(ctx, db, transactionID,
-		settleableByReleasePredicate)
+	reservations, err := r.lockByTransaction(ctx, db, transactionID, settleableByReleasePredicate)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to load reserved rows for transaction", err)
 		return nil, err
@@ -548,48 +561,6 @@ func (r *UsageReservationRepository) ReleaseByTransactionWithTx(ctx context.Cont
 	).Log(ctx, libLog.LevelDebug, "Released reservations by transaction")
 
 	return reservations, nil
-}
-
-// CountReleasedByTransactionWithTx counts the transaction's reservation rows in
-// RELEASED status on the supplied handle. It is the by-transaction confirm's way
-// of learning how much of the transaction's spend was let go before the confirm
-// arrived and so will never reach the cap; EXPIRED rows are not counted because a
-// confirm still settles them.
-func (r *UsageReservationRepository) CountReleasedByTransactionWithTx(ctx context.Context, db pgdb.DB, transactionID uuid.UUID) (int, error) {
-	if db == nil {
-		return 0, pgdb.ErrNilConnection
-	}
-
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_reservation.count_released_by_transaction")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
-
-	sqlStr, args, err := sq.Select("COUNT(*)").
-		From(usageReservationsTable).
-		Where(sq.Eq{
-			"transaction_id": transactionID,
-			"status":         string(model.StatusReleased),
-		}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to build released count query", err)
-		return 0, fmt.Errorf("failed to build released count query: %w", err)
-	}
-
-	var count int
-
-	if err := db.QueryRowContext(ctx, sqlStr, args...).Scan(&count); err != nil {
-		libOtel.HandleSpanError(span, "Failed to count released reservations", err)
-		return 0, fmt.Errorf("failed to count released reservations: %w", err)
-	}
-
-	span.SetAttributes(attribute.Int("db.rows_returned", count))
-
-	return count, nil
 }
 
 // applyConfirm settles one reservation onto the counter and flips the row to
@@ -702,32 +673,36 @@ func (r *UsageReservationRepository) applyRelease(ctx context.Context, span trac
 	return nil
 }
 
-// lockSettleableByTransaction reads every reservation row for a transaction whose
-// status is in statuses, FOR UPDATE, so the per-row counter moves and flips see a
-// stable status under a concurrent by-id confirm/release or the sweep. The lookup
-// rides the 4-tuple unique index (transaction_id leads). A transaction with no
-// matching rows returns an empty slice, NOT an error — the by-transaction
-// confirm/release is idempotent over "nothing to do".
+// lockByTransaction reads the reservation rows of a transaction FOR UPDATE, so the
+// per-row counter moves and flips see a stable status under a concurrent by-id
+// confirm/release or the sweep. The lookup rides the 4-tuple unique index
+// (transaction_id leads). A transaction with no matching rows returns an empty
+// slice, NOT an error — the by-transaction confirm/release is idempotent over
+// "nothing to do".
 //
-// The status set differs by caller, and the difference is load-bearing. A confirm
-// also settles EXPIRED rows, because the transaction committed and its spend must
-// be counted even though the sweep already returned the hold. A release must NOT:
-// an expired hold was returned once already, and releasing it again would take the
-// same capacity out of the bucket twice.
-func (r *UsageReservationRepository) lockSettleableByTransaction(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, statusPredicate string) ([]*model.Reservation, error) {
-	// statusPredicate is one of the two package constants below, never caller
-	// input, so it is safe to compose into the statement text.
+// An empty statusPredicate locks every row of the transaction: the confirm needs
+// all of them, because it settles RESERVED and EXPIRED rows and counts RELEASED
+// ones. The release passes settleableByReleasePredicate so it never touches an
+// EXPIRED row.
+func (r *UsageReservationRepository) lockByTransaction(ctx context.Context, db pgdb.DB, transactionID uuid.UUID, statusPredicate string) ([]*model.Reservation, error) {
+	where := "transaction_id = $1"
+	if statusPredicate != "" {
+		// statusPredicate is a package constant, never caller input, so it is safe
+		// to compose into the statement text.
+		where += " AND " + statusPredicate
+	}
+
 	selectSQL := `
 		SELECT id, limit_id, scope_key, period_key, amount, status,
 		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
 		FROM usage_reservations
-		WHERE transaction_id = $1 AND ` + statusPredicate + `
+		WHERE ` + where + `
 		FOR UPDATE
 	`
 
 	rows, err := db.QueryContext(ctx, selectSQL, transactionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load reserved rows for transaction: %w", err)
+		return nil, fmt.Errorf("failed to load reservation rows for transaction: %w", err)
 	}
 
 	defer func() { _ = rows.Close() }()
@@ -755,7 +730,7 @@ func (r *UsageReservationRepository) lockSettleableByTransaction(ctx context.Con
 			&confirmedAt,
 			&releasedAt,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan reserved row: %w", err)
+			return nil, fmt.Errorf("failed to scan reservation row: %w", err)
 		}
 
 		res.Status = model.ReservationStatus(status)
@@ -774,7 +749,7 @@ func (r *UsageReservationRepository) lockSettleableByTransaction(ctx context.Con
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate reserved rows: %w", err)
+		return nil, fmt.Errorf("failed to iterate reservation rows: %w", err)
 	}
 
 	return reservations, nil

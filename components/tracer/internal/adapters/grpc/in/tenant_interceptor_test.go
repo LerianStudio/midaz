@@ -12,6 +12,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -230,18 +232,21 @@ func TestTenantUnaryInterceptor_ResolveFailureMapping(t *testing.T) {
 		poolErr     error
 		wantCode    codes.Code
 		wantMessage string
+		wantWarn    bool
 	}{
 		{
 			name:        "suspended tenant is unavailable",
 			poolErr:     &tmcore.TenantSuspendedError{TenantID: interceptorTenantID, Status: "suspended"},
 			wantCode:    codes.Unavailable,
 			wantMessage: constant.ErrReservationTenantInactive.Error(),
+			wantWarn:    true,
 		},
 		{
 			name:        "unprovisioned tenant is unavailable",
 			poolErr:     fmt.Errorf("get connection: %w", tmcore.ErrTenantNotProvisioned),
 			wantCode:    codes.Unavailable,
 			wantMessage: constant.ErrReservationTenantInactive.Error(),
+			wantWarn:    true,
 		},
 		{
 			name:        "other pool failure is internal",
@@ -261,8 +266,10 @@ func TestTenantUnaryInterceptor_ResolveFailureMapping(t *testing.T) {
 
 			interceptor := TenantUnaryInterceptor(resolver, ensurer)
 
+			logger := testutil.NewMockLogger()
+
 			ctx := metadata.NewIncomingContext(
-				context.Background(),
+				libObservability.ContextWithLogger(context.Background(), logger),
 				metadata.Pairs(seamtenant.MetadataKey, interceptorTenantID),
 			)
 
@@ -281,6 +288,23 @@ func TestTenantUnaryInterceptor_ResolveFailureMapping(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, tt.wantCode, st.Code())
 			require.Equal(t, tt.wantMessage, st.Message())
+
+			var warns []testutil.LogCall
+
+			for _, call := range logger.Calls {
+				if call.Level == "warn" {
+					warns = append(warns, call)
+				}
+			}
+
+			if !tt.wantWarn {
+				require.Empty(t, warns)
+				return
+			}
+
+			require.Len(t, warns, 1, "an inactive tenant is logged once at Warn")
+			require.Equal(t, interceptorTenantID, testutil.FieldsToMap(warns[0].Fields)["tenant_id"],
+				"the Warn names the tenant so an operator can find it")
 		})
 	}
 }

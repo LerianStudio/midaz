@@ -106,6 +106,30 @@ func (d *reservationDeps) spanEvents(t *testing.T, spanName string) ([]string, o
 	return nil, otelCodes.Unset
 }
 
+// spanIntAttribute returns the int attribute key recorded on the span with the
+// given name, and whether it was set.
+func (d *reservationDeps) spanIntAttribute(t *testing.T, spanName, key string) (int64, bool) {
+	t.Helper()
+
+	for _, span := range d.tracing.GetSpans() {
+		if span.Name != spanName {
+			continue
+		}
+
+		for _, attr := range span.Attributes {
+			if string(attr.Key) == key {
+				return attr.Value.AsInt64(), true
+			}
+		}
+
+		return 0, false
+	}
+
+	require.Failf(t, "span not recorded", "no span named %q was exported", spanName)
+
+	return 0, false
+}
+
 // expectTxCommit wires the mock TxBeginner to hand out the mock Tx and expects a
 // single Commit (the success path). The mocked repo/audit ignore the tx handle, so
 // the test only verifies the tx lifecycle, not SQL.
@@ -846,24 +870,19 @@ func twoReservations(txID uuid.UUID) []*model.Reservation {
 func TestReservationService_ConfirmByTransaction(t *testing.T) {
 	txID := testutil.MustDeterministicUUID(7400)
 
-	t.Run("Flips ALL reserved rows in one tx, audits each, counts released in the same tx", func(t *testing.T) {
+	t.Run("Flips ALL reserved rows in one tx, audits each, counts released from the lock", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
 		reservations := twoReservations(txID)
 
 		deps.expectTxCommit()
 
-		gomock.InOrder(
-			deps.repo.EXPECT().
-				ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
-				Return(reservations, nil).
-				Times(1),
-			// The released count rides the SAME handle, after the flip.
-			deps.repo.EXPECT().
-				CountReleasedByTransactionWithTx(gomock.Any(), deps.tx, txID).
-				Return(0, nil).
-				Times(1),
-		)
+		// The released count comes from the confirm's own locked read: no query
+		// runs after the audit inserts.
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(reservations, 0, nil).
+			Times(1)
 		// One audit row per flipped reservation, same tx.
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, gomock.Any(), gomock.Any()).
@@ -885,11 +904,7 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(reservations, nil).
-			Times(1)
-		deps.repo.EXPECT().
-			CountReleasedByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(1, nil).
+			Return(reservations, 1, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, reservations[0].ID, gomock.Any()).
@@ -910,6 +925,10 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 		events, status := deps.spanEvents(t, "service.reservation.confirm_by_transaction")
 		assert.Contains(t, events, "reservation.confirm.already_released")
 		assert.NotEqual(t, otelCodes.Error, status, "an already-released row is a business observation: the span stays green")
+
+		releasedCount, ok := deps.spanIntAttribute(t, "service.reservation.confirm_by_transaction", "app.reservation.released_count")
+		require.True(t, ok, "the confirm span carries the released count")
+		assert.EqualValues(t, 1, releasedCount)
 	})
 
 	t.Run("No reserved rows is an idempotent no-op success (re-run), NO audit", func(t *testing.T) {
@@ -919,11 +938,7 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(nil, nil).
-			Times(1)
-		deps.repo.EXPECT().
-			CountReleasedByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(0, nil).
+			Return(nil, 0, nil).
 			Times(1)
 		// No audit call expected on the empty path.
 
@@ -933,24 +948,41 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 		assert.Empty(t, deps.logCalls("warn"))
 	})
 
-	t.Run("Released-count failure rolls the confirm back", func(t *testing.T) {
+	t.Run("Repository failure rolls the confirm back", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
-		countErr := errors.New("count failed")
+		repoErr := errors.New("lock failed")
 
 		deps.expectTxRollback()
 
 		deps.repo.EXPECT().
 			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(nil, nil).
-			Times(1)
-		deps.repo.EXPECT().
-			CountReleasedByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(0, countErr).
+			Return(nil, 0, repoErr).
 			Times(1)
 
 		outcome, err := svc.ConfirmByTransaction(context.Background(), txID)
-		require.ErrorIs(t, err, countErr)
+		require.ErrorIs(t, err, repoErr)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
+	})
+
+	t.Run("Audit failure rolls the confirm back", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		auditErr := errors.New("audit failed")
+
+		deps.expectTxRollback()
+
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(twoReservations(txID), 0, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, gomock.Any(), gomock.Any()).
+			Return(auditErr).
+			Times(1)
+
+		outcome, err := svc.ConfirmByTransaction(context.Background(), txID)
+		require.ErrorIs(t, err, auditErr)
 		assert.Equal(t, ConfirmOutcome{}, outcome)
 	})
 
