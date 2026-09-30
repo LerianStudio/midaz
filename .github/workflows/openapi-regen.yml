@@ -89,7 +89,7 @@ name: OpenAPI Regen (tier-2 direct-push fix-up)
 
 on:
   push:
-    branches: [develop, release-candidate, main]
+    branches: [maintenance/v4.0.x]
     paths:
       - components/ledger/**
       - components/tracer/**

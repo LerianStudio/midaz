@@ -7,11 +7,11 @@ plugins:
         - "BREAKING CHANGES"
     releaseRules:
       - type: feat
-        release: minor
+        release: patch
       - type: perf
-        release: minor
+        release: patch
       - type: build
-        release: minor
+        release: patch
       - type: chore
         release: patch
       - type: ci
@@ -21,11 +21,11 @@ plugins:
       - type: fix
         release: patch
       - type: refactor
-        release: minor
+        release: patch
       - type: docs
         release: patch
       - breaking: true
-        release: major
+        release: patch
 
   # Plugin to version the CHANGELOG.md
   - ["@semantic-release/git", {
@@ -48,3 +48,6 @@ branches:
     prerelease: beta
   - name: release-candidate
     prerelease: rc
+  - name: maintenance/v4.0.x
+    range: 4.0.x
+    channel: 4.0.x

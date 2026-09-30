@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [develop, release-candidate, main]
+    branches: [maintenance/v4.0.x]
     tags: ['**']
 
 permissions:
@@ -34,9 +34,9 @@ jobs:
 
   pipeline:
     needs: dockerhub-visibility
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.56.0-beta.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.78.2
     with:
-      enable_changelog: ${{ github.ref == 'refs/heads/main' }}
+      enable_changelog: true
       release_single_app: true
       app_name_prefix: "midaz"
       # Default plus .coderabbit.yaml: it's a CodeRabbit-only config file,
@@ -76,8 +76,8 @@ jobs:
             "shared_paths": "components/tracer/migrations\ncomponents/tracer/migrations-image"
           }
         ]
-      enable_gitops_artifacts: true
-      enable_ungoliant_release_diff: true
+      enable_gitops_artifacts: false
+      enable_ungoliant_release_diff: false
       ungoliant_env_type: chaos
       ungoliant_tenancy: st
       enable_helm_dispatch: true
@@ -92,8 +92,8 @@ jobs:
       # This is also the image list the dockerhub-visibility job reads, so an image
       # added here is kept public automatically; one added without a mapping is not.
       gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag", "midaz-ledger-migrations.tag": ".ledger.migrations.image.tag", "midaz-tracer-migrations.tag": ".tracer.migrations.image.tag"}'
-      enable_apidog_e2e: true
-      enable_e2e_tests: true
+      enable_apidog_e2e: false
+      enable_e2e_tests: false
       e2e_modules: "midaz-ledger,midaz-crm"
       e2e_tenancy: st
       # Publish ledger (onboarding + transaction) and tracer migration SQL to S3 for the
@@ -102,4 +102,6 @@ jobs:
       # pipeline (managed Postgres) or the dedicated migration-runner images / PreSync
       # Job (see extra_builds above).
       s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/tracer/migrations/*.sql","s3_prefix":"tracer/postgresql","strip_prefix":"components/tracer/migrations","flatten":false}]'
+      enable_gitops_update: false
+      helm_detect_env_changes: false
     secrets: inherit
