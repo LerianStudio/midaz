@@ -514,16 +514,27 @@ Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL r
 hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`. This is
 an INDEPENDENT spec/port/deploy unit — it is not folded into `:3002`. Base path: `/v1`.
 
-The ledger reaches Tracer over a separate reservation seam (not the `:4020` REST API). The seam is
-opt-in on both ends: the ledger turns it on by setting `TRACER_BASE_URL` (empty injects a nil
-reserver, leaving the transaction-create path unchanged), and the tracer starts the seam only when
-`TRACER_GRPC_PORT` is set (distinct from the `:4020` REST/health port). Transport is toggled by
-`TRACER_TRANSPORT` — gRPC by default, with REST retained as a selectable fallback. Identity is mutual
-TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated with no shared
-secret (the ledger presents a client cert, the tracer verifies it against its client CA, and the
-ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates mTLS to a
-service-mesh sidecar. Over the verified connection the ledger forwards a trusted `x-tenant-id` that
-the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
+The ledger reaches Tracer over a separate reservation seam, not the `:4020` REST API. The seam is
+the gRPC service `lerian.midaz.reservation.v1.ReservationService` (`proto/reservation/v1`), which the
+tracer always serves on `TRACER_GRPC_PORT` (default `:4021`); it is the only surface that drives the
+reservation lifecycle (reserve, confirm, release), and the ledger is its only caller. The ledger turns
+the seam on by setting `TRACER_BASE_URL` to the seam address (an `http://`/`https://` scheme is
+tolerated and stripped; empty injects a nil reserver, leaving the transaction-create path unchanged).
+Identity is mutual TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated
+with no shared secret (the ledger presents a client cert, the tracer verifies it against its client
+CA, and the ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates
+mTLS to a service-mesh sidecar. Under `mtls` the tracer's gRPC listener also requires the client
+cert's DNS SAN, URI SAN or Subject CN to match `TRACER_TLS_CLIENT_ALLOWED_NAMES` (exact,
+case-insensitive; empty accepts any cert signed by the client CA and logs a boot Warn); the HTTP
+listener never applies that allowlist. Over the verified connection the ledger forwards a trusted
+`x-tenant-id` metadata key that the tracer's gRPC interceptor uses to resolve the per-tenant pool in
+multi-tenant mode; a tenant that is not provisioned, suspended or purged answers `Unavailable`
+(`0534`). A reserve replayed onto a transaction whose reservation already settled (released,
+expired or confirmed) answers `FailedPrecondition` (`0533`), which an `enforce` ledger turns into
+`0532`. A confirm reports how many rows it confirmed and how many it found already released
+(`already_released`); the ledger does not fail the commit on such rows but logs a Warn, adds a span
+event and increments `tracer_reservation_confirm_already_released_total{operation}`, because that
+spend is never counted. See
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 A `/v2` reserve carries the fee-inclusive amount and asset (any Midaz asset code: 1 to 100
@@ -537,7 +548,7 @@ tracer's `DEFAULT_DECISION_WHEN_NO_MATCH` is ignored), a rule that cannot be eva
 `REVIEW` with `reason=rule_evaluation_error`, and a revert skips the rules but still reserves its
 limits. Under `tracer.mode=enforce` a `DENY` rejects with `0177`, a `REVIEW` with `0531`, a refused
 request with `0532`, and an unavailable tracer (including a tenant whose rule cache is not loaded yet or
-that reached the tracer's per-tenant worker cap: REST 503 + `Retry-After`, gRPC `Unavailable`/`0445`)
+that reached the tracer's per-tenant worker cap: gRPC `Unavailable`/`0445`)
 branches on `failPosture` (`0178` when closed); `advisory` never blocks, and a transaction it lets
 through after a refusal holds no reservation, so its spend is never counted. `tracer.timeoutMs`
 (default `250`, applied to every ledger that never stored it) bounds each reserve call, with
@@ -566,19 +577,14 @@ back below this contract. See [docs/api/SCOPING.md](docs/api/SCOPING.md).
 | POST | /v1/validations | Run validation |
 | GET | /v1/validations | List validations |
 | GET | /v1/validations/:id | Get validation |
-| POST | /v1/reservations | Create reservation (two-phase: reserve) |
-| POST | /v1/reservations/:id/confirm | Confirm a reservation by ID |
-| POST | /v1/reservations/:id/release | Release a reservation by ID |
-| POST | /v1/reservations/transaction/:transaction_id/confirm | Confirm reservations for a transaction |
-| POST | /v1/reservations/transaction/:transaction_id/release | Release reservations for a transaction |
 | GET | /v1/audit-events | List audit events |
 | GET | /v1/audit-events/:id | Get audit event |
 | GET | /v1/audit-events/:id/verify | Verify the audit-event hash chain |
 
-The `/v1/reservations` two-phase surface backs the transaction reserve → confirm/release flow:
-a reservation holds projected limit usage, then is confirmed (commit) or released (rollback),
-either by reservation ID or by the originating transaction ID. The reservation routes are mounted
-only when the reservation service is wired (non-nil); they are live in the default/production wiring.
+The two-phase reservation flow (a reservation holds projected limit usage, then is confirmed on
+commit or released on rollback, by reservation ID or by the originating transaction ID) is served
+only by the gRPC seam above; the HTTP API has no reservation route. Every confirm and release that settles a row
+writes a `RESERVATION_CONFIRMED`/`RESERVATION_RELEASED` audit event that `GET /v1/audit-events` returns.
 
 #### System
 
@@ -637,12 +643,14 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0531–0532, 0249–0256)
+#### Settings / Reservation Error Codes (0176–0178, 0531–0534, 0249–0256)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit or a rule `DENY` under `tracer.mode=enforce` (HTTP 422)
 - `0178` ErrTransactionReservationUnavailable — tracer unreachable or failing under `tracer.mode=enforce` + `tracer.failPosture=closed` (HTTP 503)
 - `0531` ErrTransactionReservationReview — a tracer rule flagged the transaction for `REVIEW`, or a rule could not be evaluated for it (`reason=rule_evaluation_error`), under `tracer.mode=enforce`; rejected before the balance commit (HTTP 422)
-- `0532` ErrTransactionReservationRejected — the tracer refused the reserve request itself (REST 400/422, gRPC `InvalidArgument`/`FailedPrecondition`) under `tracer.mode=enforce`, whatever the `failPosture` (HTTP 422)
+- `0532` ErrTransactionReservationRejected — the tracer refused the reserve request itself (gRPC `InvalidArgument`/`FailedPrecondition`) under `tracer.mode=enforce`, whatever the `failPosture` (HTTP 422)
+- `0533` ErrReservationAlreadySettled — tracer seam: a reserve replayed onto a transaction whose reservation is already released, expired or confirmed; gRPC `FailedPrecondition`, surfaced by an `enforce` ledger as `0532`
+- `0534` ErrReservationTenantInactive — tracer seam: the `x-tenant-id` tenant is not provisioned or not active; gRPC `Unavailable`, which the ledger routes through `failPosture`
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
 - `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
 - `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)
@@ -979,9 +987,8 @@ enabling discovery with an empty advertise address aborts boot
 #### Tracer Client (ledger → tracer)
 | Variable | Default | Description |
 |----------|---------|-------------|
-| TRACER_BASE_URL | — | Tracer service base URL (enables reservation calls) |
+| TRACER_BASE_URL | — | Tracer reservation seam address, gRPC `host:port` (enables reservation calls; an `http://`/`https://` scheme is stripped) |
 | TRACER_TIMEOUT_MS | — | Client ceiling (ms) on every tracer call; the per-ledger `tracer.timeoutMs` (default 250) sets the reserve deadline beneath it |
-| TRACER_TRANSPORT | grpc | Seam transport: `grpc` (default) or `rest` fallback |
 | TRACER_TLS_MODE | — | Seam identity: `mtls` (mutual TLS) or `mesh`/empty (plaintext, sidecar mTLS) |
 | TRACER_TLS_CERT_FILE | — | Ledger client cert presented under `mtls` |
 | TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
@@ -1058,10 +1065,12 @@ Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVE
 `DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
 `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` / `DB_SSL_MODE` (its own PostgreSQL),
 plus the standard OTEL exporter vars. The ledger→tracer reservation seam (separate from the `:4020`
-REST API) is governed server-side by `TRACER_GRPC_PORT` (starts the gRPC seam; distinct from
-`SERVER_PORT`) and the `TRACER_TLS_*` certs — `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the
-server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client cert under
-`TRACER_TLS_MODE=mtls`; see
+REST API) is governed server-side by `TRACER_GRPC_PORT` (the gRPC seam's listen address, always on;
+empty resolves to `:4021`, distinct from `SERVER_PORT`) and the `TRACER_TLS_*` settings —
+`TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the server identity, `TRACER_TLS_CLIENT_CA_FILE` to
+verify the ledger's client cert under `TRACER_TLS_MODE=mtls`, and `TRACER_TLS_CLIENT_ALLOWED_NAMES`
+(comma-separated DNS SAN / URI SAN / CN identities the gRPC listener accepts; empty accepts any
+CA-signed cert with a boot Warn); see
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 ### 6.4 Infrastructure
