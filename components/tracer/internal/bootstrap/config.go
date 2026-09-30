@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -70,10 +71,10 @@ func telemetryConfig(cfg *Config, logger libLog.Logger) libOtel.TelemetryConfig 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	ServerAddress string `env:"SERVER_ADDRESS"`
-	// TracerGRPCPort is the listen address for the reservation gRPC seam (e.g.
-	// ":4021"). When empty (the default) the gRPC server is NOT started — the
-	// transport is opt-in during the Phase-1 rollout. Transport security follows
-	// TRACER_TLS_MODE: in "mtls" the gRPC server requires+verifies a client cert.
+	// TracerGRPCPort is the listen address for the reservation gRPC seam, the
+	// only transport of the reservation lifecycle. Empty resolves to ":4021"
+	// (ApplyGRPCSeamDefaults). Transport security follows TRACER_TLS_MODE: in
+	// "mtls" the gRPC server requires+verifies a client cert.
 	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
 	// TracerTLSMode selects how the reservation seam is secured. "mtls"
 	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
@@ -651,6 +652,27 @@ func ApplyReservationReaperDefaults(cfg *Config) {
 
 	if _, present := os.LookupEnv("RESERVATION_REAPER_ENABLED"); !present {
 		cfg.ReservationReaperEnabled = true
+	}
+}
+
+// DefaultTracerGRPCPort is the listen address of the reservation gRPC seam when
+// TRACER_GRPC_PORT is empty. It is distinct from the REST/health port (:4020).
+const DefaultTracerGRPCPort = ":4021"
+
+// errGRPCPortEmpty fails boot when the reservation gRPC seam has no listen
+// address.
+var errGRPCPortEmpty = errors.New("TRACER_GRPC_PORT is empty: the reservation gRPC seam has no listen address")
+
+// ApplyGRPCSeamDefaults resolves an empty TRACER_GRPC_PORT to
+// DefaultTracerGRPCPort. The gRPC seam is the only transport of the
+// reservation lifecycle, so the tracer always listens on it.
+func ApplyGRPCSeamDefaults(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.TracerGRPCPort == "" {
+		cfg.TracerGRPCPort = DefaultTracerGRPCPort
 	}
 }
 
@@ -1345,13 +1367,13 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 	return mtComponents.redisClient
 }
 
-// initGRPCServer builds the opt-in reservation gRPC server. It returns nil (no
-// error) when TRACER_GRPC_PORT is unset, so the gRPC transport stays off unless
-// an operator configures it. Transport security follows TRACER_TLS_MODE (Epic
-// 1.3): mtls ⇒ the server requires+verifies a client cert (reservation seam
-// unreachable without one); mesh/unset ⇒ plaintext (sidecar terminates). The
-// server is the only transport of the reservation lifecycle; clk drives the
-// reserve timestamp-window check.
+// initGRPCServer builds the reservation gRPC server, the only transport of the
+// reservation lifecycle. An empty TRACER_GRPC_PORT is an error: boot resolves
+// it through ApplyGRPCSeamDefaults, so an empty value means a caller skipped
+// the defaults. Transport security follows TRACER_TLS_MODE: mtls ⇒ the server
+// requires+verifies a client cert (reservation seam unreachable without one);
+// mesh/unset ⇒ plaintext (sidecar terminates). clk drives the reserve
+// timestamp-window check.
 // workerEnsurer starts a tenant's workers on its first reservation (nil in
 // single-tenant mode).
 func initGRPCServer(
@@ -1364,7 +1386,7 @@ func initGRPCServer(
 	telemetry *libOtel.Telemetry,
 ) (*GRPCServer, error) {
 	if cfg.TracerGRPCPort == "" {
-		return nil, nil
+		return nil, errGRPCPortEmpty
 	}
 
 	reservationServer, err := grpcin.NewReservationServer(reservationService, clk)
@@ -1943,6 +1965,9 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// only path that returns capacity held past a reservation's stated expiry.
 	ApplyReservationReaperDefaults(cfg)
 
+	// The reservation gRPC seam always listens; an empty port resolves to :4021.
+	ApplyGRPCSeamDefaults(cfg)
+
 	// initCoreInfra also builds the streaming emitter once logger + telemetry
 	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close
 	// hook — no transport is constructed and no broker connection is
@@ -2113,7 +2138,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init background workers (conditional on MT mode inside initWorkers).
-	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
+	// finalizeStartup also builds the reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
 	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)

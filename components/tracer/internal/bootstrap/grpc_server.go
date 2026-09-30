@@ -5,6 +5,7 @@
 package bootstrap
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 
@@ -28,8 +29,8 @@ import (
 // *tls.Config is passed in and the server requires+verifies a client cert whose
 // identity is in TRACER_TLS_CLIENT_ALLOWED_NAMES when that allowlist is set
 // (the reservation seam is unreachable without one); in "mesh" mode the config
-// is nil and a sidecar terminates mTLS. The server is opt-in: bootstrap only
-// registers it when TRACER_GRPC_PORT is set.
+// is nil and a sidecar terminates mTLS. Bootstrap always registers it, on
+// TRACER_GRPC_PORT (default :4021).
 type GRPCServer struct {
 	server    *grpc.Server
 	address   string
@@ -96,4 +97,27 @@ func (s *GRPCServer) Run(_ *libCommons.Launcher) error {
 		StartWithGracefulShutdown()
 
 	return nil
+}
+
+// Stop drains in-flight RPCs and closes the listener. When ctx ends first it
+// cancels the remaining RPCs, so shutdown never outlives its deadline. A nil
+// receiver is a no-op.
+func (s *GRPCServer) Stop(ctx context.Context) {
+	if s == nil || s.server == nil {
+		return
+	}
+
+	drained := make(chan struct{})
+
+	go func() {
+		s.server.GracefulStop()
+		close(drained)
+	}()
+
+	select {
+	case <-drained:
+	case <-ctx.Done():
+		s.server.Stop()
+		<-drained
+	}
 }
