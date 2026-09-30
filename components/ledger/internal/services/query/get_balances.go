@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -30,7 +31,10 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	ctx, span := tracer.Start(ctx, "query.get_balances")
 	defer span.End()
 
-	balances, uncachedAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+	balances, uncachedAliases, err := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(uncachedAliases) > 0 {
 		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
@@ -50,7 +54,12 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 // getBalancesFromCache checks Redis for cached balances. Returns two slices:
 // the balances found in cache, and the aliases that were not found (cache misses)
 // which need to be fetched from the database.
-func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
+//
+// A cached entry that exists but cannot be decoded is an error, not a miss: the
+// Lua script mutates the cached entry whenever one exists, so validating
+// against the database row instead would let money move on a balance this
+// release cannot read back.
+func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_balances.cache_read")
@@ -80,11 +89,9 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 		var b mmodel.BalanceRedis
 		if err = json.Unmarshal([]byte(value), &b); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to deserialize cached balance", err)
-			logger.Log(ctx, libLog.LevelWarn, "Failed to deserialize cached balance, falling back to database", libLog.String("alias", alias), libLog.Err(err))
+			logger.Log(ctx, libLog.LevelError, "Failed to deserialize cached balance", libLog.String("alias", alias), libLog.Err(err))
 
-			misses = append(misses, alias)
-
-			continue
+			return nil, nil, fmt.Errorf("failed to deserialize cached balance: %w", err)
 		}
 
 		balanceAlias, balanceKey, _ := strings.Cut(alias, "#")
@@ -150,5 +157,5 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 		libLog.Int("cached", len(cached)),
 		libLog.Int("misses", len(misses)))
 
-	return cached, misses
+	return cached, misses, nil
 }
