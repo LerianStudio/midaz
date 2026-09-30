@@ -144,8 +144,8 @@ func TestIntegration_AccountClosingPendingByAccountIsInvisibleUntilProjected(t *
 // plan. It is the evidence behind adding NO index for the closing: the scoped
 // account predicate is answered by an index the ledger already has —
 // (organization_id, ledger_id, account_id, ...) WHERE deleted_at IS NULL, of which
-// idx_operation_account_id and idx_operation_account_balance_pit are the two
-// current shapes, either of which the planner may pick — and the operation side is
+// idx_operation_account_id and idx_operation_account_balance_pit_recorded are the
+// two current shapes, either of which the planner may pick — and the operation side is
 // never scanned sequentially. The transaction side of the join is left
 // unasserted: which access path it gets depends on a table size a fixture cannot
 // reproduce, and it is reached by its primary key.
@@ -198,7 +198,7 @@ func TestIntegration_AccountClosingPendingByAccountUsesTheExistingIndexes(t *tes
 
 	t.Logf("EXPLAIN plan for the pending-by-account query:\n%s", plan.String())
 
-	assert.Regexp(t, `Index Scan using idx_operation_account(_id|_balance_pit) on operation`, plan.String(),
+	assert.Regexp(t, `Index Scan using idx_operation_account(_id|_balance_pit_recorded) on operation`, plan.String(),
 		"the scoped account predicate must be served by an existing operation index")
 	assert.NotContains(t, plan.String(), "Seq Scan on operation",
 		"the operation side must never be answered by a sequential scan")

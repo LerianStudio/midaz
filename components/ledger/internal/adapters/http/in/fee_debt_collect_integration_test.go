@@ -47,7 +47,6 @@ func (h *feeHarness) newFeeDebtCollectApp() *fiber.App {
 // deferrable fee applier onto the harness, and returns the record.
 func (h *feeHarness) enableFeeDebtCollect(t *testing.T) *fee_debt.Repository {
 	t.Helper()
-	h.enableAccountingEngine(t)
 
 	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)
@@ -57,8 +56,6 @@ func (h *feeHarness) enableFeeDebtCollect(t *testing.T) *fee_debt.Repository {
 
 	h.commandUC.FeeDebts = feeDebts
 	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo).WithFeeDebtRecorder(feeDebts)
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
-	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: engineRedis}
 	h.commandUC.EngineRecoveryAcknowledger = &atomicBatchHTTPRecoveryAcknowledger{repository: engineRedis, completedAt: time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)}
 
 	return feeDebts

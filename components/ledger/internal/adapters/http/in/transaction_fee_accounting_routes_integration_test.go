@@ -44,8 +44,6 @@ func (dispatcher *feeWriteBehindDispatcher) DispatchTransactionWriteBehind(_ con
 
 func TestEngineWriteBehindFeeAccountingRoutes(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 	dispatcher := &feeWriteBehindDispatcher{}
 	h.commandUC.TransactionWriteBehindAsync = true
 	h.commandUC.TransactionWriteBehindDispatcher = dispatcher
@@ -99,7 +97,6 @@ func TestEngineWriteBehindFeeAccountingRoutes(t *testing.T) {
 func TestDirectV2FeeAccountingRoutes(t *testing.T) {
 	t.Run("explicit two source and two destination routes", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.enableAccountingEngine(t)
 		routes := h.seedDirectRoutes(t, 2, 2)
 		app := h.newV2App()
 
@@ -152,7 +149,6 @@ func TestDirectV2FeeAccountingRoutes(t *testing.T) {
 
 	t.Run("fee debit inherits the single source route", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.enableAccountingEngine(t)
 		routes := h.seedDirectRoutes(t, 1, 2)
 		app := h.newV2App()
 
@@ -185,7 +181,6 @@ func TestDirectV2FeeAccountingRoutes(t *testing.T) {
 
 	t.Run("explicit incompatible route is rejected without movement", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.enableAccountingEngine(t)
 		routes := h.seedDirectRoutes(t, 2, 2)
 		app := h.newV2App()
 
@@ -211,7 +206,6 @@ func TestDirectV2FeeAccountingRoutes(t *testing.T) {
 
 	t.Run("missing payer route is rejected without movement", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.enableAccountingEngine(t)
 		routes := h.seedDirectRoutes(t, 1, 2)
 		app := h.newV2App()
 
