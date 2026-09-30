@@ -1074,7 +1074,7 @@ func TestAcknowledgeByResults_AllSucceeded_UsesIndividualAck(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+	cr.acknowledgeByResults(ctx, newTestRetryManager(&spyChannel{}), deliveries, results, testLogger, "test-queue")
 
 	// CRITICAL: Each message must be acked individually with multiple=false
 	// This prevents cross-worker acking when multiple workers share a channel
@@ -1110,7 +1110,7 @@ func TestAcknowledgeByResults_WithResults_AllSucceeded_UsesIndividualAck(t *test
 	}
 
 	ctx := context.Background()
-	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+	cr.acknowledgeByResults(ctx, newTestRetryManager(&spyChannel{}), deliveries, results, testLogger, "test-queue")
 
 	// Both should be acked individually
 	assert.True(t, ack1.ackCalled, "message 1 should be acked")
@@ -1142,12 +1142,11 @@ func TestAcknowledgeByResults_MixedResults_RoutesFailureThroughRetryEngine(t *te
 
 	channel := &spyChannel{}
 	cr := &ConsumerRoutes{
-		Logger:       testLogger,
-		retryManager: newTestRetryManager(channel),
+		Logger: testLogger,
 	}
 
 	ctx := context.Background()
-	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+	cr.acknowledgeByResults(ctx, newTestRetryManager(channel), deliveries, results, testLogger, "test-queue")
 
 	// Message 1: acked individually (multiple=false invariant preserved).
 	assert.True(t, ack1.ackCalled, "message 1 should be acked")
@@ -1174,7 +1173,7 @@ func TestAcknowledgeByResults_EmptyDeliveries_NoAction(t *testing.T) {
 
 	ctx := context.Background()
 	// Should not panic with empty deliveries
-	cr.acknowledgeByResults(ctx, []amqp.Delivery{}, []BulkMessageResult{}, testLogger, "test-queue")
+	cr.acknowledgeByResults(ctx, newTestRetryManager(&spyChannel{}), []amqp.Delivery{}, []BulkMessageResult{}, testLogger, "test-queue")
 }
 
 func TestAcknowledgeByResults_AllFailedAtMaxRetries_NacksAllToDLQ(t *testing.T) {
@@ -1202,12 +1201,11 @@ func TestAcknowledgeByResults_AllFailedAtMaxRetries_NacksAllToDLQ(t *testing.T) 
 
 	channel := &spyChannel{}
 	cr := &ConsumerRoutes{
-		Logger:       testLogger,
-		retryManager: newTestRetryManager(channel),
+		Logger: testLogger,
 	}
 
 	ctx := context.Background()
-	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+	cr.acknowledgeByResults(ctx, newTestRetryManager(channel), deliveries, results, testLogger, "test-queue")
 
 	assert.False(t, channel.publishCalled, "exhausted retries should not republish")
 
