@@ -477,11 +477,6 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 		if settled {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve replayed onto a settled reservation", txErr)
 
-			logger.With(
-				libLog.String("operation", "service.reservation.reserve"),
-				libLog.String("transaction_id", transactionID.String()),
-			).Log(ctx, libLog.LevelWarn, "Reserve replayed onto a settled reservation")
-
 			return nil, txErr
 		}
 

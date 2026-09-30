@@ -323,9 +323,8 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.ErrorIs(t, err, constant.ErrReservationAlreadySettled)
 		assert.Nil(t, result, "a settled replay holds nothing and returns no handle")
 
-		warns := deps.logCalls("warn")
-		require.Len(t, warns, 1, "a settled replay is logged once at Warn")
-		assert.Equal(t, txID.String(), testutil.FieldsToMap(warns[0].Fields)["transaction_id"])
+		assert.Empty(t, deps.logger.Calls,
+			"the service records a settled replay on the span only: the gRPC boundary logs it")
 
 		_, status := deps.spanEvents(t, "service.reservation.reserve")
 		assert.NotEqual(t, otelCodes.Error, status, "a settled replay is a business refusal: the span stays green")

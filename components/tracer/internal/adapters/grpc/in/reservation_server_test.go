@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -610,4 +611,69 @@ func TestReservationServer_Reserve_InvalidMetadataKey(t *testing.T) {
 	_, err = server.Reserve(context.Background(), req)
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
 	require.Contains(t, status.Convert(err).Message(), constant.ErrMetadataKeyInvalidChars.Error())
+}
+
+// TestReservationServer_MapServiceError_SettledReplayLogsOnceAtBoundary locks the
+// single-point logging of a settled replay: the use case records it on the span
+// only, so the gRPC boundary that maps it to FailedPrecondition logs it exactly
+// once at Warn, and no other mapped error logs a Warn here.
+func TestReservationServer_MapServiceError_SettledReplayLogsOnceAtBoundary(t *testing.T) {
+	now := reserveFixtureTime
+	transactionID := testutil.MustDeterministicUUID(40)
+	requestID := testutil.MustDeterministicUUID(41)
+	accountID := testutil.MustDeterministicUUID(42)
+	reservationID := testutil.MustDeterministicUUID(43)
+
+	t.Run("settled replay on reserve logs one Warn with the operation and the error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().
+			Reserve(gomock.Any(), transactionID, gomock.Any(), services.ReserveOptions{}).
+			Return(nil, constant.ErrReservationAlreadySettled)
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+
+		logger := testutil.NewMockLogger()
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+
+		_, err = server.Reserve(ctx, newReserveRequest(now, transactionID, requestID, accountID))
+		require.Equal(t, codes.FailedPrecondition, status.Code(err))
+
+		warns := warnCalls(logger)
+		require.Len(t, warns, 1, "a settled replay is logged once, at the boundary")
+
+		fields := testutil.FieldsToMap(warns[0].Fields)
+		require.Equal(t, "grpc.reservations.reserve", fields["operation"])
+		require.Contains(t, fields, "error")
+	})
+
+	t.Run("not found on confirm by id logs no Warn", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{}, constant.ErrReservationNotFound)
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+
+		logger := testutil.NewMockLogger()
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+
+		_, err = server.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+		require.Equal(t, codes.NotFound, status.Code(err))
+		require.Empty(t, warnCalls(logger))
+	})
+}
+
+// warnCalls returns the Warn-level calls a MockLogger captured.
+func warnCalls(logger *testutil.MockLogger) []testutil.LogCall {
+	var out []testutil.LogCall
+
+	for _, call := range logger.Calls {
+		if call.Level == "warn" {
+			out = append(out, call)
+		}
+	}
+
+	return out
 }
