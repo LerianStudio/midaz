@@ -15,6 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -99,12 +100,7 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 
 		program, err = e.exprEval.Compile(ctx, rule.Expression)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to compile expression", err)
-
-			logger.With(
-				libLog.String("rule.id", rule.ID.String()),
-				libLog.String("error.message", err.Error()),
-			).Log(ctx, libLog.LevelError, "Failed to compile expression")
+			recordExpressionError(ctx, span, logger, rule, "Failed to compile expression", err)
 
 			return false, fmt.Errorf("failed to compile expression: %w", err)
 		}
@@ -139,12 +135,7 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 			return false, nil
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to evaluate expression", err)
-
-		logger.With(
-			libLog.String("rule.id", rule.ID.String()),
-			libLog.String("error.message", err.Error()),
-		).Log(ctx, libLog.LevelError, "Failed to evaluate expression")
+		recordExpressionError(ctx, span, logger, rule, "Failed to evaluate expression", err)
 
 		return false, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
@@ -156,4 +147,23 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 	).Log(ctx, libLog.LevelDebug, "Rule expression evaluated")
 
 	return matched, nil
+}
+
+// recordExpressionError attributes a failed compile or evaluation to the span
+// by error class. A rule-expression failure is a business outcome the service
+// logs once at Warn, so the span stays green and nothing is logged here; any
+// other failure flips the span red and is logged at Error.
+func recordExpressionError(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule, message string, err error) {
+	if IsRuleExpressionFailure(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, RedactedRuleExpressionFailure(err))
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, message, err)
+
+	logger.With(
+		libLog.String("rule.id", rule.ID.String()),
+		libLog.String("error.message", err.Error()),
+	).Log(ctx, libLog.LevelError, message)
 }

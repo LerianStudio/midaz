@@ -77,7 +77,7 @@ var (
 	ErrNilReservationAuditWriter  = errors.New("reservation: audit writer cannot be nil")
 	ErrNilReservationRequest      = errors.New("reservation: request cannot be nil")
 	ErrNilReservationTransationID = errors.New("reservation: transaction id is required")
-	ErrNilRuleEvaluationResult    = errors.New("reservation: rule evaluation returned nil result")
+	ErrNilRuleEvaluationResult    = errors.New("rule evaluation returned nil result")
 )
 
 // Refusal reasons the reserve and synchronous validate paths report when the
@@ -86,21 +86,9 @@ const (
 	// reasonLimitExceeded is the reason when a limit, not a rule, refused.
 	reasonLimitExceeded = "limit_exceeded"
 	// reasonRuleEvaluationError is the reason when a rule expression could not be
-	// evaluated against the request, so the reserve is routed to review.
+	// evaluated against the request, so the request is routed to review.
 	reasonRuleEvaluationError = "rule_evaluation_error"
 )
-
-// ruleExpressionFailures are the rule-expression error classes that make a rule
-// unevaluable for one request. They describe the rule and the request, not the
-// tracer's health, so a reserve refuses on them instead of failing.
-var ruleExpressionFailures = []error{
-	constant.ErrExpressionEvaluation,
-	constant.ErrExpressionType,
-	constant.ErrExpressionCostExceeded,
-	constant.ErrExpressionCostEstimation,
-	constant.ErrExpressionProgram,
-	constant.ErrExpressionSyntax,
-}
 
 // LimitResolver resolves the applicable limits for a transaction ONCE and computes
 // the per-limit reservation parameters. Implemented by query.LimitCheckerService.
@@ -516,7 +504,9 @@ func (s *ReservationService) evaluateRules(
 
 	evalResult, err := s.ruleEvaluator.Execute(ctx, req)
 	if err != nil {
-		if isRuleExpressionFailure(err) {
+		// Unlike validation, an amount beyond CEL's precision is included (see
+		// query.IsUnevaluableRule).
+		if query.IsRuleExpressionFailure(err) {
 			return s.ruleEvaluationRefused(ctx, span, logger, transactionID, err), nil
 		}
 
@@ -548,8 +538,8 @@ func (s *ReservationService) evaluateRules(
 }
 
 // ruleEvaluationRefused is the result of a reserve whose rule step could not
-// evaluate a rule for the request: REVIEW, attributed to the failing rule when
-// the evaluator names it, with no capacity held.
+// evaluate the rules for the request: REVIEW, attributed as
+// ruleEvaluationReviewResult attributes it, with no capacity held.
 func (s *ReservationService) ruleEvaluationRefused(
 	ctx context.Context,
 	span trace.Span,
@@ -557,38 +547,28 @@ func (s *ReservationService) ruleEvaluationRefused(
 	transactionID uuid.UUID,
 	err error,
 ) *ReserveResult {
-	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule evaluation failed; reserve routed to review", err)
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule evaluation failed; reserve routed to review",
+		query.RedactedRuleExpressionFailure(err))
 
-	result := &ReserveResult{Denied: true, Decision: model.DecisionReview, Reason: reasonRuleEvaluationError}
+	var matched []uuid.UUID
+	if review := ruleEvaluationReviewResult(err); len(review.MatchedRuleIDs) > 0 {
+		matched = review.MatchedRuleIDs
+	}
 
-	fields := []any{
+	logger.With(
 		libLog.String("operation", "service.reservation.reserve"),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.String("decision", string(model.DecisionReview)),
-		libLog.Err(err),
-	}
+		libLog.String("error.class", query.RuleExpressionFailureClass(err)),
+		libLog.Any("rule_ids", ruleIDStrings(query.FailingRuleIDs(err))),
+	).Log(ctx, libLog.LevelWarn, "Reservation routed to review: rule evaluation failed")
 
-	var ruleErr *query.RuleEvaluationError
-	if errors.As(err, &ruleErr) && ruleErr.RuleID != uuid.Nil {
-		result.MatchedRuleIDs = []uuid.UUID{ruleErr.RuleID}
-		fields = append(fields, libLog.String("rule_id", ruleErr.RuleID.String()))
-	}
-
-	logger.With(fields...).Log(ctx, libLog.LevelWarn, "Reservation routed to review: rule evaluation failed")
-
-	return s.decided(span, result)
-}
-
-// isRuleExpressionFailure reports whether err is a rule-expression failure (see
-// ruleExpressionFailures) rather than a failure to load or run the rule step.
-func isRuleExpressionFailure(err error) bool {
-	for _, target := range ruleExpressionFailures {
-		if errors.Is(err, target) {
-			return true
-		}
-	}
-
-	return false
+	return s.decided(span, &ReserveResult{
+		Denied:         true,
+		Decision:       model.DecisionReview,
+		Reason:         reasonRuleEvaluationError,
+		MatchedRuleIDs: matched,
+	})
 }
 
 // limitDenied is the result of a reserve a limit refused, with no capacity held.
