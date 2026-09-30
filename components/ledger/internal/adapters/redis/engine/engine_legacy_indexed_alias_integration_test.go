@@ -14,19 +14,21 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
-// legacyIndexedAliasBlob encodes the fixture's primary balance in the dual cache
-// shape and returns its raw fields, so a test can reshape it into what an older
-// release wrote without going through the cache codec's read policy.
-func legacyIndexedAliasBlob(t *testing.T, f *integrationFixture) map[string]json.RawMessage {
+// legacyIndexedAliasBlob encodes a balance in the dual cache shape and returns
+// its raw fields, so a test can reshape it into what an older release wrote
+// without going through the cache codec's read policy.
+func legacyIndexedAliasBlob(t *testing.T, balance accounting.BalanceSnapshot) map[string]json.RawMessage {
 	t.Helper()
 
-	encoded, err := balancecache.Encode(f.input.Execution.Balances[0], balancecache.FormatDual)
+	encoded, err := balancecache.Encode(balance, balancecache.FormatDual)
 	require.NoError(t, err)
 
 	var fields map[string]json.RawMessage
@@ -37,10 +39,10 @@ func legacyIndexedAliasBlob(t *testing.T, f *integrationFixture) map[string]json
 
 // pureLegacyIndexedAliasBlob keeps only the uppercase fields, as a pre-4.1 writer
 // stores them: no lowercase mirror and no SchemaVersion.
-func pureLegacyIndexedAliasBlob(t *testing.T, f *integrationFixture, alias string) map[string]json.RawMessage {
+func pureLegacyIndexedAliasBlob(t *testing.T, balance accounting.BalanceSnapshot, alias string) map[string]json.RawMessage {
 	t.Helper()
 
-	fields := legacyIndexedAliasBlob(t, f)
+	fields := legacyIndexedAliasBlob(t, balance)
 	delete(fields, "SchemaVersion")
 
 	for name := range fields {
@@ -100,7 +102,7 @@ func TestIntegrationEngineLegacyIndexedAliasApplies(t *testing.T) {
 	for _, alias := range []string{"0#@source#default", "12#@source#default"} {
 		t.Run("pure legacy "+alias, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			fields := pureLegacyIndexedAliasBlob(t, f, alias)
+			fields := pureLegacyIndexedAliasBlob(t, f.input.Execution.Balances[0], alias)
 			fields["Version"] = json.RawMessage(`5`)
 			key := storeLegacyIndexedAliasBlob(t, f, fields)
 
@@ -121,7 +123,7 @@ func TestIntegrationEngineLegacyIndexedAliasApplies(t *testing.T) {
 
 	t.Run("mixed blob reads the uppercase fields", func(t *testing.T) {
 		f := newIntegrationFixture(t, container.Client)
-		fields := legacyIndexedAliasBlob(t, f)
+		fields := legacyIndexedAliasBlob(t, f.input.Execution.Balances[0])
 		fields["Alias"] = rawJSON(t, "0#@source#default")
 		fields["Available"], fields["Version"] = rawJSON(t, "100"), json.RawMessage(`7`)
 		fields["available"], fields["version"] = rawJSON(t, "1"), rawJSON(t, "1")
@@ -160,7 +162,7 @@ func TestIntegrationEngineLegacyIndexedAliasKeepsIdentityGuard(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			storeLegacyIndexedAliasBlob(t, f, pureLegacyIndexedAliasBlob(t, f, alias))
+			storeLegacyIndexedAliasBlob(t, f, pureLegacyIndexedAliasBlob(t, f.input.Execution.Balances[0], alias))
 			before := f.capture(t)
 
 			_, err := f.run(t)
@@ -168,4 +170,50 @@ func TestIntegrationEngineLegacyIndexedAliasKeepsIdentityGuard(t *testing.T) {
 			require.Equal(t, before, f.capture(t), "a rejected identity must not mutate any key")
 		})
 	}
+}
+
+// A pre-4.1 blob can carry both the indexed alias and a noncanonical overdraft
+// limit. The engine must accept its identity to reach the limit signal, and the
+// Go repair must accept it to rewrite the limit, before the execution applies.
+func TestIntegration_AdapterExecute_RepairsLimitOfLegacyIndexedAliasBalance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	ctx := context.Background()
+	inspector, _, _ := newAdapterValkey(t)
+	input, limits := richAdapterExecution(t)
+
+	hot := input.Execution.Balances[0]
+	hot.Available = decimal.NewFromInt(120)
+	hot.OverdraftLimitEnabled = true
+	hot.OverdraftLimit = decimal.NewFromInt(1000)
+	fields := pureLegacyIndexedAliasBlob(t, hot, "0#"+hot.Alias+"#"+hot.Key)
+	fields["OverdraftLimit"] = rawJSON(t, "1000.00")
+	encoded, err := json.Marshal(fields)
+	require.NoError(t, err)
+
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
+	require.NoError(t, err)
+
+	cacheKey := keys.Balances[hot.BalanceRef].Balance
+	require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
+
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
+	require.NoError(t, err)
+	result, err := adapter.Execute(ctx, input)
+	require.NoError(t, err)
+	require.Len(t, result.Final, 1)
+	require.True(t, result.Final[0].Available.Equal(decimal.NewFromInt(90)), "execution must use the hot cached balance")
+	require.True(t, result.Final[0].OverdraftLimit.Equal(decimal.NewFromInt(1000)))
+
+	persisted, err := inspector.Get(ctx, cacheKey).Bytes()
+	require.NoError(t, err)
+
+	var stored map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(persisted, &stored))
+	require.JSONEq(t, `"1000"`, string(stored["OverdraftLimit"]))
+	require.JSONEq(t, `"1000"`, string(stored["overdraftLimit"]))
+	require.JSONEq(t, string(rawJSON(t, hot.Alias)), string(stored["Alias"]))
+	require.JSONEq(t, string(rawJSON(t, hot.Alias)), string(stored["alias"]))
 }
