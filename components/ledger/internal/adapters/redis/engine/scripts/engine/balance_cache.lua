@@ -107,6 +107,13 @@ local function decodeBalance(blob, seed, ref)
         balanceRef = ref
     }
     if snapshot.key == ref then snapshot.key = seed.key end
+    -- Releases before 4.1 cached the transaction entry key ("<index>#<alias>#<key>")
+    -- as the alias. Its logical alias is accepted only when the entry names this
+    -- balance's own key, so the identity check below still decides the match.
+    if type(snapshot.alias) == "string" then
+        local indexedAlias, indexedKey = string.match(snapshot.alias, "^%d+#([^#]+)#([^#]+)$")
+        if indexedAlias ~= nil and indexedKey == snapshot.key then snapshot.alias = indexedAlias end
+    end
     -- A cache entry may provide live amounts, but it may never redirect an
     -- execution to a different balance or account identity.
     if snapshot.id ~= seed.id or snapshot.accountId ~= seed.accountId or snapshot.assetCode ~= seed.assetCode or snapshot.accountType ~= seed.accountType or snapshot.alias ~= seed.alias or snapshot.key ~= seed.key then
