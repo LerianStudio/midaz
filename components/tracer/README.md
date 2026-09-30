@@ -159,7 +159,8 @@ reservation route, and the ledger is the only caller:
   `DEPLOYMENT_MODE=saas` and logs a warning elsewhere. The HTTP listener never applies the allowlist.
   Under `mesh` a service-mesh sidecar owns mTLS; it must enforce STRICT mTLS and admit only the
   ledger to `:4021`, and the tracer logs a warning at boot. An empty `TRACER_TLS_MODE` is plaintext
-  with no verified peer and boots only with `DEPLOYMENT_MODE=local`.
+  with no verified peer and boots only with an explicit `DEPLOYMENT_MODE=local`; an unset
+  `DEPLOYMENT_MODE` refuses boot.
 - **Tenant.** The tenant travels in the trusted `x-tenant-id` gRPC metadata key. A tenant that is not
   provisioned, suspended or purged answers `Unavailable` with code `0534`.
 - **Settled rows.** A reserve replayed onto a transaction whose reservation is already released,

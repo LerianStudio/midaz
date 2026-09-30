@@ -223,9 +223,9 @@ no static key.** This is stated explicitly in code: *"identity on the reservatio
 - **`mtls`** — the app presents and verifies certificates directly.
 - **`mesh`** — the app dials/listens **plaintext** and delegates mTLS origination/termination to a
   local **Istio/Linkerd** service-mesh sidecar.
-- **empty** — plaintext with no verified peer. The tracer accepts it only with
-  `DEPLOYMENT_MODE=local`; any other deployment mode refuses boot
-  (`ValidateSeamTransportPosture`, `tracer/seam_posture.go`).
+- **empty** — plaintext with no verified peer. The tracer accepts it only when
+  `DEPLOYMENT_MODE=local` is set explicitly; an unset `DEPLOYMENT_MODE` or any other deployment mode
+  refuses boot (`ValidateSeamTransportPosture`, `tracer/seam_posture.go`).
 
 **`mtls` mode, ledger (client) side** (`ledger/tls_seam.go:82-103`): presents its leaf via
 `GetClientCertificate`, verifies the tracer's server leaf against `RootCAs` loaded from
@@ -284,7 +284,8 @@ header is only as trustworthy as the peer, so the deployment must verify it one 
   cannot check this itself and logs a boot Warn in `mesh` mode.
 
 An empty `TRACER_TLS_MODE` serves the seam plaintext with no verified peer, so the tracer refuses to
-boot with it outside `DEPLOYMENT_MODE=local` (`ValidateSeamTransportPosture`). Under multi-tenant mode a
+boot with it unless `DEPLOYMENT_MODE=local` is set explicitly; an unset `DEPLOYMENT_MODE` refuses too
+(`ValidateSeamTransportPosture`). Under multi-tenant mode a
 missing/empty/invalid trusted tenant key is a **clean failure** (`ErrReservationTenantRequired` →
 gRPC `InvalidArgument`) and never falls back to a default or wrong pool. A tenant the tenant manager
 reports as not provisioned, suspended or purged answers gRPC `Unavailable` with
@@ -377,7 +378,7 @@ in `components/ledger/.env.example` and `components/tracer/.env.example`.
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `buildClientMTLSConfig` |
 | `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `buildClientMTLSConfig` |
 | `TRACER_GRPC_PORT` | tracer | gRPC seam listen address; empty → `:4021`; always on | `DefaultTracerGRPCPort`, `ApplyGRPCSeamDefaults` |
-| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`\|empty; empty (plaintext, no verified peer) boots only with `DEPLOYMENT_MODE=local`; `mesh` logs a boot Warn | `buildSeamTLSConfig`, `ValidateSeamTransportPosture` |
+| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`\|empty; empty (plaintext, no verified peer) boots only with an explicit `DEPLOYMENT_MODE=local` (unset refuses); `mesh` logs a boot Warn | `buildSeamTLSConfig`, `ValidateSeamTransportPosture` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `buildMTLSConfig` |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `buildMTLSConfig` |
 | `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas`; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamTransportPosture` |

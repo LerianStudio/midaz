@@ -312,7 +312,7 @@ transport. Under `TRACER_TLS_MODE=mtls` the listener requires a client certifica
 `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate without SANs, Subject CN)
 matches `TRACER_TLS_CLIENT_ALLOWED_NAMES` (an empty allowlist accepts any CA-signed certificate:
 refused boot under `DEPLOYMENT_MODE=saas`, a boot warning elsewhere); under `mesh` a service-mesh
-sidecar owns mTLS and must admit only the ledger. An empty `TRACER_TLS_MODE` boots only with
-`DEPLOYMENT_MODE=local`. The allowlist is never
+sidecar owns mTLS and must admit only the ledger. An empty `TRACER_TLS_MODE` boots only with an
+explicit `DEPLOYMENT_MODE=local`; an unset `DEPLOYMENT_MODE` refuses boot. The allowlist is never
 applied to the HTTP listener. Do not add a reservation route to the HTTP API: the reservation
 lifecycle has one caller, the ledger, and one surface.

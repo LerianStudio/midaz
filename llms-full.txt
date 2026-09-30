@@ -524,8 +524,8 @@ Identity is mutual TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mut
 with no shared secret (the ledger presents a client cert, the tracer verifies it against its client
 CA, and the ledger verifies the tracer's server cert), while `mesh` runs plaintext and delegates
 mTLS to a service-mesh sidecar that must enforce STRICT mTLS and admit only the ledger to `:4021`.
-An empty tracer `TRACER_TLS_MODE` is plaintext with no verified peer and boots only with
-`DEPLOYMENT_MODE=local`. Under `mtls` the tracer's gRPC listener also requires the client cert's DNS
+An empty tracer `TRACER_TLS_MODE` is plaintext with no verified peer and boots only with an
+explicit `DEPLOYMENT_MODE=local` (an unset `DEPLOYMENT_MODE` refuses boot). Under `mtls` the tracer's gRPC listener also requires the client cert's DNS
 SAN or URI SAN (or, on a cert without SANs, Subject CN) to match `TRACER_TLS_CLIENT_ALLOWED_NAMES`
 (exact, case-insensitive; empty accepts any cert signed by the client CA, which refuses boot under
 `DEPLOYMENT_MODE=saas` and logs a boot Warn elsewhere); the HTTP listener never applies that
@@ -1074,8 +1074,8 @@ empty resolves to `:4021`, distinct from `SERVER_PORT`) and the `TRACER_TLS_*` s
 verify the ledger's client cert under `TRACER_TLS_MODE=mtls`, and `TRACER_TLS_CLIENT_ALLOWED_NAMES`
 (comma-separated DNS SAN / URI SAN identities, or CN on a cert without SANs, the gRPC listener
 accepts; empty accepts any CA-signed cert with a boot Warn, and refuses boot under
-`DEPLOYMENT_MODE=saas`). Outside `DEPLOYMENT_MODE=local` the tracer's `TRACER_TLS_MODE` must be `mtls`
-or `mesh`; see
+`DEPLOYMENT_MODE=saas`). Unless `DEPLOYMENT_MODE=local` is set explicitly (unset counts as not local), the tracer's
+`TRACER_TLS_MODE` must be `mtls` or `mesh`; see
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 ### 6.4 Infrastructure
