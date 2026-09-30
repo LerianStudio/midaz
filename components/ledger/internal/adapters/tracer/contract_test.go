@@ -180,10 +180,16 @@ func TestReserveContract_LedgerPayloadAcceptedByTracer(t *testing.T) {
 	txID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	reqID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
-	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(txID, reqID, now))
+	// A fractional-second timestamp, as the anchor sends it, must cross the
+	// wire without losing its sub-second part.
+	ts := now.Add(-123456789 * time.Nanosecond)
+
+	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(txID, reqID, ts))
 
 	require.NoError(t, err, "the tracer must ACCEPT the ledger reserve request; a rejection here is the contract gap reappearing")
 	require.True(t, endpoint.parsed, "the tracer must have mapped + validated the ledger request")
+	assert.True(t, ts.Equal(endpoint.received.TransactionTimestamp),
+		"the transaction timestamp must keep its nanoseconds; want %s got %s", ts, endpoint.received.TransactionTimestamp)
 
 	// The reserve decision flows back.
 	require.NotNil(t, result)
