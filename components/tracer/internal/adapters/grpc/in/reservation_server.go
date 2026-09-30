@@ -114,7 +114,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		Revert:    req.GetRevert(),
 	})
 	if err != nil {
-		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, s.mapServiceError(span, err)
 	}
 
 	logger.With(
@@ -152,7 +152,7 @@ func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reser
 
 	outcome, err := s.service.ConfirmByTransaction(ctx, transactionID)
 	if err != nil {
-		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, s.mapServiceError(span, err)
 	}
 
 	return &reservationv1.ConfirmByTransactionResponse{
@@ -177,7 +177,7 @@ func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reser
 	}
 
 	if _, err := s.service.ReleaseByTransaction(ctx, transactionID); err != nil {
-		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, s.mapServiceError(span, err)
 	}
 
 	return &reservationv1.ReleaseByTransactionResponse{}, nil
@@ -203,7 +203,7 @@ func (s *ReservationServer) ConfirmById(ctx context.Context, req *reservationv1.
 
 	outcome, err := s.service.Confirm(ctx, reservationID)
 	if err != nil {
-		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, s.mapServiceError(span, err)
 	}
 
 	logger.With(
@@ -237,7 +237,7 @@ func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.
 	}
 
 	if err := s.service.Release(ctx, reservationID); err != nil {
-		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, s.mapServiceError(span, err)
 	}
 
 	logger.With(
@@ -300,7 +300,7 @@ func countToUint32(n int) uint32 {
 // reaches this mapping: the tenant interceptor answers it before the handler
 // runs. A sentinel maps with its code string as the message so the ledger can
 // parse it.
-func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err error) error {
+func (s *ReservationServer) mapServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", err)
@@ -315,7 +315,7 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 		libOpentelemetry.HandleSpanError(span, "Rule cache not ready", err)
 		return status.Error(codes.Unavailable, constant.ErrRuleCacheNotReady.Error())
 	default:
-		libOpentelemetry.HandleSpanError(span, msg, err)
+		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
 }
