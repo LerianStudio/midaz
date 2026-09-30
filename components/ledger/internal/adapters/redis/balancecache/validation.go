@@ -53,6 +53,8 @@ func normalizeLogicalIdentity(snapshot *accounting.BalanceSnapshot, allowMissing
 	alias := snapshot.Alias
 	if parts := strings.Split(alias, "#"); len(parts) == 2 && parts[1] == snapshot.Key {
 		alias = parts[0]
+	} else if entryAlias, indexed := indexedEntryAlias(alias, snapshot.Key); indexed {
+		alias = entryAlias
 	}
 
 	if alias == "" || strings.Contains(alias, "#") {
@@ -67,4 +69,23 @@ func normalizeLogicalIdentity(snapshot *accounting.BalanceSnapshot, allowMissing
 	snapshot.Alias, snapshot.BalanceRef = alias, ref
 
 	return nil
+}
+
+// indexedEntryAlias reads the transaction entry key "<index>#<alias>#<key>"
+// that 4.0.x and 3.8.x engine scripts cached as Alias. It matches only three
+// parts with an ASCII-digit index and the balance key as the last part, so a
+// digits-only alias in the two-part "alias#key" form is never read as an index.
+func indexedEntryAlias(value, key string) (string, bool) {
+	parts := strings.Split(value, "#")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] != key {
+		return "", false
+	}
+
+	for _, digit := range parts[0] {
+		if digit < '0' || digit > '9' {
+			return "", false
+		}
+	}
+
+	return parts[1], true
 }
