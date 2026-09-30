@@ -12,7 +12,6 @@ package reservationv1
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -150,19 +149,15 @@ type UnimplementedReservationServiceServer struct{}
 func (UnimplementedReservationServiceServer) Reserve(context.Context, *ReserveRequest) (*ReserveResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reserve not implemented")
 }
-
 func (UnimplementedReservationServiceServer) ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmByTransaction not implemented")
 }
-
 func (UnimplementedReservationServiceServer) ReleaseByTransaction(context.Context, *ReleaseByTransactionRequest) (*ReleaseByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseByTransaction not implemented")
 }
-
 func (UnimplementedReservationServiceServer) ConfirmById(context.Context, *ConfirmByIdRequest) (*ConfirmByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmById not implemented")
 }
-
 func (UnimplementedReservationServiceServer) ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseById not implemented")
 }
