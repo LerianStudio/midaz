@@ -623,6 +623,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Rejected Error",
 			Message:    "The usage-limit service rejected the reservation request for this transaction. Verify that the asset, account type and transaction date are accepted by the tracer configuration.",
 		},
+		constant.ErrTransactionReservationRuleDenied: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationRuleDenied.Error(),
+			Title:      "Transaction Reservation Rule Denied Error",
+			Message:    "The transaction was denied by a transaction validation rule and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.",
+		},
 		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerNotEnabled.Error(),

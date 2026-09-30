@@ -97,10 +97,17 @@ const (
 	reservationForRevert reservationPurpose = true
 )
 
-// reservationDecisionReview is the tracer decision for a transaction a rule
-// flagged for review, or one a rule could not be evaluated for. It arrives with denied=true; every other denied result —
-// DENY, or a tracer that predates the decision field — is a limit denial.
-const reservationDecisionReview = "REVIEW"
+// Tracer decisions and the reason that tells a limit denial from a rule denial.
+// REVIEW is a transaction a rule flagged for review, or one a rule could not be
+// evaluated for. DENY carries reservationReasonLimitExceeded when a limit
+// refused and the rule's own reason otherwise. A denied result with no
+// decision comes from a tracer that predates the field, when only limits could
+// deny.
+const (
+	reservationDecisionReview      = "REVIEW"
+	reservationDecisionDeny        = "DENY"
+	reservationReasonLimitExceeded = "limit_exceeded"
+)
 
 // Tracer metadata bounds. The tracer refuses the whole reserve request when any
 // key breaks them, so the anchor forwards only what it would accept.
@@ -152,9 +159,9 @@ func (h reservationHandle) transitions(action string) []reservationTransition {
 //   - mode=advisory: the reserve is called but never blocks — a DENY or REVIEW
 //     decision, a refused request or an unavailable tracer still returns proceed
 //     (advisory observes, the real gate is enforce).
-//   - mode=enforce: a DENY decision rejects with 0177 and a REVIEW decision (a
-//     matched rule, or a rule the tracer could not evaluate) with 0531, both
-//     before the balance commit. A request the tracer refused
+//   - mode=enforce: a limit DENY rejects with 0177, a rule DENY with 0535 and a
+//     REVIEW decision (a matched rule, or a rule the tracer could not evaluate)
+//     with 0531, all before the balance commit. A request the tracer refused
 //     (tracer.ErrTracerRejected) rejects with 0532 whatever the failPosture,
 //     because the tracer answered. An unavailable tracer branches on failPosture
 //     (open → proceed + SKIPPED audit, closed → reject with 0178).
@@ -241,8 +248,9 @@ func (uc *UseCase) reserveTransaction(
 
 // handleReserveDenied maps a denied reserve result to an outcome. Advisory
 // observes it and proceeds; enforce rejects with the code that tells a review
-// flag from a limit denial. No capacity is held on a denied result, so the
-// handle is empty either way.
+// flag, a limit denial and a rule denial apart. The rule reason is logged,
+// never returned: rules are fraud logic. No capacity is held on a denied
+// result, so the handle is empty either way.
 func (uc *UseCase) handleReserveDenied(
 	ctx context.Context,
 	span trace.Span,
@@ -251,8 +259,6 @@ func (uc *UseCase) handleReserveDenied(
 	advisory bool,
 	result *tracer.ReserveResult,
 ) reservationOutcome {
-	review := result.Decision == reservationDecisionReview
-
 	if advisory {
 		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation denied in advisory mode; proceeding without gating",
 			libLog.String("transaction_id", transactionID.String()),
@@ -262,12 +268,7 @@ func (uc *UseCase) handleReserveDenied(
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
-	sentinel := constant.ErrTransactionReservationDenied
-	if review {
-		sentinel = constant.ErrTransactionReservationReview
-	}
-
-	rejectErr := pkg.ValidateBusinessError(sentinel, constant.EntityTransaction)
+	rejectErr := pkg.ValidateBusinessError(reservationDenialSentinel(result), constant.EntityTransaction)
 	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Tracer reservation denied", rejectErr)
 	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation denied; rejecting before balance commit",
 		libLog.String("transaction_id", transactionID.String()),
@@ -275,6 +276,19 @@ func (uc *UseCase) handleReserveDenied(
 		libLog.String("reason", result.Reason))
 
 	return reservationOutcome{Kind: reservationReject, Err: rejectErr}
+}
+
+// reservationDenialSentinel selects the enforce rejection code for a denied
+// result.
+func reservationDenialSentinel(result *tracer.ReserveResult) error {
+	switch {
+	case result.Decision == reservationDecisionReview:
+		return constant.ErrTransactionReservationReview
+	case result.Decision == reservationDecisionDeny && result.Reason != reservationReasonLimitExceeded:
+		return constant.ErrTransactionReservationRuleDenied
+	default:
+		return constant.ErrTransactionReservationDenied
+	}
 }
 
 // handleReserveError maps a reserve call failure to an outcome. A refused
