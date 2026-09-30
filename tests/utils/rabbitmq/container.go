@@ -334,6 +334,12 @@ func startContainerWithRetry(tb testing.TB, ctx context.Context, req testcontain
 
 		t.Logf("RabbitMQ container start attempt %d/%d failed: %v", attempt, rabbitMQStartupAttempts, err)
 
+		// A failed start still returns the created container, which holds a
+		// reaper connection until it is terminated.
+		if termErr := testcontainers.TerminateContainer(ctr); termErr != nil {
+			t.Logf("failed to terminate RabbitMQ container from attempt %d: %v", attempt, termErr)
+		}
+
 		if attempt < rabbitMQStartupAttempts {
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}

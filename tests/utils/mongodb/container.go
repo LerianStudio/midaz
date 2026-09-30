@@ -139,6 +139,12 @@ func startMongoContainerWithRetry(tb testing.TB, ctx context.Context, req testco
 
 		tb.Logf("MongoDB container start attempt %d/%d failed: %v", attempt, mongoStartupAttempts, err)
 
+		// A failed start still returns the created container, which holds a
+		// reaper connection until it is terminated.
+		if termErr := testcontainers.TerminateContainer(ctr); termErr != nil {
+			tb.Logf("failed to terminate MongoDB container from attempt %d: %v", attempt, termErr)
+		}
+
 		if attempt < mongoStartupAttempts {
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
