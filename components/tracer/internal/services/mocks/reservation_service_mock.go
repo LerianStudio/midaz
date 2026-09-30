@@ -117,10 +117,10 @@ func (mr *MockReservationRepositoryMockRecorder) ConfirmByTransactionWithTx(ctx,
 }
 
 // ConfirmWithTx mocks base method.
-func (m *MockReservationRepository) ConfirmWithTx(ctx context.Context, arg1 db.DB, reservationID uuid.UUID) (model.ReservationStatus, error) {
+func (m *MockReservationRepository) ConfirmWithTx(ctx context.Context, arg1 db.DB, reservationID uuid.UUID) (*model.Reservation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConfirmWithTx", ctx, arg1, reservationID)
-	ret0, _ := ret[0].(model.ReservationStatus)
+	ret0, _ := ret[0].(*model.Reservation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -147,11 +147,12 @@ func (mr *MockReservationRepositoryMockRecorder) ReleaseByTransactionWithTx(ctx,
 }
 
 // ReleaseWithTx mocks base method.
-func (m *MockReservationRepository) ReleaseWithTx(ctx context.Context, arg1 db.DB, reservationID uuid.UUID, status model.ReservationStatus) error {
+func (m *MockReservationRepository) ReleaseWithTx(ctx context.Context, arg1 db.DB, reservationID uuid.UUID, status model.ReservationStatus) (*model.Reservation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReleaseWithTx", ctx, arg1, reservationID, status)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*model.Reservation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ReleaseWithTx indicates an expected call of ReleaseWithTx.

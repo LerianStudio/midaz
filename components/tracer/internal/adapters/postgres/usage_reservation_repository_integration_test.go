@@ -141,7 +141,7 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 	assert.Equal(t, int64(400), reserved, "reserve must seed reserved_usage")
 
 	// First confirm: moves 400 reserved -> current and reports the RESERVED it found.
-	var found model.ReservationStatus
+	var found *model.Reservation
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var err error
@@ -150,7 +150,8 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 
 		return err
 	}))
-	assert.Equal(t, model.StatusReserved, found, "a settling confirm must report the status it locked")
+	require.NotNil(t, found)
+	assert.Equal(t, model.StatusReserved, found.Status, "a settling confirm must report the status it locked")
 
 	current, reserved = readCounter(t, db, limitID, scopeKey, periodKey)
 	assert.Equal(t, int64(400), current, "confirm must move amount into current_usage")
@@ -168,7 +169,8 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 	})
 	require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal,
 		"retried confirm against a terminal row must be an idempotent no-op")
-	assert.Equal(t, model.StatusConfirmed, found, "a terminal confirm must report the status it found")
+	require.NotNil(t, found)
+	assert.Equal(t, model.StatusConfirmed, found.Status, "a terminal confirm must report the status it found")
 
 	current, reserved = readCounter(t, db, limitID, scopeKey, periodKey)
 	assert.Equal(t, int64(400), current, "double-confirm must NOT double-move into current_usage")
@@ -260,7 +262,8 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusReleased)
+		_, err := repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusReleased)
+		return err
 	}))
 
 	current, reserved := readCounter(t, db, limitID, scopeKey, periodKey)
@@ -270,7 +273,7 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 
 	// Confirm after release: terminal no-op, counter untouched, and the caller
 	// learns the row was RELEASED so it can report spend that was never counted.
-	var found model.ReservationStatus
+	var found *model.Reservation
 
 	err = inRealTx(t, db, func(tx *sql.Tx) error {
 		var err error
@@ -280,11 +283,141 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 		return err
 	})
 	require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
-	assert.Equal(t, model.StatusReleased, found, "a confirm onto a released row must report RELEASED")
+	require.NotNil(t, found)
+	assert.Equal(t, model.StatusReleased, found.Status, "a confirm onto a released row must report RELEASED")
 
 	current, reserved = readCounter(t, db, limitID, scopeKey, periodKey)
 	assert.Equal(t, int64(0), current)
 	assert.Equal(t, int64(0), reserved)
+}
+
+// TestIntegration_UsageReservationRepository_ByIDSettle_ReturnsLockedRow proves the
+// by-id confirm and release hand back the row they locked, carrying the
+// transaction id, limit coordinates, and amount the caller audits, with the status
+// the row had under the lock.
+func TestIntegration_UsageReservationRepository_ByIDSettle_ReturnsLockedRow(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8861)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8861-" + testutil.MustDeterministicUUID(8862).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+
+	newRes := func(txSeed int64, amount string) *model.Reservation {
+		res, err := model.NewReservation(
+			limitID,
+			testutil.MustDeterministicUUID(txSeed),
+			scopeKey,
+			periodKey,
+			decimal.RequireFromString(amount),
+			now.Add(5*time.Minute),
+			now,
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
+			return err
+		}))
+
+		return res
+	}
+
+	assertLocked := func(t *testing.T, want, got *model.Reservation, status model.ReservationStatus) {
+		t.Helper()
+
+		require.NotNil(t, got)
+		assert.Equal(t, want.ID, got.ID)
+		assert.Equal(t, want.TransactionID, got.TransactionID)
+		assert.Equal(t, want.LimitID, got.LimitID)
+		assert.Equal(t, want.ScopeKey, got.ScopeKey)
+		assert.Equal(t, want.PeriodKey, got.PeriodKey)
+		assert.True(t, want.Amount.Equal(got.Amount), "amount: want %s, got %s", want.Amount, got.Amount)
+		assert.Equal(t, status, got.Status)
+	}
+
+	t.Run("confirm returns the locked RESERVED row", func(t *testing.T) {
+		res := newRes(8863, "12.34")
+
+		var got *model.Reservation
+
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			var err error
+
+			got, err = repo.ConfirmWithTx(ctx, tx, res.ID)
+
+			return err
+		}))
+		assertLocked(t, res, got, model.StatusReserved)
+		assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, res.ID))
+
+		// A retried confirm still returns the row, now in the terminal status.
+		err := inRealTx(t, db, func(tx *sql.Tx) error {
+			var err error
+
+			got, err = repo.ConfirmWithTx(ctx, tx, res.ID)
+
+			return err
+		})
+		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+		assertLocked(t, res, got, model.StatusConfirmed)
+	})
+
+	t.Run("release returns the locked RESERVED row", func(t *testing.T) {
+		res := newRes(8864, "56.78")
+
+		var got *model.Reservation
+
+		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+			var err error
+
+			got, err = repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusReleased)
+
+			return err
+		}))
+		assertLocked(t, res, got, model.StatusReserved)
+		assert.Equal(t, string(model.StatusReleased), readReservationStatus(t, db, res.ID))
+
+		err := inRealTx(t, db, func(tx *sql.Tx) error {
+			var err error
+
+			got, err = repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusReleased)
+
+			return err
+		})
+		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+		assertLocked(t, res, got, model.StatusReleased)
+	})
+
+	t.Run("unknown reservation returns no row", func(t *testing.T) {
+		missing := testutil.MustDeterministicUUID(8865)
+
+		var (
+			confirmed, released *model.Reservation
+			confirmErr          error
+		)
+
+		releaseErr := inRealTx(t, db, func(tx *sql.Tx) error {
+			confirmed, confirmErr = repo.ConfirmWithTx(ctx, tx, missing)
+
+			var err error
+
+			released, err = repo.ReleaseWithTx(ctx, tx, missing, model.StatusReleased)
+
+			return err
+		})
+		require.ErrorIs(t, confirmErr, constant.ErrReservationNotFound)
+		require.ErrorIs(t, releaseErr, constant.ErrReservationNotFound)
+		assert.Nil(t, confirmed)
+		assert.Nil(t, released)
+	})
 }
 
 // TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll proves
@@ -700,7 +833,8 @@ func TestIntegration_UsageReservationRepository_ConfirmAfterExpiry_CountsTheSpen
 
 	// The sweep expires it. This is exactly what the reaper does per row.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusExpired)
+		_, err := repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusExpired)
+		return err
 	}))
 
 	current, held = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
@@ -761,7 +895,8 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransactionAfterExpiry_
 	}))
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusExpired)
+		_, err := repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusExpired)
+		return err
 	}))
 
 	current, held := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
@@ -827,7 +962,8 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoSettledRow_Rej
 			limitSeed: 8801,
 			txSeed:    8811,
 			settle: func(tx *sql.Tx, id uuid.UUID) error {
-				return repo.ReleaseWithTx(ctx, tx, id, model.StatusReleased)
+				_, err := repo.ReleaseWithTx(ctx, tx, id, model.StatusReleased)
+				return err
 			},
 			wantStatus:  model.StatusReleased,
 			wantCurrent: decimal.Zero,
@@ -837,7 +973,8 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoSettledRow_Rej
 			limitSeed: 8802,
 			txSeed:    8812,
 			settle: func(tx *sql.Tx, id uuid.UUID) error {
-				return repo.ReleaseWithTx(ctx, tx, id, model.StatusExpired)
+				_, err := repo.ReleaseWithTx(ctx, tx, id, model.StatusExpired)
+				return err
 			},
 			wantStatus:  model.StatusExpired,
 			wantCurrent: decimal.Zero,
@@ -938,7 +1075,8 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoReleased_Leave
 		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReleaseWithTx(ctx, tx, resA.ID, model.StatusReleased)
+		_, err := repo.ReleaseWithTx(ctx, tx, resA.ID, model.StatusReleased)
+		return err
 	}))
 
 	replayA, err := model.NewReservation(limitID, txA, scopeKey, periodKey, decimal.NewFromInt(400), now.Add(5*time.Minute), now)
@@ -1027,7 +1165,8 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_CountsRelea
 	}
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReleaseWithTx(ctx, tx, resA.ID, model.StatusReleased)
+		_, err := repo.ReleaseWithTx(ctx, tx, resA.ID, model.StatusReleased)
+		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		_, err := repo.ConfirmWithTx(ctx, tx, resB.ID)
@@ -1092,7 +1231,8 @@ func TestIntegration_UsageReservationRepository_ReleaseByTransaction_OnlyRelease
 	reserved, reservedLimit := reserve(8596, "reserved")
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return repo.ReleaseWithTx(ctx, tx, expired.ID, model.StatusExpired)
+		_, err := repo.ReleaseWithTx(ctx, tx, expired.ID, model.StatusExpired)
+		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		_, err := repo.ConfirmWithTx(ctx, tx, confirmed.ID)

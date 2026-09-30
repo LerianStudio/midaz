@@ -129,11 +129,15 @@ type ReservationRepository interface {
 	// existed in RESERVED and the handle adopted its id; a row in any other status
 	// returns constant.ErrReservationAlreadySettled and moves no counter.
 	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) (replayed bool, err error)
-	// ConfirmWithTx settles one reservation onto the counter and returns the
-	// status the row had under the lock. On a CONFIRMED or RELEASED row it returns
-	// that status together with constant.ErrReservationAlreadyTerminal.
-	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (model.ReservationStatus, error)
-	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error
+	// ConfirmWithTx settles one reservation onto the counter and returns the row
+	// as read under the lock, in the status it had there. On a CONFIRMED or
+	// RELEASED row it returns that row together with
+	// constant.ErrReservationAlreadyTerminal; a missing row returns nil.
+	ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (*model.Reservation, error)
+	// ReleaseWithTx returns one RESERVED reservation's hold, flips it to status,
+	// and returns the row as read under the lock. Terminal and missing rows follow
+	// ConfirmWithTx.
+	ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) (*model.Reservation, error)
 	// ConfirmByTransactionWithTx settles every RESERVED or EXPIRED row of the
 	// transaction and returns them together with the number of the transaction's
 	// RELEASED rows, all read under one row lock.

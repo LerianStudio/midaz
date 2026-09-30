@@ -275,7 +275,7 @@ func TestReservationE2E_ConfirmOutcomesReachTheClient(t *testing.T) {
 		e.expectTxRollback()
 		e.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), e.tx, reservationID).
-			Return(model.StatusReleased, constant.ErrReservationAlreadyTerminal)
+			Return(&model.Reservation{ID: reservationID, Status: model.StatusReleased}, constant.ErrReservationAlreadyTerminal)
 
 		got, err := e.client.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 		require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestReservationE2E_ConfirmOutcomesReachTheClient(t *testing.T) {
 		e.expectTxCommit()
 		e.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), e.tx, reservationID).
-			Return(model.StatusReserved, nil)
+			Return(&model.Reservation{ID: reservationID, Status: model.StatusReserved}, nil)
 		e.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), e.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, reservationID, gomock.Any()).
 			Return(nil)

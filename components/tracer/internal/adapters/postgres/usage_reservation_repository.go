@@ -51,7 +51,9 @@ const reserveScopeLockSQL = `SELECT pg_advisory_xact_lock($1)`
 // connection, and its jittered transient-retry re-attempts. 3s sits well above the
 // time a legitimate same-account reserve queue drains (each reserve touches a handful
 // of rows in single-digit milliseconds) yet far below the point a stuck waiter would
-// starve the pool.
+// starve the pool. The ledger's tracerReserveLockWait
+// (components/ledger/internal/services/command/transaction_reservation_unanswered_settle.go)
+// mirrors this value, so it must change with it.
 const reserveLockTimeout = 3 * time.Second
 
 // insertReservationReturningIDSQL inserts the reservation row idempotently on the
@@ -111,10 +113,10 @@ const reserveLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
 //     back a handle that owns no row. A replay onto a row that already left
 //     RESERVED is rejected rather than adopted.
 //   - ConfirmWithTx: moves the amount reserved_usage -> current_usage AND flips the
-//     row to CONFIRMED, guarded on the status read under the row lock, and reports
-//     that status to the caller.
+//     row to CONFIRMED, guarded on the status read under the row lock, and returns
+//     the locked row to the caller.
 //   - ReleaseWithTx: returns the amount from reserved_usage AND flips the row to
-//     RELEASED/EXPIRED, guarded WHERE status='RESERVED'.
+//     RELEASED/EXPIRED, guarded WHERE status='RESERVED', and returns the locked row.
 //   - ConfirmByTransactionWithTx: settles every RESERVED/EXPIRED row a
 //     transaction holds and counts its RELEASED rows from the same locked read,
 //     so the confirm can report spend that will never be counted.
@@ -324,19 +326,20 @@ func settleableByConfirm(status model.ReservationStatus) bool {
 // left alone. Both flips are guarded on the status that was read under the row
 // lock, so a concurrent transition loses cleanly.
 //
-// The returned status is the one the row had under the lock, so the caller can
-// tell what the confirm found. A retried confirm against a CONFIRMED or RELEASED
+// The returned reservation is the row as it was read under the lock: its status is
+// the one the confirm found, and its transaction id, limit coordinates, and amount
+// are what the caller audits. A retried confirm against a CONFIRMED or RELEASED
 // row is a no-op: the counter move is NEVER issued and the method returns that
-// status together with ErrReservationAlreadyTerminal, without a double-move — a
+// row together with ErrReservationAlreadyTerminal, without a double-move — a
 // RELEASED result is spend that will never be counted, which the caller may want
-// to report. A missing reservation maps to ErrReservationNotFound.
+// to report. A missing reservation returns a nil row and ErrReservationNotFound.
 //
 // Settling an EXPIRED row can push counted spending above the limit's ceiling.
 // That is the honest state: the customer really did spend it, and the capacity the
 // sweep handed back may already have been taken by another transaction.
-func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (model.ReservationStatus, error) {
+func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (*model.Reservation, error) {
 	if db == nil {
-		return "", pgdb.ErrNilConnection
+		return nil, pgdb.ErrNilConnection
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -349,15 +352,15 @@ func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.
 	res, err := r.lockReservation(ctx, db, reservationID)
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Reservation lookup failed", err)
-		return "", err
+		return nil, err
 	}
 
 	if !settleableByConfirm(res.Status) {
-		return res.Status, constant.ErrReservationAlreadyTerminal
+		return res, constant.ErrReservationAlreadyTerminal
 	}
 
 	if err := r.applyConfirm(ctx, span, db, res); err != nil {
-		return res.Status, err
+		return res, err
 	}
 
 	logger.With(
@@ -365,17 +368,19 @@ func (r *UsageReservationRepository) ConfirmWithTx(ctx context.Context, db pgdb.
 		libLog.String("reservation_id", reservationID.String()),
 	).Log(ctx, libLog.LevelDebug, "Confirmed reservation")
 
-	return res.Status, nil
+	return res, nil
 }
 
 // ReleaseWithTx returns a RESERVED reservation's amount from reserved_usage on the
 // counter (without crediting current_usage) and flips the row to the given terminal
 // status, on the supplied handle, guarded WHERE status='RESERVED'. status MUST be
-// StatusReleased (explicit abort) or StatusExpired (reaper sweep). Idempotency
-// mirrors ConfirmWithTx.
-func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) error {
+// StatusReleased (explicit abort) or StatusExpired (reaper sweep). The returned
+// reservation and the idempotency mirror ConfirmWithTx: the row as read under the
+// lock, returned with ErrReservationAlreadyTerminal when it was already past
+// RESERVED, and nil when it does not exist.
+func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.DB, reservationID uuid.UUID, status model.ReservationStatus) (*model.Reservation, error) {
 	if db == nil {
-		return pgdb.ErrNilConnection
+		return nil, pgdb.ErrNilConnection
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -387,17 +392,17 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 
 	if status != model.StatusReleased && status != model.StatusExpired {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid release status", constant.ErrReservationInvalidStatus)
-		return constant.ErrReservationInvalidStatus
+		return nil, constant.ErrReservationInvalidStatus
 	}
 
 	res, err := r.lockReservation(ctx, db, reservationID)
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Reservation lookup failed", err)
-		return err
+		return nil, err
 	}
 
 	if res.Status != model.StatusReserved {
-		return constant.ErrReservationAlreadyTerminal
+		return res, constant.ErrReservationAlreadyTerminal
 	}
 
 	now := time.Now().UTC()
@@ -413,7 +418,7 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 		PlaceholderFormat(sq.Dollar)
 
 	if err := r.execCounterMove(ctx, span, db, counterUpdate); err != nil {
-		return err
+		return res, err
 	}
 
 	rowUpdate := sq.Update(usageReservationsTable).
@@ -424,11 +429,11 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 
 	affected, err := r.execRowFlip(ctx, span, db, rowUpdate)
 	if err != nil {
-		return err
+		return res, err
 	}
 
 	if affected == 0 {
-		return constant.ErrReservationAlreadyTerminal
+		return res, constant.ErrReservationAlreadyTerminal
 	}
 
 	logger.With(
@@ -437,7 +442,7 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 		libLog.String("status", string(status)),
 	).Log(ctx, libLog.LevelDebug, "Released reservation")
 
-	return nil
+	return res, nil
 }
 
 // ConfirmByTransactionWithTx settles EVERY reservation row of the given
