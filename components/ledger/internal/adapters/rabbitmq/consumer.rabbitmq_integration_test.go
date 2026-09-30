@@ -742,6 +742,8 @@ func TestIntegration_Consumer_TransientFailureDuringChannelLoss(t *testing.T) {
 	// unblocks all of them at once after the test has closed the consumer channel.
 	arrived := make(chan string, numWorkers)
 	release := make(chan struct{})
+	releaseHandlers := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseHandlers)
 
 	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
 		var msg consumerTestMessage
@@ -763,6 +765,10 @@ func TestIntegration_Consumer_TransientFailureDuringChannelLoss(t *testing.T) {
 			}
 
 			// Plain (non-business) error: the default classifier treats it as retryable.
+			// Redelivery on the next generation relies on the channel-context cancel
+			// winning against the retry engine's first backoff wait
+			// (consumerRetryInitialBackoff), so the worker skips the nack or abandons
+			// the republish; changing the backoff constants needs a look at this test.
 			return errors.New("simulated transient failure during channel loss")
 		}
 
@@ -808,7 +814,7 @@ func TestIntegration_Consumer_TransientFailureDuringChannelLoss(t *testing.T) {
 	require.NoError(t, closedChannel.Close(), "closing the consumer channel should succeed")
 
 	// Fail every blocked attempt while the supervisor swaps the channel.
-	close(release)
+	releaseHandlers()
 
 	require.Eventually(t, func() bool {
 		current := infra.conn.ChannelSnapshot()
