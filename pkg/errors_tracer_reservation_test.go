@@ -52,6 +52,8 @@ func TestTracerReservationSentinelsAreDistinct(t *testing.T) {
 		constant.ErrTransactionReservationUnavailable,
 		constant.ErrTransactionReservationReview,
 		constant.ErrTransactionReservationRejected,
+		constant.ErrReservationAlreadySettled,
+		constant.ErrReservationTenantInactive,
 	} {
 		assert.False(t, codes[sentinel.Error()], "code %s is reused", sentinel.Error())
 		codes[sentinel.Error()] = true

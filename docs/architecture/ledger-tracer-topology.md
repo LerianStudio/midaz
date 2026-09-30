@@ -37,7 +37,7 @@ ledger alone, or add the tracer as a distinct product.
 | Tier | Image / build context | Binary source | Base image | Port(s) | License | Notes |
 |---|---|---|---|---|---|---|
 | **Ledger** (unified) | `components/ledger/Dockerfile` | `components/ledger/cmd/app/main.go` (`Dockerfile:19`) | distroless `static-debian12` (default tag), run as nonroot via `USER nonroot:nonroot` (`Dockerfile:28`), static `CGO_ENABLED=0 -tags netgo` (`Dockerfile:13-31`) | `:3002` (`EXPOSE 3002`, `Dockerfile:26`) | Elastic-2.0 | One binary serving onboarding + transaction + CRM (holders/instruments) + fees; routes register under the `midaz` authz namespace via `protectedMidaz(...)` (`routes.go`). No embedded `HEALTHCHECK` — relies on orchestrator probes. |
-| **Tracer** | `components/tracer/Dockerfile` | `components/tracer/cmd/app/main.go` | distroless `static-debian12:nonroot`, `GOMEMLIMIT=1800MiB` baked (`Dockerfile`) | `:4020` REST seam (`EXPOSE 4020`); optional gRPC seam on a separate port (see §6) | Elastic-2.0 | A separate `Dockerfile.dev` uses `alpine:3.23` with a `wget` `HEALTHCHECK` against `/readyz` on `SERVER_PORT` (`Dockerfile.dev`). |
+| **Tracer** | `components/tracer/Dockerfile` | `components/tracer/cmd/app/main.go` | distroless `static-debian12:nonroot`, `GOMEMLIMIT=1800MiB` baked (`Dockerfile`) | `:4020` HTTP API (`EXPOSE 4020`); `:4021` gRPC reservation seam, always on (see §6) | Elastic-2.0 | A separate `Dockerfile.dev` uses `alpine:3.23` with a `wget` `HEALTHCHECK` against `/readyz` on `SERVER_PORT` (`Dockerfile.dev`). |
 
 ---
 
@@ -123,7 +123,7 @@ collapsing the two into one failure/scale unit.
 
   Two failures remain and both are reported at Error naming the transaction, the reservation and the
   amount: a sequence that exhausts its budget, and a transition turned away because the concurrency
-  cap is full. The expiry sweep is no longer the durability story for a confirm; it is the backstop
+  cap is full. The expiry sweep is not the durability story for a confirm; it is the backstop
   for the CAPACITY only, and it returns capacity without ever counting the spend.
 
   Residual, and deliberately not solved here: the retry is in-process, so a ledger restart with
@@ -131,14 +131,23 @@ collapsing the two into one failure/scale unit.
   `outbox` primitives in lib-commons, or reservation state on the transaction row) plus a sweeper —
   a persistence decision, not a defect fix.
 
+  A confirm also reports what it found: `ConfirmByTransaction` returns `confirmed` (rows it moved to
+  CONFIRMED) and `already_released` (rows of the transaction that were already RELEASED), and
+  `ConfirmById` returns `already_released`. A released row's spend is never counted, so the ledger
+  records a non-zero `already_released` as a divergence without failing the transaction: a Warn log, a
+  span event `tracer.reservation.confirm_already_released`, and the counter
+  `tracer_reservation_confirm_already_released_total{operation}` (`operation` ∈ `confirm`,
+  `confirm_by_transaction`; `transaction_reservation_telemetry.go`).
+
 Net: the tracer can stay a small replica set and tolerate occasional saturation on the post-commit path,
 while the pre-commit reserve path is the only latency-sensitive RPC — which is what co-scheduling (§2)
 addresses.
 
 **Back-pressure constraint (grounded, prescriptive support):** when the per-tenant pool cap is reached
-the tracer supervisor stops spawning workers and returns **503 with `Retry-After`**
-(`TENANT_CAP_RETRY_AFTER_SECONDS`, default 5s) plus a canonical error envelope
-(`tracer/.env.example:283-292`). This is the documented graceful back-pressure behavior any scaling
+the tracer supervisor stops spawning workers. The HTTP API returns **503 with `Retry-After`**
+(`TENANT_CAP_RETRY_AFTER_SECONDS`, default 5s) plus a canonical error envelope; the reservation seam
+returns gRPC `Unavailable` with code `0445`, which the ledger routes through `failPosture`
+(`tracer/.env.example`). This is the documented graceful back-pressure behavior any scaling
 policy must respect; it is not a manifest.
 
 > **RECOMMENDATION caveat:** resource limits in the component composes (e.g. tracer `cpus:1`/`512M`;
@@ -186,13 +195,13 @@ no marker (`:113-132`).
 **How "unreachable" is detected.** Transport/availability failures normalize to `ErrTracerUnavailable`
 at the transport boundary so `failPosture` can branch on them: gRPC `Unavailable` /
 `DeadlineExceeded` / `Canceled` and context deadline/cancellation are folded into `ErrTracerUnavailable`
-(`grpc_client.go:343-358`), and the REST client wraps transport errors equivalently
-(`client.go:53-60, 351-354`). A business **DENY** or **REVIEW** decision is a *successful result*, not
-an error. A request the tracer **refused** — REST 400/422, gRPC `InvalidArgument` /
-`FailedPrecondition` — is classified as `ErrTracerRejected`, not as unavailability: the tracer answered,
-so under `enforce` it rejects with `0532` whatever the `failPosture`. `handleReserveError` treats **any
-other** reserve error as fail-posture-gated, so a tracer defect cannot let an `enforce`+`closed` ledger
-commit unchecked. The full outcome table lives in `docs/api/SCOPING.md`.
+(`mapGRPCError` in `grpc_client.go`). A business **DENY** or **REVIEW** decision is a *successful
+result*, not an error. A request the tracer **refused** — gRPC `InvalidArgument` / `FailedPrecondition`,
+including a reserve replayed onto a settled reservation (`0533`) — is classified as `ErrTracerRejected`,
+not as unavailability: the tracer answered, so under `enforce` it rejects with `0532` whatever the
+`failPosture`. `handleReserveError` treats **any other** reserve error as fail-posture-gated, so a
+tracer defect cannot let an `enforce`+`closed` ledger commit unchecked. The full outcome table lives in
+`docs/api/SCOPING.md`.
 
 **Boot-time graceful absence even when configured.** The gRPC client uses one persistent lazy
 connection — `grpc.NewClient` does not dial until the first RPC — so wiring the client never blocks on
@@ -212,8 +221,11 @@ no static key.** This is stated explicitly in code: *"identity on the reservatio
 (`ledger/tls_seam.go:51-62`, server-side mirror `tracer/tls_seam.go:48-59`):
 
 - **`mtls`** — the app presents and verifies certificates directly.
-- **`mesh` / empty** — the app dials/listens **plaintext** and delegates mTLS origination/termination to
-  a local **Istio/Linkerd** service-mesh sidecar.
+- **`mesh`** — the app dials/listens **plaintext** and delegates mTLS origination/termination to a
+  local **Istio/Linkerd** service-mesh sidecar.
+- **empty** — plaintext with no verified peer. The tracer accepts it only when
+  `DEPLOYMENT_MODE=local` is set explicitly; an unset `DEPLOYMENT_MODE` or any other deployment mode
+  refuses boot (`ValidateSeamTransportPosture`, `tracer/seam_posture.go`).
 
 **`mtls` mode, ledger (client) side** (`ledger/tls_seam.go:82-103`): presents its leaf via
 `GetClientCertificate`, verifies the tracer's server leaf against `RootCAs` loaded from
@@ -222,9 +234,20 @@ no static key.** This is stated explicitly in code: *"identity on the reservatio
 and the insecure default is gated off (`len(conf.dialOptions)==0`) so it cannot clobber them
 (`grpc_client.go:100-111`, injection at `config.go:1633-1635`).
 
-**`mtls` mode, tracer (server) side** (`tracer/tls_seam.go:62-94`): presents its own leaf via
+**`mtls` mode, tracer (server) side** (`tracer/tls_seam.go`, `buildMTLSConfig`): presents its own leaf via
 `GetCertificate` and enforces `tls.RequireAndVerifyClientCert` against the client CA pool from
 `TRACER_TLS_CLIENT_CA_FILE`. **The reservation seam is unreachable without a verified client cert.**
+
+**Client identity allowlist (gRPC listener only).** A CA-signed certificate is not enough on the seam:
+`TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated) names the client identities the gRPC listener
+accepts. The handshake passes only when one of the leaf's DNS SANs or URI SANs (e.g. `spiffe://...`)
+equals an entry, or, on a leaf that carries no SAN, its Subject CN does, compared exactly after
+trimming and case-folding (`buildGRPCSeamTLSConfig` → `verifyClientAllowedName` / `clientCertAllowed`).
+A refused handshake reaches the ledger as gRPC `Unavailable`, so it follows `failPosture`. An empty
+allowlist accepts any certificate the client CA signed: under `DEPLOYMENT_MODE=saas` the tracer refuses
+to boot (`ValidateSeamTransportPosture`); elsewhere it logs one Warn at boot
+(`warnGRPCSeamAcceptsAnyClient`). The list is ignored in `mesh`/empty mode and never applied to the
+HTTP listener, which keeps the base `buildSeamTLSConfig`.
 
 **CA env-var asymmetry (deliberate and correct):** each side names the CA var by what it verifies on the
 *other* end. Ledger `TRACER_TLS_CA_FILE` holds the CA that verifies the **tracer's** server leaf
@@ -244,20 +267,31 @@ knob, on **both** sides (`ledger/tls_seam.go:67-77`, `tracer/tls_seam.go:63-73`)
 
 ### Trusted `x-tenant-id` — the rationale
 
-Tenant crosses the seam as a **trusted `x-tenant-id`** — a REST header / gRPC outgoing metadata key, not
-a JWT claim and not a shared secret. It is trusted **precisely because the mTLS peer is verified** (or
-sits behind a verified mesh sidecar): *"mTLS replaces token identity, so there is no Authorization"*
-(`client.go:362-371`; gRPC emission via `AppendToOutgoingContext` at `grpc_client.go:278`). The key derives from one constant —
-`TenantHeader = "X-Tenant-Id"` with the gRPC metadata key as its lower-cased form — so REST and gRPC
-cannot drift (`client.go:359-368`; tracer-side resolver `seamtenant/resolver.go:33-39`).
+Tenant crosses the seam as a **trusted `x-tenant-id` gRPC metadata key**, not a JWT claim and not a
+shared secret. It is trusted **precisely because the mTLS peer is verified** (or sits behind a verified
+mesh sidecar): mTLS replaces token identity, so there is no `Authorization` metadata. The ledger appends
+the key on every RPC (`tenantMetadataKey` in the ledger `adapters/tracer` package, emitted via
+`AppendToOutgoingContext`); the tracer reads the same key (`seamtenant.MetadataKey`).
 
-The tenant resolver is wired **only** onto the reservation routes/RPCs (`resolver.go:5-16`,
-`grpc/in/tenant_interceptor.go:20-29`); user-facing tracer routes keep their JWT-claim tenant path,
-so there is no header-trust path reachable without the verified peer. Under multi-tenant mode a
+The tenant resolver is wired **only** onto the reservation RPCs (`seamtenant.Resolver`,
+`grpc/in/tenant_interceptor.go`); user-facing tracer routes keep their JWT-claim tenant path. The
+header is only as trustworthy as the peer, so the deployment must verify it one of two ways:
+
+- **`mtls`** with `TRACER_TLS_CLIENT_ALLOWED_NAMES` naming the ledger's certificate identity
+  (required under `DEPLOYMENT_MODE=saas`).
+- **`mesh`** with STRICT `PeerAuthentication` (or the Linkerd equivalent) on the tracer workload plus an
+  `AuthorizationPolicy` or `NetworkPolicy` that admits only the ledger's identity to `:4021`. The app
+  cannot check this itself and logs a boot Warn in `mesh` mode.
+
+An empty `TRACER_TLS_MODE` serves the seam plaintext with no verified peer, so the tracer refuses to
+boot with it unless `DEPLOYMENT_MODE=local` is set explicitly; an unset `DEPLOYMENT_MODE` refuses too
+(`ValidateSeamTransportPosture`). Under multi-tenant mode a
 missing/empty/invalid trusted tenant key is a **clean failure** (`ErrReservationTenantRequired` →
-gRPC `InvalidArgument` / REST business error) and never falls back to a default or wrong pool; in
-single-tenant mode the resolver is a no-op pass-through and nothing is appended
-(`resolver.go:107-125`, `tenant_interceptor.go:36-43`, `reservation_tenant_middleware.go:47-52`).
+gRPC `InvalidArgument`) and never falls back to a default or wrong pool. A tenant the tenant manager
+reports as not provisioned, suspended or purged answers gRPC `Unavailable` with
+`ErrReservationTenantInactive` (`0534`), so the ledger routes it through `failPosture` instead of
+reading it as a refusal. In single-tenant mode the resolver is a no-op pass-through and nothing is
+appended.
 
 This is the same trusted-tenant boundary the rest of the platform rides: `MULTI_TENANT_ENABLED=true` is
 rejected at config validation unless `PLUGIN_AUTH_ENABLED=true` (`config.go:351-353`), and tenant IDs
@@ -267,47 +301,45 @@ derive from the JWT via lib-commons tenant managers + middleware (`config.go:483
 
 ## 6. Transport & ports
 
-The reservation seam is a single `TracerReserver` port with **two interchangeable transports** —
-gRPC and REST — selected by `TRACER_TRANSPORT`. The composition root picks the concrete client; the
-reserve anchor stays transport-agnostic (`config.go:1574-1582` switches to
-`buildTracerGRPCReserver` / `buildTracerRESTReserver`; `grpc_client.go:29-46` implements the same port
-as the REST client).
+The reservation seam is a single `TracerReserver` port with one transport: the gRPC service
+`lerian.midaz.reservation.v1.ReservationService` (`proto/reservation/v1`). The composition root builds
+the gRPC client (`buildTracerReserver` → `buildTracerGRPCReserver`); the reserve anchor stays
+transport-agnostic behind the port. The tracer's HTTP API serves no reservation route, so the gRPC seam
+is the only surface that drives the reservation lifecycle, and the ledger is its only caller.
 
 | Knob | Value | Behavior | Evidence |
 |---|---|---|---|
-| `TRACER_TRANSPORT` | `grpc` (**default**) | empty → `tracerTransportGRPC` | `config.go:1569-1572`, consts `:1585-1588` |
-| `TRACER_TRANSPORT` | `rest` | retained fallback, selectable explicitly | `config.go:1574-1582` |
-| `TRACER_TRANSPORT` | any other | **fails boot** with a typed error | `config.go:1569-1581` |
-| `TRACER_BASE_URL` | full URL | feeds both transports; REST uses it directly, gRPC strips scheme to `host:port` via `stripURLScheme` | `config.go:1607, 1626, 1645-1654` |
-| Ledger `SERVER_ADDRESS` | `:3002` (default) | unified ledger binary, all APIs on one port | `config.go:62-63`, `ledger/.env.example:34-35` |
-| Tracer `SERVER_ADDRESS` | `:4020` | REST seam + health | `tracer/.env.example:14-15` |
-| `TRACER_GRPC_PORT` | **empty by default** | gRPC seam server **not started** unless set | `tracer/config.go:49-54`, `initGRPCServer` returns `nil,nil` when empty `:1230-1232` |
+| `TRACER_BASE_URL` | seam address | the authority is what gRPC dials; an `http://`/`https://` scheme is tolerated and stripped to `host:port` | `stripURLScheme`, `seamServerName` |
+| Ledger `SERVER_ADDRESS` | `:3002` (default) | unified ledger binary, all APIs on one port | `ledger/.env.example` |
+| Tracer `SERVER_ADDRESS` | `:4020` | HTTP API (rules, limits, validations, audit) + health | `tracer/.env.example` |
+| `TRACER_GRPC_PORT` | `:4021` (**default**) | gRPC seam server, always started; empty resolves to the default | `DefaultTracerGRPCPort`, `ApplyGRPCSeamDefaults` |
 
 **Wire contract evolves additively.** `proto/reservation/v1` grows only by new field numbers —
 `ReserveAccount.type`, `ReserveRequest.metadata`, `ReserveRequest.revert` (field 13),
-`ReserveResult.decision` / `reason` / `matched_rule_ids` — and the REST DTOs mirror them. `denied`
-remains the field every ledger gates on: a tracer that sends `decision` answers a `REVIEW` with
-`denied=true`, which a ledger that predates it reads as a denial, and a ledger reading an older tracer
-sees an empty `decision` and gates on `denied` alone.
+`ReserveResult.decision` / `reason` / `matched_rule_ids`, `ConfirmByTransactionResponse.confirmed` /
+`already_released`, `ConfirmByIdResponse.already_released`. `denied` remains the field every ledger
+gates on: a tracer that sends `decision` answers a `REVIEW` with `denied=true`, which a ledger that
+predates it reads as a denial, and a ledger reading an older tracer sees an empty `decision` and gates
+on `denied` alone.
 
 **Deploy order is HARD: the tracer first, then the ledger, and no tracer rollback below this version
 while a ledger that sends the new fields is running.** Additive fields do not make the pair
-order-independent:
+order-independent: an older tracer drops the unknown fields (`account.type`, `metadata`, `revert`)
+silently. Nothing is refused, but account-type-scoped limits and rules never match, and a revert is not
+recognised as one.
 
-- **REST:** a tracer that predates free-form account types refuses a reserve whose `account.type` is
-  outside its former fixed set (HTTP 400). The ledger classifies that as a refusal, so every such
-  transaction on an `enforce` ledger is rejected with `0532` whatever its `failPosture` — an outage for
-  ordinary traffic, not a degraded mode.
-- **gRPC:** the older tracer drops the unknown fields (`account.type`, `metadata`, `revert`) silently.
-  Nothing is refused, but account-type-scoped limits and rules never match, and a revert is not
-  recognised as one.
+**Status codes the seam answers.** Beyond the reserve decision itself:
 
-A tenant whose rule cache the tracer has not loaded yet (a cold start, or a tenant first seen after
-boot) answers Unavailable — HTTP 503, gRPC `Unavailable` — rather than evaluating without its rules.
-So does a tenant that reached its per-tenant worker cap on the reservation seam: REST answers 503
-with `Retry-After`, gRPC answers `Unavailable` with code `0445`. The ledger routes both through
-`failPosture`: `open` proceeds with a SKIPPED audit, `closed` rejects with `0178`. Expect the cold
-cache window right after a tracer rollout, and size `failPosture` accordingly.
+| Condition | gRPC code | Tracer code | Ledger under `enforce` |
+|---|---|---|---|
+| Malformed request, missing tenant under multi-tenant | `InvalidArgument` | request-specific, `ErrReservationTenantRequired` | `0532` |
+| Reserve replayed onto a transaction whose reservation is already released, expired or confirmed; no counter moves | `FailedPrecondition` | `0533` | `0532` |
+| Tenant not provisioned, suspended or purged | `Unavailable` | `0534` | `failPosture` |
+| Tenant rule cache not loaded yet (cold start, or a tenant first seen after boot) | `Unavailable` | — | `failPosture` |
+| Tenant reached its per-tenant worker cap | `Unavailable` | `0445` | `failPosture` |
+
+Under `failPosture`, `open` proceeds with a SKIPPED audit and `closed` rejects with `0178`. Expect the
+cold cache window right after a tracer rollout, and size `failPosture` accordingly.
 
 **Tracer migration `000025` needs a maintenance window.** Widening the asset columns rewrites
 `transaction_validations` and rebuilds all of its indexes under an `ACCESS EXCLUSIVE` lock, so size
@@ -317,60 +349,37 @@ of queueing behind live traffic (where it would block every later query on the t
 are guarded on the column's current type, so a re-run in a quieter window is safe.
 
 **Ports.** The ledger serves everything on a single port, default `:3002` (`SERVER_ADDRESS`). The tracer
-serves REST/health on `:4020` (`SERVER_ADDRESS`); the reservation **gRPC seam listens on a separate
-port** via `TRACER_GRPC_PORT`, which is **empty by default**, so the gRPC server is off unless an
-operator configures it.
+serves its HTTP API and health on `:4020` (`SERVER_ADDRESS`) and the reservation **gRPC seam on
+`:4021`** (`TRACER_GRPC_PORT`). The image's `EXPOSE` covers `:4020` only; the component compose
+publishes `:4021` (`TRACER_GRPC_HOST_PORT`), and a cluster deploy must expose `:4021` as a service port
+reachable from the ledger.
 
-> **NOTE — `:4021` is illustrative, not canonical.** `TRACER_GRPC_PORT`'s doc comment says *"e.g.
-> :4021"* (`tracer/config.go:51`). There is no default value and no `EXPOSE 4021` anywhere. `:4021` is an
-> example in a comment, not a configured or bound port.
+**Both tracer listeners share one base TLS posture.** `buildSeamTLSConfig` is the base config of both
+the HTTP and the gRPC listener, so the two cannot drift: in `mtls` both require and verify a client
+cert; in `mesh`/unset both listen plaintext. The gRPC listener alone layers the client-identity
+allowlist on top (`buildGRPCSeamTLSConfig`, §5).
 
-**Both tracer listeners share one TLS posture.** `buildSeamTLSConfig` is called by both the REST and the
-gRPC listener (`tracer/config.go:1202, 1241`), so the two transports cannot drift: in `mtls` both use
-mTLS; in `mesh`/unset both listen plaintext (`grpc_server.go:74-76`, `http_server.go:75-93`).
-
-### Rollout / fallback posture
-
-**gRPC is the default and the production transport** (`config.go:1571` defaults empty →
-`tracerTransportGRPC`); REST is **retained as a fallback**, selectable by setting
-`TRACER_TRANSPORT=rest`. The tracer's REST surface on `:4020` is an **operations/configuration
-surface** (rules, limits, validations — operator-facing, internal), which is why a single `mtls` posture
-across the whole `:4020` listener is acceptable: there is no direct end-customer access to demote.
-
-> **MIGRATION — wiring the tracer now defaults to gRPC.** A deploy that sets `TRACER_BASE_URL` without
-> setting `TRACER_TRANSPORT` now speaks **gRPC**, not REST. Such a deploy must therefore (1) expose the
-> tracer's gRPC seam by setting `TRACER_GRPC_PORT` on the tracer, and (2) under `TRACER_TLS_MODE=mtls`
-> provision cert material on both ends. To keep the previous behavior, set `TRACER_TRANSPORT=rest`
-> explicitly. **Soak pending:** gRPC+mTLS has not yet been exercised end-to-end in a live cluster — the
-> default is set to the target transport ahead of that soak by deliberate decision (seam plan).
+The tracer's HTTP API on `:4020` is an **operations/configuration surface** (rules, limits, validations,
+audit — operator-facing, internal), which is why a single `mtls` posture across the whole `:4020`
+listener is acceptable: there is no direct end-customer access to demote.
 
 ---
 
-## Appendix — Operator env surface and a documented gap
+## Appendix — Operator env surface
 
-The seam's env knobs are defined as Go struct tags and validated in code; this is the grounded source of
-truth for their **existence and semantics**.
+The seam's env knobs are defined as Go struct tags, validated in code and surfaced with their semantics
+in `components/ledger/.env.example` and `components/tracer/.env.example`.
 
 | Var | Side | Meaning | Evidence |
 |---|---|---|---|
-| `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration; empty → disabled | `config.go:285-304, 1548-1554` |
-| `TRACER_TRANSPORT` | ledger | `grpc`\|`rest`; empty → `grpc` | `config.go:294-297, 1569-1588` |
-| `TRACER_TIMEOUT_MS` | ledger | reserve RPC timeout | struct tag, `config.go:304-310` |
-| `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `config.go:298-303` |
-| `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `tls_seam.go:67-77` |
-| `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `config.go:310`, `tls_seam.go:87-90` |
-| `TRACER_GRPC_PORT` | tracer | gRPC seam listen addr; empty → off | `tracer/config.go:49-54, 1230-1232` |
-| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`/empty (mirrors ledger) | `tracer/tls_seam.go:48-59` |
-| `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `tracer/tls_seam.go:63-73` |
-| `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `tracer/config.go:68-72`, `tls_seam.go:83-86` |
-| `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example:283-292` |
-
-> **DOCUMENTED GAP (not papered over):** the operator-facing `.env.example` templates **do not yet
-> surface the new seam vars.** `components/ledger/.env.example` has **zero** occurrences of
-> `TRACER_BASE_URL`, `TRACER_TIMEOUT_MS`, `TRACER_TRANSPORT`, `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`,
-> `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CA_FILE` — all seven exist only as Go struct tags in
-> `config.go:304-310`. `components/tracer/.env.example` has **zero** occurrences of `TRACER_GRPC_PORT`,
-> `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`, `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CLIENT_CA_FILE` —
-> they exist only as struct tags in the tracer `config.go:54-72`. **Recommendation:** update both
-> `.env.example` files to surface these vars with the semantics above before the gRPC/mTLS seam is
-> handed to operators. This is a follow-up, not yet codified.
+| `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration and the seam address (`host:port`; an `http://`/`https://` scheme is stripped); empty → disabled | `buildTracerReserver`, `stripURLScheme` |
+| `TRACER_TIMEOUT_MS` | ledger | client ceiling on every seam RPC; the per-ledger `tracer.timeoutMs` bounds the reserve beneath it | `buildTracerGRPCReserver` |
+| `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `buildSeamClientTLSConfig` |
+| `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `buildClientMTLSConfig` |
+| `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `buildClientMTLSConfig` |
+| `TRACER_GRPC_PORT` | tracer | gRPC seam listen address; empty → `:4021`; always on | `DefaultTracerGRPCPort`, `ApplyGRPCSeamDefaults` |
+| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`\|empty; empty (plaintext, no verified peer) boots only with an explicit `DEPLOYMENT_MODE=local` (unset refuses); `mesh` logs a boot Warn | `buildSeamTLSConfig`, `ValidateSeamTransportPosture` |
+| `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `buildMTLSConfig` |
+| `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `buildMTLSConfig` |
+| `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas`; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamTransportPosture` |
+| `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | HTTP 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example` |

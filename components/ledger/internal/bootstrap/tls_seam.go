@@ -25,8 +25,8 @@ const (
 
 // buildSeamClientTLSConfig builds the *tls.Config the ledger uses to dial the
 // tracer reservation seam over mutual TLS. It is the single place the ledger's
-// client-side mTLS posture is decided, so the gRPC and REST transports cannot
-// drift (both consume the returned config).
+// client-side mTLS posture is decided; the gRPC client consumes the returned
+// config.
 //
 // Behavior contract (per the Seam Contract — identity is mutual TLS, no shared
 // secret):

@@ -3221,6 +3221,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Reservation Already Terminal",
 			Message:    "Reservation: reservation is already in a terminal state.",
 		},
+		constant.ErrReservationAlreadySettled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationAlreadySettled.Error(),
+			Title:      "Reservation Already Settled",
+			Message:    "The reservation for this transaction was already settled and cannot be reserved again.",
+		},
+		constant.ErrReservationTenantInactive: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTenantInactive.Error(),
+			Title:      "Reservation Tenant Inactive",
+			Message:    "The tenant is not provisioned or not active for reservations.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -44,11 +44,12 @@ func (m *MockReservationService) EXPECT() *MockReservationServiceMockRecorder {
 }
 
 // Confirm mocks base method.
-func (m *MockReservationService) Confirm(ctx context.Context, reservationID uuid.UUID) error {
+func (m *MockReservationService) Confirm(ctx context.Context, reservationID uuid.UUID) (services.ConfirmOutcome, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Confirm", ctx, reservationID)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(services.ConfirmOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Confirm indicates an expected call of Confirm.
@@ -58,10 +59,10 @@ func (mr *MockReservationServiceMockRecorder) Confirm(ctx, reservationID any) *g
 }
 
 // ConfirmByTransaction mocks base method.
-func (m *MockReservationService) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error) {
+func (m *MockReservationService) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (services.ConfirmOutcome, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConfirmByTransaction", ctx, transactionID)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(services.ConfirmOutcome)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

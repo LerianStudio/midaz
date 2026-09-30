@@ -272,9 +272,9 @@ func (s *pendingLifecycleTracer) Reserve(_ context.Context, request tracer.Reser
 	return &tracer.ReserveResult{TransactionID: request.TransactionID, ReservationIDs: []uuid.UUID{s.reservationID}}, nil
 }
 
-func (s *pendingLifecycleTracer) Confirm(_ context.Context, reservationID uuid.UUID) error {
+func (s *pendingLifecycleTracer) Confirm(_ context.Context, reservationID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.confirmedIDs = append(s.confirmedIDs, reservationID)
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (s *pendingLifecycleTracer) Release(_ context.Context, reservationID uuid.UUID) error {
@@ -282,9 +282,9 @@ func (s *pendingLifecycleTracer) Release(_ context.Context, reservationID uuid.U
 	return nil
 }
 
-func (s *pendingLifecycleTracer) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) error {
+func (s *pendingLifecycleTracer) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.confirmedTxns = append(s.confirmedTxns, transactionID)
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (s *pendingLifecycleTracer) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) error {

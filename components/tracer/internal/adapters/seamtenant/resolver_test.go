@@ -7,10 +7,12 @@ package seamtenant
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/require"
 
@@ -127,5 +129,57 @@ func TestResolver_PoolErrorPropagates(t *testing.T) {
 	out, err := r.Resolve(context.Background(), testTenantID)
 	require.ErrorIs(t, err, sentinel)
 	// On a resolution failure no pool is bound (technical error, not a fallback).
+	require.Nil(t, tmcore.GetPGContext(out))
+}
+
+func TestResolver_InactiveTenantPoolErrorWrapsTenantInactive(t *testing.T) {
+	tests := []struct {
+		name    string
+		poolErr error
+	}{
+		{name: "not provisioned", poolErr: fmt.Errorf("get connection: %w", tmcore.ErrTenantNotProvisioned)},
+		{name: "suspended", poolErr: &tmcore.TenantSuspendedError{TenantID: testTenantID, Status: "suspended"}},
+		{name: "purged", poolErr: &tmcore.TenantSuspendedError{TenantID: testTenantID, Status: "purged"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := func(context.Context, string) (dbresolver.DB, error) {
+				return nil, tt.poolErr
+			}
+
+			r := NewResolverWithPool(pool, true)
+
+			out, err := r.Resolve(context.Background(), testTenantID)
+			require.ErrorIs(t, err, constant.ErrReservationTenantInactive)
+			require.ErrorIs(t, err, tt.poolErr)
+			require.Nil(t, tmcore.GetPGContext(out))
+		})
+	}
+}
+
+func TestResolver_OtherPoolErrorIsNotTenantInactive(t *testing.T) {
+	sentinel := errors.New("pool down")
+	pool := func(context.Context, string) (dbresolver.DB, error) {
+		return nil, sentinel
+	}
+
+	r := NewResolverWithPool(pool, true)
+
+	_, err := r.Resolve(context.Background(), testTenantID)
+	require.Same(t, sentinel, err)
+	require.NotErrorIs(t, err, constant.ErrReservationTenantInactive)
+}
+
+func TestResolver_ManagerFailureIsReturnedUnclassified(t *testing.T) {
+	manager := tmpostgres.NewManager(nil, "tracer")
+	require.NoError(t, manager.Close(context.Background()))
+
+	r := NewResolver(manager, true)
+	require.True(t, r.Active())
+
+	out, err := r.Resolve(context.Background(), testTenantID)
+	require.ErrorIs(t, err, tmcore.ErrManagerClosed)
+	require.NotErrorIs(t, err, constant.ErrReservationTenantInactive)
 	require.Nil(t, tmcore.GetPGContext(out))
 }

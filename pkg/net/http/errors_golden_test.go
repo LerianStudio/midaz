@@ -587,6 +587,8 @@ func allSentinels() map[string]error {
 		"ErrMethodNotAllowed":                         constant.ErrMethodNotAllowed,
 		"ErrPendingTransactionLocked":                 constant.ErrPendingTransactionLocked,
 		"ErrReservationTenantRequired":                constant.ErrReservationTenantRequired,
+		"ErrReservationAlreadySettled":                constant.ErrReservationAlreadySettled,
+		"ErrReservationTenantInactive":                constant.ErrReservationTenantInactive,
 		"ErrInstrumentLedgerReferenceNotFound":        constant.ErrInstrumentLedgerReferenceNotFound,
 		"ErrInstrumentAccountReferenceNotFound":       constant.ErrInstrumentAccountReferenceNotFound,
 		"ErrSkipNotPermitted":                         constant.ErrSkipNotPermitted,

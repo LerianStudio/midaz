@@ -400,7 +400,10 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, res.ReservationIDs, 1)
 
-			require.NoError(t, svc.Confirm(ctx, res.ReservationIDs[0]))
+			outcome, err := svc.Confirm(ctx, res.ReservationIDs[0])
+			require.NoError(t, err)
+			assert.Equal(t, services.ConfirmOutcome{Confirmed: 1}, outcome)
+
 			confirmedIDs = append(confirmedIDs, res.ReservationIDs[0])
 		}
 
@@ -728,9 +731,9 @@ func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
 	assert.True(t, current.IsZero(), "reserve must not touch current_usage")
 	assert.True(t, want.Equal(reserved), "reserve must hold the exact fraction, got %s", reserved)
 
-	flipped, err := svc.ConfirmByTransaction(ctx, txID)
+	outcome, err := svc.ConfirmByTransaction(ctx, txID)
 	require.NoError(t, err)
-	assert.Equal(t, 1, flipped)
+	assert.Equal(t, services.ConfirmOutcome{Confirmed: 1}, outcome)
 
 	current, reserved = resReadCounterDecimal(t, db, limitID, scopeKey, periodKey)
 	assert.True(t, want.Equal(current), "confirm must move the exact fraction into current_usage, got %s", current)

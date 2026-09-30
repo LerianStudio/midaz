@@ -180,7 +180,7 @@ func (c *RecordAuditEventCommand) RecordRuleEventWithTx(
 	after map[string]any,
 	reason string,
 ) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordRuleEventWithTx")
 	defer span.End()
@@ -218,7 +218,7 @@ func (c *RecordAuditEventCommand) RecordLimitEventWithTx(
 	after map[string]any,
 	reason string,
 ) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordLimitEventWithTx")
 	defer span.End()
@@ -269,7 +269,7 @@ func (c *RecordAuditEventCommand) RecordReservationEventWithTx(
 	reservationID uuid.UUID,
 	auditCtx ReservationAuditContext,
 ) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationEventWithTx")
 	defer span.End()
@@ -301,7 +301,7 @@ func (c *RecordAuditEventCommand) RecordReservationEvent(
 	reservationID uuid.UUID,
 	auditCtx ReservationAuditContext,
 ) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationEvent")
 	defer span.End()
@@ -342,7 +342,7 @@ func (c *RecordAuditEventCommand) RecordReservationExpiryBatch(
 	ctx context.Context,
 	summary ReservationExpiryBatchSummary,
 ) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationExpiryBatch")
 	defer span.End()

@@ -48,13 +48,13 @@ func (fake *atomicTransactionBatchTracerFake) Reserve(
 	return fake.results[index], nil
 }
 
-func (fake *atomicTransactionBatchTracerFake) Confirm(_ context.Context, reservationID uuid.UUID) error {
+func (fake *atomicTransactionBatchTracerFake) Confirm(_ context.Context, reservationID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 
 	fake.confirmed = append(fake.confirmed, reservationID)
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (fake *atomicTransactionBatchTracerFake) Release(_ context.Context, reservationID uuid.UUID) error {
@@ -66,8 +66,8 @@ func (fake *atomicTransactionBatchTracerFake) Release(_ context.Context, reserva
 	return nil
 }
 
-func (fake *atomicTransactionBatchTracerFake) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
-	return nil
+func (fake *atomicTransactionBatchTracerFake) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (fake *atomicTransactionBatchTracerFake) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {

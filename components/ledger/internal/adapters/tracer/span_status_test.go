@@ -6,8 +6,6 @@ package tracer
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -49,40 +47,6 @@ func endedSpan(t *testing.T, recorder *tracetest.SpanRecorder, name string) sdkt
 	return nil
 }
 
-func TestTracerClient_Reserve_SpanStatusByFailureClass(t *testing.T) {
-	tests := []struct {
-		name      string
-		status    int
-		wantError bool
-	}{
-		{name: "400 rejection keeps the span out of error", status: http.StatusBadRequest},
-		{name: "422 rejection keeps the span out of error", status: http.StatusUnprocessableEntity},
-		{name: "500 marks the span as error", status: http.StatusInternalServerError, wantError: true},
-		{name: "503 marks the span as error", status: http.StatusServiceUnavailable, wantError: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(tt.status)
-				_, _ = w.Write([]byte(`{"code":"0001","title":"refused"}`))
-			}))
-			defer srv.Close()
-
-			client, err := NewTracerClient(srv.URL)
-			require.NoError(t, err)
-
-			ctx, recorder := recordingContext(t)
-
-			_, err = client.Reserve(ctx, ReserveRequest{TransactionID: fixedTransactionID})
-			require.Error(t, err)
-
-			span := endedSpan(t, recorder, "tracer.client.reserve")
-			assert.Equal(t, tt.wantError, span.Status().Code == otelcodes.Error)
-		})
-	}
-}
-
 func TestTracerGRPCClient_Reserve_SpanStatusByFailureClass(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -115,62 +79,11 @@ func TestTracerGRPCClient_Reserve_SpanStatusByFailureClass(t *testing.T) {
 			span := endedSpan(t, recorder, "tracer.grpc_client.reserve")
 			assert.Equal(t, tt.wantError, span.Status().Code == otelcodes.Error)
 
-			require.Error(t, client.Confirm(ctx, fixedReservationID))
+			_, err = client.Confirm(ctx, fixedReservationID)
+			require.Error(t, err)
 
 			span = endedSpan(t, recorder, "tracer.grpc_client.confirm")
 			assert.Equal(t, tt.wantError, span.Status().Code == otelcodes.Error)
-		})
-	}
-}
-
-func TestTracerClient_StatusErrorCarriesOnlyStatusAndCode(t *testing.T) {
-	tests := []struct {
-		name        string
-		body        string
-		wantCode    string
-		mustNotShow string
-	}{
-		{
-			name:        "problem document",
-			body:        `{"type":"about:blank","title":"Bad Request","status":400,"detail":"asset SECRETVALUE is invalid","code":"0141"}`,
-			wantCode:    "0141",
-			mustNotShow: "SECRETVALUE",
-		},
-		{
-			name:        "legacy envelope",
-			body:        `{"code":"0141","title":"Bad Request","message":"asset SECRETVALUE is invalid"}`,
-			wantCode:    "0141",
-			mustNotShow: "SECRETVALUE",
-		},
-		{
-			name:        "non-JSON body",
-			body:        `upstream SECRETVALUE exploded`,
-			mustNotShow: "SECRETVALUE",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(tt.body))
-			}))
-			defer srv.Close()
-
-			client, err := NewTracerClient(srv.URL)
-			require.NoError(t, err)
-
-			_, err = client.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
-			require.Error(t, err)
-
-			assert.Contains(t, err.Error(), "400")
-			assert.NotContains(t, err.Error(), tt.mustNotShow)
-
-			if tt.wantCode != "" {
-				assert.Contains(t, err.Error(), "code "+tt.wantCode)
-			} else {
-				assert.NotContains(t, err.Error(), "code ")
-			}
 		})
 	}
 }

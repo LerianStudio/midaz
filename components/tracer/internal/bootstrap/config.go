@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -70,18 +71,19 @@ func telemetryConfig(cfg *Config, logger libLog.Logger) libOtel.TelemetryConfig 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	ServerAddress string `env:"SERVER_ADDRESS"`
-	// TracerGRPCPort is the listen address for the reservation gRPC seam (e.g.
-	// ":4021"). When empty (the default) the gRPC server is NOT started — the
-	// transport is opt-in during the Phase-1 rollout. Transport security follows
-	// TRACER_TLS_MODE: in "mtls" the gRPC server requires+verifies a client cert.
+	// TracerGRPCPort is the listen address for the reservation gRPC seam, the
+	// only transport of the reservation lifecycle. Empty resolves to ":4021"
+	// (ApplyGRPCSeamDefaults). Transport security follows TRACER_TLS_MODE: in
+	// "mtls" the gRPC server requires+verifies a client cert.
 	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
-	// TracerTLSMode selects how the reservation seam is secured. "mtls"
-	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
-	// client cert on BOTH the gRPC and the Fiber listeners — the verified mTLS
-	// peer is the seam credential (no shared secret). "mesh" lets a service-mesh
-	// sidecar (Istio/Linkerd) terminate mTLS, so the app listens plaintext and
-	// skips its own TLS. Empty/unset behaves like "mesh" (plaintext) so the
-	// Phase-1 toggle default and local dev keep working without cert material.
+	// TracerTLSMode selects how the reservation seam is secured. "mtls" makes
+	// the app load its own cert/key/CA and require+verify a client cert on BOTH
+	// the gRPC and the Fiber listeners — the verified mTLS peer is the seam
+	// credential (no shared secret). "mesh" lets a service-mesh sidecar
+	// (Istio/Linkerd) terminate mTLS, so the app listens plaintext and skips its
+	// own TLS. Empty serves plaintext with no peer verification and is accepted
+	// only when DEPLOYMENT_MODE is explicitly local; an unset DEPLOYMENT_MODE
+	// refuses it (ValidateSeamTransportPosture).
 	TracerTLSMode string `env:"TRACER_TLS_MODE"`
 	// TracerTLSCertFile / TracerTLSKeyFile are the PEM paths for the tracer's
 	// OWN server certificate and private key, presented on both transports in
@@ -93,6 +95,15 @@ type Config struct {
 	// TracerTLSMode=mtls — without it the server cannot enforce
 	// RequireAndVerifyClientCert.
 	TracerTLSClientCAFile string `env:"TRACER_TLS_CLIENT_CA_FILE"`
+	// TracerTLSClientAllowedNames is a comma-separated allowlist of client
+	// identities the gRPC listener accepts in "mtls" mode. A client cert passes
+	// when one of its DNS SANs or URI SANs equals an entry, or, on a cert
+	// without SANs, its Subject CN does (exact, case-insensitive, trimmed).
+	// Empty accepts any cert signed by TracerTLSClientCAFile: a boot Warn
+	// outside saas, a refused boot under DEPLOYMENT_MODE=saas
+	// (ValidateSeamTransportPosture). Ignored in "mesh" mode and never applied
+	// to the HTTP listener.
+	TracerTLSClientAllowedNames string `env:"TRACER_TLS_CLIENT_ALLOWED_NAMES"`
 
 	LogLevel                string `env:"LOG_LEVEL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -644,6 +655,27 @@ func ApplyReservationReaperDefaults(cfg *Config) {
 
 	if _, present := os.LookupEnv("RESERVATION_REAPER_ENABLED"); !present {
 		cfg.ReservationReaperEnabled = true
+	}
+}
+
+// DefaultTracerGRPCPort is the listen address of the reservation gRPC seam when
+// TRACER_GRPC_PORT is empty. It is distinct from the REST/health port (:4020).
+const DefaultTracerGRPCPort = ":4021"
+
+// errGRPCPortEmpty fails boot when the reservation gRPC seam has no listen
+// address.
+var errGRPCPortEmpty = errors.New("TRACER_GRPC_PORT is empty: the reservation gRPC seam has no listen address")
+
+// ApplyGRPCSeamDefaults resolves an empty TRACER_GRPC_PORT to
+// DefaultTracerGRPCPort. The gRPC seam is the only transport of the
+// reservation lifecycle, so the tracer always listens on it.
+func ApplyGRPCSeamDefaults(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.TracerGRPCPort == "" {
+		cfg.TracerGRPCPort = DefaultTracerGRPCPort
 	}
 }
 
@@ -1295,7 +1327,6 @@ func initHTTPServer(
 		RuleService:                  ruleService,
 		LimitService:                 limitDeps.service,
 		ValidationService:            validationService,
-		ReservationService:           reservationService,
 		TransactionValidationService: transactionValidationService,
 		AuditEventService:            auditEventService,
 		DashboardService:             dashboardService,
@@ -1311,15 +1342,15 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
 	}
 
-	// Secure the REST reservation seam per TRACER_TLS_MODE: mtls ⇒ a verifying
+	// Secure the HTTP listener per TRACER_TLS_MODE: mtls ⇒ a verifying
 	// *tls.Config, mesh/unset ⇒ nil (plaintext, sidecar terminates). Same builder
-	// the gRPC server uses, so both transports share one posture.
-	seamTLS, err := buildSeamTLSConfig(cfg)
+	// the gRPC server uses, so both listeners share one posture.
+	httpTLS, err := buildSeamTLSConfig(cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
+		return nil, nil, fmt.Errorf("failed to build HTTP listener TLS config: %w", err)
 	}
 
-	httpServer, err := NewHTTPServer(cfg, httpApp, seamTLS, logger, telemetry)
+	httpServer, err := NewHTTPServer(cfg, httpApp, httpTLS, logger, telemetry)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1339,13 +1370,14 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 	return mtComponents.redisClient
 }
 
-// initGRPCServer builds the opt-in reservation gRPC server. It returns nil (no
-// error) when TRACER_GRPC_PORT is unset, so the gRPC transport stays off unless
-// an operator configures it. Transport security follows TRACER_TLS_MODE (Epic
-// 1.3): mtls ⇒ the server requires+verifies a client cert (reservation seam
-// unreachable without one); mesh/unset ⇒ plaintext (sidecar terminates). The
-// server delegates to the SAME reservationService the REST handler uses; clk
-// drives the reserve timestamp-window check identically to the REST path.
+// initGRPCServer builds the reservation gRPC server, the only transport of the
+// reservation lifecycle. An empty TRACER_GRPC_PORT is an error: boot resolves
+// it through ApplyGRPCSeamDefaults, so an empty value means a caller skipped
+// the defaults. Transport security follows TRACER_TLS_MODE: mtls ⇒ the server
+// requires+verifies a client cert (reservation seam unreachable without one);
+// mesh ⇒ plaintext behind a terminating sidecar; empty ⇒ plaintext, which
+// ValidateSeamTransportPosture admits only with DEPLOYMENT_MODE=local. clk
+// drives the reserve timestamp-window check.
 // workerEnsurer starts a tenant's workers on its first reservation (nil in
 // single-tenant mode).
 func initGRPCServer(
@@ -1358,7 +1390,7 @@ func initGRPCServer(
 	telemetry *libOtel.Telemetry,
 ) (*GRPCServer, error) {
 	if cfg.TracerGRPCPort == "" {
-		return nil, nil
+		return nil, errGRPCPortEmpty
 	}
 
 	reservationServer, err := grpcin.NewReservationServer(reservationService, clk)
@@ -1366,12 +1398,14 @@ func initGRPCServer(
 		return nil, fmt.Errorf("failed to create reservation gRPC server: %w", err)
 	}
 
-	// Same seam TLS posture as the REST listener so the two transports cannot
-	// diverge. nil in mesh/unset mode ⇒ plaintext gRPC.
-	seamTLS, err := buildSeamTLSConfig(cfg)
+	// The shared seam TLS posture plus the client identity allowlist. nil in
+	// mesh/empty mode ⇒ plaintext gRPC.
+	seamTLS, err := buildGRPCSeamTLSConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
 	}
+
+	warnGRPCSeamAcceptsAnyClient(context.Background(), cfg, logger)
 
 	// Resolve the per-tenant pool from the trusted x-tenant-id metadata the
 	// ledger forwards over the mTLS/mesh-verified connection. In single-tenant
@@ -1850,6 +1884,13 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
+	// The gRPC reservation seam trusts x-tenant-id only from a verified peer:
+	// unless DEPLOYMENT_MODE=local it refuses to boot plaintext, before any
+	// listener binds.
+	if err := ValidateSeamTransportPosture(ctx, cfg, logger); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("seam transport posture: %w", err)
+	}
+
 	// Scheme gate (fatal), orthogonal to the RI publisher's fail-open wiring: in
 	// SaaS mode a cleartext http:// IDP_HOST refuses boot before any IdP dial, so
 	// the M2M grant and bearer token cannot travel unencrypted.
@@ -1934,6 +1975,9 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// The expired-reservation sweep is on unless explicitly disabled: it is the
 	// only path that returns capacity held past a reservation's stated expiry.
 	ApplyReservationReaperDefaults(cfg)
+
+	// The reservation gRPC seam always listens; an empty port resolves to :4021.
+	ApplyGRPCSeamDefaults(cfg)
 
 	// initCoreInfra also builds the streaming emitter once logger + telemetry
 	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close
@@ -2105,7 +2149,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init background workers (conditional on MT mode inside initWorkers).
-	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
+	// finalizeStartup also builds the reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
 	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)

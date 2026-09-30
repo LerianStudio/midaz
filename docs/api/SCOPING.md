@@ -221,8 +221,8 @@ error such as a type mismatch against a string metadata value. The ledger maps t
 | `ALLOW` | proceeds; the reservation handle is kept for confirm/release | proceeds |
 | `DENY` (a matched rule or a limit) | rejects with `0177` (422) before the balance commit | proceeds, logs a warning |
 | `REVIEW` (a matched rule, or `reason=rule_evaluation_error`) | rejects with `0531` (422) before the balance commit | proceeds, logs a warning |
-| request refused (tracer HTTP 400/422, gRPC `InvalidArgument`/`FailedPrecondition`) | rejects with `0532` (422) whatever `failPosture` says: the tracer answered | proceeds, logs a warning |
-| unavailable (timeout, connection failure, open breaker, a tenant whose rule cache is not loaded yet, the tracer's per-tenant worker cap reached — REST 503 with `Retry-After`, gRPC `Unavailable` with code `0445` — any other tracer error) | `failPosture=open` proceeds with a SKIPPED audit; `failPosture=closed` rejects with `0178` (503) | proceeds, logs a warning |
+| request refused (gRPC `InvalidArgument`/`FailedPrecondition`, including a reserve replayed onto a transaction whose reservation is already released, expired or confirmed — tracer code `0533`) | rejects with `0532` (422) whatever `failPosture` says: the tracer answered | proceeds, logs a warning |
+| unavailable (timeout, connection failure, open breaker, a tenant whose rule cache is not loaded yet, the tracer's per-tenant worker cap reached — gRPC `Unavailable` with code `0445` —, a tenant the tracer holds as not provisioned or not active — gRPC `Unavailable` with code `0534` —, a client certificate outside the tracer's `TRACER_TLS_CLIENT_ALLOWED_NAMES`, any other tracer error) | `failPosture=open` proceeds with a SKIPPED audit; `failPosture=closed` rejects with `0178` (503) | proceeds, logs a warning |
 
 `mode=off`, an unset `TRACER_BASE_URL` and an honored `skip.tracer` build no request at all. A
 denied or refused result holds no capacity, so none of the rejections leaves a reservation to
@@ -233,6 +233,15 @@ unavailable row; only a rule evaluation error is a refusal. The ledger records a
 business event on a span that is not marked as an error, and never forwards the tracer's response
 body to the client. A tracer that predates `decision` answers a `REVIEW` as a plain `denied=true`,
 which the ledger reads as `0177`.
+
+The ledger reaches the tracer only over the gRPC reservation seam (`TRACER_BASE_URL` is its
+`host:port`, default tracer port `:4021`); the tracer's HTTP API has no reservation route. A confirm
+reports `already_released`, the rows of the transaction an explicit release (a cancel) had already
+moved to RELEASED before the confirm arrived, and whose spend the tracer therefore never counts. Its
+TTL reaper does not produce `already_released`: it marks an unsettled row EXPIRED and returns its
+capacity, and a later confirm still settles that EXPIRED row and counts its spend. The ledger does not fail the commit on
+them: it logs a Warn, adds the span event `tracer.reservation.confirm_already_released` and increments
+`tracer_reservation_confirm_already_released_total{operation}`.
 
 ### Cross-ledger enablement is a `/v2` contract
 
@@ -270,8 +279,9 @@ account body.
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
 confirm/release cannot tell whether the transaction holds reservations, so a PENDING created on
 `/v2` and committed through `/v1` never receives its confirm — `transitionPendingV1` names no
-reservation seam: the reservation stays RESERVED until the TTL reaper releases it, and the
-committed amount is never counted against the usage limit. Commit and cancel a transaction on the
+reservation seam: the reservation stays RESERVED until the TTL reaper marks it EXPIRED and
+returns its capacity, and because no confirm ever arrives the committed amount is never counted
+against the usage limit. Commit and cancel a transaction on the
 same contract that created it. Closing this needs create-time reservation state persisted on the
 transaction row for the `/v1` pipeline to read.
 
