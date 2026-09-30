@@ -500,6 +500,10 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 		return err
 	}
 
+	if classified, ok := classifyLimitPeriodValidationError(span, err); ok {
+		return classified
+	}
+
 	switch {
 	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)
@@ -546,5 +550,42 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
+	}
+}
+
+// classifyLimitPeriodValidationError maps the domain's period-related sentinels
+// to their registered client errors. Keep this allow-list limited to errors
+// raised by request validation; storage decoding failures remain technical.
+func classifyLimitPeriodValidationError(span trace.Span, err error) (error, bool) {
+	switch {
+	case errors.Is(err, constant.ErrLimitTimeWindowMismatch):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit time window mismatch", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitTimeWindowMismatch, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitTimeWindowZeroWidth):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit time window has zero width", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitTimeWindowZeroWidth, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitCustomDatesNotAllowed):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom dates are not allowed for this limit type", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitCustomDatesNotAllowed, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitCustomPeriodTooLong):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit period is too long", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitCustomPeriodTooLong, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitCustomPeriodExpired):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit period has expired", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitCustomPeriodExpired, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitInvalidCustomStartFormat):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid custom start date format", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidCustomStartFormat, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitInvalidCustomEndFormat):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid custom end date format", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidCustomEndFormat, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitCustomDatesRequired):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit dates are required", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitCustomDatesRequired, constant.EntityLimit), true
+	case errors.Is(err, constant.ErrLimitCustomDatesOrder):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Custom limit dates are out of order", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitCustomDatesOrder, constant.EntityLimit), true
+	default:
+		return nil, false
 	}
 }
