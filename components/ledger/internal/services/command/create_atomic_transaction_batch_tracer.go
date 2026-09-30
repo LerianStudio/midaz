@@ -9,6 +9,8 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // atomicTransactionBatchReservationSettlement names only outcomes that are
@@ -77,6 +79,8 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 // settleAtomicTransactionBatchReservations applies only a proven terminal
 // direction. Confirm and release reuse the singular non-blocking transport and
 // its bounded retry path. Unknown outcomes retain every reservation unchanged.
+// A PENDING item's reservations stay held on success: its commit or cancel
+// settles them by transaction, while a confirmed abort still releases them.
 func (uc *UseCase) settleAtomicTransactionBatchReservations(
 	ctx context.Context,
 	span trace.Span,
@@ -95,6 +99,10 @@ func (uc *UseCase) settleAtomicTransactionBatchReservations(
 		case atomicTransactionBatchReservationConfirmedAbort:
 			uc.releaseReservations(ctx, span, logger, item.tracerReservation)
 		case atomicTransactionBatchReservationKnownSuccess:
+			if item.status == constant.PENDING {
+				continue
+			}
+
 			uc.confirmReservations(ctx, span, logger, item.tracerReservation)
 		}
 	}

@@ -89,6 +89,7 @@ func TestAtomicTransactionBatchReservations_SettleUnansweredItem(t *testing.T) {
 		{name: "applied confirms the unanswered item by transaction", settlement: atomicTransactionBatchReservationKnownSuccess, wantConfirm: true},
 		{name: "a confirmed abort releases the unanswered item by transaction", settlement: atomicTransactionBatchReservationConfirmedAbort, wantRelease: true},
 		{name: "an unknown outcome settles nothing", settlement: atomicTransactionBatchReservationUnknown},
+		{name: "a pending item leaves the settle to commit or cancel", settlement: atomicTransactionBatchReservationKnownSuccess, pending: true},
 		{name: "a pending item still releases on a confirmed abort", settlement: atomicTransactionBatchReservationConfirmedAbort, pending: true, wantRelease: true},
 	}
 
