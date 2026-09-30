@@ -225,6 +225,10 @@ func TestVerifyClientAllowedName(t *testing.T) {
 	uriLeaf := generateIdentityCert(t, "unrelated-cn", nil, []*url.URL{spiffe})
 	cnLeaf := generateIdentityCert(t, "Ledger-Seam-Client", nil, nil)
 	otherLeaf := generateIdentityCert(t, "intruder", []string{"intruder.svc"}, nil)
+	cnBehindDNSLeaf := generateIdentityCert(t, "ledger-seam-client", []string{"intruder.svc"}, nil)
+	intruderURI, err := url.Parse("spiffe://lerian.studio/ns/other/sa/intruder")
+	require.NoError(t, err)
+	cnBehindURILeaf := generateIdentityCert(t, "ledger-seam-client", nil, []*url.URL{intruderURI})
 
 	allowed := parseClientAllowedNames("LEDGER.midaz.svc.cluster.local, spiffe://lerian.studio/ns/midaz/sa/ledger, ledger-seam-client")
 	verify := verifyClientAllowedName(allowed)
@@ -239,6 +243,8 @@ func TestVerifyClientAllowedName(t *testing.T) {
 		{name: "Subject CN match", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{cnLeaf}}},
 		{name: "only the leaf is checked", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{otherLeaf, cnLeaf}}, wantErr: true},
 		{name: "no match is refused", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{otherLeaf}}, wantErr: true},
+		{name: "CN is ignored when a DNS SAN is present", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{cnBehindDNSLeaf}}, wantErr: true},
+		{name: "CN is ignored when a URI SAN is present", state: tls.ConnectionState{PeerCertificates: []*x509.Certificate{cnBehindURILeaf}}, wantErr: true},
 		{name: "no peer certificate is refused", state: tls.ConnectionState{}, wantErr: true},
 	}
 

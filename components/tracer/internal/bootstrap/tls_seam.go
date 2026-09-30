@@ -17,9 +17,9 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-// TLS modes for the reservation seam (TRACER_TLS_MODE). Empty is treated as
-// tlsModeMesh so local dev and the Phase-1 toggle default keep working without
-// cert material.
+// TLS modes for the reservation seam (TRACER_TLS_MODE). Empty builds no TLS,
+// like tlsModeMesh, and ValidateSeamTransportPosture admits it only in local
+// deployments.
 const (
 	tlsModeMTLS = "mtls"
 	tlsModeMesh = "mesh"
@@ -33,8 +33,10 @@ const (
 // Behavior contract (per the Seam Contract — identity is mutual TLS, no shared
 // secret):
 //
-//   - mode "" / "mesh"  ⇒ (nil, nil). The app listens plaintext; a service-mesh
+//   - mode "mesh"       ⇒ (nil, nil). The app listens plaintext; a service-mesh
 //     sidecar (Istio/Linkerd) terminates mTLS. No cert material is consulted.
+//   - mode ""           ⇒ (nil, nil). Plaintext with no verified peer; the
+//     boot gate ValidateSeamTransportPosture refuses it outside local.
 //   - mode "mtls"       ⇒ (*tls.Config, nil) presenting the tracer's own server
 //     certificate and enforcing tls.RequireAndVerifyClientCert against the
 //     loaded client CA pool. The reservation seam is unreachable without a
@@ -145,7 +147,8 @@ func buildGRPCSeamTLSConfig(cfg *Config) (*tls.Config, error) {
 
 // warnGRPCSeamAcceptsAnyClient logs one Warn when the gRPC seam runs mtls with
 // an empty allowlist, because any certificate the client CA signed is then
-// accepted as the ledger.
+// accepted as the ledger. Under DEPLOYMENT_MODE=saas that posture never
+// reaches it: ValidateSeamTransportPosture refuses the boot.
 func warnGRPCSeamAcceptsAnyClient(ctx context.Context, cfg *Config, logger libLog.Logger) {
 	if strings.ToLower(strings.TrimSpace(cfg.TracerTLSMode)) != tlsModeMTLS {
 		return
@@ -177,7 +180,8 @@ func parseClientAllowedNames(raw string) map[string]struct{} {
 
 // verifyClientAllowedName returns a tls.Config.VerifyConnection hook that
 // accepts the connection only when the verified leaf (PeerCertificates[0])
-// carries an allowlisted DNS SAN, URI SAN or Subject CN.
+// carries an allowlisted DNS SAN or URI SAN, or, on a leaf without SANs, an
+// allowlisted Subject CN.
 func verifyClientAllowedName(allowed map[string]struct{}) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 || !clientCertAllowed(cs.PeerCertificates[0], allowed) {
@@ -189,6 +193,9 @@ func verifyClientAllowedName(allowed map[string]struct{}) func(tls.ConnectionSta
 }
 
 // clientCertAllowed reports whether any identity field of cert is allowlisted.
+// The Subject CN counts only on a certificate without DNS or URI SANs: once a
+// SAN is present it is the identity (RFC 6125), so a CN cannot stand in for a
+// SAN that names a different workload.
 func clientCertAllowed(cert *x509.Certificate, allowed map[string]struct{}) bool {
 	if cert == nil {
 		return false
@@ -210,6 +217,10 @@ func clientCertAllowed(cert *x509.Certificate, allowed map[string]struct{}) bool
 		if uri != nil && isAllowed(uri.String()) {
 			return true
 		}
+	}
+
+	if len(cert.DNSNames) > 0 || len(cert.URIs) > 0 {
+		return false
 	}
 
 	return cert.Subject.CommonName != "" && isAllowed(cert.Subject.CommonName)

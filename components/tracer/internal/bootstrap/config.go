@@ -76,13 +76,13 @@ type Config struct {
 	// (ApplyGRPCSeamDefaults). Transport security follows TRACER_TLS_MODE: in
 	// "mtls" the gRPC server requires+verifies a client cert.
 	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
-	// TracerTLSMode selects how the reservation seam is secured. "mtls"
-	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
-	// client cert on BOTH the gRPC and the Fiber listeners — the verified mTLS
-	// peer is the seam credential (no shared secret). "mesh" lets a service-mesh
-	// sidecar (Istio/Linkerd) terminate mTLS, so the app listens plaintext and
-	// skips its own TLS. Empty/unset behaves like "mesh" (plaintext) so the
-	// Phase-1 toggle default and local dev keep working without cert material.
+	// TracerTLSMode selects how the reservation seam is secured. "mtls" makes
+	// the app load its own cert/key/CA and require+verify a client cert on BOTH
+	// the gRPC and the Fiber listeners — the verified mTLS peer is the seam
+	// credential (no shared secret). "mesh" lets a service-mesh sidecar
+	// (Istio/Linkerd) terminate mTLS, so the app listens plaintext and skips its
+	// own TLS. Empty serves plaintext with no peer verification and is accepted
+	// only with DEPLOYMENT_MODE=local (ValidateSeamTransportPosture).
 	TracerTLSMode string `env:"TRACER_TLS_MODE"`
 	// TracerTLSCertFile / TracerTLSKeyFile are the PEM paths for the tracer's
 	// OWN server certificate and private key, presented on both transports in
@@ -96,10 +96,12 @@ type Config struct {
 	TracerTLSClientCAFile string `env:"TRACER_TLS_CLIENT_CA_FILE"`
 	// TracerTLSClientAllowedNames is a comma-separated allowlist of client
 	// identities the gRPC listener accepts in "mtls" mode. A client cert passes
-	// when one of its DNS SANs, URI SANs or its Subject CN equals an entry
-	// (exact, case-insensitive, trimmed). Empty accepts any cert signed by
-	// TracerTLSClientCAFile and logs a boot Warn. Ignored in "mesh"/empty mode
-	// and never applied to the HTTP listener.
+	// when one of its DNS SANs or URI SANs equals an entry, or, on a cert
+	// without SANs, its Subject CN does (exact, case-insensitive, trimmed).
+	// Empty accepts any cert signed by TracerTLSClientCAFile: a boot Warn
+	// outside saas, a refused boot under DEPLOYMENT_MODE=saas
+	// (ValidateSeamTransportPosture). Ignored in "mesh" mode and never applied
+	// to the HTTP listener.
 	TracerTLSClientAllowedNames string `env:"TRACER_TLS_CLIENT_ALLOWED_NAMES"`
 
 	LogLevel                string `env:"LOG_LEVEL"`
@@ -1372,7 +1374,8 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 // it through ApplyGRPCSeamDefaults, so an empty value means a caller skipped
 // the defaults. Transport security follows TRACER_TLS_MODE: mtls ⇒ the server
 // requires+verifies a client cert (reservation seam unreachable without one);
-// mesh/unset ⇒ plaintext (sidecar terminates). clk drives the reserve
+// mesh ⇒ plaintext behind a terminating sidecar; empty ⇒ plaintext, which
+// ValidateSeamTransportPosture admits only in local deployments. clk drives the reserve
 // timestamp-window check.
 // workerEnsurer starts a tenant's workers on its first reservation (nil in
 // single-tenant mode).
@@ -1395,7 +1398,7 @@ func initGRPCServer(
 	}
 
 	// The shared seam TLS posture plus the client identity allowlist. nil in
-	// mesh/unset mode ⇒ plaintext gRPC.
+	// mesh/empty mode ⇒ plaintext gRPC.
 	seamTLS, err := buildGRPCSeamTLSConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
@@ -1878,6 +1881,13 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	// checks) is structurally absent.
 	if err := ValidateSaaSTLS(cfg); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+	}
+
+	// The gRPC reservation seam trusts x-tenant-id only from a verified peer:
+	// outside local deployments it refuses to boot plaintext, before any
+	// listener binds.
+	if err := ValidateSeamTransportPosture(ctx, cfg, logger); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("seam transport posture: %w", err)
 	}
 
 	// Scheme gate (fatal), orthogonal to the RI publisher's fail-open wiring: in
