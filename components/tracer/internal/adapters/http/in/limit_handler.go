@@ -500,6 +500,10 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 		return err
 	}
 
+	if classified := classifyLimitPeriodValidationError(span, err); classified != nil {
+		return classified
+	}
+
 	switch {
 	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)
@@ -547,4 +551,34 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
+}
+
+// limitPeriodValidationErrors contains request-validation sentinels. Storage
+// decoding failures intentionally remain outside this client-error allow-list.
+var limitPeriodValidationErrors = [...]struct {
+	sentinel    error
+	spanMessage string
+}{
+	{constant.ErrLimitTimeWindowMismatch, "Limit time window mismatch"},
+	{constant.ErrLimitTimeWindowZeroWidth, "Limit time window has zero width"},
+	{constant.ErrLimitCustomDatesNotAllowed, "Custom dates are not allowed for this limit type"},
+	{constant.ErrLimitCustomPeriodTooLong, "Custom limit period is too long"},
+	{constant.ErrLimitCustomPeriodExpired, "Custom limit period has expired"},
+	{constant.ErrLimitInvalidCustomStartFormat, "Invalid custom start date format"},
+	{constant.ErrLimitInvalidCustomEndFormat, "Invalid custom end date format"},
+	{constant.ErrLimitCustomDatesRequired, "Custom limit dates are required"},
+	{constant.ErrLimitCustomDatesOrder, "Custom limit dates are out of order"},
+}
+
+// classifyLimitPeriodValidationError maps a period sentinel to its registered
+// client error and records it on the span as a business failure.
+func classifyLimitPeriodValidationError(span trace.Span, err error) error {
+	for _, candidate := range limitPeriodValidationErrors {
+		if errors.Is(err, candidate.sentinel) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, candidate.spanMessage, err)
+			return pkg.ValidateBusinessError(candidate.sentinel, constant.EntityLimit)
+		}
+	}
+
+	return nil
 }
