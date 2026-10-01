@@ -8,6 +8,7 @@ import (
 	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/jwtclaims"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -149,17 +150,12 @@ func (g *AuthGuard) With(resource, method string, forceAPIKeyAuth bool) fiber.Ha
 // for its authorization round-trip, so no additional trust is placed on this
 // extraction step.
 func extractPrincipalFromBearer(c fiber.Ctx) (rejected bool, err error) {
-	token := bearerToken(c)
-	if token == "" {
-		return false, nil
-	}
-
-	claims, ok := parseUnverifiedClaims(token)
+	claims, ok := jwtclaims.ParseUnverified(jwtclaims.BearerToken(c.Get(fiber.HeaderAuthorization)))
 	if !ok {
 		return false, nil
 	}
 
-	sub := stringClaim(claims, "sub")
+	sub := jwtclaims.String(claims, "sub")
 	if sub == "" {
 		writeErr := pkgHTTP.Unauthorized(
 			c,
@@ -171,9 +167,9 @@ func extractPrincipalFromBearer(c fiber.Ctx) (rejected bool, err error) {
 		return true, writeErr
 	}
 
-	name := stringClaim(claims, "preferred_username")
+	name := jwtclaims.String(claims, "preferred_username")
 	if name == "" {
-		name = stringClaim(claims, "email")
+		name = jwtclaims.String(claims, "email")
 	}
 
 	principal := contextutil.Principal{Type: string(model.ActorTypeUser), ID: sub, Name: name}

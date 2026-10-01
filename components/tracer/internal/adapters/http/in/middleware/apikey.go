@@ -6,11 +6,9 @@
 package middleware
 
 import (
-	"crypto/subtle"
-	"strings"
-
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/apikey"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -19,19 +17,6 @@ import (
 // HeaderAPIKey is the HTTP header name for API key authentication.
 // #nosec G101 -- HTTP header name, not a credential value.
 const HeaderAPIKey = "X-API-Key"
-
-// defaultAPIKeyLabel is the actor identifier recorded for API-key authenticated
-// requests when the operator did not configure API_KEY_LABEL. Bootstrap applies
-// this same default, but the middleware duplicates it so it is safe to use
-// standalone (e.g. from tests).
-// #nosec G101 -- audit actor identifier, not a credential value.
-const defaultAPIKeyLabel = "tracer-default"
-
-// Auth failure reasons for logging and metrics.
-const (
-	ReasonMissingAPIKey = "missing_api_key"
-	ReasonInvalidAPIKey = "invalid_api_key"
-)
 
 // APIKeyConfig holds the configuration for API Key authentication.
 type APIKeyConfig struct {
@@ -43,24 +28,9 @@ type APIKeyConfig struct {
 	Enabled bool
 
 	// Label is the audit actor ID recorded after a successful API-key match.
-	// When empty, the middleware falls back to defaultAPIKeyLabel so audit
+	// When empty, the middleware falls back to apikey.DefaultLabel so audit
 	// rows always carry a non-empty actor identifier.
 	Label string
-}
-
-// validateAPIKey checks if the provided API key is valid.
-// Returns the failure reason ("missing_api_key" or "invalid_api_key") or empty string if valid.
-// Uses constant-time comparison to prevent timing attacks.
-func validateAPIKey(apiKey, expectedKey string) string {
-	if apiKey == "" {
-		return ReasonMissingAPIKey
-	}
-
-	if subtle.ConstantTimeCompare([]byte(apiKey), []byte(expectedKey)) != 1 {
-		return ReasonInvalidAPIKey
-	}
-
-	return ""
 }
 
 // APIKeyAuth creates a Fiber middleware handler that validates API key authentication.
@@ -83,10 +53,7 @@ func validateAPIKey(apiKey, expectedKey string) string {
 // dev-mode traffic must reach the audit writer with no authenticated identity
 // so the system fallback kicks in transparently.
 func APIKeyAuth(cfg APIKeyConfig) fiber.Handler {
-	label := strings.TrimSpace(cfg.Label)
-	if label == "" {
-		label = defaultAPIKeyLabel
-	}
+	label := apikey.ResolveLabel(cfg.Label)
 
 	return func(c fiber.Ctx) error {
 		// Skip authentication if disabled (dev mode)
@@ -94,7 +61,7 @@ func APIKeyAuth(cfg APIKeyConfig) fiber.Handler {
 			return c.Next()
 		}
 
-		if reason := validateAPIKey(c.Get(HeaderAPIKey), cfg.Key); reason != "" {
+		if reason := apikey.Validate(c.Get(HeaderAPIKey), cfg.Key); reason != "" {
 			return pkgHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
 		}
 
