@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -235,7 +236,20 @@ func TestHuma_ListAuditEvents_ReservationFilters(t *testing.T) {
 		model.AuditEventReservationExpired,
 	} {
 		t.Run(string(eventType), func(t *testing.T) {
-			svc := &tenantSpyAuditEventService{listResult: &model.ListAuditEventsResult{}}
+			ctrl := gomock.NewController(t)
+			svc := NewMockAuditEventService(ctrl)
+
+			var listFilter *model.AuditEventFilters
+
+			svc.EXPECT().
+				ListAuditEvents(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, filters *model.AuditEventFilters) (*model.ListAuditEventsResult, error) {
+					listFilter = filters
+
+					return &model.ListAuditEventsResult{}, nil
+				}).
+				Times(1)
+
 			app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet,
@@ -248,11 +262,11 @@ func TestHuma_ListAuditEvents_ReservationFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, http.StatusOK, resp.StatusCode, "reservation filters must be accepted: %s", string(respBody))
-			require.NotNil(t, svc.listFilter)
-			require.NotNil(t, svc.listFilter.EventType)
-			assert.Equal(t, eventType, *svc.listFilter.EventType)
-			require.NotNil(t, svc.listFilter.ResourceType)
-			assert.Equal(t, model.ResourceTypeReservation, *svc.listFilter.ResourceType)
+			require.NotNil(t, listFilter)
+			require.NotNil(t, listFilter.EventType)
+			assert.Equal(t, eventType, *listFilter.EventType)
+			require.NotNil(t, listFilter.ResourceType)
+			assert.Equal(t, model.ResourceTypeReservation, *listFilter.ResourceType)
 		})
 	}
 }
@@ -316,7 +330,20 @@ func TestHuma_ListAuditEvents_ReservationActionAndActorFilters(t *testing.T) {
 		model.AuditActionSkip,
 	} {
 		t.Run(string(action), func(t *testing.T) {
-			svc := &tenantSpyAuditEventService{listResult: &model.ListAuditEventsResult{}}
+			ctrl := gomock.NewController(t)
+			svc := NewMockAuditEventService(ctrl)
+
+			var listFilter *model.AuditEventFilters
+
+			svc.EXPECT().
+				ListAuditEvents(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, filters *model.AuditEventFilters) (*model.ListAuditEventsResult, error) {
+					listFilter = filters
+
+					return &model.ListAuditEventsResult{}, nil
+				}).
+				Times(1)
+
 			app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet,
@@ -329,11 +356,11 @@ func TestHuma_ListAuditEvents_ReservationActionAndActorFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, http.StatusOK, resp.StatusCode, "reservation action and api_key actor must be accepted: %s", string(respBody))
-			require.NotNil(t, svc.listFilter)
-			require.NotNil(t, svc.listFilter.Action)
-			assert.Equal(t, action, *svc.listFilter.Action)
-			require.NotNil(t, svc.listFilter.ActorType)
-			assert.Equal(t, model.ActorTypeAPIKey, *svc.listFilter.ActorType)
+			require.NotNil(t, listFilter)
+			require.NotNil(t, listFilter.Action)
+			assert.Equal(t, action, *listFilter.Action)
+			require.NotNil(t, listFilter.ActorType)
+			assert.Equal(t, model.ActorTypeAPIKey, *listFilter.ActorType)
 		})
 	}
 }
