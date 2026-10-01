@@ -4,13 +4,16 @@
 
 // Package tracer holds the ledger-side client for the tracer service's
 // two-phase reservation API (reserve, then confirm or release). The transport
-// is gRPC behind the TracerReserver port. Service identity is mutual TLS, so
-// the client carries no static shared secret; the tenant travels as trusted
-// x-tenant-id metadata over the mTLS-verified connection.
+// is gRPC behind the TracerReserver port. The ledger identifies itself on the
+// seam with at most one credential: its Access Manager application token (per
+// tenant in multi-tenant mode), or the tracer API key; with neither, identity is
+// left to the transport (mTLS or a mesh). The tenant also travels as x-tenant-id
+// metadata.
 package tracer
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,11 +25,20 @@ import (
 // fast rather than holding the transaction create path open.
 const DefaultOperationTimeout = 250 * time.Millisecond
 
-// tenantMetadataKey is the gRPC outgoing-metadata key carrying the trusted
-// tenant id. The tracer reads the same key from incoming metadata; it trusts
-// the value because the connection is mTLS-verified (the peer is a known
-// service).
+// tenantMetadataKey is the gRPC outgoing-metadata key carrying the tenant id.
+// Under token identity the tracer resolves the tenant from the token and reads
+// this header only as a cross-check; under every other identity it is the
+// carrier.
 const tenantMetadataKey = "x-tenant-id"
+
+// authorizationMetadataKey carries the ledger's Access Manager application
+// token as "Bearer <token>" on every seam call when the ledger runs with plugin
+// auth enabled.
+const authorizationMetadataKey = "authorization"
+
+// apiKeyMetadataKey carries the tracer API key on every seam call when the
+// ledger identifies itself with TRACER_API_KEY instead of a token.
+const apiKeyMetadataKey = "x-api-key"
 
 // ErrTracerUnavailable is the typed error returned when the reservation
 // transport fails for an availability reason — a per-operation timeout, a
@@ -53,6 +65,29 @@ var ErrTracerRejected = errors.New("tracer rejected the reservation request")
 // the tracer answered with an error, and one that never left the ledger, are
 // not marked.
 var ErrTracerNoAnswer = errors.New("tracer did not answer the reservation call")
+
+// ErrTracerUnauthorized is the typed error returned when the tracer answers a
+// seam call with codes.Unauthenticated or codes.PermissionDenied: the ledger's
+// credential (its Access Manager token or the tracer API key) is missing,
+// invalid or not granted. The tracer answered, so it is not ErrTracerUnavailable
+// and never ErrTracerNoAnswer; the request itself was never evaluated, so it is
+// not ErrTracerRejected either. It is a configuration error that does not heal
+// on its own.
+var ErrTracerUnauthorized = errors.New("tracer: credential rejected")
+
+// ErrTracerCredentialUnavailable marks a call that never left the ledger
+// because its seam credential could not be resolved: no usable tenant
+// credential, a failed or empty token mint, or an invalid tenant id. A caller
+// that stopped waiting for a mint is plain ErrTracerUnavailable. It always
+// travels with ErrTracerUnavailable, so
+// tracer.failPosture still decides the request, and is never marked
+// ErrTracerNoAnswer, whatever context error caused it.
+var ErrTracerCredentialUnavailable = errors.New("tracer: seam credential unavailable, call not sent")
+
+// credentialNotSent wraps cause as an unavailable, never-sent seam call.
+func credentialNotSent(cause error) error {
+	return fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, ErrTracerCredentialUnavailable, cause)
+}
 
 // ReserveAccount is the account scope the tracer matches limits and rules
 // against. The ledger populates AccountID with the source balance's account
