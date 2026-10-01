@@ -1,5 +1,22 @@
 # Midaz Changelog
 
+## [4.0.8](https://github.com/LerianStudio/midaz/releases/tag/v4.0.8)
+
+Features:
+
+Fixes:
+- Log an undecodable cached balance once to improve error tracking. (@ClaraTersi)
+- Fail loudly when the balance script result is unusable to prevent silent errors. (@ClaraTersi)
+- Refuse a transaction when a cached balance cannot be decoded to ensure data integrity. (@ClaraTersi)
+- Read dual-shape balance cache entries with CamelCase precedence to maintain consistency. (@ClaraTersi)
+
+Improvements:
+- Cover transactions on dual-shape cached balances in tests to enhance test coverage. (@ClaraTersi)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v4.0.7...v4.0.8)
+
+---
+
 ## [Unreleased]
 
 Breaking Changes:
