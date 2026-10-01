@@ -15,7 +15,6 @@ import (
 
 const (
 	wantMultiTenantErr    = "MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true"
-	wantInversionErr      = "requires AUTH_M2M_INVERSION_ENABLED=true"
 	wantLibAuthMTErr      = `MULTI_TENANT_ENABLED must be exactly "true"`
 	wantSeamAllowlistErr  = "requires TRACER_SEAM_ALLOWED_CLIENTS"
 	wantClearSaaSErr      = `must not travel in clear; set TRACER_TLS_MODE to "server", "mtls" or "mesh"`
@@ -30,6 +29,7 @@ const (
 	wantAllowlistLocalWarn   = "TRACER_SEAM_ALLOWED_CLIENTS is empty: the reservation seam refuses every caller; set it to the ledger's Access Manager client id(s), comma-separated (the token sub claim)"
 	wantAllowlistIgnoredWarn = seamAllowlistIgnoredMsg
 	wantAuthCacheWarn        = "AUTH_CACHE_TTL is unset or not a positive duration: every reservation seam call pays an Access Manager round trip; set AUTH_CACHE_TTL (e.g. 60s)"
+	wantNoInversionWarn      = "AUTH_M2M_INVERSION_ENABLED is not true: the Access Manager authorizes application tokens on the reservation seam under a shared editor role instead of the ledger's own client, so only the seam's client allowlist (single-tenant) or ledger client name binding (multi-tenant) restricts who may reserve; set AUTH_M2M_INVERSION_ENABLED=true once the Access Manager supports it"
 )
 
 // seamCase is one row of the posture matrix.
@@ -104,9 +104,19 @@ func TestValidateSeamPosture(t *testing.T) {
 		{name: "token ST blank allowlist entries are empty", deploymentMode: "byoc", tlsMode: "server", pluginAuth: true, allowedClients: " , ", wantErr: wantSeamAllowlistErr},
 
 		// token identity, inversion
-		{name: "token without inversion is refused", deploymentMode: "byoc", tlsMode: "server", pluginAuth: true, allowedClients: "c", noInversion: true, wantErr: wantInversionErr},
-		{name: "token without inversion is refused even locally", deploymentMode: "local", tlsMode: "server", pluginAuth: true, allowedClients: "c", noInversion: true, wantErr: wantInversionErr},
-		{name: "token MT without inversion is refused", deploymentMode: "saas", tlsMode: "mesh", pluginAuth: true, multiTenant: true, noInversion: true, wantErr: wantInversionErr},
+		{name: "token ST byoc without inversion warns", deploymentMode: "byoc", tlsMode: "server", pluginAuth: true, allowedClients: "c", noInversion: true, wantWarns: []string{wantNoInversionWarn}},
+		{name: "token ST unset deployment without inversion warns", tlsMode: "server", pluginAuth: true, allowedClients: "c", noInversion: true, wantWarns: []string{wantNoInversionWarn}},
+		{name: "token ST local without inversion warns", deploymentMode: "local", tlsMode: "server", pluginAuth: true, allowedClients: "c", noInversion: true, wantWarns: []string{wantNoInversionWarn}},
+		{name: "token ST saas without inversion warns", deploymentMode: "saas", tlsMode: "server", pluginAuth: true, allowedClients: "c", authCacheTTL: "60s", noInversion: true, wantWarns: []string{wantNoInversionWarn}},
+		{name: "token MT saas without inversion warns", deploymentMode: "saas", tlsMode: "mesh", pluginAuth: true, multiTenant: true, noInversion: true, wantWarns: []string{wantNoInversionWarn}},
+		{name: "token MT byoc without inversion warns", deploymentMode: "byoc", tlsMode: "server", pluginAuth: true, multiTenant: true, noInversion: true, wantWarns: []string{wantNoInversionWarn}},
+		{name: "token local without inversion or allowlist warns twice", deploymentMode: "local", tlsMode: "server", pluginAuth: true, noInversion: true, wantWarns: []string{wantNoInversionWarn, wantAllowlistLocalWarn}},
+		{name: "token MT without inversion still ignores the allowlist", deploymentMode: "saas", tlsMode: "server", pluginAuth: true, multiTenant: true, allowedClients: "c", noInversion: true, wantWarns: []string{wantNoInversionWarn, wantAllowlistIgnoredWarn}},
+		{name: "token ST byoc without inversion or allowlist is refused", deploymentMode: "byoc", tlsMode: "server", pluginAuth: true, noInversion: true, wantErr: wantSeamAllowlistErr},
+		{name: "token MT without inversion invisible to lib-auth is refused", deploymentMode: "saas", tlsMode: "server", pluginAuth: true, multiTenant: true, libAuthMTValue: "1", noInversion: true, wantErr: wantLibAuthMTErr},
+		{name: "token saas without inversion or decision cache is refused", deploymentMode: "saas", tlsMode: "server", pluginAuth: true, allowedClients: "c", noAuthCache: true, noInversion: true, wantErr: wantAuthCacheSaaSErr},
+		{name: "token saas without inversion in clear is refused", deploymentMode: "saas", pluginAuth: true, allowedClients: "c", noInversion: true, wantErr: wantClearSaaSErr},
+		{name: "token byoc without inversion, cache or TLS warns three times", deploymentMode: "byoc", pluginAuth: true, allowedClients: "c", noAuthCache: true, noInversion: true, wantWarns: []string{wantNoInversionWarn, wantAuthCacheWarn, wantClearWarn}},
 
 		// token identity, multi-tenant
 		{name: "token MT on mesh boots", deploymentMode: "saas", tlsMode: "mesh", pluginAuth: true, multiTenant: true},
@@ -284,7 +294,6 @@ func TestValidateSeamPosture_RefusalsNameTheRemedy(t *testing.T) {
 	assert.Contains(t, refuse(&Config{DeploymentMode: "saas", PluginAuthEnabled: true, TracerSeamAllowedClients: "c"}, inverted), "TRACER_TLS_MODE")
 	assert.Contains(t, refuse(&Config{DeploymentMode: "saas"}, inverted), "API_KEY_ENABLED")
 	assert.Contains(t, refuse(&Config{DeploymentMode: "saas", TracerTLSMode: "server", PluginAuthEnabled: true, TracerSeamAllowedClients: "c"}, seamPostureEnv{m2mInversion: true}), "AUTH_CACHE_TTL")
-	assert.Contains(t, refuse(&Config{DeploymentMode: "byoc", TracerTLSMode: "server", PluginAuthEnabled: true, TracerSeamAllowedClients: "c"}, seamPostureEnv{}), "AUTH_M2M_INVERSION_ENABLED=true")
 }
 
 // TestValidateSeamPosture_NoIdentityWarnCarriesThePort proves the no-identity
@@ -329,17 +338,21 @@ func TestValidateSeamPosture_ReadsLibAuthEnvironment(t *testing.T) {
 
 	t.Setenv("AUTH_M2M_INVERSION_ENABLED", "")
 
-	err := ValidateSeamPosture(t.Context(), cfg, testutil.NewMockLogger())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), wantInversionErr)
+	logger := testutil.NewMockLogger()
+	require.NoError(t, ValidateSeamPosture(t.Context(), cfg, logger))
+	require.Len(t, logger.Calls, 1)
+	assert.Equal(t, wantNoInversionWarn, logger.Calls[0].Message)
 
 	t.Setenv("AUTH_M2M_INVERSION_ENABLED", "true")
-	require.NoError(t, ValidateSeamPosture(t.Context(), cfg, testutil.NewMockLogger()))
+
+	logger = testutil.NewMockLogger()
+	require.NoError(t, ValidateSeamPosture(t.Context(), cfg, logger))
+	assert.Empty(t, logger.Calls)
 
 	cfg.MultiTenantEnabled = true
 	t.Setenv("MULTI_TENANT_ENABLED", "TRUE")
 
-	err = ValidateSeamPosture(t.Context(), cfg, testutil.NewMockLogger())
+	err := ValidateSeamPosture(t.Context(), cfg, testutil.NewMockLogger())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), wantLibAuthMTErr)
 
@@ -356,24 +369,24 @@ func TestValidateSeamPosture_ReadsLibAuthEnvironment(t *testing.T) {
 }
 
 // TestInitCoreInfra_SeamPostureIsWired proves the posture gate runs at boot:
-// an Access Manager identity without AUTH_M2M_INVERSION_ENABLED passes every
-// earlier gate and is refused by the seam posture gate alone.
+// a single-tenant Access Manager identity without TRACER_SEAM_ALLOWED_CLIENTS
+// outside DEPLOYMENT_MODE=local passes every earlier gate and is refused by
+// the seam posture gate alone.
 func TestInitCoreInfra_SeamPostureIsWired(t *testing.T) {
 	t.Setenv("AUTH_M2M_INVERSION_ENABLED", "")
 
 	cfg := &Config{
-		LogLevel:                 "error",
-		TracerGRPCPort:           DefaultTracerGRPCPort,
-		DeploymentMode:           "byoc",
-		TracerTLSMode:            "server",
-		PluginAuthEnabled:        true,
-		PluginAuthAddress:        "http://127.0.0.1:1",
-		TracerSeamAllowedClients: "lerian/midaz-ledger",
+		LogLevel:          "error",
+		TracerGRPCPort:    DefaultTracerGRPCPort,
+		DeploymentMode:    "byoc",
+		TracerTLSMode:     "server",
+		PluginAuthEnabled: true,
+		PluginAuthAddress: "http://127.0.0.1:1",
 	}
 
 	_, _, _, _, err := initCoreInfra(t.Context(), cfg)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "seam posture: ")
-	assert.Contains(t, err.Error(), wantInversionErr)
+	assert.Contains(t, err.Error(), wantSeamAllowlistErr)
 }

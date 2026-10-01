@@ -267,8 +267,10 @@ token's claims and refuses every token whose `type` is not `application`. Then:
   dashless UUID.
 
 Application tokens authorize under their own `sub` only with `AUTH_M2M_INVERSION_ENABLED=true` (the
-raw value `true`); otherwise lib-auth authorizes them under a fabricated subject, so the tracer
-refuses to boot without it. In multi-tenant mode lib-auth copies the `tenantId` claim into the
+raw value `true`), which is recommended; without it the tracer boots with a Warn and lib-auth
+authorizes every application token under the shared `admin/tracer-editor-role` subject, so the
+Access Manager checks only that the token is valid, not the ledger client's own grant, and the
+principal guard above alone restricts who may reserve. In multi-tenant mode lib-auth copies the `tenantId` claim into the
 incoming `md-tenant-id` metadata only when it sees `MULTI_TENANT_ENABLED` as the raw value `true`,
 and the tenant interceptor resolves the tenant from that value (`TokenTenantUnaryInterceptor`),
 never from `x-tenant-id`. The tracer reads the claims unverified after the Access Manager
@@ -296,7 +298,7 @@ The identity interceptors run before any handler, so a refused call holds nothin
 | Identity | Condition | Result |
 |---|---|---|
 | any but token | `MULTI_TENANT_ENABLED=true` | refuse: the tenant must come from the caller's token |
-| token | `AUTH_M2M_INVERSION_ENABLED` is not `true` | refuse |
+| token | `AUTH_M2M_INVERSION_ENABLED` is not `true` | one Warn in every deployment mode, single- and multi-tenant: the principal guard alone binds the caller |
 | token, multi-tenant | `MULTI_TENANT_ENABLED` is not the raw value `true` | refuse |
 | token, single-tenant | `TRACER_SEAM_ALLOWED_CLIENTS` empty | refuse outside `DEPLOYMENT_MODE=local`; one Warn under `local` |
 | token | `AUTH_CACHE_TTL` unset or not greater than zero | refuse under `DEPLOYMENT_MODE=saas` (every reservation would cost an Access Manager round trip); one Warn elsewhere |
@@ -478,7 +480,8 @@ pool. A tenant the tenant manager reports as not provisioned, suspended or purge
    policy on the mount). A tenant without the secret cannot reserve: its calls fail as unavailable and
    the fail posture decides.
 3. **Tracer.** `PLUGIN_AUTH_ENABLED=true`, `PLUGIN_AUTH_ADDRESS`, and `AUTH_M2M_INVERSION_ENABLED=true`
-   (required). Single-tenant: `TRACER_SEAM_ALLOWED_CLIENTS` set to the ledger's client id. Multi-tenant:
+   (recommended; without it the tracer boots with a Warn and the principal guard alone binds the
+   caller). Single-tenant: `TRACER_SEAM_ALLOWED_CLIENTS` set to the ledger's client id. Multi-tenant:
    `MULTI_TENANT_ENABLED=true` exactly.
 4. **lib-auth knobs on the tracer.** `AUTH_CACHE_TTL` greater than zero, e.g. `60s` (one Access
    Manager round trip per decision window instead of per reservation; required under
@@ -492,8 +495,8 @@ pool. A tenant the tenant manager reports as not provisioned, suspended or purge
 first — `TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET` in single-tenant mode, the tenant-manager's
 ledger→tracer credential for every tenant in multi-tenant mode — and deploy the ledger with
 `PLUGIN_AUTH_ENABLED=true`, so it sends tokens. Only then enable token identity on the tracer:
-`PLUGIN_AUTH_ENABLED=true`, `AUTH_M2M_INVERSION_ENABLED=true`, `TRACER_SEAM_ALLOWED_CLIENTS` in
-single-tenant mode, and `AUTH_CACHE_TTL`. A tracer that enables token identity before the ledger sends
+`PLUGIN_AUTH_ENABLED=true`, `AUTH_M2M_INVERSION_ENABLED=true` (recommended),
+`TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and `AUTH_CACHE_TTL`. A tracer that enables token identity before the ledger sends
 tokens answers every reservation call `Unauthenticated`: under `enforce` + `closed` the ledger rejects
 transactions with `0536`, and under `open` or `advisory` it proceeds without reservations, so limits
 stop counting until the ledger catches up.
@@ -609,7 +612,7 @@ in `components/ledger/.env.example` and `components/tracer/.env.example`.
 | `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas` when the transport is the seam identity; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamPosture` |
 | `TRACER_SEAM_ALLOWED_CLIENTS` | tracer | comma-separated application client ids (token `sub`) admitted under token identity in single-tenant mode; required outside `DEPLOYMENT_MODE=local`; ignored with a Warn in multi-tenant mode | `SeamPrincipalInterceptor`, `ValidateSeamPosture` |
 | `PLUGIN_AUTH_ENABLED` / `API_KEY_ENABLED` | tracer | select the seam identity (token first, then API key); `API_KEY`/`API_KEY_LABEL` are shared with the HTTP listener | `resolveSeamIdentity` |
-| `AUTH_M2M_INVERSION_ENABLED` | tracer | must be `true` under token identity, or the tracer refuses to boot | `ValidateSeamPosture` |
+| `AUTH_M2M_INVERSION_ENABLED` | tracer | recommended `true` under token identity; without it the tracer boots with a Warn and the Access Manager authorizes application tokens under a shared editor role, so only the principal guard restricts who may reserve | `ValidateSeamPosture` |
 | `AUTH_CACHE_TTL` | tracer | lib-auth decision cache (e.g. `60s`); under token identity a value not greater than zero refuses boot under `DEPLOYMENT_MODE=saas` and logs a boot Warn elsewhere | `ValidateSeamPosture`, lib-auth |
 | `AUTH_BREAKER_ENABLED` / `AUTH_JWT_VERIFY_CERT` | tracer | recommended under token identity: Access Manager circuit breaker, local signature verification | lib-auth |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | HTTP 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example` |

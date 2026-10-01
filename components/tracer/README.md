@@ -159,7 +159,10 @@ reservation route, and the ledger is the only caller:
     `TRACER_SEAM_ALLOWED_CLIENTS` (required outside `DEPLOYMENT_MODE=local`), and in multi-tenant
     mode its `name` claim must be `ledger-m2m-tracer-{tenant}` for the token's own `tenantId` claim
     (tenants compared canonically).
-    `AUTH_M2M_INVERSION_ENABLED=true` is required; `AUTH_CACHE_TTL` greater than zero (e.g. `60s`) is
+    `AUTH_M2M_INVERSION_ENABLED=true` is recommended; without it the tracer boots with a Warn and
+    the Access Manager authorizes application tokens under a shared editor role, so only the
+    allowlist (single-tenant) or the ledger client name binding (multi-tenant) restricts who may
+    reserve. `AUTH_CACHE_TTL` greater than zero (e.g. `60s`) is
     required under `DEPLOYMENT_MODE=saas` and Warned about elsewhere; `AUTH_BREAKER_ENABLED=true` and
     `AUTH_JWT_VERIFY_CERT` are recommended. Enable it only after the ledger sends tokens (its
     credential provisioned and the ledger deployed), or every reservation call answers

@@ -316,6 +316,71 @@ func TestSeamUnaryInterceptors_TokenSingleTenantChain(t *testing.T) {
 		"the token wins over the API key")
 }
 
+// TestSeamUnaryInterceptors_TokenChainWithoutInversion proves the principal
+// guard alone binds the caller when AUTH_M2M_INVERSION_ENABLED is off: the
+// Access Manager stand-in grants only the shared editor role lib-auth then
+// authorizes every application token under, so it admits every token, and
+// the guard still refuses a client outside the single-tenant allowlist, a
+// ledger client named for another tenant and a non-application token. It
+// mutates the process environment lib-auth reads, so it does not run in
+// parallel.
+func TestSeamUnaryInterceptors_TokenChainWithoutInversion(t *testing.T) {
+	t.Setenv("AUTH_M2M_INVERSION_ENABLED", "")
+	t.Setenv("AUTH_CACHE_TTL", "")
+
+	const sharedEditorRole = "admin/tracer-editor-role"
+
+	t.Run("single-tenant", func(t *testing.T) {
+		t.Setenv("MULTI_TENANT_ENABLED", "")
+
+		am := newChainAccessManager(t, sharedEditorRole)
+		handler := &handlerTenantServer{}
+		client := serveChain(t, &Config{PluginAuthEnabled: true, TracerSeamAllowedClients: seamChainLedgerClient},
+			am.client(t), seamtenant.NewResolver(nil, false), handler)
+
+		require.NoError(t, confirmWith(t, client, "authorization", chainToken(t, jwt.MapClaims{"type": "application", "sub": seamChainLedgerClient})),
+			"the allowlisted ledger client is admitted under the shared role")
+
+		authorizes := am.authorizes.Load()
+
+		assert.Equal(t, codes.PermissionDenied,
+			status.Code(confirmWith(t, client, "authorization", chainToken(t, jwt.MapClaims{"type": "application", "sub": "lerian/other-app"}))),
+			"a client outside the allowlist is refused")
+		assert.Equal(t, codes.PermissionDenied,
+			status.Code(confirmWith(t, client, "authorization", chainToken(t, jwt.MapClaims{"type": "service", "sub": seamChainLedgerClient}))),
+			"a non-application token is refused")
+		assert.Equal(t, authorizes+2, am.authorizes.Load(), "the Access Manager authorized both refused tokens")
+
+		reached, _ := handler.snapshot()
+		assert.Equal(t, 1, reached)
+	})
+
+	t.Run("multi-tenant", func(t *testing.T) {
+		t.Setenv("MULTI_TENANT_ENABLED", "true")
+
+		am := newChainAccessManager(t, sharedEditorRole)
+		rec := &recordingResolver{}
+		handler := &handlerTenantServer{}
+		client := serveChain(t, &Config{PluginAuthEnabled: true, MultiTenantEnabled: true}, am.client(t), rec.resolver(), handler)
+
+		require.NoError(t, confirmWith(t, client, "authorization", chainToken(t, ledgerClientClaims(seamChainTenantA, seamChainTenantA))),
+			"the tenant's own ledger client is admitted under the shared role")
+
+		_, tenant := handler.snapshot()
+		assert.Equal(t, seamChainTenantA, tenant, "the tenant is the token's claim")
+
+		const otherTenant = "0193b0c4d2a87e4f9c1d2e3f4a5b6c7e"
+
+		authorizes := am.authorizes.Load()
+
+		assert.Equal(t, codes.PermissionDenied,
+			status.Code(confirmWith(t, client, "authorization", chainToken(t, ledgerClientClaims(otherTenant, seamChainTenantA)))),
+			"a ledger client named for another tenant is refused")
+		assert.Equal(t, authorizes+1, am.authorizes.Load(), "the Access Manager authorized the refused token")
+		assert.Equal(t, []string{seamChainTenantA}, rec.resolved(), "a refused token resolves no tenant")
+	})
+}
+
 // TestSeamUnaryInterceptors_HeaderTenantChains proves the identities other
 // than the token resolve the tenant from x-tenant-id, after the API key check
 // when there is one.

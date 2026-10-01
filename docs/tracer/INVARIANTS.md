@@ -312,7 +312,7 @@ Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`).
 The gRPC reservation seam (`:4021`) enforces the first caller identity the configuration enables:
 the ledger's Access Manager application token (`PLUGIN_AUTH_ENABLED=true`: every RPC authorized as
 `tracer/reservations:post`, application tokens only, the token `sub` listed in
-`TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, `AUTH_M2M_INVERSION_ENABLED=true` required),
+`TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, `AUTH_M2M_INVERSION_ENABLED=true` recommended, a boot Warn without it),
 the API key (`API_KEY_ENABLED=true`, metadata `x-api-key`, the same constant-time check as
 `X-API-Key`), the transport, or none. Under `TRACER_TLS_MODE=mtls` the listener requires a client
 certificate signed by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate

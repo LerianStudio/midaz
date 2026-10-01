@@ -281,8 +281,10 @@ The tracer enforces the first identity its configuration enables: the token
 (`PLUGIN_AUTH_ENABLED=true`, authorized as `tracer/reservations:post`, only for application tokens,
 whose `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and whose `name` claim must be
 the ledger→tracer client of the tenant its own `tenantId` claim names (`ledger-m2m-tracer-{tenant}`,
-tenants compared canonically) in multi-tenant mode; requires
-`AUTH_M2M_INVERSION_ENABLED=true`, and refuses to boot under `DEPLOYMENT_MODE=saas` — Warns
+tenants compared canonically) in multi-tenant mode; `AUTH_M2M_INVERSION_ENABLED=true` is
+recommended — without it the tracer boots with a Warn and the Access Manager authorizes application
+tokens under a shared editor role, so only the allowlist or the ledger client name binding restricts
+who may reserve — and it refuses to boot under `DEPLOYMENT_MODE=saas` — Warns
 elsewhere — unless `AUTH_CACHE_TTL` is greater than zero), the API key (`API_KEY_ENABLED=true`), the transport, or none.
 Under the token the tenant is the token's `tenantId` claim and `x-tenant-id` is only cross-checked;
 under every other identity, all single-tenant, `x-tenant-id` carries it. A seam without identity
@@ -302,8 +304,8 @@ the call fails as unavailable (the `0178` row above), logged once at Error and c
 **Upgrade order.** Provision the ledger's credential first (`TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET`
 in single-tenant mode; the tenant-manager's ledger→tracer credential for every tenant in multi-tenant
 mode) and deploy the ledger, then enable the tracer's token identity (`PLUGIN_AUTH_ENABLED=true`,
-`AUTH_M2M_INVERSION_ENABLED=true`, `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and
-`AUTH_CACHE_TTL`). A tracer that enables token identity before the ledger sends tokens answers
+`AUTH_M2M_INVERSION_ENABLED=true` (recommended), `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant
+mode, and `AUTH_CACHE_TTL`). A tracer that enables token identity before the ledger sends tokens answers
 `Unauthenticated`: the ledger rejects with `0536` under `enforce` + `closed` and proceeds without a
 reservation under `open` or `advisory`. The full posture matrix, the transport modes
 (`mtls`, `server`, `mesh`) and the operator checklist are in

@@ -554,7 +554,9 @@ authorized against the Access Manager as `tracer/reservations:post`; only applic
 their `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and in multi-tenant mode
 their `name` claim must be `ledger-m2m-tracer-{tenant}` for the token's own `tenantId` claim (tenants
 compared canonically),
-`AUTH_M2M_INVERSION_ENABLED=true` is required, `AUTH_CACHE_TTL` must be greater than zero under
+`AUTH_M2M_INVERSION_ENABLED=true` is recommended (without it the tracer boots with a Warn and the
+Access Manager authorizes application tokens under a shared editor role, so only the allowlist or the
+ledger client name binding restricts who may reserve), `AUTH_CACHE_TTL` must be greater than zero under
 `DEPLOYMENT_MODE=saas` (boot refusal; a boot Warn elsewhere), and the tenant is the token's `tenantId` claim
 (`x-tenant-id`, still sent by the ledger, is only cross-checked; UUID and dashless forms compare
 equal). Under every other identity, all single-tenant, `x-tenant-id` carries the tenant. A missing
@@ -1134,8 +1136,8 @@ verify the ledger's client cert under `TRACER_TLS_MODE=mtls`, and `TRACER_TLS_CL
 accepts; empty accepts any CA-signed cert with a boot Warn, and refuses boot under
 `DEPLOYMENT_MODE=saas` when the transport is the seam identity). `TRACER_TLS_MODE=server` serves TLS
 on the gRPC listener only, without client certificates. The seam's caller identity is selected by
-`PLUGIN_AUTH_ENABLED` (Access Manager token; requires `AUTH_M2M_INVERSION_ENABLED=true`, and in
-single-tenant mode `TRACER_SEAM_ALLOWED_CLIENTS` outside `DEPLOYMENT_MODE=local`), then
+`PLUGIN_AUTH_ENABLED` (Access Manager token; `AUTH_M2M_INVERSION_ENABLED=true` recommended, a boot Warn without it; in
+single-tenant mode it requires `TRACER_SEAM_ALLOWED_CLIENTS` outside `DEPLOYMENT_MODE=local`), then
 `API_KEY_ENABLED` (the same `API_KEY`, as gRPC metadata `x-api-key`), then the transport; recommended
 lib-auth knobs are `AUTH_CACHE_TTL=60s` (a value greater than zero is required under token identity
 with `DEPLOYMENT_MODE=saas` and Warned about elsewhere), `AUTH_BREAKER_ENABLED=true` and

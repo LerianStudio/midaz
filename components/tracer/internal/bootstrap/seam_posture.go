@@ -52,6 +52,10 @@ const (
 	// seamAuthCacheDisabledMsg: token identity without a decision cache
 	// outside saas.
 	seamAuthCacheDisabledMsg = "AUTH_CACHE_TTL is unset or not a positive duration: every reservation seam call pays an Access Manager round trip; set AUTH_CACHE_TTL (e.g. 60s)"
+	// seamNoInversionMsg: token identity without AUTH_M2M_INVERSION_ENABLED,
+	// where the Access Manager checks the shared editor role, not the ledger
+	// client's own grant, and the principal guard alone binds the caller.
+	seamNoInversionMsg = "AUTH_M2M_INVERSION_ENABLED is not true: the Access Manager authorizes application tokens on the reservation seam under a shared editor role instead of the ledger's own client, so only the seam's client allowlist (single-tenant) or ledger client name binding (multi-tenant) restricts who may reserve; set AUTH_M2M_INVERSION_ENABLED=true once the Access Manager supports it"
 )
 
 // Process environment read by lib-auth that the seam posture depends on.
@@ -82,9 +86,10 @@ type seamPostureEnv struct {
 //
 //   - MULTI_TENANT_ENABLED=true without token identity ⇒ error: the tenant
 //     must come from the caller's credential.
-//   - token ⇒ AUTH_M2M_INVERSION_ENABLED must be "true" (otherwise lib-auth
-//     authorizes application tokens under a fabricated subject); in
-//     single-tenant mode TRACER_SEAM_ALLOWED_CLIENTS must name at least one
+//   - token ⇒ AUTH_M2M_INVERSION_ENABLED other than "true" is one Warn in
+//     every deployment mode (lib-auth then authorizes application tokens
+//     under a shared editor role, so the principal guard alone binds the
+//     caller); in single-tenant mode TRACER_SEAM_ALLOWED_CLIENTS must name at least one
 //     client unless DEPLOYMENT_MODE=local, where its absence is a Warn; in
 //     multi-tenant mode lib-auth must see MULTI_TENANT_ENABLED as exactly
 //     "true" (it gates the md-tenant-id the tenant is resolved from), and an
@@ -205,10 +210,10 @@ func resolveSeamIdentity(cfg *Config) seamIdentity {
 // tokenSeamPosture checks the token identity's own preconditions and returns
 // the Warns it raises.
 func tokenSeamPosture(cfg *Config, env seamPostureEnv, deploymentMode string) ([]string, error) {
+	var warns []string
+
 	if !env.m2mInversion {
-		return nil, errors.New(
-			"PLUGIN_AUTH_ENABLED=true on the gRPC reservation seam requires AUTH_M2M_INVERSION_ENABLED=true: without it the Access Manager authorizes application tokens under a fabricated subject instead of the ledger's own client",
-		)
+		warns = append(warns, seamNoInversionMsg)
 	}
 
 	allowlisted := len(parseSeamAllowedClients(cfg.TracerSeamAllowedClients)) > 0
@@ -222,18 +227,18 @@ func tokenSeamPosture(cfg *Config, env seamPostureEnv, deploymentMode string) ([
 		}
 
 		if allowlisted {
-			return []string{seamAllowlistIgnoredMsg}, nil
+			return append(warns, seamAllowlistIgnoredMsg), nil
 		}
 
-		return nil, nil
+		return warns, nil
 	}
 
 	if allowlisted {
-		return nil, nil
+		return warns, nil
 	}
 
 	if deploymentMode == "local" {
-		return []string{seamAllowlistEmptyLocalMsg}, nil
+		return append(warns, seamAllowlistEmptyLocalMsg), nil
 	}
 
 	return nil, errors.New(
