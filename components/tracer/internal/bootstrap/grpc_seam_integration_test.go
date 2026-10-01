@@ -82,7 +82,7 @@ func startSeamThroughInitGRPCServer(t *testing.T, cfg *Config) string {
 	)
 	require.NoError(t, err)
 
-	grpcServer, err := initGRPCServer(cfg, svc, nil, nil, clk, testutil.NewMockLogger(), &libOtel.Telemetry{})
+	grpcServer, err := initGRPCServer(cfg, svc, nil, nil, nil, clk, testutil.NewMockLogger(), &libOtel.Telemetry{})
 	require.NoError(t, err)
 
 	lis, err := net.Listen("tcp", cfg.TracerGRPCPort)

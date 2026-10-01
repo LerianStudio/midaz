@@ -22,6 +22,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 )
 
+// makeJWT builds a signed JWT for tests. Signature is irrelevant for the
+// ParseUnverified path, but a structurally valid token is required.
+func makeJWT(t *testing.T, claims jwt.MapClaims) string {
+	t.Helper()
+
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	s, err := tok.SignedString([]byte("test-only-signing-key"))
+	require.NoError(t, err)
+
+	return s
+}
+
 // newTestAuthGuard creates an AuthGuard with a real AuthClient.
 // When pluginAuthEnabled=true, a fake server address is provided so that
 // the AuthClient actually enforces auth (instead of pass-through on empty address).

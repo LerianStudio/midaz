@@ -175,7 +175,9 @@ func (h reservationHandle) transitions(action string) []reservationTransition {
 //     with 0531, all before the balance commit. A request the tracer refused
 //     (tracer.ErrTracerRejected) rejects with 0532 whatever the failPosture,
 //     because the tracer answered. An unavailable tracer branches on failPosture
-//     (open → proceed + SKIPPED audit, closed → reject with 0178).
+//     (open → proceed + SKIPPED audit, closed → reject with 0178), and so does a
+//     rejected ledger credential (open → proceed with the reservation skipped,
+//     closed → reject with 0536).
 //
 // A reserve that was sent but never answered returns an Unanswered handle
 // whatever the mode or posture (see handleReserveError), so the caller settles
@@ -312,7 +314,11 @@ func reservationDenialSentinel(result *tracer.ReserveResult) error {
 // place that decides whether the failure left capacity to settle. A refused
 // request (tracer.ErrTracerRejected) is a business outcome, not an outage: the
 // tracer answered, so it never reaches failPosture — advisory proceeds, enforce
-// rejects with 0532. Any other failure is gated by failPosture; advisory never
+// rejects with 0532. A rejected credential (tracer.ErrTracerUnauthorized) is
+// gated by failPosture but reported as itself (see handleReserveUnauthorized),
+// and so is a credential the ledger could not obtain
+// (tracer.ErrTracerCredentialUnavailable), which takes the unavailable codes.
+// Any other failure is gated by failPosture; advisory never
 // blocks regardless. A non-availability error that is not a refusal is treated
 // like an availability failure so a tracer defect cannot silently let an
 // enforce ledger commit unchecked under fail-closed, while fail-open still
@@ -337,6 +343,10 @@ func (uc *UseCase) handleReserveError(
 		return uc.handleReserveRejected(ctx, span, logger, transactionID, advisory, err)
 	}
 
+	if errors.Is(err, tracer.ErrTracerUnauthorized) {
+		return uc.handleReserveUnauthorized(ctx, span, logger, settings, transactionID, advisory, err)
+	}
+
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation call failed", err)
 
 	var handle reservationHandle
@@ -348,32 +358,109 @@ func (uc *UseCase) handleReserveError(
 		span.SetAttributes(attribute.Bool("app.tracer.reserve_unanswered", true))
 	}
 
+	report := reserveFailureReport{
+		level:       libLog.LevelWarn,
+		closedCode:  constant.ErrTransactionReservationUnavailable,
+		advisoryMsg: "Tracer reservation failed in advisory mode; proceeding",
+		closedMsg:   "Tracer unavailable and failPosture=closed; rejecting transaction",
+		openMsg:     "Tracer unavailable and failPosture=open; skipping reservation and proceeding",
+	}
+
+	// A credential the ledger could not obtain is gated like an unreachable
+	// tracer, but it is a provisioning or Access Manager fault that does not heal
+	// on its own, so it is logged at Error and counted.
+	if errors.Is(err, tracer.ErrTracerCredentialUnavailable) {
+		recordReservationCredentialRejected(ctx, uc.MetricsFactory, logger, reservationOperationReserve, reservationCredentialReasonNotSent)
+
+		report = reserveFailureReport{
+			level:       libLog.LevelError,
+			closedCode:  constant.ErrTransactionReservationUnavailable,
+			advisoryMsg: "Tracer seam credential unavailable in advisory mode; reservation not sent, proceeding",
+			closedMsg:   "Tracer seam credential unavailable and failPosture=closed; reservation not sent, rejecting transaction",
+			openMsg:     "Tracer seam credential unavailable and failPosture=open; reservation not sent, proceeding",
+		}
+	}
+
+	return applyReserveFailPosture(ctx, span, logger, settings, transactionID, advisory, handle, report, err)
+}
+
+// handleReserveUnauthorized maps a reserve the tracer answered by rejecting the
+// ledger's seam credential. The rejection is a configuration error, neither an
+// outage nor a refusal of the request: advisory proceeds, enforce follows
+// failPosture (closed rejects with 0536, open proceeds with the reservation
+// skipped). Whatever the branch it marks the span, logs once at Error and counts
+// the rejection, because it never heals on its own. The tracer authenticates
+// before evaluating anything, so the handle is always empty.
+func (uc *UseCase) handleReserveUnauthorized(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	settings mmodel.TracerSettings,
+	transactionID uuid.UUID,
+	advisory bool,
+	err error,
+) reservationOutcome {
+	libOpentelemetry.HandleSpanError(span, "Tracer rejected the ledger's seam credential", err)
+	recordReservationCredentialRejected(ctx, uc.MetricsFactory, logger, reservationOperationReserve, reservationCredentialReasonRejected)
+
+	return applyReserveFailPosture(ctx, span, logger, settings, transactionID, advisory, reservationHandle{}, reserveFailureReport{
+		level:       libLog.LevelError,
+		closedCode:  constant.ErrTransactionReservationUnauthorized,
+		advisoryMsg: "Tracer rejected the ledger's seam credential in advisory mode; proceeding",
+		closedMsg:   "Tracer rejected the ledger's seam credential and failPosture=closed; rejecting transaction",
+		openMsg:     "Tracer rejected the ledger's seam credential and failPosture=open; skipping reservation and proceeding",
+	}, err)
+}
+
+// reserveFailureReport is how a reserve failure gated by failPosture is told:
+// the log level, the code a closed posture rejects with, and the line each
+// branch writes.
+type reserveFailureReport struct {
+	level       int
+	closedCode  error
+	advisoryMsg string
+	closedMsg   string
+	openMsg     string
+}
+
+// applyReserveFailPosture gates a reserve failure on the mode and failPosture:
+// advisory proceeds, enforce with a closed posture rejects with the report's
+// code, and enforce with an open posture (the default) proceeds with the
+// reservation skipped, so a degraded tracer cannot block all transactions. The
+// ledger writes no audit of its own; the span marks the skipped reservation, and
+// an unanswered reserve's handle carries the by-transaction settle. Each branch
+// logs once at the report's level.
+func applyReserveFailPosture(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	settings mmodel.TracerSettings,
+	transactionID uuid.UUID,
+	advisory bool,
+	handle reservationHandle,
+	report reserveFailureReport,
+	err error,
+) reservationOutcome {
+	fields := []any{libLog.String("transaction_id", transactionID.String()), libLog.Err(err)}
+
 	if advisory {
-		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation failed in advisory mode; proceeding",
-			libLog.String("transaction_id", transactionID.String()),
-			libLog.Err(err))
+		logger.Log(ctx, report.level, report.advisoryMsg, fields...)
 
 		return reservationOutcome{Kind: reservationProceed, Handle: handle}
 	}
 
 	if settings.FailPosture == mmodel.TracerFailPostureClosed {
-		rejectErr := pkg.ValidateBusinessError(constant.ErrTransactionReservationUnavailable, constant.EntityTransaction)
+		logger.Log(ctx, report.level, report.closedMsg, fields...)
 
-		logger.Log(ctx, libLog.LevelWarn, "Tracer unavailable and failPosture=closed; rejecting transaction",
-			libLog.String("transaction_id", transactionID.String()),
-			libLog.Err(err))
-
-		return reservationOutcome{Kind: reservationReject, Err: rejectErr, Handle: handle}
+		return reservationOutcome{
+			Kind:   reservationReject,
+			Err:    pkg.ValidateBusinessError(report.closedCode, constant.EntityTransaction),
+			Handle: handle,
+		}
 	}
 
-	// failPosture=open (the default): proceed so a degraded tracer cannot block
-	// all transactions. The ledger writes no audit of its own here; the span
-	// marks the skipped reservation, and an unanswered reserve's handle carries
-	// the by-transaction settle.
 	span.SetAttributes(attribute.Bool("app.tracer.reservation_skipped", true))
-	logger.Log(ctx, libLog.LevelWarn, "Tracer unavailable and failPosture=open; skipping reservation and proceeding",
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.Err(err))
+	logger.Log(ctx, report.level, report.openMsg, fields...)
 
 	return reservationOutcome{Kind: reservationProceed, Handle: handle}
 }
@@ -604,7 +691,9 @@ func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, log
 // transport failure without propagating it. Both an availability failure
 // (tracer.ErrTracerUnavailable) and any other transport error are the
 // lost-transport case, so both are Warn-logged and swallowed here rather than
-// failing a transaction whose money has already moved.
+// failing a transaction whose money has already moved. A rejected credential
+// takes the same retry but is logged at Error and counted (see
+// recordReservationCredentialFailure).
 //
 // The record names the transaction and the amount, not only the reservation id.
 // A lost confirm means a committed spend the limit never counted; an operator
@@ -614,8 +703,10 @@ func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, log
 func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+transition.Action+" transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed on the first attempt; retrying off the request path",
-		append(transition.logFields(), libLog.Err(err)))
+	if !uc.recordReservationCredentialFailure(ctx, logger, transition, err) {
+		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed on the first attempt; retrying off the request path",
+			append(transition.logFields(), libLog.Err(err)))
+	}
 
 	uc.scheduleReservationRetry(ctx, logger, transition, err)
 }
@@ -685,10 +776,34 @@ func (uc *UseCase) tracerReservationEnabled(settings mmodel.TracerSettings) bool
 func (uc *UseCase) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+transition.Action+" by transaction transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed on the first attempt; retrying off the request path",
-		append(transition.logFields(), libLog.Err(err)))
+	if !uc.recordReservationCredentialFailure(ctx, logger, transition, err) {
+		logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed on the first attempt; retrying off the request path",
+			append(transition.logFields(), libLog.Err(err)))
+	}
 
 	uc.scheduleReservationRetry(ctx, logger, transition, err)
+}
+
+// recordReservationCredentialFailure logs a confirm or release that failed on
+// the ledger's seam credential once at Error and counts it by reason, and
+// reports whether err was such a failure. The transition still takes the retry
+// transport: the token source re-mints on the next attempt, and a failure that
+// persists is the operator's to fix.
+func (uc *UseCase) recordReservationCredentialFailure(ctx context.Context, logger libLog.Logger, transition reservationTransition, err error) bool {
+	reason, ok := reservationCredentialFailureReason(err)
+	if !ok {
+		return false
+	}
+
+	msg := reservationCredentialRejectedTransitionMsg
+	if reason == reservationCredentialReasonNotSent {
+		msg = reservationCredentialUnavailableTransitionMsg
+	}
+
+	logger.Log(ctx, libLog.LevelError, msg, append(transition.logFields(), libLog.Err(err)))
+	recordReservationCredentialRejected(ctx, uc.MetricsFactory, logger, transitionOperation(transition), reason)
+
+	return true
 }
 
 // reservationTTLForStatus selects the TTL policy from the transaction status:

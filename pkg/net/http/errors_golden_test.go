@@ -362,6 +362,7 @@ func allSentinels() map[string]error {
 		"ErrTransactionReservationReview":             constant.ErrTransactionReservationReview,
 		"ErrTransactionReservationRejected":           constant.ErrTransactionReservationRejected,
 		"ErrTransactionReservationRuleDenied":         constant.ErrTransactionReservationRuleDenied,
+		"ErrTransactionReservationUnauthorized":       constant.ErrTransactionReservationUnauthorized,
 		"ErrCrossLedgerNotEnabled":                    constant.ErrCrossLedgerNotEnabled,
 		"ErrCrossLedgerAssetMismatch":                 constant.ErrCrossLedgerAssetMismatch,
 		"ErrCrossLedgerRouteValidationUnsupported":    constant.ErrCrossLedgerRouteValidationUnsupported,

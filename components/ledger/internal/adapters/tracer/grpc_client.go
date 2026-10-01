@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -43,17 +44,21 @@ type TracerGRPCClient struct {
 	conn             *grpc.ClientConn
 	client           reservationv1.ReservationServiceClient
 	operationTimeout time.Duration
+	tokenSource      TokenSource
 }
 
 // TracerGRPCClientOption configures a TracerGRPCClient.
 type TracerGRPCClientOption func(*tracerGRPCClientConfig)
 
 // tracerGRPCClientConfig collects optional construction inputs before they are
-// resolved into the persistent client. dialOptions injects mTLS
-// transport credentials; today the client defaults to insecure transport.
+// resolved into the persistent client. dialOptions injects transport
+// credentials (the client defaults to insecure transport); tokenSource and
+// apiKey are the two mutually exclusive per-call identities.
 type tracerGRPCClientConfig struct {
 	operationTimeout time.Duration
 	dialOptions      []grpc.DialOption
+	tokenSource      TokenSource
+	apiKey           string
 }
 
 // WithGRPCOperationTimeout sets the per-operation context timeout from the
@@ -76,6 +81,25 @@ func WithGRPCDialOptions(opts ...grpc.DialOption) TracerGRPCClientOption {
 	}
 }
 
+// WithM2MCredentials makes every seam call carry the Access Manager application
+// token src yields as "authorization: Bearer <token>". A call whose token cannot
+// be obtained is never sent. A call the tracer answers with Unauthenticated is
+// retried once with another token when src has one to offer; PermissionDenied
+// is not retried. When src implements io.Closer, Close closes it.
+func WithM2MCredentials(src TokenSource) TracerGRPCClientOption {
+	return func(c *tracerGRPCClientConfig) {
+		c.tokenSource = src
+	}
+}
+
+// WithAPIKey makes every seam call carry key as x-api-key metadata. An empty
+// key leaves the option unset.
+func WithAPIKey(key string) TracerGRPCClientOption {
+	return func(c *tracerGRPCClientConfig) {
+		c.apiKey = key
+	}
+}
+
 // NewTracerGRPCClient builds a gRPC client for the tracer reservation service
 // over a persistent connection to target. It returns an error when target is
 // empty so a misconfigured composition root fails at boot rather than at the
@@ -91,11 +115,24 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 		opt(conf)
 	}
 
+	if conf.tokenSource != nil && conf.apiKey != "" {
+		return nil, errors.New("tracer gRPC client accepts one seam identity: an M2M token source or an API key, not both")
+	}
+
+	interceptors := []grpc.UnaryClientInterceptor{tenantUnaryInterceptor}
+
+	switch {
+	case conf.tokenSource != nil:
+		interceptors = append(interceptors, bearerUnaryInterceptor(conf.tokenSource))
+	case conf.apiKey != "":
+		interceptors = append(interceptors, apiKeyUnaryInterceptor(conf.apiKey))
+	}
+
 	dialOptions := make([]grpc.DialOption, 0, len(conf.dialOptions)+3)
 	dialOptions = append(
 		dialOptions,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
-		grpc.WithChainUnaryInterceptor(tenantUnaryInterceptor),
+		grpc.WithChainUnaryInterceptor(interceptors...),
 	)
 
 	// Default to insecure transport ONLY when no dial options are injected
@@ -120,13 +157,21 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 		conn:             conn,
 		client:           reservationv1.NewReservationServiceClient(conn),
 		operationTimeout: conf.operationTimeout,
+		tokenSource:      conf.tokenSource,
 	}, nil
 }
 
-// Close releases the persistent connection. Register it with the composition
-// root so the connection drains on SIGTERM.
+// Close releases the persistent connection and stops the token source's
+// scheduled refreshes when it has any. Register it with the composition root so
+// the connection drains on SIGTERM.
 func (c *TracerGRPCClient) Close() error {
-	return c.conn.Close()
+	var sourceErr error
+
+	if closer, ok := c.tokenSource.(io.Closer); ok {
+		sourceErr = closer.Close()
+	}
+
+	return errors.Join(c.conn.Close(), sourceErr)
 }
 
 // Reserve holds limit capacity for a transaction (phase one). A DENIED decision
@@ -290,8 +335,8 @@ func recordRPCFailure(span trace.Span, msg string, err error) {
 	libOpentelemetry.HandleSpanError(span, msg, err)
 }
 
-// tenantUnaryInterceptor propagates the request's tenant to the tracer as the
-// trusted x-tenant-id outgoing metadata on every RPC. The value is resolved
+// tenantUnaryInterceptor propagates the request's tenant to the tracer as
+// x-tenant-id outgoing metadata on every RPC. The value is resolved
 // from context via tmcore.GetTenantIDContext; in single-tenant mode it is empty
 // and nothing is appended (the tracer then runs its single-tenant
 // pass-through). The tenant value is never logged.
@@ -308,6 +353,87 @@ func tenantUnaryInterceptor(
 	}
 
 	return invoker(ctx, method, req, reply, cc, opts...)
+}
+
+// bearerUnaryInterceptor attaches the application token src yields to every
+// call. A call is never sent without a token, and never with an empty one. When
+// the tracer answers Unauthenticated the rejected token is invalidated and, when
+// src has another token to offer, the call is retried once with it: the tracer
+// authenticates before any handler runs, so the rejected attempt held nothing.
+// When src has none, or the retry's token cannot be obtained, nothing more is
+// sent and the original rejection is returned, so the caller sees what the
+// tracer answered. The token is never logged.
+func bearerUnaryInterceptor(src TokenSource) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		token, err := bearerToken(ctx, src)
+		if err != nil {
+			return err
+		}
+
+		err = invoker(withBearer(ctx, token), method, req, reply, cc, opts...)
+		if status.Code(err) != codes.Unauthenticated {
+			return err
+		}
+
+		if !src.Invalidate(ctx, token) {
+			return err
+		}
+
+		retryToken, tokenErr := bearerToken(ctx, src)
+		if tokenErr != nil {
+			return err
+		}
+
+		return invoker(withBearer(ctx, retryToken), method, req, reply, cc, opts...)
+	}
+}
+
+// bearerToken obtains a non-empty token from src or a never-sent error. An
+// error src already classified as never sent passes through unchanged.
+func bearerToken(ctx context.Context, src TokenSource) (string, error) {
+	token, err := src.Token(ctx)
+	if err != nil {
+		if errors.Is(err, ErrTracerCredentialUnavailable) || errors.Is(err, errTokenWaitAbandoned) {
+			return "", err
+		}
+
+		return "", credentialNotSent(err)
+	}
+
+	if token == "" {
+		return "", credentialNotSent(errEmptyToken)
+	}
+
+	return token, nil
+}
+
+func withBearer(ctx context.Context, token string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, authorizationMetadataKey, "Bearer "+token)
+}
+
+// apiKeyUnaryInterceptor attaches the tracer API key to every call. There is no
+// token to refresh, so an Unauthenticated answer is returned as it is. The key
+// is never logged.
+func apiKeyUnaryInterceptor(key string) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		ctx = metadata.AppendToOutgoingContext(ctx, apiKeyMetadataKey, key)
+
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
 }
 
 // toProtoReserveRequest maps the ReserveRequest onto the proto message
@@ -391,11 +517,20 @@ func parseProtoIDs(raw []string) ([]uuid.UUID, error) {
 // committed. Unavailable is not, because it is either the transport refusing to
 // send or the tracer's own answer. InvalidArgument and FailedPrecondition mean
 // the tracer refused the request itself and are wrapped in ErrTracerRejected.
-// Other status codes (e.g. NotFound, Internal) are returned verbatim. Every wrap
-// keeps the original status reachable through errors.As.
+// Unauthenticated and PermissionDenied mean the tracer refused the ledger's
+// credential and are wrapped in ErrTracerUnauthorized. A call that never left
+// the ledger, because its credential could not be resolved or its caller
+// stopped waiting for a token, is already classified and passes through
+// unchanged, so a context error behind it is never read as an unanswered call.
+// Other status codes (e.g. NotFound, Internal) are returned verbatim. Every
+// wrap keeps the original status reachable through errors.As.
 func mapGRPCError(err error) error {
 	if err == nil {
 		return nil
+	}
+
+	if errors.Is(err, ErrTracerCredentialUnavailable) || errors.Is(err, errTokenWaitAbandoned) {
+		return err
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -409,6 +544,8 @@ func mapGRPCError(err error) error {
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	case codes.InvalidArgument, codes.FailedPrecondition:
 		return fmt.Errorf("%w: %w", ErrTracerRejected, err)
+	case codes.Unauthenticated, codes.PermissionDenied:
+		return fmt.Errorf("%w: %w", ErrTracerUnauthorized, err)
 	default:
 		return err
 	}
