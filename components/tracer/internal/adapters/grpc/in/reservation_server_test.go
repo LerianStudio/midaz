@@ -665,12 +665,67 @@ func TestReservationServer_MapServiceError_SettledReplayLogsOnceAtBoundary(t *te
 	})
 }
 
+// TestReservationServer_MapServiceError_UnmappedErrorLogsOnceAtError locks the
+// default branch: an error no sentinel matches is answered as Internal with the
+// generic 0046 code, so its cause is logged once at Error with the operation,
+// and the mapped not-found outcome logs no Error.
+func TestReservationServer_MapServiceError_UnmappedErrorLogsOnceAtError(t *testing.T) {
+	now := reserveFixtureTime
+	reservationID := testutil.MustDeterministicUUID(44)
+
+	t.Run("unmapped failure on confirm by id is Internal 0046 and logs one Error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().
+			Confirm(gomock.Any(), reservationID).
+			Return(services.ConfirmOutcome{}, errors.New(`invalid input syntax for type bigint: "1.32"`))
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+
+		logger := testutil.NewMockLogger()
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+
+		_, err = server.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+		require.Equal(t, codes.Internal, status.Code(err))
+		require.Equal(t, constant.ErrInternalServer.Error(), status.Convert(err).Message())
+
+		errs := levelCalls(logger, "error")
+		require.Len(t, errs, 1, "an unmapped failure is logged once, at the boundary")
+
+		fields := testutil.FieldsToMap(errs[0].Fields)
+		require.Equal(t, "grpc.reservations.confirm", fields["operation"])
+		require.Contains(t, fields, "error")
+	})
+
+	t.Run("not found on confirm by id logs no Error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		svc := mocks.NewMockReservationService(ctrl)
+		svc.EXPECT().Confirm(gomock.Any(), reservationID).Return(services.ConfirmOutcome{}, constant.ErrReservationNotFound)
+
+		server, err := NewReservationServer(svc, testutil.NewMockClock(now))
+		require.NoError(t, err)
+
+		logger := testutil.NewMockLogger()
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+
+		_, err = server.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+		require.Equal(t, codes.NotFound, status.Code(err))
+		require.Empty(t, levelCalls(logger, "error"))
+	})
+}
+
 // warnCalls returns the Warn-level calls a MockLogger captured.
 func warnCalls(logger *testutil.MockLogger) []testutil.LogCall {
+	return levelCalls(logger, "warn")
+}
+
+// levelCalls returns the calls a MockLogger captured at level.
+func levelCalls(logger *testutil.MockLogger, level string) []testutil.LogCall {
 	var out []testutil.LogCall
 
 	for _, call := range logger.Calls {
-		if call.Level == "warn" {
+		if call.Level == level {
 			out = append(out, call)
 		}
 	}

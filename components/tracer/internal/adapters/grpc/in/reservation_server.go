@@ -305,8 +305,9 @@ func countToUint32(n int) uint32 {
 // every other failure is technical (span flips red). An inactive tenant never
 // reaches this mapping: the tenant interceptor answers it before the handler
 // runs. A sentinel maps with its code string as the message so the ledger can
-// parse it. A settled replay is logged here once, at Warn: this is the boundary
-// that handles it.
+// parse it. A settled replay is logged here once, at Warn, and an unmapped
+// failure once, at Error, because its cause is withheld from the caller: this is
+// the boundary that handles both.
 func (s *ReservationServer) mapServiceError(ctx context.Context, span trace.Span, operation string, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -329,6 +330,12 @@ func (s *ReservationServer) mapServiceError(ctx context.Context, span trace.Span
 		return status.Error(codes.Unavailable, constant.ErrRuleCacheNotReady.Error())
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
+
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logging.WithTrace(ctx, logger).With(
+			libLog.String("operation", operation),
+		).Log(ctx, libLog.LevelError, "Reservation processing failed", libLog.Err(err))
+
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
 }
