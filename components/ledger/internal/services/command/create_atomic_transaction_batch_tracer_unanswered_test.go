@@ -189,31 +189,72 @@ func (e forbiddenEngine) Execute(context.Context, EngineExecution) (*accounting.
 func TestExecuteAtomicTransactionBatch_EngineNeverRanReleasesReservations(t *testing.T) {
 	t.Parallel()
 
-	firstReservationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000101")
-	reserver := &batchItemReserver{answers: []func() (*tracer.ReserveResult, error){
-		batchAllowed(firstReservationID),
-		batchUnanswered,
-	}}
-	run := atomicTransactionBatchTracerTestRun(2)
-	run.ledgerSettings.Tracer.FailPosture = mmodel.TracerFailPostureOpen
+	abortFailure := errors.New("claim store unavailable")
 
-	uc := &UseCase{TracerReserver: reserver, Engine: forbiddenEngine{t: t}}
-	settles := withImmediateUnansweredSettles(t, uc)
-	ctx, span, logger := anchorDeps()
+	for _, tc := range []struct {
+		name     string
+		abortErr error
+	}{
+		{name: "the claim is aborted and every reservation goes back"},
+		{name: "a failed claim abort still releases every reservation", abortErr: abortFailure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.NoError(t, uc.reserveAtomicTransactionBatch(ctx, span, logger, run))
+			firstReservationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000101")
+			reserver := &batchItemReserver{answers: []func() (*tracer.ReserveResult, error){
+				batchAllowed(firstReservationID),
+				batchUnanswered,
+			}}
+			run := atomicTransactionBatchTracerTestRun(2)
+			run.ledgerSettings.Tracer.FailPosture = mmodel.TracerFailPostureOpen
+			run.coordinationOrganizationID = uuid.MustParse("01994f13-29b7-7000-8000-000000000102")
+			run.coordinationLedgerID = uuid.MustParse("01994f13-29b7-7000-8000-000000000103")
+			run.executionID = uuid.MustParse("01994f13-29b7-7000-8000-000000000104")
+			run.idempotencyEffectiveKey = "batch-never-ran"
+			run.idempotencyOwnerToken = "owner-never-ran"
+			run.idempotencyClaimed = true
+			run.idempotencyHandedOff = true
 
-	cancelled, cancel := context.WithCancel(ctx)
-	cancel()
+			claims := &atomicTransactionBatchClaimRepositoryFake{abortErr: tc.abortErr}
+			uc := &UseCase{
+				TracerReserver:                        reserver,
+				Engine:                                forbiddenEngine{t: t},
+				AtomicTransactionBatchIdempotencyRepo: claims,
+			}
+			settles := withImmediateUnansweredSettles(t, uc)
+			ctx, span, logger := anchorDeps()
 
-	outcome, err := uc.executeAtomicTransactionBatch(cancelled, span, logger, run, PreparedEngineExecution{}, nil)
-	require.ErrorIs(t, err, context.Canceled)
-	settles.drain()
-	assert.False(t, outcome.Executed)
+			require.NoError(t, uc.reserveAtomicTransactionBatch(ctx, span, logger, run))
 
-	assert.Equal(t, []uuid.UUID{firstReservationID}, reserver.released(), "the answered item is released by id")
-	assert.Equal(t, []uuid.UUID{run.items[1].transactionID}, reserver.releasedTransactions(),
-		"the item whose reserve went unanswered is released by transaction")
-	assert.Empty(t, reserver.confirmed())
-	assert.Empty(t, reserver.confirmedTransactions())
+			cancelled, cancel := context.WithCancel(ctx)
+			cancel()
+
+			outcome, err := uc.executeAtomicTransactionBatch(cancelled, span, logger, run, PreparedEngineExecution{}, nil)
+			settles.drain()
+			assert.False(t, outcome.Executed)
+
+			if tc.abortErr != nil {
+				require.ErrorIs(t, err, abortFailure)
+				assert.True(t, run.idempotencyHandedOff, "a claim that could not be aborted stays handed off")
+			} else {
+				require.ErrorIs(t, err, context.Canceled)
+				assert.False(t, run.idempotencyClaimed)
+				assert.False(t, run.idempotencyHandedOff)
+			}
+
+			assert.Equal(t, 1, claims.aborts, "the handed-off claim is aborted so a same-key retry can run")
+			assert.Equal(t, run.idempotencyEffectiveKey, claims.abortEffectiveKey)
+			assert.Equal(t, run.idempotencyOwnerToken, claims.abortOwnerToken)
+			assert.Equal(t, run.executionID, claims.abortExecutionID)
+			assert.Equal(t, atomicTransactionBatchTransactionIDs(run), claims.abortTransactionIDs)
+			assert.NoError(t, claims.abortCtxErr, "the abort runs detached from the cancelled request")
+
+			assert.Equal(t, []uuid.UUID{firstReservationID}, reserver.released(), "the answered item is released by id")
+			assert.Equal(t, []uuid.UUID{run.items[1].transactionID}, reserver.releasedTransactions(),
+				"the item whose reserve went unanswered is released by transaction")
+			assert.Empty(t, reserver.confirmed())
+			assert.Empty(t, reserver.confirmedTransactions())
+		})
+	}
 }

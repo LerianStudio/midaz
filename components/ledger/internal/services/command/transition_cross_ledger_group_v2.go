@@ -316,7 +316,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 				)
 			}
 
-			if err := uc.abortAtomicTransactionBatchConfirmedRefusal(ctx, idempotencyRun); err != nil {
+			if err := uc.abortAtomicTransactionBatchConfirmedAbort(ctx, idempotencyRun); err != nil {
 				return nil, err
 			}
 
