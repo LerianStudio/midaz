@@ -1244,7 +1244,7 @@ func TestApplyGRPCSeamDefaults(t *testing.T) {
 func TestInitGRPCServer_EmptyPort_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	server, err := initGRPCServer(&Config{}, nil, nil, nil, nil, nil, nil)
+	server, err := initGRPCServer(&Config{}, nil, nil, nil, nil, nil, nil, nil)
 
 	require.ErrorIs(t, err, errGRPCPortEmpty)
 	assert.Nil(t, server)

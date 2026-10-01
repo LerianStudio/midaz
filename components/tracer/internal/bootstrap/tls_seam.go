@@ -18,26 +18,52 @@ import (
 )
 
 // TLS modes for the reservation seam (TRACER_TLS_MODE). Empty builds no TLS,
-// like tlsModeMesh, and ValidateSeamTransportPosture admits it only with
-// DEPLOYMENT_MODE=local.
+// like tlsModeMesh; ValidateSeamPosture decides which identity may run on it.
 const (
+	// tlsModeMTLS: the app terminates mutual TLS on both listeners.
 	tlsModeMTLS = "mtls"
+	// tlsModeMesh: a sidecar terminates mTLS; the app listens plaintext.
 	tlsModeMesh = "mesh"
+	// tlsModeServer: the gRPC listener presents a server certificate and asks
+	// for no client certificate; the HTTP listener stays plaintext.
+	tlsModeServer = "server"
 )
+
+// normalizedTLSMode returns TRACER_TLS_MODE lowercased and trimmed.
+func normalizedTLSMode(cfg *Config) string {
+	return strings.ToLower(strings.TrimSpace(cfg.TracerTLSMode))
+}
+
+// isKnownTLSMode reports whether mode (normalized) is an accepted value.
+func isKnownTLSMode(mode string) bool {
+	switch mode {
+	case "", tlsModeMTLS, tlsModeMesh, tlsModeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// invalidTLSModeError names the rejected TRACER_TLS_MODE and every accepted
+// value.
+func invalidTLSModeError(raw string) error {
+	return fmt.Errorf("invalid TRACER_TLS_MODE %q: expected %q, %q or %q", raw, tlsModeMTLS, tlsModeMesh, tlsModeServer)
+}
 
 // buildSeamTLSConfig builds the base *tls.Config shared by the gRPC seam and
 // the HTTP listener. The HTTP listener uses it as-is; the gRPC server uses it through
 // buildGRPCSeamTLSConfig, which adds only the client identity allowlist, so the
 // two transports cannot drift on the rest of the mutual-TLS posture.
 //
-// Behavior contract (per the Seam Contract — identity is mutual TLS, no shared
-// secret):
+// Behavior contract:
 //
 //   - mode "mesh"       ⇒ (nil, nil). The app listens plaintext; a service-mesh
 //     sidecar (Istio/Linkerd) terminates mTLS. No cert material is consulted.
 //   - mode ""           ⇒ (nil, nil). Plaintext with no verified peer; the
-//     boot gate ValidateSeamTransportPosture refuses it unless
-//     DEPLOYMENT_MODE=local.
+//     boot gate ValidateSeamPosture decides whether the seam identity may run
+//     on it.
+//   - mode "server"     ⇒ (nil, nil) here: server TLS covers the gRPC listener
+//     only (buildGRPCSeamTLSConfig), so the HTTP listener stays plaintext.
 //   - mode "mtls"       ⇒ (*tls.Config, nil) presenting the tracer's own server
 //     certificate and enforcing tls.RequireAndVerifyClientCert against the
 //     loaded client CA pool. The reservation seam is unreachable without a
@@ -52,38 +78,44 @@ const (
 // context. Server cert loading goes through lib-commons certificate.Manager so
 // the seam inherits its hot-reload/rotation support via GetCertificate.
 func buildSeamTLSConfig(cfg *Config) (*tls.Config, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.TracerTLSMode))
-
-	switch mode {
-	case "", tlsModeMesh:
+	switch normalizedTLSMode(cfg) {
+	case "", tlsModeMesh, tlsModeServer:
 		return nil, nil
 	case tlsModeMTLS:
 		return buildMTLSConfig(cfg)
 	default:
-		return nil, fmt.Errorf("invalid TRACER_TLS_MODE %q: expected %q or %q", cfg.TracerTLSMode, tlsModeMTLS, tlsModeMesh)
+		return nil, invalidTLSModeError(cfg.TracerTLSMode)
 	}
+}
+
+// buildServerTLSConfig assembles the server-only config for server mode: the
+// tracer's certificate, no client certificate requested, TLS 1.2 or later.
+func buildServerTLSConfig(cfg *Config) (*tls.Config, error) {
+	getCertificate, err := loadServerCertificate(cfg, tlsModeServer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tls.Config{
+		MinVersion:     tls.VersionTLS12,
+		GetCertificate: getCertificate,
+		ClientAuth:     tls.NoClientCert,
+	}, nil
 }
 
 // buildMTLSConfig assembles the RequireAndVerifyClientCert config for mtls mode.
 func buildMTLSConfig(cfg *Config) (*tls.Config, error) {
-	if strings.TrimSpace(cfg.TracerTLSCertFile) == "" {
-		return nil, fmt.Errorf("TRACER_TLS_MODE=mtls requires TRACER_TLS_CERT_FILE")
-	}
-
-	if strings.TrimSpace(cfg.TracerTLSKeyFile) == "" {
-		return nil, fmt.Errorf("TRACER_TLS_MODE=mtls requires TRACER_TLS_KEY_FILE")
+	if err := requireServerCertificateFiles(cfg, tlsModeMTLS); err != nil {
+		return nil, err
 	}
 
 	if strings.TrimSpace(cfg.TracerTLSClientCAFile) == "" {
 		return nil, fmt.Errorf("TRACER_TLS_MODE=mtls requires TRACER_TLS_CLIENT_CA_FILE")
 	}
 
-	// Load the server cert/key through lib-commons so the seam can adopt cert
-	// rotation (GetCertificate) without restart. NewManager validates the
-	// key matches the cert and that the file pair is complete.
-	certManager, err := libCert.NewManager(cfg.TracerTLSCertFile, cfg.TracerTLSKeyFile)
+	getCertificate, err := loadServerCertificate(cfg, tlsModeMTLS)
 	if err != nil {
-		return nil, fmt.Errorf("load tracer server certificate: %w", err)
+		return nil, err
 	}
 
 	clientCAs, err := loadCertPool(cfg.TracerTLSClientCAFile)
@@ -93,10 +125,41 @@ func buildMTLSConfig(cfg *Config) (*tls.Config, error) {
 
 	return &tls.Config{
 		MinVersion:     tls.VersionTLS12,
-		GetCertificate: certManager.GetCertificateFunc(),
+		GetCertificate: getCertificate,
 		ClientAuth:     tls.RequireAndVerifyClientCert,
 		ClientCAs:      clientCAs,
 	}, nil
+}
+
+// requireServerCertificateFiles names the first of TRACER_TLS_CERT_FILE and
+// TRACER_TLS_KEY_FILE that mode needs and cfg leaves blank.
+func requireServerCertificateFiles(cfg *Config, mode string) error {
+	if strings.TrimSpace(cfg.TracerTLSCertFile) == "" {
+		return fmt.Errorf("TRACER_TLS_MODE=%s requires TRACER_TLS_CERT_FILE", mode)
+	}
+
+	if strings.TrimSpace(cfg.TracerTLSKeyFile) == "" {
+		return fmt.Errorf("TRACER_TLS_MODE=%s requires TRACER_TLS_KEY_FILE", mode)
+	}
+
+	return nil
+}
+
+// loadServerCertificate loads the tracer's own certificate and key for mode
+// through lib-commons certificate.Manager, which checks the key matches the
+// certificate, and returns its GetCertificate hook so a rotated pair is served
+// without a restart.
+func loadServerCertificate(cfg *Config, mode string) (func(*tls.ClientHelloInfo) (*tls.Certificate, error), error) {
+	if err := requireServerCertificateFiles(cfg, mode); err != nil {
+		return nil, err
+	}
+
+	certManager, err := libCert.NewManager(cfg.TracerTLSCertFile, cfg.TracerTLSKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load tracer server certificate: %w", err)
+	}
+
+	return certManager.GetCertificateFunc(), nil
 }
 
 // loadCertPool reads a PEM bundle and returns a pool containing its
@@ -126,12 +189,17 @@ var errClientNotAllowed = errors.New("client certificate identity is not in TRAC
 const grpcSeamAcceptsAnyClientMsg = "gRPC seam accepts any client certificate signed by TRACER_TLS_CLIENT_CA_FILE; set TRACER_TLS_CLIENT_ALLOWED_NAMES"
 
 // buildGRPCSeamTLSConfig builds the gRPC listener's *tls.Config. It returns
-// nil in mesh/empty mode (the allowlist is ignored there). In mtls it returns a
-// clone of buildSeamTLSConfig's result and, when TRACER_TLS_CLIENT_ALLOWED_NAMES
-// names at least one identity, a VerifyConnection hook that refuses a verified
-// client whose leaf matches none of them. The HTTP listener keeps
-// buildSeamTLSConfig, so the allowlist never reaches it. Pure: no logging.
+// nil in mesh/empty mode (the allowlist is ignored there) and the server-only
+// config in server mode. In mtls it returns a clone of buildSeamTLSConfig's
+// result and, when TRACER_TLS_CLIENT_ALLOWED_NAMES names at least one
+// identity, a VerifyConnection hook that refuses a verified client whose leaf
+// matches none of them. The HTTP listener keeps buildSeamTLSConfig, so neither
+// the allowlist nor server mode ever reaches it. Pure: no logging.
 func buildGRPCSeamTLSConfig(cfg *Config) (*tls.Config, error) {
+	if normalizedTLSMode(cfg) == tlsModeServer {
+		return buildServerTLSConfig(cfg)
+	}
+
 	base, err := buildSeamTLSConfig(cfg)
 	if err != nil || base == nil {
 		return base, err
@@ -148,10 +216,11 @@ func buildGRPCSeamTLSConfig(cfg *Config) (*tls.Config, error) {
 
 // warnGRPCSeamAcceptsAnyClient logs one Warn when the gRPC seam runs mtls with
 // an empty allowlist, because any certificate the client CA signed is then
-// accepted as the ledger. Under DEPLOYMENT_MODE=saas that posture never
-// reaches it: ValidateSeamTransportPosture refuses the boot.
+// accepted as the peer. Under DEPLOYMENT_MODE=saas the certificate is never
+// the seam identity: ValidateAuthPresence refuses a saas boot without an API
+// key or token, and either one outranks the transport.
 func warnGRPCSeamAcceptsAnyClient(ctx context.Context, cfg *Config, logger libLog.Logger) {
-	if strings.ToLower(strings.TrimSpace(cfg.TracerTLSMode)) != tlsModeMTLS {
+	if normalizedTLSMode(cfg) != tlsModeMTLS {
 		return
 	}
 

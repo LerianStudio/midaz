@@ -3,15 +3,15 @@
 // that can be found in the LICENSE file.
 
 // Package seamtenant resolves the per-tenant PostgreSQL pool for the
-// service-to-service reservation seam from a TRUSTED tenant id, rather than
-// from a JWT claim.
+// service-to-service reservation seam from a tenant id the seam's identity
+// layer has already vouched for.
 //
-// The reservation surface is reachable only over the mTLS/mesh-protected gRPC
-// seam. On that connection the ledger is a verified service, so the
-// `x-tenant-id` it forwards is trusted as the tenant key — the verified peer IS
-// the identity. User-facing tracer routes keep their JWT-claim tenant path;
-// this resolver is wired ONLY onto the reservation RPCs, never onto a
-// header-trust path reachable without the verified peer.
+// Under the Access Manager token identity the tenant is the token's tenantId
+// claim, which lib-auth publishes as md-tenant-id once the token is
+// authorized. Under the other identities (API key, mTLS or mesh peer, none)
+// the seam runs single-tenant and the ledger's x-tenant-id is the carrier.
+// User-facing tracer routes keep their own JWT-claim tenant path; this
+// resolver is wired ONLY onto the reservation RPCs.
 package seamtenant
 
 import (
