@@ -142,7 +142,7 @@ func (r *ReservationReaperRepository) ReleaseExpired(ctx context.Context, reserv
 		}
 	}()
 
-	if relErr := r.resRepo.ReleaseWithTx(ctx, tx, reservationID, model.StatusExpired); relErr != nil {
+	if _, relErr := r.resRepo.ReleaseWithTx(ctx, tx, reservationID, model.StatusExpired); relErr != nil {
 		// Already terminal: a confirm/release committed between the find and this
 		// release. Commit nothing — the row is already in a terminal state and its
 		// counter move already happened. Treat as an idempotent no-op success.

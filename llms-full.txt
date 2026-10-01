@@ -549,11 +549,23 @@ and `revert=true` for a `/v2` revert. The tracer evaluates its CEL rules before 
 `decision` (`ALLOW`/`DENY`/`REVIEW`) beside `denied`. On reserve only a matched rule refuses (the
 tracer's `DEFAULT_DECISION_WHEN_NO_MATCH` is ignored), a rule that cannot be evaluated refuses as
 `REVIEW` with `reason=rule_evaluation_error`, and a revert skips the rules but still reserves its
-limits. Under `tracer.mode=enforce` a `DENY` rejects with `0177`, a `REVIEW` with `0531`, a refused
-request with `0532`, and an unavailable tracer (including a tenant whose rule cache is not loaded yet or
+limits. Under `tracer.mode=enforce` a limit `DENY` rejects with `0177`, a rule `DENY` with `0535`, a
+`REVIEW` with `0531`, a refused request with `0532`, and an unavailable tracer (including a tenant whose rule cache is not loaded yet or
 that reached the tracer's per-tenant worker cap: gRPC `Unavailable`/`0445`)
 branches on `failPosture` (`0178` when closed); `advisory` never blocks, and a transaction it lets
-through after a refusal holds no reservation, so its spend is never counted. `tracer.timeoutMs`
+through after a refusal holds no reservation, so its spend is never counted. A reserve that was
+sent and then timed out or was cancelled before the tracer answered may still have reserved
+capacity, so the ledger settles it by transaction, best-effort and without changing the response:
+it confirms when the movement applied and the transaction is not PENDING, and releases on a `0178`
+rejection or an engine abort. A tracer that answered with an error (including `Unavailable`) or a
+call that was never sent held nothing and is not settled. The settle never runs on the request
+path: a dedicated queue (64 in flight, a full queue drops with a warning) waits `3s` (the tracer's
+reserve lock wait) plus `TRACER_TIMEOUT_MS` before each of at most two attempts, the second only
+when the first failed or settled nothing, and then logs a warning with the transaction id. An atomic batch or
+a cross-ledger v2 commit whose execution hand-off fails releases the reservations held for its items.
+Evaluation continues past a rule that cannot be evaluated: a matched `DENY` still decides, otherwise
+the answer is `REVIEW`; the tracer's `POST /v1/validations` answers the same way, with HTTP 200
+`decision=REVIEW`, `reason=rule_evaluation_error`. `tracer.timeoutMs`
 (default `250`, applied to every ledger that never stored it) bounds each reserve call, with
 `TRACER_TIMEOUT_MS` only as the ceiling. Deploy the tracer before the ledger and do not roll the tracer
 back below this contract. See [docs/api/SCOPING.md](docs/api/SCOPING.md).
@@ -646,14 +658,15 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0531–0534, 0249–0256)
+#### Settings / Reservation Error Codes (0176–0178, 0531–0535, 0249–0256)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
-- `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit or a rule `DENY` under `tracer.mode=enforce` (HTTP 422)
+- `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit (`reason=limit_exceeded`) under `tracer.mode=enforce` (HTTP 422)
 - `0178` ErrTransactionReservationUnavailable — tracer unreachable or failing under `tracer.mode=enforce` + `tracer.failPosture=closed` (HTTP 503)
 - `0531` ErrTransactionReservationReview — a tracer rule flagged the transaction for `REVIEW`, or a rule could not be evaluated for it (`reason=rule_evaluation_error`), under `tracer.mode=enforce`; rejected before the balance commit (HTTP 422)
 - `0532` ErrTransactionReservationRejected — the tracer refused the reserve request itself (gRPC `InvalidArgument`/`FailedPrecondition`) under `tracer.mode=enforce`, whatever the `failPosture` (HTTP 422)
 - `0533` ErrReservationAlreadySettled — tracer seam: a reserve replayed onto a transaction whose reservation is already released, expired or confirmed; gRPC `FailedPrecondition`, surfaced by an `enforce` ledger as `0532`
 - `0534` ErrReservationTenantInactive — tracer seam: the `x-tenant-id` tenant is not provisioned or not active; gRPC `Unavailable`, which the ledger routes through `failPosture`
+- `0535` ErrTransactionReservationRuleDenied — a tracer rule answered `DENY` under `tracer.mode=enforce`; rejected before the balance commit, the rule's reason is not returned (HTTP 422)
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
 - `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
 - `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)

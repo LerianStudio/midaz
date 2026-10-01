@@ -734,7 +734,7 @@ func TestReservationService_Confirm(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(model.StatusReserved, nil).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReserved}, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, resID, gomock.Any()).
@@ -755,7 +755,7 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(model.StatusConfirmed, constant.ErrReservationAlreadyTerminal).
+			Return(&model.Reservation{ID: resID, Status: model.StatusConfirmed}, constant.ErrReservationAlreadyTerminal).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -776,7 +776,7 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(model.StatusReleased, constant.ErrReservationAlreadyTerminal).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReleased}, constant.ErrReservationAlreadyTerminal).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -804,7 +804,7 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(model.ReservationStatus(""), constant.ErrReservationNotFound).
+			Return(nil, constant.ErrReservationNotFound).
 			Times(1)
 
 		outcome, err := svc.Confirm(deps.ctx(), resID)
@@ -833,7 +833,7 @@ func TestReservationService_Release(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
-			Return(nil).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReserved}, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReleased, model.AuditActionRelease, resID, gomock.Any()).
@@ -849,7 +849,7 @@ func TestReservationService_Release(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
-			Return(constant.ErrReservationAlreadyTerminal).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReleased}, constant.ErrReservationAlreadyTerminal).
 			Times(1)
 
 		require.NoError(t, svc.Release(context.Background(), resID))
@@ -861,7 +861,7 @@ func TestReservationService_Release(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
-			Return(constant.ErrReservationNotFound).
+			Return(nil, constant.ErrReservationNotFound).
 			Times(1)
 
 		require.ErrorIs(t, svc.Release(deps.ctx(), resID), constant.ErrReservationNotFound)

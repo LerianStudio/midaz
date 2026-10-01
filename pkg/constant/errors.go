@@ -242,6 +242,11 @@ var (
 	// of tracer.failPosture: the tracer is reachable, so the fail-open escape for
 	// an unavailable tracer does not apply.
 	ErrTransactionReservationRejected = errors.New("0532")
+	// ErrTransactionReservationRuleDenied is returned when a tracer transaction
+	// validation rule denies the transaction and the ledger's tracer.mode is
+	// "enforce". It is raised before the balance commit, and it is distinct from
+	// 0177 so a caller can tell a rule denial from one that exceeds a usage limit.
+	ErrTransactionReservationRuleDenied = errors.New("0535")
 	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
 	// references a ledger that has not opted in through crossLedger.enabled.
 	ErrCrossLedgerNotEnabled = errors.New("0249")

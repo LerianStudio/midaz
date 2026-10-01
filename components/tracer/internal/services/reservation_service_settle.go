@@ -52,12 +52,15 @@ func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUI
 	)
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
-		status, repoErr := s.repo.ConfirmWithTx(ctx, db, reservationID)
+		locked, repoErr := s.repo.ConfirmWithTx(ctx, db, reservationID)
 		if repoErr != nil {
 			// Already terminal: the original transition moved the counter. Commit
 			// nothing further; the prior status decides the outcome.
 			alreadyTerminal = errors.Is(repoErr, constant.ErrReservationAlreadyTerminal)
-			priorStatus = status
+
+			if locked != nil {
+				priorStatus = locked.Status
+			}
 
 			return repoErr
 		}
@@ -68,9 +71,7 @@ func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUI
 			model.AuditEventReservationConfirmed,
 			model.AuditActionConfirm,
 			reservationID,
-			command.ReservationAuditContext{
-				Status: string(model.StatusConfirmed),
-			},
+			settledAuditContext(locked, model.StatusConfirmed),
 		); err != nil {
 			return fmt.Errorf("failed to record confirm audit event: %w", err)
 		}
@@ -114,7 +115,7 @@ func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUI
 	alreadyTerminal := false
 
 	txErr := s.inTx(ctx, span, func(db pgdb.DB) error {
-		repoErr := s.repo.ReleaseWithTx(ctx, db, reservationID, model.StatusReleased)
+		locked, repoErr := s.repo.ReleaseWithTx(ctx, db, reservationID, model.StatusReleased)
 		if repoErr != nil {
 			// Already terminal: the original transition moved the counter, so the
 			// retry commits nothing further and succeeds.
@@ -129,9 +130,7 @@ func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUI
 			model.AuditEventReservationReleased,
 			model.AuditActionRelease,
 			reservationID,
-			command.ReservationAuditContext{
-				Status: string(model.StatusReleased),
-			},
+			settledAuditContext(locked, model.StatusReleased),
 		); err != nil {
 			return fmt.Errorf("failed to record release audit event: %w", err)
 		}
@@ -302,6 +301,25 @@ func (s *ReservationService) recordByTransactionAudit(
 	}
 
 	return nil
+}
+
+// settledAuditContext builds the audit context of a by-id confirm or release from
+// the row the repository locked, carrying the same correlation a by-transaction
+// settle records and the status the row now holds. A nil row yields the status
+// alone.
+func settledAuditContext(res *model.Reservation, status model.ReservationStatus) command.ReservationAuditContext {
+	if res == nil {
+		return command.ReservationAuditContext{Status: string(status)}
+	}
+
+	return command.ReservationAuditContext{
+		TransactionID: res.TransactionID,
+		LimitID:       res.LimitID,
+		ScopeKey:      res.ScopeKey,
+		PeriodKey:     res.PeriodKey,
+		Amount:        res.Amount,
+		Status:        string(status),
+	}
 }
 
 // confirmAlreadyTerminal resolves the outcome of a confirm that found its row

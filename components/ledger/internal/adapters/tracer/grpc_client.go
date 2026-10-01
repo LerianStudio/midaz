@@ -35,8 +35,10 @@ import (
 //
 // Transport / availability failures (a dial error, an Unavailable / DeadlineExceeded
 // status, a cancelled context) are mapped to ErrTracerUnavailable so the reserve
-// anchor can apply tracer.failPosture. A business DENIED decision is a
-// successful Reserve return (ReserveResult.Denied=true), not an error.
+// anchor can apply tracer.failPosture. A deadline or cancellation that struck a
+// call already sent is additionally marked ErrTracerNoAnswer. A business DENIED
+// decision is a successful Reserve return (ReserveResult.Denied=true), not an
+// error.
 type TracerGRPCClient struct {
 	conn             *grpc.ClientConn
 	client           reservationv1.ReservationServiceClient
@@ -84,7 +86,7 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 		return nil, errors.New("empty target passed to NewTracerGRPCClient")
 	}
 
-	conf := &tracerGRPCClientConfig{operationTimeout: defaultOperationTimeout}
+	conf := &tracerGRPCClientConfig{operationTimeout: DefaultOperationTimeout}
 	for _, opt := range opts {
 		opt(conf)
 	}
@@ -130,7 +132,8 @@ func (c *TracerGRPCClient) Close() error {
 // Reserve holds limit capacity for a transaction (phase one). A DENIED decision
 // comes back as a successful ReserveResult with Denied=true (not an error).
 // Transport / availability failures return ErrTracerUnavailable; a tracer
-// refusal of the request itself returns ErrTracerRejected.
+// refusal of the request itself returns ErrTracerRejected. A request context
+// already done is refused before send, so it is never marked ErrTracerNoAnswer.
 func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -138,6 +141,13 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", req.TransactionID.String()))
+
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		notSent := fmt.Errorf("%w: reserve not sent: %w", ErrTracerUnavailable, ctxErr)
+		recordRPCFailure(span, "Reserve not sent", notSent)
+
+		return nil, notSent
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
@@ -376,21 +386,26 @@ func parseProtoIDs(raw []string) ([]uuid.UUID, error) {
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
 // Availability-class status codes (Unavailable, DeadlineExceeded, Canceled) and
 // a context deadline / cancellation are folded into ErrTracerUnavailable so the
-// reserve anchor's fail-posture branch handles them. InvalidArgument and FailedPrecondition mean the
-// tracer refused the request itself and are wrapped in ErrTracerRejected. Other
-// status codes (e.g. NotFound, Internal) are returned verbatim. Every wrap keeps
-// the original status reachable through errors.As.
+// reserve anchor's fail-posture branch handles them. A deadline or cancellation
+// is also marked ErrTracerNoAnswer: the call may have reached the tracer and
+// committed. Unavailable is not, because it is either the transport refusing to
+// send or the tracer's own answer. InvalidArgument and FailedPrecondition mean
+// the tracer refused the request itself and are wrapped in ErrTracerRejected.
+// Other status codes (e.g. NotFound, Internal) are returned verbatim. Every wrap
+// keeps the original status reachable through errors.As.
 func mapGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
+		return fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, ErrTracerNoAnswer, err)
 	}
 
 	switch status.Code(err) {
-	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled:
+	case codes.DeadlineExceeded, codes.Canceled:
+		return fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, ErrTracerNoAnswer, err)
+	case codes.Unavailable:
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	case codes.InvalidArgument, codes.FailedPrecondition:
 		return fmt.Errorf("%w: %w", ErrTracerRejected, err)

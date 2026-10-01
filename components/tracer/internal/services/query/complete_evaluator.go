@@ -53,11 +53,14 @@ type SingleRuleEvaluator interface {
 
 // EvaluationCollector holds categorized rule matches from complete evaluation.
 // All rules are evaluated without short-circuiting, and results are grouped by action type.
+// FailedRuleIDs lists the rules that could not be evaluated for the request;
+// they are absent from EvaluatedRuleIDs.
 type EvaluationCollector struct {
 	DenyRuleIDs      []uuid.UUID
 	AllowRuleIDs     []uuid.UUID
 	ReviewRuleIDs    []uuid.UUID
 	EvaluatedRuleIDs []uuid.UUID
+	FailedRuleIDs    []uuid.UUID
 }
 
 // CompleteEvaluator evaluates ALL rules against a validation request without short-circuiting.
@@ -81,6 +84,15 @@ func NewCompleteEvaluator(ruleEval SingleRuleEvaluator) (*CompleteEvaluator, err
 // EvaluateAll evaluates ALL rules against the validation request, categorizing by action type.
 // Does NOT short-circuit - all rules are evaluated regardless of matches found.
 // Returns an EvaluationCollector with rules grouped by their action type.
+//
+// A rule that cannot be evaluated for the request (IsUnevaluableRule) does not
+// stop the evaluation. When a DENY matched, the collector is returned with the
+// failed rules in FailedRuleIDs; otherwise the error is an
+// IncompleteEvaluationError wrapping the RuleEvaluationError of the failed rule,
+// or a RuleEvaluationFailures of them in evaluation order, which FailingRuleIDs
+// reads. Any other rule-expression failure aborts the evaluation with an
+// IncompleteEvaluationError wrapping only that rule's RuleEvaluationError; any
+// other error aborts it with the bare RuleEvaluationError.
 //
 // Telemetry:
 // - Span name: "service.rules.evaluate_all"
@@ -128,6 +140,8 @@ func (e *CompleteEvaluator) EvaluateAll(
 		EvaluatedRuleIDs: make([]uuid.UUID, 0, rulesCount),
 	}
 
+	var failures []*RuleEvaluationError
+
 	// 4. For each rule, evaluate and categorize
 	for _, rule := range rules {
 		// Nil guard - skip nil rules to avoid panics
@@ -157,7 +171,23 @@ func (e *CompleteEvaluator) EvaluateAll(
 		// b. Call ruleEval.Evaluate(ctx, rule, req)
 		matched, err := e.ruleEval.Evaluate(ctx, rule, req)
 		if err != nil {
-			// e. If error, handle with telemetry and return
+			ruleErr := &RuleEvaluationError{RuleID: rule.ID, Err: err}
+
+			if IsUnevaluableRule(err) {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule could not be evaluated", RedactedRuleExpressionFailure(err))
+
+				collector.FailedRuleIDs = append(collector.FailedRuleIDs, rule.ID)
+				failures = append(failures, ruleErr)
+
+				continue
+			}
+
+			if IsRuleExpressionFailure(err) {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request could not be evaluated", RedactedRuleExpressionFailure(err))
+
+				return nil, collector.incomplete(ruleErr)
+			}
+
 			libOpentelemetry.HandleSpanError(span, "Failed to evaluate rule", err)
 
 			logger.With(
@@ -166,7 +196,7 @@ func (e *CompleteEvaluator) EvaluateAll(
 				libLog.String("error.message", err.Error()),
 			).Log(ctx, libLog.LevelError, "Failed to evaluate rule")
 
-			return nil, &RuleEvaluationError{RuleID: rule.ID, Err: err}
+			return nil, ruleErr
 		}
 
 		// c. Track in EvaluatedRuleIDs
@@ -194,6 +224,7 @@ func (e *CompleteEvaluator) EvaluateAll(
 	// 5. Set span attributes with counts
 	span.SetAttributes(
 		attribute.Int("app.response.evaluated_count", len(collector.EvaluatedRuleIDs)),
+		attribute.Int("app.response.failed_count", len(collector.FailedRuleIDs)),
 		attribute.Int("app.response.deny_count", len(collector.DenyRuleIDs)),
 		attribute.Int("app.response.allow_count", len(collector.AllowRuleIDs)),
 		attribute.Int("app.response.review_count", len(collector.ReviewRuleIDs)),
@@ -205,8 +236,29 @@ func (e *CompleteEvaluator) EvaluateAll(
 		libLog.Int("rules.deny_count", len(collector.DenyRuleIDs)),
 		libLog.Int("rules.allow_count", len(collector.AllowRuleIDs)),
 		libLog.Int("rules.review_count", len(collector.ReviewRuleIDs)),
-	).Log(ctx, libLog.LevelDebug, "All rules evaluated successfully")
+		libLog.Int("rules.failed_count", len(collector.FailedRuleIDs)),
+	).Log(ctx, libLog.LevelDebug, "All rules evaluated")
 
-	// 6. Return collector
+	// 6. A matched DENY decides regardless of the rules that could not be
+	// evaluated; without one, a failed rule could have denied, so the failures
+	// are the result.
+	if len(failures) > 0 && len(collector.DenyRuleIDs) == 0 {
+		if len(failures) == 1 {
+			return nil, collector.incomplete(failures[0])
+		}
+
+		return nil, collector.incomplete(&RuleEvaluationFailures{Failures: failures})
+	}
+
 	return collector, nil
+}
+
+// incomplete wraps the failure that stopped an evaluation with the rules the
+// collector saw evaluate and the REVIEW rules that matched.
+func (c *EvaluationCollector) incomplete(err error) *IncompleteEvaluationError {
+	return &IncompleteEvaluationError{
+		Err:              err,
+		ReviewRuleIDs:    c.ReviewRuleIDs,
+		EvaluatedRuleIDs: c.EvaluatedRuleIDs,
+	}
 }

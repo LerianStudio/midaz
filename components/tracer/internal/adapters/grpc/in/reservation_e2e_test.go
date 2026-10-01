@@ -239,6 +239,70 @@ func TestReservationE2E_RuleDecisionsReachTheClient(t *testing.T) {
 	})
 }
 
+// ledgerLimitExceededReason is the reserve Reason the ledger matches to tell a
+// limit denial (0177) from a rule denial.
+const ledgerLimitExceededReason = "limit_exceeded"
+
+// TestReservationE2E_LimitDenialReason pins the Reason a limit denial carries on
+// the wire, on both paths a limit can refuse a reserve.
+func TestReservationE2E_LimitDenialReason(t *testing.T) {
+	t.Parallel()
+
+	t.Run("resolver pre-check denial", func(t *testing.T) {
+		t.Parallel()
+
+		e := newReserveE2E(t)
+
+		e.evaluator.EXPECT().
+			Execute(gomock.Any(), gomock.Any()).
+			Return(&model.EvaluationResult{Decision: model.DecisionAllow}, nil)
+		e.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), gomock.Any()).
+			Return(nil, true, nil)
+
+		got, err := e.client.Reserve(context.Background(), e.ledgerShapedRequest(false))
+		require.NoError(t, err)
+		assert.True(t, got.GetDenied())
+		assert.Equal(t, string(model.DecisionDeny), got.GetDecision())
+		assert.Equal(t, ledgerLimitExceededReason, got.GetReason())
+		assert.Empty(t, got.GetMatchedRuleIds())
+		assert.Empty(t, got.GetReservationIds())
+	})
+
+	t.Run("counter guard denial", func(t *testing.T) {
+		t.Parallel()
+
+		e := newReserveE2E(t)
+
+		e.evaluator.EXPECT().
+			Execute(gomock.Any(), gomock.Any()).
+			Return(&model.EvaluationResult{Decision: model.DecisionAllow}, nil)
+		e.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), gomock.Any()).
+			Return([]query.ReservationSpec{{
+				LimitID:   testutil.MustDeterministicUUID(9106),
+				ScopeKey:  "acct:9103",
+				PeriodKey: "2026-06",
+				Amount:    decimal.NewFromInt(100),
+				MaxAmount: decimal.NewFromInt(50),
+			}}, false, nil)
+
+		e.expectTxRollback()
+		e.repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), e.tx, gomock.Any()).Return(nil)
+		e.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), e.tx, gomock.Any(), gomock.Any()).
+			Return(false, constant.ErrUsageCounterExceedsLimit)
+
+		got, err := e.client.Reserve(context.Background(), e.ledgerShapedRequest(false))
+		require.NoError(t, err)
+		assert.True(t, got.GetDenied())
+		assert.Equal(t, string(model.DecisionDeny), got.GetDecision())
+		assert.Equal(t, ledgerLimitExceededReason, got.GetReason())
+		assert.Empty(t, got.GetMatchedRuleIds())
+		assert.Empty(t, got.GetReservationIds())
+	})
+}
+
 // TestReservationE2E_ConfirmOutcomesReachTheClient drives the two confirm RPCs
 // through the real server and service over bufconn, so the proto response
 // fields are proven populated from the service outcome, not from the mock.
@@ -275,7 +339,7 @@ func TestReservationE2E_ConfirmOutcomesReachTheClient(t *testing.T) {
 		e.expectTxRollback()
 		e.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), e.tx, reservationID).
-			Return(model.StatusReleased, constant.ErrReservationAlreadyTerminal)
+			Return(&model.Reservation{ID: reservationID, Status: model.StatusReleased}, constant.ErrReservationAlreadyTerminal)
 
 		got, err := e.client.ConfirmById(context.Background(), &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 		require.NoError(t, err)
@@ -288,7 +352,7 @@ func TestReservationE2E_ConfirmOutcomesReachTheClient(t *testing.T) {
 		e.expectTxCommit()
 		e.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), e.tx, reservationID).
-			Return(model.StatusReserved, nil)
+			Return(&model.Reservation{ID: reservationID, Status: model.StatusReserved}, nil)
 		e.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), e.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, reservationID, gomock.Any()).
 			Return(nil)

@@ -48,6 +48,9 @@ type atomicTransactionBatchClaimRepositoryFake struct {
 	abortOutcome        txRedis.AtomicTransactionBatchRefusalAbortOutcome
 	abortExecutionID    uuid.UUID
 	abortTransactionIDs []uuid.UUID
+	abortEffectiveKey   string
+	abortOwnerToken     string
+	abortCtxErr         error
 }
 
 func (repository *atomicTransactionBatchClaimRepositoryFake) CaptureAtomicTransactionBatchInitialResponse(
@@ -145,13 +148,16 @@ func (repository *atomicTransactionBatchClaimRepositoryFake) HandoffAtomicTransa
 }
 
 func (repository *atomicTransactionBatchClaimRepositoryFake) AbortAtomicTransactionBatchConfirmedRefusal(
-	_ context.Context,
+	ctx context.Context,
 	_, _ uuid.UUID,
-	_, _ string,
+	effectiveKey, ownerToken string,
 	executionID uuid.UUID,
 	transactionIDs []uuid.UUID,
 ) (*txRedis.AtomicTransactionBatchRefusalAbortResult, error) {
 	repository.aborts++
+	repository.abortEffectiveKey = effectiveKey
+	repository.abortOwnerToken = ownerToken
+	repository.abortCtxErr = ctx.Err()
 	repository.abortExecutionID = executionID
 	repository.abortTransactionIDs = append([]uuid.UUID(nil), transactionIDs...)
 	if repository.abortErr != nil {
