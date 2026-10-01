@@ -629,6 +629,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Rule Denied Error",
 			Message:    "The transaction was denied by a transaction validation rule and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.",
 		},
+		constant.ErrTransactionReservationUnauthorized: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationUnauthorized.Error(),
+			Title:      "Transaction Reservation Unauthorized Error",
+			Message:    "The tracer reservation seam rejected this ledger's credential and the ledger enforces tracer decisions with a closed fail posture. Check the ledger's Access Manager client and the tracer's allowed clients.",
+		},
 		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerNotEnabled.Error(),

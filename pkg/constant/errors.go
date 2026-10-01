@@ -247,6 +247,13 @@ var (
 	// "enforce". It is raised before the balance commit, and it is distinct from
 	// 0177 so a caller can tell a rule denial from one that exceeds a usage limit.
 	ErrTransactionReservationRuleDenied = errors.New("0535")
+	// ErrTransactionReservationUnauthorized is returned when the tracer
+	// reservation seam rejects the ledger's credential (the token or API key is
+	// missing, invalid or not granted), the ledger's tracer.mode is "enforce" and
+	// its tracer.failPosture is "closed". It is a configuration error that never
+	// heals on its own, so it is distinct from 0178 (an unreachable tracer) and
+	// from 0532 (a request the tracer refused).
+	ErrTransactionReservationUnauthorized = errors.New("0536")
 	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
 	// references a ledger that has not opted in through crossLedger.enabled.
 	ErrCrossLedgerNotEnabled = errors.New("0249")

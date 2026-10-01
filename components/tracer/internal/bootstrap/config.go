@@ -26,7 +26,6 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
@@ -78,16 +77,17 @@ type Config struct {
 	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
 	// TracerTLSMode selects how the reservation seam is secured. "mtls" makes
 	// the app load its own cert/key/CA and require+verify a client cert on BOTH
-	// the gRPC and the Fiber listeners — the verified mTLS peer is the seam
-	// credential (no shared secret). "mesh" lets a service-mesh sidecar
+	// the gRPC and the Fiber listeners. "mesh" lets a service-mesh sidecar
 	// (Istio/Linkerd) terminate mTLS, so the app listens plaintext and skips its
-	// own TLS. Empty serves plaintext with no peer verification and is accepted
-	// only when DEPLOYMENT_MODE is explicitly local; an unset DEPLOYMENT_MODE
-	// refuses it (ValidateSeamTransportPosture).
+	// own TLS. "server" encrypts the gRPC listener with the tracer's own
+	// certificate and asks for no client certificate; the Fiber listener stays
+	// plaintext. Empty serves plaintext. Which seam identity may run on which
+	// mode is decided by ValidateSeamPosture.
 	TracerTLSMode string `env:"TRACER_TLS_MODE"`
 	// TracerTLSCertFile / TracerTLSKeyFile are the PEM paths for the tracer's
 	// OWN server certificate and private key, presented on both transports in
-	// "mtls" mode. Required (non-empty) when TracerTLSMode=mtls.
+	// "mtls" mode and on the gRPC listener in "server" mode. Required
+	// (non-empty) when TracerTLSMode is mtls or server.
 	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
 	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
 	// TracerTLSClientCAFile is the PEM bundle of CA certificate(s) used to
@@ -99,11 +99,20 @@ type Config struct {
 	// identities the gRPC listener accepts in "mtls" mode. A client cert passes
 	// when one of its DNS SANs or URI SANs equals an entry, or, on a cert
 	// without SANs, its Subject CN does (exact, case-insensitive, trimmed).
-	// Empty accepts any cert signed by TracerTLSClientCAFile: a boot Warn
-	// outside saas, a refused boot under DEPLOYMENT_MODE=saas
-	// (ValidateSeamTransportPosture). Ignored in "mesh" mode and never applied
-	// to the HTTP listener.
+	// Empty accepts any cert signed by TracerTLSClientCAFile, with a boot
+	// Warn. Under DEPLOYMENT_MODE=saas the transport is never the seam
+	// identity: ValidateAuthPresence refuses a saas boot without
+	// API_KEY_ENABLED or PLUGIN_AUTH_ENABLED, and either one outranks it.
+	// Ignored in "mesh" and "server" modes and never applied to the HTTP
+	// listener.
 	TracerTLSClientAllowedNames string `env:"TRACER_TLS_CLIENT_ALLOWED_NAMES"`
+	// TracerSeamAllowedClients is a comma-separated list of Access Manager
+	// application client ids (the token sub claim) admitted on the reservation
+	// seam when the token is its identity, in single-tenant mode. Required
+	// outside DEPLOYMENT_MODE=local; ignored with a Warn in multi-tenant mode,
+	// where only each tenant's own ledger client, named
+	// "ledger-m2m-tracer-{tenant}" after its tenantId claim, is admitted.
+	TracerSeamAllowedClients string `env:"TRACER_SEAM_ALLOWED_CLIENTS"`
 
 	LogLevel                string `env:"LOG_LEVEL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -1175,7 +1184,7 @@ func initHTTPServer(
 	mtComponents *componentsMT,
 	mtMetrics metrics.MultiTenantMetrics,
 	txBeginner pgdb.TxBeginner,
-	authHost string,
+	authClient *authMiddleware.AuthClient,
 ) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 
@@ -1271,10 +1280,8 @@ func initHTTPServer(
 		OpenAPIDocsEnabled:   cfg.OpenAPIDocsEnabled,
 	}
 
-	// Create auth guard with all authentication configuration. authHost is the
-	// plugin-auth host resolved via service discovery (or the static
-	// PLUGIN_AUTH_ADDRESS when discovery is disabled or resolution fails).
-	authClient := authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, logger)
+	// Create auth guard with all authentication configuration. authClient is
+	// shared with the reservation gRPC seam.
 	// Note: NewAuthGuard builds APIKeyAuth which is a Fiber
 	// handler closure; ctx propagation would require refactoring the Fiber
 	// middleware API surface to take ctx, which it deliberately doesn't (Fiber
@@ -1373,11 +1380,11 @@ func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
 // initGRPCServer builds the reservation gRPC server, the only transport of the
 // reservation lifecycle. An empty TRACER_GRPC_PORT is an error: boot resolves
 // it through ApplyGRPCSeamDefaults, so an empty value means a caller skipped
-// the defaults. Transport security follows TRACER_TLS_MODE: mtls ⇒ the server
-// requires+verifies a client cert (reservation seam unreachable without one);
-// mesh ⇒ plaintext behind a terminating sidecar; empty ⇒ plaintext, which
-// ValidateSeamTransportPosture admits only with DEPLOYMENT_MODE=local. clk
-// drives the reserve timestamp-window check.
+// the defaults. Transport security follows TRACER_TLS_MODE (mtls, server,
+// mesh or plaintext) and the caller identity follows seamUnaryInterceptors;
+// ValidateSeamPosture has already decided the combination may boot.
+// authClient is the HTTP listener's Access Manager client, used on the seam
+// under token identity. clk drives the reserve timestamp-window check.
 // workerEnsurer starts a tenant's workers on its first reservation (nil in
 // single-tenant mode).
 func initGRPCServer(
@@ -1385,6 +1392,7 @@ func initGRPCServer(
 	reservationService *services.ReservationService,
 	pgManager *tmpostgres.Manager,
 	workerEnsurer grpcin.WorkerEnsurer,
+	authClient *authMiddleware.AuthClient,
 	clk clock.Clock,
 	logger libLog.Logger,
 	telemetry *libOtel.Telemetry,
@@ -1398,8 +1406,6 @@ func initGRPCServer(
 		return nil, fmt.Errorf("failed to create reservation gRPC server: %w", err)
 	}
 
-	// The shared seam TLS posture plus the client identity allowlist. nil in
-	// mesh/empty mode ⇒ plaintext gRPC.
 	seamTLS, err := buildGRPCSeamTLSConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
@@ -1407,17 +1413,16 @@ func initGRPCServer(
 
 	warnGRPCSeamAcceptsAnyClient(context.Background(), cfg, logger)
 
-	// Resolve the per-tenant pool from the trusted x-tenant-id metadata the
-	// ledger forwards over the mTLS/mesh-verified connection. In single-tenant
-	// mode the resolver is a no-op and the interceptor passes through.
+	// In single-tenant mode the resolver is a no-op and no tenant interceptor
+	// is chained.
 	tenantResolver := seamtenant.NewResolver(pgManager, cfg.MultiTenantEnabled)
 
-	var tenantInterceptor grpc.UnaryServerInterceptor
-	if tenantResolver.Active() {
-		tenantInterceptor = grpcin.TenantUnaryInterceptor(tenantResolver, workerEnsurer)
+	interceptors, err := seamUnaryInterceptors(cfg, authClient, tenantResolver, workerEnsurer)
+	if err != nil {
+		return nil, err
 	}
 
-	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, tenantInterceptor, logger, telemetry)
+	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, interceptors, logger, telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
@@ -1884,11 +1889,10 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
-	// The gRPC reservation seam trusts x-tenant-id only from a verified peer:
-	// unless DEPLOYMENT_MODE=local it refuses to boot plaintext, before any
-	// listener binds.
-	if err := ValidateSeamTransportPosture(ctx, cfg, logger); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("seam transport posture: %w", err)
+	// The gRPC reservation seam's caller identity and transport, gated before
+	// any listener binds.
+	if err := ValidateSeamPosture(ctx, cfg, logger); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("seam posture: %w", err)
 	}
 
 	// Scheme gate (fatal), orthogonal to the RI publisher's fail-open wiring: in
@@ -2143,7 +2147,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// Init HTTP server with all services. mtComponents is nil in single-tenant
 	// mode; the HTTP server builder threads pgManager + supervisor through to
 	// the TenantMiddleware when non-nil.
-	serverAPI, reservationService, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner, sd.authHost)
+	// One Access Manager client serves both listeners. sd.authHost is the
+	// plugin-auth host resolved via service discovery (or the static
+	// PLUGIN_AUTH_ADDRESS when discovery is disabled or resolution fails).
+	authClient := authMiddleware.NewAuthClient(sd.authHost, cfg.PluginAuthEnabled, logger)
+
+	serverAPI, reservationService, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner, authClient)
 	if err != nil {
 		return nil, err
 	}
@@ -2152,7 +2161,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost, authClient)
 	if err != nil {
 		return nil, err
 	}
@@ -2329,6 +2338,7 @@ func finalizeStartup(
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
 	authHost string,
+	authClient *authMiddleware.AuthClient,
 ) (*Service, error) {
 	var (
 		pgManager     *tmpostgres.Manager
@@ -2343,7 +2353,7 @@ func finalizeStartup(
 		}
 	}
 
-	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, workerEnsurer, clk, logger, telemetry)
+	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, workerEnsurer, authClient, clk, logger, telemetry)
 	if err != nil {
 		return nil, err
 	}

@@ -54,6 +54,7 @@ func TestTracerReservationSentinelsAreDistinct(t *testing.T) {
 		constant.ErrTransactionReservationReview,
 		constant.ErrTransactionReservationRejected,
 		constant.ErrTransactionReservationRuleDenied,
+		constant.ErrTransactionReservationUnauthorized,
 		constant.ErrReservationAlreadySettled,
 		constant.ErrReservationTenantInactive,
 	} {
@@ -72,4 +73,17 @@ func TestValidateBusinessError_TracerReservationRuleDeniedContract(t *testing.T)
 	assert.Equal(t, "0535", mapped.Code)
 	assert.Equal(t, "Transaction Reservation Rule Denied Error", mapped.Title)
 	assert.Equal(t, "The transaction was denied by a transaction validation rule and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.", mapped.Message)
+}
+
+func TestValidateBusinessError_TracerReservationUnauthorizedContract(t *testing.T) {
+	t.Parallel()
+
+	err := pkg.ValidateBusinessError(constant.ErrTransactionReservationUnauthorized, constant.EntityTransaction)
+
+	mapped, ok := err.(pkg.ServiceUnavailableError)
+	require.True(t, ok, "0536 must be an HTTP 503 error, got %T", err)
+	assert.Equal(t, "0536", mapped.Code)
+	assert.Equal(t, constant.EntityTransaction, mapped.EntityType)
+	assert.Equal(t, "Transaction Reservation Unauthorized Error", mapped.Title)
+	assert.Equal(t, "The tracer reservation seam rejected this ledger's credential and the ledger enforces tracer decisions with a closed fail posture. Check the ledger's Access Manager client and the tracer's allowed clients.", mapped.Message)
 }

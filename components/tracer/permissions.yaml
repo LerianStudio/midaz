@@ -25,15 +25,18 @@
 # data, so the seed is the only source of truth for who gets what. Five seeded
 # tiers:
 #
-#   editor       -> rules/limits at post/get/patch/delete
+#   editor       -> rules/limits at post/get/patch/delete, plus reservations/post
 #   contributor  -> rules/limits at post/get/patch (no delete)
 #   viewer       -> rules/limits/validations at get
-#   validator    -> validations at get/post
-#   audit-viewer -> audit-events at get
+#   validator    -> validations at get/post, plus reservations/post
+#   audit-viewer -> audit-events at get, plus reservations/post
 #
-# The reservation lifecycle (reserve, confirm, release) is not an HTTP resource
-# and has no grant here: the ledger reaches it over the gRPC/mTLS reservation
-# seam, whose caller identity is the client certificate, not a role.
+# reservations/post is not an HTTP route: it is the grant the gRPC reservation
+# seam authorizes every RPC against (reserve, confirm, release), and the
+# ledger's Access Manager application token is what consumes it there. The
+# tiers above carry it because the seed does; a human holding it still cannot
+# use the seam, whose guard refuses every token that is not an application
+# token.
 #
 # This manifest must stay a SUPERSET of the seed. The tenant-manager's
 # template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
@@ -62,6 +65,11 @@ permissions:
 
   # streaming-manifest — event catalog (RegisterStreamingManifestRoute)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+
+  # reservations — the reservation seam's grant (gRPC, every ReservationService
+  # RPC). Mirrors the seed's tracer-reservation-permission; consumed by the
+  # ledger's application token, refused to human tokens by the seam guard.
+  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer] }
 
   # dashboard — read-only aggregates over the validation trail (registerTracerHumaRoutes,
   # the /v1/dashboard group). The figures are derived from the SAME rows the
@@ -122,8 +130,7 @@ roles:
 
 m2m:
   # EXPORT: tracer exposes its M2M surface — the validation API
-  # (`/v1/validations`), which application tokens call under the validations
-  # grants above. The reservation lifecycle is served only on the gRPC/mTLS
-  # reservation seam, which the ledger (midaz) dials directly; it is not an RI
-  # declaration M2M edge. tracer imports nothing over M2M.
+  # (`/v1/validations`) under the validations grants above, and the gRPC
+  # reservation seam, which the ledger (midaz) calls with its application token
+  # under reservations/post. tracer imports nothing over M2M.
   exposed: true

@@ -122,8 +122,10 @@ A reservation row is `RESERVED`, then settles once into `CONFIRMED`, `RELEASED` 
   to `CONFIRMED` from `RESERVED` or `EXPIRED`) and `already_released` (rows already `RELEASED`,
   whose spend is never counted); `ConfirmById` returns `already_released`. A confirm on an
   `EXPIRED` row counts the spend without disturbing the capacity the reaper already returned.
-- **The tenant must be active.** Under multi-tenant mode the tenant comes from the trusted
-  `x-tenant-id` gRPC metadata key; a tenant that is not provisioned, suspended or purged answers
+- **The tenant must be active.** Under multi-tenant mode the tenant comes from the `tenantId`
+  claim of the ledger's Access Manager token, whose `name` claim must be that tenant's ledger→tracer
+  client (`ledger-m2m-tracer-{tenant}`, tenants compared canonically; an `x-tenant-id` naming another tenant is refused); a
+  tenant that is not provisioned, suspended or purged answers
   gRPC `Unavailable` with `0534` (`ErrReservationTenantInactive`) and never falls back to another
   pool.
 - **Every settling confirm and release is audited.** Each writes a `RESERVATION_CONFIRMED` /
@@ -307,12 +309,16 @@ public ingress. Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, 
 Everything else requires auth (API Key `X-API-Key` with constant-time comparison, plus the
 Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`).
 
-The gRPC reservation seam (`:4021`) carries no token and no role: its caller identity is the
-transport. Under `TRACER_TLS_MODE=mtls` the listener requires a client certificate signed by
-`TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate without SANs, Subject CN)
-matches `TRACER_TLS_CLIENT_ALLOWED_NAMES` (an empty allowlist accepts any CA-signed certificate:
-refused boot under `DEPLOYMENT_MODE=saas`, a boot warning elsewhere); under `mesh` a service-mesh
-sidecar owns mTLS and must admit only the ledger. An empty `TRACER_TLS_MODE` boots only with an
-explicit `DEPLOYMENT_MODE=local`; an unset `DEPLOYMENT_MODE` refuses boot. The allowlist is never
-applied to the HTTP listener. Do not add a reservation route to the HTTP API: the reservation
+The gRPC reservation seam (`:4021`) enforces the first caller identity the configuration enables:
+the ledger's Access Manager application token (`PLUGIN_AUTH_ENABLED=true`: every RPC authorized as
+`tracer/reservations:post`, application tokens only, the token `sub` listed in
+`TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, `AUTH_M2M_INVERSION_ENABLED=true` recommended, a boot Warn without it),
+the API key (`API_KEY_ENABLED=true`, metadata `x-api-key`, the same constant-time check as
+`X-API-Key`), the transport, or none. Under `TRACER_TLS_MODE=mtls` the listener requires a client
+certificate signed by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate
+without SANs, Subject CN) matches `TRACER_TLS_CLIENT_ALLOWED_NAMES`; under `mesh` a service-mesh
+sidecar owns mTLS and must admit only the ledger. A seam with no identity boots with a warning
+except under `DEPLOYMENT_MODE=saas` or multi-tenant mode, which refuse to boot; `saas` also refuses a
+token or API key on a plaintext seam (`TRACER_TLS_MODE=server` encrypts it without client
+certificates). The allowlist is never applied to the HTTP listener. Do not add a reservation route to the HTTP API: the reservation
 lifecycle has one caller, the ledger, and one surface.

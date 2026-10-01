@@ -7,9 +7,12 @@ package bootstrap
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v7/commons/server"
 	libObsLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -19,6 +22,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
@@ -29,6 +34,11 @@ const grpcStopTimeout = 10 * time.Second
 // grpcServerComponent labels the gRPC server's goroutines in panic signals.
 const grpcServerComponent = "grpc_server"
 
+// errSeamAuthClientNotAuthorizing refuses token identity on an AuthClient
+// that is nil, disabled or has no address: lib-auth would pass every call
+// through, leaving the principal guard to read unverified claims.
+var errSeamAuthClientNotAuthorizing = errors.New("reservation seam: PLUGIN_AUTH_ENABLED=true requires an enabled Access Manager client with an address")
+
 // GRPCServer serves the reservation seam over gRPC. It is a lib-commons Launcher
 // App (Run mirrors HTTPServer), so it drains on SIGTERM through the same
 // ServerManager graceful-shutdown path as the Fiber server. The otelgrpc stats
@@ -36,11 +46,12 @@ const grpcServerComponent = "grpc_server"
 //
 // Transport security depends on TRACER_TLS_MODE: in "mtls" mode a non-nil
 // *tls.Config is passed in and the server requires+verifies a client cert whose
-// identity is in TRACER_TLS_CLIENT_ALLOWED_NAMES when that allowlist is set
-// (the reservation seam is unreachable without one); in "mesh" mode the config
-// is nil and a sidecar terminates mTLS; an empty mode is plaintext and boots
-// only in local deployments. Bootstrap always registers it, on
-// TRACER_GRPC_PORT (default :4021).
+// identity is in TRACER_TLS_CLIENT_ALLOWED_NAMES when that allowlist is set;
+// in "server" mode it presents its certificate and asks for none; in "mesh"
+// mode the config is nil and a sidecar terminates mTLS; an empty mode is
+// plaintext. The caller identity is enforced by the unary interceptor chain
+// (seamUnaryInterceptors). Bootstrap always registers it, on TRACER_GRPC_PORT
+// (default :4021).
 type GRPCServer struct {
 	server    *grpc.Server
 	address   string
@@ -50,16 +61,16 @@ type GRPCServer struct {
 
 // NewGRPCServer builds the gRPC server, registers the reservation service, and
 // returns the runnable. address is the listen address (e.g. ":4021"). When
-// tlsConfig is non-nil the server enforces mutual TLS via grpc.Creds; nil means
-// plaintext (mesh or local empty mode). When tenantInterceptor is non-nil it is chained as a
-// unary interceptor so the trusted x-tenant-id resolves the per-tenant pool
-// before the reservation handler runs (multi-tenant mode); nil leaves the
-// single-tenant path untouched. Returns an error if any dependency is nil.
+// tlsConfig is non-nil the server serves TLS via grpc.Creds; nil means
+// plaintext. interceptors are chained, in order, after the otelgrpc stats
+// handler, so every identity and tenant decision is traced. The service has
+// only unary RPCs, so no stream interceptor is installed. Returns an error if
+// any dependency is nil.
 func NewGRPCServer(
 	address string,
 	reservationServer reservationv1.ReservationServiceServer,
 	tlsConfig *tls.Config,
-	tenantInterceptor grpc.UnaryServerInterceptor,
+	interceptors []grpc.UnaryServerInterceptor,
 	logger libObsLog.Logger,
 	telemetry *libObsOtel.Telemetry,
 ) (*GRPCServer, error) {
@@ -79,8 +90,8 @@ func NewGRPCServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	}
 
-	if tenantInterceptor != nil {
-		opts = append(opts, grpc.ChainUnaryInterceptor(tenantInterceptor))
+	if len(interceptors) > 0 {
+		opts = append(opts, grpc.ChainUnaryInterceptor(interceptors...))
 	}
 
 	if tlsConfig != nil {
@@ -97,6 +108,53 @@ func NewGRPCServer(
 		logger:    logger,
 		telemetry: *telemetry,
 	}, nil
+}
+
+// seamUnaryInterceptors returns the seam's unary chain for the identity
+// ValidateSeamPosture admitted: identity interceptor(s), then the tenant
+// interceptor when the resolver is active.
+//
+//   - token: lib-auth authorizes the token on tracer/reservations, then
+//     SeamPrincipalInterceptor admits only the ledger's application principal,
+//     then the tenant resolves from the token's tenantId claim.
+//   - API key: SeamAPIKeyInterceptor, then the tenant resolves from
+//     x-tenant-id.
+//   - transport or none: the tenant resolves from x-tenant-id.
+func seamUnaryInterceptors(
+	cfg *Config,
+	authClient *authMiddleware.AuthClient,
+	resolver *seamtenant.Resolver,
+	ensurer grpcin.WorkerEnsurer,
+) ([]grpc.UnaryServerInterceptor, error) {
+	chain := []grpc.UnaryServerInterceptor{}
+	tenant := grpcin.TenantUnaryInterceptor(resolver, ensurer)
+
+	switch resolveSeamIdentity(cfg) {
+	case seamIdentityToken:
+		if authClient == nil || !authClient.Enabled || strings.TrimSpace(authClient.Address) == "" {
+			return nil, errSeamAuthClientNotAuthorizing
+		}
+
+		chain = append(
+			chain,
+			authMiddleware.NewGRPCAuthUnaryPolicy(authClient, grpcin.SeamAuthPolicyConfig()),
+			grpcin.SeamPrincipalInterceptor(grpcin.SeamPrincipalConfig{
+				MultiTenant:    cfg.MultiTenantEnabled,
+				AllowedClients: parseSeamAllowedClients(cfg.TracerSeamAllowedClients),
+			}),
+		)
+
+		tenant = grpcin.TokenTenantUnaryInterceptor(resolver, ensurer)
+	case seamIdentityAPIKey:
+		chain = append(chain, grpcin.SeamAPIKeyInterceptor(cfg.APIKey, cfg.APIKeyLabel))
+	case seamIdentityTransport, seamIdentityNone:
+	}
+
+	if resolver.Active() {
+		chain = append(chain, tenant)
+	}
+
+	return chain, nil
 }
 
 // Run starts the gRPC server via the lib-commons ServerManager, which installs

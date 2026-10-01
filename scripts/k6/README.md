@@ -64,7 +64,7 @@ k6 summary to `scripts/k6/results/<name>.json`.
 | `TRACER_URL` | `http://localhost:4020` | tracer HTTP base URL |
 | `TRACER_GRPC_ADDRESS` | `localhost:4021` | tracer reservation gRPC address (`f3-reserve-latency.js`) |
 | `TRACER_ACCOUNT_ID` | unset | account the f3 gRPC leg reserves against, when the seed has no `tracer.account` |
-| `TRACER_TENANT_ID` | unset | sent as `x-tenant-id` gRPC metadata for a multi-tenant tracer |
+| `TRACER_TENANT_ID` | unset | sent as `x-tenant-id` gRPC metadata. The f3 gRPC leg sends no bearer token and no `x-api-key`, so it reaches only a single-tenant tracer whose seam runs without caller identity; a multi-tenant seam requires a bearer token and refuses the leg |
 | `SEED` | `scripts/k6/f3-seed.json` | f3 seed file written by `f3-seed.sh` |
 | `RATE` | `50` | requests/second per leg (constant arrival rate) |
 | `DURATION` | `30s` | duration per leg |
