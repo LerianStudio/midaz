@@ -16,11 +16,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// defaultOperationTimeout is the per-operation context timeout applied when
+// DefaultOperationTimeout is the per-operation context timeout applied when
 // the caller does not configure one via WithGRPCOperationTimeout. It mirrors
 // the tracer.timeoutMs default (250ms) so a misconfigured client still fails
 // fast rather than holding the transaction create path open.
-const defaultOperationTimeout = 250 * time.Millisecond
+const DefaultOperationTimeout = 250 * time.Millisecond
 
 // tenantMetadataKey is the gRPC outgoing-metadata key carrying the trusted
 // tenant id. The tracer reads the same key from incoming metadata; it trusts
@@ -44,6 +44,15 @@ var ErrTracerUnavailable = errors.New("tracer reservation service unavailable")
 // through tracer.failPosture, and distinct from a denied decision, which is a
 // successful response.
 var ErrTracerRejected = errors.New("tracer rejected the reservation request")
+
+// ErrTracerNoAnswer marks a call that was sent and then ran out of time or was
+// cancelled before the tracer answered, so the tracer may still have committed
+// it. It always travels alongside ErrTracerUnavailable, which keeps
+// tracer.failPosture in charge of the request; this sentinel only tells the
+// ledger that capacity may be held with no reservation id to address it. A call
+// the tracer answered with an error, and one that never left the ledger, are
+// not marked.
+var ErrTracerNoAnswer = errors.New("tracer did not answer the reservation call")
 
 // ReserveAccount is the account scope the tracer matches limits and rules
 // against. The ledger populates AccountID with the source balance's account

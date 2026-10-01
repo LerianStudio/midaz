@@ -355,7 +355,10 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 
 		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.NoError(t, err)
-		assert.Equal(t, model.StatusReserved, found, "a settling confirm reports the status it locked")
+		require.NotNil(t, found)
+		assert.Equal(t, model.StatusReserved, found.Status, "a settling confirm reports the status it locked")
+		assert.Equal(t, txID, found.TransactionID, "the locked row carries its transaction id")
+		assert.Equal(t, limitID, found.LimitID, "the locked row carries its limit id")
 	})
 
 	t.Run("Idempotent double-confirm - terminal row, NO counter move", func(t *testing.T) {
@@ -373,7 +376,8 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 
 		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
-		assert.Equal(t, model.StatusConfirmed, found, "a terminal confirm reports the status it found")
+		require.NotNil(t, found)
+		assert.Equal(t, model.StatusConfirmed, found.Status, "a terminal confirm reports the status it found")
 	})
 
 	t.Run("Confirm onto a released row - terminal, reports RELEASED", func(t *testing.T) {
@@ -389,7 +393,8 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 
 		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
-		assert.Equal(t, model.StatusReleased, found, "the caller must be able to tell RELEASED from CONFIRMED")
+		require.NotNil(t, found)
+		assert.Equal(t, model.StatusReleased, found.Status, "the caller must be able to tell RELEASED from CONFIRMED")
 	})
 
 	t.Run("Not found - missing row maps to ErrReservationNotFound", func(t *testing.T) {
@@ -402,7 +407,7 @@ func TestUsageReservationRepository_Confirm(t *testing.T) {
 
 		found, err := repo.ConfirmWithTx(context.Background(), db, resID)
 		require.ErrorIs(t, err, constant.ErrReservationNotFound)
-		assert.Empty(t, found, "no status is reported for a row that does not exist")
+		assert.Nil(t, found, "no row is returned for a reservation that does not exist")
 	})
 
 	t.Run("Nil db is rejected", func(t *testing.T) {
@@ -640,8 +645,12 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 		mock.ExpectExec(`UPDATE usage_reservations SET status`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusReleased)
+		released, err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusReleased)
 		require.NoError(t, err)
+		require.NotNil(t, released)
+		assert.Equal(t, txID, released.TransactionID, "the locked row carries its transaction id")
+		assert.Equal(t, limitID, released.LimitID, "the locked row carries its limit id")
+		assert.Equal(t, model.StatusReserved, released.Status, "the locked row keeps the status it was read in")
 	})
 
 	t.Run("Invalid status rejected before any SQL", func(t *testing.T) {
@@ -649,8 +658,9 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 		defer cleanup()
 
 		// StatusConfirmed is not a valid release target; rejected before the read.
-		err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusConfirmed)
+		released, err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusConfirmed)
 		require.ErrorIs(t, err, constant.ErrReservationInvalidStatus)
+		assert.Nil(t, released)
 	})
 
 	t.Run("Expire path uses EXPIRED status flip", func(t *testing.T) {
@@ -669,7 +679,7 @@ func TestUsageReservationRepository_Release(t *testing.T) {
 			WithArgs(string(model.StatusExpired), sqlmock.AnyArg(), resID, string(model.StatusReserved)).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusExpired)
+		_, err := repo.ReleaseWithTx(context.Background(), db, resID, model.StatusExpired)
 		require.NoError(t, err)
 	})
 }

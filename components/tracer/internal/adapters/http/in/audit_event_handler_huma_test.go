@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -218,6 +220,147 @@ func TestHuma_ListAuditEvents_InvalidEnumParams(t *testing.T) {
 			require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
 			assert.Equal(t, tc.code, got["code"], "canonical code identical to the Fiber path")
 			assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad query param")
+		})
+	}
+}
+
+// TestHuma_ListAuditEvents_ReservationFilters pins that the reservation audit
+// surface is filterable: every reservation lifecycle event type and the
+// reservation resource type pass validation and reach the service as typed
+// filters.
+func TestHuma_ListAuditEvents_ReservationFilters(t *testing.T) {
+	for _, eventType := range []model.AuditEventType{
+		model.AuditEventReservationReserved,
+		model.AuditEventReservationConfirmed,
+		model.AuditEventReservationReleased,
+		model.AuditEventReservationExpired,
+	} {
+		t.Run(string(eventType), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			svc := NewMockAuditEventService(ctrl)
+
+			var listFilter *model.AuditEventFilters
+
+			svc.EXPECT().
+				ListAuditEvents(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, filters *model.AuditEventFilters) (*model.ListAuditEventsResult, error) {
+					listFilter = filters
+
+					return &model.ListAuditEventsResult{}, nil
+				}).
+				Times(1)
+
+			app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/v1/audit-events?event_type="+string(eventType)+"&resource_type="+string(model.ResourceTypeReservation), nil)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, "reservation filters must be accepted: %s", string(respBody))
+			require.NotNil(t, listFilter)
+			require.NotNil(t, listFilter.EventType)
+			assert.Equal(t, eventType, *listFilter.EventType)
+			require.NotNil(t, listFilter.ResourceType)
+			assert.Equal(t, model.ResourceTypeReservation, *listFilter.ResourceType)
+		})
+	}
+}
+
+// TestHuma_ListAuditEventsInput_FilterDocsListAcceptedValues pins the published
+// query-param docs to the values the validators accept, so the contract never
+// advertises a narrower (or wider) filter surface than the handler serves.
+func TestHuma_ListAuditEventsInput_FilterDocsListAcceptedValues(t *testing.T) {
+	typ := reflect.TypeOf(ListAuditEventsInputHuma{})
+
+	eventTypeField, ok := typ.FieldByName("EventType")
+	require.True(t, ok)
+
+	eventTypeDoc := eventTypeField.Tag.Get("doc")
+	for _, et := range auditEventTypesUnderTest() {
+		assert.Contains(t, eventTypeDoc, string(et), "event_type doc must list %q", et)
+	}
+
+	resourceTypeField, ok := typ.FieldByName("ResourceType")
+	require.True(t, ok)
+
+	resourceTypeDoc := resourceTypeField.Tag.Get("doc")
+	for _, rt := range resourceTypesUnderTest() {
+		assert.Contains(t, resourceTypeDoc, string(rt), "resource_type doc must list %q", rt)
+	}
+
+	actionField, ok := typ.FieldByName("Action")
+	require.True(t, ok)
+
+	actionDoc := actionField.Tag.Get("doc")
+	for _, action := range auditActionsUnderTest() {
+		assert.Contains(t, actionDoc, string(action), "action doc must list %q", action)
+	}
+
+	resultField, ok := typ.FieldByName("Result")
+	require.True(t, ok)
+
+	resultDoc := resultField.Tag.Get("doc")
+	for _, result := range auditResultsUnderTest() {
+		assert.Contains(t, resultDoc, string(result), "result doc must list %q", result)
+	}
+
+	actorTypeField, ok := typ.FieldByName("ActorType")
+	require.True(t, ok)
+
+	actorTypeDoc := actorTypeField.Tag.Get("doc")
+	for _, actorType := range actorTypesUnderTest() {
+		assert.Contains(t, actorTypeDoc, string(actorType), "actor_type doc must list %q", actorType)
+	}
+}
+
+// TestHuma_ListAuditEvents_ReservationActionAndActorFilters pins that every
+// reservation action and the api_key actor type pass validation and reach the
+// service as typed filters.
+func TestHuma_ListAuditEvents_ReservationActionAndActorFilters(t *testing.T) {
+	for _, action := range []model.AuditAction{
+		model.AuditActionReserve,
+		model.AuditActionConfirm,
+		model.AuditActionRelease,
+		model.AuditActionExpire,
+		model.AuditActionSkip,
+	} {
+		t.Run(string(action), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			svc := NewMockAuditEventService(ctrl)
+
+			var listFilter *model.AuditEventFilters
+
+			svc.EXPECT().
+				ListAuditEvents(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, filters *model.AuditEventFilters) (*model.ListAuditEventsResult, error) {
+					listFilter = filters
+
+					return &model.ListAuditEventsResult{}, nil
+				}).
+				Times(1)
+
+			app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/v1/audit-events?action="+string(action)+"&actor_type="+string(model.ActorTypeAPIKey), nil)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, "reservation action and api_key actor must be accepted: %s", string(respBody))
+			require.NotNil(t, listFilter)
+			require.NotNil(t, listFilter.Action)
+			assert.Equal(t, action, *listFilter.Action)
+			require.NotNil(t, listFilter.ActorType)
+			assert.Equal(t, model.ActorTypeAPIKey, *listFilter.ActorType)
 		})
 	}
 }

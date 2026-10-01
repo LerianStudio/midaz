@@ -8,7 +8,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
@@ -99,7 +101,7 @@ func newTestGRPCClient(t *testing.T, stub *stubReservationServer) *TracerGRPCCli
 	client := &TracerGRPCClient{
 		conn:             conn,
 		client:           reservationv1.NewReservationServiceClient(conn),
-		operationTimeout: defaultOperationTimeout,
+		operationTimeout: DefaultOperationTimeout,
 	}
 
 	t.Cleanup(func() {
@@ -223,6 +225,57 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.ErrorIs(t, err, ErrTracerUnavailable)
+		assert.NotErrorIs(t, err, ErrTracerNoAnswer, "the tracer answered Unavailable, so nothing was held")
+	})
+
+	t.Run("a reserve that ran out of time waiting on the tracer went unanswered", func(t *testing.T) {
+		t.Parallel()
+
+		held := make(chan struct{})
+		t.Cleanup(func() { close(held) })
+
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				<-held
+
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+
+		result, err := client.Reserve(ctx, ReserveRequest{TransactionID: transactionID})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, ErrTracerUnavailable, "fail posture still governs an unanswered reserve")
+		assert.ErrorIs(t, err, ErrTracerNoAnswer)
+	})
+
+	t.Run("a request context already done before send never reaches the tracer", func(t *testing.T) {
+		t.Parallel()
+
+		var calls atomic.Int32
+
+		stub := &stubReservationServer{
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				calls.Add(1)
+
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		result, err := client.Reserve(ctx, ReserveRequest{TransactionID: transactionID})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, ErrTracerUnavailable)
+		assert.NotErrorIs(t, err, ErrTracerNoAnswer, "a request that was never sent cannot have held capacity")
+		assert.Zero(t, calls.Load())
 	})
 
 	t.Run("internal status surfaces verbatim, not as unavailable", func(t *testing.T) {
@@ -239,6 +292,7 @@ func TestTracerGRPCClient_Reserve(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.NotErrorIs(t, err, ErrTracerUnavailable)
+		assert.NotErrorIs(t, err, ErrTracerNoAnswer, "the tracer answered, so nothing is left to settle")
 		assert.Equal(t, codes.Internal, status.Code(err))
 	})
 
@@ -500,18 +554,19 @@ func TestMapGRPCError(t *testing.T) {
 		err             error
 		wantUnavailable bool
 		wantRejected    bool
+		wantNoAnswer    bool
 	}{
-		{"nil", nil, false, false},
-		{"unavailable", status.Error(codes.Unavailable, "x"), true, false},
-		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "x"), true, false},
-		{"canceled", status.Error(codes.Canceled, "x"), true, false},
-		{"context deadline", context.DeadlineExceeded, true, false},
-		{"context canceled", context.Canceled, true, false},
-		{"not found", status.Error(codes.NotFound, "x"), false, false},
-		{"internal", status.Error(codes.Internal, "x"), false, false},
-		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false, true},
-		{"failed precondition", status.Error(codes.FailedPrecondition, "x"), false, true},
-		{"plain error", errors.New("x"), false, false},
+		{"nil", nil, false, false, false},
+		{"unavailable", status.Error(codes.Unavailable, "x"), true, false, false},
+		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "x"), true, false, true},
+		{"canceled", status.Error(codes.Canceled, "x"), true, false, true},
+		{"context deadline", context.DeadlineExceeded, true, false, true},
+		{"context canceled", context.Canceled, true, false, true},
+		{"not found", status.Error(codes.NotFound, "x"), false, false, false},
+		{"internal", status.Error(codes.Internal, "x"), false, false, false},
+		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false, true, false},
+		{"failed precondition", status.Error(codes.FailedPrecondition, "x"), false, true, false},
+		{"plain error", errors.New("x"), false, false, false},
 	}
 
 	for _, tt := range tests {
@@ -526,6 +581,7 @@ func TestMapGRPCError(t *testing.T) {
 
 			assert.Equal(t, tt.wantUnavailable, errors.Is(got, ErrTracerUnavailable))
 			assert.Equal(t, tt.wantRejected, errors.Is(got, ErrTracerRejected))
+			assert.Equal(t, tt.wantNoAnswer, errors.Is(got, ErrTracerNoAnswer))
 			assert.Equal(t, status.Code(tt.err), status.Code(got), "the gRPC status code must survive the wrap")
 		})
 	}

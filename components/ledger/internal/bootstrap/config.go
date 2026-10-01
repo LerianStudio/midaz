@@ -1053,6 +1053,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// command UseCase rather than the HTTP handler.
 	commandUseCase.FeeApplier = fees.useCase
 	commandUseCase.TracerReserver = tracerReserver
+	commandUseCase.TracerClientTimeout = time.Duration(cfg.TracerTimeoutMs) * time.Millisecond
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 

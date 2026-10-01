@@ -168,7 +168,32 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 
 	var failure *accounting.Failure
 
-	if !outcome.Executed || !confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
+	// An engine that never ran moved nothing and left no receipt or recovery
+	// record, so the handed-off claim is aborted and every reservation goes
+	// back even when the abort fails. The request context may already be
+	// cancelled, which is one way to get here, so the abort runs detached.
+	if !outcome.Executed {
+		abortCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+		abortErr := uc.abortAtomicTransactionBatchConfirmedAbort(abortCtx, run)
+
+		cancel()
+
+		uc.settleAtomicTransactionBatchReservations(
+			ctx,
+			span,
+			logger,
+			run,
+			atomicTransactionBatchReservationConfirmedAbort,
+		)
+
+		if abortErr != nil {
+			return outcome, abortErr
+		}
+
+		return outcome, MapEngineError(prepared.Execution.Execution, executeErr)
+	}
+
+	if !confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 		return outcome, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
 
@@ -176,7 +201,7 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 
 	mapped := MapEngineError(prepared.Execution.Execution, executeErr)
 
-	if err := uc.abortAtomicTransactionBatchConfirmedRefusal(ctx, run); err != nil {
+	if err := uc.abortAtomicTransactionBatchConfirmedAbort(ctx, run); err != nil {
 		return outcome, err
 	}
 
@@ -199,7 +224,7 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	return outcome, mapped
 }
 
-func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
+func (uc *UseCase) abortAtomicTransactionBatchConfirmedAbort(
 	ctx context.Context,
 	run *atomicTransactionBatchRun,
 ) error {
@@ -215,13 +240,13 @@ func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
 		transactionIDs,
 	)
 	if err != nil {
-		return fmt.Errorf("protect atomic transaction batch after confirmed refusal: %w", err)
+		return fmt.Errorf("protect atomic transaction batch after confirmed abort: %w", err)
 	}
 
 	if result == nil ||
 		(result.Outcome != txRedis.AtomicTransactionBatchRefusalDeleted &&
 			result.Outcome != txRedis.AtomicTransactionBatchRefusalAlreadyDeleted) {
-		return errors.New("protect atomic transaction batch after confirmed refusal: invalid abort result")
+		return errors.New("protect atomic transaction batch after confirmed abort: invalid abort result")
 	}
 
 	run.idempotencyClaimed = false

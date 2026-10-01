@@ -230,17 +230,9 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow, evaluatedAt)
 
 	// Step 1: Evaluate rules (OUTSIDE transaction)
-	evalResult, err := s.ruleEvaluator.Execute(ctx, req)
+	evalResult, err := s.evaluateRules(ctx, span, logger, req)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "rule evaluation failed", err)
-
-		return nil, fmt.Errorf("rule evaluation failed: %w", err)
-	}
-
-	if evalResult == nil {
-		libOpentelemetry.HandleSpanError(span, "rule evaluation returned nil", nil)
-
-		return nil, fmt.Errorf("rule evaluation returned nil result")
+		return nil, err
 	}
 
 	// Copy evaluation result to response
@@ -351,6 +343,69 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		Response:    response,
 		IsDuplicate: false,
 	}, nil
+}
+
+// evaluateRules runs the rule step of a validation. Rules that cannot be
+// evaluated against the request (query.IsUnevaluableRule) yield a REVIEW result
+// instead of an error, so the validation continues on the REVIEW path; any
+// other failure of the rule step is returned as an error. An amount beyond
+// CEL's float64 precision is a fault of the request, not of a rule, so it stays
+// an error the handler answers with 0346.
+func (s *ValidationService) evaluateRules(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	req *model.ValidationRequest,
+) (*model.EvaluationResult, error) {
+	evalResult, err := s.ruleEvaluator.Execute(ctx, req)
+	if err != nil {
+		if query.IsUnevaluableRule(err) {
+			return ruleEvaluationReview(ctx, span, logger, req, err), nil
+		}
+
+		if errors.Is(err, constant.ErrAmountExceedsPrecision) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Amount exceeds CEL precision", constant.ErrAmountExceedsPrecision)
+
+			return nil, fmt.Errorf("rule evaluation failed: %w", err)
+		}
+
+		libOpentelemetry.HandleSpanError(span, "rule evaluation failed", err)
+
+		return nil, fmt.Errorf("rule evaluation failed: %w", err)
+	}
+
+	if evalResult == nil {
+		libOpentelemetry.HandleSpanError(span, "rule evaluation returned nil", ErrNilRuleEvaluationResult)
+
+		return nil, ErrNilRuleEvaluationResult
+	}
+
+	return evalResult, nil
+}
+
+// ruleEvaluationReview is the rule-step result of a validation whose rules
+// could not be evaluated for the request (see ruleEvaluationReviewResult).
+func ruleEvaluationReview(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	req *model.ValidationRequest,
+	err error,
+) *model.EvaluationResult {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule evaluation failed; validation routed to review",
+		query.RedactedRuleExpressionFailure(err))
+
+	result := ruleEvaluationReviewResult(err)
+
+	logger.With(
+		libLog.String("operation", "service.validation.orchestrate"),
+		libLog.Any("request.id", req.RequestID),
+		libLog.String("decision", string(model.DecisionReview)),
+		libLog.String("error.class", query.RuleExpressionFailureClass(err)),
+		libLog.Any("rule_ids", ruleIDStrings(query.FailingRuleIDs(err))),
+	).Log(ctx, libLog.LevelWarn, "Validation routed to review: rule evaluation failed")
+
+	return result
 }
 
 // commitAllowPath persists the transaction validation and audit event inside
