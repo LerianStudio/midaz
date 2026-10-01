@@ -34,7 +34,11 @@ jobs:
 
   pipeline:
     needs: dockerhub-visibility
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.78.2
+    # Pinned below v1.77.0, which made the build identity contract mandatory for the
+    # primary image (ARG REVISION + buildinfo --version). The 4.0.x line predates it:
+    # lib-commons v7.1.0 has no buildinfo package, so v1.77.0+ fails every build here.
+    # Do not move this line to a tier channel without backporting the contract.
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.76.0
     with:
       enable_changelog: true
       release_single_app: true
