@@ -89,7 +89,6 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 		var b mmodel.BalanceRedis
 		if err = json.Unmarshal([]byte(value), &b); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to deserialize cached balance", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to deserialize cached balance", libLog.String("alias", alias), libLog.Err(err))
 
 			return nil, nil, fmt.Errorf("failed to deserialize cached balance: %w", err)
 		}
