@@ -44,7 +44,7 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 	}
 
 	if account != nil {
-		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityAccount, alias)
+		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityAccount, account.ID)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account", err)
 

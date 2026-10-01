@@ -329,7 +329,7 @@ func TestGetAccountByAlias_Success(t *testing.T) {
 			Alias:          testutils.Ptr("@person1"),
 			Status:         mmodel.Status{Code: "ACTIVE"},
 		}, nil).Times(1)
-	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, "@person1").Return(nil, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID).Return(nil, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -374,7 +374,7 @@ func TestGetAccountExternalByCode_Success(t *testing.T) {
 			Alias:          testutils.Ptr(externalAlias),
 			Status:         mmodel.Status{Code: "ACTIVE"},
 		}, nil).Times(1)
-	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, externalAlias).Return(nil, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID).Return(nil, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 
