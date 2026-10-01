@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -18,9 +19,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -1376,16 +1379,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		TransactionStatus: transactionStatus,
 	})
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
-
-		// The balance commit failed (no funds moved), so return the held
-		// reservation capacity. Best-effort: a transport failure here is
-		// reconciled by the TTL reaper.
-		handler.releaseReservations(ctx, span, logger, reservation.Handle)
+		handler.abortBalanceOperations(ctx, span, logger, err, params, transactionID.String(), transactionStatus, idempotencyResult.InternalKey, reservation.Handle)
 
 		return nil, false, err
 	}
@@ -1505,6 +1499,36 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	go handler.Command.SendLogTransactionAuditQueue(bgCtx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
 	return tran, false, nil
+}
+
+// abortBalanceOperations settles a failed balance commit. When the script ran
+// but its result is unusable, the balances already moved: the idempotency key
+// and the backup queue entry are preserved so a retry cannot move them again and
+// the entry stays for recovery, and the reservation capacity is consumed. Any
+// other failure moved nothing, so the key, the entry and the reservation are
+// released.
+func (handler *TransactionHandler) abortBalanceOperations(ctx context.Context, span trace.Span, logger libLog.Logger, err error, params *transactionPathParams, transactionID, transactionStatus string, idempotencyKey *string, reservation reservationHandle) {
+	var unusableResult *txRedis.UnusableBalanceResultError
+	if errors.As(err, &unusableResult) {
+		libOpentelemetry.HandleSpanError(span, "Balance operation applied with an unusable result", err)
+		logger.Log(ctx, libLog.LevelError, "Balance operation applied with an unusable result",
+			libLog.String("transaction_id", transactionID), libLog.Err(err))
+
+		if transactionStatus != constant.PENDING {
+			handler.confirmReservations(ctx, span, logger, reservation)
+		}
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
+	logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
+
+	handler.deleteIdempotencyKey(ctx, idempotencyKey)
+	handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID)
+
+	// Best-effort: a transport failure here is reconciled by the TTL reaper.
+	handler.releaseReservations(ctx, span, logger, reservation)
 }
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {

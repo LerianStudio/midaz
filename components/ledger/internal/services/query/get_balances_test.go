@@ -226,7 +226,8 @@ func TestGetBalancesFromCache(t *testing.T) {
 			Return("", nil).
 			Times(1)
 
-		balances, remainingAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		balances, remainingAliases, err := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.NoError(t, err)
 
 		assert.Len(t, balances, 1)
 		assert.Equal(t, balance1.ID, balances[0].ID)
@@ -286,7 +287,8 @@ func TestGetBalancesFromCache_PropagatesOverdraftFields(t *testing.T) {
 			Return(string(cachedJSON), nil).
 			Times(1)
 
-		balances, misses := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		balances, misses, err := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.NoError(t, err)
 		assert.Empty(t, misses)
 		assert.Len(t, balances, 1)
 
@@ -327,7 +329,8 @@ func TestGetBalancesFromCache_PropagatesOverdraftFields(t *testing.T) {
 			Return(string(cachedJSON), nil).
 			Times(1)
 
-		balances, misses := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		balances, misses, err := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.NoError(t, err)
 		assert.Empty(t, misses)
 		assert.Len(t, balances, 1)
 
@@ -366,7 +369,8 @@ func TestGetBalancesFromCache_PropagatesOverdraftFields(t *testing.T) {
 			Return(string(cachedJSON), nil).
 			Times(1)
 
-		balances, misses := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		balances, misses, err := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
+		assert.NoError(t, err)
 		assert.Empty(t, misses)
 		assert.Len(t, balances, 1)
 
@@ -581,4 +585,68 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetBalances_UndecodableCachedBalanceIsRefused(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@alice#default")).
+		Return(`{"ID":"bal-1","Available":true,"OnHold":"0","Version":3}`, nil).
+		Times(1)
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@bob#default")).
+		Return("", nil).
+		AnyTimes()
+
+	balances, err := uc.GetBalances(ctx, organizationID, ledgerID, []string{"@alice#default", "@bob#default"})
+
+	assert.Error(t, err, "a cached balance that cannot be read must not be replaced by the database row: the Lua script would still move the cached value")
+	assert.Nil(t, balances)
+}
+
+func TestGetBalances_CacheReadFailureFallsBackToDatabase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@alice#default")).
+		Return("", assert.AnError).
+		Times(1)
+
+	fromDatabase := &mmodel.Balance{ID: uuid.New().String(), Alias: "@alice", Key: "default"}
+	mockBalanceRepo.EXPECT().
+		ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"@alice#default"}).
+		Return([]*mmodel.Balance{fromDatabase}, nil).
+		Times(1)
+
+	balances, err := uc.GetBalances(ctx, organizationID, ledgerID, []string{"@alice#default"})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []*mmodel.Balance{fromDatabase}, balances)
 }

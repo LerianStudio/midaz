@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -16,8 +17,10 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -439,6 +442,22 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 
 	spanBackupSeed.End()
 
+	// Reservation phase two by transaction (PENDING lifecycle). The
+	// PENDING create path reserved capacity but deferred the confirm/release to
+	// this state transition; /commit and /cancel carry only the transaction id, so
+	// the tracer is addressed by transaction id and flips every RESERVED
+	// reservation the transaction holds. Non-blocking: a transport failure never
+	// fails the request — the TTL reaper reconciles. The long-lived TTL hint set
+	// at create-pending keeps these reservations alive until this transition.
+	settleReservationsByTransaction := func() {
+		switch transactionStatus {
+		case constant.APPROVED:
+			handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
+		case constant.CANCELED:
+			handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
+		}
+	}
+
 	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
 		OrganizationID:    organizationID,
 		LedgerID:          ledgerID,
@@ -449,29 +468,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 		TransactionStatus: transactionStatus,
 	})
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
-
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, tran.IDtoUUID().String())
-
-		deleteLockOnError()
+		handler.abortBalanceTransition(ctx, span, logger, err, organizationID, ledgerID, tran, deleteLockOnError, settleReservationsByTransaction)
 
 		return nil, err
 	}
 
-	// Reservation phase two by transaction (F3-T15, PENDING lifecycle). The
-	// PENDING create path reserved capacity but deferred the confirm/release to
-	// this state transition; /commit and /cancel carry only the transaction id, so
-	// the tracer is addressed by transaction id and flips every RESERVED
-	// reservation the transaction holds. Non-blocking: a transport failure never
-	// fails the request — the TTL reaper reconciles. The long-lived TTL hint set
-	// at create-pending keeps these reservations alive until this transition.
-	switch transactionStatus {
-	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
-	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
-	}
+	settleReservationsByTransaction()
 
 	balancesBefore, balancesAfter := result.Before, result.After
 
@@ -548,4 +550,30 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	}
 
 	return tran, nil
+}
+
+// abortBalanceTransition settles a failed balance commit of a commit or cancel.
+// When the script ran but its result is unusable, the balances already moved:
+// the backup queue entry and the pending lock are preserved so the transition
+// cannot run twice while the entry stays for recovery, and the reservations
+// follow the moved balances. Any other failure moved nothing, so the entry and
+// the lock are released.
+func (handler *TransactionHandler) abortBalanceTransition(ctx context.Context, span trace.Span, logger libLog.Logger, err error, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, releaseLock, settleReservations func()) {
+	var unusableResult *txRedis.UnusableBalanceResultError
+	if errors.As(err, &unusableResult) {
+		libOpentelemetry.HandleSpanError(span, "Balance operation applied with an unusable result", err)
+		logger.Log(ctx, libLog.LevelError, "Balance operation applied with an unusable result",
+			libLog.String("transaction_id", tran.ID), libLog.Err(err))
+
+		settleReservations()
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
+	logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
+
+	handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, tran.IDtoUUID().String())
+
+	releaseLock()
 }
