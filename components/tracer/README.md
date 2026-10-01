@@ -152,17 +152,34 @@ on commit or releases it on cancel. That lifecycle is the gRPC service
 serves on `TRACER_GRPC_PORT` (default `:4021`, beside the `:4020` HTTP API). The HTTP API has no
 reservation route, and the ledger is the only caller:
 
-- **Identity.** Under `TRACER_TLS_MODE=mtls` the gRPC listener requires a client certificate signed
-  by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate without SANs, Subject
-  CN) equals an entry of `TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated, exact,
-  case-insensitive). An empty allowlist accepts any CA-signed certificate: it refuses boot under
-  `DEPLOYMENT_MODE=saas` and logs a warning elsewhere. The HTTP listener never applies the allowlist.
-  Under `mesh` a service-mesh sidecar owns mTLS; it must enforce STRICT mTLS and admit only the
-  ledger to `:4021`, and the tracer logs a warning at boot. An empty `TRACER_TLS_MODE` is plaintext
-  with no verified peer and boots only with an explicit `DEPLOYMENT_MODE=local`; an unset
-  `DEPLOYMENT_MODE` refuses boot.
-- **Tenant.** The tenant travels in the trusted `x-tenant-id` gRPC metadata key. A tenant that is not
-  provisioned, suspended or purged answers `Unavailable` with code `0534`.
+- **Identity.** The seam enforces the first identity the configuration enables:
+  - **token** (`PLUGIN_AUTH_ENABLED=true`): the ledger's Access Manager application token in
+    `authorization: Bearer <token>`, authorized on every RPC as `tracer/reservations:post`. Only
+    application tokens pass; in single-tenant mode the token `sub` must be listed in
+    `TRACER_SEAM_ALLOWED_CLIENTS` (required outside `DEPLOYMENT_MODE=local`), and in multi-tenant
+    mode its `name` claim must be `ledger-m2m-tracer-{tenant}` for the token's own `tenantId` claim
+    (tenants compared canonically).
+    `AUTH_M2M_INVERSION_ENABLED=true` is required; `AUTH_CACHE_TTL` greater than zero (e.g. `60s`) is
+    required under `DEPLOYMENT_MODE=saas` and Warned about elsewhere; `AUTH_BREAKER_ENABLED=true` and
+    `AUTH_JWT_VERIFY_CERT` are recommended. Enable it only after the ledger sends tokens (its
+    credential provisioned and the ledger deployed), or every reservation call answers
+    `Unauthenticated`.
+  - **API key** (`API_KEY_ENABLED=true`): the same `API_KEY` as the HTTP listener, in gRPC metadata
+    `x-api-key`.
+  - **transport** (`TRACER_TLS_MODE=mtls` or `mesh`): under `mtls` the gRPC listener requires a
+    client certificate signed by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a
+    certificate without SANs, Subject CN) equals an entry of `TRACER_TLS_CLIENT_ALLOWED_NAMES`;
+    under `mesh` a sidecar must enforce STRICT mTLS and admit only the ledger to `:4021`.
+  - **none**: boots with a warning, except under `DEPLOYMENT_MODE=saas` or
+    `MULTI_TENANT_ENABLED=true`, which refuse to boot (multi-tenant requires the token).
+
+  A missing or invalid token or API key answers `Unauthenticated`; an Access Manager or guard refusal
+  answers `PermissionDenied`. `TRACER_TLS_MODE=server` serves TLS on the gRPC listener only, without
+  client certificates; `DEPLOYMENT_MODE=saas` refuses a token or API key on a plaintext seam.
+- **Tenant.** Under the token the tenant is its `tenantId` claim, and an `x-tenant-id` naming another
+  tenant is refused. Under every other identity, all single-tenant, the tenant travels in the
+  `x-tenant-id` gRPC metadata key. A tenant that is not provisioned, suspended or purged answers
+  `Unavailable` with code `0534`.
 - **Settled rows.** A reserve replayed onto a transaction whose reservation is already released,
   expired or confirmed answers `FailedPrecondition` with code `0533` and moves no counter.
 - **Confirm outcome.** `ConfirmByTransaction` returns `confirmed` (rows it moved to CONFIRMED) and
