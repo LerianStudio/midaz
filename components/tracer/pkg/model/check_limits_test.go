@@ -541,7 +541,7 @@ func TestLimitUsageDetail_RemainingAmount_NilReceiver(t *testing.T) {
 	assert.True(t, decimal.Zero.Equal(remaining))
 }
 
-func TestCalculatePeriodKey(t *testing.T) {
+func TestLimitPeriodKey_WithoutResetTime(t *testing.T) {
 	t.Parallel()
 
 	timestamp := time.Date(2025, 12, 28, 15, 30, 0, 0, time.UTC)
@@ -572,7 +572,7 @@ func TestCalculatePeriodKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			periodKey, err := model.CalculatePeriodKey(tt.limitType, timestamp)
+			periodKey, err := (&model.Limit{LimitType: tt.limitType}).PeriodKey(timestamp)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, periodKey)
@@ -580,13 +580,13 @@ func TestCalculatePeriodKey(t *testing.T) {
 	}
 }
 
-func TestCalculatePeriodKey_UnknownLimitType(t *testing.T) {
+func TestLimitPeriodKey_UnknownLimitType(t *testing.T) {
 	t.Parallel()
 
 	timestamp := time.Date(2025, 12, 28, 15, 30, 0, 0, time.UTC)
 	unknownType := model.LimitType("UNKNOWN")
 
-	periodKey, err := model.CalculatePeriodKey(unknownType, timestamp)
+	periodKey, err := (&model.Limit{LimitType: unknownType}).PeriodKey(timestamp)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, constant.ErrCheckLimitsUnknownLimitType)

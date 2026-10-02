@@ -168,7 +168,7 @@ func TestLimitStatus_IsValid(t *testing.T) {
 	}
 }
 
-func TestCalculateResetAt(t *testing.T) {
+func TestLimitNextResetAt_WithoutResetTime(t *testing.T) {
 	// Fixed reference time: 2025-01-15 10:30:00 UTC
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -212,7 +212,7 @@ func TestCalculateResetAt(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CalculateResetAt(tc.limitType, tc.now)
+			result := (&Limit{LimitType: tc.limitType}).NextResetAt(tc.now)
 			if tc.expected == nil {
 				assert.Nil(t, result)
 			} else {
@@ -2020,16 +2020,6 @@ func TestLimitPeriod_WithoutResetTimeKeepsMidnightPeriods(t *testing.T) {
 				assert.Equal(t, wantReset, *resetAt)
 			})
 		}
-
-		t.Run(string(tc.limitType)+" "+tc.at+" type-only functions", func(t *testing.T) {
-			key, err := CalculatePeriodKey(tc.limitType, at)
-			require.NoError(t, err)
-			assert.Equal(t, tc.key, key)
-
-			resetAt := CalculateResetAt(tc.limitType, at)
-			require.NotNil(t, resetAt)
-			assert.Equal(t, wantReset, *resetAt)
-		})
 	}
 }
 

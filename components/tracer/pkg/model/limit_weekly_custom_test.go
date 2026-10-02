@@ -59,8 +59,8 @@ func TestLimitType_IsValid_Extended(t *testing.T) {
 	}
 }
 
-// TestCalculateResetAt_Weekly tests WEEKLY limit reset calculation.
-func TestCalculateResetAt_Weekly(t *testing.T) {
+// TestLimitNextResetAt_Weekly tests WEEKLY limit reset calculation.
+func TestLimitNextResetAt_Weekly(t *testing.T) {
 	tests := []struct {
 		name     string
 		now      time.Time
@@ -100,7 +100,7 @@ func TestCalculateResetAt_Weekly(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CalculateResetAt(LimitTypeWeekly, tc.now)
+			result := (&Limit{LimitType: LimitTypeWeekly}).NextResetAt(tc.now)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.expected, *result)
 		})

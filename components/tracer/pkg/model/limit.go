@@ -207,13 +207,6 @@ func (s LimitStatus) IsValid() bool {
 	return false
 }
 
-// CalculateResetAt computes the next midnight-UTC period boundary for a limit
-// type. It ignores a limit's ResetTime; use Limit.NextResetAt for a limit.
-// For CUSTOM limits, use CalculateCustomResetAt instead with customEndDate.
-func CalculateResetAt(limitType LimitType, now time.Time) *time.Time {
-	return nextPeriodStart(limitType, now, 0)
-}
-
 // nextPeriodStart returns the start of the DAILY, WEEKLY or MONTHLY period
 // after the one containing now, for periods that begin boundary past midnight
 // UTC. It returns nil for every other limit type.
@@ -823,7 +816,7 @@ func (l *Limit) IsActive() bool {
 }
 
 // PeriodKey returns the key of the usage period that contains t, in the
-// formats CalculatePeriodKey documents. DAILY, WEEKLY and MONTHLY periods
+// formats periodKey documents. DAILY, WEEKLY and MONTHLY periods
 // start at ResetTime (UTC), or at midnight UTC when it is absent.
 func (l *Limit) PeriodKey(t time.Time) (string, error) {
 	return periodKey(l.LimitType, t, l.periodBoundary())
