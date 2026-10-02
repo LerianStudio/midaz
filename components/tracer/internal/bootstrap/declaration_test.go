@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -369,4 +370,14 @@ func TestDeclarationPublisherRunnable_SIGTERM_DrainsStopsExactlyOnceAndExits(t *
 			t.Fatal("runnable Run did not return after SIGTERM: possible deadlock or leaked goroutine in the drain path")
 		}
 	}
+}
+
+// TestWireAuthScope_AcceptsTheEmbeddedManifest pins that the boot scope wiring takes the
+// embedded manifest's scope catalog. A rejected catalog fails boot, and a client that was
+// never wired sends no entity identifier on any route.
+func TestWireAuthScope_AcceptsTheEmbeddedManifest(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, wireAuthScope(&authMiddleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}))
+	require.Error(t, wireAuthScope(nil), "a nil client must be refused, not silently left unscoped")
 }

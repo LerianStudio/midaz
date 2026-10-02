@@ -181,3 +181,12 @@ func (r *declarationPublisherRunnable) Run(_ *libCommons.Launcher) error {
 
 	return nil
 }
+
+// wireAuthScope hands the embedded manifest's scope catalog to the auth client, so
+// every tracer guard derives the rule, limit, validation or audit event it sends
+// from its own route path. It must run BEFORE any route is registered: Authorize
+// reads the catalog at registration, and a route registered first sends no
+// instance at all.
+func wireAuthScope(auth *authMiddleware.AuthClient) error {
+	return declaration.WireScope(auth, tracerembed.TracerManifest)
+}

@@ -77,6 +77,17 @@ func newTestRouterDeps(t *testing.T, guardCfg middleware.AuthGuardConfig) *testR
 
 // build creates the Fiber app with the configured dependencies.
 func (d *testRouterDeps) build() *fiber.App {
+	// lib-auth v2.7.0 takes a lib-commons/v5 *log.Logger. Tests don't assert
+	// on auth-client log output — a v5 NopLogger keeps stdout clean.
+	authLogger := libLog.NewNop()
+	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, authLogger)
+
+	return d.buildWithAuthClient(authClient)
+}
+
+// buildWithAuthClient is build over a caller-supplied auth client, for a test that
+// must observe what the guards send to the authorization service.
+func (d *testRouterDeps) buildWithAuthClient(authClient *authMiddleware.AuthClient) *fiber.App {
 	mockLogger := testutil.NewMockLogger()
 	telemetry := &libOtel.Telemetry{
 		TelemetryConfig: libOtel.TelemetryConfig{
@@ -86,10 +97,6 @@ func (d *testRouterDeps) build() *fiber.App {
 		},
 	}
 
-	// lib-auth v2.7.0 takes a lib-commons/v5 *log.Logger. Tests don't assert
-	// on auth-client log output — a v5 NopLogger keeps stdout clean.
-	authLogger := libLog.NewNop()
-	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, authLogger)
 	guard := middleware.NewAuthGuard(d.guardCfg, authClient)
 
 	routeCfg := &RouteConfig{OpenAPIDocsEnabled: d.openAPIDocsEnabled}

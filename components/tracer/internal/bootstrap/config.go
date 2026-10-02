@@ -1189,6 +1189,12 @@ func initHTTPServer(
 ) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 
+	// Before any route is registered: every tracer guard derives the entity ids it
+	// authorizes against from the manifest scope, read at registration.
+	if err := wireAuthScope(authClient); err != nil {
+		return nil, nil, fmt.Errorf("failed to wire the authorization scope: %w", err)
+	}
+
 	// Init the dashboard read stack: bounded postgres aggregations behind a
 	// Valkey read-through cache. The cache reuses the tenant-manager Pub/Sub
 	// client — the service's ONLY Valkey connection — rather than opening a

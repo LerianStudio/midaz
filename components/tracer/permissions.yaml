@@ -43,6 +43,12 @@
 # missing here is not merely undeclared — it stops existing.
 service: tracer
 version: 1
+scope:
+  dimensions:
+    - { name: ruleId,       from: path, param: rule_id,        required: false, multi: true, collection: rules,        label: "rule" }
+    - { name: limitId,      from: path, param: limit_id,       required: false, multi: true, collection: limits,       label: "limit" }
+    - { name: validationId, from: path, param: validation_id,  required: false, multi: true, collection: validations,  label: "transaction validation" }
+    - { name: auditEventId, from: path, param: audit_event_id, required: false, multi: true, collection: audit-events, label: "audit event" }
 permissions:
   # rules — CEL fraud rules (registerTracerHumaRoutes, the /v1/rules group)
   - { resource: rules, action: post,   effect: allow, roles: [editor, contributor] }
