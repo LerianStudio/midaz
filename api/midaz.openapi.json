@@ -32311,6 +32311,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "resetTime": {
+            "examples": [
+              "09:00"
+            ],
+            "type": "string"
+          },
           "scopes": {
             "items": {
               "$ref": "#/components/schemas/Scope"
