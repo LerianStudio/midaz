@@ -533,9 +533,10 @@ refresh is retried while the token is valid (backoff from 1s, doubling, capped a
 refresh-to-expiry span, never inside the failure window, never past expiry), so only an outage outlasting that span lets it expire.
 Past 30 idle minutes the token is no longer refreshed but stays served until it expires, and the
 tenant is then forgotten. A
-caller waits for a mint only when no valid token is cached and only within its own deadline; one that
-gives up sent nothing and fails as plain unavailable, not counted. The multi-tenant token is minted on
-the tenant's first call on each pod, an expected `failPosture` event when that mint outlasts the call.
+caller waits for a mint only when no valid token is cached, for at most `TRACER_M2M_TOKEN_TIMEOUT_MS`
+(default 3000) and within its own deadline; `TRACER_TIMEOUT_MS` and `tracer.timeoutMs` bound only the
+RPC sent once the token is in hand. One that gives up sent nothing and fails as plain unavailable, not counted. The multi-tenant token is minted on
+the tenant's first call on each pod, an expected `failPosture` event when that mint outlasts `TRACER_M2M_TOKEN_TIMEOUT_MS`.
 A failed mint opens a per-tenant failure window every caller and scheduled refresh honours (1s,
 doubling per consecutive failure, capped at 15s, plus up to 25% random jitter; reset by a successful
 mint). A token whose `exp` is not after its mint is a failed mint; a lifetime is capped at 24h. A call the tracer answers `Unauthenticated` invalidates only the
@@ -1046,13 +1047,14 @@ enabling discovery with an empty advertise address aborts boot
 | Variable | Default | Description |
 |----------|---------|-------------|
 | TRACER_BASE_URL | — | Tracer reservation seam address, gRPC `host:port` (enables reservation calls; an `http://`/`https://` scheme is stripped) |
-| TRACER_TIMEOUT_MS | — | Client ceiling (ms) on every tracer call; the per-ledger `tracer.timeoutMs` (default 250) sets the reserve deadline beneath it |
+| TRACER_TIMEOUT_MS | — | Client ceiling (ms) on every tracer RPC; the per-ledger `tracer.timeoutMs` (default 250) bounds the reserve RPC beneath it; neither bounds the token wait |
 | TRACER_TLS_MODE | — | Seam transport: `mtls` (mutual TLS), `server` (verify the tracer's certificate, present none) or `mesh`/empty (plaintext, sidecar mTLS) |
 | TRACER_TLS_CERT_FILE | — | Ledger client cert presented under `mtls` |
 | TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
 | TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` and `server` |
 | TRACER_M2M_CLIENT_ID | — | Single-tenant Access Manager client id the ledger mints its seam token with (required with `PLUGIN_AUTH_ENABLED=true`; multi-tenant reads each tenant's credential from the `M2M_SECRETS_BACKEND` backend instead) |
 | TRACER_M2M_CLIENT_SECRET | — | Secret of `TRACER_M2M_CLIENT_ID`; never logged |
+| TRACER_M2M_TOKEN_TIMEOUT_MS | `3000` | How long (ms) a seam call waits for a token that is not cached yet, before its RPC timeout starts; `1..5000` (the mint timeout), else boot refuses; read only with `PLUGIN_AUTH_ENABLED=true` |
 | M2M_SECRETS_BACKEND | `aws` | Multi-tenant custody backend of the seam credentials: `aws` (AWS Secrets Manager, `AWS_REGION` + default credential chain) or `vault` (Vault KV v2 via `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_CACERT`, `VAULT_NAMESPACE`); any other value refuses boot; no fallback between backends |
 | M2M_VAULT_MOUNT | `secret` | Vault KV v2 mount of the seam credentials when `M2M_SECRETS_BACKEND=vault` |
 | TRACER_API_KEY | — | Tracer `API_KEY` sent as `x-api-key` when `PLUGIN_AUTH_ENABLED=false`; refuses boot together with plugin auth |

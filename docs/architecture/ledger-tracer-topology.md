@@ -359,8 +359,9 @@ expiry, never fires inside the failure window, and never runs past the expiry, s
 the token expire. A tenant idle for 30 minutes is no longer refreshed: its still-valid token stays
 served until it expires, and the tenant is then forgotten, so its next call mints. Concurrent mints
 for one tenant collapse into one, bounded at 5 seconds and detached from the callers. Callers wait for a mint only
-when no valid token is cached, and only within their own deadline: a caller whose deadline or
-cancellation strikes while it waits sent nothing and fails as plain `ErrTracerUnavailable` (the
+when no valid token is cached, for at most `TRACER_M2M_TOKEN_TIMEOUT_MS` (default 3s, at most the 5s
+mint bound) and within their own deadline; the RPC timeout (`TRACER_TIMEOUT_MS`, tightened by
+`tracer.timeoutMs`) starts only once the token is in hand. A caller whose wait ends sent nothing and fails as plain `ErrTracerUnavailable` (the
 ordinary Warn, not counted as a credential failure), while the mint completes for the next caller. A
 failed mint opens a per-tenant failure window that every caller and every scheduled refresh honours:
 it is answered from memory for 1 second after the first failure in a row, doubling per consecutive
@@ -554,7 +555,7 @@ recognised as one.
 | Reserve replayed onto a transaction whose reservation is already released, expired or confirmed; no counter moves | `FailedPrecondition` | `0533` | `0532` |
 | Tenant not provisioned, suspended or purged | `Unavailable` | `0534` | `failPosture` |
 | Tenant rule cache not loaded yet (cold start, or a tenant first seen after boot) | `Unavailable` | — | `failPosture` |
-| Ledger's first call for a tenant on a pod (multi-tenant): its token is minted cold, and a mint that outlasts the call's `timeoutMs` leaves the call unsent | — (not sent) | — | `failPosture` |
+| Ledger's first call for a tenant on a pod (multi-tenant): its token is minted cold, and a mint that outlasts `TRACER_M2M_TOKEN_TIMEOUT_MS` (or the request's own deadline) leaves the call unsent | — (not sent) | — | `failPosture` |
 | Tenant reached its per-tenant worker cap | `Unavailable` | `0445` | `failPosture` |
 | Missing or invalid token, missing or wrong API key | `Unauthenticated` | — | `failPosture`, `0536` when closed |
 | Access Manager denial, or the principal guard refuses the token | `PermissionDenied` | — | `failPosture`, `0536` when closed |
@@ -603,11 +604,12 @@ in `components/ledger/.env.example` and `components/tracer/.env.example`.
 | Var | Side | Meaning | Evidence |
 |---|---|---|---|
 | `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration and the seam address (`host:port`; an `http://`/`https://` scheme is stripped); empty → disabled | `buildTracerReserver`, `stripURLScheme` |
-| `TRACER_TIMEOUT_MS` | ledger | client ceiling on every seam RPC; the per-ledger `tracer.timeoutMs` bounds the reserve beneath it | `buildTracerGRPCReserver` |
+| `TRACER_TIMEOUT_MS` | ledger | client ceiling on every seam RPC; the per-ledger `tracer.timeoutMs` bounds the reserve beneath it; neither bounds the token wait | `buildTracerGRPCReserver`, `operationTimeoutUnaryInterceptor` |
 | `TRACER_TLS_MODE` | ledger | `mtls`\|`server`\|`mesh`/empty; `server` verifies the tracer's certificate and presents none | `buildSeamClientTLSConfig` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `buildClientMTLSConfig` |
 | `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf (mtls, server) | `buildClientMTLSConfig`, `buildClientServerTLSConfig` |
 | `TRACER_M2M_CLIENT_ID` / `_SECRET` | ledger | single-tenant Access Manager credential dedicated to the seam; both required when `PLUGIN_AUTH_ENABLED=true` and `TRACER_BASE_URL` is set; ignored in multi-tenant mode, where each tenant's credential is read from `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/tracer/credentials` | `buildTracerSeamIdentity`, `M2MTokenSource` |
+| `TRACER_M2M_TOKEN_TIMEOUT_MS` | ledger | how long a seam call waits for a token not cached yet; default `3000`, `1..5000` (the mint timeout), else boot refuses; token identity only | `tracerM2MTokenTimeout`, `WithTokenWaitTimeout` |
 | `M2M_SECRETS_BACKEND` | ledger | multi-tenant custody backend of the seam credentials: `aws` (default when empty; `AWS_REGION` and the default AWS credential chain) or `vault` (Vault KV v2 via `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_CACERT`, `VAULT_NAMESPACE`); any other value refuses boot; no fallback between backends; unused single-tenant | `buildM2MSecretsReader` |
 | `M2M_VAULT_MOUNT` | ledger | Vault KV v2 mount holding the credentials when `M2M_SECRETS_BACKEND=vault`; empty → `secret` | `buildM2MSecretsReader` |
 | `TRACER_API_KEY` | ledger | the tracer's `API_KEY`, sent as `x-api-key` when `PLUGIN_AUTH_ENABLED=false`; set together with plugin auth it refuses boot | `buildTracerSeamIdentity`, `WithAPIKey` |
