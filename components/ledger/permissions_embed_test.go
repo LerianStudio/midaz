@@ -138,3 +138,20 @@ func TestMidazManifest_GrantsSeedAdminRolesToThePlatformAdmin(t *testing.T) {
 				"when the seed's midaz admin rows retire", name, groups, adminGroup)
 	}
 }
+
+// TestMidazManifest_DeclaresTheTracerM2MEdge pins the import side of the M2M
+// contract: the ledger reaches the tracer reservation seam with its application
+// token, so the manifest must declare the tracer edge for the reconciler to grant
+// tracer/reservations to the ledger's clients.
+func TestMidazManifest_DeclaresTheTracerM2MEdge(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+
+	require.NotNil(t, manifest.M2M, "the manifest declares an m2m contract")
+	require.True(t, manifest.M2M.Exposed, "midaz keeps exposing its own M2M surface")
+	require.Equal(t, []string{"tracer"}, manifest.M2M.Needs)
+}

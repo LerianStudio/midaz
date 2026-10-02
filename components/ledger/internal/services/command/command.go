@@ -210,6 +210,18 @@ type UseCase struct {
 	// unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
 
+	// TracerClientTimeout is the ceiling the tracer client applies to every
+	// reservation call (TRACER_TIMEOUT_MS). The settle of an unanswered reserve
+	// waits it out, plus the tracer's lock wait, before its first attempt. Zero
+	// means the client default.
+	TracerClientTimeout time.Duration
+
+	// unansweredSettles overrides the process-wide queue that settles
+	// unanswered reserves. Nil uses the shared queue. It is a per-UseCase field
+	// rather than a swapped package global so the many parallel tests that drain
+	// their own settles never share, or race on, one queue.
+	unansweredSettles *unansweredSettleQueue
+
 	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
 	// from it, and balance deletion and account closing read the debts owed to a balance.
 	FeeDebts FeeDebtRecorder

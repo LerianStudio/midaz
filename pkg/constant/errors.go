@@ -242,6 +242,18 @@ var (
 	// of tracer.failPosture: the tracer is reachable, so the fail-open escape for
 	// an unavailable tracer does not apply.
 	ErrTransactionReservationRejected = errors.New("0532")
+	// ErrTransactionReservationRuleDenied is returned when a tracer transaction
+	// validation rule denies the transaction and the ledger's tracer.mode is
+	// "enforce". It is raised before the balance commit, and it is distinct from
+	// 0177 so a caller can tell a rule denial from one that exceeds a usage limit.
+	ErrTransactionReservationRuleDenied = errors.New("0535")
+	// ErrTransactionReservationUnauthorized is returned when the tracer
+	// reservation seam rejects the ledger's credential (the token or API key is
+	// missing, invalid or not granted), the ledger's tracer.mode is "enforce" and
+	// its tracer.failPosture is "closed". It is a configuration error that never
+	// heals on its own, so it is distinct from 0178 (an unreachable tracer) and
+	// from 0532 (a request the tracer refused).
+	ErrTransactionReservationUnauthorized = errors.New("0536")
 	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
 	// references a ledger that has not opted in through crossLedger.enabled.
 	ErrCrossLedgerNotEnabled = errors.New("0249")
@@ -509,14 +521,20 @@ var (
 	ErrMethodNotAllowed                       = errors.New("0485")
 	ErrPendingTransactionLocked               = errors.New("0486")
 	ErrReservationTenantRequired              = errors.New("0487")
-	ErrInstrumentLedgerReferenceNotFound      = errors.New("0488")
-	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
-	ErrSkipNotPermitted                       = errors.New("0490")
-	ErrHolderRequired                         = errors.New("0491")
-	ErrReadyzRedisConnectionNotEstablished    = errors.New("0493")
-	ErrReadyzRedisPingFailed                  = errors.New("0494")
-	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
-	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// ErrReservationAlreadySettled is returned when a reserve replays onto a
+	// row that already left RESERVED (confirmed, released or expired).
+	ErrReservationAlreadySettled = errors.New("0533")
+	// ErrReservationTenantInactive is returned when the tenant on the
+	// reservation seam is not provisioned, suspended or purged.
+	ErrReservationTenantInactive           = errors.New("0534")
+	ErrInstrumentLedgerReferenceNotFound   = errors.New("0488")
+	ErrInstrumentAccountReferenceNotFound  = errors.New("0489")
+	ErrSkipNotPermitted                    = errors.New("0490")
+	ErrHolderRequired                      = errors.New("0491")
+	ErrReadyzRedisConnectionNotEstablished = errors.New("0493")
+	ErrReadyzRedisPingFailed               = errors.New("0494")
+	ErrReadyzTenantManagerUnavailable      = errors.New("0495")
+	ErrReadyzStreamingUnhealthy            = errors.New("0496")
 	// ErrInvalidDashboardWindow is returned when a dashboard read names an
 	// unsupported period, supplies period together with startDate/endDate, or
 	// asks for a range longer than 90 days. The window is what bounds every

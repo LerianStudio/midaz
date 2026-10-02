@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -585,7 +586,8 @@ func assertProblemCode(t *testing.T, resp *nethttp.Response, wantStatus int, wan
 //       - a degenerate transaction whose reversal is empty
 //             -> 422 ErrTransactionCantRevert (0089, UnprocessableOperationError)
 //       - a transaction whose operations point at a NON-bidirectional operation route
-//             -> 422 ErrRouteNotBidirectional (0150, UnprocessableOperationError)
+//             -> 422 ErrRouteNotBidirectional (0150, UnprocessableOperationError), proven on a
+//                route-validated ledger by TestIntegration_TransactionV2Revert_NonBidirectionalRouteIsUnprocessable
 //       - an unknown (well-formed) transaction_id
 //             -> 409 ErrCommitTransactionNotPending (0099) — a KNOWN DEFECT, not the intended
 //                contract. See the case body for the root cause and the fix contract; commit
@@ -644,21 +646,6 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	// Subject 4: an APPROVED transaction whose reversal is empty.
 	emptyReversalTxID := seedEmptyReversalTransaction(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
 
-	// Subject 5: an APPROVED direct transfer whose operations are stamped with a
-	// NON-bidirectional operation route, which is the only input that reaches the
-	// bidirectional-route gate. The route is created and stamped AFTER the transfer settles,
-	// so nothing about the create path changes; the gate reads only op.RouteID off the
-	// transaction's operations and resolves the route by id, so the ledger's route-validation
-	// setting (off in this harness) is irrelevant to reaching it.
-	nonBidiResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
-		`{"description":"revert gate non bidirectional subject","asset":"USD","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}]}`, ""), nethttp.StatusCreated)
-	nonBidiTxID := uuid.MustParse(nonBidiResp["id"].(string))
-	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, nonBidiTxID), "the non-bidirectional subject should be APPROVED")
-	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
-
-	sourceRouteID := postgrestestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "Revert Gate Source Route", "source")
-	postgrestestutil.StampOperationRoute(t, infra.pgContainer.DB, nonBidiTxID, sourceRouteID)
-
 	unknownTxID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	cases := []struct {
@@ -696,16 +683,6 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 			url:        v2RevertURL(infra.orgID, infra.ledgerID, emptyReversalTxID),
 			wantStatus: nethttp.StatusUnprocessableEntity,
 			wantCode:   cn.ErrTransactionCantRevert.Error(),
-		},
-		{
-			// Only routes whose OperationType is "bidirectional" may be reverted:
-			// ErrRouteNotBidirectional is an UnprocessableOperationError (see pkg/errors.go)
-			// -> 422. Reached because subject 5's operations carry a route_id pointing at a
-			// "source" route.
-			name:       "revert of a transaction on a non-bidirectional route is unprocessable",
-			url:        v2RevertURL(infra.orgID, infra.ledgerID, nonBidiTxID),
-			wantStatus: nethttp.StatusUnprocessableEntity,
-			wantCode:   cn.ErrRouteNotBidirectional.Error(),
 		},
 		{
 			// A missing entity renders 404/0007 (error-handling standard E3/E5). Revert
@@ -772,15 +749,73 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 		assert.Contains(t, v2Decoded, "status", "%s: /v2 restates the status in the body", tc.name)
 	}
 
-	// Every rejected revert left its subject exactly as it was and persisted nothing: the five
+	// Every rejected revert left its subject exactly as it was and persisted nothing: the four
 	// created transactions plus the seeded degenerate one, and no extra reverse.
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originTxID), "the origin must stay APPROVED after the rejected reverts")
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, revertTxID), "the reverse must stay APPROVED after the rejected reverts")
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingTxID), "the PENDING subject must stay PENDING")
 	assert.Equal(t, cn.CANCELED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, canceledTxID), "the CANCELED subject must stay CANCELED")
 	assert.Nil(t, postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, emptyReversalTxID), "the degenerate subject must not acquire a reverse")
-	assert.Nil(t, postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, nonBidiTxID), "the non-bidirectional subject must not acquire a reverse")
-	assert.Equal(t, 6, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID), "rejected reverts must not persist new transactions")
+	assert.Equal(t, 5, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID), "rejected reverts must not persist new transactions")
+}
+
+// TestIntegration_TransactionV2Revert_NonBidirectionalRouteIsUnprocessable proves the
+// bidirectional-route gate on a transaction created the way production creates one: a
+// route-validated ledger whose legs name their operation routes at create time. The
+// revert reads those routes from the engine evidence while the index is still retained,
+// so the routes must be on the legs from the start. The bidirectional control shows the
+// rejection comes from the route type, not from reverting a routed transaction at all.
+func TestIntegration_TransactionV2Revert_NonBidirectionalRouteIsUnprocessable(t *testing.T) {
+	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+	repository, ok := fixture.infra.redisRepo.(*redistransaction.RedisConsumerRepository)
+	require.True(t, ok, "Redis repository must expose the engine write-behind index")
+
+	organizationID := fixture.infra.orgID
+
+	createRouted := func(t *testing.T, options crossLedgerRouteOptions) (ledgerID, transactionID uuid.UUID) {
+		t.Helper()
+
+		ledgerID = fixture.newLedger(t)
+		seedTransfer(t, fixture.infra.pgContainer.DB, organizationID, ledgerID, "@src", "@dst", 1000)
+		fixture.setLedgerRoutePolicy(t, organizationID, ledgerID, true)
+
+		options.sourceAlias, options.destinationAlias, options.withoutBridge = "@src", "@dst", true
+		template := fixture.seedCrossLedgerRouteTemplate(t, organizationID, options)
+
+		request := atomicBatchTransfer(organizationID, ledgerID, "routed revert gate subject", "@src", "@dst", 100)
+		transactionRoute, source, destination := template.transactionRoute.String(), template.source.String(), template.destination.String()
+		request.RouteID = &transactionRoute
+		request.Debits[0].OperationRouteID = &source
+		request.Credits[0].OperationRouteID = &destination
+
+		raw, err := json.Marshal(request)
+		require.NoError(t, err)
+
+		created := decodeTxResponse(t, postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), ""), nethttp.StatusCreated)
+		transactionID = uuid.MustParse(created["id"].(string))
+
+		require.False(t, engineIndexPending(t, fixture, repository, ledgerID, transactionID),
+			"the subject must be durable so the revert reads the retained engine evidence, as production does")
+
+		return ledgerID, transactionID
+	}
+
+	t.Run("source and destination routes reject the revert", func(t *testing.T) {
+		ledgerID, transactionID := createRouted(t, crossLedgerRouteOptions{})
+
+		assertProblemCode(t, postTransaction(t, fixture.app, v2RevertURL(organizationID, ledgerID, transactionID), "", ""),
+			nethttp.StatusUnprocessableEntity, cn.ErrRouteNotBidirectional.Error())
+
+		assert.Nil(t, postgrestestutil.GetTransactionParentID(t, fixture.infra.pgContainer.DB, transactionID), "the rejected subject must not acquire a reverse")
+		assert.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerID), "the rejected revert must not persist a transaction")
+	})
+
+	t.Run("bidirectional routes accept the revert", func(t *testing.T) {
+		ledgerID, transactionID := createRouted(t, crossLedgerRouteOptions{bidirectionalClients: true})
+
+		reverted := decodeTxResponse(t, postTransaction(t, fixture.app, v2RevertURL(organizationID, ledgerID, transactionID), "", ""), nethttp.StatusCreated)
+		assert.Equal(t, transactionID.String(), reverted["parentTransactionId"], "the reverse must name the reverted subject")
+	})
 }
 
 // =============================================================================

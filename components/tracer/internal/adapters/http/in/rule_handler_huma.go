@@ -17,8 +17,8 @@ import (
 )
 
 // This file is the REFERENCE Huma adoption pattern for the tracer component.
-// The other 28 handlers (across rule/limit/validation/reservation/audit) copy
-// this shape in the Phase-2b fan-out. Conventions established here:
+// The rule, limit, validation and audit handlers follow the same shape.
+// Conventions established here:
 //
 //  1. In/Out structs: request path/query params + a RawBody []byte (NOT a typed
 //     Body). RawBody keeps Huma from parsing+validating the body, so malformed

@@ -403,8 +403,12 @@ func bootServiceInMTMode(t *testing.T, h *mtHarness, extra map[string]string) fu
 		// PLUGIN_AUTH_ADDRESS is intentionally left unset — lib-auth's
 		// client treats that as "no upstream", which is compatible with
 		// the httptest-based TenantMiddleware exercised here.
-		"PLUGIN_AUTH_ENABLED":             "true",
-		"PLUGIN_AUTH_ADDRESS":             h.pluginAuthSrv.URL,
+		"PLUGIN_AUTH_ENABLED": "true",
+		"PLUGIN_AUTH_ADDRESS": h.pluginAuthSrv.URL,
+		// Plugin auth makes the Access Manager token the reservation seam's
+		// identity, and the seam posture gate refuses that identity unless
+		// application tokens authorize under their own subject.
+		"AUTH_M2M_INVERSION_ENABLED":      "true",
 		"API_KEY_ENABLED_ONLY_VALIDATION": "false",
 		// The harness exposes http:// URLs (local httptest servers); opt in to
 		// the cleartext-HTTP downgrade explicitly per H13. Production must keep
@@ -457,7 +461,8 @@ func ensureTenantDatabase(t *testing.T, dbName string) tenantPGSpec {
 
 	// Postgres does not support "CREATE DATABASE IF NOT EXISTS"; check first.
 	var exists bool
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, dbName,
 	).Scan(&exists)
 	require.NoError(t, err, "check database existence")

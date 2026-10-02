@@ -14,6 +14,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
@@ -40,11 +41,11 @@ func (s *spyChannel) Publish(_ string, _ string, _ bool, _ bool, msg amqp.Publis
 // a no-op sleep, and a spy channel for republish capture.
 func newTestRetryManager(channel publishChannel) *ConsumerRetryManager {
 	return &ConsumerRetryManager{
-		classifier:  pkgRabbitmq.NewDefaultClassifier(),
-		backoff:     func(int) time.Duration { return 0 },
-		channelFunc: func() publishChannel { return channel },
-		maxRetries:  maxMessageRetries,
-		logger:      testLogger,
+		classifier: pkgRabbitmq.NewDefaultClassifier(),
+		backoff:    func(int) time.Duration { return 0 },
+		channel:    channel,
+		maxRetries: maxMessageRetries,
+		logger:     testLogger,
 	}
 }
 
@@ -117,6 +118,61 @@ func TestRetryManager_TransientAtMaxRetries_NacksToDLQ(t *testing.T) {
 	assert.False(t, channel.publishCalled, "at max retries should not republish")
 	assert.True(t, ack.nackCalled, "at max retries should nack to DLQ")
 	assert.False(t, ack.nackRequeue, "at max retries must nack to DLQ (requeue=false)")
+}
+
+// TestRetryManager_NilChannelAtConstruction_NacksToDLQ ensures a manager built without
+// a channel (untyped nil or typed-nil *amqp.Channel) dead-letters a transient failure
+// under budget and returns the republish error to the engine, which leaves the original
+// delivery unacked.
+func TestRetryManager_NilChannelAtConstruction_NacksToDLQ(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		channel publishChannel
+	}{
+		{name: "untyped_nil", channel: nil},
+		{name: "typed_nil_amqp_channel", channel: (*amqp.Channel)(nil)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rm := NewConsumerRetryManager(tt.channel, testLogger)
+			rm.backoff = func(int) time.Duration { return 0 }
+
+			require.Nil(t, rm.channel, "nil channel must be stored as an untyped nil")
+
+			republishAck := &mockAcknowledger{}
+			republishDelivery := amqp.Delivery{
+				Acknowledger: republishAck,
+				DeliveryTag:  4,
+				Body:         []byte("msg"),
+				Headers:      amqp.Table{},
+			}
+
+			err := rm.republish(context.Background(), 0, "transaction.queue", republishDelivery, amqp.Table{}, noop.Span{})
+
+			require.Error(t, err, "republish without a channel must return an error to the engine")
+			assert.True(t, republishAck.nackCalled, "republish without a channel should nack")
+			assert.False(t, republishAck.nackRequeue, "republish without a channel must nack to DLQ (requeue=false)")
+
+			ack := &mockAcknowledger{}
+			delivery := amqp.Delivery{
+				Acknowledger: ack,
+				DeliveryTag:  5,
+				Body:         []byte("msg"),
+				Headers:      amqp.Table{},
+			}
+
+			rm.HandleFailure(context.Background(), 0, "transaction.queue", delivery, errors.New("transient infra failure"), 0, noop.Span{})
+
+			assert.True(t, ack.nackCalled, "transient error without a channel should nack")
+			assert.False(t, ack.nackRequeue, "transient error without a channel must nack to DLQ (requeue=false)")
+			assert.False(t, ack.ackCalled, "engine must not ack the original delivery when republish fails")
+		})
+	}
 }
 
 // TestNewConsumerRoutes_ReturnsErrorOnConnectionFailure ensures the constructor returns

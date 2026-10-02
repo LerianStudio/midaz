@@ -623,6 +623,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Rejected Error",
 			Message:    "The usage-limit service rejected the reservation request for this transaction. Verify that the asset, account type and transaction date are accepted by the tracer configuration.",
 		},
+		constant.ErrTransactionReservationRuleDenied: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationRuleDenied.Error(),
+			Title:      "Transaction Reservation Rule Denied Error",
+			Message:    "The transaction was denied by a transaction validation rule and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.",
+		},
+		constant.ErrTransactionReservationUnauthorized: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationUnauthorized.Error(),
+			Title:      "Transaction Reservation Unauthorized Error",
+			Message:    "The tracer reservation seam rejected this ledger's credential and the ledger enforces tracer decisions with a closed fail posture. Check the ledger's Access Manager client and the tracer's allowed clients.",
+		},
 		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
@@ -3220,6 +3232,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrReservationAlreadyTerminal.Error(),
 			Title:      "Reservation Already Terminal",
 			Message:    "Reservation: reservation is already in a terminal state.",
+		},
+		constant.ErrReservationAlreadySettled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationAlreadySettled.Error(),
+			Title:      "Reservation Already Settled",
+			Message:    "The reservation for this transaction was already settled and cannot be reserved again.",
+		},
+		constant.ErrReservationTenantInactive: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTenantInactive.Error(),
+			Title:      "Reservation Tenant Inactive",
+			Message:    "The tenant is not provisioned or not active for reservations.",
 		},
 	}
 

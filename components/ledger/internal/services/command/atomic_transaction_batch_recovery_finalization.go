@@ -295,20 +295,24 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	identity := reservationHandle{TransactionID: transactionID, Amount: amount, Asset: tran.AssetCode}
 
 	// A canceled member moved no funds, so its capacity is returned rather than counted.
-	action, settle := reservationActionConfirm, uc.TracerReserver.ConfirmByTransaction
 	if status == constant.CANCELED {
-		action, settle = reservationActionRelease, uc.TracerReserver.ReleaseByTransaction
+		if err := uc.TracerReserver.ReleaseByTransaction(ctx, transactionID); err != nil {
+			uc.recordReservationByTransactionFailure(ctx, span, logger, identity.transitionByTransaction(reservationActionRelease), err)
+		}
+
+		return
 	}
 
-	if err := settle(ctx, transactionID); err != nil {
-		uc.recordReservationByTransactionFailure(
-			ctx,
-			span,
-			logger,
-			identity.transitionByTransaction(action),
-			err,
-		)
+	transition := identity.transitionByTransaction(reservationActionConfirm)
+
+	outcome, err := uc.TracerReserver.ConfirmByTransaction(ctx, transactionID)
+	if err != nil {
+		uc.recordReservationByTransactionFailure(ctx, span, logger, transition, err)
+
+		return
 	}
+
+	recordReservationConfirmOutcome(ctx, span, uc.MetricsFactory, logger, transition, outcome)
 }
 
 func atomicTransactionBatchRecoveryResponses(

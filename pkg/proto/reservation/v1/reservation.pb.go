@@ -511,9 +511,13 @@ func (x *ReleaseByIdRequest) GetReservationId() string {
 
 // ConfirmByTransactionResponse is the response to ConfirmByTransaction.
 type ConfirmByTransactionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Rows this call moved to CONFIRMED (RESERVED or EXPIRED before the call).
+	Confirmed uint32 `protobuf:"varint,1,opt,name=confirmed,proto3" json:"confirmed,omitempty"`
+	// Rows of the transaction that were already RELEASED: spend that will never be counted.
+	AlreadyReleased uint32 `protobuf:"varint,2,opt,name=already_released,json=alreadyReleased,proto3" json:"already_released,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ConfirmByTransactionResponse) Reset() {
@@ -544,6 +548,20 @@ func (x *ConfirmByTransactionResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ConfirmByTransactionResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmByTransactionResponse) Descriptor() ([]byte, []int) {
 	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ConfirmByTransactionResponse) GetConfirmed() uint32 {
+	if x != nil {
+		return x.Confirmed
+	}
+	return 0
+}
+
+func (x *ConfirmByTransactionResponse) GetAlreadyReleased() uint32 {
+	if x != nil {
+		return x.AlreadyReleased
+	}
+	return 0
 }
 
 // ReleaseByTransactionResponse is the response to ReleaseByTransaction.
@@ -585,9 +603,11 @@ func (*ReleaseByTransactionResponse) Descriptor() ([]byte, []int) {
 
 // ConfirmByIdResponse is the response to ConfirmById.
 type ConfirmByIdResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// True when the row was already RELEASED, so the confirm settled nothing.
+	AlreadyReleased bool `protobuf:"varint,1,opt,name=already_released,json=alreadyReleased,proto3" json:"already_released,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ConfirmByIdResponse) Reset() {
@@ -618,6 +638,13 @@ func (x *ConfirmByIdResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ConfirmByIdResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmByIdResponse) Descriptor() ([]byte, []int) {
 	return file_reservation_v1_reservation_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ConfirmByIdResponse) GetAlreadyReleased() bool {
+	if x != nil {
+		return x.AlreadyReleased
+	}
+	return false
 }
 
 // ReleaseByIdResponse is the response to ReleaseById.
@@ -702,10 +729,13 @@ const file_reservation_v1_reservation_proto_rawDesc = "" +
 	"\x12ConfirmByIdRequest\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\";\n" +
 	"\x12ReleaseByIdRequest\x12%\n" +
-	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\"\x1e\n" +
-	"\x1cConfirmByTransactionResponse\"\x1e\n" +
-	"\x1cReleaseByTransactionResponse\"\x15\n" +
-	"\x13ConfirmByIdResponse\"\x15\n" +
+	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\"g\n" +
+	"\x1cConfirmByTransactionResponse\x12\x1c\n" +
+	"\tconfirmed\x18\x01 \x01(\rR\tconfirmed\x12)\n" +
+	"\x10already_released\x18\x02 \x01(\rR\x0falreadyReleased\"\x1e\n" +
+	"\x1cReleaseByTransactionResponse\"@\n" +
+	"\x13ConfirmByIdResponse\x12)\n" +
+	"\x10already_released\x18\x01 \x01(\bR\x0falreadyReleased\"\x15\n" +
 	"\x13ReleaseByIdResponse2\xf8\x04\n" +
 	"\x12ReservationService\x12b\n" +
 	"\aReserve\x12+.lerian.midaz.reservation.v1.ReserveRequest\x1a*.lerian.midaz.reservation.v1.ReserveResult\x12\x8b\x01\n" +

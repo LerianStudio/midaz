@@ -6,16 +6,17 @@ package command
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 )
 
 // reservationRetryComponent scopes the retrier's panic-observability signals
@@ -86,47 +87,16 @@ var defaultReservationRetryPolicy = reservationRetryPolicy{
 // bounded memory and a loud, honest log beats an unbounded goroutine population
 // on the money path.
 type reservationRetrier struct {
-	policy reservationRetryPolicy
-	slots  chan struct{}
-	wg     sync.WaitGroup
+	*inFlightPool
 
-	// inFlight names the transitions still being retried, so a shutdown can
-	// report the ones it is about to abandon. Without it a rolling deploy drops
-	// up to MaxInFlight confirms with no log line at all, which is the one hole
-	// the "never lose a spend silently" contract cannot afford.
-	inFlightMu sync.Mutex
-	inFlight   map[uint64]reservationTransition
-	nextSeq    uint64
+	policy reservationRetryPolicy
 }
 
 // newReservationRetrier builds a retrier for the given policy.
 func newReservationRetrier(policy reservationRetryPolicy) *reservationRetrier {
-	if policy.MaxInFlight <= 0 {
-		policy.MaxInFlight = 1
-	}
-
 	return &reservationRetrier{
-		policy:   policy,
-		slots:    make(chan struct{}, policy.MaxInFlight),
-		inFlight: make(map[uint64]reservationTransition),
-	}
-}
-
-// track registers a sequence as in flight and returns the function that
-// deregisters it.
-func (r *reservationRetrier) track(transition reservationTransition) func() {
-	r.inFlightMu.Lock()
-
-	r.nextSeq++
-	seq := r.nextSeq
-	r.inFlight[seq] = transition
-
-	r.inFlightMu.Unlock()
-
-	return func() {
-		r.inFlightMu.Lock()
-		delete(r.inFlight, seq)
-		r.inFlightMu.Unlock()
+		inFlightPool: newInFlightPool(policy.MaxInFlight),
+		policy:       policy,
 	}
 }
 
@@ -136,15 +106,7 @@ func (r *reservationRetrier) track(transition reservationTransition) func() {
 // a known residual; losing it WITHOUT a log line is not, because the whole point
 // of this path is that a spend never goes missing quietly.
 func (r *reservationRetrier) reportOutstanding(ctx context.Context, logger libLog.Logger) {
-	r.inFlightMu.Lock()
-	outstanding := make([]reservationTransition, 0, len(r.inFlight))
-
-	for _, transition := range r.inFlight {
-		outstanding = append(outstanding, transition)
-	}
-
-	r.inFlightMu.Unlock()
-
+	outstanding := r.outstanding()
 	if len(outstanding) == 0 {
 		return
 	}
@@ -173,60 +135,57 @@ func (uc *UseCase) scheduleReservationRetry(ctx context.Context, logger libLog.L
 		return
 	}
 
-	sharedReservationRetrier.schedule(ctx, uc.TracerReserver, logger, transition, cause)
+	sharedReservationRetrier.schedule(ctx, uc.TracerReserver, uc.MetricsFactory, logger, transition, cause)
 }
 
 // schedule starts a retry sequence for one transition, or reports it as
-// undeliverable when the process is already at its concurrency cap.
-//
-// The context is detached from the request with context.WithoutCancel: the
-// request's context is cancelled the moment the response is written, and a
-// confirm the ledger owes the tracer must outlive the request that created it.
-// Detaching keeps the values the transport needs — the tenant the tracer client
-// reads off the context, and the trace correlation — while dropping only the
-// cancellation.
-func (r *reservationRetrier) schedule(ctx context.Context, reserver TracerReserver, logger libLog.Logger, transition reservationTransition, cause error) {
-	select {
-	case r.slots <- struct{}{}:
-	default:
-		// At capacity. Say so instead of silently dropping: this is the one
-		// place the ledger knowingly gives up on a spend, and an operator has
-		// to see it as a saturation signal, not as a one-off.
-		logger.Log(ctx, libLog.LevelError,
-			"Tracer reservation transition dropped: too many retries already in flight; "+transition.lossConsequence(),
-			append(transition.logFields(),
-				libLog.Int("retries_in_flight", r.policy.MaxInFlight),
-				libLog.Err(cause)))
-
-		return
-	}
-
-	detached := context.WithoutCancel(ctx)
-
-	r.wg.Add(1)
-
-	untrack := r.track(transition)
-
-	libRuntime.SafeGoWithContextAndComponent(detached, logger, reservationRetryComponent,
-		"reservation.retry_transition", libRuntime.KeepRunning, func(c context.Context) {
-			defer r.wg.Done()
-			defer func() { <-r.slots }()
-			defer untrack()
-
+// undeliverable when the process is already at its concurrency cap. The
+// sequence runs detached from the request, because a confirm the ledger owes
+// the tracer must outlive the request that created it.
+func (r *reservationRetrier) schedule(
+	ctx context.Context,
+	reserver TracerReserver,
+	factory *metrics.MetricsFactory,
+	logger libLog.Logger,
+	transition reservationTransition,
+	cause error,
+) {
+	started := r.start(ctx, logger, reservationRetryComponent, "reservation.retry_transition", transition,
+		func(c context.Context) {
 			c, cancel := context.WithTimeout(c, r.policy.Budget)
 			defer cancel()
 
-			r.run(c, reserver, logger, transition, cause)
+			r.run(c, reserver, factory, logger, transition, cause)
 		})
+	if started {
+		return
+	}
+
+	// At capacity. Say so instead of silently dropping: this is the one place
+	// the ledger knowingly gives up on a spend, and an operator has to see it
+	// as a saturation signal, not as a one-off.
+	logger.Log(ctx, libLog.LevelError,
+		"Tracer reservation transition dropped: too many retries already in flight; "+transition.lossConsequence(),
+		append(transition.logFields(),
+			libLog.Int("retries_in_flight", r.capacity()),
+			libLog.Err(cause)))
 }
 
 // run is the retry sequence for one transition. It returns as soon as the
 // tracer accepts the transition, and otherwise keeps trying until the attempt
-// count or the wall-clock budget runs out.
-func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, logger libLog.Logger, transition reservationTransition, cause error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// count or the wall-clock budget runs out. A delivered confirm that found
+// released reservations is flagged the same way the inline attempt flags it.
+func (r *reservationRetrier) run(
+	ctx context.Context,
+	reserver TracerReserver,
+	factory *metrics.MetricsFactory,
+	logger libLog.Logger,
+	transition reservationTransition,
+	cause error,
+) {
+	_, retryTracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.reservation_retry")
+	ctx, span := retryTracer.Start(ctx, "command.reservation_retry")
 	defer span.End()
 
 	span.SetAttributes(
@@ -244,7 +203,7 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 			return
 		}
 
-		err := r.deliver(ctx, reserver, transition)
+		outcome, err := r.deliver(ctx, reserver, transition)
 		if err == nil {
 			span.SetAttributes(attribute.Int("app.reservation.retry_attempts", attempt))
 
@@ -256,6 +215,8 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 				append(transition.logFields(),
 					libLog.Int("attempts", attempt),
 					libLog.String("elapsed", time.Since(started).String())))
+
+			recordReservationConfirmOutcome(ctx, span, factory, logger, transition, outcome)
 
 			return
 		}
@@ -269,18 +230,19 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 // deliver makes one attempt, choosing the address the transition carries. Both
 // forms are idempotent on the tracer's side, which is what makes retrying safe:
 // a confirm only settles a reservation still in a settleable state, so a repeat
-// after a response the ledger never saw moves no counter a second time.
-func (r *reservationRetrier) deliver(ctx context.Context, reserver TracerReserver, transition reservationTransition) error {
+// after a response the ledger never saw moves no counter a second time. A
+// release reports the zero outcome.
+func (r *reservationRetrier) deliver(ctx context.Context, reserver TracerReserver, transition reservationTransition) (tracer.ConfirmOutcome, error) {
 	if transition.byTransaction() {
 		if transition.Action == reservationActionRelease {
-			return reserver.ReleaseByTransaction(ctx, transition.TransactionID)
+			return tracer.ConfirmOutcome{}, reserver.ReleaseByTransaction(ctx, transition.TransactionID)
 		}
 
 		return reserver.ConfirmByTransaction(ctx, transition.TransactionID)
 	}
 
 	if transition.Action == reservationActionRelease {
-		return reserver.Release(ctx, transition.ReservationID)
+		return tracer.ConfirmOutcome{}, reserver.Release(ctx, transition.ReservationID)
 	}
 
 	return reserver.Confirm(ctx, transition.ReservationID)
@@ -316,8 +278,10 @@ func (r *reservationRetrier) reportExhausted(ctx context.Context, span trace.Spa
 }
 
 // ReportOutstandingReservationRetries names every confirm or release the ledger
-// still owes the tracer, at the point the process is about to stop trying. The
-// composition root calls it at the end of the graceful-drain window.
+// still owes the tracer, and every unanswered-reserve settle still queued, at
+// the point the process is about to stop trying. The composition root calls it
+// at the end of the graceful-drain window.
 func ReportOutstandingReservationRetries(ctx context.Context, logger libLog.Logger) {
 	sharedReservationRetrier.reportOutstanding(ctx, logger)
+	sharedUnansweredSettleQueue.reportOutstanding(ctx, logger)
 }

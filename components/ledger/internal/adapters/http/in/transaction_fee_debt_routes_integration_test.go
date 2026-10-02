@@ -44,8 +44,6 @@ func newFeeDebtRoutes(t *testing.T, validated bool) *feeDebtRoutes {
 	t.Helper()
 
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 
 	debts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)

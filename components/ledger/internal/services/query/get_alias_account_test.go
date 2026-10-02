@@ -12,6 +12,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 
 	// Pre-generate an ID to make assertions deterministic
 	successAccountID := uuid.New()
+	aliasLookupAccountID := uuid.New()
 
 	tests := []struct {
 		name           string
@@ -55,7 +57,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: successAccountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}, Blocked: &b}, nil)
 				mockMetadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByEntity(gomock.Any(), constant.EntityAccount, successAccountID.String()).
 					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
 			},
 			expectErr: false,
@@ -65,6 +67,28 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 				Blocked:  func() *bool { x := true; return &x }(),
+			},
+		},
+		{
+			name:           "Success - Metadata is looked up by account ID, not alias",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    nil,
+			alias:          "@customer/BRL",
+			mockSetup: func() {
+				mockAccountRepo.EXPECT().
+					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), "@customer/BRL", mmodel.HolderOnV2).
+					Return(&mmodel.Account{ID: aliasLookupAccountID.String(), Name: "Alias Account", Status: mmodel.Status{Code: "active"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), constant.EntityAccount, aliasLookupAccountID.String()).
+					Return(&mongodb.Metadata{Data: map[string]any{"source": "id"}}, nil)
+			},
+			expectErr: false,
+			expectedResult: &mmodel.Account{
+				ID:       aliasLookupAccountID.String(),
+				Name:     "Alias Account",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"source": "id"},
 			},
 		},
 		{
@@ -93,7 +117,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByEntity(gomock.Any(), constant.EntityAccount, accountID.String()).
 					Return(nil, errors.New("metadata retrieval error"))
 			},
 			expectErr:      true,

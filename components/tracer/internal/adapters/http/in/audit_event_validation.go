@@ -43,7 +43,8 @@ func registerAuditEventValidations(v *validator.Validate) error {
 	return nil
 }
 
-// validateAuditEventType validates that the AuditEventType is a valid enum value.
+// validateAuditEventType accepts exactly the event types the model defines, so
+// every event the tracer records can be filtered on.
 func validateAuditEventType(fl validator.FieldLevel) bool {
 	field := fl.Field()
 	if field.Kind() == reflect.Pointer {
@@ -54,22 +55,10 @@ func validateAuditEventType(fl validator.FieldLevel) bool {
 		field = field.Elem()
 	}
 
-	eventType := model.AuditEventType(field.String())
-	switch eventType {
-	case model.AuditEventTransactionValidated,
-		model.AuditEventRuleCreated, model.AuditEventRuleUpdated,
-		model.AuditEventRuleActivated, model.AuditEventRuleDeactivated,
-		model.AuditEventRuleDrafted, model.AuditEventRuleDeleted,
-		model.AuditEventLimitCreated, model.AuditEventLimitUpdated,
-		model.AuditEventLimitActivated, model.AuditEventLimitDeactivated,
-		model.AuditEventLimitDrafted, model.AuditEventLimitDeleted:
-		return true
-	default:
-		return false
-	}
+	return model.AuditEventType(field.String()).IsValid()
 }
 
-// validateAuditAction validates that the AuditAction is a valid enum value.
+// validateAuditAction accepts exactly the actions the model defines.
 func validateAuditAction(fl validator.FieldLevel) bool {
 	field := fl.Field()
 	if field.Kind() == reflect.Pointer {
@@ -80,19 +69,10 @@ func validateAuditAction(fl validator.FieldLevel) bool {
 		field = field.Elem()
 	}
 
-	action := model.AuditAction(field.String())
-	switch action {
-	case model.AuditActionValidate, model.AuditActionCreate,
-		model.AuditActionUpdate, model.AuditActionDelete,
-		model.AuditActionActivate, model.AuditActionDeactivate,
-		model.AuditActionDraft:
-		return true
-	default:
-		return false
-	}
+	return model.AuditAction(field.String()).IsValid()
 }
 
-// validateAuditResult validates that the AuditResult is a valid enum value.
+// validateAuditResult accepts exactly the results the model defines.
 func validateAuditResult(fl validator.FieldLevel) bool {
 	field := fl.Field()
 	if field.Kind() == reflect.Pointer {
@@ -103,18 +83,10 @@ func validateAuditResult(fl validator.FieldLevel) bool {
 		field = field.Elem()
 	}
 
-	result := model.AuditResult(field.String())
-	switch result {
-	case model.AuditResultSuccess, model.AuditResultFailed,
-		model.AuditResultAllow, model.AuditResultDeny,
-		model.AuditResultReview:
-		return true
-	default:
-		return false
-	}
+	return model.AuditResult(field.String()).IsValid()
 }
 
-// validateResourceType validates that the ResourceType is a valid enum value.
+// validateResourceType accepts exactly the resource types the model defines.
 func validateResourceType(fl validator.FieldLevel) bool {
 	field := fl.Field()
 	if field.Kind() == reflect.Pointer {
@@ -125,17 +97,10 @@ func validateResourceType(fl validator.FieldLevel) bool {
 		field = field.Elem()
 	}
 
-	resourceType := model.ResourceType(field.String())
-	switch resourceType {
-	case model.ResourceTypeTransaction, model.ResourceTypeRule,
-		model.ResourceTypeLimit:
-		return true
-	default:
-		return false
-	}
+	return model.ResourceType(field.String()).IsValid()
 }
 
-// validateActorType validates that the ActorType is a valid enum value.
+// validateActorType accepts exactly the actor types the model defines.
 func validateActorType(fl validator.FieldLevel) bool {
 	field := fl.Field()
 	if field.Kind() == reflect.Pointer {
@@ -146,13 +111,7 @@ func validateActorType(fl validator.FieldLevel) bool {
 		field = field.Elem()
 	}
 
-	actorType := model.ActorType(field.String())
-	switch actorType {
-	case model.ActorTypeUser, model.ActorTypeSystem:
-		return true
-	default:
-		return false
-	}
+	return model.ActorType(field.String()).IsValid()
 }
 
 // ListAuditEventsInput represents the input for listing audit events with filters and pagination.

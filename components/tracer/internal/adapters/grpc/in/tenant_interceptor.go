@@ -13,7 +13,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
@@ -29,15 +28,18 @@ type WorkerEnsurer interface {
 }
 
 // TenantUnaryInterceptor resolves the per-tenant PostgreSQL pool from the
-// TRUSTED x-tenant-id metadata the ledger forwards and binds it into the
-// request context BEFORE the reservation handler runs. The tenant key is
-// trusted because the gRPC peer is mTLS-verified (or sits behind a verified
-// mesh sidecar); this interceptor is registered ONLY on the reservation gRPC
-// server, which is unreachable without that verified peer.
+// x-tenant-id metadata the ledger forwards and binds it into the request
+// context BEFORE the reservation handler runs. It is the tenant carrier of
+// every seam identity except the Access Manager token: the transport
+// (mtls/mesh), the API key and no identity, all of which run single-tenant.
 //
 // Under multi-tenant mode a missing/empty/invalid tenant key fails with
 // codes.InvalidArgument and never resolves a default/wrong pool. In
 // single-tenant (no-op) mode the resolver passes through and the key is ignored.
+//
+// A tenant the tenant manager reports as not provisioned, suspended or purged
+// answers codes.Unavailable with ErrReservationTenantInactive; any other
+// resolution failure answers codes.Internal.
 //
 // Once the tenant resolves, ensurer starts that tenant's workers so a tenant
 // whose first traffic is a reservation still gets its rule cache loaded. A
@@ -45,18 +47,43 @@ type WorkerEnsurer interface {
 // other ensure failure is logged and the request proceeds. A nil ensurer skips
 // the step.
 func TenantUnaryInterceptor(resolver *seamtenant.Resolver, ensurer WorkerEnsurer) grpc.UnaryServerInterceptor {
+	return tenantUnaryInterceptor(resolver, ensurer, seamtenant.MetadataKey, nil)
+}
+
+// TokenTenantUnaryInterceptor is TenantUnaryInterceptor for the Access Manager
+// token identity: it resolves the tenant from md-tenant-id, the value lib-auth
+// copied from the authorized token's tenantId claim, and ignores x-tenant-id
+// for resolution, so the tenant always comes from the caller's credential. The
+// claim is resolved in its lib-commons canonical form (tmcore.CanonicalTenantID),
+// the key the HTTP tenant middleware resolves, so both listeners share one pool
+// and one worker set per tenant; a claim that does not canonicalize is a
+// missing tenant. It MUST run after the lib-auth interceptor and
+// SeamPrincipalInterceptor.
+func TokenTenantUnaryInterceptor(resolver *seamtenant.Resolver, ensurer WorkerEnsurer) grpc.UnaryServerInterceptor {
+	return tenantUnaryInterceptor(resolver, ensurer, TokenTenantMetadataKey, canonicalTenantOrEmpty)
+}
+
+// tenantUnaryInterceptor resolves the tenant read from the metadataKey value,
+// mapped through normalize when it is non-nil.
+func tenantUnaryInterceptor(
+	resolver *seamtenant.Resolver,
+	ensurer WorkerEnsurer,
+	metadataKey string,
+	normalize func(string) string,
+) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if !resolver.Active() {
 			return handler(ctx, req)
 		}
 
-		resolvedCtx, err := resolver.Resolve(ctx, tenantIDFromMetadata(ctx))
-		if err != nil {
-			if errors.Is(err, constant.ErrReservationTenantRequired) {
-				return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error())
-			}
+		tenantID := firstMetadataValue(ctx, metadataKey)
+		if normalize != nil {
+			tenantID = normalize(tenantID)
+		}
 
-			return nil, status.Error(codes.Internal, constant.ErrInternalServer.Error())
+		resolvedCtx, err := resolver.Resolve(ctx, tenantID)
+		if err != nil {
+			return nil, resolveFailureStatus(ctx, tenantID, err)
 		}
 
 		if err := ensureTenantWorkers(resolvedCtx, ensurer, tmcore.GetTenantIDContext(resolvedCtx)); err != nil {
@@ -64,6 +91,36 @@ func TenantUnaryInterceptor(resolver *seamtenant.Resolver, ensurer WorkerEnsurer
 		}
 
 		return handler(resolvedCtx, req)
+	}
+}
+
+// canonicalTenantOrEmpty returns the canonical form of tenantID, or "" when it
+// does not canonicalize, which Resolve answers as a missing tenant.
+func canonicalTenantOrEmpty(tenantID string) string {
+	canonical, err := tmcore.CanonicalTenantID(tenantID)
+	if err != nil {
+		return ""
+	}
+
+	return canonical
+}
+
+// resolveFailureStatus maps a Resolve failure onto the gRPC status the caller
+// receives.
+func resolveFailureStatus(ctx context.Context, tenantID string, err error) error {
+	switch {
+	case errors.Is(err, constant.ErrReservationTenantRequired):
+		return status.Error(codes.InvalidArgument, constant.ErrReservationTenantRequired.Error())
+	case errors.Is(err, constant.ErrReservationTenantInactive):
+		logger := libObservability.NewLoggerFromContext(ctx)
+		logger.Log(ctx, libLog.LevelWarn, "Tenant is not active for reservations; answering unavailable",
+			libLog.String("operation", "grpc.reservations.resolve_tenant"),
+			libLog.String("tenant_id", tenantID),
+			libLog.Err(err))
+
+		return status.Error(codes.Unavailable, constant.ErrReservationTenantInactive.Error())
+	default:
+		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
 }
 
@@ -97,21 +154,4 @@ func ensureTenantWorkers(ctx context.Context, ensurer WorkerEnsurer, tenantID st
 		libLog.Err(err))
 
 	return nil
-}
-
-// tenantIDFromMetadata reads the trusted tenant id from incoming gRPC metadata.
-// Returns an empty string when absent; the resolver maps empty to the clean
-// missing-tenant failure under MT.
-func tenantIDFromMetadata(ctx context.Context) string {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return ""
-	}
-
-	values := md.Get(seamtenant.MetadataKey)
-	if len(values) == 0 {
-		return ""
-	}
-
-	return values[0]
 }
