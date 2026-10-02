@@ -66,6 +66,10 @@ const (
 	seamChainTenantA       = "0193b0c4d2a87e4f9c1d2e3f4a5b6c7d"
 	seamChainTenantADashed = "0193b0c4-d2a8-7e4f-9c1d-2e3f4a5b6c7d"
 	seamChainLedgerClient  = "lerian/midaz-ledger"
+	// seamChainLedgerClientID / seamChainLedgerAppID are the azp (client id)
+	// and application id of an Access Manager application token.
+	seamChainLedgerClientID = "0a1b2c3d4e5f60718293"
+	seamChainLedgerAppID    = "7d1e9c42-5b3a-4f6e-9a8b-2c4d6e8f0a1b"
 )
 
 // chainAccessManager stands in for the Access Manager: it grants
@@ -335,11 +339,14 @@ func TestSeamUnaryInterceptors_TokenChainWithoutInversion(t *testing.T) {
 
 		am := newChainAccessManager(t, sharedEditorRole)
 		handler := &handlerTenantServer{}
-		client := serveChain(t, &Config{PluginAuthEnabled: true, TracerSeamAllowedClients: seamChainLedgerClient},
+		client := serveChain(t, &Config{PluginAuthEnabled: true, TracerSeamAllowedClients: seamChainLedgerClient + "," + seamChainLedgerClientID},
 			am.client(t), seamtenant.NewResolver(nil, false), handler)
 
 		require.NoError(t, confirmWith(t, client, "authorization", chainToken(t, jwt.MapClaims{"type": "application", "sub": seamChainLedgerClient})),
 			"the allowlisted ledger client is admitted under the shared role")
+		require.NoError(t, confirmWith(t, client, "authorization", chainToken(t, jwt.MapClaims{
+			"type": "application", "sub": "admin/" + seamChainLedgerAppID, "name": seamChainLedgerAppID, "owner": "admin", "azp": seamChainLedgerClientID,
+		})), "an application token allowlisted by its client id (azp) is admitted")
 
 		authorizes := am.authorizes.Load()
 
@@ -352,7 +359,7 @@ func TestSeamUnaryInterceptors_TokenChainWithoutInversion(t *testing.T) {
 		assert.Equal(t, authorizes+2, am.authorizes.Load(), "the Access Manager authorized both refused tokens")
 
 		reached, _ := handler.snapshot()
-		assert.Equal(t, 1, reached)
+		assert.Equal(t, 2, reached)
 	})
 
 	t.Run("multi-tenant", func(t *testing.T) {

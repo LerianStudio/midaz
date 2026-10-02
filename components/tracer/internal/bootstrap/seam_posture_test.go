@@ -26,7 +26,7 @@ const (
 	wantNoIdentityWarn       = "reservation seam has no caller identity; any workload reaching :4021 can release reservations; set API_KEY_ENABLED, PLUGIN_AUTH_ENABLED, or TRACER_TLS_MODE=mtls|mesh"
 	wantMeshWarn             = "gRPC reservation seam trusts x-tenant-id from the mesh-verified peer: the mesh must enforce STRICT mTLS and restrict the gRPC port to the ledger identity"
 	wantClearWarn            = seamCredentialInClearMsg
-	wantAllowlistLocalWarn   = "TRACER_SEAM_ALLOWED_CLIENTS is empty: the reservation seam refuses every caller; set it to the ledger's Access Manager client id(s), comma-separated (the token sub claim)"
+	wantAllowlistLocalWarn   = "TRACER_SEAM_ALLOWED_CLIENTS is empty: the reservation seam refuses every caller; set it to the ledger's Access Manager client id(s), comma-separated (the token azp claim; the token sub is also accepted)"
 	wantAllowlistIgnoredWarn = seamAllowlistIgnoredMsg
 	wantAuthCacheWarn        = "AUTH_CACHE_TTL is unset or not a positive duration: every reservation seam call pays an Access Manager round trip; set AUTH_CACHE_TTL (e.g. 60s)"
 	wantNoInversionWarn      = "AUTH_M2M_INVERSION_ENABLED is not true: the Access Manager authorizes application tokens on the reservation seam under a shared editor role instead of the ledger's own client, so only the seam's client allowlist (single-tenant) or ledger client name binding (multi-tenant) restricts who may reserve; set AUTH_M2M_INVERSION_ENABLED=true once the Access Manager supports it"
