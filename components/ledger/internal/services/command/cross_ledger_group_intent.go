@@ -100,20 +100,19 @@ func classifyCrossLedgerGroupRole(creditsBridge, debitsBridge, hasSources bool) 
 
 // crossLedgerDestinationBridge locates the bridge of a destination part read
 // back from the intent, which records no position: the decomposition appends
-// the bridge after every client source, so it is the last source on the bridge
-// alias. A net-zero part whose client source uses that alias also classifies as
-// a destination, and this marks that client leg (accepted limit).
+// the bridge after every client source, so only the final source can be it. A
+// net-zero part whose final client source uses the bridge alias has the same
+// shape and is marked too (accepted limit); telling them apart needs the
+// position persisted in the intent.
 func crossLedgerDestinationBridge(transaction mtransaction.Transaction, asset string) *crossLedgerBridgePosition {
-	bridgeAlias := "@external/" + asset
 	sources := transaction.Send.Source.From
 
-	for index := len(sources) - 1; index >= 0; index-- {
-		if sources[index].AccountAlias == bridgeAlias {
-			return &crossLedgerBridgePosition{isFrom: true, index: index}
-		}
+	last := len(sources) - 1
+	if last < 0 || sources[last].AccountAlias != "@external/"+asset {
+		return nil
 	}
 
-	return nil
+	return &crossLedgerBridgePosition{isFrom: true, index: last}
 }
 
 func crossLedgerLegsContainAlias(legs []mtransaction.FromTo, alias string) bool {

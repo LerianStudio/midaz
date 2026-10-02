@@ -344,6 +344,24 @@ func TestCrossLedgerDestinationBridge_NetZeroPartWithAClientExternalSourceMarksT
 		crossLedgerDestinationBridge(intent.Parts[1].Transaction, intent.Asset))
 }
 
+// The decomposition appends the bridge last, so a client source on the bridge
+// alias that some other client source follows is never taken for the bridge.
+func TestCrossLedgerDestinationBridge_NetZeroPartWithAnEarlierClientExternalSourceMarksNothing(t *testing.T) {
+	shape := crossLedgerFeeShape{
+		total:   "130",
+		from:    []crossLedgerFeeLeg{{"@alice", "100", "A"}, {crossLedgerFeeBridgeAlias, "20", "N"}, {"@nina-savings", "10", "N"}},
+		to:      []crossLedgerFeeLeg{{"@nina", "30", "N"}, {"@bob", "100", "B"}},
+		ledgers: []string{"A", "N", "B"},
+	}
+
+	_, parts := shape.decompose(t)
+	intent := shape.roundTrippedIntent(t, parts)
+
+	require.Nil(t, parts[1].bridge, "the net-zero part crosses nothing")
+	require.Equal(t, CrossLedgerGroupRoleDestination, intent.Parts[1].Role)
+	assert.Nil(t, crossLedgerDestinationBridge(intent.Parts[1].Transaction, intent.Asset))
+}
+
 func TestCrossLedgerDestinationBridge_NoBridgeAliasSourceMarksNothing(t *testing.T) {
 	transaction := crossLedgerTestTransaction("10",
 		[]mtransaction.FromTo{crossLedgerAmountLeg("@alice", "10", true)},
