@@ -91,7 +91,7 @@ func TestLimitCreatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "limit.created", events.LimitCreatedDefinition.Key())
 	assert.Equal(t, "limit", events.LimitCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.LimitCreatedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.LimitCreatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.LimitCreatedDefinition.SchemaVersion)
 }
 
 func TestNewLimitCreated_MapsMinimalLimit(t *testing.T) {
@@ -108,6 +108,7 @@ func TestNewLimitCreated_MapsMinimalLimit(t *testing.T) {
 	assert.Nil(t, payload.CustomStartDate)
 	assert.Nil(t, payload.CustomEndDate)
 	assert.Nil(t, payload.ResetAt)
+	assert.Nil(t, payload.ResetTime)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.CreatedAt)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.UpdatedAt)
 }
@@ -135,6 +136,25 @@ func TestNewLimitCreated_MapsAllOptionalFields(t *testing.T) {
 	assert.Equal(t, scopeSegmentID.String(), *payload.Scopes[0].SegmentID)
 	require.NotNil(t, payload.Scopes[0].TransactionType)
 	assert.Equal(t, "CARD", *payload.Scopes[0].TransactionType)
+}
+
+// periodicLimitWithResetTime returns a DAILY limit whose periods start at the
+// given time of day, the only shape for which the domain accepts a reset time.
+func periodicLimitWithResetTime(t *testing.T, resetTime string) *model.Limit {
+	t.Helper()
+
+	limit := minimalLimit()
+	boundary := mustTimeOfDay(t, resetTime)
+	limit.ResetTime = &boundary
+
+	return limit
+}
+
+func TestNewLimitCreated_MapsResetTime(t *testing.T) {
+	payload := events.NewLimitCreated(periodicLimitWithResetTime(t, "09:00"))
+
+	require.NotNil(t, payload.ResetTime)
+	assert.Equal(t, "09:00", *payload.ResetTime)
 }
 
 func TestLimitCreatedPayload_ToEmitRequest(t *testing.T) {
@@ -172,6 +192,7 @@ func TestLimitCreatedPayload_JSONShape(t *testing.T) {
 		"activeTimeEnd":   {},
 		"customStartDate": {},
 		"customEndDate":   {},
+		"resetTime":       {},
 		"resetAt":         {},
 		"createdAt":       {},
 		"updatedAt":       {},
@@ -193,7 +214,7 @@ func TestLimitCreatedPayload_JSONShape(t *testing.T) {
 		assert.Falsef(t, present, "fenced field %q must NOT appear on the wire", forbidden)
 	}
 
-	assert.Lenf(t, generic, 12, "expected 12 top-level fields, got %d (drift?)", len(generic))
+	assert.Lenf(t, generic, 13, "expected 13 top-level fields, got %d (drift?)", len(generic))
 }
 
 func TestLimitCreatedPayload_JSONShape_NullableKeysPresentWhenUnset(t *testing.T) {
@@ -204,7 +225,7 @@ func TestLimitCreatedPayload_JSONShape_NullableKeysPresentWhenUnset(t *testing.T
 	require.NoError(t, json.Unmarshal(data, &generic))
 
 	// Nullable keys must be present with a null value (never omitempty).
-	for _, key := range []string{"activeTimeStart", "activeTimeEnd", "customStartDate", "customEndDate", "resetAt"} {
+	for _, key := range []string{"activeTimeStart", "activeTimeEnd", "customStartDate", "customEndDate", "resetTime", "resetAt"} {
 		val, present := generic[key]
 		require.Truef(t, present, "%q key must be present even when unset", key)
 		assert.Nilf(t, val, "%q must serialize null when unset", key)

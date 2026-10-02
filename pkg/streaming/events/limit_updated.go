@@ -19,11 +19,11 @@ import (
 var LimitUpdatedDefinition = Definition{
 	ResourceType:  "limit",
 	EventType:     "updated",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // LimitUpdatedPayload is the wire payload for limit.updated. It carries the
-// same twelve-field shape as LimitCreatedPayload; the fence EXCLUDES name,
+// same thirteen-field shape as LimitCreatedPayload; the fence EXCLUDES name,
 // description, and maxAmount.
 type LimitUpdatedPayload struct {
 	ID              string             `json:"id"`
@@ -35,6 +35,7 @@ type LimitUpdatedPayload struct {
 	ActiveTimeEnd   *string            `json:"activeTimeEnd"`
 	CustomStartDate *string            `json:"customStartDate"`
 	CustomEndDate   *string            `json:"customEndDate"`
+	ResetTime       *string            `json:"resetTime"`
 	ResetAt         *string            `json:"resetAt"`
 	CreatedAt       string             `json:"createdAt"`
 	UpdatedAt       string             `json:"updatedAt"`
@@ -53,6 +54,7 @@ func NewLimitUpdated(limit *model.Limit) LimitUpdatedPayload {
 		ActiveTimeEnd:   formatOptionalTimeOfDay(limit.ActiveTimeEnd),
 		CustomStartDate: formatOptionalRFC3339(limit.CustomStartDate),
 		CustomEndDate:   formatOptionalRFC3339(limit.CustomEndDate),
+		ResetTime:       formatOptionalTimeOfDay(limit.ResetTime),
 		ResetAt:         formatOptionalRFC3339(limit.ResetAt),
 		CreatedAt:       limit.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       limit.UpdatedAt.Format(time.RFC3339),
