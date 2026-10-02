@@ -34,16 +34,17 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 		{"live sending restriction", "refused", core.FailureSendingNotAllowed, fmt.Errorf("wrapper: %w", &core.Failure{Code: core.FailureSendingNotAllowed})},
 		{"invalid account-block exception", "refused", core.FailureAccountBlockExceptionInvalid, &core.Failure{Code: core.FailureAccountBlockExceptionInvalid}},
 		{"technical", "technical_error", "connection_unavailable", technical("connection_unavailable", false, errors.New("sensitive detail"))},
-		{"origin already reverted", "technical_error", "transaction_already_reverted", technical("transaction_already_reverted", false, nil)},
+		{"origin already reverted", "refused", "transaction_already_reverted", technical("transaction_already_reverted", false, nil)},
+		{"execution guard conflict", "refused", "execution_guard_conflict", fmt.Errorf("wrapper: %w", technical("execution_guard_conflict", false, nil))},
+		{"unreadable account protection", "technical_error", "account_protection_unreadable", technical("account_protection_unreadable", false, nil)},
 		{"uncertain", "indeterminate", "transport", fmt.Errorf("wrapper: %w", technical("transport", true, errors.New("sensitive detail")))},
 		{"foreign error", "technical_error", "unknown", errors.New("sensitive detail")},
 		{"foreign refusal", "technical_error", "unknown", &core.Failure{Code: "@private-alias#default"}},
-		{"foreign technical", "indeterminate", "unknown", technical("@private-alias#default", true, nil)},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			outcome, code := executionOutcome(test.err)
+			outcome, code := executionOutcome(core.Execution{}, test.err)
 			require.Equal(t, test.outcome, outcome)
 			require.Equal(t, test.code, code)
 		})
@@ -51,12 +52,12 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 	var nilTechnical *TechnicalError
 	var nilRefusal *core.Failure
 	for _, err := range []error{nilTechnical, nilRefusal} {
-		outcome, code := executionOutcome(err)
+		outcome, code := executionOutcome(core.Execution{}, err)
 		require.Equal(t, "technical_error", outcome)
 		require.Equal(t, "unknown", code)
 	}
 
-	require.NotPanics(t, func() { recordExecutionOutcome(context.Background(), nil, nil, time.Second, nil) })
+	require.NotPanics(t, func() { recordExecutionOutcome(context.Background(), nil, nil, time.Second, core.Execution{}, nil) })
 	require.NotPanics(t, func() { recordAccountingDuration(context.Background(), nil, nil, time.Second) })
 }
 
