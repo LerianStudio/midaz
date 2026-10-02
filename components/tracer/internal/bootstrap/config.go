@@ -2168,7 +2168,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost, authClient)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, authClient)
 	if err != nil {
 		return nil, err
 	}
@@ -2344,7 +2344,6 @@ func finalizeStartup(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
-	authHost string,
 	authClient *authMiddleware.AuthClient,
 ) (*Service, error) {
 	var (
@@ -2379,7 +2378,7 @@ func finalizeStartup(
 	// not a transient IdP problem, and must not reach a ready pod. Runtime
 	// publish failures stay fail-open inside the publisher. Wired here, where
 	// the Service is assembled, so InitServers keeps its branch count.
-	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, authHost, logger)
+	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, authClient, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wire the RI declaration publisher: %w", err)
 	}

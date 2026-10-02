@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -21,26 +22,13 @@ import (
 )
 
 // wireDeclarationPublisher builds the RI permission-declaration publisher over
-// authHost — the same plugin-auth host initHTTPServer wires — keeping the
-// initHTTPServer/finalizeStartup return signatures untouched.
-//
-// authMiddleware.NewAuthClient is NOT I/O-free: when PluginAuthEnabled is true
-// and the address is non-empty it performs a synchronous GET {address}/health at
-// construction, so the client is built ONLY when RI is enabled — otherwise the
-// default-off path would fire a redundant second health probe (the first is in
-// initHTTPServer) and then discard the client. Gating keeps the flag-off boot
-// byte-identical to today. buildDeclarationPublisher's disabled path returns
-// before the minter is dereferenced, so passing a nil minter is safe.
+// the boot's own auth client — the one initHTTPServer wires — so publishing opens
+// no second client and fires no second health probe.
 //
 // The error is the fail-closed configuration error described on
 // buildDeclarationPublisher; the caller must abort boot on it.
-func wireDeclarationPublisher(cfg *Config, authHost string, logger libLog.Logger) ([]func(), error) {
-	var declarationAuth declaration.TokenMinter
-	if cfg.DeclarationEnabled {
-		declarationAuth = authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, logger)
-	}
-
-	return buildDeclarationPublisher(cfg, declarationAuth, logger)
+func wireDeclarationPublisher(cfg *Config, authClient *authMiddleware.AuthClient, logger libLog.Logger) ([]func(), error) {
+	return buildDeclarationPublisher(cfg, authClient, logger)
 }
 
 // buildDeclarationPublisher wires the Responsibility-Inversion (RI) permission
@@ -72,10 +60,13 @@ func wireDeclarationPublisher(cfg *Config, authHost string, logger libLog.Logger
 //   - Server-side BOLA rejection, arriving as a *declaration.PublishError on the
 //     async publish path.
 //
-// DeclarationEnabled=false returns (nil, nil) immediately — no validation, no
-// publisher, no goroutine. While that flag exists it is the switch that says
-// whether this deployment is on RI at all; when it is retired the validation
-// becomes unconditional (lmap #5163).
+// DeclarationEnabled=false never fails the boot. While that flag exists it is the
+// switch that says whether this deployment declares its permissions at all; when
+// it is retired the validation becomes unconditional. The scope catalog is the
+// exception: it is published whenever plugin auth is on (see buildScopePublisher),
+// because the identity provider validates partner scopes against it. With plugin
+// auth off as well, it returns (nil, nil) — no validation, no publisher, no
+// goroutine.
 //
 // The secret VALUE is NEVER logged, span-attached, or serialized. The pre-flight
 // Warn reports only the NAMES of empty env vars (names are not secrets). Field
@@ -87,7 +78,7 @@ func wireDeclarationPublisher(cfg *Config, authHost string, logger libLog.Logger
 // before it is dereferenced, so callers may pass nil there.
 func buildDeclarationPublisher(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) ([]func(), error) {
 	if !cfg.DeclarationEnabled {
-		return nil, nil
+		return buildScopePublisher(cfg, authClient, logger), nil
 	}
 
 	if err := validateDeclarationConfig(cfg); err != nil {
@@ -128,6 +119,18 @@ func buildDeclarationPublisher(cfg *Config, authClient declaration.TokenMinter, 
 // required IdP settings are empty. The error names the empty env vars only —
 // never any value, and never the secret.
 func validateDeclarationConfig(cfg *Config) error {
+	missing := missingDeclarationConfig(cfg)
+	if len(missing) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"IDP_DECLARATION_ENABLED=true but the required IdP configuration is empty: %s",
+		strings.Join(missing, ","))
+}
+
+// missingDeclarationConfig names the required IdP settings that are empty.
+func missingDeclarationConfig(cfg *Config) []string {
 	missing := make([]string, 0, 3)
 
 	if cfg.IDPHost == "" {
@@ -142,13 +145,61 @@ func validateDeclarationConfig(cfg *Config) error {
 		missing = append(missing, "IDP_M2M_CLIENT_SECRET")
 	}
 
-	if len(missing) == 0 {
+	return missing
+}
+
+// buildScopePublisher publishes the manifest's scope section alone, for a
+// deployment whose permission declaration is off. It runs only when plugin auth is
+// on: the catalog exists for the authorization the deployment enforces.
+//
+// It never fails the boot. The catalog is what the identity provider validates
+// partner scope writes against; a deployment that cannot publish it keeps serving,
+// and the reason is logged at ERROR. A SaaS deployment with a cleartext IDP_HOST is
+// one such reason — publishing would ship the M2M credential unencrypted.
+func buildScopePublisher(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) []func() {
+	if !cfg.PluginAuthEnabled {
 		return nil
 	}
 
-	return fmt.Errorf(
-		"IDP_DECLARATION_ENABLED=true but the required IdP configuration is empty: %s",
-		strings.Join(missing, ","))
+	ctx := context.Background()
+
+	notPublished := func(reason error) []func() {
+		logger.Log(ctx, libLog.LevelError, "Scope catalog not published; partner scopes for tracer cannot be validated until it is",
+			libLog.Err(reason))
+
+		return nil
+	}
+
+	if missing := missingDeclarationConfig(cfg); len(missing) > 0 {
+		return notPublished(fmt.Errorf("PLUGIN_AUTH_ENABLED=true but the required IdP configuration is empty: %s",
+			strings.Join(missing, ",")))
+	}
+
+	if isSaaSMode(cfg.DeploymentMode) && idpSchemeIsCleartext(cfg.IDPHost) {
+		return notPublished(errors.New(
+			"DEPLOYMENT_MODE=saas: TLS required for the scope catalog publication but not configured (set IDP_HOST to an https:// URL)"))
+	}
+
+	publisher, err := declaration.New(declaration.Config{
+		Slug:         "tracer",
+		Manifest:     tracerembed.TracerManifest,
+		IdentityAddr: cfg.IDPHost,
+		Auth:         authClient,
+		ClientID:     cfg.IDPM2MClientID,
+		ClientSecret: cfg.IDPM2MClientSecret,
+		Logger:       logger,
+		ScopeOnly:    true,
+	})
+	if err != nil {
+		return notPublished(err)
+	}
+
+	stop, err := publisher.Start(ctx)
+	if err != nil {
+		return notPublished(err)
+	}
+
+	return []func(){stop}
 }
 
 // declarationPublisherRunnable adapts the RI declaration publisher's stop hooks to
