@@ -54,7 +54,7 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 - `POST /v1/limits` — Create spending limit
 - `GET /v1/limits` — List limits (filter by status, type; cursor pagination)
 - `GET /v1/limits/{id}/usage` — Get limit usage snapshot
-- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, asset, resetTime; naming one answers 400 0380)
+- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, asset, resetTime; naming one answers 422 0380)
 - `POST /v1/limits/{id}/activate` — Activate limit
 - `POST /v1/limits/{id}/deactivate` — Deactivate limit
 - `DELETE /v1/limits/{id}` — Soft-delete (DRAFT/INACTIVE only)

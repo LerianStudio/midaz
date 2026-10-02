@@ -2577,7 +2577,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitImmutableField.Error(),
 			Title:      "Limit Immutable Field",
-			Message:    "Cannot modify immutable field (limitType, asset).",
+			Message:    "Cannot modify immutable field (limitType, asset, resetTime).",
 		},
 		constant.ErrAuditEventNotFound: EntityNotFoundError{
 			EntityType: entityType,

@@ -386,21 +386,22 @@ func TestHuma_UpdateLimit_MalformedJSON(t *testing.T) {
 }
 
 // TestHuma_UpdateLimit_ImmutableField pins the raw-body map-probe: a body
-// carrying limitType or asset must be rejected with ErrLimitImmutableField
+// carrying limitType, asset or resetTime must be rejected with ErrLimitImmutableField
 // (0380) BEFORE BodyParser, identical to the Fiber path. The probe reads the
 // RawBody the shell passes; the service must never be reached.
 func TestHuma_UpdateLimit_ImmutableField(t *testing.T) {
 	id := testutil.MustDeterministicUUID(14)
 
 	for _, tc := range []struct {
-		name string
-		body map[string]any
+		name  string
+		body  map[string]any
+		field string
 	}{
-		{"limitType present", map[string]any{"limitType": "MONTHLY"}},
-		{"asset present", map[string]any{"asset": "EUR"}},
-		{"resetTime present", map[string]any{"resetTime": "09:00"}},
-		{"resetTime null", map[string]any{"resetTime": nil}},
-		{"resetTime beside a mutable field", map[string]any{"name": "Renamed", "resetTime": "09:00"}},
+		{"limitType present", map[string]any{"limitType": "MONTHLY"}, "limitType"},
+		{"asset present", map[string]any{"asset": "EUR"}, "asset"},
+		{"resetTime present", map[string]any{"resetTime": "09:00"}, "resetTime"},
+		{"resetTime null", map[string]any{"resetTime": nil}, "resetTime"},
+		{"resetTime beside a mutable field", map[string]any{"name": "Renamed", "resetTime": "09:00"}, "resetTime"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := &tenantSpyLimitService{}
@@ -420,6 +421,7 @@ func TestHuma_UpdateLimit_ImmutableField(t *testing.T) {
 			var got map[string]any
 			require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
 			assert.Equal(t, "0380", got["code"], "immutable field must yield ErrLimitImmutableField, identical to Fiber")
+			assert.Contains(t, got["detail"], tc.field, "the detail must name the refused field")
 			assert.Empty(t, svc.capturedTenant, "service must not be reached on an immutable-field request")
 		})
 	}
