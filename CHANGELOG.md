@@ -1,5 +1,27 @@
 # Midaz Changelog
 
+## [4.2.0](https://github.com/LerianStudio/midaz/releases/tag/v4.2.0)
+
+Features:
+- Start limit periods at an optional reset time, allowing for more flexible period management. (@ClaraTersi)
+- Carry `resetTime` on limit created and updated events to ensure accurate tracking of reset times. (@ClaraTersi)
+- Persist the limit reset time to maintain consistency across system restarts. (@ClaraTersi)
+- Accept `resetTime` on limit creation and refuse it on update to prevent unintended changes. (@ClaraTersi)
+- Key validation and reservation counters by the limit's reset time to enhance accuracy. (@ClaraTersi)
+
+Fixes:
+- Refuse a stored limit window that contains its reset time to prevent invalid configurations. (@ClaraTersi)
+- Name `resetTime` in the immutable limit field error and document its `422` status code. (@ClaraTersi)
+- Compute limit `resetAt` from the current time on every read to ensure up-to-date calculations. (@ClaraTersi)
+
+Improvements:
+- Document the rollout order for limit reset times to provide clarity on the process. (@ClaraTersi)
+- Regenerate the consolidated API spec with the limit `resetTime` field for updated documentation. (@ClaraTersi)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v4.1.3...v4.2.0)
+
+---
+
 ## [Unreleased]
 
 Breaking Changes:
