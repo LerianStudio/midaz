@@ -200,7 +200,7 @@ type UpdateAssetResponse struct {
 
 // UpdateAsset decodes+validates the raw body imperatively then delegates to the
 // shared updateAsset core.
-func (handler *AssetHandler) UpdateAsset(ctx context.Context, in *UpdateAssetRequest) (*UpdateAssetResponse, error) {
+func (handler *AssetHandler) UpdateAsset(ctx context.Context, in *UpdateAssetRequest, metadataNull metadataNullPolicy) (*UpdateAssetResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -212,7 +212,7 @@ func (handler *AssetHandler) UpdateAsset(ctx context.Context, in *UpdateAssetReq
 	}
 
 	payload := new(mmodel.UpdateAssetInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

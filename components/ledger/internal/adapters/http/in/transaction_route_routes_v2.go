@@ -65,10 +65,10 @@ func RegisterOrganizationTransactionRouteRoutes(api huma.API, h *TransactionRout
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an organization Transaction Route",
-		Description:      patchMetadataDoc,
+		Description:      patchMetadataDocV2,
 		Tags:             []string{tag},
 		Security:         secTransactionRouteBearer,
-		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
+		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
 	}, h.UpdateOrganizationTransactionRoute)
 	attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, "updateOrganizationTransactionRoute"+opSuffix)
 

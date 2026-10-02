@@ -187,7 +187,7 @@ type UpdateSegmentResponse struct {
 
 // UpdateSegment decodes+validates the raw body imperatively then delegates to the
 // shared updateSegment core.
-func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegmentRequest) (*UpdateSegmentResponse, error) {
+func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegmentRequest, metadataNull metadataNullPolicy) (*UpdateSegmentResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -199,7 +199,7 @@ func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegm
 	}
 
 	payload := new(mmodel.UpdateSegmentInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

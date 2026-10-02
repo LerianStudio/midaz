@@ -51,16 +51,18 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Security:    secOperationBearer,
 	}, h.GetOperationByAccount)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateOperation" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             patchPath,
 		Summary:          "Update an Operation",
-		Description:      patchMetadataDoc,
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secTransactionBearer, // BearerAuth (Bearer-only), matching the Fiber guard chain on the transaction-path PATCH.
-		SkipValidateBody: true,                 // body validated imperatively (http.DecodeAndValidate) — plain decode, not merge-patch.
-	}, h.UpdateOperation)
+		SkipValidateBody: true,                 // body validated imperatively — RFC 7396 merge-patch core.
+	}, withMetadataNull(metadataNull, h.UpdateOperation))
 	attachTypedRequestBody[operation.UpdateOperationInput](api, "updateOperation"+opSuffix)
 }
 

@@ -6161,7 +6161,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOrganizationV2
       parameters:
         - description: Organization ID (UUID)
@@ -6678,8 +6679,8 @@ paths:
         refused with 409 (CRM-0043). Metadata is applied as an RFC 7396 merge
         patch: a body without metadata, or with an empty metadata object, leaves
         the stored metadata as it is; a key sent as null is deleted; any other
-        key is added or replaced; metadata sent as null deletes every key the
-        client wrote.
+        key is added or replaced; metadata sent as null also leaves the stored
+        metadata as it is, so keys are deleted one at a time.
       operationId: updateInstrumentV2
       parameters:
         - description: Organization ID (UUID)
@@ -6911,7 +6912,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateHolderV2
       parameters:
         - description: Organization ID (UUID)
@@ -7419,7 +7421,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateLedgerV2
       parameters:
         - description: Organization ID (UUID)
@@ -7739,7 +7742,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateAccountTypeV2
       parameters:
         - description: Organization ID (UUID)
@@ -8940,7 +8944,8 @@ paths:
         applied as an RFC 7396 merge patch: a body without metadata, or with an
         empty metadata object, leaves the stored metadata as it is; a key sent
         as null is deleted; any other key is added or replaced; metadata sent as
-        null deletes every key the client wrote.
+        null also leaves the stored metadata as it is, so keys are deleted one
+        at a time.
       operationId: updateAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -9298,7 +9303,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateAssetV2
       parameters:
         - description: Organization ID (UUID)
@@ -10864,7 +10870,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -11531,7 +11538,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updatePortfolioV2
       parameters:
         - description: Organization ID (UUID)
@@ -11883,7 +11891,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateSegmentV2
       parameters:
         - description: Organization ID (UUID)
@@ -12291,7 +12300,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -12583,7 +12593,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -12768,7 +12779,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOperationV2
       parameters:
         - description: Organization ID (UUID)
@@ -13128,7 +13140,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOrganizationOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -13508,7 +13521,8 @@ paths:
         Metadata is applied as an RFC 7396 merge patch: a body without metadata,
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
-        metadata sent as null deletes every key the client wrote.
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)

@@ -59,6 +59,14 @@ import (
 func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK bool) *fiber.App {
 	t.Helper()
 
+	return buildHumaOrganizationAppOn(t, handler, authOK, "/v1", v1OpSuffix)
+}
+
+// buildHumaOrganizationAppOn mounts the organization surface on the contract that prefix and
+// opSuffix name.
+func buildHumaOrganizationAppOn(t *testing.T, handler *OrganizationHandler, authOK bool, prefix, opSuffix string) *fiber.App {
+	t.Helper()
+
 	f := fiber.New(fiber.Config{
 		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
@@ -72,7 +80,7 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	// deployed ledger returns.
 	f.Use(ledgerMiddleware.ErrorEnvelope())
 
-	apiV1 := f.Group("/v1")
+	apiV1 := f.Group(prefix)
 
 	// Auth shim: stands in for auth.Authorize("midaz","organizations",verb). A
 	// rejected request (authOK=false) must never reach Huma — it returns the ledger 401.
@@ -84,7 +92,7 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{prefix}})
 
 	// Mirror the production chain: ParseUUIDPathParameters runs as a Fiber middleware
 	// (no terminal handler) before the Huma terminal on the {id} routes. Registered
@@ -100,7 +108,7 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	apiV1.Patch("/organizations/:id", parse)
 	apiV1.Delete("/organizations/:id", parse)
 
-	RegisterOrganizationRoutes(hAPI, handler, v1OpSuffix)
+	RegisterOrganizationRoutes(hAPI, handler, opSuffix)
 
 	return f
 }
@@ -591,6 +599,46 @@ func TestUpdateOrganization_Success(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, orgID.String(), got["id"])
 	assert.Equal(t, "Updated Organization Name", got["legalName"])
+}
+
+func TestUpdateOrganization_NullMetadataByContract(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for _, tt := range []struct {
+		name, prefix, opSuffix, body string
+		wantWrite                    map[string]any // nil: the stored metadata is not written
+	}{
+		{name: "v1 null clears the metadata", prefix: "/v1", opSuffix: v1OpSuffix, body: `{"metadata":null}`, wantWrite: map[string]any{}},
+		{name: "v2 null leaves the metadata untouched", prefix: "/v2", opSuffix: v2OpSuffix, body: `{"metadata":null}`},
+		{name: "v2 null-valued key deletes that key", prefix: "/v2", opSuffix: v2OpSuffix, body: `{"metadata":{"k":null}}`, wantWrite: map[string]any{"keep": "1"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			orgRepo := organization.NewMockRepository(ctrl)
+			orgRepo.EXPECT().Update(gomock.Any(), orgID, gomock.Any()).Return(&mmodel.Organization{ID: orgID.String()}, nil)
+
+			metadataRepo := mongodb.NewMockRepository(ctrl)
+			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOrganization, orgID.String()).
+				Return(&mongodb.Metadata{Data: map[string]any{"k": "v", "keep": "1"}}, nil).AnyTimes()
+
+			if tt.wantWrite != nil {
+				metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityOrganization, orgID.String(), tt.wantWrite).Return(nil)
+			}
+
+			handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: orgRepo, OnboardingMetadataRepo: metadataRepo}}
+			app := buildHumaOrganizationAppOn(t, handler, true, tt.prefix, tt.opSuffix)
+
+			req := httptest.NewRequest(http.MethodPatch, tt.prefix+"/organizations/"+orgID.String(), strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+	}
 }
 
 func TestUpdateOrganization_NotFound_Canonical404(t *testing.T) {
