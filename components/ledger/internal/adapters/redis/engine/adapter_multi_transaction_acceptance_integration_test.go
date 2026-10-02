@@ -60,7 +60,8 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		ctx := admitEngineSeeds(t, ctx, inspector, input.Execution)
 		result, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
-		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID), result)
+		require.Positive(t, result.AppliedAtUnixMicro)
+		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID, result.AppliedAtUnixMicro), result)
 
 		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
@@ -70,7 +71,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		committed := captureAdapterState(t, inspector, keys)
 		replayed, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
-		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID), replayed)
+		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID, result.AppliedAtUnixMicro), replayed)
 		require.Equal(t, committed, captureAdapterState(t, inspector, keys), "whole-execution replay must not apply money or refresh expirations")
 
 		conflict := refingerprintMultiTransactionAcceptance(t, input, "different immutable intent")
@@ -114,9 +115,10 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
 		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
+		admitted := admitEngineSeeds(t, ctx, inspector, input.Execution)
 		before := captureAdapterState(t, inspector, keys)
 
-		result, err := adapter.Execute(ctx, input)
+		result, err := adapter.Execute(admitted, input)
 		require.Nil(t, result)
 		var failure *core.Failure
 		require.ErrorAs(t, err, &failure)
@@ -162,7 +164,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 		require.NoError(t, err)
 
-		result, err := adapter.Execute(ctx, input)
+		result, err := adapter.Execute(admitEngineSeeds(t, ctx, inspector, input.Execution), input)
 		require.Nil(t, result)
 		var technical interface {
 			EngineFailureCode() string
@@ -174,8 +176,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		require.Equal(t, 1, proxy.count("EVALSHA"), "an unknown outcome must not retry the accounting command")
 		require.Equal(t, 1, proxy.count("EVAL"), "only the confirmed NOSCRIPT fallback may publish the execution")
 
-		expected := multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID)
-		assertMultiTransactionAcceptanceState(t, inspector, keys, input, *expected)
+		assertMultiTransactionAcceptanceState(t, inspector, keys, input, *savedMultiTransactionAcceptanceResult(t, inspector, keys, input))
 	})
 }
 
@@ -537,7 +538,7 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 	return input
 }
 
-func multiTransactionAcceptanceResult(organizationID, ledgerID uuid.UUID) *core.ExecutionResult {
+func multiTransactionAcceptanceResult(organizationID, ledgerID uuid.UUID, appliedAtUnixMicro int64) *core.ExecutionResult {
 	primary := multiTransactionAcceptancePrimary()
 	companion := multiTransactionAcceptanceCompanion()
 	primary.OrganizationID, primary.LedgerID = organizationID, ledgerID
@@ -559,7 +560,22 @@ func multiTransactionAcceptanceResult(organizationID, ledgerID uuid.UUID) *core.
 	}
 	primary.Available, primary.OverdraftUsed, primary.Version = decimal.Zero, decimal.NewFromInt(12), 11
 	companion.Available, companion.Version = decimal.NewFromInt(12), 6
-	return &core.ExecutionResult{Movements: movements, Final: []core.BalanceSnapshot{primary, companion}}
+	return &core.ExecutionResult{Movements: movements, Final: []core.BalanceSnapshot{primary, companion}, AppliedAtUnixMicro: appliedAtUnixMicro}
+}
+
+// savedMultiTransactionAcceptanceResult decodes the response the receipt saved,
+// which is the result a lost reply would have carried.
+func savedMultiTransactionAcceptanceResult(t *testing.T, inspector *redis.Client, keys resolvedExecutionKeys, input command.EngineExecution) *core.ExecutionResult {
+	t.Helper()
+	raw, err := inspector.HGet(context.Background(), keys.Receipts, input.Execution.ExecutionID.String()).Bytes()
+	require.NoError(t, err)
+	var receipt struct {
+		Response string `json:"response"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &receipt))
+	result, err := DecodeResult([]byte(receipt.Response), input.Execution)
+	require.NoError(t, err)
+	return result
 }
 
 func multiTransactionAcceptancePrimary() core.BalanceSnapshot {
@@ -596,7 +612,8 @@ func assertMultiTransactionAcceptanceState(
 ) {
 	t.Helper()
 	ctx := context.Background()
-	expected := multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID)
+	require.Positive(t, result.AppliedAtUnixMicro)
+	expected := multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID, result.AppliedAtUnixMicro)
 	for _, balance := range expected.Final {
 		raw, err := inspector.Get(ctx, keys.Balances[balance.BalanceRef].Balance).Bytes()
 		require.NoError(t, err)
