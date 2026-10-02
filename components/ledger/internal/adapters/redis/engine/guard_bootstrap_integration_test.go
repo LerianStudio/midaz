@@ -203,7 +203,8 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 		}
 
 		failures++
-		require.ErrorContains(t, candidate.err, "execution_guard_conflict")
+		// The winner's evidence index fences the loser before its guard is compared.
+		require.ErrorContains(t, candidate.err, "transaction_state_conflict")
 		require.Nil(t, candidate.result)
 	}
 	require.NotEmpty(t, winnerNext)

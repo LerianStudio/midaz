@@ -286,6 +286,10 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
 			Engine: executor, AppliedTransactionCompleter: fixture.finalizer,
+			TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+				client:     client,
+				executions: func() []command.EngineExecution { return executor.executions },
+			},
 		}
 		amount := decimal.NewFromInt(30)
 		pending, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
@@ -316,6 +320,7 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		}
 
 		reader.persisted = pending
+		reader.executionID = executor.executions[0].Execution.ExecutionID
 		reader.balances[0].Available = decimal.NewFromInt(70)
 		reader.balances[0].OnHold = decimal.NewFromInt(30)
 		reader.balances[0].Version = 8
