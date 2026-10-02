@@ -5,14 +5,21 @@
 package in
 
 import (
+	"context"
 	"slices"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -90,5 +97,64 @@ func TestDecodePatchBodyMetadata(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// TestUpdateTransaction_NullMetadataByContract drives the two transaction PATCH shells, which name
+// their contract's policy themselves, through the use case that guards the ledger's reserved keys.
+func TestUpdateTransaction_NullMetadataByContract(t *testing.T) {
+	t.Parallel()
+
+	orgID, ledgerID, txID := uuid.New(), uuid.New(), uuid.New()
+
+	for _, tt := range []struct {
+		name      string
+		update    func(*TransactionHandler, *UpdateTransactionRequest) error
+		wantWrite map[string]any // nil: the stored metadata is not written
+	}{
+		{
+			name: "v1 null keeps only the reserved keys",
+			update: func(h *TransactionHandler, in *UpdateTransactionRequest) error {
+				_, err := h.UpdateTransaction(context.Background(), in)
+				return err
+			},
+			wantWrite: map[string]any{"feeApplied": "true"},
+		},
+		{
+			name: "v2 null leaves the metadata untouched",
+			update: func(h *TransactionHandler, in *UpdateTransactionRequest) error {
+				_, err := h.UpdateTransactionV2(context.Background(), in)
+				return err
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			stored := map[string]any{"purpose": "client", "feeApplied": "true"}
+
+			txRepo := transaction.NewMockRepository(ctrl)
+			txRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, txID, gomock.Any()).Return(&transaction.Transaction{ID: txID.String()}, nil)
+			txRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, txID).Return(&transaction.Transaction{ID: txID.String()}, nil)
+
+			metadataRepo := txMongo.NewMockRepository(ctrl)
+			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, txID.String()).
+				Return(&txMongo.Metadata{Data: stored}, nil).AnyTimes()
+
+			if tt.wantWrite != nil {
+				metadataRepo.EXPECT().UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, txID.String(), "", tt.wantWrite, gomock.Any()).Return(true, nil)
+			}
+
+			handler := &TransactionHandler{
+				Command: &command.UseCase{TransactionRepo: txRepo, TransactionMetadataRepo: metadataRepo},
+				Query:   &query.UseCase{TransactionRepo: txRepo, TransactionMetadataRepo: metadataRepo},
+			}
+
+			require.NoError(t, tt.update(handler, &UpdateTransactionRequest{
+				OrganizationID: orgID.String(), LedgerID: ledgerID.String(), TransactionID: txID.String(),
+				RawBody: []byte(`{"metadata":null}`),
+			}))
+		})
 	}
 }
