@@ -571,6 +571,12 @@ rewrite. Each `ALTER` runs with a 5-second lock timeout and fails fast with SQLS
 of queueing behind live traffic (where it would block every later query on the table). Both `ALTER`s
 are guarded on the column's current type, so a re-run in a quieter window is safe.
 
+**Tracer migration `000026` repairs schema-isolated tenants.** It converts `limits.max_amount`,
+`usage_counters.current_usage` and `transaction_validations.amount` to `DECIMAL` (values kept as
+currency units) wherever they are still `BIGINT` in the tenant's own schema; it is a no-op on a
+single-tenant `public` schema. Where it converts, it rewrites those tables under the same 5-second
+lock timeout as `000025`.
+
 **Ports.** The ledger serves everything on a single port, default `:3002` (`SERVER_ADDRESS`). The tracer
 serves its HTTP API and health on `:4020` (`SERVER_ADDRESS`) and the reservation **gRPC seam on
 `:4021`** (`TRACER_GRPC_PORT`). The image's `EXPOSE` covers `:4020` only; the component compose
