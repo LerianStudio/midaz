@@ -6,8 +6,13 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"maps"
+	"sync"
+	"time"
 
+	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -23,6 +28,49 @@ import (
 
 // packageScopePageSize is the page size the overlap guard reads its scope with.
 const packageScopePageSize = 100
+
+// packageLockOptions bound the wait behind another mutation of the same ledger's
+// packages to about two seconds; the read and write the lock spans take milliseconds.
+var packageLockOptions = libRedis.LockOptions{
+	Expiry:      10 * time.Second,
+	Tries:       40,
+	RetryDelay:  50 * time.Millisecond,
+	DriftFactor: 0.01,
+}
+
+// lockPackageScope serializes, across replicas, every package mutation of one
+// ledger from its overlap guard to its write: the guard reads before it writes, so
+// two mutations in flight would each pass against the other's absence. The
+// returned unlock may be called more than once.
+func (uc *UseCase) lockPackageScope(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID) (func(), error) {
+	if uc.PackageLock == nil {
+		return func() {}, nil
+	}
+
+	key, err := tmvalkey.GetKeyContext(ctx, "lock:"+packageCacheKey(organizationID, ledgerID))
+	if err != nil {
+		return nil, err
+	}
+
+	handle, acquired, err := uc.PackageLock.TryLockWithOptions(ctx, key, packageLockOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if !acquired {
+		return nil, fmt.Errorf("fee packages of ledger %s: %w", ledgerID, libRedis.ErrLockContended)
+	}
+
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			if errUnlock := handle.Unlock(context.WithoutCancel(ctx)); errUnlock != nil {
+				logger.Log(ctx, libLog.LevelWarn, "Failed to release the fee package lock", libLog.Err(errUnlock))
+			}
+		})
+	}, nil
+}
 
 // ValidatePackageMaxAndMinAmountRange validating max and min amount range of a package
 func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logger libLog.Logger,

@@ -64,6 +64,15 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 		return nil, errAccountOnMidaz
 	}
 
+	unlock, err := uc.lockPackageScope(ctx, logger, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to lock the ledger's fee packages", err)
+
+		return nil, err
+	}
+
+	defer unlock()
+
 	if errRange := uc.ValidatePackageMaxAndMinAmountRange(ctx, logger, cpi.MaxAmount, cpi.MinAmount, cpi.GetTransactionRoute(), cpi.MetadataSelector, organizationID, ledgerID, newSegmentID, nil); errRange != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate package max and min amount range", errRange)
 
@@ -111,6 +120,9 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 
 		return nil, err
 	}
+
+	// The write has landed: the cache and the broker are no reason to hold the lock.
+	unlock()
 
 	// Invalidate the cached enabled-package set for this (org,ledger) so the next
 	// transaction create re-fetches the now-changed set instead of a stale one.
