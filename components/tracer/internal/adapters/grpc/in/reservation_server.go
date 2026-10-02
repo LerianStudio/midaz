@@ -13,12 +13,14 @@ package in
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -307,7 +309,8 @@ func countToUint32(n int) uint32 {
 // runs. A sentinel maps with its code string as the message so the ledger can
 // parse it. A settled replay is logged here once, at Warn, and an unmapped
 // failure once, at Error, because its cause is withheld from the caller: this is
-// the boundary that handles both.
+// the boundary that handles both. The unmapped failure is logged by class, not
+// by message, because a driver error echoes the values it rejected.
 func (s *ReservationServer) mapServiceError(ctx context.Context, span trace.Span, operation string, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -334,10 +337,32 @@ func (s *ReservationServer) mapServiceError(ctx context.Context, span trace.Span
 		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 		logging.WithTrace(ctx, logger).With(
 			libLog.String("operation", operation),
-		).Log(ctx, libLog.LevelError, "Reservation processing failed", libLog.Err(err))
+		).Log(ctx, libLog.LevelError, "Reservation processing failed", unmappedErrorFields(err)...)
 
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
+}
+
+// unmappedErrorFields classifies an unmapped failure for the log without its
+// message: a Postgres error by SQLSTATE and constraint, anything else by the
+// type of its innermost cause.
+func unmappedErrorFields(err error) []any {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		fields := []any{libLog.String("db.sqlstate", pgErr.Code)}
+		if pgErr.ConstraintName != "" {
+			fields = append(fields, libLog.String("db.constraint", pgErr.ConstraintName))
+		}
+
+		return fields
+	}
+
+	root := err
+	for next := errors.Unwrap(root); next != nil; next = errors.Unwrap(root) {
+		root = next
+	}
+
+	return []any{libLog.String("error_type", fmt.Sprintf("%T", root))}
 }
 
 // reservationIDStrings renders reservation or rule ids as proto-friendly strings.
