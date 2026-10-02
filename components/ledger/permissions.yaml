@@ -57,6 +57,10 @@
 # seed (see below).
 service: midaz
 version: 1
+scope:
+  dimensions:
+    - { name: organizationId, from: path, param: organization_id, required: true,  multi: false, collection: organizations, label: "Midaz organization" }
+    - { name: ledgerId,       from: path, param: ledger_id,       required: false, multi: true,  collection: ledgers,       label: "ledger" }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }

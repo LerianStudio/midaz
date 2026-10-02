@@ -18,10 +18,8 @@ import (
 // under auth.Authorize("midaz","fee-debts","post") and the transaction-scoped tenant
 // options, because it moves money in the ledger's transaction stores.
 func RegisterFeeDebtCollectV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *TransactionHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	const collectPath = "/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect"
-
-	routePost(group, collectPath,
-		protectedMidaz(auth, collectPath, "fee-debts", "post", routeOptions, pkgHTTP.ParseUUIDPathParameters("fee-debts")))
+	routePost(group, "/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect",
+		protectedMidaz(auth, "fee-debts", "post", routeOptions, pkgHTTP.ParseUUIDPathParameters("fee-debts")))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "collectFeeDebts" + v2OpSuffix,

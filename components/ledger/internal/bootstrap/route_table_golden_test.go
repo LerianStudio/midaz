@@ -152,9 +152,21 @@ func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
 func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	t.Helper()
 
+	auth := fullSurfaceAuthClient()
+	require.NoError(t, wireAuthScope(auth), "the boot scope wiring must accept the embedded manifest")
+
+	return buildFullSurfaceServerWithAuth(t, auth)
+}
+
+// buildFullSurfaceServerWithAuth is buildFullSurfaceServer over a caller-supplied auth
+// client, for a harness that must observe what the guard chains send to it. The client
+// must already be wired the way the boot wires it: Authorize reads the manifest scope
+// when a route is registered, not when it is called.
+func buildFullSurfaceServerWithAuth(t *testing.T, auth *middleware.AuthClient) *UnifiedServer {
+	t.Helper()
+
 	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}
-	auth := fullSurfaceAuthClient()
 	routeOptions := fullSurfaceRouteOptions()
 
 	transactionHandler := &httpin.TransactionHandler{}

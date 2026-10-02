@@ -293,14 +293,14 @@ func attachAccountRouteChain(group fiber.Router, auth *middleware.AuthClient, ro
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account")
 
-	routePost(group, listPath, protectedMidaz(auth, listPath, "accounts", "post", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, idPath, "accounts", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, listPath, "accounts", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, idPath, "accounts", "get", routeOptions, parse))
-	routeGet(group, aliasPath, protectedMidaz(auth, aliasPath, "accounts", "get", routeOptions, parse))
-	routeGet(group, externalPath, protectedMidaz(auth, externalPath, "accounts", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, idPath, "accounts", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, countPath, "accounts", "head", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, "accounts", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "accounts", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "accounts", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "accounts", "get", routeOptions, parse))
+	routeGet(group, aliasPath, protectedMidaz(auth, "accounts", "get", routeOptions, parse))
+	routeGet(group, externalPath, protectedMidaz(auth, "accounts", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "accounts", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, "accounts", "head", routeOptions, parse))
 }
 
 // attachAccountCloseRouteChain attaches the guard chain of the closing command,
@@ -319,5 +319,5 @@ func attachAccountCloseRouteChain(group fiber.Router, auth *middleware.AuthClien
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account")
 
-	routePost(group, closePath, protectedMidaz(auth, closePath, "accounts", "post", routeOptions, parse))
+	routePost(group, closePath, protectedMidaz(auth, "accounts", "post", routeOptions, parse))
 }

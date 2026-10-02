@@ -1097,6 +1097,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
+	// Before any route is registered: every midaz guard derives the organization and
+	// ledger it authorizes against from the manifest scope, read at registration.
+	if err := wireAuthScope(auth); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to wire the authorization scope: %w", err)
+	}
+
 	// === Multi-tenant middleware ===
 
 	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, feeMgo.mongoManager, tenantCache, tenantLoader)

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
 	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -73,7 +75,8 @@ type scopeEnforcementRow struct {
 }
 
 // TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers drives the real
-// registrars through the real lib-auth client and asserts, per route, the identifiers
+// registrars through the real lib-auth client, wired with the embedded manifest's
+// scope as the boot wires it, and asserts, per route, the identifiers
 // that reached the authorization service — name and value.
 //
 // NOT parallel: libProblem.Install swaps a process-global huma.NewError hook and Huma
@@ -258,6 +261,7 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 
 			server := newAuthzAttributeCapture(t, &captured)
 			auth := &middleware.AuthClient{Address: server.URL, Enabled: true}
+			require.NoError(t, declaration.WireScope(auth, ledgerembed.MidazManifest))
 
 			app := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 			libProblem.Install()
