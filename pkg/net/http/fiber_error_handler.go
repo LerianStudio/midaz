@@ -62,6 +62,13 @@ func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
 		}
 
 		switch fiberErr.Code {
+		case fiber.StatusBadRequest:
+			// The authorization guard answers 400 for a body it cannot read the
+			// declared scope from, and its message names the field to fix.
+			return renderCanonical(c, fiber.StatusBadRequest, pkg.ValidationError{
+				Code:    constant.ErrBadRequest.Error(),
+				Message: fiberErr.Message,
+			})
 		case fiber.StatusUnauthorized:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidToken, ""))
 		case fiber.StatusForbidden:
