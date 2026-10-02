@@ -187,6 +187,18 @@ func TestCreateLimit_ResetTimeRejected(t *testing.T) {
 			wantCode: constant.ErrLimitResetTimeNotAllowed.Error(),
 		},
 		{
+			name: "custom period with a time window",
+			fields: map[string]any{
+				"limitType":       "CUSTOM",
+				"customStartDate": "2026-11-27T00:00:00Z",
+				"customEndDate":   "2026-11-29T00:00:00Z",
+				"activeTimeStart": "10:00",
+				"activeTimeEnd":   "12:00",
+				"resetTime":       "09:00",
+			},
+			wantCode: constant.ErrLimitResetTimeNotAllowed.Error(),
+		},
+		{
 			name:     "per transaction",
 			fields:   map[string]any{"limitType": "PER_TRANSACTION", "resetTime": "09:00"},
 			wantCode: constant.ErrLimitResetTimeNotAllowed.Error(),

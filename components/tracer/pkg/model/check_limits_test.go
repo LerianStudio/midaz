@@ -891,3 +891,33 @@ func TestLimitPeriod_DailyResetTimeKeepsOvernightWindowInOnePeriod(t *testing.T)
 		})
 	}
 }
+
+// A reset time with minutes moves the boundary to that exact minute, not to
+// the start of its hour.
+func TestLimitPeriod_DailyResetTimeKeepsItsMinutes(t *testing.T) {
+	resetTime, err := model.NewTimeOfDay("09:30")
+	require.NoError(t, err)
+
+	limit := &model.Limit{LimitType: model.LimitTypeDaily, ResetTime: &resetTime}
+
+	tests := []struct {
+		at      time.Time
+		key     string
+		resetAt time.Time
+	}{
+		{time.Date(2026, 10, 2, 9, 29, 0, 0, time.UTC), "2026-10-01", time.Date(2026, 10, 2, 9, 30, 0, 0, time.UTC)},
+		{time.Date(2026, 10, 2, 9, 30, 0, 0, time.UTC), "2026-10-02", time.Date(2026, 10, 3, 9, 30, 0, 0, time.UTC)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.at.Format(time.RFC3339), func(t *testing.T) {
+			key, err := limit.PeriodKey(tc.at)
+			require.NoError(t, err)
+			assert.Equal(t, tc.key, key)
+
+			resetAt := limit.NextResetAt(tc.at)
+			require.NotNil(t, resetAt)
+			assert.Equal(t, tc.resetAt, *resetAt)
+		})
+	}
+}

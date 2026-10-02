@@ -182,7 +182,6 @@ func TestLimitService_GetLimit_ResetAtFromServiceClock(t *testing.T) {
 				limit := storedLimit(t, 3, model.LimitTypeCustom, model.LimitStatusActive, "")
 				limit.CustomStartDate = &customStart
 				limit.CustomEndDate = &customEnd
-				limit.ResetAt = &customReset
 
 				return limit
 			},
