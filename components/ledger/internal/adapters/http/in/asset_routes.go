@@ -29,7 +29,7 @@ import (
 func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/assets"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{asset_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Assets"
 	)
@@ -129,7 +129,7 @@ func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/assets"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:asset_id"
 		countPath = listPath + "/metrics/count"
 	)
 

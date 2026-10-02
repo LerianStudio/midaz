@@ -507,7 +507,7 @@ func (s *ValidationService) emitMessageProcessed(ctx context.Context, result *Va
 // Preserves the H2 idempotency contract: when persistTransactionValidation
 // surfaces command.ErrDuplicateValidation, the loser of a concurrent
 // persistence race must return the existing record rather than its locally
-// built response — otherwise GET /v1/validations/{id} would 404.
+// built response — otherwise GET /v1/validations/{validation_id} would 404.
 func (s *ValidationService) finalizeDenyByRule(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) *ValidateResult {
 	if persistErr := s.persistTransactionValidation(ctx, req, resp, logger); persistErr != nil {
 		if dup := s.handleConcurrentDuplicate(ctx, persistErr, req, logger); dup != nil {
@@ -624,7 +624,7 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 //     so a unique-constraint violation here means a concurrent request with the
 //     same RequestID won the persistence race. Without this signal the loser
 //     would return a ValidateResult whose validationID has no DB record, and
-//     GET /v1/validations/{id} would 404 — a broken idempotency contract (H2).
+//     GET /v1/validations/{validation_id} would 404 — a broken idempotency contract (H2).
 //     Callers swap the response with handleConcurrentDuplicate.
 //
 //  2. All other errors are logged but suppressed (returns nil) so the rest of
@@ -638,7 +638,7 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 // # Design Decision: Synchronous Persistence
 //
 // Persistence is synchronous to ensure that validation records are immediately
-// available for retrieval via GET /v1/validations/{id}. This design prioritizes:
+// available for retrieval via GET /v1/validations/{validation_id}. This design prioritizes:
 //
 //  1. Consistency: Validation records are available immediately after POST returns
 //  2. Compliance: SOX/GLBA audit trail is guaranteed before response is sent

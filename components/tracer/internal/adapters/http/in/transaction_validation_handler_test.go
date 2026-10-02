@@ -158,7 +158,7 @@ func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
 			handler := NewTransactionValidationHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/v1/validations/:id", handler.GetTransactionValidation)
+			app.Get("/v1/validations/:validation_id", handler.GetTransactionValidation)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/validations/"+tt.auditID, nil)
 			req.Header.Set("Content-Type", "application/json")

@@ -451,7 +451,7 @@ superset carrying `type`, `title`, `status`, `detail`, `instance`, plus midaz's 
 - API version prefix: `/v1/`
 - Plural resource names: `transactions`, `balances`, `operations`
 - Path parameters: snake_case with `_id` suffix
-- Actions via POST: `/transactions/{id}/commit`, `/transactions/{id}/revert`
+- Actions via POST: `/transactions/{transaction_id}/commit`, `/transactions/{transaction_id}/revert`
 
 ### HTTP Methods and Status Codes
 

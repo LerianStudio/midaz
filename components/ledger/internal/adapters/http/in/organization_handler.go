@@ -19,7 +19,7 @@ import (
 // This file is the ledger's Huma adoption of the organization resource, mirroring
 // the asset exemplar (asset_handler.go) adapted to organization's FIRST-LEVEL
 // path (no org/ledger prefix — only the top-level /organizations collection and a
-// single {id} path param). The conventions are identical to the asset exemplar:
+// single {organization_id} path param). The conventions are identical to the asset exemplar:
 //
 //  1. Path params carry ONLY `doc:` (no `format:"uuid"`) so Huma never emits a
 //     native 422; ParseUUIDPathParameters (wired as a Fiber middleware BEFORE the

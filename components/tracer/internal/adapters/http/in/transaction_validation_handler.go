@@ -49,7 +49,7 @@ func NewTransactionValidationHandler(service TransactionValidationService) *Tran
 }
 
 func (h *TransactionValidationHandler) GetTransactionValidation(c fiber.Ctx) error {
-	result, err := h.getTransactionValidation(c.Context(), c.Params("id"))
+	result, err := h.getTransactionValidation(c.Context(), c.Params("validation_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -76,7 +76,7 @@ func (h *TransactionValidationHandler) getTransactionValidation(ctx context.Cont
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation ID", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransactionValidation, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransactionValidation, "validation_id")
 	}
 
 	result, err := h.service.GetTransactionValidation(ctx, id)

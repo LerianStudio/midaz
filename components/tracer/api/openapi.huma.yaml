@@ -1327,13 +1327,13 @@ paths:
       summary: List audit events
       tags:
         - Audit
-  /audit-events/{id}:
+  /audit-events/{audit_event_id}:
     get:
       operationId: getAuditEvent
       parameters:
         - description: Audit event ID (UUID)
           in: path
-          name: id
+          name: audit_event_id
           required: true
           schema:
             description: Audit event ID (UUID)
@@ -1369,13 +1369,13 @@ paths:
       summary: Get an audit event by ID
       tags:
         - Audit
-  /audit-events/{id}/verify:
+  /audit-events/{audit_event_id}/verify:
     get:
       operationId: verifyAuditEvent
       parameters:
         - description: Audit event ID (UUID)
           in: path
-          name: id
+          name: audit_event_id
           required: true
           schema:
             description: Audit event ID (UUID)
@@ -1822,13 +1822,13 @@ paths:
       summary: Create a new spending limit
       tags:
         - Limits
-  /limits/{id}:
+  /limits/{limit_id}:
     delete:
       operationId: deleteLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1865,7 +1865,7 @@ paths:
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1906,7 +1906,7 @@ paths:
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1950,13 +1950,13 @@ paths:
       summary: Partially update an existing spending limit
       tags:
         - Limits
-  /limits/{id}/activate:
+  /limits/{limit_id}/activate:
     post:
       operationId: activateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -1992,13 +1992,13 @@ paths:
       summary: Activate a spending limit
       tags:
         - Limits
-  /limits/{id}/deactivate:
+  /limits/{limit_id}/deactivate:
     post:
       operationId: deactivateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2034,13 +2034,13 @@ paths:
       summary: Deactivate a spending limit
       tags:
         - Limits
-  /limits/{id}/draft:
+  /limits/{limit_id}/draft:
     post:
       operationId: draftLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2076,13 +2076,13 @@ paths:
       summary: Transition a limit back to draft
       tags:
         - Limits
-  /limits/{id}/usage:
+  /limits/{limit_id}/usage:
     get:
       operationId: getLimitUsage
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -2285,13 +2285,13 @@ paths:
       summary: Create a new fraud rule
       tags:
         - Rules
-  /rules/{id}:
+  /rules/{rule_id}:
     delete:
       operationId: deleteRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2328,7 +2328,7 @@ paths:
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2369,7 +2369,7 @@ paths:
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2413,13 +2413,13 @@ paths:
       summary: Partially update an existing fraud rule
       tags:
         - Rules
-  /rules/{id}/activate:
+  /rules/{rule_id}/activate:
     post:
       operationId: activateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2455,13 +2455,13 @@ paths:
       summary: Activate a fraud rule
       tags:
         - Rules
-  /rules/{id}/deactivate:
+  /rules/{rule_id}/deactivate:
     post:
       operationId: deactivateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2497,13 +2497,13 @@ paths:
       summary: Deactivate a fraud rule
       tags:
         - Rules
-  /rules/{id}/draft:
+  /rules/{rule_id}/draft:
     post:
       operationId: draftRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -2702,13 +2702,13 @@ paths:
       summary: Validate a transaction
       tags:
         - Validations
-  /validations/{id}:
+  /validations/{validation_id}:
     get:
       operationId: getValidation
       parameters:
         - description: Transaction Validation ID (UUID)
           in: path
-          name: id
+          name: validation_id
           required: true
           schema:
             description: Transaction Validation ID (UUID)

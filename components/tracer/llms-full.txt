@@ -40,29 +40,29 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 ### Validations
 - `POST /v1/validations` — Execute transaction validation (returns ALLOW/DENY/REVIEW)
 - `GET /v1/validations` — List validation history (cursor-based pagination, date filters)
-- `GET /v1/validations/{id}` — Get validation by ID
+- `GET /v1/validations/{validation_id}` — Get validation by ID
 
 ### Rules
 - `POST /v1/rules` — Create rule (DRAFT status)
 - `GET /v1/rules` — List rules (filter by status, action; cursor pagination)
-- `PATCH /v1/rules/{id}` — Update rule (expression only modifiable in DRAFT)
-- `DELETE /v1/rules/{id}` — Soft-delete rule (INACTIVE only)
-- `POST /v1/rules/{id}/activate` — Activate rule (DRAFT/INACTIVE → ACTIVE)
-- `POST /v1/rules/{id}/deactivate` — Deactivate rule (ACTIVE/DRAFT → INACTIVE)
+- `PATCH /v1/rules/{rule_id}` — Update rule (expression only modifiable in DRAFT)
+- `DELETE /v1/rules/{rule_id}` — Soft-delete rule (INACTIVE only)
+- `POST /v1/rules/{rule_id}/activate` — Activate rule (DRAFT/INACTIVE → ACTIVE)
+- `POST /v1/rules/{rule_id}/deactivate` — Deactivate rule (ACTIVE/DRAFT → INACTIVE)
 
 ### Limits
 - `POST /v1/limits` — Create spending limit
 - `GET /v1/limits` — List limits (filter by status, type; cursor pagination)
-- `GET /v1/limits/{id}/usage` — Get limit usage snapshot
-- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, asset)
-- `POST /v1/limits/{id}/activate` — Activate limit
-- `POST /v1/limits/{id}/deactivate` — Deactivate limit
-- `DELETE /v1/limits/{id}` — Soft-delete (DRAFT/INACTIVE only)
+- `GET /v1/limits/{limit_id}/usage` — Get limit usage snapshot
+- `PATCH /v1/limits/{limit_id}` — Update limit (immutable: limitType, asset)
+- `POST /v1/limits/{limit_id}/activate` — Activate limit
+- `POST /v1/limits/{limit_id}/deactivate` — Deactivate limit
+- `DELETE /v1/limits/{limit_id}` — Soft-delete (DRAFT/INACTIVE only)
 
 ### Audit Events
 - `GET /v1/audit-events` — List audit events (filter by type, action, resource)
-- `GET /v1/audit-events/{id}` — Get audit event by ID
-- `GET /v1/audit-events/{id}/verify` — Verify hash chain integrity
+- `GET /v1/audit-events/{audit_event_id}` — Get audit event by ID
+- `GET /v1/audit-events/{audit_event_id}/verify` — Verify hash chain integrity
 
 ### Health & Documentation
 - `GET /health` — Liveness probe

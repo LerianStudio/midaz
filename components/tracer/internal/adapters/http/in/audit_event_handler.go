@@ -124,7 +124,7 @@ func (h *AuditEventHandler) listAuditEvents(ctx context.Context, bind func(any) 
 }
 
 func (h *AuditEventHandler) GetAuditEvent(c fiber.Ctx) error {
-	result, err := h.getAuditEvent(c.Context(), c.Params("id"))
+	result, err := h.getAuditEvent(c.Context(), c.Params("audit_event_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -147,7 +147,7 @@ func (h *AuditEventHandler) getAuditEvent(ctx context.Context, idParam string) (
 	eventID, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "audit_event_id")
 	}
 
 	result, err := h.service.GetAuditEvent(ctx, eventID)
@@ -165,7 +165,7 @@ func (h *AuditEventHandler) getAuditEvent(ctx context.Context, idParam string) (
 }
 
 func (h *AuditEventHandler) VerifyHashChain(c fiber.Ctx) error {
-	result, err := h.verifyHashChain(c.Context(), c.Params("id"))
+	result, err := h.verifyHashChain(c.Context(), c.Params("audit_event_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -188,7 +188,7 @@ func (h *AuditEventHandler) verifyHashChain(ctx context.Context, idParam string)
 	eventID, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "audit_event_id")
 	}
 
 	result, err := h.service.VerifyHashChain(ctx, eventID)

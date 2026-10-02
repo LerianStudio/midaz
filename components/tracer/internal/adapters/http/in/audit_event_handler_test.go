@@ -667,7 +667,7 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 			handler := NewAuditEventHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/v1/audit-events/:id", handler.GetAuditEvent)
+			app.Get("/v1/audit-events/:audit_event_id", handler.GetAuditEvent)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+tt.eventID, nil)
 			resp, err := app.Test(req)
@@ -807,7 +807,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 			handler := NewAuditEventHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/v1/audit-events/:id/verify", handler.VerifyHashChain)
+			app.Get("/v1/audit-events/:audit_event_id/verify", handler.VerifyHashChain)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+tt.eventID+"/verify", nil)
 			resp, err := app.Test(req)

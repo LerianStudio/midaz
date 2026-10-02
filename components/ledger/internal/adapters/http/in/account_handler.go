@@ -35,7 +35,7 @@ import (
 // Account differs from the asset exemplar in one way: TWO extra by-key reads — GET
 // .../accounts/alias/{alias} and GET .../accounts/external/{code} — whose path params
 // are NOT UUIDs. ParseUUIDPathParameters only UUID-parses params in
-// cn.UUIDPathParameters ("id","organization_id","ledger_id",...); "alias" and "code"
+// cn.UUIDPathParameters ("organization_id","ledger_id","account_id",...); "alias" and "code"
 // fall through as raw string locals, so no format tag is needed and no native 422 can
 // fire.
 
@@ -160,14 +160,14 @@ func (handler *AccountHandler) ListAccounts(ctx context.Context, in *ListAccount
 	return &ListAccountsResponse{Status: http.StatusOK, Body: newAccountV1Items(pagination)}, nil
 }
 
-// --- GET /accounts/{id} -------------------------------------------------------
+// --- GET /accounts/{account_id} ----------------------------------------------
 
 // GetAccountRequest is the by-id request envelope. The id path param carries no
 // format tag (ParseUUIDPathParameters is the sole validator).
 type GetAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Account ID (UUID)"`
+	ID             string `path:"account_id" doc:"Account ID (UUID)"`
 }
 
 // GetAccountResponse carries the /v1 account projection.
@@ -183,7 +183,7 @@ func (handler *AccountHandler) GetAccountByID(ctx context.Context, in *GetAccoun
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -250,13 +250,13 @@ func (handler *AccountHandler) GetAccountExternalByCode(ctx context.Context, in 
 	return &GetAccountResponse{Status: http.StatusOK, Body: newAccountV1(account)}, nil
 }
 
-// --- PATCH /accounts/{id} -----------------------------------------------------
+// --- PATCH /accounts/{account_id} --------------------------------------------
 
 // UpdateAccountRequest is the update request envelope (RawBody, see Create).
 type UpdateAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Account ID (UUID)"`
+	ID             string `path:"account_id" doc:"Account ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -275,7 +275,7 @@ func (handler *AccountHandler) UpdateAccount(ctx context.Context, in *UpdateAcco
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -297,14 +297,14 @@ func (handler *AccountHandler) UpdateAccount(ctx context.Context, in *UpdateAcco
 	return &UpdateAccountResponse{Status: http.StatusOK, Body: newAccountV1(account)}, nil
 }
 
-// --- DELETE /accounts/{id} ----------------------------------------------------
+// --- DELETE /accounts/{account_id} -------------------------------------------
 
 // DeleteAccountRequest is the delete request envelope. Authorization is forwarded
 // to the service.
 type DeleteAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Account ID (UUID)"`
+	ID             string `path:"account_id" doc:"Account ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token (forwarded to the service)"`
 }
 
@@ -319,7 +319,7 @@ func (handler *AccountHandler) DeleteAccountByID(ctx context.Context, in *Delete
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

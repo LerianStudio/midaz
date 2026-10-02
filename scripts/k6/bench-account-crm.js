@@ -3,7 +3,7 @@
 // Two legs run sequentially (startTime offsets, so the box carries one profile
 // at a time) at a constant arrival rate:
 //   A_plain — POST .../accounts                 (no CRM: a bare ledger account)
-//   B_crm   — POST .../holders/{id}/accounts    (CRM-composed: holder-owned,
+//   B_crm   — POST .../holders/{holder_id}/accounts    (CRM-composed: holder-owned,
 //             which resolves the holder and binds ownership)
 //
 // Run:

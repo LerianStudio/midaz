@@ -31,18 +31,18 @@ const feesV2Scope = "/v2/organizations/:organization_id/ledgers/:ledger_id"
 var feesV2FullRoutes = []string{
 	"POST:" + feesV2Scope + "/packages",
 	"GET:" + feesV2Scope + "/packages",
-	"GET:" + feesV2Scope + "/packages/:id",
-	"PATCH:" + feesV2Scope + "/packages/:id",
-	"DELETE:" + feesV2Scope + "/packages/:id",
+	"GET:" + feesV2Scope + "/packages/:package_id",
+	"PATCH:" + feesV2Scope + "/packages/:package_id",
+	"DELETE:" + feesV2Scope + "/packages/:package_id",
 	"POST:" + feesV2Scope + "/estimates",
 	"POST:" + feesV2Scope + "/billing-packages",
 	"GET:" + feesV2Scope + "/billing-packages",
-	"GET:" + feesV2Scope + "/billing-packages/:id",
-	"PATCH:" + feesV2Scope + "/billing-packages/:id",
-	"DELETE:" + feesV2Scope + "/billing-packages/:id",
+	"GET:" + feesV2Scope + "/billing-packages/:billing_package_id",
+	"PATCH:" + feesV2Scope + "/billing-packages/:billing_package_id",
+	"DELETE:" + feesV2Scope + "/billing-packages/:billing_package_id",
 	"POST:" + feesV2Scope + "/billing/calculate",
 	"GET:" + feesV2Scope + "/fee-debts",
-	"GET:" + feesV2Scope + "/fee-debts/:debt_id",
+	"GET:" + feesV2Scope + "/fee-debts/:fee_debt_id",
 }
 
 // feesV2OperationIDs is the operation ID each published v2 fee operation must carry,
@@ -53,18 +53,18 @@ var feesV2FullRoutes = []string{
 var feesV2OperationIDs = map[string]string{
 	"POST /organizations/{organization_id}/ledgers/{ledger_id}/packages":                "createPackageV2",
 	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages":                 "getAllPackagesV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}":            "getPackageByIDV2",
-	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}":          "updatePackageV2",
-	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}":         "deletePackageV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":            "getPackageByIDV2",
+	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":          "updatePackageV2",
+	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":         "deletePackageV2",
 	"POST /organizations/{organization_id}/ledgers/{ledger_id}/estimates":               "estimateFeeCalculationV2",
 	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages":        "createBillingPackageV2",
 	"GET /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages":         "getAllBillingPackagesV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}":    "getBillingPackageByIDV2",
-	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}":  "updateBillingPackageV2",
-	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}": "deleteBillingPackageV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}":    "getBillingPackageByIDV2",
+	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}":  "updateBillingPackageV2",
+	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}": "deleteBillingPackageV2",
 	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate":       "calculateBillingV2",
 	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts":                "listFeeDebtsV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}":      "getFeeDebtV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}":      "getFeeDebtV2",
 }
 
 // mountFeesV2Routes wires the five fee registrars on a /v2 group, mirroring the
@@ -210,7 +210,7 @@ func TestFeesV2RoutesParameterNamesAgree(t *testing.T) {
 				path, names)
 
 			for _, name := range seen[names[0]] {
-				if name == "debt_id" {
+				if name == "fee_debt_id" {
 					continue // a fee debt id is "<transaction id>:<posting ref>"; an unknown one is a 404
 				}
 

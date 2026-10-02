@@ -115,7 +115,7 @@ func (handler *FeeDebtHandler) getFeeDebt(ctx context.Context, organizationID, l
 
 	id, err := url.PathUnescape(rawID)
 	if err != nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityFeeDebt, "debt_id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityFeeDebt, "fee_debt_id")
 	}
 
 	span.SetAttributes(attribute.String("app.request.fee_debt_id", id))

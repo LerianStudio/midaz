@@ -29,7 +29,7 @@ import (
 func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/account-types"
-		idPath   = listPath + "/{id}"
+		idPath   = listPath + "/{account_type_id}"
 		tag      = "Account Types"
 	)
 
@@ -118,7 +118,7 @@ func RegisterAccountTypeV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 func registerAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountTypeHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath = "/organizations/:organization_id/ledgers/:ledger_id/account-types"
-		idPath   = listPath + "/:id"
+		idPath   = listPath + "/:account_type_id"
 	)
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account_type")

@@ -133,15 +133,15 @@ func (handler *AccountTypeHandler) ListAccountTypes(ctx context.Context, in *Lis
 	return &ListAccountTypesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /account-types/{id} --------------------------------------------------
+// --- GET /account-types/{account_type_id} ------------------------------------
 
 // GetAccountTypeRequest is the by-id request envelope. The id path param carries no
-// format tag (ParseUUIDPathParameters is the sole validator). The path tag is "id"
-// (matching the Fiber route's :id param), NOT "account_type_id".
+// format tag (ParseUUIDPathParameters is the sole validator). The path tag is
+// "account_type_id", matching the Fiber route's :account_type_id param.
 type GetAccountTypeRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Account Type ID (UUID)"`
+	ID             string `path:"account_type_id" doc:"Account Type ID (UUID)"`
 }
 
 // GetAccountTypeResponse carries the account type verbatim.
@@ -157,7 +157,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(ctx context.Context, in *G
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_type_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -170,13 +170,13 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(ctx context.Context, in *G
 	return &GetAccountTypeResponse{Status: http.StatusOK, Body: accountType}, nil
 }
 
-// --- PATCH /account-types/{id} ------------------------------------------------
+// --- PATCH /account-types/{account_type_id} ----------------------------------
 
 // UpdateAccountTypeRequest is the update request envelope (RawBody, see Create).
 type UpdateAccountTypeRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Account Type ID (UUID)"`
+	ID             string `path:"account_type_id" doc:"Account Type ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -194,7 +194,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(ctx context.Context, in *Up
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_type_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -212,7 +212,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(ctx context.Context, in *Up
 	return &UpdateAccountTypeResponse{Status: http.StatusOK, Body: accountType}, nil
 }
 
-// --- DELETE /account-types/{id} -----------------------------------------------
+// --- DELETE /account-types/{account_type_id} ---------------------------------
 
 // DeleteAccountTypeResponse has NO Body field: paired with DefaultStatus 204 it
 // makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
@@ -226,7 +226,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(ctx context.Context, in
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_type_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

@@ -35,7 +35,7 @@ func RegisterFeeDebtRoutes(api huma.API, h *FeeDebtHandler, opSuffix string) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getFeeDebt" + opSuffix,
 		Method:      http.MethodGet,
-		Path:        listPath + "/{debt_id}",
+		Path:        listPath + "/{fee_debt_id}",
 		Summary:     "Get a fee debt",
 		Tags:        []string{tag},
 		Security:    secBillingBearer,
@@ -44,14 +44,14 @@ func RegisterFeeDebtRoutes(api huma.API, h *FeeDebtHandler, opSuffix string) {
 
 // RegisterFeeDebtV2RoutesToApp serves the fee-debt surface on /v2 only, under
 // auth.Authorize("midaz","fee-debts","get") and the fees-scoped tenant options.
-// debt_id is not a UUID, so ParseUUIDPathParameters validates only the scope ids.
+// fee_debt_id is not a UUID, so ParseUUIDPathParameters validates only the scope ids.
 func RegisterFeeDebtV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *FeeDebtHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	const feeDebtsPath = "/organizations/:organization_id/ledgers/:ledger_id/fee-debts"
 
 	parse := pkgHTTP.ParseUUIDPathParameters("fee-debts")
 
 	routeGet(group, feeDebtsPath, protectedMidaz(auth, "fee-debts", "get", routeOptions, parse))
-	routeGet(group, feeDebtsPath+"/:debt_id", protectedMidaz(auth, "fee-debts", "get", routeOptions, parse))
+	routeGet(group, feeDebtsPath+"/:fee_debt_id", protectedMidaz(auth, "fee-debts", "get", routeOptions, parse))
 
 	RegisterFeeDebtRoutes(api, h, v2OpSuffix)
 }
