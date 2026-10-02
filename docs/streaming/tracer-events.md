@@ -95,11 +95,12 @@ Catalog (`buildCatalog`) and the manifest:
 | `ce-source` | `tracer` |
 | `ce-subject` | aggregate ID — rule UUID or limit UUID |
 | `ce-tenantid` | `pkgStreaming.ResolveTenantID(ctx)`, falls back to `"default"` |
-| Schema version | `1.0.0` (all 12 events) |
+| Schema version | `1.1.0` for `limit.created` / `limit.updated`, `1.0.0` for the other 10 events |
 
 ## Event catalog
 
-All 12 events carry `SchemaVersion = 1.0.0`.
+`limit.created` and `limit.updated` carry `SchemaVersion = 1.1.0` (the
+additive `resetTime` field); the other 10 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | `ce-type` | `ce-subject` | Schema version |
 |-----------|-----------|--------------|----------------|
@@ -109,8 +110,8 @@ All 12 events carry `SchemaVersion = 1.0.0`.
 | `rule.deactivated` | `studio.lerian.tracer.rule.deactivated` | rule ID | `1.0.0` |
 | `rule.drafted` | `studio.lerian.tracer.rule.drafted` | rule ID | `1.0.0` |
 | `rule.deleted` | `studio.lerian.tracer.rule.deleted` | rule ID | `1.0.0` |
-| `limit.created` | `studio.lerian.tracer.limit.created` | limit ID | `1.0.0` |
-| `limit.updated` | `studio.lerian.tracer.limit.updated` | limit ID | `1.0.0` |
+| `limit.created` | `studio.lerian.tracer.limit.created` | limit ID | `1.1.0` |
+| `limit.updated` | `studio.lerian.tracer.limit.updated` | limit ID | `1.1.0` |
 | `limit.activated` | `studio.lerian.tracer.limit.activated` | limit ID | `1.0.0` |
 | `limit.deactivated` | `studio.lerian.tracer.limit.deactivated` | limit ID | `1.0.0` |
 | `limit.drafted` | `studio.lerian.tracer.limit.drafted` | limit ID | `1.0.0` |
@@ -256,7 +257,7 @@ primitive-arg constructor `NewRuleDeleted(id, deletedAt)`. No `status` field.
 **Excluded** (asserted absent by the JSONShape test): `status`, `name`,
 `description`, `expression`, `scopes`, `action`.
 
-### `limit.created` / `limit.updated` — 12 fields
+### `limit.created` / `limit.updated` — 13 fields
 
 Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
 `ce-subject` = limit ID.
@@ -272,6 +273,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
   "activeTimeEnd":   "HH:MM | null",
   "customStartDate": "RFC3339 | null",
   "customEndDate":   "RFC3339 | null",
+  "resetTime":       "HH:MM | null",
   "resetAt":         "RFC3339 | null",
   "createdAt":       "RFC3339",
   "updatedAt":       "RFC3339"
@@ -289,7 +291,8 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
 | `activeTimeEnd` | string \| null | Time-of-day window end (`HH:MM`), `null` when unset. |
 | `customStartDate` | string \| null | RFC3339, `null` unless the period is `CUSTOM`. |
 | `customEndDate` | string \| null | RFC3339, `null` unless the period is `CUSTOM`. |
-| `resetAt` | string \| null | RFC3339 next-reset time, `null` when unset. |
+| `resetTime` | string \| null | Time of day (`HH:MM`, UTC) at which a `DAILY` / `WEEKLY` / `MONTHLY` period starts; `null` when unset (periods start at midnight UTC). Immutable after create. Added in `1.1.0`. |
+| `resetAt` | string \| null | RFC3339 next reset after the emission instant: the next period boundary for `DAILY` / `WEEKLY` / `MONTHLY`, midnight UTC of the day after `customEndDate` for `CUSTOM`, `null` for `PER_TRANSACTION`. |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
 

@@ -261,7 +261,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 func (c *UpdateLimitCommand) emitLimitUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
 	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
-			return events.NewLimitUpdated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
+			return events.NewLimitUpdated(withResetAtAfter(limit, c.clock.Now())).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})
 }
 
