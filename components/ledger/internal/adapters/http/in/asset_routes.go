@@ -70,6 +70,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an asset",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secAssetBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAsset.

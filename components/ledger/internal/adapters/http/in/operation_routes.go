@@ -56,6 +56,7 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler, opSuffix string)
 		Method:           http.MethodPatch,
 		Path:             patchPath,
 		Summary:          "Update an Operation",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secTransactionBearer, // BearerAuth (Bearer-only), matching the Fiber guard chain on the transaction-path PATCH.
 		SkipValidateBody: true,                 // body validated imperatively (http.DecodeAndValidate) — plain decode, not merge-patch.

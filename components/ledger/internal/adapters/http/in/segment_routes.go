@@ -66,6 +66,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a segment",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secSegmentBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.

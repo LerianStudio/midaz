@@ -66,6 +66,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a portfolio",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secPortfolioBearer,
 		SkipValidateBody: true, // body validated imperatively.

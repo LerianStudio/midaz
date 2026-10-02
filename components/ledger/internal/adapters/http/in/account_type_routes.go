@@ -69,6 +69,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an account type",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secAccountTypeBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAccountType.

@@ -227,3 +227,8 @@ func markRequestBodyOptional(api huma.API, operationID string) {
 		}
 	}
 }
+
+// patchMetadataDoc describes how every PATCH that carries metadata applies it.
+const patchMetadataDoc = "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, " +
+	"leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; " +
+	"metadata sent as null deletes every key the client wrote."

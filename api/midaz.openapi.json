@@ -584,6 +584,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOrganization",
         "parameters": [
           {
@@ -1089,6 +1090,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateLedger",
         "parameters": [
           {
@@ -1591,6 +1593,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateAccountType",
         "parameters": [
           {
@@ -3251,7 +3254,7 @@
       },
       "patch": {
         "deprecated": true,
-        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command.",
+        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateAccount",
         "parameters": [
           {
@@ -4149,6 +4152,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateAsset",
         "parameters": [
           {
@@ -5447,6 +5451,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOperationRoute",
         "parameters": [
           {
@@ -6022,6 +6027,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updatePortfolio",
         "parameters": [
           {
@@ -6577,6 +6583,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateSegment",
         "parameters": [
           {
@@ -7226,6 +7233,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateTransactionRoute",
         "parameters": [
           {
@@ -8355,6 +8363,7 @@
       },
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateTransaction",
         "parameters": [
           {
@@ -8632,6 +8641,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
       "patch": {
         "deprecated": true,
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOperation",
         "parameters": [
           {
@@ -9446,6 +9456,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOrganizationV2",
         "parameters": [
           {
@@ -10226,7 +10237,7 @@
         ]
       },
       "patch": {
-        "description": "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043).",
+        "description": "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043). Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateInstrumentV2",
         "parameters": [
           {
@@ -10581,6 +10592,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateHolderV2",
         "parameters": [
           {
@@ -11366,6 +11378,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateLedgerV2",
         "parameters": [
           {
@@ -11863,6 +11876,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateAccountTypeV2",
         "parameters": [
           {
@@ -13679,7 +13693,7 @@
         ]
       },
       "patch": {
-        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command.",
+        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateAccountV2",
         "parameters": [
           {
@@ -14238,6 +14252,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateAssetV2",
         "parameters": [
           {
@@ -16594,6 +16609,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOperationRouteV2",
         "parameters": [
           {
@@ -17640,6 +17656,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updatePortfolioV2",
         "parameters": [
           {
@@ -18189,6 +18206,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateSegmentV2",
         "parameters": [
           {
@@ -18831,6 +18849,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateTransactionRouteV2",
         "parameters": [
           {
@@ -19272,6 +19291,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateTransactionV2",
         "parameters": [
           {
@@ -19569,6 +19589,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOperationV2",
         "parameters": [
           {
@@ -20130,6 +20151,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOrganizationOperationRouteV2",
         "parameters": [
           {
@@ -20716,6 +20738,7 @@
         ]
       },
       "patch": {
+        "description": "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote.",
         "operationId": "updateOrganizationTransactionRouteV2",
         "parameters": [
           {

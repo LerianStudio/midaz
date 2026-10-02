@@ -84,6 +84,7 @@ func registerOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an existing organization",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secOrgBearer,
 		SkipValidateBody: true, // body validated imperatively — see createOrganization.

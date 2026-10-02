@@ -344,6 +344,11 @@ paths:
         - Midaz_Ledger_API_Organizations (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOrganization
       parameters:
         - description: Organization ID (UUID)
@@ -662,6 +667,11 @@ paths:
         - Midaz_Ledger_API_Ledgers (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateLedger
       parameters:
         - description: Organization ID (UUID)
@@ -982,6 +992,11 @@ paths:
         - Midaz_Ledger_API_Account Types (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -2065,7 +2080,11 @@ paths:
       description: >-
         The closing instant is output only: a body naming closedAt or closed_at
         at its root is refused with 400 whatever the value it carries, and the
-        stored instant is only ever written by the close command.
+        stored instant is only ever written by the close command. Metadata is
+        applied as an RFC 7396 merge patch: a body without metadata, or with an
+        empty metadata object, leaves the stored metadata as it is; a key sent
+        as null is deleted; any other key is added or replaced; metadata sent as
+        null deletes every key the client wrote.
       operationId: updateAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2644,6 +2663,11 @@ paths:
         - Midaz_Ledger_API_Assets (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateAsset
       parameters:
         - description: Organization ID (UUID)
@@ -3527,6 +3551,11 @@ paths:
         - Midaz_Ledger_API_Operation Routes (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -3894,6 +3923,11 @@ paths:
         - Midaz_Ledger_API_Portfolios (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updatePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -4247,6 +4281,11 @@ paths:
         - Midaz_Ledger_API_Segments (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateSegment
       parameters:
         - description: Organization ID (UUID)
@@ -4657,6 +4696,11 @@ paths:
         - Midaz_Ledger_API_Transaction Routes (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -5410,6 +5454,11 @@ paths:
         - Midaz_Ledger_API_Transactions (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5584,6 +5633,11 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOperation
       parameters:
         - description: Organization ID (UUID)
@@ -6103,6 +6157,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Organizations (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOrganizationV2
       parameters:
         - description: Organization ID (UUID)
@@ -6616,7 +6675,11 @@ paths:
         Updates an instrument as an RFC 7396 merge patch. A change to bankId,
         branch or account that leaves the instrument holding a bank account
         already registered to another live instrument of the organization is
-        refused with 409 (CRM-0043).
+        refused with 409 (CRM-0043). Metadata is applied as an RFC 7396 merge
+        patch: a body without metadata, or with an empty metadata object, leaves
+        the stored metadata as it is; a key sent as null is deleted; any other
+        key is added or replaced; metadata sent as null deletes every key the
+        client wrote.
       operationId: updateInstrumentV2
       parameters:
         - description: Organization ID (UUID)
@@ -6844,6 +6907,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Holders (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateHolderV2
       parameters:
         - description: Organization ID (UUID)
@@ -7347,6 +7415,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateLedgerV2
       parameters:
         - description: Organization ID (UUID)
@@ -7662,6 +7735,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Account Types (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateAccountTypeV2
       parameters:
         - description: Organization ID (UUID)
@@ -8858,7 +8936,11 @@ paths:
       description: >-
         The closing instant is output only: a body naming closedAt or closed_at
         at its root is refused with 400 whatever the value it carries, and the
-        stored instant is only ever written by the close command.
+        stored instant is only ever written by the close command. Metadata is
+        applied as an RFC 7396 merge patch: a body without metadata, or with an
+        empty metadata object, leaves the stored metadata as it is; a key sent
+        as null is deleted; any other key is added or replaced; metadata sent as
+        null deletes every key the client wrote.
       operationId: updateAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -9212,6 +9294,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Assets (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateAssetV2
       parameters:
         - description: Organization ID (UUID)
@@ -10773,6 +10860,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -11435,6 +11527,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updatePortfolioV2
       parameters:
         - description: Organization ID (UUID)
@@ -11782,6 +11879,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Segments (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateSegmentV2
       parameters:
         - description: Organization ID (UUID)
@@ -12185,6 +12287,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -12472,6 +12579,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Transactions (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -12652,6 +12764,11 @@ paths:
         - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOperationV2
       parameters:
         - description: Organization ID (UUID)
@@ -13007,6 +13124,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOrganizationOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -13382,6 +13504,11 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)

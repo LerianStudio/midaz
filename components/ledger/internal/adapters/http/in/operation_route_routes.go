@@ -69,6 +69,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an operation route",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secOperationRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.

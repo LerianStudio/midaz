@@ -110,7 +110,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
-		Description:      accountClosedAtInputDoc,
+		Description:      accountClosedAtInputDoc + " " + patchMetadataDoc,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
@@ -207,7 +207,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
-		Description:      accountClosedAtInputDoc,
+		Description:      accountClosedAtInputDoc + " " + patchMetadataDoc,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.

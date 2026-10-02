@@ -70,6 +70,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update Transaction Route",
+		Description:      patchMetadataDoc,
 		Tags:             []string{tag},
 		Security:         secTransactionRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
