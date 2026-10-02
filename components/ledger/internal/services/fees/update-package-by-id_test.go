@@ -437,3 +437,7 @@ func TestSetAmountsDataToUpdate_KeepsStoredSelector(t *testing.T) {
 		stored, uuid.New(), &packageID, bson.M{})
 	require.NoError(t, err, "a selector-scoped package must not collide with an unscoped one on its band")
 }
+
+func boolPtr(b bool) *bool {
+	return &b
+}

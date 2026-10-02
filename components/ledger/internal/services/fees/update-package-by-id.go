@@ -12,7 +12,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -217,13 +216,12 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 				return errGetAccount
 			}
 
-			// Convert fee to MongoDB format and add to setFields
-			mongoFee, errConvert := uc.convertFeeToMongoFormat(fee)
+			mongoFees, errConvert := pack.FromEntityFeeMap(map[string]model.Fee{keyFormatted: fee})
 			if errConvert != nil {
 				return errConvert
 			}
 
-			setFields["fees."+keyFormatted] = mongoFee
+			setFields["fees."+keyFormatted] = mongoFees[keyFormatted]
 
 			// Add to final state for priority validation
 			finalFees[keyFormatted] = fee
@@ -310,40 +308,4 @@ func (uc *UseCase) SetAmountsDataToUpdate(ctx context.Context, logger libLog.Log
 	}
 
 	return nil
-}
-
-// convertFeeToMongoFormat converts a model.Fee to pack.Fee (MongoDB format)
-func (uc *UseCase) convertFeeToMongoFormat(fee model.Fee) (pack.Fee, error) {
-	// Convert calculations to MongoDB format
-	calculations := make([]pack.Calculation, 0, len(fee.CalculationModel.Calculations))
-
-	for _, calc := range fee.CalculationModel.Calculations {
-		value, err := decimal.NewFromString(calc.Value)
-		if err != nil {
-			return pack.Fee{}, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, constant.EntityPackage, "calculationModel.calculations.value")
-		}
-
-		calculations = append(calculations, pack.Calculation{
-			Type:  calc.Type,
-			Value: bsondecimal.Decimal{Decimal: value},
-		})
-	}
-
-	// Convert calculation model
-	calcModel := pack.CalculationModel{
-		ApplicationRule: fee.CalculationModel.ApplicationRule,
-		Calculations:    calculations,
-	}
-
-	return pack.Fee{
-		FeeLabel:         fee.FeeLabel,
-		CalculationModel: calcModel,
-		ReferenceAmount:  fee.ReferenceAmount,
-		Priority:         fee.Priority,
-		IsDeductibleFrom: fee.IsDeductibleFrom,
-		CreditAccount:    fee.CreditAccount,
-		RouteFrom:        fee.RouteFrom,
-		RouteTo:          fee.RouteTo,
-		Deferrable:       fee.GetDeferrable(),
-	}, nil
 }
