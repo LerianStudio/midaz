@@ -213,10 +213,18 @@ func (d *LimitUsageDetail) RemainingAmount() decimal.Decimal {
 //   - CUSTOM: "custom" (limit checker uses customStartDate/customEndDate to determine if in period)
 //   - PER_TRANSACTION: "" (empty, no period tracking)
 //
+// Periods start at midnight UTC; use Limit.PeriodKey for a limit with a ResetTime.
+//
 // Returns ErrCheckLimitsUnknownLimitType for unknown limit types to prevent
 // silent bugs where new limit types would be treated as PER_TRANSACTION.
 func CalculatePeriodKey(limitType LimitType, timestamp time.Time) (string, error) {
-	utc := timestamp.UTC()
+	return periodKey(limitType, timestamp, 0)
+}
+
+// periodKey computes the CalculatePeriodKey formats for DAILY, WEEKLY and
+// MONTHLY periods that begin boundary past midnight UTC.
+func periodKey(limitType LimitType, timestamp time.Time, boundary time.Duration) (string, error) {
+	utc := shiftToPeriodClock(timestamp, boundary)
 
 	switch limitType {
 	case LimitTypeDaily:

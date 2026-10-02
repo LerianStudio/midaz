@@ -1142,3 +1142,36 @@ func TestLimit_IsWithinCustomPeriod(t *testing.T) {
 		})
 	}
 }
+
+func TestLimitPeriod_WeeklyResetTimeMovesISOWeekBoundary(t *testing.T) {
+	limit := &Limit{LimitType: LimitTypeWeekly, ResetTime: resetTimePtr("09:00")}
+
+	tests := []struct {
+		name    string
+		at      string
+		key     string
+		resetAt string
+	}{
+		{"Monday before the boundary stays in the previous week", "2026-10-05T08:59:00Z", "2026-W40", "2026-10-05T09:00:00Z"},
+		{"Monday at the boundary opens the new week", "2026-10-05T09:00:00Z", "2026-W41", "2026-10-12T09:00:00Z"},
+		{"Sunday night belongs to the current week", "2026-10-11T23:59:00Z", "2026-W41", "2026-10-12T09:00:00Z"},
+		{"last Monday of a 53-week year before the boundary", "2026-12-28T08:59:00Z", "2026-W52", "2026-12-28T09:00:00Z"},
+		{"last Monday of a 53-week year at the boundary", "2026-12-28T09:00:00Z", "2026-W53", "2027-01-04T09:00:00Z"},
+		{"first Monday of the next ISO year before the boundary", "2027-01-04T08:59:00Z", "2026-W53", "2027-01-04T09:00:00Z"},
+		{"first Monday of the next ISO year at the boundary", "2027-01-04T09:00:00Z", "2027-W01", "2027-01-11T09:00:00Z"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			at := mustRFC3339(t, tc.at)
+
+			key, err := limit.PeriodKey(at)
+			require.NoError(t, err)
+			assert.Equal(t, tc.key, key)
+
+			resetAt := limit.NextResetAt(at)
+			require.NotNil(t, resetAt)
+			assert.Equal(t, mustRFC3339(t, tc.resetAt), *resetAt)
+		})
+	}
+}

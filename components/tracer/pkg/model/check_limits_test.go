@@ -858,3 +858,36 @@ func TestCheckLimitsOutput_EvaluatedAt_WithUsageDetails(t *testing.T) {
 		"EvaluatedAt should be preserved after method chaining")
 	assert.Len(t, output.LimitUsageDetails, 1)
 }
+
+// An overnight window that ends at the limit's reset time is counted in one
+// period: the night of 2026-10-01 runs from 23:00 to 09:00 UTC the next day.
+func TestLimitPeriod_DailyResetTimeKeepsOvernightWindowInOnePeriod(t *testing.T) {
+	resetTime, err := model.NewTimeOfDay("09:00")
+	require.NoError(t, err)
+
+	limit := &model.Limit{LimitType: model.LimitTypeDaily, ResetTime: &resetTime}
+
+	tests := []struct {
+		at      time.Time
+		key     string
+		resetAt time.Time
+	}{
+		{time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC), "2026-10-01", time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)},
+		{time.Date(2026, 10, 2, 0, 30, 0, 0, time.UTC), "2026-10-01", time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)},
+		{time.Date(2026, 10, 2, 8, 59, 0, 0, time.UTC), "2026-10-01", time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)},
+		{time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC), "2026-10-02", time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)},
+		{time.Date(2026, 10, 2, 23, 30, 0, 0, time.UTC), "2026-10-02", time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.at.Format(time.RFC3339), func(t *testing.T) {
+			key, err := limit.PeriodKey(tc.at)
+			require.NoError(t, err)
+			assert.Equal(t, tc.key, key)
+
+			resetAt := limit.NextResetAt(tc.at)
+			require.NotNil(t, resetAt)
+			assert.Equal(t, tc.resetAt, *resetAt)
+		})
+	}
+}
