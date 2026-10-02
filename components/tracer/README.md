@@ -155,7 +155,7 @@ reservation route, and the ledger is the only caller:
 - **Identity.** The seam enforces the first identity the configuration enables:
   - **token** (`PLUGIN_AUTH_ENABLED=true`): the ledger's Access Manager application token in
     `authorization: Bearer <token>`, authorized on every RPC as `tracer/reservations:post`. Only
-    application tokens pass; in single-tenant mode the token `sub` must be listed in
+    application tokens pass; in single-tenant mode the token `azp` (client id) or `sub` must be listed in
     `TRACER_SEAM_ALLOWED_CLIENTS` (required outside `DEPLOYMENT_MODE=local`), and in multi-tenant
     mode its `name` claim must be `ledger-m2m-tracer-{tenant}` for the token's own `tenantId` claim
     (tenants compared canonically).

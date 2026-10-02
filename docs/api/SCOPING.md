@@ -279,7 +279,7 @@ refuses boot.
 
 The tracer enforces the first identity its configuration enables: the token
 (`PLUGIN_AUTH_ENABLED=true`, authorized as `tracer/reservations:post`, only for application tokens,
-whose `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and whose `name` claim must be
+whose `azp` (client id) or `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and whose `name` claim must be
 the ledger→tracer client of the tenant its own `tenantId` claim names (`ledger-m2m-tracer-{tenant}`,
 tenants compared canonically) in multi-tenant mode; `AUTH_M2M_INVERSION_ENABLED=true` is
 recommended — without it the tracer boots with a Warn and the Access Manager authorizes application

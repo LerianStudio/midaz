@@ -110,18 +110,19 @@ func SeamAuthPolicyConfig() authMiddleware.PolicyConfig {
 type SeamPrincipalConfig struct {
 	// MultiTenant selects the multi-tenant rule (the token must be the
 	// ledger's client of the tenant its tenantId claim names) over the
-	// single-tenant one (the sub claim must be allowlisted).
+	// single-tenant one (the azp or sub claim must be allowlisted).
 	MultiTenant bool
-	// AllowedClients are the application client ids (token sub) admitted in
-	// single-tenant mode. Entries are trimmed; blank entries are dropped.
+	// AllowedClients are the application client ids (token azp; the token
+	// sub, "<owner>/<application id>", also matches) admitted in single-tenant
+	// mode. Entries are trimmed; blank entries are dropped.
 	AllowedClients []string
 }
 
 // SeamPrincipalInterceptor admits only the ledger's application principal on
 // the reservation seam. It runs after lib-auth, which has already had the
 // Access Manager authorize the token, so the claims are read unverified here:
-// the token type must be "application"; in single-tenant mode its sub must be
-// in AllowedClients; in multi-tenant mode its tenantId claim must be a valid
+// the token type must be "application"; in single-tenant mode its azp (the
+// Access Manager client id) or its sub must be in AllowedClients; in multi-tenant mode its tenantId claim must be a valid
 // tenant id and its name claim must be the ledger's client of that same
 // tenant ("ledger-m2m-tracer-{tenant}", tenants compared canonically), because
 // the tracer/reservations grant is also held by other products' clients.
@@ -189,6 +190,7 @@ func SeamAPIKeyInterceptor(key, label string) grpc.UnaryServerInterceptor {
 type seamClaims struct {
 	sub    string
 	name   string
+	azp    string
 	tenant string
 }
 
@@ -203,6 +205,7 @@ func checkSeamPrincipal(ctx context.Context, multiTenant bool, allowed map[strin
 	claims := seamClaims{
 		sub:    jwtclaims.String(raw, "sub"),
 		name:   jwtclaims.String(raw, "name"),
+		azp:    jwtclaims.String(raw, "azp"),
 		tenant: jwtclaims.String(raw, "tenantId"),
 	}
 
@@ -214,8 +217,13 @@ func checkSeamPrincipal(ctx context.Context, multiTenant bool, allowed map[strin
 		if reason := checkLedgerClient(claims); reason != "" {
 			return claims, reason
 		}
-	} else if _, ok := allowed[claims.sub]; !ok {
-		return claims, principalReasonNotAllowed
+	} else {
+		_, byClientID := allowed[claims.azp]
+		_, bySub := allowed[claims.sub]
+
+		if !byClientID && !bySub {
+			return claims, principalReasonNotAllowed
+		}
 	}
 
 	if claims.tenant != "" && !tenantMetadataMatches(ctx, claims.tenant) {

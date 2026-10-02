@@ -254,8 +254,8 @@ refused. `components/tracer/permissions.yaml` declares the `reservations/post` g
 who holds that grant still cannot use the seam: `SeamPrincipalInterceptor` reads the authorized
 token's claims and refuses every token whose `type` is not `application`. Then:
 
-- single-tenant: the token `sub` (the application client id) must be listed in
-  `TRACER_SEAM_ALLOWED_CLIENTS`;
+- single-tenant: the token `azp` (the application client id) or `sub`
+  (`<owner>/<application id>`) must be listed in `TRACER_SEAM_ALLOWED_CLIENTS`;
 - multi-tenant: the token must carry a `tenantId` claim and its `name` claim must be that same
   tenant's ledger→tracer client (`ledger-m2m-tracer-{tenant}`, the tenant compared canonically with
   the claim's), so another application of the same tenant
@@ -616,7 +616,7 @@ in `components/ledger/.env.example` and `components/tracer/.env.example`.
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls, server) | `buildMTLSConfig`, `buildServerTLSConfig` |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `buildMTLSConfig` |
 | `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas` when the transport is the seam identity; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamPosture` |
-| `TRACER_SEAM_ALLOWED_CLIENTS` | tracer | comma-separated application client ids (token `sub`) admitted under token identity in single-tenant mode; required outside `DEPLOYMENT_MODE=local`; ignored with a Warn in multi-tenant mode | `SeamPrincipalInterceptor`, `ValidateSeamPosture` |
+| `TRACER_SEAM_ALLOWED_CLIENTS` | tracer | comma-separated Access Manager application client ids (token `azp`; the token `sub`, `<owner>/<application id>`, is also accepted) admitted under token identity in single-tenant mode; required outside `DEPLOYMENT_MODE=local`; ignored with a Warn in multi-tenant mode | `SeamPrincipalInterceptor`, `ValidateSeamPosture` |
 | `PLUGIN_AUTH_ENABLED` / `API_KEY_ENABLED` | tracer | select the seam identity (token first, then API key); `API_KEY`/`API_KEY_LABEL` are shared with the HTTP listener | `resolveSeamIdentity` |
 | `AUTH_M2M_INVERSION_ENABLED` | tracer | recommended `true` under token identity; without it the tracer boots with a Warn and the Access Manager authorizes application tokens under a shared editor role, so only the principal guard restricts who may reserve | `ValidateSeamPosture` |
 | `AUTH_CACHE_TTL` | tracer | lib-auth decision cache (e.g. `60s`); under token identity a value not greater than zero refuses boot under `DEPLOYMENT_MODE=saas` and logs a boot Warn elsewhere | `ValidateSeamPosture`, lib-auth |
