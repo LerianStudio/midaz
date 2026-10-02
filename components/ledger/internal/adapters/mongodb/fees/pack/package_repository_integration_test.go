@@ -618,7 +618,8 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label"}}
+	// A value starting with "$" is stored as written, never read as a field path.
+	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label", "description": "$fee_group_label"}}
 	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
 	require.NoError(t, errUpdate)
 	require.NotNil(t, returned, "Update must return the persisted entity")
@@ -627,6 +628,8 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Package Label", got.FeeGroupLabel, "label change must be persisted")
+	require.NotNil(t, got.Description)
+	assert.Equal(t, "$fee_group_label", *got.Description)
 }
 
 func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
@@ -639,8 +642,8 @@ func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	// Emptying the fees map must trigger the auto-disable side effect in Update.
-	update := &bson.M{"$set": bson.M{"fees": bson.M{}}}
+	// Removing the last fee, as the service writes it, must disable the package.
+	update := &bson.M{"$set": bson.M{"updated_at": time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)}, "$unset": bson.M{"fees.adminFee": ""}}
 	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
 	require.NoError(t, errUpdate)
 	require.NotNil(t, returned, "Update must return the persisted entity")
