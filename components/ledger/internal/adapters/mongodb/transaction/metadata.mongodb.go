@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -741,6 +742,21 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 
 	_, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
+
+	// MongoDB 8 drops a missing index without error, so presence is checked first.
+	specs, err := coll.Indexes().ListSpecifications(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanDelete, "Failed to list indexes", err)
+
+		return err
+	}
+
+	if !slices.ContainsFunc(specs, func(s mongo.IndexSpecification) bool { return s.Name == indexName }) {
+		notFound := pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Metadata index not found", notFound)
+
+		return notFound
+	}
 
 	err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
