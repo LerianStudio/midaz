@@ -550,23 +550,26 @@ func TestMapGRPCError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		err             error
-		wantUnavailable bool
-		wantRejected    bool
-		wantNoAnswer    bool
+		name             string
+		err              error
+		wantUnavailable  bool
+		wantRejected     bool
+		wantNoAnswer     bool
+		wantUnauthorized bool
 	}{
-		{"nil", nil, false, false, false},
-		{"unavailable", status.Error(codes.Unavailable, "x"), true, false, false},
-		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "x"), true, false, true},
-		{"canceled", status.Error(codes.Canceled, "x"), true, false, true},
-		{"context deadline", context.DeadlineExceeded, true, false, true},
-		{"context canceled", context.Canceled, true, false, true},
-		{"not found", status.Error(codes.NotFound, "x"), false, false, false},
-		{"internal", status.Error(codes.Internal, "x"), false, false, false},
-		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false, true, false},
-		{"failed precondition", status.Error(codes.FailedPrecondition, "x"), false, true, false},
-		{"plain error", errors.New("x"), false, false, false},
+		{"nil", nil, false, false, false, false},
+		{"unavailable", status.Error(codes.Unavailable, "x"), true, false, false, false},
+		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "x"), true, false, true, false},
+		{"canceled", status.Error(codes.Canceled, "x"), true, false, true, false},
+		{"context deadline", context.DeadlineExceeded, true, false, true, false},
+		{"context canceled", context.Canceled, true, false, true, false},
+		{"not found", status.Error(codes.NotFound, "x"), false, false, false, false},
+		{"internal", status.Error(codes.Internal, "x"), false, false, false, false},
+		{"invalid argument", status.Error(codes.InvalidArgument, "x"), false, true, false, false},
+		{"failed precondition", status.Error(codes.FailedPrecondition, "x"), false, true, false, false},
+		{"unauthenticated", status.Error(codes.Unauthenticated, "x"), false, false, false, true},
+		{"permission denied", status.Error(codes.PermissionDenied, "x"), false, false, false, true},
+		{"plain error", errors.New("x"), false, false, false, false},
 	}
 
 	for _, tt := range tests {
@@ -582,9 +585,21 @@ func TestMapGRPCError(t *testing.T) {
 			assert.Equal(t, tt.wantUnavailable, errors.Is(got, ErrTracerUnavailable))
 			assert.Equal(t, tt.wantRejected, errors.Is(got, ErrTracerRejected))
 			assert.Equal(t, tt.wantNoAnswer, errors.Is(got, ErrTracerNoAnswer))
+			assert.Equal(t, tt.wantUnauthorized, errors.Is(got, ErrTracerUnauthorized))
 			assert.Equal(t, status.Code(tt.err), status.Code(got), "the gRPC status code must survive the wrap")
 		})
 	}
+}
+
+func TestMapGRPCError_CredentialNotSentPassesThrough(t *testing.T) {
+	t.Parallel()
+
+	notSent := credentialNotSent(context.DeadlineExceeded)
+
+	got := mapGRPCError(notSent)
+
+	assert.ErrorIs(t, got, ErrTracerUnavailable)
+	assert.NotErrorIs(t, got, ErrTracerNoAnswer, "a call whose credential never resolved was never sent")
 }
 
 func TestTracerGRPCClient_Reserve_NewContractFields(t *testing.T) {

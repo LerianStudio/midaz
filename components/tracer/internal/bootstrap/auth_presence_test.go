@@ -13,72 +13,39 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
+// TestValidateAuthPresence locks the HTTP auth gate: only saas and
+// multi-tenant refuse a tracer with neither auth mechanism; every other
+// deployment boots with exactly one Warn, and any mechanism silences it.
 func TestValidateAuthPresence(t *testing.T) {
 	t.Parallel()
+
+	const (
+		localWarn    = "ALL authentication is DISABLED — every /v1 route is open (acceptable for local development only)"
+		nonLocalWarn = authDisabledNonLocalMsg
+	)
 
 	tests := []struct {
 		name              string
 		deploymentMode    string
+		multiTenant       bool
 		apiKeyEnabled     bool
 		pluginAuthEnabled bool
 		wantErr           bool
-		wantWarn          bool
+		wantWarn          string
 	}{
-		{
-			name:           "local mode with both auth mechanisms off warns and passes",
-			deploymentMode: "local",
-			wantErr:        false,
-			wantWarn:       true,
-		},
-		{
-			name:           "unset mode defaults to local: both off warns and passes",
-			deploymentMode: "",
-			wantErr:        false,
-			wantWarn:       true,
-		},
-		{
-			name:           "saas mode with both auth mechanisms off fails boot",
-			deploymentMode: "saas",
-			wantErr:        true,
-		},
-		{
-			name:           "byoc mode with both auth mechanisms off fails boot",
-			deploymentMode: "byoc",
-			wantErr:        true,
-		},
-		{
-			name:           "mixed-case padded mode cannot slip the gate",
-			deploymentMode: " SaaS ",
-			wantErr:        true,
-		},
-		{
-			// "onprem" is NOT a documented mode (config.go lists only
-			// saas/byoc/local); resolveDeploymentMode passes through any
-			// non-empty string, so the gate must treat it as non-local.
-			name:           "undocumented non-local mode is still gated",
-			deploymentMode: "onprem",
-			wantErr:        true,
-		},
-		{
-			name:           "saas mode with API key auth only passes",
-			deploymentMode: "saas",
-			apiKeyEnabled:  true,
-			wantErr:        false,
-		},
-		{
-			name:              "saas mode with plugin auth only passes",
-			deploymentMode:    "saas",
-			pluginAuthEnabled: true,
-			wantErr:           false,
-		},
-		{
-			name:              "local mode with auth enabled passes without warning",
-			deploymentMode:    "local",
-			apiKeyEnabled:     true,
-			pluginAuthEnabled: true,
-			wantErr:           false,
-			wantWarn:          false,
-		},
+		{name: "local without auth warns", deploymentMode: "local", wantWarn: localWarn},
+		{name: "unset mode without auth warns as local", deploymentMode: "", wantWarn: localWarn},
+		{name: "saas without auth is refused", deploymentMode: "saas", wantErr: true},
+		{name: "padded mixed-case saas without auth is refused", deploymentMode: " SaaS ", wantErr: true},
+		{name: "multi-tenant without auth is refused", deploymentMode: "byoc", multiTenant: true, wantErr: true},
+		{name: "multi-tenant without auth is refused even locally", deploymentMode: "local", multiTenant: true, wantErr: true},
+		{name: "byoc without auth boots with one warn", deploymentMode: "byoc", wantWarn: nonLocalWarn},
+		{name: "undocumented mode without auth boots with one warn", deploymentMode: "onprem", wantWarn: nonLocalWarn},
+		{name: "saas with API key boots silently", deploymentMode: "saas", apiKeyEnabled: true},
+		{name: "saas with plugin auth boots silently", deploymentMode: "saas", pluginAuthEnabled: true},
+		{name: "multi-tenant with plugin auth boots silently", deploymentMode: "saas", multiTenant: true, pluginAuthEnabled: true},
+		{name: "byoc with API key boots silently", deploymentMode: "byoc", apiKeyEnabled: true},
+		{name: "local with both mechanisms boots silently", deploymentMode: "local", apiKeyEnabled: true, pluginAuthEnabled: true},
 	}
 
 	for _, tt := range tests {
@@ -87,9 +54,10 @@ func TestValidateAuthPresence(t *testing.T) {
 
 			logger := testutil.NewMockLogger()
 			cfg := &Config{
-				DeploymentMode:    tt.deploymentMode,
-				APIKeyEnabled:     tt.apiKeyEnabled,
-				PluginAuthEnabled: tt.pluginAuthEnabled,
+				DeploymentMode:     tt.deploymentMode,
+				MultiTenantEnabled: tt.multiTenant,
+				APIKeyEnabled:      tt.apiKeyEnabled,
+				PluginAuthEnabled:  tt.pluginAuthEnabled,
 			}
 
 			err := ValidateAuthPresence(t.Context(), cfg, logger)
@@ -98,18 +66,30 @@ func TestValidateAuthPresence(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "API_KEY_ENABLED")
 				assert.Contains(t, err.Error(), "PLUGIN_AUTH_ENABLED")
+				assert.Empty(t, logger.Calls, "a refused boot logs nothing")
 
 				return
 			}
 
 			require.NoError(t, err)
 
-			if tt.wantWarn {
-				require.Len(t, logger.Calls, 1, "expected exactly one warning when all auth is disabled in local mode")
-				assert.Contains(t, logger.Calls[0].Message, "ALL authentication is DISABLED")
-			} else {
-				assert.Empty(t, logger.Calls, "expected no warnings when at least one auth mechanism is enabled")
+			if tt.wantWarn == "" {
+				assert.Empty(t, logger.Calls)
+
+				return
 			}
+
+			require.Len(t, logger.Calls, 1, "exactly one warning when all auth is disabled")
+			assert.Equal(t, "warn", logger.Calls[0].Level)
+			assert.Equal(t, tt.wantWarn, logger.Calls[0].Message)
+
+			fields := map[string]any{}
+			for _, f := range logger.Calls[0].Fields {
+				fields[f.Key] = f.Value
+			}
+
+			assert.Equal(t, "API_KEY_ENABLED", fields["config"])
+			assert.Equal(t, "PLUGIN_AUTH_ENABLED", fields["config_alt"])
 		})
 	}
 }

@@ -11,7 +11,7 @@
 > infra team, explicitly labeled, grounded in the real runtime constraints rather than in any
 > existing manifest. Where a constraint is inferred rather than directly proven, that is called out.
 >
-> Related design record: the seam plan that motivates the gRPC+mTLS reservation channel and the
+> Related design record: the seam plan that motivates the gRPC reservation channel and the
 > CRM consolidation into ledger lived at `docs/plans/2026-06-11-ledger-tracer-seam-and-crm-consolidation.md`
 > and has since been removed — it survives in git history.
 >
@@ -199,7 +199,9 @@ at the transport boundary so `failPosture` can branch on them: gRPC `Unavailable
 result*, not an error. A request the tracer **refused** — gRPC `InvalidArgument` / `FailedPrecondition`,
 including a reserve replayed onto a settled reservation (`0533`) — is classified as `ErrTracerRejected`,
 not as unavailability: the tracer answered, so under `enforce` it rejects with `0532` whatever the
-`failPosture`. `handleReserveError` treats **any other** reserve error as fail-posture-gated, so a
+`failPosture`. A rejected credential — gRPC `Unauthenticated` / `PermissionDenied` — is
+`ErrTracerUnauthorized`: under `enforce` it follows `failPosture` but rejects with `0536` instead of
+`0178` when closed, and it is logged at Error and counted in every mode (§5). `handleReserveError` treats **any other** reserve error as fail-posture-gated, so a
 tracer defect cannot let an `enforce`+`closed` ledger commit unchecked. A deadline or cancellation on a
 sent call is additionally marked `ErrTracerNoAnswer`; only such an unanswered reserve may still have
 reserved capacity, so only it is settled by transaction once the accounting outcome is known (confirm
@@ -221,91 +223,297 @@ rather than at first transaction. `Close()` drains on SIGTERM when registered wi
 
 ---
 
-## 5. mTLS model (identity, not a shared secret)
+## 5. Seam identity and transport security
 
-**Seam identity is mutual TLS — the verified mTLS peer IS the credential. There is no shared secret and
-no static key.** This is stated explicitly in code: *"identity on the reservation seam is mutual TLS
-(the verified peer IS the credential — no shared secret)"* (`config.go:1556-1564`).
+The ledger identifies itself on the seam with **at most one credential**, and each side selects it
+from configuration. The Access Manager application token is the default identity of a deployment
+that runs plugin auth; the tracer API key covers deployments without the Access Manager; mTLS, a
+service mesh and a `NetworkPolicy` stay available as transport layers, and are the identity only
+when neither credential is configured. A BYOC cluster therefore needs neither a mesh nor client
+certificates.
 
-`TRACER_TLS_MODE` selects the posture, with a fail-fast typed error on an invalid value
-(`ledger/tls_seam.go:51-62`, server-side mirror `tracer/tls_seam.go:48-59`):
+### Identity ladder (tracer, server side)
+
+The tracer enforces the first identity its configuration enables (`resolveSeamIdentity`,
+`tracer/seam_posture.go`) and installs the matching unary interceptors after the otelgrpc stats
+handler, in this order: identity interceptor(s), then the tenant interceptor (`seamUnaryInterceptors`,
+`tracer/grpc_server.go`).
+
+| Priority | Identity | Enabled by | What the ledger sends | Interceptors |
+|---|---|---|---|---|
+| 1 | **token** | `PLUGIN_AUTH_ENABLED=true` | `authorization: Bearer <application token>` | lib-auth `NewGRPCAuthUnaryPolicy` → `SeamPrincipalInterceptor` → tenant from the token claim |
+| 2 | **API key** | `API_KEY_ENABLED=true` | `x-api-key: <API_KEY>` | `SeamAPIKeyInterceptor` → tenant from `x-tenant-id` |
+| 3 | **transport** | `TRACER_TLS_MODE=mtls` or `mesh` | a verified client certificate, or a mesh-verified peer | tenant from `x-tenant-id` |
+| 4 | **none** | nothing above | nothing | tenant from `x-tenant-id` |
+
+**Token identity.** lib-auth authorizes every `ReservationService` RPC against the Access Manager
+as product `tracer`, resource `reservations`, action `post` (`SeamAuthPolicyConfig`,
+`grpc/in/seam_auth_interceptor.go`). The policy has no default, so an RPC added without a mapping is
+refused. `components/tracer/permissions.yaml` declares the `reservations/post` grant on the
+`editor`, `validator` and `audit-viewer` roles, mirroring the central Access Manager seed. A human
+who holds that grant still cannot use the seam: `SeamPrincipalInterceptor` reads the authorized
+token's claims and refuses every token whose `type` is not `application`. Then:
+
+- single-tenant: the token `sub` (the application client id) must be listed in
+  `TRACER_SEAM_ALLOWED_CLIENTS`;
+- multi-tenant: the token must carry a `tenantId` claim and its `name` claim must be that same
+  tenant's ledger→tracer client (`ledger-m2m-tracer-{tenant}`, the tenant compared canonically with
+  the claim's), so another application of the same tenant
+  cannot drive the seam; the allowlist is ignored with a boot Warn, because every tenant has its own
+  ledger client;
+- whenever the token carries `tenantId`, an `x-tenant-id` (or `md-tenant-id`) value naming another
+  tenant is refused. Tenant ids compare by value, not spelling: two UUIDs compare as UUIDs, anything
+  else trimmed, lower-cased and without dashes, because the tenant-manager writes the claim as a
+  dashless UUID.
+
+Application tokens authorize under their own `sub` only with `AUTH_M2M_INVERSION_ENABLED=true` (the
+raw value `true`), which is recommended; without it the tracer boots with a Warn and lib-auth
+authorizes every application token under the shared `admin/tracer-editor-role` subject, so the
+Access Manager checks only that the token is valid, not the ledger client's own grant, and the
+principal guard above alone restricts who may reserve. In multi-tenant mode lib-auth copies the `tenantId` claim into the
+incoming `md-tenant-id` metadata only when it sees `MULTI_TENANT_ENABLED` as the raw value `true`,
+and the tenant interceptor resolves the tenant from that value (`TokenTenantUnaryInterceptor`),
+never from `x-tenant-id`. The tracer reads the claims unverified after the Access Manager
+authorized the token; `AUTH_JWT_VERIFY_CERT` adds local signature verification.
+
+**API key identity.** `SeamAPIKeyInterceptor` compares `x-api-key` with `API_KEY` using the same
+constant-time check the HTTP listener applies to `X-API-Key` (`adapters/apikey`). An admitted call is
+attributed to `API_KEY_LABEL` in the audit trail, as on HTTP.
+
+**Status codes of a refused credential.**
+
+| Condition | gRPC code |
+|---|---|
+| missing or unreadable token, token the Access Manager rejects as invalid, missing or wrong API key | `Unauthenticated` |
+| Access Manager denies `reservations/post`; principal guard refuses the token (not an application token, client outside the allowlist, no `tenantId` claim or a client other than the tenant's ledger→tracer client in multi-tenant mode, tenant mismatch) | `PermissionDenied` |
+| Access Manager unreachable | `Unavailable` |
+
+The identity interceptors run before any handler, so a refused call holds nothing.
+
+### Boot gate (tracer)
+
+`ValidateSeamPosture` (`tracer/seam_posture.go`) runs before any listener binds. It reads
+`DEPLOYMENT_MODE` raw: an unset value is not `local`.
+
+| Identity | Condition | Result |
+|---|---|---|
+| any but token | `MULTI_TENANT_ENABLED=true` | refuse: the tenant must come from the caller's token |
+| token | `AUTH_M2M_INVERSION_ENABLED` is not `true` | one Warn in every deployment mode, single- and multi-tenant: the principal guard alone binds the caller |
+| token, multi-tenant | `MULTI_TENANT_ENABLED` is not the raw value `true` | refuse |
+| token, single-tenant | `TRACER_SEAM_ALLOWED_CLIENTS` empty | refuse outside `DEPLOYMENT_MODE=local`; one Warn under `local` |
+| token | `AUTH_CACHE_TTL` unset or not greater than zero | refuse under `DEPLOYMENT_MODE=saas` (every reservation would cost an Access Manager round trip); one Warn elsewhere |
+| token or API key | `TRACER_TLS_MODE` empty | refuse under `DEPLOYMENT_MODE=saas` (a secret must not travel in clear); one Warn elsewhere |
+| transport | `mtls` under `DEPLOYMENT_MODE=saas` without `TRACER_TLS_CLIENT_ALLOWED_NAMES` | refuse |
+| transport | `mesh` | one Warn: the mesh must enforce STRICT mTLS and admit only the ledger |
+| none | `DEPLOYMENT_MODE=saas` | refuse |
+| none | BYOC, `local` or unset | boots with one Warn naming the exposure: any workload reaching `:4021` can release reservations |
+
+The HTTP listener's gate follows the same rule (`ValidateAuthPresence`,
+`tracer/auth_presence.go`): with neither `API_KEY_ENABLED` nor `PLUGIN_AUTH_ENABLED` it refuses to
+boot under `DEPLOYMENT_MODE=saas` or `MULTI_TENANT_ENABLED=true` and boots with one Warn everywhere
+else. A BYOC tracer without the Access Manager therefore boots with no auth configuration on either
+listener, and the API key is the recommended identity there.
+
+### Ledger side (client)
+
+`buildTracerSeamIdentity` (`ledger/tracer_seam_identity.go`) selects the one credential every seam
+call carries and logs the choice at boot (`identity`: `m2m-static`, `m2m-tenant`, `api-key` or
+`none`, never secret material):
+
+- **`PLUGIN_AUTH_ENABLED=true`** → an Access Manager application token minted through the ledger's
+  Access Manager client (`PLUGIN_AUTH_HOST`) with a credential dedicated to the tracer. The
+  `IDP_M2M_CLIENT_ID`/`IDP_M2M_CLIENT_SECRET` pair belongs to the manifest publisher and is not
+  reused.
+  - single-tenant: the static `TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET` pair; either one
+    empty refuses boot while `TRACER_BASE_URL` is set.
+  - multi-tenant: the calling tenant's own credential, read with lib-commons
+    `secretsmanager.GetM2MCredentials` from the custody backend `M2M_SECRETS_BACKEND` selects (`aws`,
+    the default: AWS Secrets Manager; `vault`: HashiCorp Vault KV v2 under `M2M_VAULT_MOUNT`, default
+    `secret`, connected through `VAULT_ADDR`/`VAULT_TOKEN`/`VAULT_CACERT`/`VAULT_NAMESPACE`; any other
+    value refuses boot, a selected backend never falls back to the other, and the path is the same on
+    both) at
+    `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/tracer/credentials` (`ledger` is the
+    ledger's tenant-manager service name, `APPLICATION_NAME`). Its token carries the tenant's
+    `tenantId` claim. The static pair is never a fallback, because its token carries no tenant.
+- **`PLUGIN_AUTH_ENABLED=false` and `TRACER_API_KEY` set** → `x-api-key` on every call (the tracer
+  runs with `API_KEY_ENABLED=true` and the same key).
+- **both** → boot refusal: a deployment has one seam identity.
+- **neither** → no credential; identity is left to the transport.
+
+`x-tenant-id` is still sent whenever the call's context carries a tenant. Under token identity the
+tracer only cross-checks it against the claim.
+
+**Token cache** (`M2MTokenSource`, `ledger/adapters/tracer/m2m_token_source.go`; credentials in
+`m2m_credential_provider.go`): one entry per credential (per tenant in multi-tenant mode, one in
+single-tenant mode). The single-tenant token is warmed at boot; a multi-tenant token is minted on the
+tenant's first call on each pod. The refresh point is 80% of the token's lifetime, and the token is
+served until `exp` − 30s, or until 90% of its lifetime when that margin would not leave it valid past
+the refresh point (a token without a readable `exp` is given 5 minutes). Past the refresh point the
+still-valid token keeps being served while one background mint replaces it; each failed background
+mint is logged at Warn (with the tenant id) and the cached token stays served until it expires. Every
+stored token also schedules its own refresh at its refresh point, so a tenant that stops calling
+normally finds a valid token. A refresh that fails, or that is deferred to a mint in flight or to an
+open failure window, is retried while the token is still valid: the backoff starts at 1 second,
+doubles per consecutive failure, is capped at a quarter of the span between the refresh point and the
+expiry, never fires inside the failure window, and never runs past the expiry, so an Access Manager outage longer than that span still lets
+the token expire. A tenant idle for 30 minutes is no longer refreshed: its still-valid token stays
+served until it expires, and the tenant is then forgotten, so its next call mints. Concurrent mints
+for one tenant collapse into one, bounded at 5 seconds and detached from the callers. Callers wait for a mint only
+when no valid token is cached, and only within their own deadline: a caller whose deadline or
+cancellation strikes while it waits sent nothing and fails as plain `ErrTracerUnavailable` (the
+ordinary Warn, not counted as a credential failure), while the mint completes for the next caller. A
+failed mint opens a per-tenant failure window that every caller and every scheduled refresh honours:
+it is answered from memory for 1 second after the first failure in a row, doubling per consecutive
+failure up to 15 seconds, each window widened at random by up to 25% so tenants failing together
+spread out; a successful mint resets it. An empty token, or one whose `exp` is not after its mint, is
+a mint failure and is never sent; a lifetime read from `exp` is capped at 24 hours.
+
+Tenant credentials read from the secret store are cached until the Access Manager refuses one (a
+non-2xx answer) or mints an empty token with it; a transient mint failure (transport error, timeout)
+keeps the credential. lib-auth reports a 5xx or 429 as a non-2xx refusal too, so a refusal drops the
+credential at most once per tenant every 30 seconds; later refusals inside that interval keep it. A tenant with no secret is answered from memory for 5 seconds, so a secret the
+tenant-manager writes moments later is picked up quickly; a malformed secret (incomplete, unreadable,
+invalid path) for 30 seconds; a transient read failure is never cached.
+
+When the tracer answers `Unauthenticated`, the client invalidates only the token that was rejected
+(a token another call already refreshed stays cached), mints a new one and retries the call once. A
+token younger than 5 seconds is not replaced: the call is not retried and the rejection is returned as
+`ErrTracerUnauthorized`, so a tracer that rejects every token costs at most one mint per tenant every 5
+seconds. `PermissionDenied` is never retried, and neither is an API key. A failed mint, an unreachable
+Access Manager or a tenant with no credential fail the call as `ErrTracerUnavailable` with nothing
+sent, so the call is never treated as unanswered; the ledger logs it once at Error and counts it on
+`tracer_reservation_credential_rejected_total{operation,reason="not_sent"}`.
+
+**Credential rejection on the ledger.** `mapGRPCError` maps `Unauthenticated` and
+`PermissionDenied` to `ErrTracerUnauthorized`, which is neither `ErrTracerUnavailable`,
+`ErrTracerRejected` nor `ErrTracerNoAnswer`. It is a configuration error that does not heal on its
+own: a reserve under `advisory` proceeds; under `enforce` it follows `failPosture` (`closed` rejects
+with `0536`, HTTP 503; `open` proceeds with `app.tracer.reservation_skipped=true`). Every branch
+marks the span, logs once at Error with the transaction id (never the token) and increments
+`tracer_reservation_credential_rejected_total{operation,reason="rejected"}`. A confirm or release that gets it is
+logged at Error, counted and handed to the existing retry transport. An Access Manager outage on
+the tracer side answers `Unavailable` and follows the ordinary `failPosture` (`0178`).
+
+### Transport security
+
+`TRACER_TLS_MODE` selects the transport posture, with a fail-fast typed error on an invalid value
+(`ledger/tls_seam.go`, server-side mirror `tracer/tls_seam.go`):
 
 - **`mtls`** — the app presents and verifies certificates directly.
+- **`server`** — the tracer's gRPC listener presents its certificate and asks for no client
+  certificate; the ledger verifies it against `TRACER_TLS_CA_FILE` and presents none. It encrypts
+  the token or API key without client certificates or a mesh. The tracer's HTTP listener stays
+  plaintext under `server`.
 - **`mesh`** — the app dials/listens **plaintext** and delegates mTLS origination/termination to a
   local **Istio/Linkerd** service-mesh sidecar.
-- **empty** — plaintext with no verified peer. The tracer accepts it only when
-  `DEPLOYMENT_MODE=local` is set explicitly; an unset `DEPLOYMENT_MODE` or any other deployment mode
-  refuses boot (`ValidateSeamTransportPosture`, `tracer/seam_posture.go`).
+- **empty** — plaintext.
 
-**`mtls` mode, ledger (client) side** (`ledger/tls_seam.go:82-103`): presents its leaf via
-`GetClientCertificate`, verifies the tracer's server leaf against `RootCAs` loaded from
+**`mtls` mode, ledger (client) side** (`ledger/tls_seam.go`, `buildClientMTLSConfig`): presents its
+leaf via `GetClientCertificate`, verifies the tracer's server leaf against `RootCAs` loaded from
 `TRACER_TLS_CA_FILE`, and pins `ServerName` to the host parsed from `TRACER_BASE_URL`
-(`seamServerName`, `config.go:1564, 1656-1669`). The injected mTLS dial credentials are appended **last**
-and the insecure default is gated off (`len(conf.dialOptions)==0`) so it cannot clobber them
-(`grpc_client.go:100-111`, injection at `config.go:1633-1635`).
+(`seamServerName`). `server` mode (`buildClientServerTLSConfig`) does the same without a client
+certificate and refuses boot without `TRACER_TLS_CA_FILE`. The injected TLS dial credentials are
+appended **last** and the insecure default is gated off so it cannot clobber them (`grpc_client.go`).
 
 **`mtls` mode, tracer (server) side** (`tracer/tls_seam.go`, `buildMTLSConfig`): presents its own leaf via
 `GetCertificate` and enforces `tls.RequireAndVerifyClientCert` against the client CA pool from
-`TRACER_TLS_CLIENT_CA_FILE`. **The reservation seam is unreachable without a verified client cert.**
+`TRACER_TLS_CLIENT_CA_FILE`.
 
-**Client identity allowlist (gRPC listener only).** A CA-signed certificate is not enough on the seam:
-`TRACER_TLS_CLIENT_ALLOWED_NAMES` (comma-separated) names the client identities the gRPC listener
-accepts. The handshake passes only when one of the leaf's DNS SANs or URI SANs (e.g. `spiffe://...`)
-equals an entry, or, on a leaf that carries no SAN, its Subject CN does, compared exactly after
-trimming and case-folding (`buildGRPCSeamTLSConfig` → `verifyClientAllowedName` / `clientCertAllowed`).
-A refused handshake reaches the ledger as gRPC `Unavailable`, so it follows `failPosture`. An empty
-allowlist accepts any certificate the client CA signed: under `DEPLOYMENT_MODE=saas` the tracer refuses
-to boot (`ValidateSeamTransportPosture`); elsewhere it logs one Warn at boot
-(`warnGRPCSeamAcceptsAnyClient`). The list is ignored in `mesh`/empty mode and never applied to the
-HTTP listener, which keeps the base `buildSeamTLSConfig`.
+**Client identity allowlist (gRPC listener, `mtls` only).** `TRACER_TLS_CLIENT_ALLOWED_NAMES`
+(comma-separated) names the client identities the gRPC listener accepts. The handshake passes only
+when one of the leaf's DNS SANs or URI SANs (e.g. `spiffe://...`) equals an entry, or, on a leaf
+that carries no SAN, its Subject CN does, compared exactly after trimming and case-folding
+(`buildGRPCSeamTLSConfig` → `verifyClientAllowedName` / `clientCertAllowed`). A refused handshake
+reaches the ledger as gRPC `Unavailable`, so it follows `failPosture`. An empty allowlist accepts any
+certificate the client CA signed: when the transport is the seam identity, `DEPLOYMENT_MODE=saas`
+refuses to boot (`ValidateSeamPosture`); elsewhere the tracer logs one Warn at boot
+(`warnGRPCSeamAcceptsAnyClient`). The list is ignored in `server`/`mesh`/empty mode and never
+applied to the HTTP listener.
 
 **CA env-var asymmetry (deliberate and correct):** each side names the CA var by what it verifies on the
-*other* end. Ledger `TRACER_TLS_CA_FILE` holds the CA that verifies the **tracer's** server leaf
-(`config.go:310`, `tls_seam.go:87-90`). Tracer `TRACER_TLS_CLIENT_CA_FILE` holds the CA that verifies the
-**ledger's** client leaf (`tracer/config.go:68-72`, `tls_seam.go:83-86`).
+*other* end. Ledger `TRACER_TLS_CA_FILE` holds the CA that verifies the **tracer's** server leaf.
+Tracer `TRACER_TLS_CLIENT_CA_FILE` holds the CA that verifies the **ledger's** client leaf.
 
 **Rotation / hot-reload:** both sides load their cert/key through the lib-commons
-`certificate.Manager` (`libCert "github.com/LerianStudio/lib-commons/v7/commons/certificate"`, both
-`tls_seam.go:14`). The seam therefore inherits **cert rotation without restart**: the ledger serves the
-latest cert via `GetClientCertificate → certManager.TLSCertificate()`
-(`ledger/tls_seam.go:82-102`), the tracer via `GetCertificate → certManager.GetCertificateFunc()`
-(`tracer/tls_seam.go:78-90`).
+`certificate.Manager` (`libCert "github.com/LerianStudio/lib-commons/v7/commons/certificate"`), so the
+seam rotates certificates without a restart: the ledger serves the latest cert via
+`GetClientCertificate → certManager.TLSCertificate()`, the tracer via
+`GetCertificate → certManager.GetCertificateFunc()`.
 
 **Fail-fast on missing material:** in `mtls` mode each of `TRACER_TLS_CERT_FILE`, `TRACER_TLS_KEY_FILE`,
-and the respective CA file is required; a missing one fails boot with an error naming the exact missing
-knob, on **both** sides (`ledger/tls_seam.go:67-77`, `tracer/tls_seam.go:63-73`).
+and the respective CA file is required, and in `server` mode the tracer's cert/key and the ledger's
+CA are; a missing one fails boot with an error naming the exact missing knob.
 
-### Trusted `x-tenant-id` — the rationale
-
-Tenant crosses the seam as a **trusted `x-tenant-id` gRPC metadata key**, not a JWT claim and not a
-shared secret. It is trusted **precisely because the mTLS peer is verified** (or sits behind a verified
-mesh sidecar): mTLS replaces token identity, so there is no `Authorization` metadata. The ledger appends
-the key on every RPC (`tenantMetadataKey` in the ledger `adapters/tracer` package, emitted via
-`AppendToOutgoingContext`); the tracer reads the same key (`seamtenant.MetadataKey`).
+### Tenant on the seam
 
 The tenant resolver is wired **only** onto the reservation RPCs (`seamtenant.Resolver`,
-`grpc/in/tenant_interceptor.go`); user-facing tracer routes keep their JWT-claim tenant path. The
-header is only as trustworthy as the peer, so the deployment must verify it one of two ways:
+`grpc/in/tenant_interceptor.go`); user-facing tracer routes keep their JWT-claim tenant path.
 
-- **`mtls`** with `TRACER_TLS_CLIENT_ALLOWED_NAMES` naming the ledger's certificate identity
-  (required under `DEPLOYMENT_MODE=saas`).
-- **`mesh`** with STRICT `PeerAuthentication` (or the Linkerd equivalent) on the tracer workload plus an
-  `AuthorizationPolicy` or `NetworkPolicy` that admits only the ledger's identity to `:4021`. The app
-  cannot check this itself and logs a boot Warn in `mesh` mode.
+- Under **token** identity the tenant is the token's `tenantId` claim (as `md-tenant-id`). A
+  tenant's credential reaches only that tenant's reservations, and `x-tenant-id` is a cross-check.
+- Under every other identity the tenant is the `x-tenant-id` metadata the ledger appends
+  (`tenantMetadataKey` in the ledger `adapters/tracer` package; `seamtenant.MetadataKey` on the
+  tracer). Those identities run single-tenant only, where the resolver is a no-op pass-through.
 
-An empty `TRACER_TLS_MODE` serves the seam plaintext with no verified peer, so the tracer refuses to
-boot with it unless `DEPLOYMENT_MODE=local` is set explicitly; an unset `DEPLOYMENT_MODE` refuses too
-(`ValidateSeamTransportPosture`). Under multi-tenant mode a
-missing/empty/invalid trusted tenant key is a **clean failure** (`ErrReservationTenantRequired` →
-gRPC `InvalidArgument`) and never falls back to a default or wrong pool. A tenant the tenant manager
-reports as not provisioned, suspended or purged answers gRPC `Unavailable` with
-`ErrReservationTenantInactive` (`0534`), so the ledger routes it through `failPosture` instead of
-reading it as a refusal. In single-tenant mode the resolver is a no-op pass-through and nothing is
-appended.
+Under multi-tenant mode a missing, empty or invalid tenant is a **clean failure**
+(`ErrReservationTenantRequired` → gRPC `InvalidArgument`) and never falls back to a default or wrong
+pool. A tenant the tenant manager reports as not provisioned, suspended or purged answers gRPC
+`Unavailable` with `ErrReservationTenantInactive` (`0534`), so the ledger routes it through
+`failPosture` instead of reading it as a refusal.
 
-This is the same trusted-tenant boundary the rest of the platform rides: `MULTI_TENANT_ENABLED=true` is
-rejected at config validation unless `PLUGIN_AUTH_ENABLED=true` (`config.go:351-353`), and tenant IDs
-derive from the JWT via lib-commons tenant managers + middleware (`config.go:483-486`).
+### Operator checklist
+
+**Token identity (recommended wherever the Access Manager runs):**
+
+1. **Access Manager grant.** Every ledger client that calls the seam (the static single-tenant
+   client and each tenant's client) needs `tracer/reservations:post`. The central seed carries it on
+   the tracer `editor`, `validator` and `audit-viewer` roles (`tracer-reservation-permission`), and
+   `components/tracer/permissions.yaml` mirrors it; the ledger manifest declares the edge with
+   `m2m.needs: [tracer]`.
+2. **Ledger credential.** Single-tenant: create a dedicated application client for the ledger and
+   set `TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET`. Multi-tenant: the tenant-manager provisions
+   each tenant's `ledger → tracer` credential at
+   `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/tracer/credentials` (client
+   `ledger-m2m-tracer-{tenant}`); give the ledger read access to those secrets on the backend
+   `M2M_SECRETS_BACKEND` selects (`aws`, the default: `AWS_REGION` and an IAM read grant; `vault`:
+   `M2M_VAULT_MOUNT` plus `VAULT_ADDR`/`VAULT_TOKEN`/`VAULT_CACERT`/`VAULT_NAMESPACE` and a read
+   policy on the mount). A tenant without the secret cannot reserve: its calls fail as unavailable and
+   the fail posture decides.
+3. **Tracer.** `PLUGIN_AUTH_ENABLED=true`, `PLUGIN_AUTH_ADDRESS`, and `AUTH_M2M_INVERSION_ENABLED=true`
+   (recommended; without it the tracer boots with a Warn and the principal guard alone binds the
+   caller). Single-tenant: `TRACER_SEAM_ALLOWED_CLIENTS` set to the ledger's client id. Multi-tenant:
+   `MULTI_TENANT_ENABLED=true` exactly.
+4. **lib-auth knobs on the tracer.** `AUTH_CACHE_TTL` greater than zero, e.g. `60s` (one Access
+   Manager round trip per decision window instead of per reservation; required under
+   `DEPLOYMENT_MODE=saas`, a boot Warn elsewhere), and recommended `AUTH_BREAKER_ENABLED=true` (stops
+   hammering an unavailable Access Manager) and `AUTH_JWT_VERIFY_CERT` (local signature
+   verification).
+5. **Encryption.** `TRACER_TLS_MODE=server` on both sides (tracer cert/key, ledger CA), or `mtls` or
+   `mesh`. `DEPLOYMENT_MODE=saas` refuses a credential in clear.
+
+**Upgrade order (enabling token identity on a running pair).** Provision the ledger's credential
+first — `TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET` in single-tenant mode, the tenant-manager's
+ledger→tracer credential for every tenant in multi-tenant mode — and deploy the ledger with
+`PLUGIN_AUTH_ENABLED=true`, so it sends tokens. Only then enable token identity on the tracer:
+`PLUGIN_AUTH_ENABLED=true`, `AUTH_M2M_INVERSION_ENABLED=true` (recommended),
+`TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and `AUTH_CACHE_TTL`. A tracer that enables token identity before the ledger sends
+tokens answers every reservation call `Unauthenticated`: under `enforce` + `closed` the ledger rejects
+transactions with `0536`, and under `open` or `advisory` it proceeds without reservations, so limits
+stop counting until the ledger catches up.
+
+**BYOC options**, from strongest:
+
+- Access Manager available: token identity as above.
+- No Access Manager: API key — tracer `API_KEY_ENABLED=true` + `API_KEY`, ledger `TRACER_API_KEY`
+  with the same value, plus `TRACER_TLS_MODE=server` to keep the key off the wire in clear.
+- Certificates or a mesh already in place: `mtls` with `TRACER_TLS_CLIENT_ALLOWED_NAMES`, or `mesh`
+  with STRICT `PeerAuthentication` plus an `AuthorizationPolicy` or `NetworkPolicy` admitting only
+  the ledger to `:4021`.
+- Nothing: the seam boots with a Warn and any workload that reaches `:4021` can reserve, confirm and
+  release. Restrict `:4021` with a `NetworkPolicy` at least.
+
+A `NetworkPolicy` that admits only the ledger to `:4021` is a useful additional layer under every
+option.
 
 ---
 
@@ -346,10 +554,15 @@ recognised as one.
 | Reserve replayed onto a transaction whose reservation is already released, expired or confirmed; no counter moves | `FailedPrecondition` | `0533` | `0532` |
 | Tenant not provisioned, suspended or purged | `Unavailable` | `0534` | `failPosture` |
 | Tenant rule cache not loaded yet (cold start, or a tenant first seen after boot) | `Unavailable` | — | `failPosture` |
+| Ledger's first call for a tenant on a pod (multi-tenant): its token is minted cold, and a mint that outlasts the call's `timeoutMs` leaves the call unsent | — (not sent) | — | `failPosture` |
 | Tenant reached its per-tenant worker cap | `Unavailable` | `0445` | `failPosture` |
+| Missing or invalid token, missing or wrong API key | `Unauthenticated` | — | `failPosture`, `0536` when closed |
+| Access Manager denial, or the principal guard refuses the token | `PermissionDenied` | — | `failPosture`, `0536` when closed |
+| Access Manager unreachable | `Unavailable` | — | `failPosture` |
 
-Under `failPosture`, `open` proceeds with a SKIPPED audit and `closed` rejects with `0178`. Expect the
-cold cache window right after a tracer rollout, and size `failPosture` accordingly.
+Under `failPosture`, `open` proceeds with a SKIPPED audit and `closed` rejects with `0178` (`0536` for
+a rejected credential). Expect the cold rule cache window right after a tracer rollout and the cold
+first token mint per tenant after a ledger pod starts, and size `failPosture` accordingly.
 
 **Tracer migration `000025` needs a maintenance window.** Widening the asset columns rewrites
 `transaction_validations` and rebuilds all of its indexes under an `ACCESS EXCLUSIVE` lock, so size
@@ -357,6 +570,12 @@ the window by that table's row count: every read and write of validations blocks
 rewrite. Each `ALTER` runs with a 5-second lock timeout and fails fast with SQLSTATE `55P03` instead
 of queueing behind live traffic (where it would block every later query on the table). Both `ALTER`s
 are guarded on the column's current type, so a re-run in a quieter window is safe.
+
+**Tracer migration `000026` repairs schema-isolated tenants.** It converts `limits.max_amount`,
+`usage_counters.current_usage` and `transaction_validations.amount` to `DECIMAL` (values kept as
+currency units) wherever they are still `BIGINT` in the tenant's own schema; it is a no-op on a
+single-tenant `public` schema. Where it converts, it rewrites those tables under the same 5-second
+lock timeout as `000025`.
 
 **Ports.** The ledger serves everything on a single port, default `:3002` (`SERVER_ADDRESS`). The tracer
 serves its HTTP API and health on `:4020` (`SERVER_ADDRESS`) and the reservation **gRPC seam on
@@ -366,8 +585,9 @@ reachable from the ledger.
 
 **Both tracer listeners share one base TLS posture.** `buildSeamTLSConfig` is the base config of both
 the HTTP and the gRPC listener, so the two cannot drift: in `mtls` both require and verify a client
-cert; in `mesh`/unset both listen plaintext. The gRPC listener alone layers the client-identity
-allowlist on top (`buildGRPCSeamTLSConfig`, §5).
+cert; in `mesh`/unset both listen plaintext. The gRPC listener alone layers its own posture on top
+(`buildGRPCSeamTLSConfig`, §5): the client-identity allowlist under `mtls`, and the server-only
+certificate under `server`, which leaves the HTTP listener plaintext.
 
 The tracer's HTTP API on `:4020` is an **operations/configuration surface** (rules, limits, validations,
 audit — operator-facing, internal), which is why a single `mtls` posture across the whole `:4020`
@@ -384,12 +604,21 @@ in `components/ledger/.env.example` and `components/tracer/.env.example`.
 |---|---|---|---|
 | `TRACER_BASE_URL` | ledger | opt-in switch for the whole integration and the seam address (`host:port`; an `http://`/`https://` scheme is stripped); empty → disabled | `buildTracerReserver`, `stripURLScheme` |
 | `TRACER_TIMEOUT_MS` | ledger | client ceiling on every seam RPC; the per-ledger `tracer.timeoutMs` bounds the reserve beneath it | `buildTracerGRPCReserver` |
-| `TRACER_TLS_MODE` | ledger | `mtls`\|`mesh`/empty | `buildSeamClientTLSConfig` |
+| `TRACER_TLS_MODE` | ledger | `mtls`\|`server`\|`mesh`/empty; `server` verifies the tracer's certificate and presents none | `buildSeamClientTLSConfig` |
 | `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | ledger | client leaf material (mtls) | `buildClientMTLSConfig` |
-| `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf | `buildClientMTLSConfig` |
+| `TRACER_TLS_CA_FILE` | ledger | CA verifying the **tracer's** server leaf (mtls, server) | `buildClientMTLSConfig`, `buildClientServerTLSConfig` |
+| `TRACER_M2M_CLIENT_ID` / `_SECRET` | ledger | single-tenant Access Manager credential dedicated to the seam; both required when `PLUGIN_AUTH_ENABLED=true` and `TRACER_BASE_URL` is set; ignored in multi-tenant mode, where each tenant's credential is read from `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/tracer/credentials` | `buildTracerSeamIdentity`, `M2MTokenSource` |
+| `M2M_SECRETS_BACKEND` | ledger | multi-tenant custody backend of the seam credentials: `aws` (default when empty; `AWS_REGION` and the default AWS credential chain) or `vault` (Vault KV v2 via `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_CACERT`, `VAULT_NAMESPACE`); any other value refuses boot; no fallback between backends; unused single-tenant | `buildM2MSecretsReader` |
+| `M2M_VAULT_MOUNT` | ledger | Vault KV v2 mount holding the credentials when `M2M_SECRETS_BACKEND=vault`; empty → `secret` | `buildM2MSecretsReader` |
+| `TRACER_API_KEY` | ledger | the tracer's `API_KEY`, sent as `x-api-key` when `PLUGIN_AUTH_ENABLED=false`; set together with plugin auth it refuses boot | `buildTracerSeamIdentity`, `WithAPIKey` |
 | `TRACER_GRPC_PORT` | tracer | gRPC seam listen address; empty → `:4021`; always on | `DefaultTracerGRPCPort`, `ApplyGRPCSeamDefaults` |
-| `TRACER_TLS_MODE` | tracer | `mtls`\|`mesh`\|empty; empty (plaintext, no verified peer) boots only with an explicit `DEPLOYMENT_MODE=local` (unset refuses); `mesh` logs a boot Warn | `buildSeamTLSConfig`, `ValidateSeamTransportPosture` |
-| `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls) | `buildMTLSConfig` |
+| `TRACER_TLS_MODE` | tracer | `mtls`\|`server`\|`mesh`\|empty; `server` serves TLS on the gRPC listener only, with no client certificate; the boot gate is §5 | `buildSeamTLSConfig`, `buildGRPCSeamTLSConfig`, `ValidateSeamPosture` |
+| `TRACER_TLS_CERT_FILE` / `_KEY_FILE` | tracer | server leaf material (mtls, server) | `buildMTLSConfig`, `buildServerTLSConfig` |
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `buildMTLSConfig` |
-| `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas`; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamTransportPosture` |
+| `TRACER_TLS_CLIENT_ALLOWED_NAMES` | tracer | comma-separated client identities (DNS SAN / URI SAN, or CN on a cert without SANs) the gRPC listener accepts under mtls; empty → any CA-signed cert plus a boot Warn, and a refused boot under `DEPLOYMENT_MODE=saas` when the transport is the seam identity; never applied to the HTTP listener | `buildGRPCSeamTLSConfig`, `clientCertAllowed`, `ValidateSeamPosture` |
+| `TRACER_SEAM_ALLOWED_CLIENTS` | tracer | comma-separated application client ids (token `sub`) admitted under token identity in single-tenant mode; required outside `DEPLOYMENT_MODE=local`; ignored with a Warn in multi-tenant mode | `SeamPrincipalInterceptor`, `ValidateSeamPosture` |
+| `PLUGIN_AUTH_ENABLED` / `API_KEY_ENABLED` | tracer | select the seam identity (token first, then API key); `API_KEY`/`API_KEY_LABEL` are shared with the HTTP listener | `resolveSeamIdentity` |
+| `AUTH_M2M_INVERSION_ENABLED` | tracer | recommended `true` under token identity; without it the tracer boots with a Warn and the Access Manager authorizes application tokens under a shared editor role, so only the principal guard restricts who may reserve | `ValidateSeamPosture` |
+| `AUTH_CACHE_TTL` | tracer | lib-auth decision cache (e.g. `60s`); under token identity a value not greater than zero refuses boot under `DEPLOYMENT_MODE=saas` and logs a boot Warn elsewhere | `ValidateSeamPosture`, lib-auth |
+| `AUTH_BREAKER_ENABLED` / `AUTH_JWT_VERIFY_CERT` | tracer | recommended under token identity: Access Manager circuit breaker, local signature verification | lib-auth |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | HTTP 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example` |

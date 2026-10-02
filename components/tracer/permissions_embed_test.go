@@ -138,3 +138,29 @@ func TestTracerManifest_GrantsSeedAdminRolesToThePlatformAdmin(t *testing.T) {
 				"when the seed's tracer admin rows retire", name, groups, adminGroup)
 	}
 }
+
+// TestTracerManifest_DeclaresTheSeedReservationGrant locks the grant the
+// reservation seam authorizes against: reservations/post to the tiers the
+// central Access Manager seed binds it to. Dropping it here would let the
+// reconciler's prune delete the seeded grant and lock the ledger out of the
+// seam.
+func TestTracerManifest_DeclaresTheSeedReservationGrant(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(tracer.TracerManifest, &manifest))
+
+	var grants []declaration.DeclarationPermission
+
+	for _, permission := range manifest.Permissions {
+		if permission.Resource == "reservations" {
+			grants = append(grants, permission)
+		}
+	}
+
+	require.Len(t, grants, 1, "the manifest declares exactly one reservations grant")
+	require.Equal(t, "post", grants[0].Action)
+	require.Equal(t, "allow", grants[0].Effect)
+	require.ElementsMatch(t, []string{"editor", "validator", "audit-viewer"}, grants[0].Roles)
+}

@@ -353,9 +353,9 @@ func reconstructedTenantInterceptor(poolByTenant map[string]dbresolver.DB) grpc.
 	}
 }
 
-// tenantIDFromIncomingMetadata reads the trusted tenant id from incoming gRPC
-// metadata under isolationTenantMetadataKey, mirroring the tracer's
-// tenantIDFromMetadata. Empty when absent.
+// tenantIDFromIncomingMetadata reads the tenant id from incoming gRPC metadata
+// under isolationTenantMetadataKey, mirroring how the tracer reads
+// seamtenant.MetadataKey with firstMetadataValue. Empty when absent.
 func tenantIDFromIncomingMetadata(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
