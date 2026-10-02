@@ -13,7 +13,7 @@
 -- pg_constraint lookup. The lookup resolves 'limits' through search_path, so a
 -- schema-isolated tenant gets the constraints on its own table.
 --
--- Lock wait: the column and both CHECKs are added in one DO block with
+-- Lock wait: the column and its CHECKs are added in one DO block with
 -- lock_timeout = 5s, set transaction-locally, so the ALTERs fail fast with
 -- SQLSTATE 55P03 instead of queueing traffic behind them. The CHECKs scan
 -- limits, where every row holds a NULL reset_time.
@@ -46,6 +46,29 @@ BEGIN
             CHECK (
                 reset_time IS NULL OR
                 limit_type IN ('DAILY', 'WEEKLY', 'MONTHLY')
+            );
+    END IF;
+
+    -- A period boundary strictly inside the active window would split one
+    -- window across two periods. Equal to either end is allowed. The format
+    -- CHECKs keep all three columns zero-padded "HH:MM", so string order is
+    -- time-of-day order. An overnight window (start > end) wraps midnight.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_limits_reset_time_outside_window'
+          AND conrelid = 'limits'::regclass
+    ) THEN
+        ALTER TABLE limits ADD CONSTRAINT chk_limits_reset_time_outside_window
+            CHECK (
+                reset_time IS NULL OR
+                active_time_start IS NULL OR
+                reset_time = active_time_start OR
+                NOT (
+                    (active_time_start < active_time_end AND
+                        reset_time > active_time_start AND reset_time < active_time_end) OR
+                    (active_time_start > active_time_end AND
+                        (reset_time > active_time_start OR reset_time < active_time_end))
+                )
             );
     END IF;
 END $$;

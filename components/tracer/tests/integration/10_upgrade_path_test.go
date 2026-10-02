@@ -729,7 +729,7 @@ func assertUpgradedState(ctx context.Context, t *testing.T, dsn string) {
 		require.Equal(t, "numeric", maxAmountType,
 			"limits.max_amount must be DECIMAL/numeric after upgrade (was the convert-cents guard applied correctly?)")
 
-		// 6. limits.reset_time exists with both of its CHECK constraints.
+		// 6. limits.reset_time exists with each of its CHECK constraints.
 		assertLimitResetTimeSchema(ctx, t, db, "public")
 	})
 }
@@ -792,6 +792,7 @@ const limitResetTimeMigrationVersion = 27
 var limitResetTimeConstraints = []string{
 	"chk_limits_reset_time_format",
 	"chk_limits_reset_time_period_type",
+	"chk_limits_reset_time_outside_window",
 }
 
 // TestUpgradePath_AddLimitResetTime is the behavioral contract for migration

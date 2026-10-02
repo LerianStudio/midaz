@@ -28,7 +28,7 @@ const pgCheckViolation = "23514"
 // TestLimitRepository_ResetTime_Integration verifies that a limit's reset time
 // is persisted on create, read back on every read path, and never rewritten by
 // an update, and that the limits table itself refuses malformed or misplaced
-// reset_time values.
+// reset_time values, including one strictly inside the active time window.
 func TestLimitRepository_ResetTime_Integration(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
@@ -108,6 +108,84 @@ func TestLimitRepository_ResetTime_Integration(t *testing.T) {
 			 VALUES ('reset-time-custom', 'CUSTOM', 1000, 'BRL', '09:00',
 				'2026-10-01T00:00:00Z'::timestamptz, '2026-10-31T00:00:00Z'::timestamptz)`)
 		requireCheckViolation(t, err, "chk_limits_reset_time_period_type")
+	})
+
+	t.Run("window moved over the stored reset time is refused by the table", func(t *testing.T) {
+		lmt := createResetTimeLimit(ctx, t, db, repo, "reset-time-window-update", 27004, "09:00", createdAt)
+
+		_, err := db.ExecContext(ctx,
+			`UPDATE limits SET active_time_start = '08:00', active_time_end = '10:00' WHERE id = $1`, lmt.ID)
+		requireCheckViolation(t, err, "chk_limits_reset_time_outside_window")
+
+		_, err = db.ExecContext(ctx,
+			`UPDATE limits SET active_time_start = '23:00', active_time_end = '09:30' WHERE id = $1`, lmt.ID)
+		requireCheckViolation(t, err, "chk_limits_reset_time_outside_window")
+
+		got, err := repo.GetByID(ctx, lmt.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.ActiveTimeStart, "a refused update must leave the stored window unchanged")
+		assert.Nil(t, got.ActiveTimeEnd)
+	})
+
+	t.Run("repository update writing a window over the reset time is refused", func(t *testing.T) {
+		lmt := createResetTimeLimit(ctx, t, db, repo, "reset-time-window-repository", 27005, "09:00", createdAt)
+
+		loaded, err := repo.GetByID(ctx, lmt.ID)
+		require.NoError(t, err)
+
+		// Assigning the window directly skips the domain check, as a binary
+		// that predates reset times does.
+		start, err := model.NewTimeOfDay("08:00")
+		require.NoError(t, err)
+		end, err := model.NewTimeOfDay("10:00")
+		require.NoError(t, err)
+
+		loaded.ActiveTimeStart = &start
+		loaded.ActiveTimeEnd = &end
+
+		err = repo.UpdateWithTx(ctx, db, loaded)
+		requireCheckViolation(t, err, "chk_limits_reset_time_outside_window")
+	})
+
+	t.Run("reset time inside an overnight window is refused on insert", func(t *testing.T) {
+		_, err := db.ExecContext(ctx,
+			`INSERT INTO limits (name, limit_type, max_amount, asset, reset_time,
+				active_time_start, active_time_end)
+			 VALUES ('reset-time-inside-overnight', 'DAILY', 1000, 'BRL', '00:00', '23:00', '09:00')`)
+		requireCheckViolation(t, err, "chk_limits_reset_time_outside_window")
+	})
+
+	t.Run("reset time on a window edge or outside it is accepted by the table", func(t *testing.T) {
+		lmt := createResetTimeLimit(ctx, t, db, repo, "reset-time-window-allowed", 27006, "09:00", createdAt)
+
+		for _, window := range []struct {
+			name, start, end string
+		}{
+			{"equal to the start", "09:00", "12:00"},
+			{"equal to the end", "06:00", "09:00"},
+			{"equal to the end of an overnight window", "23:00", "09:00"},
+			{"outside a same-day window", "10:00", "12:00"},
+			{"outside an overnight window", "20:00", "06:00"},
+		} {
+			t.Run(window.name, func(t *testing.T) {
+				result, err := db.ExecContext(ctx,
+					`UPDATE limits SET active_time_start = $2, active_time_end = $3 WHERE id = $1`,
+					lmt.ID, window.start, window.end)
+				require.NoError(t, err)
+
+				rows, err := result.RowsAffected()
+				require.NoError(t, err)
+				assert.Equal(t, int64(1), rows)
+			})
+		}
+
+		result, err := db.ExecContext(ctx,
+			`UPDATE limits SET active_time_start = NULL, active_time_end = NULL WHERE id = $1`, lmt.ID)
+		require.NoError(t, err, "removing the window must be accepted")
+
+		rows, err := result.RowsAffected()
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), rows)
 	})
 }
 

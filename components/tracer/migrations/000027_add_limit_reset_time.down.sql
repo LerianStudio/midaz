@@ -5,6 +5,7 @@
 -- Date: 2026-10-02
 -- ============================================
 
+ALTER TABLE limits DROP CONSTRAINT IF EXISTS chk_limits_reset_time_outside_window;
 ALTER TABLE limits DROP CONSTRAINT IF EXISTS chk_limits_reset_time_period_type;
 ALTER TABLE limits DROP CONSTRAINT IF EXISTS chk_limits_reset_time_format;
 
