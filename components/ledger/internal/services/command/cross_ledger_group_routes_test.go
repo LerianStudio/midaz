@@ -405,7 +405,7 @@ func TestCrossLedgerHoldGroup_CoversTheHoldTemplateWithTheIntentDestinations(t *
 		intent, err := buildCrossLedgerGroupIntent("BRL", parts)
 		require.NoError(t, err)
 
-		batch, err := buildCrossLedgerHoldBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), intent)
+		batch, err := buildCrossLedgerHoldBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), intent, parts)
 		require.NoError(t, err)
 
 		return batch

@@ -551,6 +551,14 @@ type packageSpec struct {
 func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 	t.Helper()
 
+	return seedFeePackage(t, h.packageRepo, h.orgID, h.ledgerID, spec)
+}
+
+// seedFeePackage persists a package from the spec for one organization and
+// ledger through the real repository and returns its ID.
+func seedFeePackage(t *testing.T, packageRepo pack.Repository, organizationID, ledgerID uuid.UUID, spec packageSpec) uuid.UUID {
+	t.Helper()
+
 	enable := true
 	fees := make(map[string]feemodel.Fee, len(spec.fees))
 
@@ -591,7 +599,7 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 		maxAmt = decimal.NewFromInt(1_000_000_000)
 	}
 
-	p, err := pack.NewPackage(h.orgID, h.ledgerID, spec.label, spec.minAmount, maxAmt, fees, &enable)
+	p, err := pack.NewPackage(organizationID, ledgerID, spec.label, spec.minAmount, maxAmt, fees, &enable)
 	require.NoError(t, err, "build package")
 
 	p.SegmentID = spec.segmentID
@@ -601,7 +609,7 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 		p.WaivedAccounts = &wa
 	}
 
-	created, err := h.packageRepo.Create(h.ctx(), p, h.orgID)
+	created, err := packageRepo.Create(context.Background(), p, organizationID)
 	require.NoError(t, err, "persist package")
 
 	return created.ID
