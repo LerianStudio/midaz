@@ -438,6 +438,49 @@ func TestSetAmountsDataToUpdate_KeepsStoredSelector(t *testing.T) {
 	require.NoError(t, err, "a selector-scoped package must not collide with an unscoped one on its band")
 }
 
+// A patch entry that leaves priority out keeps the stored one, so two stored fees
+// patched without priority do not collide with each other.
+func TestValidationFeesSetUnset_PriorityComesFromStoreWhenOmitted(t *testing.T) {
+	t.Parallel()
+
+	stored := func(priority int) model.Fee {
+		return model.Fee{
+			FeeLabel:         "stored",
+			CalculationModel: &model.CalculationModel{ApplicationRule: "flatFee", Calculations: []model.Calculation{{Type: "flat", Value: "1"}}},
+			ReferenceAmount:  "originalAmount",
+			Priority:         priority,
+			IsDeductibleFrom: boolPtr(false),
+			CreditAccount:    "account",
+		}
+	}
+	existing := map[string]model.Fee{"feeA": stored(1), "feeB": stored(2)}
+
+	tests := []struct {
+		name    string
+		patch   map[string]model.Fee
+		wantErr error
+	}{
+		{"two stored fees relabelled without priority", map[string]model.Fee{"feeA": {FeeLabel: "a"}, "feeB": {FeeLabel: "b"}}, nil},
+		{"patched priority taken by another stored fee", map[string]model.Fee{"feeA": {Priority: 2}}, constant.ErrPriorityInvalid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := (&UseCase{}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
+				existing, tt.patch, bson.M{}, bson.M{})
+
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+
+			require.ErrorContains(t, err, tt.wantErr.Error())
+		})
+	}
+}
+
 func boolPtr(b bool) *bool {
 	return &b
 }
