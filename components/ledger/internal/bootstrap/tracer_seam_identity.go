@@ -111,7 +111,7 @@ func buildTracerSeamIdentity(ctx context.Context, cfg *Config, logger libLog.Log
 	return identity, []tracerclient.TracerGRPCClientOption{tracerclient.WithM2MCredentials(src)}, nil
 }
 
-// tracerM2MTokenTimeout resolves TRACER_M2M_TOKEN_TIMEOUT_MS: unset is
+// tracerM2MTokenTimeout resolves TRACER_M2M_WAIT_TIMEOUT_MS: unset is
 // tracerclient.DefaultTokenWaitTimeout, and a value must be positive and no
 // longer than the mint the wait is for (tracerclient.MaxTokenWaitTimeout).
 func tracerM2MTokenTimeout(cfg *Config) (time.Duration, error) {
@@ -122,7 +122,7 @@ func tracerM2MTokenTimeout(cfg *Config) (time.Duration, error) {
 
 	maxMs := int(tracerclient.MaxTokenWaitTimeout.Milliseconds())
 	if ms < 0 || ms > maxMs {
-		return 0, fmt.Errorf("invalid TRACER_M2M_TOKEN_TIMEOUT_MS %d: expected 1..%d", ms, maxMs)
+		return 0, fmt.Errorf("invalid TRACER_M2M_WAIT_TIMEOUT_MS %d: expected 1..%d", ms, maxMs)
 	}
 
 	return time.Duration(ms) * time.Millisecond, nil

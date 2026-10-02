@@ -372,7 +372,7 @@ type Config struct {
 	TracerTLSCAFile         string `env:"TRACER_TLS_CA_FILE"`
 	TracerM2MClientID       string `env:"TRACER_M2M_CLIENT_ID"`
 	TracerM2MClientSecret   string `env:"TRACER_M2M_CLIENT_SECRET" json:"-"`
-	TracerM2MTokenTimeoutMs int    `env:"TRACER_M2M_TOKEN_TIMEOUT_MS"`
+	TracerM2MTokenTimeoutMs int    `env:"TRACER_M2M_WAIT_TIMEOUT_MS"`
 	TracerAPIKey            string `env:"TRACER_API_KEY" json:"-"`
 	M2MSecretsBackend       string `env:"M2M_SECRETS_BACKEND"`
 	M2MVaultMount           string `env:"M2M_VAULT_MOUNT"`

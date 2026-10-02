@@ -315,13 +315,13 @@ func TestBuildTracerSeamIdentity(t *testing.T) {
 			name:            "token identity refuses a token timeout above the mint timeout",
 			cfg:             Config{AuthEnabled: true, TracerM2MClientID: "ledger", TracerM2MClientSecret: "s3cret", TracerM2MTokenTimeoutMs: 5001},
 			deps:            tokenDeps(),
-			wantErrContains: []string{"TRACER_M2M_TOKEN_TIMEOUT_MS"},
+			wantErrContains: []string{"TRACER_M2M_WAIT_TIMEOUT_MS"},
 		},
 		{
 			name:            "token identity refuses a negative token timeout",
 			cfg:             Config{AuthEnabled: true, MultiTenantEnabled: true, EnvName: "staging", TracerM2MTokenTimeoutMs: -1},
 			deps:            tenantDeps(),
-			wantErrContains: []string{"TRACER_M2M_TOKEN_TIMEOUT_MS"},
+			wantErrContains: []string{"TRACER_M2M_WAIT_TIMEOUT_MS"},
 		},
 		{
 			name:         "auth disabled ignores the token timeout",
@@ -840,7 +840,7 @@ func TestTracerM2MTokenTimeout(t *testing.T) {
 			got, err := tracerM2MTokenTimeout(&Config{TracerM2MTokenTimeoutMs: tt.ms})
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "TRACER_M2M_TOKEN_TIMEOUT_MS")
+				assert.Contains(t, err.Error(), "TRACER_M2M_WAIT_TIMEOUT_MS")
 
 				return
 			}

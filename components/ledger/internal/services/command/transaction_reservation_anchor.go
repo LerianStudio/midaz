@@ -165,7 +165,7 @@ func (h reservationHandle) transitions(action string) []reservationTransition {
 // reservation is for a revert. A positive tracer.timeoutMs bounds the reserve
 // RPC; the client timeout (TRACER_TIMEOUT_MS) stays the ceiling, because a call
 // timeout can only tighten it. Neither bounds the wait for a seam token that is
-// not cached yet (TRACER_M2M_TOKEN_TIMEOUT_MS).
+// not cached yet (TRACER_M2M_WAIT_TIMEOUT_MS).
 //
 //   - mode=off (or nil reserver): skipped — returns proceed with an empty handle.
 //   - mode=advisory: the reserve is called but never blocks — a DENY or REVIEW
