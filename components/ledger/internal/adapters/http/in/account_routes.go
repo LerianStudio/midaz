@@ -244,7 +244,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 			"The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. " +
 			"An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. " +
 			"An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. " +
-			"An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
+			"An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination, and the revert of a transaction whose fee legs credited it.",
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.

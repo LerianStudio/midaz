@@ -66,6 +66,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a package",
+		Description:      "A package switched off (enable: false), or a fee whose deferrable turned false, may keep applying for up to 60 seconds: transactions read packages through a cache with that expiry.",
 		Tags:             []string{tag},
 		Security:         secPackageBearer,
 		SkipValidateBody: true, // body validated imperatively — see createPackage.

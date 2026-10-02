@@ -8501,7 +8501,8 @@ paths:
         be retried later. An indeterminate protection or an unavailable
         dependency answers 503 (0520). Once the account is closed, any movement
         that would touch it is refused with 0519, including the commit of a
-        pending transaction that names it as destination.
+        pending transaction that names it as destination, and the revert of a
+        transaction whose fee legs credited it.
       operationId: closeAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -11074,6 +11075,10 @@ paths:
       tags:
         - Midaz_Ledger_API_Packages (v2)
     patch:
+      description: >-
+        A package switched off (enable: false), or a fee whose deferrable turned
+        false, may keep applying for up to 60 seconds: transactions read
+        packages through a cache with that expiry.
       operationId: updatePackageV2
       parameters:
         - description: Organization ID (UUID)

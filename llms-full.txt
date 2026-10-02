@@ -492,6 +492,9 @@ transaction then records the send plus the fee, less the debt it opened (send 10
 holds 105: amount 105, debt 5). Enable it only once every ledger pod
 runs a release that knows fee debt (see `docs/architecture/engine.md`).
 
+A package switched off (`enable: false`), or a fee whose `deferrable` turned `false`, may keep
+applying for up to 60 seconds: transactions read packages through a cache with that expiry.
+
 `POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
 debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
 capped at `maxAmount` and at what the balance owes. It charges no fee and never originates a debt.
