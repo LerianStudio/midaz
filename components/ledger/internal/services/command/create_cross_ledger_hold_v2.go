@@ -89,7 +89,7 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 		return nil, err
 	}
 
-	batch, err := buildCrossLedgerHoldBatchInput(in, groupID, intent)
+	batch, err := buildCrossLedgerHoldBatchInput(in, groupID, intent, parts)
 	if err != nil {
 		uc.discardCrossLedgerHoldIntent(ctx, groupID)
 		return nil, err
@@ -197,11 +197,21 @@ func (uc *UseCase) validateCrossLedgerHoldSettings(ctx context.Context, intent C
 	return refuseCrossOrganizationRouteValidation(settingsByRef)
 }
 
+// buildCrossLedgerHoldBatchInput holds the origin parts of the intent. parts is
+// the decomposition the intent was built from, index for index, and supplies
+// each origin's exact bridge position.
 func buildCrossLedgerHoldBatchInput(
 	in CreateCrossLedgerTransactionV2Input,
 	groupID uuid.UUID,
 	intent CrossLedgerGroupIntent,
+	parts []decomposedCrossLedgerPart,
 ) (CreateAtomicTransactionBatchV2Input, error) {
+	if len(parts) != len(intent.Parts) {
+		return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf(
+			"cross-ledger hold has %d decomposed parts for %d intent parts", len(parts), len(intent.Parts),
+		)
+	}
+
 	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0, len(intent.Parts))
 	heldDestinations := make([]CrossLedgerGroupIntentPart, 0, len(intent.Parts))
 
@@ -215,12 +225,13 @@ func buildCrossLedgerHoldBatchInput(
 		transactionInput := part.Transaction
 		transactionInput.Pending = true
 		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
-			OrganizationID: part.OrganizationID,
-			LedgerID:       part.LedgerID,
-			Transaction:    transactionInput,
-			Action:         constant.ActionHold,
-			Order:          len(items) + 1,
-			OriginalIndex:  index,
+			OrganizationID:    part.OrganizationID,
+			LedgerID:          part.LedgerID,
+			Transaction:       transactionInput,
+			Action:            constant.ActionHold,
+			Order:             len(items) + 1,
+			OriginalIndex:     index,
+			crossLedgerBridge: parts[index].bridge,
 		})
 	}
 

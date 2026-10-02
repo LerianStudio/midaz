@@ -17,6 +17,17 @@ type FeeCalculate struct {
 	SegmentID   *uuid.UUID              `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID    uuid.UUID               `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	Transaction transaction.Transaction `json:"transaction"`
+	// NonPayerLegs are legs the ledger itself appended to the transaction that
+	// must never pay a fee, such as a cross-ledger part's bridge. They are never
+	// set from a request.
+	NonPayerLegs []NonPayerLeg `json:"-"`
+}
+
+// NonPayerLeg locates one leg of FeeCalculate.Transaction.Send by side and
+// position, as the transaction is when the fee calculation starts.
+type NonPayerLeg struct {
+	IsFrom bool
+	Index  int
 }
 
 // FeeEstimateResponse is a struct designed to encapsulate response of estimate fee.
