@@ -7,7 +7,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.27.0 (`go.mod` `go 1.27.0`).
-- lib-commons: `github.com/LerianStudio/lib-commons/v7` v7.1.0; `lib-observability/v4` v4.0.4.
+- lib-commons: `github.com/LerianStudio/lib-commons/v7` v7.14.0; `lib-observability/v4` v4.6.1.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
@@ -96,11 +96,11 @@ Flow: HTTP handlers -> command/query use cases -> repository interfaces -> adapt
 
 ## Dependencies
 
-- lib-commons v7 (`github.com/LerianStudio/lib-commons/v7/commons/...`, currently v7.1.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
+- lib-commons v7 (`github.com/LerianStudio/lib-commons/v7/commons/...`, currently v7.14.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
 - Observability is a separate module `github.com/LerianStudio/lib-observability/v4`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
 - TLS enforcement: the postgres/mongo/redis/rabbitmq constructors enforce TLS by the security tier derived from `ENV_NAME` and refuse plaintext dependencies unless `ALLOW_INSECURE_TLS=true` (parsed as a bool via `commons.AllowInsecureTLS`). Set in the `.env.example` files; connection-building unit tests set it in their `TestMain`.
 - MongoDB driver: `go.mongodb.org/mongo-driver/v2`. `bson/primitive` is consolidated into `bson` (`bson.ObjectID`, `bson.NewObjectID`). v2 decodes nested documents into `bson.D` (ordered), not `bson.M`; code that type-asserts nested values as `bson.M` must also handle `bson.D` (`bson.D` has no `.Map()`).
-- CRM field encryption (envelope mode): `github.com/hashicorp/vault/api` v1.23.0 (Vault Transit KMS client) and `github.com/tink-crypto/tink-go/v2` v2.7.0 (Tink AEAD + PRF keysets for field encryption / search tokens). See `## CRM Field Encryption / KMS`.
+- CRM field encryption (envelope mode): `github.com/hashicorp/vault/api` v1.23.0 (Vault Transit KMS client) and `github.com/tink-crypto/tink-go/v2` v2.8.0 (Tink AEAD + PRF keysets for field encryption / search tokens). See `## CRM Field Encryption / KMS`.
 
 ## Key Files
 
@@ -262,7 +262,7 @@ Producer is `github.com/LerianStudio/lib-streaming/v4`. Wire format: CloudEvents
 - IMPORTANT-posture broker publication MUST go through `pkgStreaming.EmitBrokerBestEffort`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitBrokerBestEffort` bounds the `Emitter.Emit` call with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. It delegates policy and any configured fallback to lib-streaming; Midaz currently wires neither an outbox writer/repository nor a relay, so it provides no product-local transactional fallback or delivery guarantee.
 - Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.EmitRequest.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
-- lib-streaming is pinned at v4.0.0-beta.4 (module path `.../lib-streaming/v4`), which exports the Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`) plus the topic derivations `AppTopic` / `AppDLQTopic`. The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`) around ONE catch-all route to the app topic (empty `DefinitionKey`), and midaz registers no per-definition route override: every event takes that one route. Midaz currently does not pass `WithOutboxRepository` or `WithOutboxWriter`, and does not register an outbox relay; delivery behavior remains lib-streaming's configured policy.
+- lib-streaming is pinned at v4.1.0 (module path `.../lib-streaming/v4`), which exports the Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`) plus the topic derivations `AppTopic` / `AppDLQTopic`. The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`) around ONE catch-all route to the app topic (empty `DefinitionKey`), and midaz registers no per-definition route override: every event takes that one route. Midaz currently does not pass `WithOutboxRepository` or `WithOutboxWriter`, and does not register an outbox relay; delivery behavior remains lib-streaming's configured policy.
 
 ### Event modeling (`pkg/streaming/events`)
 
