@@ -71,7 +71,7 @@ type UpdateBillingPackageResponse struct {
 // makes Huma emit a bodiless 204.
 type DeleteBillingPackageResponse struct{}
 
-// --- POST /ledgers/{ledger_id}/billing-packages ----------------------------------
+// --- POST /ledgers/{ledger_id}/billing-packages ------------------------------
 
 // CreateBillingPackageV2Request is the ledger-scoped create envelope (RawBody, see
 // CreatePackageV2Request).
@@ -102,7 +102,7 @@ func (handler *BillingPackageHandler) CreateBillingPackageV2(ctx context.Context
 	return &CreateBillingPackageResponse{Status: http.StatusCreated, Body: result}, nil
 }
 
-// --- GET /ledgers/{ledger_id}/billing-packages (list) ----------------------------
+// --- GET /ledgers/{ledger_id}/billing-packages (list) ------------------------
 
 // ListBillingPackagesV2Request advertises the ledger-scoped list query params in the
 // spec (doc-only, no validation tags — the core is the sole validator) and captures the
@@ -146,14 +146,14 @@ func (handler *BillingPackageHandler) GetAllBillingPackagesV2(ctx context.Contex
 	return &ListBillingPackagesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET/DELETE /ledgers/{ledger_id}/billing-packages/{id} -----------------------
+// --- GET/DELETE /ledgers/{ledger_id}/billing-packages/{billing_package_id} ---
 
 // BillingPackageIDV2Request is the ledger-scoped by-id envelope, shared by the read
 // and the delete.
 type BillingPackageIDV2Request struct {
 	FeeV2Path
 
-	ID string `path:"id" doc:"BillingPackage ID (UUID)"`
+	ID string `path:"billing_package_id" doc:"BillingPackage ID (UUID)"`
 }
 
 // GetBillingPackageByIDV2 delegates to the shared getBillingPackageByID core with
@@ -165,7 +165,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByIDV2(ctx context.Contex
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "billing_package_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -186,7 +186,7 @@ func (handler *BillingPackageHandler) DeleteBillingPackageV2(ctx context.Context
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "billing_package_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -198,14 +198,14 @@ func (handler *BillingPackageHandler) DeleteBillingPackageV2(ctx context.Context
 	return &DeleteBillingPackageResponse{}, nil
 }
 
-// --- PATCH /ledgers/{ledger_id}/billing-packages/{id} ----------------------------
+// --- PATCH /ledgers/{ledger_id}/billing-packages/{billing_package_id} --------
 
 // UpdateBillingPackageV2Request is the ledger-scoped update envelope (RawBody, see
 // CreatePackageV2Request).
 type UpdateBillingPackageV2Request struct {
 	FeeV2Path
 
-	ID      string `path:"id" doc:"BillingPackage ID (UUID)"`
+	ID      string `path:"billing_package_id" doc:"BillingPackage ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
@@ -218,7 +218,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackageV2(ctx context.Context
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "billing_package_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

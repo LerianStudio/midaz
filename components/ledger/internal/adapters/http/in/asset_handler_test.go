@@ -87,10 +87,10 @@ func buildHumaAssetApp(t *testing.T, handler *AssetHandler, orgID, ledgerID uuid
 	parse := pkgHTTP.ParseUUIDPathParameters("asset")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/assets"
 	apiV1.Post(base, parse)
-	apiV1.Patch(base+"/:id", parse)
+	apiV1.Patch(base+"/:asset_id", parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Get(base+"/:asset_id", parse)
+	apiV1.Delete(base+"/:asset_id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
 	RegisterAssetRoutes(hAPI, handler, v1OpSuffix)

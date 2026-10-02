@@ -144,7 +144,7 @@ results.
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in
   the final decision. Do not introduce ordered/short-circuit rule evaluation.
-- Rules are created in `DRAFT` and must be activated (`POST /v1/rules/{id}/activate`) before
+- Rules are created in `DRAFT` and must be activated (`POST /v1/rules/{rule_id}/activate`) before
   they participate in validation.
 
 ---
@@ -160,7 +160,7 @@ are why several migrations are held to the renumbering invariant below.
   DB-side: the `calculate_audit_event_hash()` trigger function (migration `000001`) runs
   `encode(sha256(hash_input::bytea), 'hex')`, backed by the `pgcrypto` extension enabled in
   migration `000004`. There is no application-side SHA-256 (`pkg/hash/` holds only an FNV-1a
-  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{id}/verify`
+  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{audit_event_id}/verify`
   re-walks the chain to prove integrity; this is the compliance proof and must keep working
   across upgrades.
 - **Synchronous, compliance-blocking write.** Audit persistence is SYNCHRONOUS, not

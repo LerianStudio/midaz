@@ -92,7 +92,7 @@ func buildHumaPackageApp(t *testing.T, handler *PackageHandler, authOK bool) *fi
 	parse := pkgHTTP.ParseUUIDPathParameters("packages")
 
 	listPath := "/organizations/:organization_id/ledgers/:ledger_id/packages"
-	idPath := listPath + "/:id"
+	idPath := listPath + "/:package_id"
 
 	apiV2.Post(listPath, parse)
 	apiV2.Get(listPath, parse)

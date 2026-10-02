@@ -88,7 +88,8 @@ func feeV2Path(template string, orgID, ledgerID, id uuid.UUID) string {
 	return strings.NewReplacer(
 		":organization_id", orgID.String(),
 		":ledger_id", ledgerID.String(),
-		":id", id.String(),
+		":billing_package_id", id.String(),
+		":package_id", id.String(),
 	).Replace(template)
 }
 
@@ -271,39 +272,39 @@ func TestFeesV2_ByIDOperationsCarryThePathLedger(t *testing.T) {
 		{
 			name:     "get_package",
 			method:   http.MethodGet,
-			template: feesV2Scope + "/packages/:id",
+			template: feesV2Scope + "/packages/:package_id",
 			got:      func(s *feesV2Stubs) uuid.UUID { return s.pkgSvc.gotGetByIDLedger },
 		},
 		{
 			name:     "update_package",
 			method:   http.MethodPatch,
-			template: feesV2Scope + "/packages/:id",
+			template: feesV2Scope + "/packages/:package_id",
 			body:     `{"feeGroupLabel":"Renamed"}`,
 			got:      func(s *feesV2Stubs) uuid.UUID { return s.pkgSvc.gotUpdateLedger },
 		},
 		{
 			name:     "delete_package",
 			method:   http.MethodDelete,
-			template: feesV2Scope + "/packages/:id",
+			template: feesV2Scope + "/packages/:package_id",
 			got:      func(s *feesV2Stubs) uuid.UUID { return s.pkgSvc.gotDeleteLedger },
 		},
 		{
 			name:     "get_billing_package",
 			method:   http.MethodGet,
-			template: feesV2Scope + "/billing-packages/:id",
+			template: feesV2Scope + "/billing-packages/:billing_package_id",
 			got:      func(s *feesV2Stubs) uuid.UUID { return s.billingSvc.gotGetByIDLedger },
 		},
 		{
 			name:     "update_billing_package",
 			method:   http.MethodPatch,
-			template: feesV2Scope + "/billing-packages/:id",
+			template: feesV2Scope + "/billing-packages/:billing_package_id",
 			body:     `{"label":"Renamed"}`,
 			got:      func(s *feesV2Stubs) uuid.UUID { return s.billingSvc.gotUpdateLedger },
 		},
 		{
 			name:     "delete_billing_package",
 			method:   http.MethodDelete,
-			template: feesV2Scope + "/billing-packages/:id",
+			template: feesV2Scope + "/billing-packages/:billing_package_id",
 			got:      func(s *feesV2Stubs) uuid.UUID { return s.billingSvc.gotDeleteLedger },
 		},
 	}

@@ -440,7 +440,7 @@ curl -X POST http://localhost:4020/v1/rules \
   }'
 ```
 
-**Note:** Rules are created in `DRAFT` status and must be activated via `POST /v1/rules/{id}/activate` before they can be evaluated.
+**Note:** Rules are created in `DRAFT` status and must be activated via `POST /v1/rules/{rule_id}/activate` before they can be evaluated.
 
 ```bash
 # Execute validation (minimal request)
@@ -587,23 +587,23 @@ X-API-Key: your-api-key
 |----------|---------------------------------|--------------------------------------------------|
 | `POST`   | `/v1/validations`               | Execute transaction validation                   |
 | `GET`    | `/v1/validations`               | List validation history (with filters)           |
-| `GET`    | `/v1/validations/{id}`          | Get validation by ID                             |
+| `GET`    | `/v1/validations/{validation_id}`          | Get validation by ID                             |
 | `GET`    | `/v1/audit-events`              | List audit events (with filters)                 |
-| `GET`    | `/v1/audit-events/{id}`         | Get audit event by ID                            |
-| `GET`    | `/v1/audit-events/{id}/verify`  | Verify hash chain integrity (SOX compliance)     |
+| `GET`    | `/v1/audit-events/{audit_event_id}`         | Get audit event by ID                            |
+| `GET`    | `/v1/audit-events/{audit_event_id}/verify`  | Verify hash chain integrity (SOX compliance)     |
 | `POST`   | `/v1/rules`                     | Create fraud rule                                |
 | `GET`    | `/v1/rules`                     | List rules                                       |
-| `PATCH`  | `/v1/rules/{id}`                | Update rule                                      |
-| `DELETE` | `/v1/rules/{id}`                | Delete rule                                      |
-| `POST`   | `/v1/rules/{id}/activate`       | Activate rule                                    |
-| `POST`   | `/v1/rules/{id}/deactivate`     | Deactivate rule                                  |
+| `PATCH`  | `/v1/rules/{rule_id}`                | Update rule                                      |
+| `DELETE` | `/v1/rules/{rule_id}`                | Delete rule                                      |
+| `POST`   | `/v1/rules/{rule_id}/activate`       | Activate rule                                    |
+| `POST`   | `/v1/rules/{rule_id}/deactivate`     | Deactivate rule                                  |
 | `POST`   | `/v1/limits`                    | Create spending limit                            |
 | `GET`    | `/v1/limits`                    | List limits                                      |
-| `GET`    | `/v1/limits/{id}/usage`         | Get limit usage                                  |
-| `PATCH`  | `/v1/limits/{id}`               | Update limit                                     |
-| `POST`   | `/v1/limits/{id}/activate`      | Activate limit                                   |
-| `DELETE` | `/v1/limits/{id}`               | Delete limit (DRAFT/INACTIVE only)               |
-| `POST`   | `/v1/limits/{id}/deactivate`    | Deactivate limit                                 |
+| `GET`    | `/v1/limits/{limit_id}/usage`         | Get limit usage                                  |
+| `PATCH`  | `/v1/limits/{limit_id}`               | Update limit                                     |
+| `POST`   | `/v1/limits/{limit_id}/activate`      | Activate limit                                   |
+| `DELETE` | `/v1/limits/{limit_id}`               | Delete limit (DRAFT/INACTIVE only)               |
+| `POST`   | `/v1/limits/{limit_id}/deactivate`    | Deactivate limit                                 |
 
 ### Example: Execute Validation
 

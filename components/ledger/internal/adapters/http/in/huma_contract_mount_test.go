@@ -173,8 +173,8 @@ func TestCRMV2RoutesRespectNilGuards(t *testing.T) {
 		{
 			name:       "holder_accounts_absent_when_handler_nil",
 			nilHandler: "HolderAccounts",
-			fiberRoute: fiber.MethodGet + ":" + crmV2Org + "/holders/:id/accounts",
-			humaOp:     "GET:/organizations/{organization_id}/holders/{id}/accounts",
+			fiberRoute: fiber.MethodGet + ":" + crmV2Org + "/holders/:holder_id/accounts",
+			humaOp:     "GET:/organizations/{organization_id}/holders/{holder_id}/accounts",
 		},
 		{
 			name:       "encryption_provision_absent_when_handler_nil",

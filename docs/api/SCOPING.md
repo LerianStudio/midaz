@@ -22,10 +22,10 @@ GET  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_i
 POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json
 
 POST /v1/organizations/{organization_id}/holders
-GET  /v1/organizations/{organization_id}/holders/{id}
+GET  /v1/organizations/{organization_id}/holders/{holder_id}
 POST /v1/organizations/{organization_id}/holders/{holder_id}/instruments
 
-POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts
+POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts
 
 POST /v1/organizations/{organization_id}/packages
 POST /v1/organizations/{organization_id}/estimates
@@ -55,13 +55,13 @@ not match and Fiber returns `404`. The former "missing scoping header" error cla
   a validated UUID rather than a raw header string.
 - **`X-Ledger-Id` was removed entirely.** It is no longer a live contract on any CRM or composition
   route. The single route that legitimately needs a ledger — composition account-open — now carries
-  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts`),
+  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts`),
   because it creates a real ledger account.
 - **`ledger_id` keeps two non-scoping roles.** It remains a **create-body field** on instrument
   creation, and an **optional list filter** (`?ledger_id=`) on `GET .../instruments` and on
-  `GET .../holders/{id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
+  `GET .../holders/{holder_id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
 
-  `GET /v2/organizations/{organization_id}/holders/{id}/accounts` is org-scoped by its path, and
+  `GET /v2/organizations/{organization_id}/holders/{holder_id}/accounts` is org-scoped by its path, and
   holder ownership is org-global, so the listing spans **every ledger of the organization**;
   `?ledger_id=` narrows it to one. A malformed value is `0082` / 400, not a 404: it is a
   query-parameter format error, not a missing ledger. Because the read touches the onboarding
@@ -107,14 +107,14 @@ The same twelve fee and billing operations are **also** served ledger-scoped on 
 on whichever ledger of the organization owns it, `/v2` reaches only what the named ledger owns.
 
 ```
-/v1/organizations/{organization_id}/packages[/{id}]           organization-scoped
+/v1/organizations/{organization_id}/packages[/{package_id}]           organization-scoped
 /v1/organizations/{organization_id}/estimates
-/v1/organizations/{organization_id}/billing-packages[/{id}]
+/v1/organizations/{organization_id}/billing-packages[/{billing_package_id}]
 /v1/organizations/{organization_id}/billing/calculate
 
-/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{id}]          ledger-scoped
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{package_id}]          ledger-scoped
 /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates
-/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{id}]
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{billing_package_id}]
 /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate
 ```
 
@@ -447,7 +447,7 @@ shape carries no holder field, so both contracts publish one schema and differ o
 operation IDs they publish.
 
 The **CRM holder surface itself** (`/v2/organizations/{organization_id}/holders...`) and the
-holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{id}/accounts`) are
+holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{holder_id}/accounts`) are
 served on `/v2` only and are unaffected: composition exists to link a holder, so it contracts the
 seam in full.
 
@@ -469,8 +469,8 @@ Two path scopes serve the same routes:
 
 | Scope | Paths | Contracts | `ledgerId` on create |
 | --- | --- | --- | --- |
-| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{id}]` | `/v2` only | absent — the route has no ledger |
-| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
+| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{operation_route_id|transaction_route_id}]` | `/v2` only | absent — the route has no ledger |
+| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{operation_route_id|transaction_route_id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
 
 On the ledger paths the ledger is **provenance, not a filter**: list, get, patch and delete reach
 every route of the organization, whichever ledger it was created under and including routes created

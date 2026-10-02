@@ -432,7 +432,7 @@ func TestIntegration_CompositionRouteMounted(t *testing.T) {
 	infra := setupCompositionTestInfra(t, nil)
 
 	// Route-table assertion: the composition route is registered on the app.
-	const compositionRoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
+	const compositionRoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts"
 
 	found := false
 	for _, route := range infra.app.GetRoutes() {

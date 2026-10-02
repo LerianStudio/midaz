@@ -22,7 +22,7 @@ import (
 // =============================================================================
 //
 // These tests document the error handling behavior for the transaction
-// validation endpoints (GET /v1/validations and GET /v1/validations/{id}).
+// validation endpoints (GET /v1/validations and GET /v1/validations/{validation_id}).
 //
 // Errors follow the RFC 9457 (application/problem+json) envelope with a numeric
 // `code`, a specific `title`, and a `detail`. Each error code carries its own
@@ -38,7 +38,7 @@ import (
 // =============================================================================
 
 // =============================================================================
-// 3.1 GET /v1/validations/{id} - Invalid ID Tests
+// 3.1 GET /v1/validations/{validation_id} - Invalid ID Tests
 // =============================================================================
 
 // TestGetTransactionValidation_InvalidID_ReturnsError verifies invalid UUID handling in path parameter.
@@ -646,7 +646,7 @@ func TestListTransactionValidations_MultipleInvalidParams_ReturnsFirstError(t *t
 }
 
 // =============================================================================
-// 3.5 GET /v1/validations/{id} - Valid UUID but Non-existent
+// 3.5 GET /v1/validations/{validation_id} - Valid UUID but Non-existent
 // =============================================================================
 
 // TestGetTransactionValidation_ValidUUIDButNotFound_Returns404 verifies 404 for non-existent validation.
