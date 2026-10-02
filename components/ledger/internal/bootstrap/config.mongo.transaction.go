@@ -136,7 +136,7 @@ func ensureTransactionMongoIndexes(conn *libMongo.Client, logger libLog.Logger) 
 			SetUnique(false),
 	}
 
-	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
+	collections := []string{"operation", "transaction", "operationroute", "transactionroute", "assetrate"}
 	for _, collection := range collections {
 		if err := conn.EnsureIndexes(ctx, collection, indexModel); err != nil {
 			logger.Log(ctx, libLog.LevelWarn, "Failed to ensure indexes for collection", libLog.String("collection", collection), libLog.Err(err))
