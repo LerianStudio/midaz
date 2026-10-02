@@ -281,9 +281,8 @@ func TestCreateLedger_PartialSettings(t *testing.T) {
 
 			mockLedgerRepo := ledger.NewMockRepository(ctrl)
 
-			// The decode path fills an absent "metadata" key with an empty non-nil map
-			// (parseMetadata, RFC 7396 merge-patch semantics), so the metadata write always
-			// runs on the success path and the repository cannot be left nil here.
+			// No body in this table carries "metadata", so the metadata repository is wired
+			// only to assert that the create never writes an empty document.
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 			uc := &UseCase{
@@ -321,10 +320,11 @@ func TestCreateLedger_PartialSettings(t *testing.T) {
 					}).
 					Times(1)
 
+				// The decode path fills an absent "metadata" key with an empty map for
+				// PATCH merge semantics; an empty map carries nothing to persist.
 				mockMetadataRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil).
-					Times(1)
+					Times(0)
 			}
 
 			result, err := uc.CreateLedger(ctx, organizationID, payload)
@@ -481,10 +481,10 @@ func TestCreateLedger_UnknownSettingsKeyAtDecodeBoundary(t *testing.T) {
 				}).
 				Times(1)
 
+			// The body carries no "metadata" key, so no metadata document is written.
 			mockMetadataRepo.EXPECT().
 				Create(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(nil).
-				Times(1)
+				Times(0)
 
 			result, err := uc.CreateLedger(context.Background(), organizationID, payload)
 

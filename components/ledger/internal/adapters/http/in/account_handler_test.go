@@ -129,9 +129,9 @@ func TestCreateAccount_Success(t *testing.T) {
 		}).Times(1)
 	balanceRepo.EXPECT().ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	balanceRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
-	// The shared body pipeline initializes Metadata to a non-nil empty map, so
-	// CreateOnboardingMetadata persists it — faithful to the Fiber WithBody path.
-	metadataRepo.EXPECT().Create(gomock.Any(), cn.EntityAccount, gomock.Any()).Return(nil).AnyTimes()
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), cn.EntityAccount, gomock.Any()).Times(0)
 
 	handler := &AccountHandler{Command: &command.UseCase{
 		AccountRepo:            accountRepo,
@@ -329,7 +329,7 @@ func TestGetAccountByAlias_Success(t *testing.T) {
 			Alias:          testutils.Ptr("@person1"),
 			Status:         mmodel.Status{Code: "ACTIVE"},
 		}, nil).Times(1)
-	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, "@person1").Return(nil, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID).Return(nil, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -374,7 +374,7 @@ func TestGetAccountExternalByCode_Success(t *testing.T) {
 			Alias:          testutils.Ptr(externalAlias),
 			Status:         mmodel.Status{Code: "ACTIVE"},
 		}, nil).Times(1)
-	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, externalAlias).Return(nil, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID).Return(nil, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 

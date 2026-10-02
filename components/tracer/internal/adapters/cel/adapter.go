@@ -285,7 +285,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *model.ValidationRequest) (bool, error) {
 	start := time.Now()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
@@ -319,7 +319,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	activation, err := BuildActivation(req)
 	if err != nil {
 		wrappedErr := fmt.Errorf("%w: failed to build activation: %w", constant.ErrExpressionEvaluation, err)
-		libOtel.HandleSpanBusinessErrorEvent(span, "failed to build activation", wrappedErr)
+		libOtel.HandleSpanBusinessErrorEvent(span, "failed to build activation", activationFailureClass(err))
 
 		return false, wrappedErr
 	}
@@ -328,7 +328,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	out, _, err := program.Program.Eval(activation)
 	if err != nil {
 		evalErr := fmt.Errorf("%w: %w", constant.ErrExpressionEvaluation, err)
-		libOtel.HandleSpanBusinessErrorEvent(span, "evaluation failed", evalErr)
+		libOtel.HandleSpanBusinessErrorEvent(span, "evaluation failed", constant.ErrExpressionEvaluation)
 
 		return false, evalErr
 	}
@@ -351,6 +351,16 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	)
 
 	return result, nil
+}
+
+// activationFailureClass returns the error class of a failure to build an
+// activation, for telemetry: the cause's text can carry request values.
+func activationFailureClass(err error) error {
+	if errors.Is(err, constant.ErrAmountExceedsPrecision) {
+		return constant.ErrAmountExceedsPrecision
+	}
+
+	return constant.ErrExpressionEvaluation
 }
 
 // safeCostI64 converts a bounded CEL cost (capped by CEL_COST_LIMIT) to int64 for

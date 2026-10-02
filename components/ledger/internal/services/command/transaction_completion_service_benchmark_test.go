@@ -36,6 +36,10 @@ func (repo *finalizationBenchmarkMetadata) FindByEntity(_ context.Context, colle
 	return repo.records[collection+":"+id], nil
 }
 
+func (*finalizationBenchmarkMetadata) SetKeys(context.Context, string, string, map[string]any) error {
+	return nil
+}
+
 // BenchmarkTransactionCompletionService characterizes deterministic recovery decoding,
 // projection, cloning, and metadata verification without database or network I/O.
 func BenchmarkTransactionCompletionService(b *testing.B) {

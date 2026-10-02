@@ -91,6 +91,8 @@ func newAccountClosingHarness(t *testing.T) *accountClosingHarness {
 			TransactionRepo:      postgresTransaction.NewTransactionPostgreSQLRepository(transactionConn, false),
 			OperationRepo:        operation.NewOperationPostgreSQLRepository(transactionConn),
 			TransactionRedisRepo: redisRepo,
+			TransactionReader:    &feeDebtReader{},
+			FeeDebts:             &owedFeeDebts{},
 		},
 		onboardingDB:   onboarding.DB,
 		transactionDB:  transaction.DB,

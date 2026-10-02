@@ -519,6 +519,12 @@ func TestIntegrationEngineWriteBehindBulk(t *testing.T) {
 		bulk.Transaction.Operations[0].TransactionID = bulk.Transaction.ID
 		bulk.Transaction.Operations[0].ID = uuid.NewSHA1(uuid.MustParse(individual.Transaction.Operations[0].ID), []byte("bulk-equivalent")).String()
 
+		// Production records carry the engine apply time as recorded_at; both
+		// writes need the same one for their projections to be comparable.
+		recordedAt := time.Date(2026, time.September, 4, 12, 0, 1, 0, time.UTC)
+		individual.Transaction.Operations[0].RecordedAt = &recordedAt
+		bulk.Transaction.Operations[0].RecordedAt = &recordedAt
+
 		require.NoError(t, infra.store.Persist(t.Context(), individual))
 		_, err := infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{bulk})
 		require.NoError(t, err)

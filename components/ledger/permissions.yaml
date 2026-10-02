@@ -10,7 +10,7 @@
 # WHAT THIS MANIFEST IS: a faithful mirror of the Access-Manager SEED, not a
 # transcript of the route table. Two groups of entries, and the difference matters:
 #
-#   1. Route-backed (80 pairs, every group above the SEED-ONLY marker): each traces
+#   1. Route-backed (82 pairs, every group above the SEED-ONLY marker): each traces
 #      to a real protectedMidaz(auth, resource, verb) registration (= auth.Authorize(
 #      "midaz", resource, verb)); the file:line on each group header points at it.
 #   2. Seed-only (19 pairs, the marked block at the end of `permissions:`): the seed
@@ -21,9 +21,9 @@
 # the other direction: every seeded grant appears here, and every route-backed pair
 # appears here.
 #
-# TWO route-backed pairs are NOT yet in the seed: (account-block-exceptions, post)
-# and (dashboard, get). Both resources are new here, so until the central seed
-# (caradhras deploy/pam-seed/init_data.json) grants them, the declaration is a
+# FOUR route-backed pairs are NOT yet in the seed: (account-block-exceptions, post),
+# (dashboard, get), (fee-debts, get) and (fee-debts, post). All three resources are new here, so until
+# the central seed (caradhras deploy/pam-seed/init_data.json) grants them, the declaration is a
 # SUPERSET of the seed on those pairs rather than a mirror. The routes enforce
 # them either way — an environment whose policy store has not learned a resource
 # simply answers 403, which is the fail-closed direction for a block bypass and
@@ -129,6 +129,11 @@ permissions:
 
   # estimates — fee estimate dry-run (fee_estimate_routes.go registerFeeEstimateRoutesToApp)
   - { resource: estimates, action: post, effect: allow, roles: [editor, contributor] }
+
+  # fee-debts — fee debt record (fee_debt_routes.go RegisterFeeDebtV2RoutesToApp) and its
+  # standalone collection (fee_debt_collect_routes.go); /v2 only. Not yet in the central seed.
+  - { resource: fee-debts, action: get,  effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: fee-debts, action: post, effect: allow, roles: [editor, contributor] }
 
   # holders (holder_routes.go registerHolderRoutesToApp)
   - { resource: holders, action: post,   effect: allow, roles: [editor, contributor] }
@@ -294,7 +299,8 @@ m2m:
   # EXPORT: midaz exposes its M2M editor surface so a peer service that declares a
   # `needs: [midaz]` edge can reconcile against it.
   exposed: true
-  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL) over the
-  # gRPC/mTLS reservation seam, authorized by tracer's own `reservations`
-  # permission (tracer-inbound authz). This is NOT an RI declaration M2M edge, so
-  # midaz declares no `needs`.
+  # IMPORT: the ledger reaches the tracer reservation seam (TRACER_BASE_URL, gRPC)
+  # with its Access Manager application token, so its clients need the single
+  # tracer reservations/post grant.
+  needs:
+    - tracer

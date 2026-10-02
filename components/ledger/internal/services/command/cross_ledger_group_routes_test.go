@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	redisadapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -403,7 +405,7 @@ func TestCrossLedgerHoldGroup_CoversTheHoldTemplateWithTheIntentDestinations(t *
 		intent, err := buildCrossLedgerGroupIntent("BRL", parts)
 		require.NoError(t, err)
 
-		batch, err := buildCrossLedgerHoldBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), intent)
+		batch, err := buildCrossLedgerHoldBatchInput(CreateCrossLedgerTransactionV2Input{}, uuid.New(), intent, parts)
 		require.NoError(t, err)
 
 		return batch
@@ -617,6 +619,39 @@ func TestCrossLedgerRevertGroup_ValidatesTheReversalsAgainstTheRevertTemplate(t 
 
 		assert.Equal(t, map[string]string{"@external/BRL#default": "X-debit", "@alice#default": "S-revert"}, codes[flow.ledgerA])
 		assert.Equal(t, map[string]string{"@bob#default": "D-revert", "@external/BRL#default": "X-credit"}, codes[flow.ledgerB])
+	})
+
+	t.Run("a reversal taking back a fee-debt settlement", func(t *testing.T) {
+		flow := newGroupRouteFlow(t, map[string]bool{"A": true, "B": true}, revertRoutes())
+		flow.reader.balances = append(flow.reader.balances,
+			atomicTransactionBatchTestBalance(flow.organizationID, flow.ledgerB, "0199b600-0000-7000-8000-0000000000b3", "@fees", "BRL"))
+
+		// @bob's whole 10 credit settled its fee debt, so the reversal takes it all back
+		// from @fees under the fee's route, and @bob is only the settlement's debtor.
+		feeRoute := "0199b600-0000-7000-8000-0000000000fe"
+		settlements, err := json.Marshal([]FeeDebtSettlement{{
+			DebtID: "0199b600-0000-7000-8000-0000000000c1:from:0:debit", DebtorRef: "@bob#default", CreditRef: "@fees#default",
+			Amount: decimal.NewFromInt(10), Opened: decimal.NewFromInt(10), Seq: 1,
+			CreditRoute: &accounting.FeeDebtRoute{ID: feeRoute, RevertCode: "F-revert"},
+		}})
+		require.NoError(t, err)
+
+		batch := revertBatch(t, flow)
+		for index := range batch.Transactions {
+			if reversal := &batch.Transactions[index].Transaction; batch.Transactions[index].LedgerID == flow.ledgerB {
+				reversal.Send.Source.From[0].AccountAlias, reversal.Send.Source.From[0].RouteID = "@fees", &feeRoute
+				reversal.Metadata = map[string]any{constant.MetadataKeyFeeDebtSettlements: string(settlements)}
+			}
+		}
+
+		run, err := flow.runBatch(t, batch)
+		require.NoError(t, err, "the take-back, under the fee's route, is held to none of the group's routes")
+
+		for index := range run.items {
+			if run.items[index].ledgerID == flow.ledgerB {
+				assert.Equal(t, map[string]string{"@fees#default": "F-revert", "@external/BRL#default": "X-credit"}, projectedRouteCodes(run.items[index]))
+			}
+		}
 	})
 
 	t.Run("a revert route no reversal uses", func(t *testing.T) {

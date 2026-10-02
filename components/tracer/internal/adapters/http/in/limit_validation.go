@@ -91,12 +91,18 @@ type CreateLimitInput struct {
 	Description     *string          `json:"description,omitempty" validate:"omitempty,max=1000"`
 	LimitType       model.LimitType  `json:"limitType" validate:"required,limittype" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	MaxAmount       decimal.Decimal  `json:"maxAmount" validate:"required" swaggertype:"string" example:"1000.00"`
-	Asset           string           `json:"asset" validate:"required,len=3,uppercase" minLength:"3" maxLength:"3" example:"USD"`
+	Asset           string           `json:"asset" validate:"required,min=1,max=100,uppercase" minLength:"1" maxLength:"100" example:"USD"`
 	Scopes          []model.Scope    `json:"scopes" validate:"required,min=1,max=100,dive,scopenotempty"`
 	ActiveTimeStart *model.TimeOfDay `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
 	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
 	CustomStartDate *string          `json:"customStartDate,omitempty" format:"date-time" example:"2026-11-27T00:00:00Z"`
 	CustomEndDate   *string          `json:"customEndDate,omitempty" format:"date-time" example:"2026-11-29T00:00:00Z"`
+	// ResetTime is the time of day (HH:MM, UTC) at which DAILY, WEEKLY and
+	// MONTHLY periods start; absent or null keeps midnight UTC. It is refused
+	// on CUSTOM and PER_TRANSACTION limits, must not fall strictly inside the
+	// active time window (equal to either end is allowed), and cannot be
+	// changed after create.
+	ResetTime *model.TimeOfDay `json:"resetTime,omitempty" swaggertype:"string" example:"09:00"`
 }
 
 // Validate validates the CreateLimitInput struct using validator/v10.
@@ -317,6 +323,7 @@ func ToCreateLimitServiceInput(input *CreateLimitInput) *command.CreateLimitInpu
 		ActiveTimeEnd:   input.ActiveTimeEnd,
 		CustomStartDate: input.CustomStartDate,
 		CustomEndDate:   input.CustomEndDate,
+		ResetTime:       input.ResetTime,
 	}
 }
 

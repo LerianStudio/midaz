@@ -5,6 +5,8 @@
 package fee
 
 import (
+	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +23,48 @@ import (
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
+// reasonCrossLedgerBridge records a fee skipped because the only legs that could
+// pay it are non-payers, such as a cross-ledger part's bridge.
+const reasonCrossLedgerBridge = "cross_ledger_bridge"
+
+// nonPayerKeys holds, per side, the Responses keys of the legs that never pay a fee.
+type nonPayerKeys struct {
+	from map[string]bool
+	to   map[string]bool
+}
+
+// resolveNonPayerKeys maps each non-payer position onto the key its leg has in
+// the Responses maps built from send. A position outside its side is a caller
+// defect, so it fails instead of being ignored: ignoring it would charge the leg.
+func resolveNonPayerKeys(legs []model.NonPayerLeg, send transaction.Send) (nonPayerKeys, error) {
+	keys := nonPayerKeys{}
+	if len(legs) == 0 {
+		return keys, nil
+	}
+
+	fromKeys := transaction.AmountMapKeys(send.Source.From)
+	toKeys := transaction.AmountMapKeys(send.Distribute.To)
+
+	for _, leg := range legs {
+		sideKeys, side, set := toKeys, "destination", &keys.to
+		if leg.IsFrom {
+			sideKeys, side, set = fromKeys, "source", &keys.from
+		}
+
+		if leg.Index < 0 || leg.Index >= len(sideKeys) {
+			return nonPayerKeys{}, fmt.Errorf("non-payer leg %d is outside the %s side of %d legs", leg.Index, side, len(sideKeys))
+		}
+
+		if *set == nil {
+			*set = make(map[string]bool)
+		}
+
+		(*set)[sideKeys[leg.Index]] = true
+	}
+
+	return keys, nil
+}
+
 // applyDeductibleAndReferenceAmountRules applies the deductible and reference amount rules for a fee.
 // When segmentIDs is non-empty and segCtx is non-nil, segment-based exemption is used instead of exact alias matching.
 //
@@ -28,39 +72,37 @@ import (
 // before any deduction is applied to destination (To) accounts. If all source accounts are exempt,
 // the deductible fee is skipped entirely — the transaction initiator's exemption status determines
 // whether the fee is triggered.
+//
+// Non-payers count as ordinary, non-exempt accounts in that initiator check, so a bridge-only
+// source still triggers a deductible fee on its receivers. They are removed only from the side
+// that pays (From for a non-deductible fee, To for a deductible one).
+// When nothing but non-payers and exempt accounts remain on that side, the fee is skipped with
+// reasonCrossLedgerBridge.
 func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext, feeModel model.Fee,
-	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate,
+	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate, nonPayers nonPayerKeys,
 ) error {
 	originalRespToSize := len(resp.To)
+	deductible := feeModel.GetIsDeductibleFrom()
 
-	if !feeModel.GetIsDeductibleFrom() {
-		// Check if ALL source (From) accounts are exempt before applying non-deductible fee.
-		allFromExempt, err := allAccountsExempt(resp.From, waivedAccounts, segmentIDs, segCtx)
-		if err != nil {
-			return err
-		}
+	skipped, err := skipFeeForExemptInitiator(f, feeModel, resp, waivedAccounts, segmentIDs, segCtx)
+	if err != nil || skipped {
+		return err
+	}
 
-		if allFromExempt {
-			setFeeExemptionMetadata(f, "all_source_accounts_exempt")
+	paying, payingNonPayers := resp.From, nonPayers.from
+	if deductible {
+		paying, payingNonPayers = resp.To, nonPayers.to
+	}
 
-			// Also check destination — if both sides are exempt, the combined reason is set.
-			allToExempt, err := allAccountsExempt(resp.To, waivedAccounts, segmentIDs, segCtx)
-			if err != nil {
-				return err
-			}
+	skipped, err = skipFeeLeftToNonPayers(f, feeModel, paying, payingNonPayers, waivedAccounts, segmentIDs, segCtx)
+	if err != nil || skipped {
+		return err
+	}
 
-			if allToExempt {
-				setFeeExemptionMetadata(f, "all_destination_accounts_exempt")
-			}
-
-			*waivedAccounts = append(*waivedAccounts, feeModel.CreditAccount)
-
-			return nil
-		}
-
+	if !deductible {
 		var errFee error
 
-		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false)
+		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, nonPayers.from, segmentIDs, segCtx, false)
 		if errFee != nil {
 			return errFee
 		}
@@ -69,33 +111,9 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 			f.Transaction.Send.Value = f.Transaction.Send.Value.Add(result.Value)
 		}
 	} else {
-		// Check if ALL source (From) accounts are exempt before applying deductible fee.
-		allFromExempt, err := allAccountsExempt(resp.From, waivedAccounts, segmentIDs, segCtx)
-		if err != nil {
-			return err
-		}
-
-		if allFromExempt {
-			setFeeExemptionMetadata(f, "all_source_accounts_exempt")
-
-			// Also check destination — if both sides are exempt, the combined reason is set.
-			allToExempt, err := allAccountsExempt(resp.To, waivedAccounts, segmentIDs, segCtx)
-			if err != nil {
-				return err
-			}
-
-			if allToExempt {
-				setFeeExemptionMetadata(f, "all_destination_accounts_exempt")
-			}
-
-			*waivedAccounts = append(*waivedAccounts, feeModel.CreditAccount)
-
-			return nil
-		}
-
 		var errFee error
 
-		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true)
+		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, nonPayers.to, segmentIDs, segCtx, true)
 		if errFee != nil {
 			return errFee
 		}
@@ -116,42 +134,122 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 	return nil
 }
 
+// skipFeeForExemptInitiator skips the fee, deductible or not, when every source (From) account
+// is exempt: the transaction initiator's exemption decides whether the fee triggers. When the
+// destination side is exempt too, the combined reason is recorded.
+func skipFeeForExemptInitiator(f *model.FeeCalculate, feeModel model.Fee, resp *transaction.Responses,
+	waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext,
+) (bool, error) {
+	allFromExempt, err := allAccountsExempt(resp.From, waivedAccounts, segmentIDs, segCtx)
+	if err != nil || !allFromExempt {
+		return false, err
+	}
+
+	setFeeExemptionMetadata(f, "all_source_accounts_exempt")
+
+	allToExempt, err := allAccountsExempt(resp.To, waivedAccounts, segmentIDs, segCtx)
+	if err != nil {
+		return false, err
+	}
+
+	if allToExempt {
+		setFeeExemptionMetadata(f, "all_destination_accounts_exempt")
+	}
+
+	*waivedAccounts = append(*waivedAccounts, feeModel.CreditAccount)
+
+	return true, nil
+}
+
+// skipFeeLeftToNonPayers skips the fee and records reasonCrossLedgerBridge when the paying
+// side has a non-payer and every other account on it is exempt. The credit account joins the
+// waived list exactly as it does for the package's own exemptions.
+func skipFeeLeftToNonPayers(f *model.FeeCalculate, feeModel model.Fee, paying map[string]transaction.Amount, nonPayers map[string]bool,
+	waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext,
+) (bool, error) {
+	if len(nonPayers) == 0 {
+		return false, nil
+	}
+
+	hasNonPayer := false
+
+	for key := range paying {
+		if nonPayers[key] {
+			hasNonPayer = true
+
+			continue
+		}
+
+		exempt, err := isAccountExemptOrSegment(key, waivedAccounts, segmentIDs, segCtx)
+		if err != nil {
+			return false, err
+		}
+
+		if !exempt {
+			return false, nil
+		}
+	}
+
+	if !hasNonPayer {
+		return false, nil
+	}
+
+	setFeeExemptionMetadata(f, reasonCrossLedgerBridge)
+
+	*waivedAccounts = append(*waivedAccounts, feeModel.CreditAccount)
+
+	return true, nil
+}
+
 // exemptionMessages maps reason codes to human-readable messages.
 var exemptionMessages = map[string]string{
 	"all_source_accounts_exempt":      "All source accounts are exempt from fees.",
 	"all_destination_accounts_exempt": "All destination accounts are exempt from fees.",
 	"all_accounts_exempt":             "All accounts (source and destination) are exempt from fees.",
+	reasonCrossLedgerBridge:           "The cross-ledger bridge account does not pay fees.",
 }
 
-// setFeeExemptionMetadata sets the feeExemption metadata on the transaction when all accounts
-// on a given side (From or To) are exempt from fees. This allows API consumers to distinguish
-// between "no package found" and "package found but accounts are exempt".
-// When called multiple times (e.g., source exempt on fee1, destination exempt on fee2),
-// the reason is combined to "all_accounts_exempt".
+// feeExemption is the JSON object the feeExemption metadata key holds as a string:
+// transaction metadata is flat, so the ledger cannot store it as a nested value.
+type feeExemption struct {
+	Exempt  bool   `json:"exempt"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
+// setFeeExemptionMetadata sets the feeExemption metadata on the transaction when a fee was
+// skipped because every account on its paying side was exempt or a non-payer. This allows API
+// consumers to distinguish between "no package found" and "package found but accounts are exempt".
+// When called multiple times, mergeExemptionReasons decides the reason that is kept.
 func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 	if f.Transaction.Metadata == nil {
 		f.Transaction.Metadata = make(map[string]any)
 	}
 
-	existing, hasExemption := f.Transaction.Metadata["feeExemption"]
-	if hasExemption {
-		exemptionMap, ok := existing.(map[string]any)
-		if ok {
-			existingReason, _ := exemptionMap["reason"].(string)
-			if existingReason != reason && existingReason != "all_accounts_exempt" {
-				reason = "all_accounts_exempt"
-			} else {
-				reason = existingReason
-			}
-		}
+	var existing feeExemption
+	if raw, ok := f.Transaction.Metadata["feeExemption"].(string); ok && json.Unmarshal([]byte(raw), &existing) == nil {
+		reason = mergeExemptionReasons(existing.Reason, reason)
 	}
 
-	message := exemptionMessages[reason]
+	encoded, _ := json.Marshal(feeExemption{Exempt: true, Reason: reason, Message: exemptionMessages[reason]}) //nolint:errchkjson // a struct of strings and a bool always marshals
 
-	f.Transaction.Metadata["feeExemption"] = map[string]any{
-		"exempt":  true,
-		"reason":  reason,
-		"message": message,
+	f.Transaction.Metadata["feeExemption"] = string(encoded)
+}
+
+// mergeExemptionReasons combines the recorded reason with a new one. A package exemption
+// (all_*) outranks reasonCrossLedgerBridge, which never replaces or combines with one; two
+// different package exemptions combine into all_accounts_exempt, as source on one fee and
+// destination on another.
+func mergeExemptionReasons(existing, reason string) string {
+	switch {
+	case existing == "" || existing == reason:
+		return reason
+	case reason == reasonCrossLedgerBridge:
+		return existing
+	case existing == reasonCrossLedgerBridge:
+		return reason
+	default:
+		return "all_accounts_exempt"
 	}
 }
 
@@ -239,6 +337,10 @@ func generatedFeeLeg(key string, amount transaction.Amount, originalByKey map[st
 		metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
 	}
 
+	if amount.FeeDeferPair != "" {
+		metadata[constant.MetadataKeyFeeDeferPair] = amount.FeeDeferPair
+	}
+
 	leg := transaction.FromTo{
 		AccountAlias: trimFeeSuffix(key),
 		Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
@@ -316,18 +418,18 @@ func trimFeeSuffix(s string) string {
 	return s
 }
 
-// findMaxAccount Helper to find the account with the maximum value
-func findMaxAccount(amounts map[string]transaction.Amount, exemptAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext) (string, error) {
+// findMaxAccount Helper to find the paying account with the maximum value
+func findMaxAccount(amounts map[string]transaction.Amount, exemptAccounts *[]string, nonPayers map[string]bool, segmentIDs []uuid.UUID, segCtx *SegmentContext) (string, error) {
 	maxAmountValue := decimal.Zero
 	maxAccount := ""
 
 	for key, amount := range amounts {
-		exempt, err := isAccountExemptOrSegment(key, exemptAccounts, segmentIDs, segCtx)
+		pays, err := paysFee(key, exemptAccounts, nonPayers, segmentIDs, segCtx)
 		if err != nil {
 			return "", err
 		}
 
-		if !exempt {
+		if pays {
 			if amount.Value.GreaterThanOrEqual(maxAmountValue) {
 				maxAmountValue = amount.Value
 				maxAccount = key
@@ -370,6 +472,7 @@ func calculateProportionalFees(
 	amountsToStruct map[string]transaction.Amount,
 	feeValue transaction.Amount,
 	exemptAccounts *[]string,
+	nonPayers map[string]bool,
 	segmentIDs []uuid.UUID,
 	segCtx *SegmentContext,
 	isToStruct bool,
@@ -382,12 +485,12 @@ func calculateProportionalFees(
 	newFeeTotalPaying := decimal.Zero
 
 	for key, amount := range *amounts {
-		exempt, err := isAccountExemptOrSegment(key, exemptAccounts, segmentIDs, segCtx)
+		pays, err := paysFee(key, exemptAccounts, nonPayers, segmentIDs, segCtx)
 		if err != nil {
 			return *amounts, updateAmountToStruct, newFeeTotalPaying, err
 		}
 
-		if !exempt {
+		if pays {
 			totalPaying = totalPaying.Add(amount.Value)
 		}
 	}
@@ -397,12 +500,12 @@ func calculateProportionalFees(
 	}
 
 	for key, amount := range *amounts {
-		exempt, err := isAccountExemptOrSegment(key, exemptAccounts, segmentIDs, segCtx)
+		pays, err := paysFee(key, exemptAccounts, nonPayers, segmentIDs, segCtx)
 		if err != nil {
 			return *amounts, updateAmountToStruct, newFeeTotalPaying, err
 		}
 
-		if !exempt {
+		if pays {
 			proportionalFeePercent := amount.Value.Div(totalPaying)
 			feeApplied := feeValue.Value.Mul(proportionalFeePercent)
 
@@ -509,6 +612,10 @@ func emitNonDeductibleLeg(
 	// Both halves of the pair are minted here, so both are marked here, from one flag on the
 	// amount the two writes below copy.
 	resultAmount.FeeLeg = true
+	if feeModel.GetDeferrable() {
+		resultAmount.FeeDeferPair = strconv.Itoa(feeIndex) + ":" + key
+	}
+
 	updateAmount[debitLegKey] = resultAmount
 
 	if updateAmountToStruct == nil {
@@ -611,12 +718,13 @@ func applyFeeCorrection(
 	updateAmountToStruct[target.creditLegKey] = credit
 }
 
-// applyProportionalFee applies the proportional fee
+// applyProportionalFee splits the fee over the paying accounts of amounts: those that are
+// neither exempt nor non-payers. The residual target is chosen among the same accounts.
 func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]transaction.Amount,
 	amountsToStruct map[string]transaction.Amount, feeValue transaction.Amount, exemptAccounts *[]string,
-	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool,
+	nonPayers map[string]bool, segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool,
 ) (map[string]transaction.Amount, map[string]transaction.Amount, error) {
-	maxAccount, err := findMaxAccount(*amounts, exemptAccounts, segmentIDs, segCtx)
+	maxAccount, err := findMaxAccount(*amounts, exemptAccounts, nonPayers, segmentIDs, segCtx)
 	if err != nil {
 		return *amounts, amountsToStruct, err
 	}
@@ -624,7 +732,7 @@ func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]
 	var target feeCorrectionTarget
 
 	updateAmount, updateAmountToStruct, newFeeTotalPaying, err := calculateProportionalFees(
-		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target,
+		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, nonPayers, segmentIDs, segCtx, isToStruct, maxAccount, &target,
 	)
 	if err != nil {
 		return *amounts, amountsToStruct, err
@@ -633,6 +741,19 @@ func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]
 	applyFeeCorrection(updateAmount, updateAmountToStruct, feeValue, newFeeTotalPaying, isToStruct, target)
 
 	return updateAmount, updateAmountToStruct, nil
+}
+
+// paysFee reports whether the account under key is charged a share of the fee: it is neither
+// a non-payer nor exempt. Non-payers are matched by their exact key, so another leg on the same
+// alias keeps paying.
+func paysFee(key string, exemptAccounts *[]string, nonPayers map[string]bool, segmentIDs []uuid.UUID, segCtx *SegmentContext) (bool, error) {
+	if nonPayers[key] {
+		return false, nil
+	}
+
+	exempt, err := isAccountExemptOrSegment(key, exemptAccounts, segmentIDs, segCtx)
+
+	return !exempt, err
 }
 
 // allAccountsExempt returns true when every account in the map is exempt from fees,

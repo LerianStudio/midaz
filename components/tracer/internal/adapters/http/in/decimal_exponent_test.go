@@ -37,10 +37,6 @@ func TestHandlersRefuseOutOfBoundDecimals(t *testing.T) {
 			_, err := (&LimitHandler{}).updateLimit(ctx, uuid.NewString(), []byte(`{"maxAmount":"`+value+`"}`))
 			return err
 		}},
-		{"reserve", "amount", func() error {
-			_, err := (&ReservationHandler{clock: clock.New()}).reserve(ctx, []byte(`{"amount":"`+value+`"}`))
-			return err
-		}},
 		{"validate", "amount", func() error {
 			_, err := (&ValidationHandler{clock: clock.New()}).validate(ctx, []byte(`{"amount":"`+value+`"}`))
 			return err

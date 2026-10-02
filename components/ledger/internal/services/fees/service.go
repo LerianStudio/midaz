@@ -44,10 +44,10 @@ type PackageCache interface {
 // from hitting Mongo on every transaction create (negative caching).
 var packageCacheNotFoundSentinel = []byte("NOT_FOUND")
 
-// packageCacheSentinelTTL bounds how long a zero-package result is trusted before
-// being re-verified against Mongo. SetBytes multiplies this by time.Second
+// packageCacheTTL bounds how long any cached package set, empty or not, is trusted
+// before being re-read from Mongo. SetBytes multiplies this by time.Second
 // internally (mirroring the transaction-route cache), so 60 means 60 seconds.
-const packageCacheSentinelTTL = time.Duration(60)
+const packageCacheTTL = time.Duration(60)
 
 // packageCacheKey builds the Redis key for an (org,ledger) enabled-package set.
 // Format: "fee_packages:{organizationID:ledgerID}" — the {…} hash-tag groups the
@@ -137,9 +137,9 @@ func (uc *UseCase) Resolver() feeshared.MidazResolver {
 //     so the common zero-package tenant is never charged a query per create.
 //   - A populated hit decodes the cached JSON. Corrupted cache data falls back to
 //     Mongo rather than failing the request.
-//   - On a miss, Mongo is queried and the result re-cached: a non-empty set is
-//     stored persistently (TTL 0, invalidated on package mutation), an empty set
-//     as the bounded NOT_FOUND sentinel.
+//   - On a miss, Mongo is queried and the result re-cached for packageCacheTTL:
+//     a non-empty set as JSON, an empty set as the NOT_FOUND sentinel. Package
+//     mutations also invalidate the entry.
 //
 // Cache read/write failures NEVER fail the request: they are logged at Warn,
 // span-recorded, and the path degrades to a direct Mongo fetch. A nil
@@ -185,13 +185,12 @@ func (uc *UseCase) findPackagesCached(
 	return packages, nil
 }
 
-// writePackageCache stores the freshly-fetched package set: a non-empty set as
-// persistent JSON (invalidated on mutation), an empty set as the bounded
-// NOT_FOUND sentinel. Write failures are logged at Warn and swallowed — the
-// cache is an optimization, never a correctness dependency.
+// writePackageCache stores the freshly-fetched package set for packageCacheTTL: a
+// non-empty set as JSON, an empty set as the NOT_FOUND sentinel. Write failures
+// are logged at Warn and swallowed; the cache is never a correctness dependency.
 func (uc *UseCase) writePackageCache(ctx context.Context, logger libLog.Logger, key string, packages []*pack.Package) {
 	if len(packages) == 0 {
-		if setErr := uc.PackageCache.SetBytes(ctx, key, packageCacheNotFoundSentinel, packageCacheSentinelTTL); setErr != nil {
+		if setErr := uc.PackageCache.SetBytes(ctx, key, packageCacheNotFoundSentinel, packageCacheTTL); setErr != nil {
 			logger.Log(ctx, libLog.LevelWarn, "Failed to store fee package not-found sentinel", libLog.Err(setErr))
 		}
 
@@ -205,15 +204,14 @@ func (uc *UseCase) writePackageCache(ctx context.Context, logger libLog.Logger, 
 		return
 	}
 
-	if setErr := uc.PackageCache.SetBytes(ctx, key, encoded, 0); setErr != nil {
+	if setErr := uc.PackageCache.SetBytes(ctx, key, encoded, packageCacheTTL); setErr != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to store fee package cache", libLog.Err(setErr))
 	}
 }
 
 // invalidatePackageCache removes the cached package set for (org,ledger) after a
-// package mutation. A nil PackageCache or a Del failure is logged at Warn and
-// otherwise ignored: a stale entry self-heals at the sentinel TTL, and the
-// mutation itself has already committed to Mongo.
+// package mutation. A Del failure is logged at Warn and otherwise ignored: a stale
+// entry expires within packageCacheTTL, and the mutation has already committed.
 func (uc *UseCase) invalidatePackageCache(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID) {
 	if uc.PackageCache == nil {
 		return

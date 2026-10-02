@@ -186,7 +186,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				Scale:      2,
 				TTL:        libPointers.Int(3600),
 				ExternalID: libPointers.String(uuid.Must(libCommons.GenerateUUIDv7()).String()),
-				// No Metadata - so UpdateMetadata skips FindByEntity, only calls Update
+				// No Metadata: the stored document is read and cleared.
 			},
 			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
 				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
@@ -216,7 +216,12 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-				// When metadata is nil, UpdateMetadata skips FindByEntity and only calls Update
+				// Nil metadata clears the existing document.
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "AssetRate", existingID).
+					Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+					Times(1)
+
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), "AssetRate", existingID, gomock.Any()).
 					Return(nil).
@@ -448,6 +453,100 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				assert.Equal(t, "NZD", result.To)
 				assert.Equal(t, "forex", result.Metadata["source"])
 				assert.Equal(t, "high", result.Metadata["priority"])
+			},
+		},
+		{
+			name: "create_new_rate_with_empty_metadata_writes_no_document",
+			input: &assetrate.CreateAssetRateInput{
+				From:     "CAD",
+				To:       "MXN",
+				Rate:     1350,
+				Scale:    2,
+				TTL:      libPointers.Int(3600),
+				Metadata: map[string]any{},
+			},
+			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
+				mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+				mockAssetRateRepo.EXPECT().
+					FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "CAD", "MXN").
+					Return(nil, nil).
+					Times(1)
+
+				mockAssetRateRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
+						return ar, nil
+					}).
+					Times(1)
+
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+
+				uc.AssetRateRepo = mockAssetRateRepo
+				uc.TransactionMetadataRepo = mockMetadataRepo
+			},
+			expectedError: false,
+			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Empty(t, result.Metadata)
+			},
+		},
+		{
+			name: "update_existing_rate_with_empty_metadata_preserves_document",
+			input: &assetrate.CreateAssetRateInput{
+				From:     "SEK",
+				To:       "NOK",
+				Rate:     98,
+				Scale:    2,
+				TTL:      libPointers.Int(3600),
+				Metadata: map[string]any{},
+			},
+			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
+				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+				existingRate := &assetrate.AssetRate{
+					ID:             existingID,
+					OrganizationID: orgID.String(),
+					LedgerID:       ledgerID.String(),
+					From:           "SEK",
+					To:             "NOK",
+					Rate:           97,
+					TTL:            1800,
+				}
+
+				mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+				mockAssetRateRepo.EXPECT().
+					FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "SEK", "NOK").
+					Return(existingRate, nil).
+					Times(1)
+
+				mockAssetRateRepo.EXPECT().
+					Update(gomock.Any(), orgID, ledgerID, uuid.MustParse(existingID), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, oID, lID, id uuid.UUID, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
+						return ar, nil
+					}).
+					Times(1)
+
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), "AssetRate", existingID).
+					Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+
+				uc.AssetRateRepo = mockAssetRateRepo
+				uc.TransactionMetadataRepo = mockMetadataRepo
+			},
+			expectedError: false,
+			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, map[string]any{"k": "v"}, result.Metadata)
 			},
 		},
 		{

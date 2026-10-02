@@ -34,6 +34,14 @@ const (
 	// a positive OverdraftAmount permits capped repayment on a non-external,
 	// credit-direction account. On-hold underflow and the directional floor apply.
 	PostingRelease PostingType = "release"
+	// PostingCollect settles the balance's open fee debts oldest first, moving at
+	// most min(available, Amount) to their creditors. It never refuses and stops at
+	// the first live debt outside Items or that it cannot settle.
+	PostingCollect PostingType = "collect"
+	// PostingRefund (revert only) pays the balance back, from each entry's creditor,
+	// what later credits settled of the parent's debts; it refuses as an ordinary
+	// debit of that creditor would. Amount is the sum of the entries' Opened.
+	PostingRefund PostingType = "refund"
 )
 
 // DrawPolicy describes path and route permission, not cached account settings.
@@ -59,6 +67,32 @@ type Posting struct {
 	Amount          decimal.Decimal `json:"amount"`
 	DrawPolicy      DrawPolicy      `json:"drawPolicy"`
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount"`
+	// DeferShortfall (debit only) moves at most the payer's available funds and
+	// opens the unfunded rest as a fee debt instead of refusing.
+	DeferShortfall bool `json:"deferShortfall,omitempty"`
+	// FundedByRef (credit only) names the earlier DeferShortfall debit whose
+	// moved part this credit receives; both carry the same Amount.
+	FundedByRef string `json:"fundedByRef,omitempty"`
+	// DebtRoute (a DeferShortfall debit or its funding credit) is the route the
+	// debt stores for that side of the fee.
+	DebtRoute *FeeDebtRoute `json:"debtRoute,omitempty"`
+	// Items (collect only) are the prepared debt ids, oldest first; the index of an
+	// id is the ordinal of its debtor and creditor movements.
+	Items []string `json:"items,omitempty"`
+	// Refunds (refund only) are the parent's debts of this debtor, in the order
+	// they opened; the index of an entry is the ordinal of its refund movements.
+	Refunds []FeeDebtRefund `json:"refunds,omitempty"`
+}
+
+// FeeDebtRefund names one debt the reverted parent opened: the engine refunds
+// Opened minus what this transaction canceled of it, and refuses technically when
+// that differs from ExpectedRefund, what the durable record says was settled.
+type FeeDebtRefund struct {
+	DebtID         string          `json:"debtId"`
+	CreditRef      string          `json:"creditRef"`
+	Opened         decimal.Decimal `json:"opened"`
+	Seq            int64           `json:"seq,string"`
+	ExpectedRefund decimal.Decimal `json:"expectedRefund"`
 }
 
 // BalancePermission identifies the transaction-side permission that must be

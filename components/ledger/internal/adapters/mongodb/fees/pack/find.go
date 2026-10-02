@@ -294,6 +294,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		"ledger_id":         1,
 		"segment_id":        1,
 		"transaction_route": 1,
+		"metadata_selector": 1,
 	}
 
 	var result struct {
@@ -303,6 +304,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		LedgerID         uuid.UUID           `bson:"ledger_id"`
 		SegmentID        *uuid.UUID          `bson:"segment_id"`
 		TransactionRoute *string             `bson:"transaction_route"`
+		MetadataSelector map[string]string   `bson:"metadata_selector"`
 	}
 
 	_, spanFindOne := tracer.Start(ctx, "repository.package.find_fees_by_package_id.find_one")
@@ -331,6 +333,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		LedgerID:         result.LedgerID,
 		SegmentID:        result.SegmentID,
 		TransactionRoute: result.TransactionRoute,
+		MetadataSelector: result.MetadataSelector,
 	}
 
 	return amountData, nil

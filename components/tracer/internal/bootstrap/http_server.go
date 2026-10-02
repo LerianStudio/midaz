@@ -20,8 +20,8 @@ import (
 type HTTPServer struct {
 	app           *fiber.App
 	serverAddress string
-	// tlsConfig secures the REST reservation seam under TRACER_TLS_MODE=mtls
-	// (Epic 1.3). When non-nil, Run serves over a TLS listener that
+	// tlsConfig secures the HTTP listener under TRACER_TLS_MODE=mtls.
+	// When non-nil, Run serves over a TLS listener that
 	// requires+verifies a client cert; when nil the server listens plaintext
 	// (mesh mode, where a sidecar terminates mTLS).
 	tlsConfig *tls.Config
@@ -34,8 +34,8 @@ func (s *HTTPServer) ServerAddress() string {
 	return s.serverAddress
 }
 
-// NewHTTPServer creates an instance of HTTPServer. tlsConfig secures the REST
-// reservation seam in mtls mode (non-nil) or is nil for plaintext (mesh mode).
+// NewHTTPServer creates an instance of HTTPServer. tlsConfig secures the HTTP
+// listener in mtls mode (non-nil) or is nil for plaintext (mesh mode).
 // Returns error instead of panic per Ring standards (no panic outside main.go).
 func NewHTTPServer(cfg *Config, app *fiber.App, tlsConfig *tls.Config, logger libObsLog.Logger, telemetry *libObsOtel.Telemetry) (*HTTPServer, error) {
 	if cfg == nil {

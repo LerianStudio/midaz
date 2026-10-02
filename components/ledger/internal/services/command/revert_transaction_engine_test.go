@@ -246,6 +246,9 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	assert.Equal(t, "tenant-revert", payload.TenantID)
 
 	assert.Equal(t, 1, reserver.reserveCalls)
+	requests := reserver.reserveRequests()
+	require.Len(t, requests, 1)
+	assert.True(t, requests[0].Revert, "a revert marks its reservation as a revert")
 	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
 	assert.Empty(t, reserver.releasedIDs)
 	select {
@@ -309,6 +312,54 @@ func TestRevertTransactionV2GrantRefusalReleasesClaimAndReservation(t *testing.T
 	assert.Empty(t, finalizer.envelopes)
 }
 
+// TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation locks the
+// engine's revert-once refusal: a 0087 conflict that frees the claim and the tracer capacity.
+func TestRevertTransactionV2EngineAlreadyRevertedReleasesClaimAndReservation(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	organizationID := uuid.MustParse("91111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
+	originID := uuid.MustParse("93333333-3333-4333-8333-333333333333")
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &revertEngineReader{
+		revertReader: &revertReader{
+			origin:        revertEngineOrigin(organizationID, ledgerID, originID),
+			versionReader: versionReader{settings: settings},
+		},
+		balances: []*mmodel.Balance{
+			revertEngineBalance(organizationID, ledgerID, "94444444-4444-4444-8444-444444444444", "@payee", 50, 7),
+			revertEngineBalance(organizationID, ledgerID, "95555555-5555-4555-8555-555555555555", "@payer", 20, 3),
+		},
+	}
+	executor := &createEngineErrorExecutor{err: testEngineTechnicalError{
+		code: "transaction_already_reverted", cause: errors.New("origin transaction is already reverted"),
+	}}
+	reservationID := uuid.MustParse("96666666-6666-4666-8666-666666666666")
+	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	finalizer := &createAppliedTransactionCompleter{}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+	}
+
+	got, replayed, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
+		OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: originID,
+	})
+	require.Error(t, err)
+	assert.Equal(t, constant.ErrTransactionIDHasAlreadyParentTransaction.Error(), errorCode(err))
+	assert.Nil(t, got)
+	assert.False(t, replayed)
+	require.Len(t, executor.requests, 1)
+	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
+	assert.Empty(t, reserver.confirmedIDs)
+	assert.Empty(t, finalizer.envelopes)
+}
+
 func TestRevertTransactionEngineIndeterminateFailureRetainsClaim(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
@@ -340,6 +391,71 @@ func TestRevertTransactionEngineIndeterminateFailureRetainsClaim(t *testing.T) {
 	assert.False(t, replayed)
 	assert.Len(t, executor.requests, 1)
 	assert.Empty(t, finalizer.envelopes)
+}
+
+func TestRevertTransactionV2ReopenDebtorRefusalReleasesClaimAndReservation(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	organizationID := uuid.MustParse("61111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("62222222-2222-4222-8222-222222222222")
+	originID := uuid.MustParse("63333333-3333-4333-8333-333333333333")
+	amount := decimal.NewFromInt(10)
+	row := func(kind, alias, direction string) *operation.Operation {
+		return &operation.Operation{
+			Type: kind, Direction: direction, AccountAlias: alias, BalanceKey: constant.DefaultBalanceKey,
+			AssetCode: "USD", Amount: operation.Amount{Value: &amount},
+		}
+	}
+	// @payee settled its whole credit, so the reversal drops it as a leg and only
+	// the reopen names it.
+	origin := &transaction.Transaction{
+		ID: originID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		AssetCode: "USD", Amount: &amount, Status: transaction.Status{Code: constant.APPROVED},
+		Metadata: feeDebtRevertMetadata(t, nil, []FeeDebtSettlement{{
+			DebtID: feeDebtOriginO + ":from:0:debit", DebtorRef: "@payee#default", CreditRef: "@fees#default",
+			Amount: amount, Opened: amount, Seq: 1,
+		}}),
+		Operations: []*operation.Operation{
+			row(constant.DEBIT, "@payer", constant.DirectionDebit), row(constant.CREDIT, "@payee", constant.DirectionCredit),
+			row(constant.FEE_SETTLEMENT, "@payee", constant.DirectionDebit), row(constant.FEE_SETTLEMENT, "@fees", constant.DirectionCredit),
+		},
+	}
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &revertEngineReader{
+		revertReader: &revertReader{origin: origin, versionReader: versionReader{settings: settings}},
+		balances: []*mmodel.Balance{
+			revertEngineBalance(organizationID, ledgerID, "64444444-4444-4444-8444-444444444444", "@payee", 0, 7),
+			revertEngineBalance(organizationID, ledgerID, "65555555-5555-4555-8555-555555555555", "@payer", 20, 3),
+			revertEngineBalance(organizationID, ledgerID, "66666666-6666-4666-8666-666666666666", "@fees", 10, 2),
+		},
+	}
+	executor := &createEngineErrorExecutor{err: &accounting.Failure{
+		Code: accounting.FailureBalanceDeleted, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@payee#default",
+	}}
+	reservationID := uuid.MustParse("67777777-7777-4777-8777-777777777777")
+	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{}, TracerReserver: reserver,
+	}
+
+	_, _, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
+		OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: originID,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrAccountIneligibility.Error())
+	require.Len(t, executor.requests, 1)
+	engineTransaction := executor.requests[0].Execution.Transactions[0]
+	require.Len(t, engineTransaction.ReopenFeeDebts, 1)
+	for _, posting := range engineTransaction.Postings {
+		require.NotEqual(t, "@payee#default", posting.BalanceRef, "the reopen debtor must not be a leg")
+	}
+	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
 }
 
 func revertEngineOrigin(organizationID, ledgerID, originID uuid.UUID) *transaction.Transaction {

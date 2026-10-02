@@ -5,6 +5,8 @@
 package command
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
@@ -13,7 +15,8 @@ import (
 // PartitionEngineResult derives one ordered completion result per prepared
 // transaction from the engine's compact global result. Movement order is never
 // reconstructed from maps: each transaction owns one contiguous range and each
-// final set follows that transaction's first-touch order.
+// final set follows that transaction's first-touch order. Fee-debt changes keep
+// execution order within their transaction.
 func PartitionEngineResult(prepared PreparedEngineExecution, result accounting.ExecutionResult) ([]accounting.ExecutionResult, error) {
 	if err := validatePreparedEngineExecution(prepared); err != nil {
 		return nil, err
@@ -44,7 +47,7 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 	}
 
 	balances, err := indexEngineResultBalances(request)
-	if err != nil {
+	if err = errors.Join(err, partitionFeeDebt(partitions, transactionIndices, result.FeeDebt)); err != nil {
 		return nil, err
 	}
 
@@ -202,4 +205,18 @@ func sameEngineBalanceIdentity(request accounting.Execution, left, right account
 	return left.BalanceRef == right.BalanceRef && left.ID == right.ID && left.AccountID == right.AccountID &&
 		leftOrganizationID == rightOrganizationID && leftLedgerID == rightLedgerID &&
 		left.AccountType == right.AccountType && left.AssetCode == right.AssetCode && left.Alias == right.Alias && left.Key == right.Key
+}
+
+// partitionFeeDebt routes each fee-debt change to its transaction's partition, keeping execution order.
+func partitionFeeDebt(partitions []accounting.ExecutionResult, indices map[uuid.UUID]int, changes []accounting.FeeDebtChange) error {
+	for _, change := range changes {
+		index, exists := indices[change.TransactionID]
+		if !exists {
+			return invalidTransactionCompletionRecord("engine fee-debt change belongs to an unknown transaction")
+		}
+
+		partitions[index].FeeDebt = append(partitions[index].FeeDebt, change)
+	}
+
+	return nil
 }

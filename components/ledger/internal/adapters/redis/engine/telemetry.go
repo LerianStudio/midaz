@@ -190,13 +190,14 @@ func metricFailureCode(code string) string {
 		"connection_unavailable", "unsupported_transport", "invalid_response", "transport",
 		"invalid_failure", "invalid_technical_failure", "invalid_json", "invalid_protocol",
 		"invalid_balance", "balance_identity_mismatch", "wrong_key_type",
-		"execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow",
+		"execution_fingerprint_conflict", "execution_guard_conflict", "transaction_already_reverted", "version_overflow",
 		"invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded",
 		"serialization_failed", "script_runtime_failed", "indeterminate",
 		"execution_outcome_unknown", "invalid_receipt", "unknown_technical_failure",
 		"invalid_normalization_failure", "normalization_required", "script_runtime",
 		"normalization_read_failed", "normalization_balance_missing",
-		"normalization_invalid_balance", "normalization_repair_failed":
+		"normalization_invalid_balance", "normalization_repair_failed", "fee_debt_record_pending",
+		"fee_debt_conflict":
 		return code
 	default:
 		return "unknown"

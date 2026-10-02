@@ -17,7 +17,7 @@ import (
 type MetadataMongoDBModel struct {
 	ID         bson.ObjectID `bson:"_id,omitempty"`
 	EntityID   string        `bson:"entity_id"`
-	EntityName string        `bson:"entity_name"`
+	EntityName string        `bson:"entity_name,omitempty"`
 	Data       JSON          `bson:"metadata"`
 	CreatedAt  time.Time     `bson:"created_at"`
 	UpdatedAt  time.Time     `bson:"updated_at"`

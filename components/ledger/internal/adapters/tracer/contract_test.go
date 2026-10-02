@@ -4,118 +4,156 @@
 
 package tracer
 
-// This is the F3 cross-component contract lock between the ledger's outbound
-// reserve client and the tracer's reserve validation. It exists because the two
-// shapes drifted silently: the ledger sent `account` as a STRING and omitted
-// requestId / a valid transactionTimestamp, and the tracer's reserve endpoint —
-// which embeds the ValidationRequest shape — rejected it with HTTP 400, so
-// `tracer.mode=enforce` never enforced (it fail-open SKIPPED on every
-// transaction).
+// This is the cross-component contract lock between the ledger's outbound
+// reserve client and the tracer's reserve validation. It fails when the ledger's
+// wire shape and the tracer's acceptance rules move apart — a drift that makes
+// the tracer reject every reserve and leaves `tracer.mode=enforce` enforcing
+// nothing.
 //
 // What is REAL on each side here:
-//   - LEDGER: the real *TracerClient.Reserve — the actual production marshaling
-//     of the outbound ReserveRequest wire body and the actual HTTP POST. This is
-//     the side that carried the bug.
-//   - TRACER: the real github.com/.../tracer/pkg/model.ValidationRequest JSON
-//     parse plus the real ValidateForReserve validation rules — the side that
-//     rejected the payload. The httptest endpoint below runs the SAME parse +
-//     validate the production tracer reserve handler runs
-//     (reservation_handler.go → NormalizeAndReserveValidate →
-//     model.ValidateForReserve); on success it returns 201 with the reserve
-//     decision, exactly as the handler does.
+//   - LEDGER: the real *TracerGRPCClient.Reserve — the production mapping of
+//     the outbound ReserveRequest onto the proto message and the real RPC.
+//   - TRACER: the real proto-to-model mapping
+//     (reservationmap.ValidationRequestFromReserveProto) and the real reserve
+//     validation rules (model.ValidationRequest.NormalizeAndValidateForReserve),
+//     the two steps the production tracer reservation server runs before the
+//     use case. On success the endpoint returns a scripted reserve decision in
+//     place of the use case.
 //
-// Why the endpoint is reconstructed rather than the literal tracer handler:
-// Go's `internal` rule walls components/tracer/internal/... off from
-// components/ledger/..., so the ledger test package physically cannot import the
-// tracer's internal ReservationHandler. The load-bearing half of the contract —
-// the JSON wire shape and the reserve validation RULES — lives in the tracer's
-// non-internal pkg/model and IS imported here, so both real sides meet over the
-// real wire. Drift in the tracer's reserve validation OR the ledger's outbound
-// shape fails this test (proven by TestReserveContract_DetectsLedgerShapeDrift).
+// The endpoint is a thin stand-in rather than the tracer's ReservationServer
+// because Go's `internal` rule walls components/tracer/internal/... off from
+// components/ledger/.... Everything that decides whether a payload is accepted
+// lives in the importable components/tracer/pkg tree, so both real sides meet
+// over the real wire.
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
 	tracermodel "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	tracerreservationmap "github.com/LerianStudio/midaz/v4/components/tracer/pkg/reservationmap"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
-// tracerReserveEndpoint is the real tracer reserve validation mounted over
-// httptest. It parses the body into the tracer's REAL ValidationRequest (+
-// transactionId) and runs the tracer's REAL reserve validation rules
-// (ValidateForReserve) — the same parse + validation the production handler
-// runs. denied/reservationIDs let a test script the post-validation decision so
-// the success-decision-flows-back assertion is meaningful.
+// tracerReserveEndpoint is the tracer's real reserve mapping and validation
+// mounted over an in-memory gRPC server: it calls the shared
+// ValidationRequestFromReserveProto and then NormalizeAndValidateForReserve,
+// exactly as the production reservation server does. denied/reservationIDs let
+// a test script the post-validation decision so the
+// success-decision-flows-back assertion is meaningful.
 type tracerReserveEndpoint struct {
+	reservationv1.UnimplementedReservationServiceServer
+
 	now            time.Time
 	denied         bool
+	decision       string
+	reason         string
+	matchedRuleIDs []uuid.UUID
 	reservationIDs []uuid.UUID
+	// rejectCode, when not OK, answers every well-formed request with this
+	// status, standing in for a tracer-side refusal the relaxed validation in
+	// this package cannot reproduce.
+	rejectCode codes.Code
 
-	parsed bool // set true once a body successfully parsed + validated
+	parsed   bool // set true once a request successfully mapped + validated
+	received *tracermodel.ValidationRequest
 }
 
-// tracerReserveBody mirrors the tracer's internal ReserveRequest wrapper: the
-// ledger transactionId plus the embedded ValidationRequest. The embedded type
-// is the tracer's REAL model.ValidationRequest, so its JSON tags (account as the
-// AccountContext object, requestId, transactionType, transactionTimestamp) are
-// the real tracer contract — the ledger wire body must deserialize into it.
-type tracerReserveBody struct {
-	TransactionID uuid.UUID `json:"transactionId"`
-	tracermodel.ValidationRequest
-}
-
-func (e *tracerReserveEndpoint) handler(w http.ResponseWriter, r *http.Request) {
-	var body tracerReserveBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		// This is the exact failure the original bug produced: `cannot unmarshal
-		// string into ...account of type AccountContext`. A 400 here means the
-		// ledger sent a shape the tracer cannot parse.
-		writeTracerError(w, http.StatusBadRequest, "TRC-0003", "invalid request body: "+err.Error())
-		return
+func (e *tracerReserveEndpoint) Reserve(_ context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+	transactionID, err := uuid.Parse(req.GetTransactionId())
+	if err != nil || transactionID == uuid.Nil {
+		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
 	}
 
-	if body.TransactionID == uuid.Nil {
-		writeTracerError(w, http.StatusBadRequest, "TRC-0371", "transactionId is required")
-		return
+	validationReq, err := tracerreservationmap.ValidationRequestFromReserveProto(req)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// The REAL tracer reserve validation rules.
-	if err := body.ValidationRequest.ValidateForReserve(e.now); err != nil {
-		writeTracerError(w, http.StatusBadRequest, "TRC-0001", "reserve validation failed: "+err.Error())
-		return
+	if err := validationReq.NormalizeAndValidateForReserve(e.now); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if e.rejectCode != codes.OK {
+		return nil, status.Error(e.rejectCode, "reserve refused")
 	}
 
 	e.parsed = true
+	e.received = validationReq
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(ReserveResult{
-		TransactionID:  body.TransactionID,
+	return &reservationv1.ReserveResult{
+		TransactionId:  transactionID.String(),
 		Denied:         e.denied,
-		ReservationIDs: e.reservationIDs,
-	})
+		Decision:       e.decision,
+		Reason:         e.reason,
+		MatchedRuleIds: uuidStrings(e.matchedRuleIDs),
+		ReservationIds: uuidStrings(e.reservationIDs),
+	}, nil
 }
 
-func writeTracerError(w http.ResponseWriter, status int, code, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message})
+// uuidStrings renders ids as the proto's repeated string field.
+func uuidStrings(ids []uuid.UUID) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.String())
+	}
+
+	return out
+}
+
+// newContractClient serves the tracer stand-in on an in-memory bufconn
+// listener and returns the real ledger client, built through its production
+// constructor, dialed to it. The server stops and the client closes via
+// t.Cleanup.
+func newContractClient(t *testing.T, server reservationv1.ReservationServiceServer) *TracerGRPCClient {
+	t.Helper()
+
+	lis := bufconn.Listen(1024 * 1024)
+
+	srv := grpc.NewServer()
+	reservationv1.RegisterReservationServiceServer(srv, server)
+
+	go func() { _ = srv.Serve(lis) }()
+
+	client, err := NewTracerGRPCClient("passthrough:///bufnet",
+		WithGRPCOperationTimeout(5*time.Second),
+		WithGRPCDialOptions(
+			grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+				return lis.DialContext(ctx)
+			}),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		))
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = client.Close()
+		srv.Stop()
+		_ = lis.Close()
+	})
+
+	return client
 }
 
 // ledgerStyleReserveRequest builds the reserve request the ledger anchor sends:
 // requestId derived from the transactionID, the structured account scope, a
-// fee-inclusive amount/asset, and an in-window timestamp. ts must be inside
-// the tracer's accept window (not future, within 24h) relative to the
-// endpoint's now.
+// fee-inclusive amount/asset, and a timestamp. ts must not be in the future
+// relative to the endpoint's now; the reserve path does not bound its age.
 func ledgerStyleReserveRequest(transactionID, requestID uuid.UUID, ts time.Time) ReserveRequest {
 	return ReserveRequest{
 		TransactionID:        transactionID,
@@ -128,49 +166,46 @@ func ledgerStyleReserveRequest(transactionID, requestID uuid.UUID, ts time.Time)
 }
 
 // TestReserveContract_LedgerPayloadAcceptedByTracer is the contract lock: the
-// real ledger client's outbound reserve body must be ACCEPTED (no 4xx) by the
-// real tracer reserve validation, and the reserve decision must flow back. This
-// fails if either the ledger outbound shape or the tracer reserve validation
-// drifts apart.
+// real ledger client's outbound reserve request must be ACCEPTED (no
+// InvalidArgument) by the real tracer reserve validation, and the reserve
+// decision must flow back. This fails if either the ledger outbound shape or
+// the tracer reserve validation drifts apart.
 func TestReserveContract_LedgerPayloadAcceptedByTracer(t *testing.T) {
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 	reservationID := uuid.MustParse("99999999-9999-9999-9999-999999999999")
 
 	endpoint := &tracerReserveEndpoint{now: now, reservationIDs: []uuid.UUID{reservationID}}
-	srv := httptest.NewServer(http.HandlerFunc(endpoint.handler))
-	defer srv.Close()
-
-	client, err := NewTracerClient(srv.URL)
-	require.NoError(t, err)
+	client := newContractClient(t, endpoint)
 
 	txID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	reqID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
-	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(txID, reqID, now))
+	// A fractional-second timestamp, as the anchor sends it, must cross the
+	// wire without losing its sub-second part.
+	ts := now.Add(-123456789 * time.Nanosecond)
 
-	// The tracer ACCEPTED the ledger payload (no 4xx => no client error, since
-	// the client maps any non-201 to an error).
-	require.NoError(t, err, "the tracer must ACCEPT the ledger reserve payload; a 4xx here is the contract gap reappearing")
-	require.True(t, endpoint.parsed, "the tracer must have parsed + validated the ledger body")
+	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(txID, reqID, ts))
+
+	require.NoError(t, err, "the tracer must ACCEPT the ledger reserve request; a rejection here is the contract gap reappearing")
+	require.True(t, endpoint.parsed, "the tracer must have mapped + validated the ledger request")
+	assert.True(t, ts.Equal(endpoint.received.TransactionTimestamp),
+		"the transaction timestamp must keep its nanoseconds; want %s got %s", ts, endpoint.received.TransactionTimestamp)
 
 	// The reserve decision flows back.
 	require.NotNil(t, result)
+	assert.Equal(t, txID, result.TransactionID)
 	assert.False(t, result.Denied)
 	require.Len(t, result.ReservationIDs, 1)
 	assert.Equal(t, reservationID, result.ReservationIDs[0])
 }
 
 // TestReserveContract_DeniedDecisionFlowsBack proves a DENIED decision (a
-// successful 201) round-trips as a business outcome, not a transport error.
+// successful reserve) round-trips as a business outcome, not a transport error.
 func TestReserveContract_DeniedDecisionFlowsBack(t *testing.T) {
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 
 	endpoint := &tracerReserveEndpoint{now: now, denied: true}
-	srv := httptest.NewServer(http.HandlerFunc(endpoint.handler))
-	defer srv.Close()
-
-	client, err := NewTracerClient(srv.URL)
-	require.NoError(t, err)
+	client := newContractClient(t, endpoint)
 
 	txID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 	reqID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
@@ -186,16 +221,12 @@ func TestReserveContract_DeniedDecisionFlowsBack(t *testing.T) {
 // TestReserveContract_AccountlessLedgerPayloadAccepted proves the relaxation:
 // the ledger may reserve for an external-only source with no internal account
 // UUID. An empty account must still be ACCEPTED (matches non-account-scoped
-// limits) rather than 400.
+// limits) rather than rejected.
 func TestReserveContract_AccountlessLedgerPayloadAccepted(t *testing.T) {
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 
 	endpoint := &tracerReserveEndpoint{now: now}
-	srv := httptest.NewServer(http.HandlerFunc(endpoint.handler))
-	defer srv.Close()
-
-	client, err := NewTracerClient(srv.URL)
-	require.NoError(t, err)
+	client := newContractClient(t, endpoint)
 
 	req := ledgerStyleReserveRequest(
 		uuid.MustParse("55555555-5555-5555-5555-555555555555"),
@@ -209,39 +240,146 @@ func TestReserveContract_AccountlessLedgerPayloadAccepted(t *testing.T) {
 	require.NoError(t, err, "an accountless reserve must be accepted on the relaxed reserve path")
 	require.True(t, endpoint.parsed)
 	require.NotNil(t, result)
+	assert.Equal(t, uuid.Nil, endpoint.received.Account.ID)
 }
 
-// TestReserveContract_DetectsLedgerShapeDrift is the NEGATIVE proof: it
-// reconstructs the ORIGINAL buggy ledger wire shape (account as a STRING,
-// missing requestId / valid transactionTimestamp) and asserts the real tracer
-// validation REJECTS it with a 4xx. This proves the contract lock catches the
-// exact drift that caused the F3 gap — if someone reverts the ledger client to
-// the old shape, the positive test above breaks and this test documents why.
-func TestReserveContract_DetectsLedgerShapeDrift(t *testing.T) {
+// TestReserveContract_AccountTypeAndMetadataLandOnTracerModel proves the
+// ledger's account type and flat metadata land on the tracer's real model
+// fields rather than being silently dropped, and that a metadata key the
+// tracer refuses reaches the caller as a rejection of the request, never as an
+// unavailable tracer.
+func TestReserveContract_AccountTypeAndMetadataLandOnTracerModel(t *testing.T) {
 	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 
 	endpoint := &tracerReserveEndpoint{now: now}
-	srv := httptest.NewServer(http.HandlerFunc(endpoint.handler))
-	defer srv.Close()
+	client := newContractClient(t, endpoint)
 
-	// The ORIGINAL buggy outbound shape: account is a STRING, no requestId, no
-	// transactionTimestamp — exactly what the ledger sent at HEAD before this fix.
-	originalBuggyBody := map[string]any{
-		"transactionId":   uuid.MustParse("77777777-7777-7777-7777-777777777777").String(),
-		"amount":          "1000",
-		"currency":        "BRL",                // LEGACY key on purpose: the old ledger wire shape
-		"account":         "@source-account",    // STRING, not the AccountContext object
-		"transactionType": "pending-long-lived", // the invalid enum the old hint smuggled in
+	req := ledgerStyleReserveRequest(
+		uuid.MustParse("88888888-8888-8888-8888-888888888888"),
+		uuid.MustParse("99999999-9999-9999-9999-999999999990"),
+		now,
+	)
+	req.Account.Type = "deposit"
+	req.Metadata = map[string]string{"channel": "app"}
+
+	_, err := client.Reserve(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, endpoint.parsed)
+	assert.Equal(t, "deposit", endpoint.received.Account.Type)
+	assert.Equal(t, map[string]any{"channel": "app"}, endpoint.received.Metadata)
+
+	endpoint.parsed = false
+	req.Metadata = map[string]string{"bad-key": "app"}
+
+	_, err = client.Reserve(context.Background(), req)
+	require.Error(t, err)
+	assert.False(t, endpoint.parsed)
+	assert.ErrorIs(t, err, ErrTracerRejected)
+	assert.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
+// TestReserveContract_RejectedIsNotUnavailable proves a tracer refusal of the
+// request (FailedPrecondition) reaches the caller as ErrTracerRejected and
+// never as ErrTracerUnavailable, so the anchor does not route it through
+// failPosture.
+func TestReserveContract_RejectedIsNotUnavailable(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+
+	endpoint := &tracerReserveEndpoint{now: now, rejectCode: codes.FailedPrecondition}
+	client := newContractClient(t, endpoint)
+
+	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(
+		uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+		uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+		now,
+	))
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, ErrTracerRejected)
+	assert.NotErrorIs(t, err, ErrTracerUnavailable)
+}
+
+// TestReserveContract_ReviewDecisionFlowsBack proves the refined decision, its
+// reason and the matched rule ids round-trip next to denied.
+func TestReserveContract_ReviewDecisionFlowsBack(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	ruleID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+
+	endpoint := &tracerReserveEndpoint{
+		now:            now,
+		denied:         true,
+		decision:       "REVIEW",
+		reason:         "manual review required",
+		matchedRuleIDs: []uuid.UUID{ruleID},
+	}
+	client := newContractClient(t, endpoint)
+
+	result, err := client.Reserve(context.Background(), ledgerStyleReserveRequest(
+		uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+		uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+		now,
+	))
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Denied)
+	assert.Equal(t, "REVIEW", result.Decision)
+	assert.Equal(t, "manual review required", result.Reason)
+	assert.Equal(t, []uuid.UUID{ruleID}, result.MatchedRuleIDs)
+	assert.Empty(t, result.ReservationIDs)
+}
+
+// legacyAccountTypes is the closed account-type enum a tracer released before
+// the free-form account type accepted on reserve.
+var legacyAccountTypes = map[string]bool{"checking": true, "savings": true, "credit": true}
+
+// legacyTracerEndpoint wraps the current endpoint with the closed account-type
+// enum an older tracer enforced before mapping the request.
+type legacyTracerEndpoint struct {
+	reservationv1.UnimplementedReservationServiceServer
+
+	current *tracerReserveEndpoint
+}
+
+func (e *legacyTracerEndpoint) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+	if accountType := req.GetAccount().GetType(); accountType != "" && !legacyAccountTypes[accountType] {
+		return nil, status.Error(codes.InvalidArgument, "account type must be one of checking, savings, credit")
 	}
 
-	body, err := json.Marshal(originalBuggyBody)
-	require.NoError(t, err)
+	return e.current.Reserve(ctx, req)
+}
 
-	resp, err := http.Post(srv.URL+"/v1/reservations", "application/json", bytes.NewReader(body))
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
+// TestReserveContract_LegacyTracerRejectsLedgerAccountType documents the deploy
+// order: the ledger sends its own account type verbatim, which a tracer still
+// enforcing the legacy {checking, savings, credit} enum refuses with
+// InvalidArgument. The ledger classifies that refusal as ErrTracerRejected —
+// the tracer answered — so it never falls back to failPosture. Upgrading the
+// tracer first avoids the refusal window.
+func TestReserveContract_LegacyTracerRejectsLedgerAccountType(t *testing.T) {
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 
-	assert.GreaterOrEqual(t, resp.StatusCode, 400, "the original buggy ledger shape MUST be rejected by the tracer")
-	assert.Less(t, resp.StatusCode, 500, "rejection is a 4xx client error, not a 5xx")
-	assert.False(t, endpoint.parsed, "the tracer must NOT have accepted the buggy body")
+	current := &tracerReserveEndpoint{now: now}
+	client := newContractClient(t, &legacyTracerEndpoint{current: current})
+
+	req := ledgerStyleReserveRequest(
+		uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+		uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+		now,
+	)
+	req.Account.Type = "deposit"
+
+	result, err := client.Reserve(context.Background(), req)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, ErrTracerRejected)
+	assert.NotErrorIs(t, err, ErrTracerUnavailable)
+	assert.False(t, current.parsed, "the legacy tracer must refuse before reserving")
+
+	// A legacy account type still passes the legacy tracer.
+	req.Account.Type = "checking"
+
+	_, err = client.Reserve(context.Background(), req)
+	require.NoError(t, err)
+	assert.True(t, current.parsed)
 }

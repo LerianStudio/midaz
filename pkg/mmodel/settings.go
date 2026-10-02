@@ -139,7 +139,13 @@ type TracerSettings struct {
 	// Default: "open".
 	FailPosture string `json:"failPosture" example:"open"`
 
-	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
+	// TimeoutMs is the deadline, in milliseconds, of each tracer reserve call.
+	// The per-ledger value is always applied to the reserve: a ledger that never
+	// stored it reads the default 250, so raising the client timeout alone does
+	// not lengthen reserve calls. The client timeout (TRACER_TIMEOUT_MS) is only
+	// a ceiling — a deadline can tighten it, never extend it — so the effective
+	// reserve deadline is the shorter of the two. Confirm and release run off
+	// the critical path under the client timeout alone.
 	// Accepted range: 1..30000. Default: 250.
 	TimeoutMs int `json:"timeoutMs" example:"250"`
 }
@@ -161,8 +167,7 @@ const (
 const defaultTracerTimeoutMs = 250
 
 // Accepted range for TracerSettings.TimeoutMs, checked at write time.
-// The ceiling matches the tracer REST client's 30s global HTTP timeout: a
-// per-call timeout above that safety net could never take effect.
+// The ceiling caps the per-call tracer deadline at 30s.
 const (
 	TracerTimeoutMsMin = 1
 	TracerTimeoutMsMax = 30000

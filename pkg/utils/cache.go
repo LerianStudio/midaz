@@ -133,6 +133,29 @@ func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	return builder.String()
 }
 
+// FeeDebtInternalKey returns a key with the following format to be used on redis cluster:
+// "fee-debt:{transactions}:organizationID:ledgerID:alias#key"
+//
+// The {transactions} hash tag is the SAME literal tag BalanceInternalKey uses, so a debtor's
+// fee-debt list lands in the slot of the balances the engine EVAL mutates with it.
+func FeeDebtInternalKey(organizationID, ledgerID uuid.UUID, balanceRef string) string {
+	var builder strings.Builder
+
+	builder.Grow(98 + len(balanceRef)) // "fee-debt:{transactions}:" + 2×UUID + ":" + ref
+
+	builder.WriteString("fee-debt")
+	builder.WriteString(keySeparator)
+	builder.WriteString(cachepolicy.HashTag)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(balanceRef)
+
+	return builder.String()
+}
+
 // AccountBlockExceptionInternalKey returns a key with the following format to be used on redis cluster:
 // "account_block_exception:{transactions}:organizationID:ledgerID:exceptionID"
 //

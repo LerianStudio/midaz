@@ -486,6 +486,57 @@ func TestIntegration_AssetRateRepository_Update(t *testing.T) {
 	assert.Equal(t, newExternalID.String(), updated.ExternalID, "external ID should be updated")
 }
 
+// TestIntegration_AssetRateRepository_Update_ReturnsTargetedID mirrors the
+// existing-pair upsert: the entity passed to Update carries the stored id, and
+// the returned entity must keep it so callers address the same row afterwards.
+func TestIntegration_AssetRateRepository_Update_ReturnsTargetedID(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	params := pgtestutil.DefaultAssetRateParams()
+	params.From = "EUR"
+	params.To = "CHF"
+	params.Rate = 9400
+	assetRateID := pgtestutil.CreateTestAssetRate(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+
+	found, err := repo.FindByCurrencyPair(ctx, orgID, ledgerID, "EUR", "CHF")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	require.Equal(t, assetRateID.String(), found.ID)
+
+	newSource := "Updated Source"
+	newScale := 4.0
+	newExternalID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	found.Rate = 9550
+	found.Scale = &newScale
+	found.Source = &newSource
+	found.ExternalID = newExternalID.String()
+
+	// Act
+	updated, err := repo.Update(ctx, orgID, ledgerID, assetRateID, found)
+
+	// Assert
+	require.NoError(t, err, "Update should not return error")
+	require.NotNil(t, updated, "updated asset rate should not be nil")
+	assert.Equal(t, assetRateID.String(), updated.ID, "returned ID must be the updated row's ID")
+
+	reloaded, err := repo.FindByCurrencyPair(ctx, orgID, ledgerID, "EUR", "CHF")
+	require.NoError(t, err)
+	require.NotNil(t, reloaded)
+	assert.Equal(t, assetRateID.String(), reloaded.ID, "the pair must still resolve to the same row")
+	assert.Equal(t, float64(9550), reloaded.Rate, "rate should be updated")
+	require.NotNil(t, reloaded.Scale)
+	assert.Equal(t, 4.0, *reloaded.Scale, "scale should be updated")
+	assert.Equal(t, &newSource, reloaded.Source, "source should be updated")
+	assert.Equal(t, newExternalID.String(), reloaded.ExternalID, "external ID should be updated")
+}
+
 func TestIntegration_AssetRateRepository_Update_NotFound(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)

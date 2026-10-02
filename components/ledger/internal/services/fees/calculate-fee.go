@@ -85,16 +85,8 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 		cf.SegmentID = uc.resolveSourceSegment(ctx, span, logger, validationResult.Sources, organizationID, cf.LedgerID)
 	}
 
-	if len(packages) == 1 {
-		if err = uc.calculateFeeForSinglePackage(ctx, logger, cf, packages[0], sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID); err != nil {
-			recordSpanError(span, "Failed to calculate fee for single package", err)
-		}
-
-		return err
-	}
-
-	if err = uc.calculateFeeForMultiplePackages(ctx, logger, cf, packages, sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID); err != nil {
-		recordSpanError(span, "Failed to calculate fee for multiple packages", err)
+	if err = uc.calculateFeeForPackages(ctx, logger, cf, packages, sendModel, validationResult, validationResultFromSize, validationResultToSize, organizationID); err != nil {
+		recordSpanError(span, "Failed to calculate fee", err)
 	}
 
 	return err
@@ -224,54 +216,9 @@ func refuseAmbiguousPackages(ctx context.Context, logger libLog.Logger, errFilte
 	return pkg.ValidateBusinessError(constant.ErrFilterPackage, "", tied)
 }
 
-// calculateFeeForSinglePackage calculate the fee for a single package
-func (uc *UseCase) calculateFeeForSinglePackage(
-	ctx context.Context,
-	logger libLog.Logger,
-	cf *model.FeeCalculate,
-	feePackage *pack.Package,
-	sendModel transaction.Send,
-	validationResult *transaction.Responses,
-	validationResultFromSize, validationResultToSize int,
-	organizationID uuid.UUID,
-) error {
-	// Route the sole package through the same scope filter the multi-package
-	// path uses, so a package a client restricted to one transaction route is
-	// applied only on that route, and a package carrying no segment constraint
-	// goes on being charged on a payment whose source resolves into a segment.
-	// The amount band is re-checked below on whatever comes back.
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
-	if errFilterPack != nil {
-		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
-	}
-
-	if packFilter == nil {
-		return nil
-	}
-
-	if !sendModel.Value.GreaterThanOrEqual(packFilter.MinimumAmount) || !sendModel.Value.LessThanOrEqual(packFilter.MaximumAmount) {
-		return nil
-	}
-
-	segCtx := &feeUtils.SegmentContext{
-		Ctx:            ctx,
-		Resolver:       uc.resolver,
-		OrganizationID: organizationID,
-		LedgerID:       cf.LedgerID,
-		ResolverCache:  make(map[string]*feeshared.Account),
-	}
-
-	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, segCtx)
-	if errCalculateFee != nil {
-		return errCalculateFee
-	}
-
-	uc.updateFeeMetadataIfNeeded(cf, validationResult, validationResultFromSize, validationResultToSize, packFilter.ID)
-
-	return nil
-}
-
-func (uc *UseCase) calculateFeeForMultiplePackages(
+// calculateFeeForPackages charges the package FindPackageToCalculateFee selects,
+// which is always inside its amount band, and charges nothing when none applies.
+func (uc *UseCase) calculateFeeForPackages(
 	ctx context.Context,
 	logger libLog.Logger,
 	cf *model.FeeCalculate,
@@ -281,16 +228,12 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 	validationResultFromSize, validationResultToSize int,
 	organizationID uuid.UUID,
 ) error {
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, cf.Transaction.Metadata, sendModel.Value)
 	if errFilterPack != nil {
 		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
 
 	if packFilter == nil {
-		return nil
-	}
-
-	if !sendModel.Value.GreaterThanOrEqual(packFilter.MinimumAmount) || !sendModel.Value.LessThanOrEqual(packFilter.MaximumAmount) {
 		return nil
 	}
 

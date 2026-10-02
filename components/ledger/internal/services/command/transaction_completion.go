@@ -332,9 +332,15 @@ func DeterministicOperationID(executionID, transactionID uuid.UUID, postingRef, 
 }
 
 // EncodeTransactionCompletionPlan validates and freezes a typed payload as JSON.
+// Only encode refuses nested transaction metadata: every encode precedes execution,
+// and decode must keep reading plans frozen before that rule.
 func EncodeTransactionCompletionPlan(payload TransactionCompletionPlan) (json.RawMessage, error) {
 	if err := validateTransactionCompletionPlan(payload); err != nil {
 		return nil, err
+	}
+
+	if !flatMetadata(payload.TransactionInput.Metadata) {
+		return nil, invalidTransactionCompletionRecord("transaction metadata must be flat")
 	}
 
 	encoded, err := json.Marshal(payload)
@@ -610,23 +616,23 @@ func validateCompletionPostings(transaction accounting.Transaction, projections 
 		postings[posting.Ref] = posting
 	}
 
-	primaries := make(map[string]bool, len(postings))
+	anchors := make(map[string]bool, len(postings))
 	for _, spec := range projections {
 		posting, exists := postings[spec.PostingRef]
 		if !exists {
 			return invalidTransactionCompletionRecord("spec references an unrelated posting")
 		}
 
-		if spec.Role == accounting.RolePrimary {
+		if spec.Role == postingAnchorRole(posting.Type) {
 			if spec.BalanceRef != posting.BalanceRef {
 				return invalidTransactionCompletionRecord("spec balance does not match posting")
 			}
 
-			primaries[spec.PostingRef] = true
+			anchors[spec.PostingRef] = true
 		}
 	}
 
-	if len(primaries) != len(postings) {
+	if len(anchors) != len(postings) {
 		return invalidTransactionCompletionRecord("posting has no primary spec context")
 	}
 
@@ -802,12 +808,8 @@ func validateOperationBalanceContext(payload TransactionCompletionPlan, spec Ope
 		return invalidTransactionCompletionRecord("spec logical balance identity mismatch")
 	}
 
-	for _, value := range spec.Metadata {
-		switch value.(type) {
-		case nil, string, bool, json.Number, float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		default:
-			return invalidTransactionCompletionRecord("spec metadata must be flat")
-		}
+	if !flatMetadata(spec.Metadata) {
+		return invalidTransactionCompletionRecord("spec metadata must be flat")
 	}
 
 	for _, value := range []string{spec.Balance.ID, spec.Balance.AccountID} {
@@ -873,7 +875,7 @@ func validOptionalCompletionScope(organizationID, ledgerID *uuid.UUID) bool {
 }
 
 func validOperationRecordRole(role string) bool {
-	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion
+	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion || feeDebtOperationRole(role)
 }
 
 func validCompletionParent(transactionID uuid.UUID, parentID *uuid.UUID) bool {
@@ -883,6 +885,20 @@ func validCompletionParent(transactionID uuid.UUID, parentID *uuid.UUID) bool {
 func validIntentFingerprint(fingerprint string) bool {
 	decoded, err := hex.DecodeString(fingerprint)
 	return err == nil && len(decoded) == sha256.Size && fingerprint == strings.ToLower(fingerprint)
+}
+
+// flatMetadata reports whether every value is a JSON scalar the completer can
+// persist, so a nested value is refused before the engine moves money.
+func flatMetadata(metadata map[string]any) bool {
+	for _, value := range metadata {
+		switch value.(type) {
+		case nil, string, bool, json.Number, float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		default:
+			return false
+		}
+	}
+
+	return true
 }
 
 func invalidTransactionCompletionRecord(reason string) error {

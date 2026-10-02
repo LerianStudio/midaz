@@ -124,11 +124,13 @@ type OperationRouteCache struct {
 // AccountingRouteUse is one leg's use of an operation route, as a route check
 // spanning several transactions (the parts of a cross-ledger group) counts it.
 // Source tells the leg's side (from or to); Direction is the posted direction.
+// FeeDebtTakeBack marks a revert leg taking back a fee-debt settlement.
 type AccountingRouteUse struct {
-	Alias     string
-	RouteID   string
-	Source    bool
-	Direction string
+	Alias           string
+	RouteID         string
+	Source          bool
+	Direction       string
+	FeeDebtTakeBack bool
 }
 
 // AccountCache represents the cached account rule data

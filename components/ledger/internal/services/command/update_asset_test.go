@@ -70,6 +70,12 @@ func TestUpdateAssetByID(t *testing.T) {
 				assetRepo.EXPECT().
 					Update(gomock.Any(), organizationID, ledgerID, assetID, gomock.Any()).
 					Return(&mmodel.Asset{ID: "123", Status: mmodel.Status{Code: "inactive"}}, nil)
+				// Nil metadata clears the existing document.
+				metadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+					Times(1)
+
 				metadataRepo.EXPECT().
 					Update(gomock.Any(), constant.EntityAsset, assetID.String(), gomock.Any()).
 					Return(nil)

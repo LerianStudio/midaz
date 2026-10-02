@@ -951,16 +951,16 @@ func TestValidation_InvalidAsset(t *testing.T) {
 		asset string
 	}{
 		{
-			name:  "invalid asset code",
-			asset: "INVALID",
+			name:  "lowercase asset code",
+			asset: "usd",
 		},
 		{
-			name:  "too short asset code",
-			asset: "US",
+			name:  "asset code with a digit",
+			asset: "BR1",
 		},
 		{
-			name:  "too long asset code",
-			asset: "BRLL",
+			name:  "asset code longer than 100 letters",
+			asset: strings.Repeat("A", 101),
 		},
 		{
 			name:  "numeric asset code",
@@ -1861,13 +1861,13 @@ func TestValidation_1_1_32_RejectsInvalidAccountType(t *testing.T) {
 			expected:    http.StatusCreated,
 		},
 		{
-			name:        "invalid INVALID",
-			accountType: "INVALID",
-			expected:    http.StatusBadRequest,
+			name:        "valid free-form ledger type deposit",
+			accountType: "deposit",
+			expected:    http.StatusCreated,
 		},
 		{
-			name:        "invalid debit",
-			accountType: "debit",
+			name:        "invalid longer than 256 characters",
+			accountType: strings.Repeat("a", 257),
 			expected:    http.StatusBadRequest,
 		},
 		{
@@ -1937,13 +1937,13 @@ func TestValidation_1_1_33_RejectsInvalidAccountStatus(t *testing.T) {
 			expected:      http.StatusCreated,
 		},
 		{
-			name:          "invalid INVALID",
-			accountStatus: "INVALID",
-			expected:      http.StatusBadRequest,
+			name:          "valid ledger status ACTIVE",
+			accountStatus: "ACTIVE",
+			expected:      http.StatusCreated,
 		},
 		{
-			name:          "invalid blocked",
-			accountStatus: "blocked",
+			name:          "invalid longer than 50 characters",
+			accountStatus: strings.Repeat("A", 51),
 			expected:      http.StatusBadRequest,
 		},
 		{
@@ -5012,9 +5012,9 @@ func TestValidation_1_3_29_ValidationSummaryFields(t *testing.T) {
 		assert.True(t, item.Amount.GreaterThanOrEqual(decimal.Zero),
 			"Item %d: amount should be >= 0, got: %s", i, item.Amount)
 
-		// Verify asset - must be 3-character string (ISO 4217)
-		assert.Len(t, item.Asset, 3,
-			"Item %d: asset should be 3 characters (ISO 4217), got: %s", i, item.Asset)
+		// Verify asset - must be an asset code (1 to 100 uppercase letters)
+		assert.Regexp(t, `^[A-Z]{1,100}$`, item.Asset,
+			"Item %d: asset should be an uppercase asset code, got: %s", i, item.Asset)
 
 		// Verify decision - must be one of valid enum values
 		assert.Contains(t, []string{"ALLOW", "DENY", "REVIEW"}, item.Decision,

@@ -423,6 +423,8 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 		return nil, err
 	}
 
+	record.ID = id.String()
+
 	var updates []string
 
 	var args []any

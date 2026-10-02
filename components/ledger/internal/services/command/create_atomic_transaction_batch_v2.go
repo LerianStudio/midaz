@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -54,6 +55,10 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 	RouteAction   string
 	Order         int
 	OriginalIndex int
+	// crossLedgerBridge locates the bridge leg of a cross-ledger group part in
+	// Transaction.Send, so the fee engine never charges it. Nil outside a group
+	// and for a part that crosses nothing.
+	crossLedgerBridge *crossLedgerBridgePosition
 }
 
 // CreateAtomicTransactionBatchV2Input carries one ordered atomic request. The
@@ -142,9 +147,11 @@ type atomicTransactionBatchItemRun struct {
 	action                  string
 	routeAction             string
 	groupRoutes             crossLedgerGroupRoutePart
+	crossLedgerBridge       *crossLedgerBridgePosition
 	honoredFeeSkip          bool
 	honoredTracerSkip       bool
 	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
+	feeDebtRefs             feeDebtPoolRefs
 	prepared                enginePreparedTransaction
 	tracerReservation       reservationHandle
 	guard                   ExecutionGuard
@@ -254,7 +261,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "reservation", time.Since(phaseStartedAt))
 
-	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
+	if err := uc.handoffReservedAtomicTransactionBatchExecution(ctx, span, logger, run, run); err != nil {
 		return nil, err
 	}
 
@@ -467,7 +474,8 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 			&item.input,
 			item.organizationID,
 			item.ledgerID,
-			item.input.Pending,
+			crossLedgerBridgeNonPayerLegs(item.crossLedgerBridge),
+			item.status == constant.NOTED,
 			item.honoredFeeSkip,
 		); err != nil {
 			return err
@@ -513,9 +521,14 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 ) error {
 	readCtx := readrouting.WithPrimaryRead(ctx)
 	refs, aliasesByRef := firstSeenAtomicTransactionBatchAliasesByLedger(run)
+	debtByRef, err := atomicTransactionBatchFeeDebtRefs(run)
+	if err != nil {
+		return err
+	}
+
 	pools := make(map[atomicTransactionBatchLedgerRef]EngineSnapshotPool, len(refs))
 	for _, ref := range refs {
-		pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, ref.organizationID, ref.ledgerID, aliasesByRef[ref])
+		pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, ref.organizationID, ref.ledgerID, aliasesByRef[ref], debtByRef[ref])
 		if err != nil {
 			return err
 		}
@@ -524,7 +537,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 
 	for index := range run.items {
 		item := &run.items[index]
-		preparation := createEnginePreparationInput(run.createTransactionRun(item))
+		preparation := createEnginePreparationInput(run.createTransactionRun(item), true)
 		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
 		var err error
 		if run.crossLedgerGroup {
@@ -581,7 +594,7 @@ func firstSeenAtomicTransactionBatchAliasesByLedger(run *atomicTransactionBatchR
 			seenAliases[ref] = make(map[string]struct{})
 			refs = append(refs, ref)
 		}
-		preparation := createEnginePreparationInput(run.createTransactionRun(item))
+		preparation := createEnginePreparationInput(run.createTransactionRun(item), true)
 		for _, alias := range enginePreparationAliases(preparation) {
 			if _, exists := seenAliases[ref][alias]; exists {
 				continue
@@ -784,7 +797,17 @@ func initializeAtomicTransactionBatchItem(
 		parentTransactionID:     cloneUUIDPointer(in.ParentTransactionID),
 		dependencies:            append([]TransactionEvidenceReference(nil), in.Dependencies...),
 		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
+		crossLedgerBridge:       in.crossLedgerBridge,
 	}, nil
+}
+
+// crossLedgerBridgeNonPayerLegs marks the bridge leg for the fee engine.
+func crossLedgerBridgeNonPayerLegs(bridge *crossLedgerBridgePosition) []model.NonPayerLeg {
+	if bridge == nil {
+		return nil
+	}
+
+	return []model.NonPayerLeg{{IsFrom: bridge.isFrom, Index: bridge.index}}
 }
 
 func atomicTransactionBatchItemRouteAction(in CreateAtomicTransactionBatchV2ItemInput, action string) string {

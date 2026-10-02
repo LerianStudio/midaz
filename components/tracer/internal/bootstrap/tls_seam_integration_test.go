@@ -27,14 +27,13 @@ import (
 )
 
 // TestReservationMTLS proves the tracer enforces client-certificate
-// verification on the reservation seam in TRACER_TLS_MODE=mtls, on BOTH
-// transports:
+// verification in TRACER_TLS_MODE=mtls on both listeners:
 //
-//   - gRPC: a client presenting a CA-signed cert completes the Reserve RPC; a
-//     client without a cert is rejected at the TLS layer (the RPC never reaches
-//     the service).
-//   - REST (Fiber): a tls.Dial with a CA-signed client cert handshakes; a dial
-//     without a client cert is rejected by the server.
+//   - gRPC reservation seam: a client presenting a CA-signed cert completes the
+//     Reserve RPC; a client without a cert is rejected at the TLS layer (the
+//     RPC never reaches the service).
+//   - HTTP listener (Fiber, user routes): a tls.Dial with a CA-signed client
+//     cert handshakes; a dial without a client cert is rejected by the server.
 //
 // It runs under the integration tag because it binds real loopback sockets and
 // performs real TLS handshakes. No Docker is required: certs come from the
@@ -120,6 +119,80 @@ func TestReservationMTLS(t *testing.T) {
 		require.Error(t, mtlsRejectionError(addr, caPool),
 			"client without a cert must be rejected by the mTLS seam")
 	})
+}
+
+// TestGRPCSeamClientAllowlist proves TRACER_TLS_CLIENT_ALLOWED_NAMES pins the
+// gRPC listener's client identity while the HTTP listener keeps accepting any
+// CA-signed client:
+//
+//   - a CA-signed client whose identity is not allowlisted is refused on gRPC
+//     and still handshakes with the Fiber TLS listener;
+//   - the same client is accepted on gRPC once its Subject CN is allowlisted
+//     (matched case-insensitively).
+func TestGRPCSeamClientAllowlist(t *testing.T) {
+	fixture := testutil.GenerateMTLSFixture(t)
+
+	clientCert, err := tls.X509KeyPair(fixture.ClientCertPEM, fixture.ClientKeyPEM)
+	require.NoError(t, err)
+
+	caPool := x509.NewCertPool()
+	require.True(t, caPool.AppendCertsFromPEM(fixture.CACertPEM))
+
+	clientTLS := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caPool,
+		ServerName:   "localhost",
+	}
+
+	t.Run("non-allowlisted client is refused on gRPC and accepted on HTTP", func(t *testing.T) {
+		cfg := writeMTLSConfig(t, fixture)
+		cfg.TracerTLSClientAllowedNames = "ledger.midaz.svc.cluster.local, spiffe://lerian.studio/ns/midaz/sa/ledger"
+
+		grpcTLS, err := buildGRPCSeamTLSConfig(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, grpcTLS)
+
+		_, err = reserveOverGRPC(t, startGRPCMTLSServer(t, grpcTLS), clientTLS)
+		require.Error(t, err, "a CA-signed client outside the allowlist must be refused on gRPC")
+
+		httpTLS, err := buildSeamTLSConfig(cfg)
+		require.NoError(t, err)
+
+		conn, err := tls.Dial("tcp", startFiberMTLSServer(t, cfg, httpTLS), clientTLS)
+		require.NoError(t, err, "the HTTP listener must not apply the gRPC allowlist")
+		require.NoError(t, conn.Handshake())
+		_ = conn.Close()
+	})
+
+	t.Run("allowlisted client is accepted on gRPC", func(t *testing.T) {
+		cfg := writeMTLSConfig(t, fixture)
+		cfg.TracerTLSClientAllowedNames = " other-client , LEDGER-SEAM-CLIENT "
+
+		grpcTLS, err := buildGRPCSeamTLSConfig(cfg)
+		require.NoError(t, err)
+
+		resp, err := reserveOverGRPC(t, startGRPCMTLSServer(t, grpcTLS), clientTLS)
+		require.NoError(t, err, "an allowlisted client must complete the RPC")
+		require.True(t, resp.GetDenied(), "stub returns the sentinel denied=true")
+	})
+}
+
+// reserveOverGRPC issues one Reserve RPC to addr with the given client TLS
+// config and returns its outcome.
+func reserveOverGRPC(t *testing.T, addr string, clientTLS *tls.Config) (*reservationv1.ReserveResult, error) {
+	t.Helper()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(clientTLS)))
+	require.NoError(t, err)
+
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return reservationv1.NewReservationServiceClient(conn).
+		Reserve(ctx, &reservationv1.ReserveRequest{TransactionId: "tx-allowlist"})
 }
 
 // mtlsRejectionError dials addr without a client certificate, completes the

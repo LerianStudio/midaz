@@ -72,10 +72,11 @@ running tracer (enforce mode alone is a no-op when `TRACER_BASE_URL` is unset):
 # 1. bring the tracer up (shares the stack's postgres, DB "tracer")
 docker compose -f components/tracer/docker-compose.yml --project-directory components/tracer up -d --build tracer
 
-# 2. point the ledger at it over REST (cert-free; default transport is gRPC+mTLS)
+# 2. point the ledger at the tracer's gRPC seam (cert-free: an empty
+#    TRACER_TLS_MODE speaks plaintext gRPC; "mtls" needs the cert material)
 #    append to components/ledger/.env (gitignored), then force-recreate:
-#      TRACER_BASE_URL=http://midaz-tracer:4020
-#      TRACER_TRANSPORT=rest
+#      TRACER_BASE_URL=midaz-tracer:4021
+#      TRACER_TLS_MODE=
 docker compose -f components/ledger/docker-compose.yml --project-directory components/ledger up -d --force-recreate ledger
 
 # 3. run with the tracer legs enabled

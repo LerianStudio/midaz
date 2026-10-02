@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -481,12 +482,12 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 			errorIs: constant.ErrLimitInvalidCurrency,
 		},
 		{
-			name: "asset too short",
+			name: "asset longer than 100 letters",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Asset:     "US",
+				Asset:     strings.Repeat("A", 101),
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,

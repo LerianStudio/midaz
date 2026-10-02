@@ -7,8 +7,9 @@ package pkg
 import (
 	"errors"
 	"math"
+	"unicode/utf8"
 
-	"golang.org/x/text/currency"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // SafeIntToInt32 Function to safely convert int to int32 with overflow check
@@ -20,18 +21,16 @@ func SafeIntToInt32(val int) (int32, error) {
 	return int32(val), nil
 }
 
-// IsValidCurrency checks if currency is a valid ISO 4217 code.
-// Uses golang.org/x/text/currency for proper ISO 4217 lookup validation.
-// Requires uppercase as per ISO 4217 canonical format.
-func IsValidCurrency(code string) bool {
-	// ISO 4217 requires uppercase letters
-	for _, c := range code {
-		if c < 'A' || c > 'Z' {
-			return false
-		}
-	}
-	// Validate against actual ISO 4217 currency list
-	_, err := currency.ParseISO(code)
+// MaxAssetCodeLength is the longest asset code the Midaz ledger accepts, in runes.
+const MaxAssetCodeLength = 100
 
-	return err == nil
+// IsValidAssetCode reports whether code is an asset code the Midaz ledger
+// accepts: non-empty, at most MaxAssetCodeLength runes, every rune an uppercase
+// letter (utils.ValidateCode, the ledger's own rule).
+func IsValidAssetCode(code string) bool {
+	if code == "" || utf8.RuneCountInString(code) > MaxAssetCodeLength {
+		return false
+	}
+
+	return utils.ValidateCode(code) == nil
 }

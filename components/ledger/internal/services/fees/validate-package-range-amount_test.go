@@ -36,6 +36,7 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 		transactionRoute string
 		segmentID        *uuid.UUID
 		packageID        *uuid.UUID
+		metadataSelector map[string]string
 		mockSetup        func(*pack.MockRepository)
 		wantErr          bool
 		errCode          string
@@ -134,6 +135,29 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 					MaximumAmount:    decimal.NewFromInt(1000),
 					TransactionRoute: stringPtr("debitoted"),
 					SegmentID:        &segmentID,
+				}
+				mockRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any()).
+					Return([]*pack.Package{existingPackage}, nil)
+			},
+			wantErr: true,
+			errCode: constant.ErrPackageRange.Error(),
+		},
+		{
+			name:             "Range overlap - identical metadata selector",
+			maxAmount:        "500",
+			minAmount:        "50",
+			transactionRoute: "debitoted",
+			segmentID:        &segmentID,
+			metadataSelector: map[string]string{"fee_context": "ted_salario"},
+			mockSetup: func(mockRepo *pack.MockRepository) {
+				existingPackage := &pack.Package{
+					ID:               uuid.New(),
+					MinimumAmount:    decimal.NewFromInt(100),
+					MaximumAmount:    decimal.NewFromInt(1000),
+					TransactionRoute: stringPtr("debitoted"),
+					SegmentID:        &segmentID,
+					MetadataSelector: map[string]string{"fee_context": "ted_salario"},
 				}
 				mockRepo.EXPECT().
 					FindList(gomock.Any(), gomock.Any()).
@@ -256,23 +280,79 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 
 			err := uc.ValidatePackageMaxAndMinAmountRange(
 				ctx, nil,
-				tt.maxAmount, tt.minAmount, tt.transactionRoute,
+				tt.maxAmount, tt.minAmount, tt.transactionRoute, tt.metadataSelector,
 				orgID, ledgerID,
 				tt.segmentID, tt.packageID,
 			)
 
 			if tt.wantErr {
 				assert.Error(t, err)
-				if tt.errCode != "" {
-					if validationErr, ok := err.(*pkg.ValidationError); ok {
-						assert.Contains(t, validationErr.Code, tt.errCode)
-					}
+
+				var conflictErr pkg.EntityConflictError
+
+				var validationErr pkg.ValidationError
+
+				switch {
+				case tt.errCode == "":
+				case errors.As(err, &conflictErr):
+					assert.Equal(t, tt.errCode, conflictErr.Code)
+				case errors.As(err, &validationErr):
+					assert.Equal(t, tt.errCode, validationErr.Code)
+				default:
+					t.Errorf("error %v carries no business code, want %s", err, tt.errCode)
 				}
 			} else {
 				assert.NoError(t, err)
 			}
 		})
 	}
+}
+
+// TestValidatePackageMaxAndMinAmountRange_ReadsEveryPage proves the guard sees a
+// duplicate that sits past the first page of the packages in scope.
+func TestValidatePackageMaxAndMinAmountRange_ReadsEveryPage(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockRepo := pack.NewMockRepository(ctrl)
+	route := "debitoted"
+
+	inScope := func(minAmount, maxAmount int64) *pack.Package {
+		return &pack.Package{
+			ID:               uuid.New(),
+			MinimumAmount:    decimal.NewFromInt(minAmount),
+			MaximumAmount:    decimal.NewFromInt(maxAmount),
+			TransactionRoute: &route,
+		}
+	}
+
+	firstPage := make([]*pack.Package, 0, packageScopePageSize)
+	for i := range int64(packageScopePageSize) {
+		firstPage = append(firstPage, inScope(2000+i*10, 2005+i*10))
+	}
+
+	mockRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, filter http.QueryHeader) ([]*pack.Package, error) {
+			assert.Equal(t, packageScopePageSize, filter.Limit)
+
+			if filter.Page == 1 {
+				return firstPage, nil
+			}
+
+			return []*pack.Package{inScope(100, 1000)}, nil
+		}).
+		Times(2)
+
+	uc := &UseCase{packageRepo: mockRepo}
+
+	err := uc.ValidatePackageMaxAndMinAmountRange(context.Background(), nil,
+		"1000", "100", route, nil, uuid.New(), uuid.New(), nil, nil)
+
+	var conflictErr pkg.EntityConflictError
+
+	assert.ErrorAs(t, err, &conflictErr)
+	assert.Equal(t, constant.ErrDuplicatePackage.Error(), conflictErr.Code)
 }
 
 func TestGetFilterPackage(t *testing.T) {
@@ -419,7 +499,7 @@ func TestIsSamePackage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := isSamePackage(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID)
+			result := isSamePackage(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID, nil)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -509,7 +589,7 @@ func TestIsRangeOverlap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := isRangeOverlap(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID)
+			result := isRangeOverlap(p, tt.newMin, tt.newMax, tt.transactionRoute, tt.segmentID, nil)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

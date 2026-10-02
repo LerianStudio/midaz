@@ -48,13 +48,13 @@ func (fake *atomicTransactionBatchTracerFake) Reserve(
 	return fake.results[index], nil
 }
 
-func (fake *atomicTransactionBatchTracerFake) Confirm(_ context.Context, reservationID uuid.UUID) error {
+func (fake *atomicTransactionBatchTracerFake) Confirm(_ context.Context, reservationID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 
 	fake.confirmed = append(fake.confirmed, reservationID)
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (fake *atomicTransactionBatchTracerFake) Release(_ context.Context, reservationID uuid.UUID) error {
@@ -66,8 +66,8 @@ func (fake *atomicTransactionBatchTracerFake) Release(_ context.Context, reserva
 	return nil
 }
 
-func (fake *atomicTransactionBatchTracerFake) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
-	return nil
+func (fake *atomicTransactionBatchTracerFake) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (fake *atomicTransactionBatchTracerFake) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {
@@ -176,6 +176,33 @@ func TestAtomicTransactionBatchReservations_SkipUnknownAndSuccess(t *testing.T) 
 	assert.Empty(t, released)
 }
 
+func TestReserveAtomicTransactionBatch_ForwardsItemContext(t *testing.T) {
+	t.Parallel()
+
+	fake := &atomicTransactionBatchTracerFake{}
+	run := atomicTransactionBatchTracerTestRun(2)
+	run.items[1].action = constant.ActionRevert
+	uc := &UseCase{TracerReserver: fake}
+	ctx, span, logger := anchorDeps()
+
+	require.NoError(t, uc.reserveAtomicTransactionBatch(ctx, span, logger, run))
+
+	requests, _, _ := fake.snapshot()
+	require.Len(t, requests, 2)
+
+	for index := range requests {
+		assert.Equal(t, tracer.ReserveAccount{
+			AccountID: "account-" + decimal.NewFromInt(int64(index)).String(),
+			Type:      "deposit",
+		}, requests[index].Account, "item %d must carry its own source account", index)
+		assert.Equal(t, map[string]string{"channel": "app"}, requests[index].Metadata,
+			"item %d must carry its own metadata", index)
+	}
+
+	assert.False(t, requests[0].Revert, "a create item is not a revert")
+	assert.True(t, requests[1].Revert, "a revert item marks its reservation as a revert")
+}
+
 func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *testing.T) {
 	withFastSharedRetrier(t)
 
@@ -234,15 +261,19 @@ func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchR
 				time.UTC,
 			),
 			status: constant.CREATED,
-			input: mtransaction.Transaction{Send: mtransaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(int64(index + 1)),
-			}},
+			input: mtransaction.Transaction{
+				Send: mtransaction.Send{
+					Asset: "BRL",
+					Value: decimal.NewFromInt(int64(index + 1)),
+				},
+				Metadata: map[string]any{"channel": "app"},
+			},
 			validate: &mtransaction.Responses{Sources: []string{alias + "#" + constant.DefaultBalanceKey}},
 			prepared: enginePreparedTransaction{pool: EngineSnapshotPool{ExplicitBalances: []*mmodel.Balance{{
-				Alias:     alias,
-				Key:       constant.DefaultBalanceKey,
-				AccountID: "account-" + decimal.NewFromInt(int64(index)).String(),
+				Alias:       alias,
+				Key:         constant.DefaultBalanceKey,
+				AccountID:   "account-" + decimal.NewFromInt(int64(index)).String(),
+				AccountType: "deposit",
 			}}}},
 		}
 	}

@@ -118,7 +118,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	if cari.Metadata != nil {
+	if len(cari.Metadata) > 0 {
 		meta := mongodb.Metadata{
 			EntityID:   assetRate.ID,
 			EntityName: constant.EntityAssetRate,

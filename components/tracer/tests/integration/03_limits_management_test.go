@@ -347,7 +347,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidAsset(t *testing.T) {
 		Name:      "Invalid Asset Limit",
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
-		Asset:     "INVALID", // Not ISO 4217
+		Asset:     "BR1", // Asset codes are letters only
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
 
@@ -3780,7 +3780,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 				tc.name, errResp.Title)
 
 			// Assert error detail mentions the immutable field(s) that cannot be modified (case-insensitive).
-			// The detail lists all immutable fields (limitType, asset), so any target key is present.
+			// The detail lists all immutable fields (limitType, asset, resetTime), so any target key is present.
 			detail := testutil.ParseErrorResponse(t, respBody).Detail
 			if len(tc.updateBody) > 1 {
 				// Check that detail contains at least one of the updateBody keys
