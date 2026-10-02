@@ -97,6 +97,12 @@ type CreateLimitInput struct {
 	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
 	CustomStartDate *string          `json:"customStartDate,omitempty" format:"date-time" example:"2026-11-27T00:00:00Z"`
 	CustomEndDate   *string          `json:"customEndDate,omitempty" format:"date-time" example:"2026-11-29T00:00:00Z"`
+	// ResetTime is the time of day (HH:MM, UTC) at which DAILY, WEEKLY and
+	// MONTHLY periods start; absent or null keeps midnight UTC. It is refused
+	// on CUSTOM and PER_TRANSACTION limits, must not fall strictly inside the
+	// active time window (equal to either end is allowed), and cannot be
+	// changed after create.
+	ResetTime *model.TimeOfDay `json:"resetTime,omitempty" swaggertype:"string" example:"09:00"`
 }
 
 // Validate validates the CreateLimitInput struct using validator/v10.
@@ -317,6 +323,7 @@ func ToCreateLimitServiceInput(input *CreateLimitInput) *command.CreateLimitInpu
 		ActiveTimeEnd:   input.ActiveTimeEnd,
 		CustomStartDate: input.CustomStartDate,
 		CustomEndDate:   input.CustomEndDate,
+		ResetTime:       input.ResetTime,
 	}
 }
 

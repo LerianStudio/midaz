@@ -521,6 +521,13 @@ var (
 	ErrMethodNotAllowed                       = errors.New("0485")
 	ErrPendingTransactionLocked               = errors.New("0486")
 	ErrReservationTenantRequired              = errors.New("0487")
+	// ErrLimitResetTimeNotAllowed is returned when a resetTime is set on a
+	// limit whose type has no recurring period (CUSTOM, PER_TRANSACTION).
+	ErrLimitResetTimeNotAllowed = errors.New("0537")
+	// ErrLimitResetTimeInsideWindow is returned when a limit's resetTime falls
+	// strictly inside its active time window, which would split one window
+	// across two periods.
+	ErrLimitResetTimeInsideWindow = errors.New("0538")
 	// ErrReservationAlreadySettled is returned when a reserve replays onto a
 	// row that already left RESERVED (confirmed, released or expired).
 	ErrReservationAlreadySettled = errors.New("0533")

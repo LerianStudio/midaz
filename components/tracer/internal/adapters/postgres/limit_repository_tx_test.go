@@ -78,6 +78,7 @@ func TestLimitRepository_CreateWithTx(t *testing.T) {
 						sqlmock.AnyArg(), // activeTimeEnd
 						sqlmock.AnyArg(), // customStartDate
 						sqlmock.AnyArg(), // customEndDate
+						sql.NullString{String: "09:00", Valid: true},
 						lmt.CreatedAt,
 						lmt.UpdatedAt,
 					).

@@ -2577,7 +2577,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitImmutableField.Error(),
 			Title:      "Limit Immutable Field",
-			Message:    "Cannot modify immutable field (limitType, asset).",
+			Message:    "Cannot modify immutable field (limitType, asset, resetTime).",
 		},
 		constant.ErrAuditEventNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -2962,6 +2962,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrLimitCustomDatesNotAllowed.Error(),
 			Title:      "Limit Custom Dates Not Allowed",
 			Message:    "CustomStartDate/customEndDate only allowed for CUSTOM limitType.",
+		},
+		constant.ErrLimitResetTimeNotAllowed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitResetTimeNotAllowed.Error(),
+			Title:      "Limit Reset Time Not Allowed",
+			Message:    "ResetTime only allowed for DAILY, WEEKLY or MONTHLY limitType.",
+		},
+		constant.ErrLimitResetTimeInsideWindow: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitResetTimeInsideWindow.Error(),
+			Title:      "Limit Reset Time Inside Window",
+			Message:    "ResetTime must not fall inside the active time window (it may equal activeTimeStart or activeTimeEnd).",
 		},
 		constant.ErrLimitUnknownType: ValidationError{
 			EntityType: entityType,

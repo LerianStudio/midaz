@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -102,6 +103,11 @@ func TestCreateLimit_EmitsLimitCreated(t *testing.T) {
 	assert.Equal(t, "DAILY", payload.LimitType)
 	assert.Equal(t, "USD", payload.Asset)
 	require.Len(t, payload.Scopes, 1)
+	assert.Nil(t, payload.ResetTime)
+
+	expectedResetAt := testutil.FixedTime().Truncate(24 * time.Hour).Add(24 * time.Hour)
+	require.NotNil(t, payload.ResetAt)
+	assert.Equal(t, expectedResetAt.Format(time.RFC3339), *payload.ResetAt)
 
 	assertLimitFenceClean(t, emitted[0].Payload)
 }
@@ -232,6 +238,55 @@ func TestUpdateLimit_EmitsLimitUpdated(t *testing.T) {
 	assert.Equal(t, "DRAFT", payload.Status)
 	assert.Equal(t, testutil.FixedTime().Format("2006-01-02T15:04:05Z07:00"), payload.UpdatedAt)
 	assertLimitFenceClean(t, emitted[0].Payload)
+}
+
+func TestUpdateLimit_EmitsResetAtComputedFromCommandClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	limitID := testutil.MustDeterministicUUID(10)
+	existing := limitFixture(10, 11, model.LimitStatusActive)
+	resetTime, err := model.NewTimeOfDay("09:00")
+	require.NoError(t, err)
+	existing.ResetTime = &resetTime
+	staleResetAt := time.Date(2026, 5, 14, 9, 0, 0, 0, time.UTC)
+	existing.ResetAt = &staleResetAt
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	auditWriter := NewMockAuditWriter(ctrl)
+	txBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+	emitter := pkgStreaming.NewMockEmitter()
+
+	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(existing, nil)
+	gomock.InOrder(
+		txBeginner.EXPECT().BeginTx(gomock.Any(), nil).Return(mockTx, nil),
+		mockRepo.EXPECT().UpdateWithTx(gomock.Any(), gomock.AssignableToTypeOf(mockTx), gomock.Any()).Return(nil),
+		auditWriter.EXPECT().RecordLimitEventWithTx(
+			gomock.Any(), gomock.AssignableToTypeOf(mockTx),
+			model.AuditEventLimitUpdated, model.AuditActionUpdate, limitID,
+			gomock.Any(), gomock.Any(), "Limit updated via API",
+		).Return(nil),
+		mockTx.EXPECT().Commit().Return(nil),
+	)
+
+	overnight := time.Date(2026, 10, 2, 0, 30, 0, 0, time.UTC)
+
+	cmd, err := NewUpdateLimitCommand(mockRepo, testutil.NewMockClock(overnight), auditWriter, txBeginner)
+	require.NoError(t, err)
+	cmd.Streaming = emitter
+
+	_, err = cmd.Execute(context.Background(), limitID, &UpdateLimitInput{Name: testutil.StringPtr("Night Pix cap")})
+	require.NoError(t, err)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1)
+
+	var payload events.LimitUpdatedPayload
+	require.NoError(t, json.Unmarshal(emitted[0].Payload, &payload))
+	require.NotNil(t, payload.ResetTime)
+	assert.Equal(t, "09:00", *payload.ResetTime)
+	require.NotNil(t, payload.ResetAt)
+	assert.Equal(t, "2026-10-02T09:00:00Z", *payload.ResetAt)
 }
 
 func TestUpdateLimit_NoChange_EmitsNothing(t *testing.T) {
