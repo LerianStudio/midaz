@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -303,6 +304,29 @@ func TestBuildTracerSeamIdentity(t *testing.T) {
 			cfg:          Config{AuthEnabled: true, TracerM2MClientID: "ledger", TracerM2MClientSecret: "s3cret"},
 			deps:         tokenDeps(),
 			wantIdentity: seamIdentityStaticToken,
+		},
+		{
+			name:         "single-tenant auth accepts a token timeout up to the mint timeout",
+			cfg:          Config{AuthEnabled: true, TracerM2MClientID: "ledger", TracerM2MClientSecret: "s3cret", TracerM2MTokenTimeoutMs: 5000},
+			deps:         tokenDeps(),
+			wantIdentity: seamIdentityStaticToken,
+		},
+		{
+			name:            "token identity refuses a token timeout above the mint timeout",
+			cfg:             Config{AuthEnabled: true, TracerM2MClientID: "ledger", TracerM2MClientSecret: "s3cret", TracerM2MTokenTimeoutMs: 5001},
+			deps:            tokenDeps(),
+			wantErrContains: []string{"TRACER_M2M_TOKEN_TIMEOUT_MS"},
+		},
+		{
+			name:            "token identity refuses a negative token timeout",
+			cfg:             Config{AuthEnabled: true, MultiTenantEnabled: true, EnvName: "staging", TracerM2MTokenTimeoutMs: -1},
+			deps:            tenantDeps(),
+			wantErrContains: []string{"TRACER_M2M_TOKEN_TIMEOUT_MS"},
+		},
+		{
+			name:         "auth disabled ignores the token timeout",
+			cfg:          Config{TracerAPIKey: "k3y", TracerM2MTokenTimeoutMs: -1},
+			wantIdentity: seamIdentityAPIKey,
 		},
 		{
 			name:            "single-tenant auth without a client id refuses boot",
@@ -789,4 +813,43 @@ func TestBuildTracerSeamIdentity_VaultBackend(t *testing.T) {
 		assert.False(t, awsBuilt.Load(), "a Vault that cannot be reached never falls back to AWS")
 		assert.Empty(t, paths())
 	})
+}
+
+func TestTracerM2MTokenTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ms      int
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "unset defaults to three seconds", ms: 0, want: 3 * time.Second},
+		{name: "an override is honoured", ms: 1500, want: 1500 * time.Millisecond},
+		{name: "the shortest wait is one millisecond", ms: 1, want: time.Millisecond},
+		{name: "the mint timeout is the longest wait", ms: 5000, want: 5 * time.Second},
+		{name: "a wait past the mint timeout is refused", ms: 5001, wantErr: true},
+		{name: "a negative wait is refused", ms: -1, wantErr: true},
+		{name: "a wait too large for a duration is refused", ms: math.MaxInt, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tracerM2MTokenTimeout(&Config{TracerM2MTokenTimeoutMs: tt.ms})
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "TRACER_M2M_TOKEN_TIMEOUT_MS")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	assert.Equal(t, tracerclient.DefaultTokenWaitTimeout, 3*time.Second, "the documented default")
+	assert.Equal(t, tracerclient.MaxTokenWaitTimeout, 5*time.Second, "the documented ceiling")
 }

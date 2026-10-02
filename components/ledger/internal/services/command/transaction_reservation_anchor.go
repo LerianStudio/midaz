@@ -163,8 +163,9 @@ func (h reservationHandle) transitions(action string) []reservationTransition {
 // The request carries the source account id and type, the tracer-accepted
 // subset of the transaction metadata (see reserveMetadata), and whether the
 // reservation is for a revert. A positive tracer.timeoutMs bounds the reserve
-// call; the client timeout (TRACER_TIMEOUT_MS) stays the ceiling, because a
-// context deadline can only tighten it.
+// RPC; the client timeout (TRACER_TIMEOUT_MS) stays the ceiling, because a call
+// timeout can only tighten it. Neither bounds the wait for a seam token that is
+// not cached yet (TRACER_M2M_TOKEN_TIMEOUT_MS).
 //
 //   - mode=off (or nil reserver): skipped — returns proceed with an empty handle.
 //   - mode=advisory: the reserve is called but never blocks — a DENY or REVIEW
@@ -232,10 +233,7 @@ func (uc *UseCase) reserveTransaction(
 	if settings.TimeoutMs > 0 {
 		span.SetAttributes(attribute.Int("app.tracer.timeout_ms", settings.TimeoutMs))
 
-		var cancel context.CancelFunc
-
-		reserveCtx, cancel = context.WithTimeout(ctx, time.Duration(settings.TimeoutMs)*time.Millisecond)
-		defer cancel()
+		reserveCtx = tracer.ContextWithCallTimeout(ctx, time.Duration(settings.TimeoutMs)*time.Millisecond)
 	}
 
 	result, err := uc.TracerReserver.Reserve(reserveCtx, req)

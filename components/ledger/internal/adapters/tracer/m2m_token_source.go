@@ -56,7 +56,7 @@ type RefreshScheduler func(after time.Duration, run func()) (cancel func())
 // a five-minute lifetime. A fresh token is served as it is; a valid one is
 // served at once while a background mint replaces it (one at a time per
 // tenant); only a caller with no valid token waits for a mint, and only as long
-// as its own context allows.
+// as both its own context and the wait timeout allow.
 //
 // Every stored token also schedules its own refresh at its refresh point. A
 // refresh that fails, or is deferred to one in flight or to an open failure
@@ -86,6 +86,7 @@ type M2MTokenSource struct {
 	jitter      func() float64
 	logger      libLog.Logger
 	mintTimeout time.Duration
+	waitTimeout time.Duration
 
 	mu      sync.Mutex
 	closed  bool
@@ -95,6 +96,15 @@ type M2MTokenSource struct {
 
 // M2MTokenSourceOption configures an M2MTokenSource.
 type M2MTokenSourceOption func(*M2MTokenSource)
+
+const (
+	// DefaultTokenWaitTimeout is how long a caller with no valid token waits for
+	// a mint unless WithTokenWaitTimeout says otherwise.
+	DefaultTokenWaitTimeout = 3 * time.Second
+	// MaxTokenWaitTimeout is the longest wait timeout accepted: the mint it waits
+	// for is abandoned at that point, so a longer wait could only wait for nothing.
+	MaxTokenWaitTimeout = defaultMintTimeout
+)
 
 const (
 	// defaultTokenLifetime is the lifetime assumed for a token whose exp cannot
@@ -213,6 +223,18 @@ func WithRefreshScheduler(schedule RefreshScheduler) M2MTokenSourceOption {
 	}
 }
 
+// WithTokenWaitTimeout sets how long a caller with no valid token waits for a
+// mint, independently of any deadline the caller sets for the call that needs
+// the token. A non-positive value keeps DefaultTokenWaitTimeout; a value above
+// MaxTokenWaitTimeout is refused by NewM2MTokenSource.
+func WithTokenWaitTimeout(d time.Duration) M2MTokenSourceOption {
+	return func(s *M2MTokenSource) {
+		if d > 0 {
+			s.waitTimeout = d
+		}
+	}
+}
+
 // WithTokenLogger sets the logger a proactive refresh reports a failure to. A
 // nil logger is ignored.
 func WithTokenLogger(logger libLog.Logger) M2MTokenSourceOption {
@@ -242,11 +264,16 @@ func NewM2MTokenSource(minter TokenMinter, creds CredentialProvider, opts ...M2M
 		jitter:      rand.Float64,
 		logger:      &libLog.NopLogger{},
 		mintTimeout: defaultMintTimeout,
+		waitTimeout: DefaultTokenWaitTimeout,
 		tenants:     make(map[string]*tenantState),
 	}
 
 	for _, opt := range opts {
 		opt(src)
+	}
+
+	if src.waitTimeout > src.mintTimeout {
+		return nil, fmt.Errorf("tracer seam token wait timeout %s exceeds the %s mint timeout", src.waitTimeout, src.mintTimeout)
 	}
 
 	return src, nil
@@ -289,8 +316,13 @@ func (s *M2MTokenSource) Token(ctx context.Context) (string, error) {
 		return "", credentialNotSent(failure.err)
 	}
 
+	result := s.startMint(ctx, key)
+
+	waitCtx, cancel := context.WithTimeout(ctx, s.waitTimeout)
+	defer cancel()
+
 	select {
-	case res := <-s.startMint(ctx, key):
+	case res := <-result:
 		if res.Err != nil {
 			return "", credentialNotSent(res.Err)
 		}
@@ -298,8 +330,8 @@ func (s *M2MTokenSource) Token(ctx context.Context) (string, error) {
 		token, _ := res.Val.(string)
 
 		return token, nil
-	case <-ctx.Done():
-		return "", fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, errTokenWaitAbandoned, ctx.Err())
+	case <-waitCtx.Done():
+		return "", fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, errTokenWaitAbandoned, waitCtx.Err())
 	}
 }
 

@@ -353,24 +353,29 @@ type Config struct {
 	// TracerM2MClientSecret in single-tenant mode (both required), or from each
 	// tenant's own credential in the secret store in multi-tenant mode. With auth
 	// disabled it is TracerAPIKey when set. Auth plus an API key refuses boot.
+	// TracerM2MTokenTimeoutMs bounds how long a seam call waits for a token
+	// that is not cached yet (default 3000, at most the 5000ms mint timeout);
+	// the RPC timeout starts once the token is in hand. Only token identity
+	// reads it.
 	// TracerM2MClientSecret and TracerAPIKey MUST NOT be logged, span-attached,
 	// or serialized. M2MSecretsBackend selects where the multi-tenant credentials
 	// are custodied ("aws", the default, or "vault"; anything else refuses boot)
 	// and M2MVaultMount is the Vault KV v2 mount; the Vault connection itself
 	// comes from Vault's own VAULT_ADDR / VAULT_TOKEN / VAULT_CACERT /
 	// VAULT_NAMESPACE.
-	TracerBaseURL         string `env:"TRACER_BASE_URL"`
-	TracerTimeoutMs       int    `env:"TRACER_TIMEOUT_MS"`
-	TracerTransport       string `env:"TRACER_TRANSPORT"`
-	TracerTLSMode         string `env:"TRACER_TLS_MODE"`
-	TracerTLSCertFile     string `env:"TRACER_TLS_CERT_FILE"`
-	TracerTLSKeyFile      string `env:"TRACER_TLS_KEY_FILE"`
-	TracerTLSCAFile       string `env:"TRACER_TLS_CA_FILE"`
-	TracerM2MClientID     string `env:"TRACER_M2M_CLIENT_ID"`
-	TracerM2MClientSecret string `env:"TRACER_M2M_CLIENT_SECRET" json:"-"`
-	TracerAPIKey          string `env:"TRACER_API_KEY" json:"-"`
-	M2MSecretsBackend     string `env:"M2M_SECRETS_BACKEND"`
-	M2MVaultMount         string `env:"M2M_VAULT_MOUNT"`
+	TracerBaseURL           string `env:"TRACER_BASE_URL"`
+	TracerTimeoutMs         int    `env:"TRACER_TIMEOUT_MS"`
+	TracerTransport         string `env:"TRACER_TRANSPORT"`
+	TracerTLSMode           string `env:"TRACER_TLS_MODE"`
+	TracerTLSCertFile       string `env:"TRACER_TLS_CERT_FILE"`
+	TracerTLSKeyFile        string `env:"TRACER_TLS_KEY_FILE"`
+	TracerTLSCAFile         string `env:"TRACER_TLS_CA_FILE"`
+	TracerM2MClientID       string `env:"TRACER_M2M_CLIENT_ID"`
+	TracerM2MClientSecret   string `env:"TRACER_M2M_CLIENT_SECRET" json:"-"`
+	TracerM2MTokenTimeoutMs int    `env:"TRACER_M2M_TOKEN_TIMEOUT_MS"`
+	TracerAPIKey            string `env:"TRACER_API_KEY" json:"-"`
+	M2MSecretsBackend       string `env:"M2M_SECRETS_BACKEND"`
+	M2MVaultMount           string `env:"M2M_VAULT_MOUNT"`
 }
 
 // Options contains optional dependencies that can be injected by callers.

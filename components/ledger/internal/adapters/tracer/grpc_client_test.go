@@ -94,14 +94,13 @@ func newTestGRPCClient(t *testing.T, stub *stubReservationServer) *TracerGRPCCli
 			return lis.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(tenantUnaryInterceptor),
+		grpc.WithChainUnaryInterceptor(tenantUnaryInterceptor, operationTimeoutUnaryInterceptor(DefaultOperationTimeout)),
 	)
 	require.NoError(t, err)
 
 	client := &TracerGRPCClient{
-		conn:             conn,
-		client:           reservationv1.NewReservationServiceClient(conn),
-		operationTimeout: DefaultOperationTimeout,
+		conn:   conn,
+		client: reservationv1.NewReservationServiceClient(conn),
 	}
 
 	t.Cleanup(func() {

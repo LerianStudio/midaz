@@ -447,25 +447,27 @@ func TestReservationRequestID_Deterministic(t *testing.T) {
 		"distinct transactionIDs must derive distinct requestIds")
 }
 
-// deadlineReserver records the deadline the anchor hands the reserve call and,
-// when waitForDeadline is set, blocks until that context is done. It maps a done
-// context to tracer.ErrTracerUnavailable, as the tracer clients do.
+// deadlineReserver records the deadline and the call timeout the anchor hands
+// the reserve call and, when timeOut is set, answers a call that carries a call
+// timeout as one that ran out of it, mapped to tracer.ErrTracerUnavailable as
+// the tracer clients do.
 type deadlineReserver struct {
 	capturingReserver
 
-	waitForDeadline bool
-	deadline        time.Time
-	hasDeadline     bool
+	timeOut        bool
+	deadline       time.Time
+	hasDeadline    bool
+	callTimeout    time.Duration
+	hasCallTimeout bool
 }
 
 func (d *deadlineReserver) Reserve(ctx context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error) {
 	d.lastReq = req
 	d.deadline, d.hasDeadline = ctx.Deadline()
+	d.callTimeout, d.hasCallTimeout = tracer.CallTimeout(ctx)
 
-	if d.waitForDeadline {
-		<-ctx.Done()
-
-		return nil, fmt.Errorf("%w: %w", tracer.ErrTracerUnavailable, ctx.Err())
+	if d.timeOut && d.hasCallTimeout {
+		return nil, fmt.Errorf("%w: %w", tracer.ErrTracerUnavailable, context.DeadlineExceeded)
 	}
 
 	return d.result, nil
@@ -487,7 +489,7 @@ func TestReserveTransaction_HonorsTimeoutMs(t *testing.T) {
 		return ctx
 	}
 
-	t.Run("timeoutMs bounds the reserve call below the parent deadline", func(t *testing.T) {
+	t.Run("timeoutMs bounds the reserve RPC without tightening the parent deadline", func(t *testing.T) {
 		t.Parallel()
 
 		_, sp, logger := anchorDeps()
@@ -498,9 +500,11 @@ func TestReserveTransaction_HonorsTimeoutMs(t *testing.T) {
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen, TimeoutMs: 250},
 			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
-		require.True(t, reserver.hasDeadline, "a positive timeoutMs must put a deadline on the reserve call")
-		assert.True(t, reserver.deadline.Before(farParentDeadline),
-			"the timeoutMs deadline must tighten the parent deadline, not inherit it")
+		require.True(t, reserver.hasCallTimeout, "a positive timeoutMs must bound the reserve call")
+		assert.Equal(t, 250*time.Millisecond, reserver.callTimeout)
+		require.True(t, reserver.hasDeadline)
+		assert.True(t, reserver.deadline.Equal(farParentDeadline),
+			"timeoutMs bounds the RPC alone, so the wait for a seam token keeps the parent deadline")
 	})
 
 	t.Run("zero timeoutMs leaves the parent deadline untouched", func(t *testing.T) {
@@ -517,6 +521,7 @@ func TestReserveTransaction_HonorsTimeoutMs(t *testing.T) {
 		require.True(t, reserver.hasDeadline)
 		assert.True(t, reserver.deadline.Equal(farParentDeadline),
 			"timeoutMs=0 leaves the client timeout as the only bound")
+		assert.False(t, reserver.hasCallTimeout)
 	})
 
 	t.Run("zero timeoutMs adds no deadline", func(t *testing.T) {
@@ -531,20 +536,22 @@ func TestReserveTransaction_HonorsTimeoutMs(t *testing.T) {
 			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.False(t, reserver.hasDeadline, "timeoutMs=0 leaves the client timeout as the only bound")
+		assert.False(t, reserver.hasCallTimeout, "timeoutMs=0 leaves the client timeout as the only bound")
 	})
 
 	t.Run("an expired timeoutMs is an outage and follows the posture", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, span, ended := recordingSpan(t)
-		reserver := &deadlineReserver{capturingReserver: capturingReserver{result: &tracer.ReserveResult{}}, waitForDeadline: true}
+		reserver := &deadlineReserver{capturingReserver: capturingReserver{result: &tracer.ReserveResult{}}, timeOut: true}
 		uc := &UseCase{TracerReserver: reserver}
 
 		out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed, TimeoutMs: 50},
 			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
-		require.True(t, reserver.hasDeadline)
+		require.True(t, reserver.hasCallTimeout)
+		assert.Equal(t, 50*time.Millisecond, reserver.callTimeout)
 		require.Equal(t, reservationReject, out.Kind)
 
 		var unavailable pkg.ServiceUnavailableError
