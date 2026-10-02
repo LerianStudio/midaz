@@ -128,6 +128,8 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			BalanceRepo:             mockBalanceRepo,
 			RabbitMQRepo:            mockRabbitMQRepo,
 			TransactionRedisRepo:    mockRedisRepo,
+			// The dispatcher needs a completer; a legacy message must never reach it.
+			AppliedTransactionCompleter: &appliedTransactionCompleterStub{},
 		}
 
 		// Setup RabbitMQ testcontainer
@@ -162,14 +164,10 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		consumerRoutes, err := rabbitmq.NewConsumerRoutes(conn, 1, 1, logger, telemetry)
 		require.NoError(t, err, "failed to create consumer routes")
 
-		// Create MultiQueueConsumer with mocked UseCase
-		consumer := &MultiQueueConsumer{
-			consumerRoutes: consumerRoutes,
-			UseCase:        uc,
-		}
-
-		// Register handler for our test queue
-		consumerRoutes.Register(queueName, consumer.handlerBTOQueue)
+		// Build the consumer as production does; it registers handlerBTOQueue on the queue.
+		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE", queueName)
+		_, err = NewMultiQueueConsumer(consumerRoutes, uc, false, nil)
+		require.NoError(t, err)
 
 		// Start consumer
 		err = consumerRoutes.RunConsumers()
