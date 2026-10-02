@@ -108,10 +108,9 @@ func TestCreatePortfolio_Success(t *testing.T) {
 			p.UpdatedAt = fixedTestTime
 			return p, nil
 		}).Times(1)
-	// The shared body pipeline (DecodeAndValidate -> parseMetadata) initializes
-	// Metadata to a non-nil empty map when the body carries no "metadata" key, so
-	// CreateOnboardingMetadata persists it — faithful to the Fiber WithBody path.
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Return(nil).Times(1)
+	// The body carries no "metadata" key; the decode path fills it with an empty
+	// map for PATCH merge semantics, and an empty map persists no document.
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Times(0)
 
 	handler := &PortfolioHandler{Command: &command.UseCase{
 		PortfolioRepo:          portfolioRepo,
@@ -402,11 +401,10 @@ func TestUpdatePortfolio_Success(t *testing.T) {
 
 	portfolioRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Any()).
 		Return(&mmodel.Portfolio{ID: portfolioID.String(), Name: "Renamed", OrganizationID: orgID.String(), LedgerID: ledgerID.String()}, nil).Times(1)
-	// Body carries no "metadata" key -> parseMetadata sets a non-nil empty map, so
-	// UpdateOnboardingMetadata runs its non-nil branch: FindByEntity (no existing
-	// row) then Update — faithful to the Fiber WithBody path.
+	// The body carries no "metadata" key, so the stored metadata is read for the
+	// response and nothing is written.
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityPortfolio, portfolioID.String()).Return(nil, nil).Times(1)
-	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityPortfolio, portfolioID.String(), gomock.Any()).Return(nil).Times(1)
+	metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityPortfolio, portfolioID.String(), gomock.Any()).Times(0)
 
 	handler := &PortfolioHandler{Command: &command.UseCase{
 		PortfolioRepo:          portfolioRepo,

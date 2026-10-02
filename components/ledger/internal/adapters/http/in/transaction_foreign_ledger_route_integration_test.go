@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -32,7 +31,6 @@ import (
 
 func TestTransactionRoute_OtherLedgerOfTheOrganizationPostsWithIt(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	routes := h.seedDirectRoutes(t, 1, 1)
 	v1App := h.newApp()
 	v2App := h.newV2App()
@@ -80,7 +78,6 @@ func TestTransactionRoute_OtherLedgerOfTheOrganizationPostsWithIt(t *testing.T) 
 
 func TestTransactionRoute_OtherOrganizationIsNotFound(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	routes := h.seedDirectRoutes(t, 1, 1)
 	app := h.newV2App()
 
@@ -118,9 +115,6 @@ func TestTransactionRoute_OtherOrganizationIsNotFound(t *testing.T) {
 
 func TestTransactionRoute_RevertInAnotherLedgerOfTheOrganizationPassesTheBidirectionalCheck(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	// A revert resolves its origin through the engine evidence, as production wires it.
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 	app := h.newV2App()
 
 	// Routes created under the first ledger; the transaction and its revert
@@ -210,20 +204,24 @@ func (h *feeHarness) seedRevertibleRoutes(t *testing.T) (transactionRouteID, pay
 
 	transactionRouteID = postgrestestutil.CreateTestTransactionRouteSimple(t, h.db, h.orgID, h.ledgerID, "revertible route")
 
-	newBidirectional := func(title string) uuid.UUID {
-		id := postgrestestutil.CreateTestOperationRouteSimple(t, h.db, h.orgID, h.ledgerID, title, "bidirectional")
-		rubric := fmt.Sprintf(`{"debit":{"code":"%[1]s-D","description":"%[2]s"},"credit":{"code":"%[1]s-C","description":"%[2]s"}}`, id, title)
+	return transactionRouteID, h.seedBidirectionalRoute(t, "revertible payer", transactionRouteID), h.seedBidirectionalRoute(t, "revertible receiver", transactionRouteID)
+}
 
-		_, err := h.db.Exec(`UPDATE operation_route SET accounting_entries=$1::jsonb WHERE id=$2`,
-			`{"direct":`+rubric+`,"revert":`+rubric+`}`, id)
-		require.NoError(t, err, "seed bidirectional accounting entries")
+// seedBidirectionalRoute creates a bidirectional operation route linked to transactionRouteID,
+// whose direct and revert entries code a debit <id>-D and a credit <id>-C.
+func (h *feeHarness) seedBidirectionalRoute(t *testing.T, title string, transactionRouteID uuid.UUID) uuid.UUID {
+	t.Helper()
 
-		postgrestestutil.CreateTestOperationTransactionRouteLink(t, h.db, id, transactionRouteID)
+	id := postgrestestutil.CreateTestOperationRouteSimple(t, h.db, h.orgID, h.ledgerID, title, "bidirectional")
+	rubric := fmt.Sprintf(`{"debit":{"code":"%[1]s-D","description":"%[2]s"},"credit":{"code":"%[1]s-C","description":"%[2]s"}}`, id, title)
 
-		return id
-	}
+	_, err := h.db.Exec(`UPDATE operation_route SET accounting_entries=$1::jsonb WHERE id=$2`,
+		`{"direct":`+rubric+`,"revert":`+rubric+`}`, id)
+	require.NoError(t, err, "seed bidirectional accounting entries")
 
-	return transactionRouteID, newBidirectional("revertible payer"), newBidirectional("revertible receiver")
+	postgrestestutil.CreateTestOperationTransactionRouteLink(t, h.db, id, transactionRouteID)
+
+	return id
 }
 
 // withSecondLedger returns a shallow copy of the harness scoped to a second,

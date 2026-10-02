@@ -369,14 +369,14 @@ func (s *LimitCheckerService) processLimitAtomic(
 	}
 
 	// For DAILY/WEEKLY/MONTHLY/CUSTOM limits, use atomic upsert
-	periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
+	periodKey, err := limit.PeriodKey(serverNow)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to calculate period key", err)
 		return nil, false, err
 	}
 
 	// Calculate counter expiration time for cleanup
-	resetAt := model.CalculateResetAt(limit.LimitType, serverNow)
+	resetAt := limit.NextResetAt(serverNow)
 	expiresAt := calculateCounterExpiresAt(limit.LimitType, resetAt, limit.CustomEndDate)
 
 	// Pre-check: amount > maxAmount would always fail (INSERT path has no WHERE guard)

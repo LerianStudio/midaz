@@ -48,6 +48,8 @@ var envVarNames = []string{
 	"MIGRATIONS_PATH",
 	"FAULT_INJECTION_ENABLED",
 	"READYZ_DRAIN_GRACE_SECONDS",
+	"TRACER_GRPC_PORT",
+	"TRACER_GRPC_ADDRESS",
 }
 
 // savedEnvVars stores original environment variable values for restoration.
@@ -115,6 +117,27 @@ func SetupTestSuite(m *testing.M) int {
 	// by default, allowing immediate reuse by the same process starting the server.
 	listener.Close()
 
+	// The reservation gRPC seam gets its own free loopback port, so the suite
+	// never collides with a tracer already listening on the :4021 default.
+	grpcListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to find free gRPC port: %v\n", err)
+
+		if termErr := pgContainer.Terminate(ctx); termErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to terminate container: %v\n", termErr)
+		}
+
+		restoreEnvironment()
+
+		return 1
+	}
+
+	grpcAddress := grpcListener.Addr().String()
+
+	if err := grpcListener.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to release free gRPC port: %v\n", err)
+	}
+
 	// Get project root for migrations path
 	_, filename, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
@@ -128,6 +151,8 @@ func SetupTestSuite(m *testing.M) int {
 	os.Setenv("DB_NAME", "tracer_test")
 	os.Setenv("SERVER_PORT", fmt.Sprintf("%d", port))
 	os.Setenv("SERVER_ADDRESS", fmt.Sprintf("127.0.0.1:%d", port))
+	os.Setenv("TRACER_GRPC_PORT", grpcAddress)
+	os.Setenv("TRACER_GRPC_ADDRESS", grpcAddress)
 	os.Setenv("API_KEY", "test_api_key")
 	os.Setenv("API_KEY_ENABLED", "true")
 	os.Setenv("PLUGIN_AUTH_ENABLED", "false") // Disable plugin auth for integration tests

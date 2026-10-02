@@ -32,6 +32,19 @@ func TestAccountContext_ToMap_Success(t *testing.T) {
 	assert.Equal(t, "active", result["status"])
 }
 
+func TestAccountContext_ToMap_LedgerVocabularyVerbatim(t *testing.T) {
+	acc := &AccountContext{
+		ID:     testutil.MustDeterministicUUID(2),
+		Type:   "deposit",
+		Status: "ACTIVE",
+	}
+
+	result := acc.ToMap()
+
+	assert.Equal(t, "deposit", result["type"], "account type must reach CEL exactly as the caller sent it")
+	assert.Equal(t, "ACTIVE", result["status"], "account status must reach CEL without case normalization")
+}
+
 func TestMerchantContext_ToMap_NilReceiver(t *testing.T) {
 	var m *MerchantContext
 	result := m.ToMap()

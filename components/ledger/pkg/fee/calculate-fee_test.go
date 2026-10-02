@@ -367,7 +367,7 @@ func TestFindPackageToCalculateFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := FindPackageToCalculateFee(tt.packages, tt.transactionRoute, tt.segmentID, tt.amount)
+			result, err := FindPackageToCalculateFee(tt.packages, tt.transactionRoute, tt.segmentID, nil, tt.amount)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -1737,7 +1737,7 @@ func TestFindMaxAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := findMaxAccount(tt.amounts, tt.exemptAccounts, nil, nil)
+			result, err := findMaxAccount(tt.amounts, tt.exemptAccounts, nil, nil, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})

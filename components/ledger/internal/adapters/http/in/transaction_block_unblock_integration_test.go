@@ -26,8 +26,10 @@ import (
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -117,6 +119,16 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 		TransactionRedisRepo:    redisRepo,
 		TransactionReader:       queryUC,
 	}
+
+	// Block and unblock are monetary commands: they execute through the
+	// accounting engine and complete through the applied-transaction completer,
+	// as the bootstrap wires them.
+	engine, err := redisengine.NewAdapter(redisConn)
+	require.NoError(t, err, "failed to create accounting engine")
+
+	commandUC.Engine = engine
+	commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(completion.NewStore(transactionRepo, operationRepo), metadataRepo)
+	queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 
 	infra.txHandler = &TransactionHandler{Query: queryUC, Command: commandUC}
 	infra.opHandler = &OperationHandler{Query: queryUC, Command: commandUC}

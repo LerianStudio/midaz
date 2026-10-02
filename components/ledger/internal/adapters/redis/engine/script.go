@@ -37,6 +37,9 @@ var engineReceiptScript string
 //go:embed scripts/engine/posting_algebra.lua
 var enginePostingAlgebraScript string
 
+//go:embed scripts/engine/fee_debt.lua
+var engineFeeDebtScript string
+
 //go:embed scripts/engine/execution.lua
 var engineExecutionScript string
 
@@ -51,6 +54,7 @@ var engineScriptFragments = [...]string{
 	engineRequestScript,
 	engineReceiptScript,
 	enginePostingAlgebraScript,
+	engineFeeDebtScript,
 	engineExecutionScript,
 	engineEntrypointScript,
 }

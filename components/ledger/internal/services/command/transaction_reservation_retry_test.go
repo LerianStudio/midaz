@@ -8,8 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
-	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,10 +20,111 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
+	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
+
+// stallingReservationServer is a tracer reservation gRPC service that holds
+// the first stallFor transitions open until the client's deadline cancels them
+// and accepts every transition after that.
+type stallingReservationServer struct {
+	reservationv1.UnimplementedReservationServiceServer
+
+	mu       sync.Mutex
+	requests int32
+	stallFor int32
+}
+
+func (s *stallingReservationServer) ConfirmById(ctx context.Context, _ *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ConfirmByIdResponse{}, nil
+}
+
+func (s *stallingReservationServer) ReleaseById(ctx context.Context, _ *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ReleaseByIdResponse{}, nil
+}
+
+func (s *stallingReservationServer) ConfirmByTransaction(ctx context.Context, _ *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ConfirmByTransactionResponse{}, nil
+}
+
+func (s *stallingReservationServer) ReleaseByTransaction(ctx context.Context, _ *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
+	if err := s.handle(ctx); err != nil {
+		return nil, err
+	}
+
+	return &reservationv1.ReleaseByTransactionResponse{}, nil
+}
+
+// handle counts the call and, while the stall budget lasts, blocks until the
+// caller's deadline cancels the RPC.
+func (s *stallingReservationServer) handle(ctx context.Context) error {
+	s.mu.Lock()
+	s.requests++
+	stall := s.requests <= s.stallFor
+	s.mu.Unlock()
+
+	if stall {
+		<-ctx.Done()
+
+		return ctx.Err()
+	}
+
+	return nil
+}
+
+func (s *stallingReservationServer) count() int32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.requests
+}
+
+// startReservationServer serves handler on a loopback listener and returns the
+// address a tracer client dials. The server stops on cleanup.
+func startReservationServer(t *testing.T, handler reservationv1.ReservationServiceServer) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	server := grpc.NewServer()
+	reservationv1.RegisterReservationServiceServer(server, handler)
+
+	go func() { _ = server.Serve(listener) }()
+
+	t.Cleanup(server.Stop)
+
+	return listener.Addr().String()
+}
+
+// closedLoopbackAddr returns a loopback address nothing listens on, so a dial
+// against it is refused immediately.
+func closedLoopbackAddr(t *testing.T) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	addr := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	return addr
+}
 
 // fastRetryPolicy is the shipped policy compressed so a test finishes in
 // milliseconds. Only the durations change; the shape of the sequence does not.
@@ -76,24 +176,28 @@ type scriptedReserver struct {
 
 	// confirm returns the error for attempt n (1-indexed); nil means accept.
 	confirm func(attempt int) error
+
+	// outcome is what an accepted confirm reports.
+	outcome tracer.ConfirmOutcome
 }
 
 func (s *scriptedReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
 	return &tracer.ReserveResult{}, nil
 }
 
-func (s *scriptedReserver) Confirm(_ context.Context, _ uuid.UUID) error {
+func (s *scriptedReserver) Confirm(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.confirmCalls++
 
-	err := s.confirm(s.confirmCalls)
-	if err == nil {
-		s.confirmDelivered = true
+	if err := s.confirm(s.confirmCalls); err != nil {
+		return tracer.ConfirmOutcome{}, err
 	}
 
-	return err
+	s.confirmDelivered = true
+
+	return s.outcome, nil
 }
 
 func (s *scriptedReserver) Release(_ context.Context, _ uuid.UUID) error {
@@ -105,18 +209,19 @@ func (s *scriptedReserver) Release(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (s *scriptedReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
+func (s *scriptedReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.confirmByTxn++
 
-	err := s.confirm(s.confirmByTxn)
-	if err == nil {
-		s.confirmDelivered = true
+	if err := s.confirm(s.confirmByTxn); err != nil {
+		return tracer.ConfirmOutcome{}, err
 	}
 
-	return err
+	s.confirmDelivered = true
+
+	return s.outcome, nil
 }
 
 func (s *scriptedReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {
@@ -169,7 +274,7 @@ func TestRetryDeliversAConfirmTheTransportRefused(t *testing.T) {
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	cause := fmt.Errorf("inline attempt: %w", tracer.ErrTracerUnavailable)
-	retrier.schedule(context.Background(), reserver, logger, retryTransition(), cause)
+	retrier.schedule(context.Background(), reserver, nil, logger, retryTransition(), cause)
 	retrier.wait()
 
 	attempts, delivered := reserver.attempts()
@@ -181,48 +286,27 @@ func TestRetryDeliversAConfirmTheTransportRefused(t *testing.T) {
 		"a confirm that only landed on retry must say the limit was under-enforced in between")
 }
 
-// TestRetryDeliversAConfirmThatTimedOut uses the real HTTP client against a real
-// server, so the first attempts fail on the client's own 250ms per-operation
-// deadline rather than on a stubbed error. No synthetic load: the handler simply
-// waits for its request context to be cancelled.
+// TestRetryDeliversAConfirmThatTimedOut uses the real gRPC client against a
+// real server, so the first attempts fail on the client's own 250ms
+// per-operation deadline rather than on a stubbed error. No synthetic load: the
+// handler simply waits for its request context to be cancelled.
 func TestRetryDeliversAConfirmThatTimedOut(t *testing.T) {
-	var requests int32
+	server := &stallingReservationServer{stallFor: 2}
 
-	var mu sync.Mutex
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		requests++
-		stall := requests <= 2
-		mu.Unlock()
-
-		if stall {
-			// Hold the request open until the client's deadline cancels it.
-			<-r.Context().Done()
-
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	client, err := tracer.NewTracerClient(server.URL)
+	client, err := tracer.NewTracerGRPCClient(startReservationServer(t, server))
 	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
 
 	logger := &capturingLogger{}
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	started := time.Now()
-	retrier.schedule(context.Background(), client, logger,
+	retrier.schedule(context.Background(), client, nil, logger,
 		retryTransition(), fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
-	mu.Lock()
-	got := requests
-	mu.Unlock()
-
-	assert.Equal(t, int32(3), got, "two timed-out attempts then one accepted")
+	assert.Equal(t, int32(3), server.count(), "two timed-out attempts then one accepted")
 	assert.GreaterOrEqual(t, time.Since(started), 500*time.Millisecond,
 		"each stalled attempt costs the client's 250ms per-operation budget, so two of them cost at least 500ms")
 
@@ -269,7 +353,7 @@ func TestRetryKeepsTryingPastTheHoldExpiry(t *testing.T) {
 	policy.MaxDelay = 5 * time.Millisecond
 
 	retrier := newReservationRetrier(policy)
-	retrier.schedule(context.Background(), reserver, &capturingLogger{},
+	retrier.schedule(context.Background(), reserver, nil, &capturingLogger{},
 		retryTransition(), fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -318,20 +402,16 @@ func TestShippedRetryBudgetOutlastsTheDirectHold(t *testing.T) {
 func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	// A closed port: the dial is refused immediately, so the sequence exhausts
 	// its attempts without waiting on any timeout.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	client, err := tracer.NewTracerGRPCClient(closedLoopbackAddr(t))
 	require.NoError(t, err)
 
-	closedAddr := listener.Addr().String()
-	require.NoError(t, listener.Close())
-
-	client, err := tracer.NewTracerClient("http://" + closedAddr)
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	logger := &capturingLogger{}
 	transition := retryTransition()
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), client, logger, transition,
+	retrier.schedule(context.Background(), client, nil, logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -356,14 +436,10 @@ func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 // be counted" sends them hunting an uncounted spend that does not exist, while
 // the customer sits denied inside their own limit.
 func TestRetryReportsALostReleaseAsHeldCapacity(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	client, err := tracer.NewTracerGRPCClient(closedLoopbackAddr(t))
 	require.NoError(t, err)
 
-	closedAddr := listener.Addr().String()
-	require.NoError(t, listener.Close())
-
-	client, err := tracer.NewTracerClient("http://" + closedAddr)
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	logger := &capturingLogger{}
 
@@ -371,7 +447,7 @@ func TestRetryReportsALostReleaseAsHeldCapacity(t *testing.T) {
 	transition.Action = reservationActionRelease
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), client, logger, transition,
+	retrier.schedule(context.Background(), client, nil, logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -399,7 +475,7 @@ func TestRetryReportsALateReleaseAsOverEnforcement(t *testing.T) {
 	transition.Action = reservationActionRelease
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), reserver, logger, transition,
+	retrier.schedule(context.Background(), reserver, nil, logger, transition,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -426,14 +502,14 @@ func TestRetryReportsATransitionItHasNoCapacityFor(t *testing.T) {
 	}}
 
 	// Fill the single slot with a sequence that will keep retrying.
-	retrier.schedule(context.Background(), occupy, &capturingLogger{}, retryTransition(),
+	retrier.schedule(context.Background(), occupy, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	logger := &capturingLogger{}
 	turnedAway := retryTransition()
 	rejected := &scriptedReserver{confirm: func(_ int) error { return nil }}
 
-	retrier.schedule(context.Background(), rejected, logger, turnedAway,
+	retrier.schedule(context.Background(), rejected, nil, logger, turnedAway,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
@@ -492,7 +568,7 @@ func TestRepeatedConfirmDoesNotCountTheSpendTwice(t *testing.T) {
 	}
 
 	retrier := newReservationRetrier(fastRetryPolicy())
-	retrier.schedule(context.Background(), tracerLike, &capturingLogger{}, retryTransition(),
+	retrier.schedule(context.Background(), tracerLike, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -513,7 +589,7 @@ func (s *tenantSpy) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer
 	return &tracer.ReserveResult{}, nil
 }
 
-func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
+func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -521,14 +597,16 @@ func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
 	s.seen = append(s.seen, tmcore.GetTenantIDContext(ctx))
 
 	if s.calls < 3 {
-		return fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)
+		return tracer.ConfirmOutcome{}, fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)
 	}
 
-	return nil
+	return tracer.ConfirmOutcome{Confirmed: 1}, nil
 }
 
-func (s *tenantSpy) Release(_ context.Context, _ uuid.UUID) error              { return nil }
-func (s *tenantSpy) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *tenantSpy) Release(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *tenantSpy) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, nil
+}
 func (s *tenantSpy) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
 
 func (s *tenantSpy) tenants() []string {
@@ -556,7 +634,7 @@ func TestRetryKeepsTheTenantAfterTheRequestEnds(t *testing.T) {
 	spy := &tenantSpy{}
 	retrier := newReservationRetrier(fastRetryPolicy())
 
-	retrier.schedule(requestCtx, spy, &capturingLogger{}, retryTransition(),
+	retrier.schedule(requestCtx, spy, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	// The response is written and the request context is cancelled while the
@@ -591,7 +669,7 @@ func TestShutdownNamesTheTransitionsItAbandons(t *testing.T) {
 	}}
 
 	stranded := retryTransition()
-	retrier.schedule(context.Background(), stillDown, &capturingLogger{}, stranded,
+	retrier.schedule(context.Background(), stillDown, nil, &capturingLogger{}, stranded,
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 
 	// Let the sequence get going, then take the shutdown snapshot.
@@ -620,7 +698,7 @@ func TestShutdownIsSilentWhenNothingIsOwed(t *testing.T) {
 	retrier := newReservationRetrier(fastRetryPolicy())
 
 	delivered := &scriptedReserver{confirm: failNTimes(1)}
-	retrier.schedule(context.Background(), delivered, &capturingLogger{}, retryTransition(),
+	retrier.schedule(context.Background(), delivered, nil, &capturingLogger{}, retryTransition(),
 		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
 	retrier.wait()
 
@@ -686,4 +764,100 @@ func TestAnchorHandsAFailedTransitionToTheRetrier(t *testing.T) {
 
 		sharedReservationRetrier.wait()
 	})
+}
+
+// TestRetryOfAByTransactionConfirmAfterTransportFailureStillReportsDelivery pins
+// that a by-transaction confirm the transport refused keeps its delivered-on-retry
+// line.
+func TestRetryOfAByTransactionConfirmAfterTransportFailureStillReportsDelivery(t *testing.T) {
+	t.Parallel()
+
+	logger := &capturingLogger{}
+	reserver := &scriptedReserver{confirm: failNTimes(1)}
+	retrier := newReservationRetrier(fastRetryPolicy())
+
+	transition := retryTransition()
+	transition.ReservationID = uuid.Nil
+
+	retrier.schedule(context.Background(), reserver, nil, logger, transition,
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+	retrier.wait()
+
+	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelWarn))
+	assert.Contains(t, reported, "delivered on retry")
+	assert.NotContains(t, reported, "No reservation found to confirm")
+}
+
+func TestRetrier_CompletedSequenceFreesItsSlotAndLeavesNoOutstanding(t *testing.T) {
+	t.Parallel()
+
+	const maxInFlight = 3
+
+	cases := []struct {
+		name  string
+		gated bool
+	}{
+		{name: "delivered sequences free every slot for the next round"},
+		{name: "a held retrier accepts exactly its bound and drops the next", gated: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy := fastRetryPolicy()
+			policy.MaxInFlight = maxInFlight
+			retrier := newReservationRetrier(policy)
+			logger := &capturingLogger{}
+			cause := fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable)
+
+			if tc.gated {
+				gate := make(chan struct{})
+				held := &scriptedReserver{confirm: func(int) error { <-gate; return nil }}
+
+				for range maxInFlight {
+					retrier.schedule(context.Background(), held, nil, logger, retryTransition(), cause)
+				}
+
+				assert.NotContains(t, rendered(logger.snapshot()), "dropped", "the bound itself is accepted")
+
+				dropped := retryTransition()
+				retrier.schedule(context.Background(), held, nil, logger, dropped, cause)
+
+				reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
+				assert.Contains(t, reported, "Tracer reservation transition dropped")
+				assert.Contains(t, reported, dropped.TransactionID.String())
+				assert.Equal(t, 1, strings.Count(reported, "transition dropped"), "only the sequence past the bound is dropped")
+
+				close(gate)
+				retrier.wait()
+
+				attempts, _ := held.attempts()
+				assert.Equal(t, maxInFlight, attempts, "only the accepted sequences reach the tracer")
+
+				return
+			}
+
+			delivered := &scriptedReserver{confirm: failNTimes(0)}
+
+			for round := 1; round <= 2; round++ {
+				for range maxInFlight {
+					retrier.schedule(context.Background(), delivered, nil, logger, retryTransition(), cause)
+				}
+
+				retrier.wait()
+
+				assert.Zero(t, len(retrier.slots), "round %d: every finished sequence returns its slot", round)
+				assert.Empty(t, retrier.outstanding(), "round %d: every finished sequence is deregistered", round)
+
+				shutdown := &capturingLogger{}
+				retrier.reportOutstanding(context.Background(), shutdown)
+				assert.Empty(t, shutdown.snapshot(), "round %d: nothing is reported as abandoned", round)
+			}
+
+			attempts, _ := delivered.attempts()
+			assert.Equal(t, 2*maxInFlight, attempts, "both rounds are delivered in full")
+			assert.NotContains(t, rendered(logger.snapshot()), "dropped")
+		})
+	}
 }

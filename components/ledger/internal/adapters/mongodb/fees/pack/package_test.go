@@ -614,6 +614,7 @@ func TestPackageMongoDBModel_RoundTrip(t *testing.T) {
 		SegmentID:        &segmentID,
 		LedgerID:         ledgerID,
 		TransactionRoute: stringPtr("debitoted"),
+		MetadataSelector: map[string]string{"fee_context": "ted_salario"},
 		MinimumAmount:    decimal.NewFromInt(100),
 		MaximumAmount:    decimal.NewFromInt(1000),
 		WaivedAccounts:   &waivedAccounts,
@@ -636,6 +637,7 @@ func TestPackageMongoDBModel_RoundTrip(t *testing.T) {
 	assert.Equal(t, *original.SegmentID, *converted.SegmentID)
 	assert.Equal(t, original.LedgerID, converted.LedgerID)
 	assert.Equal(t, *original.TransactionRoute, *converted.TransactionRoute)
+	assert.Equal(t, original.MetadataSelector, converted.MetadataSelector)
 	assert.Equal(t, original.MinimumAmount, converted.MinimumAmount)
 	assert.Equal(t, original.MaximumAmount, converted.MaximumAmount)
 	assert.Equal(t, *original.WaivedAccounts, *converted.WaivedAccounts)

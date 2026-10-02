@@ -39,6 +39,8 @@ type Repository interface {
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
 	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
+	SetKeys(ctx context.Context, collection, id string, keys map[string]any) error
+	UpdateIfUnchanged(ctx context.Context, collection, id, entityName string, metadata, guard map[string]any) (bool, error)
 	Delete(ctx context.Context, collection, id string) error
 	CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
 	FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)

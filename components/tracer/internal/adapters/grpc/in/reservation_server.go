@@ -3,11 +3,9 @@
 // that can be found in the LICENSE file.
 
 // Package in hosts the tracer's inbound gRPC adapters. The reservation server
-// is the gRPC face of the SAME two-phase reservation use case the REST handler
-// drives (components/tracer/internal/adapters/http/in/reservation_handler.go):
-// it maps the generated proto messages to the domain inputs, delegates to the
-// identical *services.ReservationService, and maps the results back. The
-// business logic is never duplicated — both transports converge on one service.
+// is the only transport of the two-phase reservation use case: it maps the
+// generated proto messages to the domain inputs, delegates to the
+// *services.ReservationService, and maps the results back.
 package in
 
 //go:generate mockgen -source=reservation_server.go -destination=mocks/reservation_server_service_mock.go -package=mocks
@@ -15,13 +13,14 @@ package in
 import (
 	"context"
 	"errors"
-	"time"
+	"fmt"
+	"math"
 
-	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -31,19 +30,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/reservationmap"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
 // ReservationService is the two-phase reservation use case the gRPC server
-// delegates to. It is the SAME interface the REST handler depends on
-// (reservation_handler.go), satisfied by *services.ReservationService, so the
-// two transports cannot drift apart in behavior.
+// delegates to, satisfied by *services.ReservationService.
 type ReservationService interface {
-	Reserve(ctx context.Context, transactionID uuid.UUID, input *model.CheckLimitsInput, longLived bool) (*services.ReserveResult, error)
-	Confirm(ctx context.Context, reservationID uuid.UUID) error
+	Reserve(ctx context.Context, transactionID uuid.UUID, req *model.ValidationRequest, opts services.ReserveOptions) (*services.ReserveResult, error)
+	Confirm(ctx context.Context, reservationID uuid.UUID) (services.ConfirmOutcome, error)
 	Release(ctx context.Context, reservationID uuid.UUID) error
-	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
+	ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (services.ConfirmOutcome, error)
 	ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) (int, error)
 }
 
@@ -58,9 +56,8 @@ type ReservationServer struct {
 }
 
 // NewReservationServer constructs a gRPC reservation server. clk drives the
-// reserve timestamp-window check (injected for MOCK_TIME determinism in tests),
-// mirroring the REST handler's clock dependency. Returns an error if service or
-// clk is nil.
+// reserve timestamp-window check (injected for MOCK_TIME determinism in tests).
+// Returns an error if service or clk is nil.
 func NewReservationServer(service ReservationService, clk clock.Clock) (*ReservationServer, error) {
 	if service == nil {
 		return nil, errors.New("nil ReservationService passed to NewReservationServer")
@@ -77,16 +74,17 @@ func NewReservationServer(service ReservationService, clk clock.Clock) (*Reserva
 }
 
 // Reserve holds limit capacity for a ledger transaction (phase one). The proto
-// request is mapped to the same model.ValidationRequest the REST path builds,
-// normalized and validated with the relaxed reserve rules, then converted to the
-// CheckLimitsInput the use case resolves against — so the gRPC and REST inputs
-// are identical. A limit-exceeded decision comes back as a normal result with
+// request is mapped to a model.ValidationRequest, normalized and validated with
+// the relaxed reserve rules, then converted to the
+// CheckLimitsInput the use case resolves against. A limit-exceeded decision comes back as a normal result with
 // denied=true (NOT an error); only validation and technical failures map to a
 // gRPC status error.
 func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+	const operation = "grpc.reservations.reserve"
+
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "grpc.reservations.reserve")
+	ctx, span := tracer.Start(ctx, operation)
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -97,7 +95,7 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		return nil, status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
 	}
 
-	validationReq, err := s.toValidationRequest(req)
+	validationReq, err := reservationmap.ValidationRequestFromReserveProto(req)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reserve request", err)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -112,17 +110,22 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		attribute.String("app.request.transaction_id", transactionID.String()),
 		attribute.String("app.request.transaction_type", string(validationReq.TransactionType)),
 		attribute.String("app.request.asset", validationReq.Asset),
+		attribute.Bool("app.request.revert", req.GetRevert()),
 	)
 
-	result, err := s.service.Reserve(ctx, transactionID, validationReq.ToCheckLimitsInput(), req.GetLongLived())
+	result, err := s.service.Reserve(ctx, transactionID, validationReq, services.ReserveOptions{
+		LongLived: req.GetLongLived(),
+		Revert:    req.GetRevert(),
+	})
 	if err != nil {
-		return nil, s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, s.mapServiceError(ctx, span, operation, err)
 	}
 
 	logger.With(
-		libLog.String("operation", "grpc.reservations.reserve"),
+		libLog.String("operation", operation),
 		libLog.String("transaction_id", transactionID.String()),
 		libLog.Bool("denied", result.Denied),
+		libLog.String("decision", string(result.EffectiveDecision())),
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
@@ -130,61 +133,70 @@ func (s *ReservationServer) Reserve(ctx context.Context, req *reservationv1.Rese
 		TransactionId:  transactionID.String(),
 		Denied:         result.Denied,
 		ReservationIds: reservationIDStrings(result.ReservationIDs),
+		Decision:       string(result.EffectiveDecision()),
+		Reason:         result.Reason,
+		MatchedRuleIds: reservationIDStrings(result.MatchedRuleIDs),
 	}, nil
 }
 
 // ConfirmByTransaction commits every reservation a transaction holds (phase two,
 // /commit-driven). Idempotent: a transaction with no RESERVED rows is a no-op
-// success.
+// success. The response carries the rows this call confirmed and the rows it
+// found already RELEASED.
 func (s *ReservationServer) ConfirmByTransaction(ctx context.Context, req *reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error) {
-	if err := s.terminateByTransaction(ctx, "grpc.reservations.confirm_by_transaction", string(model.StatusConfirmed), req.GetTransactionId(), s.service.ConfirmByTransaction); err != nil {
+	const operation = "grpc.reservations.confirm_by_transaction"
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, operation)
+	defer span.End()
+
+	transactionID, err := parseTransactionID(span, req.GetTransactionId())
+	if err != nil {
 		return nil, err
 	}
 
-	return &reservationv1.ConfirmByTransactionResponse{}, nil
+	outcome, err := s.service.ConfirmByTransaction(ctx, transactionID)
+	if err != nil {
+		return nil, s.mapServiceError(ctx, span, operation, err)
+	}
+
+	return &reservationv1.ConfirmByTransactionResponse{
+		Confirmed:       countToUint32(outcome.Confirmed),
+		AlreadyReleased: countToUint32(outcome.AlreadyReleased),
+	}, nil
 }
 
 // ReleaseByTransaction returns the held capacity for every reservation a
 // transaction holds (phase two, /cancel-driven). Idempotent like
-// ConfirmByTransaction.
+// ConfirmByTransaction: the service treats an absent or already-terminal
+// transaction as a no-op.
 func (s *ReservationServer) ReleaseByTransaction(ctx context.Context, req *reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error) {
-	if err := s.terminateByTransaction(ctx, "grpc.reservations.release_by_transaction", string(model.StatusReleased), req.GetTransactionId(), s.service.ReleaseByTransaction); err != nil {
+	const operation = "grpc.reservations.release_by_transaction"
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, operation)
+	defer span.End()
+
+	transactionID, err := parseTransactionID(span, req.GetTransactionId())
+	if err != nil {
 		return nil, err
+	}
+
+	if _, err := s.service.ReleaseByTransaction(ctx, transactionID); err != nil {
+		return nil, s.mapServiceError(ctx, span, operation, err)
 	}
 
 	return &reservationv1.ReleaseByTransactionResponse{}, nil
 }
 
 // ConfirmById commits a single reservation addressed by its id (phase two).
-// Idempotent: a retry against an already-terminal reservation succeeds.
+// Idempotent: a retry against an already-terminal reservation succeeds, and the
+// response says whether the row was already RELEASED.
 func (s *ReservationServer) ConfirmById(ctx context.Context, req *reservationv1.ConfirmByIdRequest) (*reservationv1.ConfirmByIdResponse, error) {
-	if err := s.terminateByID(ctx, "grpc.reservations.confirm", string(model.StatusConfirmed), req.GetReservationId(), s.service.Confirm); err != nil {
-		return nil, err
-	}
+	const operation = "grpc.reservations.confirm"
 
-	return &reservationv1.ConfirmByIdResponse{}, nil
-}
-
-// ReleaseById returns a single reservation's held capacity addressed by its id
-// (phase two). Idempotent like ConfirmById.
-func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
-	if err := s.terminateByID(ctx, "grpc.reservations.release", string(model.StatusReleased), req.GetReservationId(), s.service.Release); err != nil {
-		return nil, err
-	}
-
-	return &reservationv1.ReleaseByIdResponse{}, nil
-}
-
-// terminateByTransaction is the shared by-transaction confirm/release body: parse
-// the transaction id, invoke the use case, log the flipped count. The service
-// treats an absent or already-terminal transaction as an idempotent no-op.
-func (s *ReservationServer) terminateByTransaction(
-	ctx context.Context,
-	operation string,
-	terminalStatus string,
-	rawTransactionID string,
-	action func(ctx context.Context, transactionID uuid.UUID) (int, error),
-) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, operation)
@@ -192,135 +204,114 @@ func (s *ReservationServer) terminateByTransaction(
 
 	logger = logging.WithTrace(ctx, logger)
 
-	transactionID, err := uuid.Parse(rawTransactionID)
-	if err != nil || transactionID == uuid.Nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction id", constant.ErrReservationTransactionIDReq)
-		return status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
-	}
-
-	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
-
-	flipped, err := action(ctx, transactionID)
+	reservationID, err := parseReservationID(span, req.GetReservationId())
 	if err != nil {
-		return s.mapServiceError(span, "Reservation processing failed", err)
+		return nil, err
 	}
 
-	logger.With(
-		libLog.String("operation", operation),
-		libLog.String("transaction_id", transactionID.String()),
-		libLog.String("status", terminalStatus),
-		libLog.Int("flipped", flipped),
-	).Log(ctx, libLog.LevelDebug, "Reservations transitioned by transaction")
-
-	return nil
-}
-
-// terminateByID is the shared confirm/release-by-id body: parse the reservation
-// id, invoke the use case. The service maps an already-terminal reservation to a
-// nil error (idempotent retry).
-func (s *ReservationServer) terminateByID(
-	ctx context.Context,
-	operation string,
-	terminalStatus string,
-	rawReservationID string,
-	action func(ctx context.Context, reservationID uuid.UUID) error,
-) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, operation)
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	reservationID, err := uuid.Parse(rawReservationID)
-	if err != nil || reservationID == uuid.Nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation id", constant.ErrInvalidPathParameter)
-		return status.Error(codes.InvalidArgument, constant.ErrInvalidPathParameter.Error())
-	}
-
-	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
-
-	if err := action(ctx, reservationID); err != nil {
-		return s.mapServiceError(span, "Reservation processing failed", err)
+	outcome, err := s.service.Confirm(ctx, reservationID)
+	if err != nil {
+		return nil, s.mapServiceError(ctx, span, operation, err)
 	}
 
 	logger.With(
 		libLog.String("operation", operation),
 		libLog.String("reservation_id", reservationID.String()),
-		libLog.String("status", terminalStatus),
-	).Log(ctx, libLog.LevelDebug, "Reservation transition processed")
+		libLog.Int("confirmed", outcome.Confirmed),
+		libLog.Int("already_released", outcome.AlreadyReleased),
+	).Log(ctx, libLog.LevelDebug, "Reservation confirm processed")
 
-	return nil
+	return &reservationv1.ConfirmByIdResponse{
+		AlreadyReleased: outcome.AlreadyReleased > 0,
+	}, nil
 }
 
-// toValidationRequest builds the model.ValidationRequest the reserve path
-// validates and converts, from the proto request. It mirrors the field set the
-// REST DTO carries: requestId, amount (decimal-as-string), asset, account,
-// optional segment/portfolio/merchant ids, transactionType, transactionTimestamp
-// (RFC3339). Normalization and validation are delegated to the model so the
-// gRPC path never forks the reserve input contract.
-func (s *ReservationServer) toValidationRequest(req *reservationv1.ReserveRequest) (*model.ValidationRequest, error) {
-	requestID, err := uuid.Parse(req.GetRequestId())
+// ReleaseById returns a single reservation's held capacity addressed by its id
+// (phase two). Idempotent like ConfirmById: the service maps an already-terminal
+// reservation to success.
+func (s *ReservationServer) ReleaseById(ctx context.Context, req *reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error) {
+	const operation = "grpc.reservations.release"
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, operation)
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	reservationID, err := parseReservationID(span, req.GetReservationId())
 	if err != nil {
-		return nil, constant.ErrValidationRequestIDRequired
-	}
-
-	amount, err := safe.ParseDecimal(req.GetAmount())
-	if err != nil {
-		return nil, constant.ErrValidationAmountNonPositive
-	}
-
-	var transactionTimestamp time.Time
-	if ts := req.GetTransactionTimestamp(); ts != "" {
-		transactionTimestamp, err = time.Parse(time.RFC3339, ts)
-		if err != nil {
-			return nil, constant.ErrValidationTimestampRequired
-		}
-	}
-
-	var accountID uuid.UUID
-	if acc := req.GetAccount(); acc != nil && acc.GetAccountId() != "" {
-		accountID, err = uuid.Parse(acc.GetAccountId())
-		if err != nil {
-			return nil, constant.ErrInvalidPathParameter
-		}
-	}
-
-	validationReq := &model.ValidationRequest{
-		RequestID:            requestID,
-		TransactionType:      model.TransactionType(req.GetTransactionType()),
-		Amount:               amount,
-		Asset:                req.GetAsset(),
-		TransactionTimestamp: transactionTimestamp,
-		Account:              model.AccountContext{ID: accountID},
-	}
-
-	if segment, err := optionalContextID(req.GetSegmentId()); err != nil {
 		return nil, err
-	} else if segment != nil {
-		validationReq.Segment = &model.SegmentContext{ID: *segment}
 	}
 
-	if portfolio, err := optionalContextID(req.GetPortfolioId()); err != nil {
-		return nil, err
-	} else if portfolio != nil {
-		validationReq.Portfolio = &model.PortfolioContext{ID: *portfolio}
+	if err := s.service.Release(ctx, reservationID); err != nil {
+		return nil, s.mapServiceError(ctx, span, operation, err)
 	}
 
-	if merchant, err := optionalContextID(req.GetMerchantId()); err != nil {
-		return nil, err
-	} else if merchant != nil {
-		validationReq.Merchant = &model.MerchantContext{ID: *merchant}
+	logger.With(
+		libLog.String("operation", operation),
+		libLog.String("reservation_id", reservationID.String()),
+	).Log(ctx, libLog.LevelDebug, "Reservation release processed")
+
+	return &reservationv1.ReleaseByIdResponse{}, nil
+}
+
+// parseTransactionID parses the ledger transaction id of a by-transaction RPC
+// and records it on the span. An absent or malformed id is InvalidArgument.
+func parseTransactionID(span trace.Span, raw string) (uuid.UUID, error) {
+	transactionID, err := uuid.Parse(raw)
+	if err != nil || transactionID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction id", constant.ErrReservationTransactionIDReq)
+		return uuid.Nil, status.Error(codes.InvalidArgument, constant.ErrReservationTransactionIDReq.Error())
 	}
 
-	return validationReq, nil
+	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
+
+	return transactionID, nil
+}
+
+// parseReservationID parses the reservation id of a by-id RPC and records it on
+// the span. An absent or malformed id is InvalidArgument.
+func parseReservationID(span trace.Span, raw string) (uuid.UUID, error) {
+	reservationID, err := uuid.Parse(raw)
+	if err != nil || reservationID == uuid.Nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation id", constant.ErrInvalidPathParameter)
+		return uuid.Nil, status.Error(codes.InvalidArgument, constant.ErrInvalidPathParameter.Error())
+	}
+
+	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
+
+	return reservationID, nil
+}
+
+// countToUint32 renders a row count on the proto's uint32 field. A count is never
+// negative and never reaches the ceiling in practice; both bounds are clamped so
+// the conversion cannot wrap.
+func countToUint32(n int) uint32 {
+	if n < 0 {
+		return 0
+	}
+
+	if n > math.MaxUint32 {
+		return math.MaxUint32
+	}
+
+	return uint32(n)
 }
 
 // mapServiceError maps a reservation use-case error to a gRPC status error,
-// recording it onto the span by error CLASS (T5): a not-found is a business
-// outcome (span stays green), context cancellation is transport-side, and every
-// other failure is technical (span flips red).
-func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err error) error {
+// recording it onto the span by error CLASS (T5): a not-found and a replay onto
+// a settled reservation are business outcomes (span stays green), context
+// cancellation is transport-side, a rule cache that is not ready yet is
+// Unavailable so the caller treats the tracer as temporarily unavailable, and
+// every other failure is technical (span flips red). An inactive tenant never
+// reaches this mapping: the tenant interceptor answers it before the handler
+// runs. A sentinel maps with its code string as the message so the ledger can
+// parse it. A settled replay is logged here once, at Warn, and an unmapped
+// failure once, at Error, because its cause is withheld from the caller: this is
+// the boundary that handles both. The unmapped failure is logged by class, not
+// by message, because a driver error echoes the values it rejected.
+func (s *ReservationServer) mapServiceError(ctx context.Context, span trace.Span, operation string, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", err)
@@ -328,32 +319,55 @@ func (s *ReservationServer) mapServiceError(span trace.Span, msg string, err err
 	case errors.Is(err, constant.ErrReservationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 		return status.Error(codes.NotFound, constant.ErrReservationNotFound.Error())
+	case errors.Is(err, constant.ErrReservationAlreadySettled):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation already settled", err)
+
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logging.WithTrace(ctx, logger).With(
+			libLog.String("operation", operation),
+		).Log(ctx, libLog.LevelWarn, "Reservation already settled", libLog.Err(err))
+
+		return status.Error(codes.FailedPrecondition, constant.ErrReservationAlreadySettled.Error())
+	case errors.Is(err, constant.ErrRuleCacheNotReady):
+		libOpentelemetry.HandleSpanError(span, "Rule cache not ready", err)
+		return status.Error(codes.Unavailable, constant.ErrRuleCacheNotReady.Error())
 	default:
-		libOpentelemetry.HandleSpanError(span, msg, err)
+		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
+
+		logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+		logging.WithTrace(ctx, logger).With(
+			libLog.String("operation", operation),
+		).Log(ctx, libLog.LevelError, "Reservation processing failed", unmappedErrorFields(err)...)
+
 		return status.Error(codes.Internal, constant.ErrInternalServer.Error())
 	}
 }
 
-// optionalContextID parses an optional uuid-bearing context id (segment /
-// portfolio / merchant). An empty string means the field is absent (nil);
-// a present-but-malformed value is rejected.
-func optionalContextID(raw string) (*uuid.UUID, error) {
-	if raw == "" {
-		return nil, nil
+// unmappedErrorFields classifies an unmapped failure for the log without its
+// message: a Postgres error by SQLSTATE and constraint, anything else by the
+// type of its innermost cause.
+func unmappedErrorFields(err error) []any {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		fields := []any{libLog.String("db.sqlstate", pgErr.Code)}
+		if pgErr.ConstraintName != "" {
+			fields = append(fields, libLog.String("db.constraint", pgErr.ConstraintName))
+		}
+
+		return fields
 	}
 
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return nil, constant.ErrInvalidPathParameter
+	root := err
+	for next := errors.Unwrap(root); next != nil; next = errors.Unwrap(root) {
+		root = next
 	}
 
-	return &id, nil
+	return []any{libLog.String("error_type", fmt.Sprintf("%T", root))}
 }
 
-// reservationIDStrings renders the reservation ids as proto-friendly strings.
+// reservationIDStrings renders reservation or rule ids as proto-friendly strings.
 // A nil/empty input yields a nil slice — proto serializes a repeated field's
-// absence and an empty slice identically, so no [] sentinel is needed (unlike
-// the REST JSON path).
+// absence and an empty slice identically, so no [] sentinel is needed.
 func reservationIDStrings(ids []uuid.UUID) []string {
 	if len(ids) == 0 {
 		return nil

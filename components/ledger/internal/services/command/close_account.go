@@ -350,7 +350,7 @@ func (uc *UseCase) verifyAccountClosingEligibility(ctx context.Context, organiza
 		return nil, err
 	}
 
-	if err := uc.verifyNoAccountClosingRecoveryPending(ctx, organizationID, ledgerID, accountID); err != nil {
+	if err := uc.verifyNoAccountClosingWorkOutstanding(ctx, organizationID, ledgerID, accountID, states); err != nil {
 		return nil, err
 	}
 
@@ -363,6 +363,18 @@ func (uc *UseCase) verifyAccountClosingEligibility(ctx context.Context, organiza
 	}
 
 	return states, nil
+}
+
+// verifyNoAccountClosingWorkOutstanding refuses the closing while a balance owes a deferred
+// fee or is owed one (only a credit collects a debt, and a closed account refuses credits),
+// or while an execution over the account still waits for its completion.
+func (uc *UseCase) verifyNoAccountClosingWorkOutstanding(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, states []accountClosingBalanceState) error {
+	balances := make([]*mmodel.Balance, 0, len(states))
+	for _, state := range states {
+		balances = append(balances, state.Persisted)
+	}
+
+	return uc.refuseOpenFeeDebt(ctx, organizationID, ledgerID, balances, allRecoverySources, refuseAccountInCompletion(accountID))
 }
 
 // verifyNoAccountClosingPendingTransaction refuses the closing while a pending

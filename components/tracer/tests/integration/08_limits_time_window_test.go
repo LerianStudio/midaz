@@ -496,6 +496,15 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 func createLimitWithTimeWindow(t *testing.T, accountID, start, end, maxAmount string) string {
 	t.Helper()
 
+	return createLimitWithTimeWindowAndResetTime(t, accountID, start, end, "", maxAmount)
+}
+
+// createLimitWithTimeWindowAndResetTime is createLimitWithTimeWindow with a
+// period reset time ("HH:MM" UTC). An empty resetTime omits the field, so the
+// limit keeps midnight-UTC periods.
+func createLimitWithTimeWindowAndResetTime(t *testing.T, accountID, start, end, resetTime, maxAmount string) string {
+	t.Helper()
+
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -513,6 +522,10 @@ func createLimitWithTimeWindow(t *testing.T, accountID, start, end, maxAmount st
 		"scopes": []map[string]interface{}{
 			{"accountId": accountID},
 		},
+	}
+
+	if resetTime != "" {
+		reqBody["resetTime"] = resetTime
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)

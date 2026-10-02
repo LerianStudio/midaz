@@ -7,10 +7,14 @@
 package in
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -172,6 +176,67 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 		"receiver must be credited the full principal %d, got %s", sendValue, receiverCredit.String())
 }
 
+// TestFeeProof_AtomicBatchV2HoldReservesAndSettlesFee proves a hold item in a /v2
+// atomic batch is charged like a single /v2 hold: the payer reserves principal+fee,
+// the fee account is credited only when the pending transaction is committed.
+func TestFeeProof_AtomicBatchV2HoldReservesAndSettlesFee(t *testing.T) {
+	h := setupFeeHarness(t)
+	engineRedis, ok := h.redisRepo.(*redistransaction.RedisConsumerRepository)
+	require.True(t, ok, "Redis repository must expose the batch state machine and engine evidence")
+	h.commandUC.AtomicTransactionBatchIdempotencyRepo = engineRedis
+	h.commandUC.UUIDv7Generator = libCommons.GenerateUUIDv7
+	h.commandUC.Clock = func() time.Time { return time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC) }
+	h.handler.TransactionBatchMaxSize = 1
+	app := h.newV2App()
+
+	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
+	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+	h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
+	h.seedPackage(t, packageSpec{label: "batch_hold_pkg", fees: []feeSpec{flatFee("batch_hold_fee", "@fee_rev", "10", false)}})
+
+	item := h.v2Body("batch hold with fee", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
+	batch := `{"transactions":[{"action":"hold","order":1,` + strings.TrimPrefix(item, "{") + `]}`
+
+	resp := h.post(t, app, h.v2CreatePath("batch"), batch, nil)
+	require.Equalf(t, 201, resp.status, "batch hold with a fee must succeed: %s", string(resp.rawBody))
+
+	transactions, ok := resp.body["transactions"].([]any)
+	require.Truef(t, ok && len(transactions) == 1, "batch must return one transaction: %s", string(resp.rawBody))
+	txID := mustTxID(t, txResponse{rawBody: resp.rawBody, body: transactions[0].(map[string]any)})
+	require.Equal(t, cn.PENDING, dbTxStatus(t, h.db, txID))
+
+	pendingLegs := loadLegs(t, h.db, txID)
+	assert.Truef(t, sumAmounts(legsFor(pendingLegs, "@payer", "ON_HOLD")).Equal(decimal.NewFromInt(1010)),
+		"the payer must reserve principal+fee: %+v", pendingLegs)
+	assert.Empty(t, legsFor(pendingLegs, "@fee_rev", "CREDIT"), "the fee credit is deferred to commit")
+
+	payer := func() (available, onHold decimal.Decimal) {
+		balances, err := h.queryUC.GetBalances(h.ctx(), h.orgID, h.ledgerID, []string{mtransaction.AliasKey("@payer", "default")})
+		require.NoError(t, err, "read live payer balance")
+		require.Len(t, balances, 1)
+
+		return balances[0].Available, balances[0].OnHold
+	}
+
+	available, onHold := payer()
+	assert.Truef(t, available.Equal(decimal.NewFromInt(98990)), "payer available after hold: %s", available)
+	assert.Truef(t, onHold.Equal(decimal.NewFromInt(1010)), "payer on hold after hold: %s", onHold)
+	assertLiveBalance(t, h, "@fee_rev", "default", "0")
+	assertLiveBalance(t, h, "@receiver", "default", "0")
+
+	commit := h.post(t, app, h.v2StatePath(txID, "commit"), "", nil)
+	require.Equalf(t, 201, commit.status, "commit must succeed: %s", string(commit.rawBody))
+	require.Equal(t, cn.APPROVED, dbTxStatus(t, h.db, txID))
+
+	available, onHold = payer()
+	assert.Truef(t, available.Equal(decimal.NewFromInt(98990)), "payer available after commit: %s", available)
+	assert.Truef(t, onHold.IsZero(), "payer on hold after commit: %s", onHold)
+	assertLiveBalance(t, h, "@fee_rev", "default", "10")
+	assertLiveBalance(t, h, "@receiver", "default", "1000")
+}
+
 // reservationLegs returns the intra-account ON_HOLD reservation rows — funds
 // moved Available->OnHold on a single account at pending creation. They are NOT
 // inter-account transfers and are excluded from the settlement balance.
@@ -196,4 +261,36 @@ func settlementLegs(legs []persistedLeg) []persistedLeg {
 		}
 	}
 	return out
+}
+
+// TestFeeProof_MetadataSelectorScoping drives package selection over HTTP: a
+// package scoped to a metadata pair is charged on a v2 create whose metadata
+// carries it, and the unscoped package is charged when the metadata does not.
+func TestFeeProof_MetadataSelectorScoping(t *testing.T) {
+	h := setupFeeHarness(t)
+	app := h.newV2App()
+
+	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")
+	h.seedBalance(t, "@receiver", "USD", decimal.Zero, "deposit")
+	h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
+	h.seedBalance(t, "@fee_ted", "USD", decimal.Zero, "deposit")
+
+	h.seedPackage(t, packageSpec{label: "any_pkg", fees: []feeSpec{flatFee("any_fee", "@fee_rev", "10", false)}})
+	h.seedPackage(t, packageSpec{
+		label:            "ted_salario_pkg",
+		metadataSelector: map[string]string{"fee_context": "ted_salario"},
+		fees:             []feeSpec{flatFee("ted_fee", "@fee_ted", "25", false)},
+	})
+
+	body := h.v2Body("selector tx", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
+
+	tagged := h.createV2Direct(t, app, h.v2WithMetadata(body, `{"fee_context":"ted_salario"}`), nil)
+	require.Equalf(t, 201, tagged.status, "tagged create must succeed: %s", string(tagged.rawBody))
+	assert.Len(t, legsFor(loadLegs(t, h.db, mustTxID(t, tagged)), "@fee_ted", ""), 1, "the scoped package's credit account must receive the fee")
+
+	plain := h.createV2Direct(t, app, body, nil)
+	require.Equalf(t, 201, plain.status, "plain create must succeed: %s", string(plain.rawBody))
+	assert.Len(t, legsFor(loadLegs(t, h.db, mustTxID(t, plain)), "@fee_rev", ""), 1, "the unscoped package's credit account must receive the fee")
 }

@@ -15,6 +15,8 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -31,6 +33,10 @@ import (
 var fixedReserveTimestamp = time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
 
 const fixedReserveAccountID = "acc-source-1"
+
+// fixedReserveAccount is the account scope the anchor tests hand the reserve
+// anchor: the source account id plus its free-form ledger account type.
+var fixedReserveAccount = tracer.ReserveAccount{AccountID: fixedReserveAccountID, Type: "deposit"}
 
 // byTxnIdentity builds the identity the by-transaction confirm/release is
 // addressed and reported with: a handle carrying no reservation ids, because
@@ -54,6 +60,7 @@ type stubReserver struct {
 	mu sync.Mutex
 
 	reserveCalls int
+	requests     []tracer.ReserveRequest
 	confirmedIDs []uuid.UUID
 	releasedIDs  []uuid.UUID
 
@@ -68,13 +75,22 @@ type stubReserver struct {
 
 	confirmByTxnErr error
 	releaseByTxnErr error
+
+	// confirmOutcome and confirmByTxnOutcome are what a successful confirm
+	// reports; the zero value is a confirm that found nothing released.
+	confirmOutcome      tracer.ConfirmOutcome
+	confirmByTxnOutcome tracer.ConfirmOutcome
+
+	// confirmOutcomeByID overrides confirmOutcome for the listed reservation ids.
+	confirmOutcomeByID map[uuid.UUID]tracer.ConfirmOutcome
 }
 
-func (s *stubReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
+func (s *stubReserver) Reserve(_ context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.reserveCalls++
+	s.requests = append(s.requests, req)
 
 	if s.reserveErr != nil {
 		return nil, s.reserveErr
@@ -83,13 +99,21 @@ func (s *stubReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tra
 	return s.result, nil
 }
 
-func (s *stubReserver) Confirm(_ context.Context, id uuid.UUID) error {
+func (s *stubReserver) Confirm(_ context.Context, id uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.confirmedIDs = append(s.confirmedIDs, id)
 
-	return s.confirmErr
+	if s.confirmErr != nil {
+		return tracer.ConfirmOutcome{}, s.confirmErr
+	}
+
+	if outcome, ok := s.confirmOutcomeByID[id]; ok {
+		return outcome, nil
+	}
+
+	return s.confirmOutcome, nil
 }
 
 func (s *stubReserver) Release(_ context.Context, id uuid.UUID) error {
@@ -101,13 +125,17 @@ func (s *stubReserver) Release(_ context.Context, id uuid.UUID) error {
 	return s.releaseErr
 }
 
-func (s *stubReserver) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) error {
+func (s *stubReserver) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.confirmedTxns = append(s.confirmedTxns, transactionID)
 
-	return s.confirmByTxnErr
+	if s.confirmByTxnErr != nil {
+		return tracer.ConfirmOutcome{}, s.confirmByTxnErr
+	}
+
+	return s.confirmByTxnOutcome, nil
 }
 
 func (s *stubReserver) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) error {
@@ -127,6 +155,13 @@ func (s *stubReserver) reserves() int {
 	defer s.mu.Unlock()
 
 	return s.reserveCalls
+}
+
+func (s *stubReserver) reserveRequests() []tracer.ReserveRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]tracer.ReserveRequest(nil), s.requests...)
 }
 
 func (s *stubReserver) confirmed() []uuid.UUID {
@@ -176,7 +211,7 @@ func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Empty(t, out.Handle.ReservationIDs)
@@ -188,7 +223,7 @@ func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Equal(t, 0, reserver.reserves(), "mode=off must not call the tracer")
@@ -200,7 +235,7 @@ func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Equal(t, 0, reserver.reserves())
@@ -228,7 +263,7 @@ func TestReserveTransaction_HonoredSkip_Proceeds(t *testing.T) {
 			uc := &UseCase{TracerReserver: reserver}
 
 			out := uc.reserveTransaction(tracerCtx, sp, logger, tc.settings, uuid.New(),
-				decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, true)
+				decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, true)
 
 			assert.Equal(t, reservationProceed, out.Kind, "honored skip must proceed without gating")
 			assert.Equal(t, 0, reserver.reserves(), "honored skip must NOT call the tracer Reserve")
@@ -242,7 +277,7 @@ func TestReserveTransaction_HonoredSkip_Proceeds(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Equal(t, 1, reserver.reserves(), "without a skip the reserve fires exactly once, as today")
@@ -258,7 +293,7 @@ func TestReserveTransaction_EnforceAllow_Proceeds(t *testing.T) {
 
 	out := uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	assert.Equal(t, reservationProceed, out.Kind)
 	assert.Equal(t, 1, reserver.reserves())
@@ -273,7 +308,7 @@ func TestReserveTransaction_EnforceDeny_Rejects(t *testing.T) {
 
 	out := uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	require.Equal(t, reservationReject, out.Kind)
 	require.Error(t, out.Err)
@@ -292,7 +327,7 @@ func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.Equal(t, reservationProceed, out.Kind, "advisory must never block, even on deny")
 		assert.Equal(t, 1, reserver.reserves(), "advisory still calls the tracer")
@@ -304,7 +339,7 @@ func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 		assert.Equal(t, reservationProceed, out.Kind, "advisory ignores availability failures")
 	})
@@ -318,7 +353,7 @@ func TestReserveTransaction_FailOpen_SkipsAndProceeds(t *testing.T) {
 
 	out := uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must proceed when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs)
@@ -332,7 +367,7 @@ func TestReserveTransaction_FailClosed_Rejects(t *testing.T) {
 
 	out := uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	require.Equal(t, reservationReject, out.Kind, "fail-closed must reject when the tracer is unavailable")
 	require.Error(t, out.Err)
@@ -351,7 +386,7 @@ func TestReserveTransaction_LongLivedHint_OnPending(t *testing.T) {
 
 	uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLLongLived, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLLongLived, reservationForCreate, false)
 
 	assert.True(t, capturing.lastReq.LongLived,
 		"PENDING reservations must carry the long-lived TTL hint")
@@ -361,7 +396,7 @@ func TestReserveTransaction_LongLivedHint_OnPending(t *testing.T) {
 	// Default TTL must NOT carry the hint.
 	uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	assert.False(t, capturing.lastReq.LongLived, "direct transactions must not carry the long-lived hint")
 }
@@ -374,15 +409,24 @@ func TestReserveTransaction_BuildsFaithfulTracerRequest(t *testing.T) {
 
 	txID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
+	metadata := map[string]any{
+		"channel":  "app",
+		"priority": 3.0,
+		"bad-key":  "dropped",
+	}
+
 	uc.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		txID, decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+		txID, decimal.NewFromInt(1000), "BRL", fixedReserveAccount, metadata, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
 
 	req := capturing.lastReq
 	assert.Equal(t, txID, req.TransactionID)
 	assert.Equal(t, "1000", req.Amount)
 	assert.Equal(t, "BRL", req.Asset)
 	assert.Equal(t, fixedReserveAccountID, req.Account.AccountID, "account scope must be the structured account, not a bare string")
+	assert.Equal(t, "deposit", req.Account.Type, "the source account type must reach the tracer verbatim")
+	assert.Equal(t, map[string]string{"channel": "app", "priority": "3"}, req.Metadata,
+		"metadata carries only tracer-accepted keys, with scalar values rendered as strings")
 	assert.NotEmpty(t, req.RequestID, "the tracer reserve contract requires a non-nil requestId")
 	assert.Equal(t, fixedReserveTimestamp.Format(time.RFC3339Nano), req.TransactionTimestamp)
 
@@ -403,32 +447,133 @@ func TestReservationRequestID_Deterministic(t *testing.T) {
 		"distinct transactionIDs must derive distinct requestIds")
 }
 
-func TestFirstSourceAccountID(t *testing.T) {
-	balances := []*mmodel.Balance{
-		{Alias: "@alice", Key: "default", AccountID: "acc-alice"},
-		{Alias: "@bob", Key: "default", AccountID: "acc-bob"},
-		{Alias: "@alice", Key: constant.OverdraftBalanceKey, AccountID: "acc-alice-overdraft"},
+// deadlineReserver records the deadline and the call timeout the anchor hands
+// the reserve call and, when timeOut is set, answers a call that carries a call
+// timeout as one that ran out of it, mapped to tracer.ErrTracerUnavailable as
+// the tracer clients do.
+type deadlineReserver struct {
+	capturingReserver
+
+	timeOut        bool
+	deadline       time.Time
+	hasDeadline    bool
+	callTimeout    time.Duration
+	hasCallTimeout bool
+}
+
+func (d *deadlineReserver) Reserve(ctx context.Context, req tracer.ReserveRequest) (*tracer.ReserveResult, error) {
+	d.lastReq = req
+	d.deadline, d.hasDeadline = ctx.Deadline()
+	d.callTimeout, d.hasCallTimeout = tracer.CallTimeout(ctx)
+
+	if d.timeOut && d.hasCallTimeout {
+		return nil, fmt.Errorf("%w: %w", tracer.ErrTracerUnavailable, context.DeadlineExceeded)
 	}
 
-	t.Run("resolves the first internal source account", func(t *testing.T) {
-		got := firstSourceAccountID([]string{"@alice#default", "@bob#default"}, balances)
-		assert.Equal(t, "acc-alice", got)
+	return d.result, nil
+}
+
+// farParentDeadline is a fixed deadline far beyond any timeoutMs, so a deadline
+// the anchor adds is observable as one earlier than the parent's.
+var farParentDeadline = time.Date(2999, 1, 1, 0, 0, 0, 0, time.UTC)
+
+func TestReserveTransaction_HonorsTimeoutMs(t *testing.T) {
+	t.Parallel()
+
+	parentWithFarDeadline := func(t *testing.T) context.Context {
+		t.Helper()
+
+		ctx, cancel := context.WithDeadline(context.Background(), farParentDeadline)
+		t.Cleanup(cancel)
+
+		return ctx
+	}
+
+	t.Run("timeoutMs bounds the reserve RPC without tightening the parent deadline", func(t *testing.T) {
+		t.Parallel()
+
+		_, sp, logger := anchorDeps()
+		reserver := &deadlineReserver{capturingReserver: capturingReserver{result: &tracer.ReserveResult{}}}
+		uc := &UseCase{TracerReserver: reserver}
+
+		uc.reserveTransaction(parentWithFarDeadline(t), sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen, TimeoutMs: 250},
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+
+		require.True(t, reserver.hasCallTimeout, "a positive timeoutMs must bound the reserve call")
+		assert.Equal(t, 250*time.Millisecond, reserver.callTimeout)
+		require.True(t, reserver.hasDeadline)
+		assert.True(t, reserver.deadline.Equal(farParentDeadline),
+			"timeoutMs bounds the RPC alone, so the wait for a seam token keeps the parent deadline")
 	})
 
-	t.Run("skips the overdraft companion alias", func(t *testing.T) {
-		got := firstSourceAccountID([]string{"@alice#overdraft", "@bob#default"}, balances)
-		assert.Equal(t, "acc-bob", got, "companion sources must not be chosen as the account scope")
+	t.Run("zero timeoutMs leaves the parent deadline untouched", func(t *testing.T) {
+		t.Parallel()
+
+		_, sp, logger := anchorDeps()
+		reserver := &deadlineReserver{capturingReserver: capturingReserver{result: &tracer.ReserveResult{}}}
+		uc := &UseCase{TracerReserver: reserver}
+
+		uc.reserveTransaction(parentWithFarDeadline(t), sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+
+		require.True(t, reserver.hasDeadline)
+		assert.True(t, reserver.deadline.Equal(farParentDeadline),
+			"timeoutMs=0 leaves the client timeout as the only bound")
+		assert.False(t, reserver.hasCallTimeout)
 	})
 
-	t.Run("returns empty when no internal source resolves", func(t *testing.T) {
-		got := firstSourceAccountID([]string{"@external/BRL#default"}, balances)
-		assert.Empty(t, got, "an external-only source has no internal account scope")
+	t.Run("zero timeoutMs adds no deadline", func(t *testing.T) {
+		t.Parallel()
+
+		tracerCtx, sp, logger := anchorDeps()
+		reserver := &deadlineReserver{capturingReserver: capturingReserver{result: &tracer.ReserveResult{}}}
+		uc := &UseCase{TracerReserver: reserver}
+
+		uc.reserveTransaction(tracerCtx, sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+
+		assert.False(t, reserver.hasDeadline, "timeoutMs=0 leaves the client timeout as the only bound")
+		assert.False(t, reserver.hasCallTimeout, "timeoutMs=0 leaves the client timeout as the only bound")
 	})
 
-	t.Run("empty inputs return empty", func(t *testing.T) {
-		assert.Empty(t, firstSourceAccountID(nil, balances))
-		assert.Empty(t, firstSourceAccountID([]string{"@alice#default"}, nil))
+	t.Run("an expired timeoutMs is an outage and follows the posture", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, span, ended := recordingSpan(t)
+		reserver := &deadlineReserver{capturingReserver: capturingReserver{result: &tracer.ReserveResult{}}, timeOut: true}
+		uc := &UseCase{TracerReserver: reserver}
+
+		out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
+			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed, TimeoutMs: 50},
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+
+		require.True(t, reserver.hasCallTimeout)
+		assert.Equal(t, 50*time.Millisecond, reserver.callTimeout)
+		require.Equal(t, reservationReject, out.Kind)
+
+		var unavailable pkg.ServiceUnavailableError
+		require.ErrorAs(t, out.Err, &unavailable)
+		assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unavailable.Code)
+
+		attrs := spanAttributes(ended())
+		assert.Equal(t, int64(50), attrs["app.tracer.timeout_ms"].AsInt64())
 	})
+}
+
+// spanAttributes flattens the attributes of the ended spans, last write wins.
+func spanAttributes(spans []sdktrace.ReadOnlySpan) map[attribute.Key]attribute.Value {
+	out := map[attribute.Key]attribute.Value{}
+
+	for _, s := range spans {
+		for _, kv := range s.Attributes() {
+			out[kv.Key] = kv.Value
+		}
+	}
+
+	return out
 }
 
 func TestReservationTTLForStatus(t *testing.T) {
@@ -644,10 +789,14 @@ func (c *capturingReserver) Reserve(_ context.Context, req tracer.ReserveRequest
 	return c.result, nil
 }
 
-func (c *capturingReserver) Confirm(_ context.Context, _ uuid.UUID) error { return nil }
+func (c *capturingReserver) Confirm(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, nil
+}
 func (c *capturingReserver) Release(_ context.Context, _ uuid.UUID) error { return nil }
 
-func (c *capturingReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
+func (c *capturingReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
+	return tracer.ConfirmOutcome{}, nil
+}
 
 func (c *capturingReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
 
@@ -669,10 +818,10 @@ func (f *forbiddenReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) 
 	return nil, nil
 }
 
-func (f *forbiddenReserver) Confirm(_ context.Context, _ uuid.UUID) error {
+func (f *forbiddenReserver) Confirm(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	f.fail("Confirm")
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (f *forbiddenReserver) Release(_ context.Context, _ uuid.UUID) error {
@@ -681,10 +830,10 @@ func (f *forbiddenReserver) Release(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (f *forbiddenReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error {
+func (f *forbiddenReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID) (tracer.ConfirmOutcome, error) {
 	f.fail("ConfirmByTransaction")
 
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (f *forbiddenReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error {

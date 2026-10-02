@@ -137,15 +137,24 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	uc.dispatchTransactionEvents(ctx, tran, phase)
 
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		if backupStatusForCleanup == "" {
-			backupStatusForCleanup = utils.ExpectedBackupStatusForCleanup(tran.Status.Code, t.Validate)
-		}
-
-		go uc.RemoveTransactionFromRedisQueueIfStatus(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID, backupStatusForCleanup)
-	} else {
-		go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
+	if useConditionalCleanup && backupStatusForCleanup == "" {
+		backupStatusForCleanup = utils.ExpectedBackupStatusForCleanup(tran.Status.Code, t.Validate)
 	}
+
+	// The cleanup outlives the caller (HTTP response or consumer handler), so it
+	// must not inherit its cancellation: an aborted HDEL leaves the backup entry
+	// behind for the legacy consumer to replay.
+	go func(orgID, ledgerID uuid.UUID, txID, status string) {
+		opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+		defer cancel()
+
+		if useConditionalCleanup {
+			uc.RemoveTransactionFromRedisQueueIfStatus(opCtx, logger, orgID, ledgerID, txID, status)
+		} else {
+			uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
+		}
+	}(data.OrganizationID, data.LedgerID, tran.ID, backupStatusForCleanup)
 
 	uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
 

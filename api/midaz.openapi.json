@@ -75,6 +75,10 @@
       "x-displayName": "Encryption (v2)"
     },
     {
+      "name": "Midaz_Ledger_API_Fee Debts (v2)",
+      "x-displayName": "Fee Debts (v2)"
+    },
+    {
       "name": "Midaz_Ledger_API_Fees (v2)",
       "x-displayName": "Fees (v2)"
     },
@@ -177,10 +181,6 @@
     {
       "name": "Midaz_Tracer_API_Limits",
       "x-displayName": "Limits"
-    },
-    {
-      "name": "Midaz_Tracer_API_Reservations",
-      "x-displayName": "Reservations"
     },
     {
       "name": "Midaz_Tracer_API_Rules",
@@ -3074,6 +3074,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
         "deprecated": true,
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteAccount",
         "parameters": [
           {
@@ -4376,6 +4377,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
         "deprecated": true,
+        "description": "Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteBalance",
         "parameters": [
           {
@@ -13134,7 +13136,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/close": {
       "post": {
-        "description": "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523) and a pending transaction still holding the account's funds (0524) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
+        "description": "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
         "operationId": "closeAccountV2",
         "parameters": [
           {
@@ -13502,6 +13504,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
       "delete": {
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteAccountV2",
         "parameters": [
           {
@@ -14461,6 +14464,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
       "delete": {
+        "description": "Deletes a balance. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
         "operationId": "deleteBalanceV2",
         "parameters": [
           {
@@ -15769,6 +15773,336 @@
         "summary": "Create a fee estimate calculation",
         "tags": [
           "Midaz_Ledger_API_Fees (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts": {
+      "get": {
+        "operationId": "listFeeDebtsV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only the debts of this debtor account, in settlement order",
+            "explode": false,
+            "in": "query",
+            "name": "account_alias",
+            "schema": {
+              "description": "Only the debts of this debtor account, in settlement order",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Debtor balance key; requires account_alias (default \"default\")",
+            "explode": false,
+            "in": "query",
+            "name": "balance_key",
+            "schema": {
+              "description": "Debtor balance key; requires account_alias (default \"default\")",
+              "type": "string"
+            }
+          },
+          {
+            "description": "open: remaining above zero; settled: the rest. Absent lists both",
+            "explode": false,
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "description": "open: remaining above zero; settled: the rest. Absent lists both",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of items per page (default 10, max 100)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Number of items per page (default 10, max 100)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeDebtListBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List the fee debts of a ledger, oldest first",
+        "tags": [
+          "Midaz_Ledger_API_Fee Debts (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/collect": {
+      "post": {
+        "description": "Settles the balance's open fee debts oldest first from its available funds, up to maxAmount and never more than it owes, in one transaction. It charges no new fee. Without an error, it collects nothing when the balance has no available funds or is blocked, cannot send, is closing or closed, deleted, debit-direction or external, and it stops at the first debt whose fee account is blocked, cannot receive, is closing or closed, deleted, debit-direction, external, in overdraft or of another asset. When nothing is settled the response is collected 0 and no transaction is created. With X-Idempotency a retry returns the first collection; an answer that settled nothing is not kept. Without it every call is a new collection. A collection transaction cannot be reverted.",
+        "operationId": "collectFeeDebtsV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the collection; a retry returns the first collection (an answer that settled nothing is not kept), another request under the same key answers 409 (0084). Without it every call is a new collection.",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the collection; a retry returns the first collection (an answer that settled nothing is not kept), another request under the same key answers 409 (0084). Without it every call is a new collection.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeeDebtCollectInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeDebtCollectOutput"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Collect a balance's open fee debts",
+        "tags": [
+          "Midaz_Ledger_API_Fee Debts (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}": {
+      "get": {
+        "operationId": "getFeeDebtV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fee debt ID",
+            "in": "path",
+            "name": "debt_id",
+            "required": true,
+            "schema": {
+              "description": "Fee debt ID",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeeDebtView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get a fee debt",
+        "tags": [
+          "Midaz_Ledger_API_Fee Debts (v2)"
         ]
       }
     },
@@ -19343,6 +19677,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
       "post": {
+        "description": "A revert whose pending fees have not finished being recorded is refused with 409 (0529); nothing moves, and a later retry may succeed.",
         "operationId": "revertTransactionV2",
         "parameters": [
           {
@@ -21195,22 +21530,22 @@
             }
           },
           {
-            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)",
+            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_DELETED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DRAFTED, RESERVATION_RESERVED, RESERVATION_CONFIRMED, RESERVATION_RELEASED, RESERVATION_EXPIRED, RESERVATION_SKIPPED)",
             "explode": false,
             "in": "query",
             "name": "event_type",
             "schema": {
-              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)",
+              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_DELETED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DRAFTED, RESERVATION_RESERVED, RESERVATION_CONFIRMED, RESERVATION_RELEASED, RESERVATION_EXPIRED, RESERVATION_SKIPPED)",
               "type": "string"
             }
           },
           {
-            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)",
+            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)",
             "explode": false,
             "in": "query",
             "name": "action",
             "schema": {
-              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)",
+              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)",
               "type": "string"
             }
           },
@@ -21225,12 +21560,12 @@
             }
           },
           {
-            "description": "Filter by resource type (transaction, rule, limit)",
+            "description": "Filter by resource type (transaction, rule, limit, reservation)",
             "explode": false,
             "in": "query",
             "name": "resource_type",
             "schema": {
-              "description": "Filter by resource type (transaction, rule, limit)",
+              "description": "Filter by resource type (transaction, rule, limit, reservation)",
               "type": "string"
             }
           },
@@ -21245,12 +21580,12 @@
             }
           },
           {
-            "description": "Filter by actor type (user, system)",
+            "description": "Filter by actor type (user, api_key, system)",
             "explode": false,
             "in": "query",
             "name": "actor_type",
             "schema": {
-              "description": "Filter by actor type (user, system)",
+              "description": "Filter by actor type (user, api_key, system)",
               "type": "string"
             }
           },
@@ -22704,361 +23039,6 @@
         "summary": "Get usage snapshot for a limit",
         "tags": [
           "Midaz_Tracer_API_Limits"
-        ]
-      }
-    },
-    "/v1/reservations": {
-      "post": {
-        "operationId": "createReservation",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReserveResponse"
-                }
-              }
-            },
-            "description": "Created"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Reserve transaction capacity (phase one)",
-        "tags": [
-          "Midaz_Tracer_API_Reservations"
-        ]
-      }
-    },
-    "/v1/reservations/transaction/{transaction_id}/confirm": {
-      "post": {
-        "operationId": "confirmReservationByTransaction",
-        "parameters": [
-          {
-            "description": "Transaction ID (UUID)",
-            "in": "path",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "description": "Transaction ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransactionActionResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Confirm a transaction's reservations (phase two — commit by transaction)",
-        "tags": [
-          "Midaz_Tracer_API_Reservations"
-        ]
-      }
-    },
-    "/v1/reservations/transaction/{transaction_id}/release": {
-      "post": {
-        "operationId": "releaseReservationByTransaction",
-        "parameters": [
-          {
-            "description": "Transaction ID (UUID)",
-            "in": "path",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "description": "Transaction ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransactionActionResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Release a transaction's reservations (phase two — abort by transaction)",
-        "tags": [
-          "Midaz_Tracer_API_Reservations"
-        ]
-      }
-    },
-    "/v1/reservations/{id}/confirm": {
-      "post": {
-        "operationId": "confirmReservation",
-        "parameters": [
-          {
-            "description": "Reservation ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Reservation ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReservationActionResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Confirm a reservation (phase two — commit)",
-        "tags": [
-          "Midaz_Tracer_API_Reservations"
-        ]
-      }
-    },
-    "/v1/reservations/{id}/release": {
-      "post": {
-        "operationId": "releaseReservation",
-        "parameters": [
-          {
-            "description": "Reservation ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Reservation ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReservationActionResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          },
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Release a reservation (phase two — abort)",
-        "tags": [
-          "Midaz_Tracer_API_Reservations"
         ]
       }
     },
@@ -25017,8 +24997,7 @@
           "source",
           "ttl",
           "createdAt",
-          "updatedAt",
-          "metadata"
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -25124,7 +25103,7 @@
           },
           "metadata": {
             "additionalProperties": {},
-            "description": "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.",
+            "description": "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.",
             "type": "object"
           },
           "operations": {
@@ -27059,6 +27038,13 @@
             ],
             "type": "string"
           },
+          "deferrable": {
+            "description": "Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false.",
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
           "feeLabel": {
             "examples": [
               "Taxa Administrativa"
@@ -27691,6 +27677,18 @@
             "minimum": 0,
             "type": "string"
           },
+          "metadataSelector": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Omit it to apply the package whatever the metadata.",
+            "examples": [
+              {
+                "fee_context": "ted_salario"
+              }
+            ],
+            "type": "object"
+          },
           "minimumAmount": {
             "examples": [
               "100.00"
@@ -27734,6 +27732,267 @@
           "maximumAmount",
           "fees",
           "enable"
+        ],
+        "type": "object"
+      },
+      "FeeDebtCollectInput": {
+        "additionalProperties": false,
+        "properties": {
+          "accountAlias": {
+            "description": "Alias of the debtor account.",
+            "examples": [
+              "@customer"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "balanceKey": {
+            "description": "Key of the debtor balance; absent means the default balance.",
+            "examples": [
+              "default"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
+          "maxAmount": {
+            "description": "Most the collection may settle, greater than zero; absent means everything the balance owes.",
+            "examples": [
+              "150.00"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountAlias"
+        ],
+        "type": "object"
+      },
+      "FeeDebtCollectOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "collected": {
+            "description": "Amount settled, oldest debt first; 0 when the balance had no open debt, no available funds, or cannot pay a debt's fee account.",
+            "examples": [
+              "150.00"
+            ],
+            "type": "string"
+          },
+          "transactionId": {
+            "description": "Transaction recording the settlement, absent when nothing was collected.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "collected"
+        ],
+        "type": "object"
+      },
+      "FeeDebtEntryView": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              "30"
+            ],
+            "type": "string"
+          },
+          "appliedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "opened",
+              "settled",
+              "canceled",
+              "reopened",
+              "refunded"
+            ],
+            "examples": [
+              "settled"
+            ],
+            "type": "string"
+          },
+          "postingRef": {
+            "examples": [
+              "to:0:credit:collect"
+            ],
+            "type": "string"
+          },
+          "transactionId": {
+            "examples": [
+              "01920000-0000-7000-8000-000000000002"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "transactionId",
+          "amount",
+          "appliedAt"
+        ],
+        "type": "object"
+      },
+      "FeeDebtListBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FeeDebtView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "limit": {
+            "examples": [
+              10
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "examples": [
+              "eyJpZCI6IjAxOTI..."
+            ],
+            "type": "string"
+          },
+          "openTotal": {
+            "description": "What this debtor balance (account_alias and balance_key) owes over all its open debts, not only this page, each counting at most its opened amount; present only with account_alias",
+            "examples": [
+              "25"
+            ],
+            "type": "string"
+          },
+          "prev_cursor": {
+            "examples": [
+              "eyJpZCI6IjAxOTE..."
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "limit"
+        ],
+        "type": "object"
+      },
+      "FeeDebtView": {
+        "additionalProperties": false,
+        "properties": {
+          "assetCode": {
+            "examples": [
+              "BRL"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "When the earliest recorded change was applied",
+            "format": "date-time",
+            "type": "string"
+          },
+          "creditBalance": {
+            "description": "Fee account balance the debt pays, as alias#key",
+            "examples": [
+              "@fees#default"
+            ],
+            "type": "string"
+          },
+          "debtorBalance": {
+            "description": "Debtor balance as alias#key",
+            "examples": [
+              "@payer#default"
+            ],
+            "type": "string"
+          },
+          "entries": {
+            "description": "Recorded changes, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/FeeDebtEntryView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "feePackageId": {
+            "examples": [
+              "01920000-0000-7000-8000-0000000000cc"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "description": "Origin transaction id and the fee debit posting the debt opened in",
+            "examples": [
+              "01920000-0000-7000-8000-000000000001:from:1:debit"
+            ],
+            "type": "string"
+          },
+          "ledgerId": {
+            "examples": [
+              "01920000-0000-7000-8000-00000000000b"
+            ],
+            "type": "string"
+          },
+          "openedAmount": {
+            "examples": [
+              "70"
+            ],
+            "type": "string"
+          },
+          "openedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "organizationId": {
+            "examples": [
+              "01920000-0000-7000-8000-00000000000a"
+            ],
+            "type": "string"
+          },
+          "originTransactionId": {
+            "examples": [
+              "01920000-0000-7000-8000-000000000001"
+            ],
+            "type": "string"
+          },
+          "remaining": {
+            "examples": [
+              "40"
+            ],
+            "type": "string"
+          },
+          "seq": {
+            "description": "Settlement order among the debtor's debts, oldest first",
+            "examples": [
+              3
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "description": "When the latest recorded change was applied",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "ledgerId",
+          "debtorBalance",
+          "creditBalance",
+          "originTransactionId",
+          "assetCode",
+          "seq",
+          "openedAmount",
+          "remaining",
+          "entries",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -27866,6 +28125,18 @@
             ],
             "minimum": 0,
             "type": "string"
+          },
+          "metadataSelector": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Metadata pairs a transaction must all carry for this package to apply, each matching only a string metadata value equal to it. Each pair counts one toward package specificity. Absent or empty applies the package whatever the metadata.",
+            "examples": [
+              {
+                "fee_context": "ted_salario"
+              }
+            ],
+            "type": "object"
           },
           "minimumAmount": {
             "examples": [
@@ -29487,7 +29758,7 @@
           },
           "metadata": {
             "additionalProperties": {},
-            "description": "Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to.",
+            "description": "Additional custom attributes. The ledger reserves the feeLeg and feeDeferPair keys on this field and writes them itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries either key is refused rather than silently stripped; feeDeferPair carries the same token on the payer and fee operations of one deferrable fee. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to.",
             "type": "object"
           },
           "organizationId": {
@@ -30822,7 +31093,7 @@
           },
           "metadata": {
             "additionalProperties": {},
-            "description": "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.",
+            "description": "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.",
             "type": "object"
           },
           "operations": {
@@ -31479,13 +31750,13 @@
           },
           "status": {
             "examples": [
-              "active"
+              "ACTIVE"
             ],
             "type": "string"
           },
           "type": {
             "examples": [
-              "checking"
+              "deposit"
             ],
             "type": "string"
           }
@@ -32040,6 +32311,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "resetTime": {
+            "examples": [
+              "09:00"
+            ],
+            "type": "string"
+          },
           "scopes": {
             "items": {
               "$ref": "#/components/schemas/Scope"
@@ -32332,57 +32609,6 @@
         ],
         "type": "object"
       },
-      "ReservationActionResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "reservationId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "status": {
-            "examples": [
-              "CONFIRMED"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "reservationId",
-          "status"
-        ],
-        "type": "object"
-      },
-      "ReserveResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "denied": {
-            "examples": [
-              false
-            ],
-            "type": "boolean"
-          },
-          "reservationIds": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "transactionId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "transactionId",
-          "denied",
-          "reservationIds"
-        ],
-        "type": "object"
-      },
       "Rule": {
         "additionalProperties": false,
         "properties": {
@@ -32604,34 +32830,6 @@
           "executions",
           "detectionRate",
           "avgProcessingMs"
-        ],
-        "type": "object"
-      },
-      "TransactionActionResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "flipped": {
-            "examples": [
-              2
-            ],
-            "format": "int64",
-            "type": "integer"
-          },
-          "status": {
-            "examples": [
-              "CONFIRMED"
-            ],
-            "type": "string"
-          },
-          "transactionId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "transactionId",
-          "status",
-          "flipped"
         ],
         "type": "object"
       },
@@ -33091,6 +33289,7 @@
         "Midaz_Ledger_API_Dashboard (v1)",
         "Midaz_Ledger_API_Dashboard (v2)",
         "Midaz_Ledger_API_Encryption (v2)",
+        "Midaz_Ledger_API_Fee Debts (v2)",
         "Midaz_Ledger_API_Fees (v2)",
         "Midaz_Ledger_API_Holders (v2)",
         "Midaz_Ledger_API_Instruments (v2)",
@@ -33122,7 +33321,6 @@
         "Midaz_Tracer_API_Audit",
         "Midaz_Tracer_API_Dashboard",
         "Midaz_Tracer_API_Limits",
-        "Midaz_Tracer_API_Reservations",
         "Midaz_Tracer_API_Rules",
         "Midaz_Tracer_API_Validations"
       ]

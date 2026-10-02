@@ -145,11 +145,11 @@ func TestSpecLock_PerOpSecurity(t *testing.T) {
 	}
 }
 
-// TestSpecLock_AllOpsSecurity asserts EVERY one of the 32 Huma operations
+// TestSpecLock_AllOpsSecurity asserts EVERY one of the 27 Huma operations
 // advertises its expected per-op Security requirement in the served spec. This
 // is the CI backstop the tracer lacks otherwise: the docs security-coverage gate
 // is ledger-only, so it never inspects the tracer spec. Without this table, a future edit could
-// drop or wrong-map Security on any limits/reservations/audit op — silently
+// drop or wrong-map Security on any limits/validations/audit op — silently
 // downgrading the advertised auth — with no test failing. SPEC metadata only:
 // runtime auth is unchanged (Fiber guard.With).
 func TestSpecLock_AllOpsSecurity(t *testing.T) {
@@ -180,12 +180,6 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/limits/{id}/draft", http.MethodPost, bearerOrAPIKey},
 		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
 		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
-		// reservations (5)
-		{"/reservations", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/{id}/release", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, bearerOrAPIKey},
-		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, bearerOrAPIKey},
 		// validations (3): all bearer|apikey — POST's runtime guard is config-driven
 		// (cfg.APIKeyOnlyValidation, default false), so the spec advertises the union.
 		{"/validations", http.MethodPost, bearerOrAPIKey},
@@ -202,7 +196,7 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/dashboard/top-rules", http.MethodGet, bearerOrAPIKey},
 	}
 
-	require.Lenf(t, cases, 32, "the tracer has 32 protected Huma ops; keep this table complete")
+	require.Lenf(t, cases, 27, "the tracer has 27 protected Huma ops; keep this table complete")
 
 	for _, tc := range cases {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {

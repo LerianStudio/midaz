@@ -458,7 +458,7 @@ unit: "1"
 declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:99-103
 description: Account closing attempts that did not close the account, by the bounded reason that stopped them. Derived from the registry sentinel, never from the error text.
 labels: [reason]
-label_values: [already_closed, closing_in_progress, operation_in_progress, balance_not_zero, pending_transactions, persistence_pending, account_closed, protection_indeterminate, external_account, account_not_found, business_other, technical]
+label_values: [already_closed, closing_in_progress, operation_in_progress, balance_not_zero, pending_transactions, persistence_pending, account_closed, protection_indeterminate, external_account, account_not_found, fee_debt, business_other, technical]
 label_cardinality_estimate: low
 live_observed: unknown
 unit: "1"

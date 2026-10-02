@@ -106,10 +106,9 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 	assetRateRepo := assetrate.NewMockRepository(ctrl)
 	metadataRepo := txmongodb.NewMockRepository(ctrl)
 
-	// New-record path: no existing pair -> Create. The shared body pipeline
-	// (DecodeAndValidate -> parseMetadata) initializes Metadata to a non-nil empty
-	// map when the body carries no "metadata" key, so the service persists it via
-	// TransactionMetadataRepo.Create.
+	// New-record path: no existing pair -> Create. The body carries no "metadata"
+	// key; the decode path fills it with an empty map for PATCH merge semantics,
+	// and an empty map persists no document.
 	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").Return(nil, nil).Times(1)
 	assetRateRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ any, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
@@ -117,7 +116,7 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 			ar.UpdatedAt = fixedTestTime
 			return ar, nil
 		}).Times(1)
-	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAssetRate, gomock.Any()).Return(nil).Times(1)
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAssetRate, gomock.Any()).Times(0)
 
 	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetRateRepo, TransactionMetadataRepo: metadataRepo}}
 
@@ -146,6 +145,51 @@ func TestCreateOrUpdateAssetRate_Success(t *testing.T) {
 	// Tenant captured from the path into the persisted+echoed entity.
 	assert.Equal(t, orgID.String(), got["organizationId"])
 	assert.Equal(t, ledgerID.String(), got["ledgerId"])
+
+	_, hasMetadata := got["metadata"]
+	assert.False(t, hasMetadata, "a create without metadata must not expose the metadata key; body: %s", string(respBody))
+}
+
+func TestCreateOrUpdateAssetRate_WithMetadata(t *testing.T) {
+	// NOT parallel: buildHumaAssetRateApp mutates process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	assetRateRepo := assetrate.NewMockRepository(ctrl)
+	metadataRepo := txmongodb.NewMockRepository(ctrl)
+
+	assetRateRepo.EXPECT().FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").Return(nil, nil).Times(1)
+	assetRateRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ any, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
+			ar.CreatedAt = fixedTestTime
+			ar.UpdatedAt = fixedTestTime
+			return ar, nil
+		}).Times(1)
+	metadataRepo.EXPECT().Create(gomock.Any(), constant.EntityAssetRate, gomock.Any()).Return(nil).Times(1)
+
+	handler := &AssetRateHandler{Command: &command.UseCase{AssetRateRepo: assetRateRepo, TransactionMetadataRepo: metadataRepo}}
+
+	app := buildHumaAssetRateApp(t, handler, true)
+
+	// ttl is dereferenced unconditionally by the service, so it must be present.
+	body, _ := json.Marshal(map[string]any{"from": "USD", "to": "BRL", "rate": 100, "scale": 2, "ttl": 3600, "metadata": map[string]any{"k": "v"}})
+	req := httptest.NewRequest(http.MethodPut, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "upsert returns 201")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, map[string]any{"k": "v"}, got["metadata"])
 }
 
 func TestCreateOrUpdateAssetRate_AuthPreserved(t *testing.T) {

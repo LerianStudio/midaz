@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"strings"
 	"testing"
 
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
@@ -13,6 +14,9 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // FuzzConservation_LegSumEqualsFeeTotal_TableDeleted is the P4-T11 property
@@ -101,5 +105,92 @@ func FuzzConservation_LegSumEqualsFeeTotal_TableDeleted(f *testing.F) {
 		require.Truef(t, got.Equal(want),
 			"conservation broken WITH TABLE DELETED: sum(legs)=%s want feeTotal=%s (asset=%s n=%d pct=%s deductible=%v)",
 			got.String(), want.String(), asset, n, pct.String(), deductible)
+	})
+}
+
+// FuzzConservation_NonPayerLegNeverPays marks one random leg of the paying side
+// as a non-payer. Whatever the split, the fee legs still sum exactly to the fee
+// total, no fee leg is drawn from the non-payer, and its amount is untouched.
+// When the non-payer is the only leg on the paying side, the fee is skipped.
+func FuzzConservation_NonPayerLegNeverPays(f *testing.F) {
+	// Seed corpus: (sendValue, numAccounts, pctTimes100, nonPayerIdx, deductible).
+	f.Add(int64(1000), uint8(3), uint16(1000), uint8(0), false)
+	f.Add(int64(1000), uint8(3), uint16(1000), uint8(2), true)
+	f.Add(int64(1000), uint8(0), uint16(250), uint8(0), false)
+	f.Add(int64(1000), uint8(0), uint16(250), uint8(0), true)
+	f.Add(int64(99999), uint8(6), uint16(715), uint8(4), false)
+	f.Add(int64(10), uint8(1), uint16(3333), uint8(1), true)
+
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "fuzz"})
+
+	f.Fuzz(func(t *testing.T, sendRaw int64, nAccounts uint8, pctTimes100 uint16, nonPayerRaw uint8, deductible bool) {
+		if sendRaw <= 0 {
+			sendRaw = 1
+		}
+
+		n := int(nAccounts)%7 + 1
+		nonPayerIdx := int(nonPayerRaw) % n
+
+		pct := decimal.NewFromInt(int64(pctTimes100 % 10001)).Div(decimal.NewFromInt(100))
+		if pct.IsZero() {
+			pct = decimal.NewFromInt(1)
+		}
+
+		sendValue := decimal.NewFromInt(sendRaw)
+		fee := pctFee(pct.String(), deductible)
+
+		cf := conservationFixture{asset: "BRL", sendValue: sendValue, fee: fee}
+		if deductible {
+			cf.fromValues = []decimal.Decimal{sendValue}
+			cf.toValues = evenSplit(sendValue, n)
+		} else {
+			cf.fromValues = evenSplit(sendValue, n)
+			cf.toValues = []decimal.Decimal{sendValue}
+		}
+
+		feeCalc, p, resp := cf.build()
+		feeCalc.NonPayerLegs = []model.NonPayerLeg{{IsFrom: !deductible, Index: nonPayerIdx}}
+
+		payingLegs := feeCalc.Transaction.Send.Source.From
+		paying := &resp.From
+
+		if deductible {
+			payingLegs = feeCalc.Transaction.Send.Distribute.To
+			paying = &resp.To
+		}
+
+		nonPayerKey := transaction.AmountMapKeys(payingLegs)[nonPayerIdx]
+		nonPayerAmount := (*paying)[nonPayerKey].Value
+
+		err := CalculateFee(logger, feeCalc, p, resp, nil)
+		if deductible && err != nil && strings.HasPrefix(err.Error(), constant.ErrDeductibleFeeExceedsAmount.Error()) {
+			return
+		}
+
+		require.NoError(t, err)
+
+		require.Truef(t, (*paying)[nonPayerKey].Value.Equal(nonPayerAmount),
+			"non-payer amount changed: got %s want %s", (*paying)[nonPayerKey].Value.String(), nonPayerAmount.String())
+
+		for key := range *paying {
+			require.Falsef(t, strings.HasPrefix(key, nonPayerKey+"->"), "fee leg drawn from the non-payer: %s", key)
+			require.Falsef(t, strings.HasSuffix(key, "->"+nonPayerKey+"->"), "fee leg drawn from the non-payer: %s", key)
+		}
+
+		var got decimal.Decimal
+		if deductible {
+			got = sumFeeLegs(resp.To, true)
+		} else {
+			got = sumFeeLegs(resp.From, false)
+		}
+
+		want := expectedFeeTotal(t, fee, sendValue, "BRL")
+		if n == 1 {
+			want = decimal.Zero
+		}
+
+		require.Truef(t, got.Equal(want),
+			"conservation broken with a non-payer: sum(legs)=%s want=%s (n=%d nonPayer=%d pct=%s deductible=%v)",
+			got.String(), want.String(), n, nonPayerIdx, pct.String(), deductible)
 	})
 }

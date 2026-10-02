@@ -451,6 +451,18 @@ func TestAccountBlockExceptionInternalKey_SharesBalanceHashSlot(t *testing.T) {
 		"the exception key must share the balance keys' hash slot")
 }
 
+func TestFeeDebtInternalKey_SharesBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	key := FeeDebtInternalKey(orgID, ledgerID, "@payer#default")
+
+	assert.Equal(t, "fee-debt:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:@payer#default", key)
+	assert.Equal(t, hashTagOf(t, BalanceInternalKey(orgID, ledgerID, "@payer#default")), hashTagOf(t, key))
+}
+
 func TestTransactionApplyMarkerKey(t *testing.T) {
 	t.Parallel()
 

@@ -139,7 +139,12 @@ func TestUpdateAccountTypeSuccessWithoutMetadata(t *testing.T) {
 		}).
 		Times(1)
 
-	// UpdateMetadata is always called, even with empty metadata
+	// Nil metadata clears the existing document.
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+		Times(1)
+
 	mockMetadataRepo.EXPECT().
 		Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
 		Return(nil).
@@ -348,6 +353,12 @@ func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 				}).
 				Times(1)
 
+			// Nil metadata clears the existing document.
+			mockMetadataRepo.EXPECT().
+				FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).
+				Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+				Times(1)
+
 			mockMetadataRepo.EXPECT().
 				Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
 				Return(nil).
@@ -416,6 +427,12 @@ func TestUpdateAccountTypeThreadsDefaultDirection(t *testing.T) {
 				}).
 				Times(1)
 
+			// Nil metadata clears the existing document.
+			mockMetadataRepo.EXPECT().
+				FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).
+				Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
+				Times(1)
+
 			mockMetadataRepo.EXPECT().
 				Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
 				Return(nil).
@@ -469,6 +486,12 @@ func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 			assert.Equal(t, "", accountType.Description)
 			return expectedAccountType, nil
 		}).
+		Times(1)
+
+	// Nil metadata clears the existing document.
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().

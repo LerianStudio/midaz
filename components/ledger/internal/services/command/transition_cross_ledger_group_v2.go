@@ -202,6 +202,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 				TransactionInput:           part.transition.input,
 				Validate:                   part.transition.validate,
 				AccountBlockExceptionGrant: part.run.accountBlockExceptionGrant,
+				FeeDebtEligible:            true,
 			},
 		}, part.transition.ledgerSettings.Accounting.ValidateRoutes)
 		if prepareErr != nil {
@@ -298,7 +299,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 		}
 	}
 
-	if err := uc.handoffAtomicTransactionBatchExecution(ctx, idempotencyRun); err != nil {
+	if err := uc.handoffReservedAtomicTransactionBatchExecution(ctx, span, logger, idempotencyRun, destinationRun); err != nil {
 		releaseOnPreparationError = false
 		return nil, err
 	}
@@ -315,7 +316,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 				)
 			}
 
-			if err := uc.abortAtomicTransactionBatchConfirmedRefusal(ctx, idempotencyRun); err != nil {
+			if err := uc.abortAtomicTransactionBatchConfirmedAbort(ctx, idempotencyRun); err != nil {
 				return nil, err
 			}
 
@@ -714,13 +715,14 @@ func crossLedgerGroupDestinationItems(intent CrossLedgerGroupIntent) []CreateAto
 
 		index := len(items)
 		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
-			OrganizationID: part.OrganizationID,
-			LedgerID:       part.LedgerID,
-			Transaction:    part.Transaction,
-			Action:         constant.ActionDirect,
-			RouteAction:    constant.ActionCommit,
-			Order:          index + 1,
-			OriginalIndex:  index,
+			OrganizationID:    part.OrganizationID,
+			LedgerID:          part.LedgerID,
+			Transaction:       part.Transaction,
+			Action:            constant.ActionDirect,
+			RouteAction:       constant.ActionCommit,
+			Order:             index + 1,
+			OriginalIndex:     index,
+			crossLedgerBridge: crossLedgerDestinationBridge(part.Transaction, intent.Asset),
 		})
 	}
 

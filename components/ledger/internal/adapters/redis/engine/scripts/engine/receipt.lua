@@ -1,3 +1,28 @@
+-- savedMovementRole accepts a saved movement's role and ordinal: 0 for primary
+-- and an ordinary companion, the item or entry index on a fee-debt posting. Only a
+-- refund's debtor credit, among fee-debt movements, may repay overdraft.
+local function savedMovementRole(movement, posting, ordinal, seeds, transaction)
+    if not ordinal:match("^%d+$") or (#ordinal > 1 and ordinal:sub(1, 1) == "0") or #ordinal > 9 then return false end
+    local index, role, feeDebtPosting = tonumber(ordinal), movement.role, posting.type == "collect" or posting.type == "refund"
+    local entries = #(posting.items or posting.refunds or {})
+    local onDebtor = movement.balanceRef == posting.balanceRef and index < entries
+    if role == "primary" then return index == 0 and not feeDebtPosting end
+    if role == "overdraft_companion" then return (index == 0 and not feeDebtPosting) or (posting.type == "refund" and index < entries) end
+    if role == "fee_debt_refund_credit" then
+        return posting.type == "refund" and onDebtor and movement.type == "credit" and cmp_decimal(canonicalMoney(movement.overdraftDelta), "0") <= 0
+    end
+    if movement.overdraftDelta ~= "0" then return false end
+    if role == "fee_debt_debit" then return posting.type == "collect" and onDebtor and movement.type == "debit" end
+    if role == "fee_debt_credit" then
+        return posting.type == "collect" and index < #posting.items and movement.type == "credit" and
+            seeds[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, movement.balanceRef)] ~= nil
+    end
+    if role == "fee_debt_refund_debit" then
+        return posting.type == "refund" and index < #posting.refunds and movement.type == "debit" and movement.balanceRef == posting.refunds[index + 1].creditRef
+    end
+    return false
+end
+
 -- validateStoredResponse proves that a saved accounting result could have been
 -- produced by the current immutable request. A receipt is replay evidence, so
 -- malformed or uncorrelated contents must never be returned as trusted success.
@@ -7,6 +32,7 @@ local function validateStoredResponse(raw, request)
     if smallInteger(response.protocolVersion, 1) ~= 1 then technical("invalid_receipt", "unsupported saved response") end
     requireArray(response.movements)
     requireArray(response.final)
+    if response.feeDebt ~= nil then requireArray(response.feeDebt) end
     if #response.movements == 0 or #response.final == 0 then
         technical("invalid_receipt", "stored execution receipt has no accounting movements")
     end
@@ -39,17 +65,17 @@ local function validateStoredResponse(raw, request)
         if not posting or (movement.role == "primary" and (movement.balanceRef ~= posting.balanceRef or movement.type ~= posting.type)) then
             technical("invalid_receipt", "saved movement does not match execution")
         end
-        if movementRefs[movement.ref] or (movement.role ~= "primary" and movement.role ~= "overdraft_companion") then
+        local expectedRef = movement.transactionId .. ":" .. #movement.postingRef .. ":" .. movement.postingRef .. ":" .. tostring(movement.role) .. ":"
+        local ordinal = movement.ref:sub(#expectedRef + 1)
+        if movementRefs[movement.ref] or movement.ref:sub(1, #expectedRef) ~= expectedRef or not savedMovementRole(movement, posting, ordinal, seeds, transaction) then
             technical("invalid_receipt", "invalid saved movement identity")
         end
-        local expectedRef = movement.transactionId .. ":" .. #movement.postingRef .. ":" .. movement.postingRef .. ":" .. movement.role .. ":0"
-        if movement.ref ~= expectedRef then technical("invalid_receipt", "invalid saved movement reference") end
         -- A companion movement is valid only immediately after its primary
         -- overdraft movement and on that account's reserved overdraft balance.
         if movement.role == "overdraft_companion" then
             local primary = response.movements[index - 1]
             local seed = seeds[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
-            if not primary or primary.role ~= "primary" or primary.transactionId ~= movement.transactionId or primary.postingRef ~= movement.postingRef or primary.overdraftDelta == "0" or movement.balanceRef ~= seed.alias .. "#overdraft" then
+            if not primary or (primary.role ~= "primary" and primary.role ~= "fee_debt_refund_credit") or primary.transactionId ~= movement.transactionId or primary.postingRef ~= movement.postingRef or primary.overdraftDelta == "0" or movement.balanceRef ~= seed.alias .. "#overdraft" then
                 technical("invalid_receipt", "invalid saved companion correlation")
             end
         end

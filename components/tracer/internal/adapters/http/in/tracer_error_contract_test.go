@@ -133,21 +133,6 @@ func TestTracerErrorContract(t *testing.T) {
 			expectedCode:   "0380",
 			expectedTitle:  "Limit Immutable Field",
 		},
-		// --- reservation ---
-		{
-			name:           "reservation not found -> 0482 / 404",
-			err:            pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation),
-			expectedStatus: 404,
-			expectedCode:   "0482",
-			expectedTitle:  "Reservation Not Found",
-		},
-		{
-			name:           "reservation already terminal -> 0483 / 422",
-			err:            pkg.ValidateBusinessError(constant.ErrReservationAlreadyTerminal, constant.EntityReservation),
-			expectedStatus: 422,
-			expectedCode:   "0483",
-			expectedTitle:  "Reservation Already Terminal",
-		},
 		// --- audit / transaction validation ---
 		{
 			name:           "audit event not found -> 0381 / 404",

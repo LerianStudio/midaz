@@ -33,8 +33,7 @@ const maxPayloadSize = 100 * 1024
 
 // payloadTooLargeMessage is the shared HTTP 413 detail for an oversized request
 // body. It is derived from maxPayloadSize so the stated limit can never drift
-// from the enforced one, and is shared by the validation and reservation
-// handlers so both emit an identical message.
+// from the enforced one.
 var payloadTooLargeMessage = fmt.Sprintf("payload too large: exceeds %dKB limit", maxPayloadSize/1024)
 
 // ValidationService defines the interface for validation operations.
@@ -139,7 +138,7 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 	}
 
 	// Normalize and validate request (business error - use HandleSpanBusinessErrorEvent)
-	// This validates asset is ISO 4217 uppercase (does NOT normalize), trims and lowercases subType (canonical form; matching is case-insensitive), and creates defensive metadata copy
+	// This validates asset is an uppercase asset code (does NOT normalize), trims and lowercases subType (canonical form; matching is case-insensitive), and creates defensive metadata copy
 	// Use injected clock for timestamp validation to support MOCK_TIME in tests
 	now := h.clock.Now()
 	if err := request.NormalizeAndValidate(now); err != nil {

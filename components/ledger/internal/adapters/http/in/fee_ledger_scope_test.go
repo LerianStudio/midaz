@@ -76,6 +76,7 @@ func buildFeesV2AppWithOptions(t *testing.T, routeOptions *pkgHTTP.ProtectedRout
 	RegisterFeeEstimateV2RoutesToApp(apiV2, hAPI, auth, &FeeHandler{Service: stubs.feeSvc}, routeOptions)
 	RegisterBillingPackageV2RoutesToApp(apiV2, hAPI, auth, &BillingPackageHandler{Service: stubs.billingSvc}, routeOptions)
 	RegisterBillingCalculateV2RoutesToApp(apiV2, hAPI, auth, &BillingCalculateHandler{Service: stubs.calcSvc}, routeOptions)
+	RegisterFeeDebtV2RoutesToApp(apiV2, hAPI, auth, &FeeDebtHandler{}, routeOptions)
 
 	return app, stubs
 }

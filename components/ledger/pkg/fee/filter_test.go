@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
@@ -130,7 +131,7 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := FindPackageToCalculateFee(tc.packages, tc.route, tc.segmentID, amount)
+			got, err := FindPackageToCalculateFee(tc.packages, tc.route, tc.segmentID, nil, amount)
 
 			if tc.expectedError {
 				assert.Error(t, err)
@@ -295,14 +296,6 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// A package outside its own amount band is not selected, even
-			// when it is the only one the route filter leaves standing. The
-			// ledger used to hand that lone survivor back unfiltered and lean
-			// on both callers re-checking the band; the band filter now runs
-			// on it like any other package, and the callers still re-check.
-			// The money was the same either way: the seam row
-			// a_package_restricted_to_this_route_is_not_charged_outside_its_own_amount_band
-			// in components/ledger/internal/services/fees pins it.
 			name:     "a route-scoped package outside its own amount band is not selected",
 			packages: []*pack.Package{outOfBand},
 			payment:  routed,
@@ -454,7 +447,7 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 				routeOfPayment = *tc.payment.RouteID
 			}
 
-			got, err := FindPackageToCalculateFee(tc.packages, routeOfPayment, tc.segmentID, amount)
+			got, err := FindPackageToCalculateFee(tc.packages, routeOfPayment, tc.segmentID, nil, amount)
 
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -471,6 +464,70 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			}
 
 			assert.NotNil(t, got)
+			assert.Same(t, tc.want, got)
+		})
+	}
+}
+
+// TestFindPackageToCalculateFee_MetadataSelector pins the metadata selector: a
+// package carrying pairs applies only when the payment metadata holds every one
+// of them as an equal string, and each pair counts one toward specificity.
+func TestFindPackageToCalculateFee_MetadataSelector(t *testing.T) {
+	t.Parallel()
+
+	routeID := uuid.NewString()
+	segX := uuid.New()
+	min0 := decimal.Zero
+	max := decimal.NewFromInt(1_000_000)
+	amount := decimal.NewFromInt(100)
+
+	onePair := map[string]string{"fee_context": "ted_salario"}
+	twoPairs := map[string]string{"fee_context": "ted_salario", "fee_tier": "premium"}
+
+	unscoped := &pack.Package{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}
+	onePairScoped := &pack.Package{ID: uuid.New(), MetadataSelector: onePair, MinimumAmount: min0, MaximumAmount: max}
+	twoPairScoped := &pack.Package{ID: uuid.New(), MetadataSelector: twoPairs, MinimumAmount: min0, MaximumAmount: max}
+	tierOne := &pack.Package{ID: uuid.New(), MetadataSelector: map[string]string{"fee_tier": "1"}, MinimumAmount: min0, MaximumAmount: max}
+
+	tests := []struct {
+		name     string
+		packages []*pack.Package
+		metadata map[string]any
+		want     *pack.Package
+	}{
+		{
+			name:     "the unscoped package is charged when the payment carries the key with another value",
+			packages: []*pack.Package{unscoped, onePairScoped},
+			metadata: map[string]any{"fee_context": "pix"},
+			want:     unscoped,
+		},
+		{
+			name:     "the package scoped to two pairs is charged rather than the one scoped to one",
+			packages: []*pack.Package{onePairScoped, twoPairScoped},
+			metadata: map[string]any{"fee_context": "ted_salario", "fee_tier": "premium"},
+			want:     twoPairScoped,
+		},
+		{
+			name:     "the unscoped package is charged when the payment carries only one of two pairs",
+			packages: []*pack.Package{unscoped, twoPairScoped},
+			metadata: map[string]any{"fee_context": "ted_salario"},
+			want:     unscoped,
+		},
+		{
+			name:     "a numeric metadata value never matches, whatever it prints",
+			packages: []*pack.Package{tierOne},
+			metadata: map[string]any{"fee_tier": json.Number("1")},
+			want:     nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := FindPackageToCalculateFee(tc.packages, routeID, uuidPtr(segX), tc.metadata, amount)
+
+			require.NoError(t, err)
 			assert.Same(t, tc.want, got)
 		})
 	}

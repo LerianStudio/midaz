@@ -230,6 +230,30 @@ var (
 	// instead skipped (a SKIPPED audit is recorded) and the transaction
 	// proceeds, so this error is the fail-closed path only.
 	ErrTransactionReservationUnavailable = errors.New("0178")
+	// ErrTransactionReservationReview is returned when a tracer transaction
+	// validation rule flags the transaction for review, or a rule could not be
+	// evaluated for it, and the ledger's tracer.mode is "enforce". It is raised before the balance commit, and it is
+	// distinct from 0177 so a caller can tell a flagged transaction from one that
+	// exceeds a usage limit.
+	ErrTransactionReservationReview = errors.New("0531")
+	// ErrTransactionReservationRejected is returned when the tracer refuses the
+	// reserve request itself (it answered, but could not evaluate what it
+	// received) and the ledger's tracer.mode is "enforce". It rejects regardless
+	// of tracer.failPosture: the tracer is reachable, so the fail-open escape for
+	// an unavailable tracer does not apply.
+	ErrTransactionReservationRejected = errors.New("0532")
+	// ErrTransactionReservationRuleDenied is returned when a tracer transaction
+	// validation rule denies the transaction and the ledger's tracer.mode is
+	// "enforce". It is raised before the balance commit, and it is distinct from
+	// 0177 so a caller can tell a rule denial from one that exceeds a usage limit.
+	ErrTransactionReservationRuleDenied = errors.New("0535")
+	// ErrTransactionReservationUnauthorized is returned when the tracer
+	// reservation seam rejects the ledger's credential (the token or API key is
+	// missing, invalid or not granted), the ledger's tracer.mode is "enforce" and
+	// its tracer.failPosture is "closed". It is a configuration error that never
+	// heals on its own, so it is distinct from 0178 (an unreachable tracer) and
+	// from 0532 (a request the tracer refused).
+	ErrTransactionReservationUnauthorized = errors.New("0536")
 	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
 	// references a ledger that has not opted in through crossLedger.enabled.
 	ErrCrossLedgerNotEnabled = errors.New("0249")
@@ -497,14 +521,27 @@ var (
 	ErrMethodNotAllowed                       = errors.New("0485")
 	ErrPendingTransactionLocked               = errors.New("0486")
 	ErrReservationTenantRequired              = errors.New("0487")
-	ErrInstrumentLedgerReferenceNotFound      = errors.New("0488")
-	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
-	ErrSkipNotPermitted                       = errors.New("0490")
-	ErrHolderRequired                         = errors.New("0491")
-	ErrReadyzRedisConnectionNotEstablished    = errors.New("0493")
-	ErrReadyzRedisPingFailed                  = errors.New("0494")
-	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
-	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// ErrLimitResetTimeNotAllowed is returned when a resetTime is set on a
+	// limit whose type has no recurring period (CUSTOM, PER_TRANSACTION).
+	ErrLimitResetTimeNotAllowed = errors.New("0537")
+	// ErrLimitResetTimeInsideWindow is returned when a limit's resetTime falls
+	// strictly inside its active time window, which would split one window
+	// across two periods.
+	ErrLimitResetTimeInsideWindow = errors.New("0538")
+	// ErrReservationAlreadySettled is returned when a reserve replays onto a
+	// row that already left RESERVED (confirmed, released or expired).
+	ErrReservationAlreadySettled = errors.New("0533")
+	// ErrReservationTenantInactive is returned when the tenant on the
+	// reservation seam is not provisioned, suspended or purged.
+	ErrReservationTenantInactive           = errors.New("0534")
+	ErrInstrumentLedgerReferenceNotFound   = errors.New("0488")
+	ErrInstrumentAccountReferenceNotFound  = errors.New("0489")
+	ErrSkipNotPermitted                    = errors.New("0490")
+	ErrHolderRequired                      = errors.New("0491")
+	ErrReadyzRedisConnectionNotEstablished = errors.New("0493")
+	ErrReadyzRedisPingFailed               = errors.New("0494")
+	ErrReadyzTenantManagerUnavailable      = errors.New("0495")
+	ErrReadyzStreamingUnhealthy            = errors.New("0496")
 	// ErrInvalidDashboardWindow is returned when a dashboard read names an
 	// unsupported period, supplies period together with startDate/endDate, or
 	// asks for a range longer than 90 days. The window is what bounds every
@@ -660,6 +697,20 @@ var (
 	// decided about the account, so a retry is valid once the holder concludes. A
 	// closing in progress is ErrAccountClosingInProgress (0522).
 	ErrAccountAdministrativeOperationInProgress = errors.New("0526")
+	// ErrBalanceHasOpenFeeDebt refuses deleting or closing what still owes a
+	// deferred fee: the debt is keyed by the balance alias, so a new account
+	// reusing the alias would pay the previous holder's fee.
+	ErrBalanceHasOpenFeeDebt = errors.New("0527")
+	// ErrBalanceOwedFeeDebt refuses deleting or closing a balance that open fee
+	// debts name as creditor: collecting them credits it.
+	ErrBalanceOwedFeeDebt = errors.New("0528")
+	// ErrFeeDebtRecordPending is returned when the live fee debts a transaction
+	// touches disagree with their record, which lags while completion projects it.
+	// Nothing moved, so a retry is valid once the record catches up.
+	ErrFeeDebtRecordPending = errors.New("0529")
+	// ErrDeferrableDeductibleFee refuses a fee both deducted from the payment and
+	// deferrable: fee debt defers only a fee charged on top of the payment.
+	ErrDeferrableDeductibleFee = errors.New("0530")
 )
 
 // List of CRM domain errors.

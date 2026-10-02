@@ -12,27 +12,44 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 )
 
+// UpdateOnboardingMetadata applies a metadata patch to the entity's metadata document.
+// Nil clears an existing document and creates none; an empty map returns the
+// stored metadata without writing; a non-empty map is merged into the stored
+// metadata and upserted.
 func (uc *UseCase) UpdateOnboardingMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
 
-	metadataToUpdate := metadata
+	existingMetadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, entityName, entityID)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to get metadata on mongodb", err)
 
-	if metadataToUpdate != nil {
-		existingMetadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, entityName, entityID)
-		if err != nil {
-			recordCommandError(ctx, span, logger, "Failed to get metadata on mongodb", err)
+		return nil, err
+	}
 
-			return nil, err
+	var metadataToUpdate map[string]any
+
+	switch {
+	case metadata == nil:
+		if existingMetadata == nil {
+			return nil, nil
 		}
+
+		metadataToUpdate = map[string]any{}
+	case len(metadata) == 0:
+		if existingMetadata == nil {
+			return nil, nil
+		}
+
+		return existingMetadata.Data, nil
+	default:
+		metadataToUpdate = metadata
 
 		if existingMetadata != nil {
 			metadataToUpdate = libCommons.MergeMaps(metadata, existingMetadata.Data)
 		}
-	} else {
-		metadataToUpdate = map[string]any{}
 	}
 
 	if err := uc.OnboardingMetadataRepo.Update(ctx, entityName, entityID, metadataToUpdate); err != nil {

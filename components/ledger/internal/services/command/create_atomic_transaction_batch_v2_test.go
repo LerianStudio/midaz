@@ -592,8 +592,10 @@ func TestPrepareAtomicTransactionBatchItems_PreparesMixedDirectAndHoldActions(t 
 			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000096", "@hold-destination", "BRL"),
 		},
 	}
+	feeApplier := &fakeFeeApplier{}
 	uc := &UseCase{
 		TransactionReader: reader,
+		FeeApplier:        feeApplier,
 		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
 			t,
 			uuid.MustParse("01994f13-29b7-7000-8000-000000000097"),
@@ -632,6 +634,7 @@ func TestPrepareAtomicTransactionBatchItems_PreparesMixedDirectAndHoldActions(t 
 	assert.Equal(t, accounting.PostingDebit, run.items[0].prepared.transaction.Postings[0].Type)
 	assert.Equal(t, accounting.PostingHold, run.items[1].prepared.transaction.Postings[0].Type)
 	assert.Equal(t, 1, reader.engineReads)
+	assert.Equal(t, 2, feeApplier.calls, "a hold item is charged its fee like a direct one")
 }
 
 func TestInitializeAtomicTransactionBatchV2_FreezesPerItemScopeAndSettings(t *testing.T) {

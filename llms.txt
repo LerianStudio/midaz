@@ -25,7 +25,7 @@ The financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segme
 The three deploy units form one core banking platform in one monorepo:
 
 - [Ledger](STRUCTURE.md): Double-entry ledger — the unified binary on :3002 (onboarding + transaction + CRM + fees)
-- [Tracer](components/tracer/): Real-time transaction validation / fraud prevention on :4020 — CEL rules, multi-scope spending limits, hash-chained audit. The ledger reaches it over an opt-in reservation seam (gRPC default / REST fallback, mutual TLS or service-mesh, trusted `x-tenant-id`): [topology](docs/architecture/ledger-tracer-topology.md)
+- [Tracer](components/tracer/): Real-time transaction validation / fraud prevention on :4020 — CEL rules, multi-scope spending limits, hash-chained audit. The ledger reaches it over an opt-in reservation seam (gRPC only on :4021; the ledger identifies itself with an Access Manager application token, the tracer API key, or the transport — mTLS with a client-identity allowlist or a service mesh; under the token the tenant comes from its `tenantId` claim): [topology](docs/architecture/ledger-tracer-topology.md)
 - [CRM](components/ledger/internal/crm/): Holders + instruments, folded into the ledger binary (not a deploy unit)
 - [Fees](components/ledger/pkg/fee): Fee engine + billing packages, embedded in the ledger binary
 

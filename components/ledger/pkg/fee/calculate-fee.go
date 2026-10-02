@@ -99,6 +99,13 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 
 	feeAsset := f.Transaction.Send.Asset
 
+	// Positions refer to the send as it arrives, so they are resolved before any fee
+	// rebuilds its legs.
+	nonPayers, err := resolveNonPayerKeys(f.NonPayerLegs, f.Transaction.Send)
+	if err != nil {
+		return err
+	}
+
 	originalTransactionValue := f.Transaction.Send.Value
 
 	fees := make([]model.Fee, 0, len(p.Fees))
@@ -155,7 +162,7 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		// residual-to-max reconciliation in applyFeeCorrection holds sum(legs) ==
 		// fee total exactly without any asset-scale rounding.
 
-		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f); err != nil {
+		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f, nonPayers); err != nil {
 			return err
 		}
 	}

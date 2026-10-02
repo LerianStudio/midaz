@@ -467,7 +467,7 @@ func TestValidation_ErrorHandling_InvalidAsset_MixedCase(t *testing.T) {
 			errorResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0417", errorResp.Code, "Error code should be 0417 for invalid asset")
 			assert.Equal(t, "Validation Invalid Asset", errorResp.Title, "Error title should match the asset error")
-			assert.Equal(t, "Asset must be valid ISO 4217.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
+			assert.Equal(t, "Asset must be 1 to 100 uppercase letters.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 		})
 	}
 }

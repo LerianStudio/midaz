@@ -23,6 +23,8 @@ type EngineSnapshotPool struct {
 	ExplicitBalances []*mmodel.Balance
 	Balances         []*mmodel.Balance
 	Snapshots        []accounting.BalanceSnapshot
+	// FeeDebtSeeds holds the open debts of the debtors this pool read, by balance ref.
+	FeeDebtSeeds map[string][]accounting.FeeDebtItem
 }
 
 // EngineSnapshotLoader is the scoped balance read used by tests and
