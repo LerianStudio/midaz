@@ -345,6 +345,16 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 func (c *CreateLimitCommand) emitLimitCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
 	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
-			return events.NewLimitCreated(limit).ToEmitRequest(tenantID, limit.CreatedAt)
+			return events.NewLimitCreated(withResetAtAfter(limit, c.clock.Now())).ToEmitRequest(tenantID, limit.CreatedAt)
 		})
+}
+
+// withResetAtAfter returns a copy of limit whose ResetAt is the next reset after
+// now. The stored reset_at of a periodic limit is the boundary after its creation,
+// so events carry a value derived from the emission instant instead.
+func withResetAtAfter(limit *model.Limit, now time.Time) *model.Limit {
+	snapshot := *limit
+	snapshot.ResetAt = limit.NextResetAt(now)
+
+	return &snapshot
 }
