@@ -16328,11 +16328,15 @@ components:
             JSON object with exempt, reason and message, present when every
             account on one side of the transaction is exempt from fees, which is
             how a caller tells an exemption apart from no package having
-            matched; a transaction recorded before v4.1.1 may carry feeExemption
-            as that object itself instead of the string, so a reader must accept
-            both shapes; feeDebtOpenings and feeDebtSettlements are strings
-            holding a JSON array, in the order the ledger applied them, of the
-            fee debts this transaction opened because its payer could not fund a
+            matched; feeExemption is also present, with reason
+            cross_ledger_bridge, when the only account on one side that would
+            have paid a fee is the @external/<asset> bridge closing a part of a
+            cross-ledger group, because that bridge never pays a fee; a
+            transaction recorded before v4.1.1 may carry feeExemption as that
+            object itself instead of the string, so a reader must accept both
+            shapes; feeDebtOpenings and feeDebtSettlements are strings holding a
+            JSON array, in the order the ledger applied them, of the fee debts
+            this transaction opened because its payer could not fund a
             deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of
             the fee debts it settled (debtId, debtorRef, creditRef, amount,
             opened, seq), each absent when there is none; feeDebtCollection is
@@ -20716,11 +20720,15 @@ components:
             JSON object with exempt, reason and message, present when every
             account on one side of the transaction is exempt from fees, which is
             how a caller tells an exemption apart from no package having
-            matched; a transaction recorded before v4.1.1 may carry feeExemption
-            as that object itself instead of the string, so a reader must accept
-            both shapes; feeDebtOpenings and feeDebtSettlements are strings
-            holding a JSON array, in the order the ledger applied them, of the
-            fee debts this transaction opened because its payer could not fund a
+            matched; feeExemption is also present, with reason
+            cross_ledger_bridge, when the only account on one side that would
+            have paid a fee is the @external/<asset> bridge closing a part of a
+            cross-ledger group, because that bridge never pays a fee; a
+            transaction recorded before v4.1.1 may carry feeExemption as that
+            object itself instead of the string, so a reader must accept both
+            shapes; feeDebtOpenings and feeDebtSettlements are strings holding a
+            JSON array, in the order the ledger applied them, of the fee debts
+            this transaction opened because its payer could not fund a
             deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of
             the fee debts it settled (debtId, debtorRef, creditRef, amount,
             opened, seq), each absent when there is none; feeDebtCollection is

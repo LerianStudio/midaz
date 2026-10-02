@@ -42,6 +42,14 @@ are authorized to read.
   organization. Cross-organization groups without route validation are accepted.
 - Fees, Tracer, skip permissions, balance rules, and limits are evaluated with
   each part's own ledger settings.
+- The `@external/<asset>` bridge that closes each part never pays a fee: it is
+  never charged a non-deductible fee as a source and never has a deductible fee
+  deducted from its credit. On each side, the fee falls on that part's other
+  accounts. When no other account remains on that side, the fee is skipped and
+  the skip is recorded in the part's `feeExemption` metadata with reason
+  `cross_ledger_bridge`. When the package's own exemptions also apply, their
+  reason is recorded instead. Single-ledger transactions are unaffected: there
+  an `@external` leg is an ordinary account and may pay.
 - One idempotency key protects the full request. An identical replay returns the
   original group and sets `X-Idempotency-Replayed: true`; changing any leg while
   reusing the key conflicts with `0084`.
@@ -130,10 +138,11 @@ remains in the execution's primary scope.
 
 Origin fees are frozen into the hold. Destination fees are evaluated when the
 commit runs, so a package change between hold and commit can affect destination
-parts. Origin Tracer reservations are confirmed on commit and released on
-cancel; destination reservations are created only for commit. `/v1` commit,
-cancel, or revert cannot return a group and rejects a group member with `0252`
-(HTTP 422).
+parts. The bridge rule above applies at both points: origin fees are guarded
+when the hold is created, and destination fees when the commit runs. Origin
+Tracer reservations are confirmed on commit and released on cancel; destination
+reservations are created only for commit. `/v1` commit, cancel, or revert
+cannot return a group and rejects a group member with `0252` (HTTP 422).
 
 ## Member resolution
 
