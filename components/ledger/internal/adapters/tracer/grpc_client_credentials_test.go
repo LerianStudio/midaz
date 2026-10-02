@@ -31,6 +31,9 @@ import (
 type seamCall struct {
 	method string
 	md     metadata.MD
+	// remaining is how long the call had left before its deadline when the
+	// tracer received it; zero when it carried none.
+	remaining time.Duration
 }
 
 // seamRecorder is a server interceptor that records every call and answers it
@@ -44,8 +47,13 @@ type seamRecorder struct {
 func (r *seamRecorder) intercept(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
 
+	var remaining time.Duration
+	if deadline, ok := ctx.Deadline(); ok {
+		remaining = time.Until(deadline)
+	}
+
 	r.mu.Lock()
-	r.calls = append(r.calls, seamCall{method: info.FullMethod, md: md.Copy()})
+	r.calls = append(r.calls, seamCall{method: info.FullMethod, md: md.Copy(), remaining: remaining})
 	attempt := len(r.calls)
 	answer := r.answer
 	r.mu.Unlock()
@@ -523,12 +531,12 @@ func TestTracerGRPCClient_M2MCredentials_AbandonedTokenWaitIsPlainUnavailable(t 
 	clock := newTestClock()
 	minter := &fakeMinter{tokenFor: labelledTokens(t, clock, 10*time.Minute)}
 	minter.arm()
-	src := newTestTokenSource(t, minter, NewStaticCredentials("ledger", "s3cret"), clock)
+	src := newTestTokenSource(t, minter, NewStaticCredentials("ledger", "s3cret"), clock, WithTokenWaitTimeout(20*time.Millisecond))
 
 	t.Cleanup(func() { close(minter.gate) })
 
 	recorder := &seamRecorder{}
-	client := newSeamClient(t, recorder, WithM2MCredentials(src), WithGRPCOperationTimeout(20*time.Millisecond))
+	client := newSeamClient(t, recorder, WithM2MCredentials(src))
 
 	_, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: fixedTransactionID})
 	require.Error(t, err)

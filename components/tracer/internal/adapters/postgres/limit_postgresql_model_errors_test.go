@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
 // validLimitDBModel returns a LimitPostgreSQLModel that converts cleanly, so
@@ -72,6 +73,13 @@ func TestLimitPostgreSQLModel_ToEntity_InvalidEnumsAndTimes(t *testing.T) {
 			},
 			errPart: "invalid active_time_end in database",
 		},
+		{
+			name: "invalid reset_time",
+			mutate: func(m *LimitPostgreSQLModel) {
+				m.ResetTime = sql.NullString{String: "24:00", Valid: true}
+			},
+			errPart: "invalid reset_time in database",
+		},
 	}
 
 	for _, tt := range tests {
@@ -107,4 +115,65 @@ func TestLimitPostgreSQLModel_ToEntity_ValidTimeWindows(t *testing.T) {
 	require.NotNil(t, entity.ActiveTimeEnd)
 	assert.Equal(t, "09:00", entity.ActiveTimeStart.String())
 	assert.Equal(t, "17:30", entity.ActiveTimeEnd.String())
+}
+
+// TestLimitPostgreSQLModel_ResetTimeMapping verifies that reset_time maps to
+// and from the domain's optional ResetTime: a stored HH:MM value becomes a
+// non-nil TimeOfDay, a NULL column stays nil, and FromEntity writes the
+// normalized HH:MM string (or NULL when the limit has no reset time).
+func TestLimitPostgreSQLModel_ResetTimeMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stored value reads back as the reset time", func(t *testing.T) {
+		t.Parallel()
+
+		m := validLimitDBModel(t)
+		m.ResetTime = sql.NullString{String: "09:00", Valid: true}
+
+		entity, err := m.ToEntity()
+		require.NoError(t, err)
+		require.NotNil(t, entity.ResetTime)
+		assert.Equal(t, "09:00", entity.ResetTime.String())
+	})
+
+	t.Run("NULL reads back as no reset time", func(t *testing.T) {
+		t.Parallel()
+
+		m := validLimitDBModel(t)
+
+		entity, err := m.ToEntity()
+		require.NoError(t, err)
+		assert.Nil(t, entity.ResetTime)
+	})
+
+	t.Run("entity reset time is written as HH:MM", func(t *testing.T) {
+		t.Parallel()
+
+		source := validLimitDBModel(t)
+
+		entity, err := source.ToEntity()
+		require.NoError(t, err)
+
+		resetTime, err := model.NewTimeOfDay("9:00")
+		require.NoError(t, err)
+
+		entity.ResetTime = &resetTime
+
+		var m LimitPostgreSQLModel
+		require.NoError(t, m.FromEntity(entity))
+		assert.Equal(t, sql.NullString{String: "09:00", Valid: true}, m.ResetTime)
+	})
+
+	t.Run("entity without reset time is written as NULL", func(t *testing.T) {
+		t.Parallel()
+
+		source := validLimitDBModel(t)
+
+		entity, err := source.ToEntity()
+		require.NoError(t, err)
+
+		var m LimitPostgreSQLModel
+		require.NoError(t, m.FromEntity(entity))
+		assert.False(t, m.ResetTime.Valid)
+	})
 }

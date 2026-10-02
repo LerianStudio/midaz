@@ -34,7 +34,7 @@ func formatOptionalTimeOfDay(t *model.TimeOfDay) *string {
 var LimitCreatedDefinition = Definition{
 	ResourceType:  "limit",
 	EventType:     "created",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // LimitCreatedPayload is the wire payload for limit.created. Fields are typed
@@ -53,6 +53,7 @@ type LimitCreatedPayload struct {
 	ActiveTimeEnd   *string            `json:"activeTimeEnd"`
 	CustomStartDate *string            `json:"customStartDate"`
 	CustomEndDate   *string            `json:"customEndDate"`
+	ResetTime       *string            `json:"resetTime"`
 	ResetAt         *string            `json:"resetAt"`
 	CreatedAt       string             `json:"createdAt"`
 	UpdatedAt       string             `json:"updatedAt"`
@@ -74,6 +75,7 @@ func NewLimitCreated(limit *model.Limit) LimitCreatedPayload {
 		ActiveTimeEnd:   formatOptionalTimeOfDay(limit.ActiveTimeEnd),
 		CustomStartDate: formatOptionalRFC3339(limit.CustomStartDate),
 		CustomEndDate:   formatOptionalRFC3339(limit.CustomEndDate),
+		ResetTime:       formatOptionalTimeOfDay(limit.ResetTime),
 		ResetAt:         formatOptionalRFC3339(limit.ResetAt),
 		CreatedAt:       limit.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       limit.UpdatedAt.Format(time.RFC3339),

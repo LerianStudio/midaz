@@ -4559,3 +4559,172 @@ func TestLimitCheckerService_CheckLimits_PropagatesDB(t *testing.T) {
 
 	assert.True(t, dbWasUsed, "CheckLimits should propagate db parameter to UpsertAndIncrementAtomic")
 }
+
+// TestCheckLimits_ResetTime_KeysCountersByLimitBoundary drives one DAILY limit
+// with the overnight window 23:00-09:00 through several validations and checks
+// that the counter period, the reported period key and the counter expiry all
+// follow the limit's resetTime, or midnight UTC when it is absent.
+// Seeds: 15500-15509
+func TestCheckLimits_ResetTime_KeysCountersByLimitBoundary(t *testing.T) {
+	limitID := testutil.MustDeterministicUUID(15500)
+	accountID := testutil.MustDeterministicUUID(15501)
+	scopeKey := "acct:" + accountID.String()
+	amount := decimal.RequireFromString("1000")
+	maxAmount := decimal.RequireFromString("1000")
+	nineAM := testhelper.MustNewTimeOfDay("09:00")
+
+	type step struct {
+		at          time.Time
+		wantKey     string
+		wantAllowed bool
+		wantResetAt time.Time
+	}
+
+	tests := []struct {
+		name      string
+		resetTime *model.TimeOfDay
+		steps     []step
+	}{
+		{
+			name:      "reset at 09:00 keeps the whole night in one counter",
+			resetTime: &nineAM,
+			steps: []step{
+				{
+					at:          time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC),
+					wantKey:     "2026-10-01",
+					wantAllowed: true,
+					wantResetAt: time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC),
+				},
+				{
+					at:          time.Date(2026, 10, 2, 0, 30, 0, 0, time.UTC),
+					wantKey:     "2026-10-01",
+					wantAllowed: false,
+					wantResetAt: time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+		{
+			name:      "reset at 09:00 counts the night until the reset point and starts a new period after it",
+			resetTime: &nineAM,
+			steps: []step{
+				{
+					at:          time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC),
+					wantKey:     "2026-10-01",
+					wantAllowed: true,
+					wantResetAt: time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC),
+				},
+				{
+					at:          time.Date(2026, 10, 2, 8, 59, 0, 0, time.UTC),
+					wantKey:     "2026-10-01",
+					wantAllowed: false,
+					wantResetAt: time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC),
+				},
+				{
+					at:          time.Date(2026, 10, 2, 23, 30, 0, 0, time.UTC),
+					wantKey:     "2026-10-02",
+					wantAllowed: true,
+					wantResetAt: time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+		{
+			name:      "absent reset time splits the night at midnight UTC",
+			resetTime: nil,
+			steps: []step{
+				{
+					at:          time.Date(2026, 10, 1, 23, 30, 0, 0, time.UTC),
+					wantKey:     "2026-10-01",
+					wantAllowed: true,
+					wantResetAt: time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC),
+				},
+				{
+					at:          time.Date(2026, 10, 2, 0, 30, 0, 0, time.UTC),
+					wantKey:     "2026-10-02",
+					wantAllowed: true,
+					wantResetAt: time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := setupTest(t)
+			ctrl := gomock.NewController(t)
+
+			mockLimitRepo := NewMockLimitRepository(ctrl)
+			mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+			mockDB := dbmocks.NewMockDB(ctrl)
+
+			windowStart := testhelper.MustNewTimeOfDay("23:00")
+			windowEnd := testhelper.MustNewTimeOfDay("09:00")
+
+			mockLimitRepo.EXPECT().List(gomock.Any(), gomock.Any()).Return(&model.ListLimitsResult{
+				Limits: []model.Limit{
+					{
+						ID:              limitID,
+						Name:            "Overnight Pix cap",
+						LimitType:       model.LimitTypeDaily,
+						MaxAmount:       maxAmount,
+						Asset:           "BRL",
+						Scopes:          []model.Scope{{AccountID: &accountID}},
+						Status:          model.LimitStatusActive,
+						ActiveTimeStart: &windowStart,
+						ActiveTimeEnd:   &windowEnd,
+						ResetTime:       tt.resetTime,
+					},
+				},
+			}, nil).AnyTimes()
+
+			usageByPeriod := map[string]decimal.Decimal{}
+
+			var gotExpiresAt *time.Time
+
+			mockUsageRepo.EXPECT().
+				UpsertAndIncrementAtomic(gomock.Any(), mockDB, limitID, scopeKey, gomock.Any(), amount, maxAmount, gomock.Any()).
+				DoAndReturn(func(_ context.Context, _ pgdb.DB, _ uuid.UUID, _ string, periodKey string, inc, limitMax decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error) {
+					gotExpiresAt = expiresAt
+
+					current := usageByPeriod[periodKey]
+					if current.Add(inc).GreaterThan(limitMax) {
+						return current, constant.ErrUsageCounterExceedsLimit
+					}
+
+					usageByPeriod[periodKey] = current.Add(inc)
+
+					return usageByPeriod[periodKey], nil
+				}).
+				Times(len(tt.steps))
+
+			serverClock := &testutil.MockClock{}
+
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, serverClock)
+			require.NoError(t, err)
+
+			for _, s := range tt.steps {
+				serverClock.SetTime(s.at)
+				gotExpiresAt = nil
+
+				output, err := checker.CheckLimits(ctx, mockDB, &model.CheckLimitsInput{
+					Amount:               amount,
+					Asset:                "BRL",
+					AccountID:            accountID,
+					TransactionTimestamp: s.at,
+				})
+				require.NoError(t, err, "at %s", s.at)
+				require.Len(t, output.LimitUsageDetails, 1, "at %s", s.at)
+
+				detail := output.LimitUsageDetails[0]
+				assert.False(t, detail.Skipped, "at %s the limit is inside its window", s.at)
+				assert.Equal(t, s.wantKey, detail.InternalPeriodKey, "period key at %s", s.at)
+				assert.Equal(t, s.wantAllowed, output.Allowed, "decision at %s", s.at)
+				assert.Equal(t, !s.wantAllowed, detail.Exceeded, "exceeded flag at %s", s.at)
+
+				wantExpiresAt := s.wantResetAt.AddDate(0, 0, trcConstant.CounterRetentionDays)
+				require.NotNil(t, gotExpiresAt, "counter expiry at %s", s.at)
+				assert.True(t, wantExpiresAt.Equal(*gotExpiresAt),
+					"counter expiry at %s: want %s, got %s", s.at, wantExpiresAt, *gotExpiresAt)
+			}
+		})
+	}
+}

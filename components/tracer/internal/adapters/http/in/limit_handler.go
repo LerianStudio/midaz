@@ -82,7 +82,13 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 
 	var input CreateLimitInput
 	if err := json.Unmarshal(rawBody, &input); err != nil {
+		if hasInvalidResetTime(rawBody) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid resetTime format", err)
+			return nil, pkg.ValidateBusinessError(constant.ErrTimeOfDayInvalidFormat, constant.EntityLimit)
+		}
+
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
+
 		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
@@ -244,7 +250,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	}
 
 	// Check for immutable fields BEFORE parsing into struct
-	// This ensures we detect if limitType or asset was sent in the request
+	// This ensures we detect if limitType, asset or resetTime was sent in the request
 	var rawMap map[string]any
 	if err := json.Unmarshal(rawBody, &rawMap); err == nil {
 		if _, hasLimitType := rawMap["limitType"]; hasLimitType {
@@ -254,6 +260,11 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 
 		if _, hasAsset := rawMap["asset"]; hasAsset {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field asset in request", constant.ErrLimitImmutableField)
+			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
+		}
+
+		if _, hasResetTime := rawMap["resetTime"]; hasResetTime {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field resetTime in request", constant.ErrLimitImmutableField)
 			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 	}
@@ -543,8 +554,26 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	case errors.Is(err, constant.ErrLimitInvalidScope):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid scope", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitInvalidScope, constant.EntityLimit)
+	case errors.Is(err, constant.ErrLimitResetTimeNotAllowed):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reset time not allowed for limit type", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitResetTimeNotAllowed, constant.EntityLimit)
+	case errors.Is(err, constant.ErrLimitResetTimeInsideWindow):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reset time inside active window", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitResetTimeInsideWindow, constant.EntityLimit)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
+}
+
+// hasInvalidResetTime reports whether the body's resetTime is a value that
+// cannot be decoded as a time of day, so a create body that fails to decode
+// because of it answers the time-of-day format code instead of the generic
+// malformed-body code.
+func hasInvalidResetTime(rawBody []byte) bool {
+	var probe struct {
+		ResetTime *model.TimeOfDay `json:"resetTime"`
+	}
+
+	return errors.Is(json.Unmarshal(rawBody, &probe), constant.ErrTimeOfDayInvalidFormat)
 }
