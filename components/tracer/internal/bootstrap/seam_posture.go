@@ -46,7 +46,7 @@ const (
 	// seamAllowlistEmptyLocalMsg: single-tenant token identity without an
 	// allowlist under DEPLOYMENT_MODE=local, where boot proceeds but the
 	// principal guard admits no sub.
-	seamAllowlistEmptyLocalMsg = "TRACER_SEAM_ALLOWED_CLIENTS is empty: the reservation seam refuses every caller; set it to the ledger's Access Manager client id(s), comma-separated (the token sub claim)"
+	seamAllowlistEmptyLocalMsg = "TRACER_SEAM_ALLOWED_CLIENTS is empty: the reservation seam refuses every caller; set it to the ledger's Access Manager client id(s), comma-separated (the token azp claim; the token sub is also accepted)"
 	// seamAllowlistIgnoredMsg: an allowlist set in multi-tenant mode.
 	seamAllowlistIgnoredMsg = "TRACER_SEAM_ALLOWED_CLIENTS is ignored in multi-tenant mode: only each tenant's own ledger application client (ledger-m2m-tracer-{tenant}, matching its tenantId claim) is admitted"
 	// seamAuthCacheDisabledMsg: token identity without a decision cache
@@ -242,7 +242,7 @@ func tokenSeamPosture(cfg *Config, env seamPostureEnv, deploymentMode string) ([
 	}
 
 	return nil, errors.New(
-		"PLUGIN_AUTH_ENABLED=true in single-tenant mode requires TRACER_SEAM_ALLOWED_CLIENTS outside DEPLOYMENT_MODE=local: set it to the ledger's Access Manager client id(s), comma-separated (the token sub claim)",
+		"PLUGIN_AUTH_ENABLED=true in single-tenant mode requires TRACER_SEAM_ALLOWED_CLIENTS outside DEPLOYMENT_MODE=local: set it to the ledger's Access Manager client id(s), comma-separated (the token azp claim; the token sub is also accepted)",
 	)
 }
 

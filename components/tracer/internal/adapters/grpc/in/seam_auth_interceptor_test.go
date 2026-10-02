@@ -385,6 +385,65 @@ func TestSeamPrincipalInterceptor_MultiTenantBindsTheLedgerClient(t *testing.T) 
 	}
 }
 
+// TestSeamPrincipalInterceptor_SingleTenantAdmitsByClientID proves the
+// single-tenant allowlist matches an Access Manager application token by its
+// azp claim (the client id) or by its sub ("<owner>/<application id>").
+func TestSeamPrincipalInterceptor_SingleTenantAdmitsByClientID(t *testing.T) {
+	t.Parallel()
+
+	const (
+		clientID = "0a1b2c3d4e5f60718293"
+		appID    = "7d1e9c42-5b3a-4f6e-9a8b-2c4d6e8f0a1b"
+		appSub   = "admin/" + appID
+	)
+
+	amClaims := func(tokenType string) jwt.MapClaims {
+		return jwt.MapClaims{
+			"type": tokenType, "sub": appSub, "name": appID, "owner": "admin",
+			"azp": clientID, "aud": []string{clientID},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		allowed     string
+		tokenType   string
+		wantAllowed bool
+	}{
+		{name: "allowlisted by client id (azp) is admitted", allowed: clientID, tokenType: "application", wantAllowed: true},
+		{name: "allowlisted by sub is admitted", allowed: appSub, tokenType: "application", wantAllowed: true},
+		{name: "allowlisted by neither is refused", allowed: "another-client-id", tokenType: "application"},
+		{name: "non-application token with an allowlisted azp is refused", allowed: clientID, tokenType: "normal-user"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			interceptor := SeamPrincipalInterceptor(SeamPrincipalConfig{AllowedClients: []string{tt.allowed}})
+			logger := testutil.NewMockLogger()
+			ctx := seamIncoming(logger, "authorization", "Bearer "+seamTestToken(t, amClaims(tt.tokenType)))
+
+			var principal contextutil.Principal
+
+			_, err := interceptor(ctx, nil, unaryInfo(), func(ctx context.Context, _ any) (any, error) {
+				principal, _ = contextutil.GetPrincipal(ctx)
+				return "ok", nil
+			})
+
+			if tt.wantAllowed {
+				require.NoError(t, err)
+				assert.Equal(t, appSub, principal.ID, "the audit principal stays the sub claim")
+				assert.Equal(t, appID, principal.Name)
+
+				return
+			}
+
+			assert.Equal(t, grpccodes.PermissionDenied, status.Code(err))
+		})
+	}
+}
+
 // TestSeamClientName_IsTheTenantManagerConvention locks the application name
 // the tenant-manager gives the ledger's per-tenant M2M client of the tracer.
 func TestSeamClientName_IsTheTenantManagerConvention(t *testing.T) {
