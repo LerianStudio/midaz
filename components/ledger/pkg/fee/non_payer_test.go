@@ -457,3 +457,112 @@ func TestSetFeeExemptionMetadata_BridgeReasonMerge(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculateFee_NonPayer_WaivedClientBesideBridgeSkipsWithBridgeReason(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		from       []transaction.FromTo
+		to         []transaction.FromTo
+		deductible bool
+		nonPayer   model.NonPayerLeg
+	}{
+		{
+			name:     "non-deductible fee, waived client source beside the bridge source",
+			from:     asSource(leg("acc-b1", 30), leg(bridgeAlias, 70)),
+			to:       []transaction.FromTo{leg("acc-b2", 100)},
+			nonPayer: model.NonPayerLeg{IsFrom: true, Index: 1},
+		},
+		{
+			name:       "deductible fee, waived client receiver beside the bridge receiver",
+			from:       asSource(leg("acc-a1", 100)),
+			to:         []transaction.FromTo{leg("acc-b1", 30), leg(bridgeAlias, 70)},
+			deductible: true,
+			nonPayer:   model.NonPayerLeg{IsFrom: false, Index: 1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			feeCalc, resp, err := nonPayerCase{
+				from:      tt.from,
+				to:        tt.to,
+				fees:      []model.Fee{flatFee("2", tt.deductible)},
+				waived:    []string{"acc-b1"},
+				nonPayers: []model.NonPayerLeg{tt.nonPayer},
+			}.run(t)
+			require.NoError(t, err)
+
+			require.True(t, decimal.NewFromInt(100).Equal(feeCalc.Transaction.Send.Value), "send value must not grow")
+
+			_, fromFees := splitFeeLegs(feeCalc.Transaction.Send.Source.From)
+			require.Empty(t, fromFees)
+
+			_, toFees := splitFeeLegs(feeCalc.Transaction.Send.Distribute.To)
+			require.Empty(t, toFees)
+
+			require.Len(t, feeCalc.Transaction.Send.Source.From, len(tt.from))
+			for i, l := range tt.from {
+				requireLeg(t, feeCalc.Transaction.Send.Source.From[i], l.AccountAlias, l.Amount.Value.String())
+			}
+
+			require.Len(t, feeCalc.Transaction.Send.Distribute.To, len(tt.to))
+			for i, l := range tt.to {
+				requireLeg(t, feeCalc.Transaction.Send.Distribute.To[i], l.AccountAlias, l.Amount.Value.String())
+			}
+
+			require.Len(t, resp.From, len(tt.from))
+			require.Len(t, resp.To, len(tt.to))
+			requireExemptionReason(t, feeCalc, "cross_ledger_bridge")
+		})
+	}
+}
+
+func TestCalculateFee_NonPayer_ResidualNeverLandsOnTheLargerBridge(t *testing.T) {
+	t.Parallel()
+
+	from := asSource(leg("acc-1", 10), leg("acc-2", 10), leg("acc-3", 10), leg(bridgeAlias, 70))
+	bridgeKey := transaction.AmountMapKeys(from)[3]
+
+	feeCalc, resp, err := nonPayerCase{
+		from:      from,
+		to:        []transaction.FromTo{leg("acc-b", 100)},
+		fees:      []model.Fee{flatFee("1", false)},
+		nonPayers: []model.NonPayerLeg{{IsFrom: true, Index: 3}},
+	}.run(t)
+	require.NoError(t, err)
+
+	total := sumFeeLegs(resp.From, false)
+	require.Truef(t, decimal.NewFromInt(1).Equal(total), "fee legs must sum to the fee exactly, got %s", total.String())
+
+	for key := range resp.From {
+		require.False(t, strings.HasPrefix(key, bridgeKey+"->"), "the bridge must not pay: %s", key)
+	}
+
+	require.True(t, decimal.NewFromInt(70).Equal(resp.From[bridgeKey].Value))
+	require.True(t, decimal.NewFromInt(101).Equal(feeCalc.Transaction.Send.Value))
+	requireNoExemption(t, feeCalc)
+}
+
+func TestCalculateFee_NonPayer_WaivedBridgeAliasRecordsPackageReason(t *testing.T) {
+	t.Parallel()
+
+	feeCalc, _, err := nonPayerCase{
+		from:      asSource(leg(bridgeAlias, 100)),
+		to:        []transaction.FromTo{leg("acc-b", 100)},
+		fees:      []model.Fee{flatFee("2", false)},
+		waived:    []string{bridgeAlias},
+		nonPayers: []model.NonPayerLeg{{IsFrom: true, Index: 0}},
+	}.run(t)
+	require.NoError(t, err)
+
+	require.True(t, decimal.NewFromInt(100).Equal(feeCalc.Transaction.Send.Value))
+	require.Len(t, feeCalc.Transaction.Send.Source.From, 1)
+	requireLeg(t, feeCalc.Transaction.Send.Source.From[0], bridgeAlias, "100")
+	require.Len(t, feeCalc.Transaction.Send.Distribute.To, 1)
+	requireLeg(t, feeCalc.Transaction.Send.Distribute.To[0], "acc-b", "100")
+	requireExemptionReason(t, feeCalc, "all_source_accounts_exempt")
+}

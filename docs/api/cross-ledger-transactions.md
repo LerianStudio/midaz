@@ -47,9 +47,9 @@ are authorized to read.
   deducted from its credit. On each side, the fee falls on that part's other
   accounts. When no other account remains on that side, the fee is skipped and
   the skip is recorded in the part's `feeExemption` metadata with reason
-  `cross_ledger_bridge`. When the package's own exemptions also apply, their
-  reason is recorded instead. Single-ledger transactions are unaffected: there
-  an `@external` leg is an ordinary account and may pay.
+  `cross_ledger_bridge`. When every account on that side is exempt under the
+  package, the package's reason is recorded instead. Single-ledger transactions
+  are unaffected: there an `@external` leg is an ordinary account and may pay.
 - One idempotency key protects the full request. An identical replay returns the
   original group and sets `X-Idempotency-Replayed: true`; changing any leg while
   reusing the key conflicts with `0084`.
