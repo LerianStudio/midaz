@@ -107,7 +107,8 @@ type Config struct {
 	// listener.
 	TracerTLSClientAllowedNames string `env:"TRACER_TLS_CLIENT_ALLOWED_NAMES"`
 	// TracerSeamAllowedClients is a comma-separated list of Access Manager
-	// application client ids (the token sub claim) admitted on the reservation
+	// application client ids (the token azp claim; the token sub,
+	// "<owner>/<application id>", is also accepted) admitted on the reservation
 	// seam when the token is its identity, in single-tenant mode. Required
 	// outside DEPLOYMENT_MODE=local; ignored with a Warn in multi-tenant mode,
 	// where only each tenant's own ledger client, named
