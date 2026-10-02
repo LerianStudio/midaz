@@ -229,15 +229,6 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			want:     nil,
 		},
 		{
-			// The v2 create routes take the organization and the ledger in the BODY.
-			// Nothing in the path names them, so nothing is sent.
-			name:     "the v2 transaction create route sends no identifier",
-			register: transactionV2Registrar,
-			method:   fiber.MethodPost,
-			path:     "/v1/transactions/direct",
-			want:     nil,
-		},
-		{
 			name:     "a v2 transaction lifecycle route carries organization, ledger and transaction",
 			register: transactionV2Registrar,
 			method:   fiber.MethodPost,

@@ -77,6 +77,28 @@ scope:
     - { name: billingPackageId,   from: path, param: billing_package_id,   required: false, multi: true,  collection: billing-packages,   label: "billing package" }
     - { name: packageId,          from: path, param: package_id,           required: false, multi: true,  collection: packages,           label: "fee package" }
     - { name: feeDebtId,          from: path, param: fee_debt_id,          required: false, multi: true,  collection: fee-debts,          label: "fee debt" }
+  routes:
+    - method: POST
+      path: /v2/transactions/direct
+      dimensions: &v2CreateBodyDimensions
+        - { name: organizationId, from: body, field: "debits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "debits[].ledgerId" }
+        - { name: organizationId, from: body, field: "credits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "credits[].ledgerId" }
+    - { method: POST, path: /v2/transactions/hold,    dimensions: *v2CreateBodyDimensions }
+    - { method: POST, path: /v2/transactions/block,   dimensions: *v2CreateBodyDimensions }
+    - { method: POST, path: /v2/transactions/unblock, dimensions: *v2CreateBodyDimensions }
+    - method: POST
+      path: /v2/transactions/batch
+      dimensions:
+        - { name: organizationId, from: body, field: "transactions[].debits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "transactions[].debits[].ledgerId" }
+        - { name: organizationId, from: body, field: "transactions[].credits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "transactions[].credits[].ledgerId" }
+    - method: POST
+      path: /v2/organizations/:organization_id/holders/:holder_id/instruments
+      dimensions:
+        - { name: ledgerId, from: body, field: ledgerId }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }

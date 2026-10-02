@@ -29,9 +29,9 @@ import (
 // gains or loses a dimension moves one of these, so a change to what the ledger tells
 // the authorization service has to show up in review.
 const (
-	scopedRoutesBothDimensions   = 165
-	scopedRoutesOrganizationOnly = 37
-	scopedRoutesNoDimension      = 18
+	scopedRoutesBothDimensions   = 171
+	scopedRoutesOrganizationOnly = 36
+	scopedRoutesNoDimension      = 13
 )
 
 // scopedRoutesPerShape pins, per exact set of dimensions, how many endpoints send it. The
@@ -40,13 +40,13 @@ var scopedRoutesPerShape = map[string]int{
 	"": scopedRoutesNoDimension,
 
 	"organizationId":                                      22,
-	"organizationId+holderId":                             5,
+	"organizationId+holderId":                             4,
 	"organizationId+holderId+instrumentId":                3,
 	"organizationId+holderId+instrumentId+relatedPartyId": 1,
 	"organizationId+operationRouteId":                     3,
 	"organizationId+transactionRouteId":                   3,
 
-	"organizationId+ledgerId":                           84,
+	"organizationId+ledgerId":                           89,
 	"organizationId+ledgerId+accountId":                 15,
 	"organizationId+ledgerId+accountId+operationId":     2,
 	"organizationId+ledgerId+accountTypeId":             6,
@@ -54,7 +54,7 @@ var scopedRoutesPerShape = map[string]int{
 	"organizationId+ledgerId+balanceId":                 8,
 	"organizationId+ledgerId+billingPackageId":          3,
 	"organizationId+ledgerId+feeDebtId":                 1,
-	"organizationId+ledgerId+holderId":                  1,
+	"organizationId+ledgerId+holderId":                  2,
 	"organizationId+ledgerId+operationRouteId":          6,
 	"organizationId+ledgerId+packageId":                 3,
 	"organizationId+ledgerId+portfolioId":               6,
@@ -340,6 +340,8 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 	names := dimensionNames(dims)
 	shape := make(map[string]int)
 	fullShape := make(map[string]int)
+	bodyProbes := bodyScopeProbes(t, dims, values)
+	bodyProbed := 0
 
 	for _, group := range groups {
 		if unguardedPublicRoutes[group.key] {
@@ -348,6 +350,22 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 
 		rawPath := group.rows[0].path
 		want := expectedScopeAttributes(rawPath, dims, values)
+
+		// A route that reads dimensions from its body is sent a body naming them, and
+		// they join the ones its path derives.
+		probe, readsBody := bodyProbes[group.key]
+		if readsBody {
+			bodyProbed++
+
+			if want == nil {
+				want = make(map[string]string, len(probe.attributes))
+			}
+
+			for name, value := range probe.attributes {
+				want[name] = value
+			}
+		}
+
 		shape[scopeShape(want, []string{"organizationId", "ledgerId"})]++
 		fullShape[scopeShape(want, names)]++
 
@@ -355,7 +373,11 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 			before := recorder.calls
 			recorder.attributes = nil
 
-			req := httptest.NewRequest(group.rows[0].method, scopedRouteURL(rawPath, values), nil)
+			req := httptest.NewRequest(group.rows[0].method, scopedRouteURL(rawPath, values), bodyReader(probe.body))
+			if readsBody {
+				req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			}
+
 			req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 
 			resp, err := server.app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -380,6 +402,7 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 	}, shape, "endpoints per organization/ledger projection of the dimensions sent")
 
 	assert.Equal(t, scopedRoutesPerShape, fullShape, "endpoints per set of dimensions sent")
+	assert.Equal(t, len(bodyProbes), bodyProbed, "every route that reads its scope from the body must have been driven")
 
 	total := 0
 	for _, n := range shape {
@@ -535,6 +558,12 @@ func TestManifestScope_EveryUUIDDimensionIsValidated(t *testing.T) {
 
 	token := scopeProbeToken(t)
 	probed := 0
+	probeValues := make(map[string]string, len(dims))
+	for i, dim := range dims {
+		probeValues[dim.Param] = scopeProbeValue(i)
+	}
+
+	bodyProbes := bodyScopeProbes(t, dims, probeValues)
 
 	for _, group := range groups {
 		if unguardedPublicRoutes[group.key] {
@@ -551,8 +580,16 @@ func TestManifestScope_EveryUUIDDimensionIsValidated(t *testing.T) {
 			probed++
 
 			t.Run(group.display()+" :"+param, func(t *testing.T) {
+				// A route that reads its scope from the body needs a readable one, or the
+				// guard refuses the body before the path is validated.
+				probe, readsBody := bodyProbes[group.key]
+
 				req := httptest.NewRequest(group.rows[0].method,
-					scopedRouteURL(rawPath, map[string]string{param: "not-a-uuid"}), nil)
+					scopedRouteURL(rawPath, map[string]string{param: "not-a-uuid"}), bodyReader(probe.body))
+				if readsBody {
+					req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+				}
+
 				req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 
 				resp, err := server.app.Test(req, fiber.TestConfig{Timeout: 0})
