@@ -42,6 +42,9 @@ import (
 // it only keeps the seam inert for tests that construct a handler without a fee
 // use case.
 //
+// nonPayerLegs are positions in transactionInput.Send of legs the ledger
+// appended itself, such as a cross-ledger bridge; the engine never charges them.
+//
 // An honored per-call fee skip (honoredFeeSkip=true, the two keys having already
 // agreed at the resolution point upstream) bypasses the entire engine: no package
 // lookup, no tenant resolution, no send mutation. The transaction posts as
@@ -50,6 +53,7 @@ func (uc *UseCase) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
+	nonPayerLegs []model.NonPayerLeg,
 	isAnnotation, honoredFeeSkip bool,
 ) error {
 	if honoredFeeSkip {
@@ -70,8 +74,9 @@ func (uc *UseCase) applyFees(
 	}
 
 	cf := &model.FeeCalculate{
-		LedgerID:    ledgerID,
-		Transaction: *transactionInput,
+		LedgerID:     ledgerID,
+		Transaction:  *transactionInput,
+		NonPayerLegs: nonPayerLegs,
 	}
 
 	// The error is logged once by the seam caller (CreateTransactionV2);
