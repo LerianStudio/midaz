@@ -67,6 +67,7 @@ type CreateLimitInput struct {
 	ActiveTimeEnd   *model.TimeOfDay
 	CustomStartDate *string
 	CustomEndDate   *string
+	ResetTime       *model.TimeOfDay
 }
 
 // CreateLimitCommand handles limit creation.
@@ -159,6 +160,8 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 		err   error
 	)
 
+	resetTimeOption := model.WithResetTime(normalizedInput.ResetTime)
+
 	// Determine which constructor to use based on provided fields
 	hasTimeWindow := normalizedInput.ActiveTimeStart != nil && normalizedInput.ActiveTimeEnd != nil
 	hasCustomPeriod := normalizedInput.CustomStartDate != nil && normalizedInput.CustomEndDate != nil
@@ -203,6 +206,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 				normalizedInput.ActiveTimeStart.String(),
 				normalizedInput.ActiveTimeEnd.String(),
 				now,
+				resetTimeOption,
 			)
 		} else {
 			limit, err = model.NewLimitWithCustomPeriod(
@@ -215,6 +219,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 				customStart,
 				customEnd,
 				now,
+				resetTimeOption,
 			)
 		}
 	} else if hasTimeWindow {
@@ -229,6 +234,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			normalizedInput.ActiveTimeStart.String(),
 			normalizedInput.ActiveTimeEnd.String(),
 			now,
+			resetTimeOption,
 		)
 	} else {
 		// Standard limit (no time window, no custom period)
@@ -240,6 +246,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			normalizedInput.Scopes,
 			normalizedInput.Description,
 			now,
+			resetTimeOption,
 		)
 	}
 

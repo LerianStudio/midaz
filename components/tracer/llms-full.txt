@@ -27,7 +27,7 @@ CEL expression examples:
 Note: amount is float64 internally. Prefer range comparisons over exact equality for decimal amounts.
 
 ### Spending Limits
-Hierarchical limits with configurable scopes: account-level, segment-level, portfolio-level. Period types: DAILY, MONTHLY, WEEKLY, PER_TRANSACTION, CUSTOM (date range). Time windows: activeTimeStart/activeTimeEnd (HH:MM format). Usage counters tracked per scope+period key. Cleanup worker removes expired counters.
+Hierarchical limits with configurable scopes: account-level, segment-level, portfolio-level. Period types: DAILY, MONTHLY, WEEKLY, PER_TRANSACTION, CUSTOM (date range). Time windows: activeTimeStart/activeTimeEnd (HH:MM format). DAILY, WEEKLY and MONTHLY periods start at midnight UTC unless the limit is created with resetTime (HH:MM, UTC), which moves every period boundary to that time of day (a DAILY limit with resetTime 09:00 counts from 09:00 to 09:00 UTC, so an overnight window such as 23:00-09:00 stays in one counter); resetTime is refused on CUSTOM and PER_TRANSACTION (0537), must not fall strictly inside the active time window (0538; equal to activeTimeStart or activeTimeEnd is allowed), answers 0440 when not HH:MM, and is immutable after create. Usage counters tracked per scope+period key. Cleanup worker removes expired counters.
 
 ### Rule & Limit Lifecycle
 States: DRAFT → ACTIVE → INACTIVE → DELETED. Rules created in DRAFT, must be activated to participate in evaluation. Limits follow same pattern. Soft-delete: DELETED state sets deletedAt timestamp. State transitions validated by domain model.
@@ -54,7 +54,7 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 - `POST /v1/limits` — Create spending limit
 - `GET /v1/limits` — List limits (filter by status, type; cursor pagination)
 - `GET /v1/limits/{id}/usage` — Get limit usage snapshot
-- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, asset)
+- `PATCH /v1/limits/{id}` — Update limit (immutable: limitType, asset, resetTime; naming one answers 400 0380)
 - `POST /v1/limits/{id}/activate` — Activate limit
 - `POST /v1/limits/{id}/deactivate` — Deactivate limit
 - `DELETE /v1/limits/{id}` — Soft-delete (DRAFT/INACTIVE only)
@@ -153,7 +153,7 @@ Startup: WarmUp loads all active rules from DB, compiles CEL expressions, popula
 Fields: ID (uuid), Name (unique, max 255), Description (max 1000), Expression (CEL, max 5000), Action (ALLOW/DENY/REVIEW), Scopes (max 100), Status (DRAFT/ACTIVE/INACTIVE/DELETED), Priority (int), ActivatedAt, DeactivatedAt, CreatedAt, UpdatedAt, DeletedAt.
 
 #### Limit
-Fields: ID (uuid), Name (unique, max 255), Description (max 1000), LimitType (DAILY/MONTHLY/WEEKLY/PER_TRANSACTION/CUSTOM), MaxAmount (decimal), Asset (1 to 100 uppercase letters), Scopes, Status (DRAFT/ACTIVE/INACTIVE/DELETED), ActiveTimeStart/End (HH:MM), CustomStartDate/EndDate (RFC3339 for CUSTOM type), CreatedAt, UpdatedAt, DeletedAt, ResetAt.
+Fields: ID (uuid), Name (unique, max 255), Description (max 1000), LimitType (DAILY/MONTHLY/WEEKLY/PER_TRANSACTION/CUSTOM), MaxAmount (decimal), Asset (1 to 100 uppercase letters), Scopes, Status (DRAFT/ACTIVE/INACTIVE/DELETED), ActiveTimeStart/End (HH:MM), ResetTime (HH:MM UTC period start for DAILY/WEEKLY/MONTHLY, omitted when absent = midnight UTC), CustomStartDate/EndDate (RFC3339 for CUSTOM type), CreatedAt, UpdatedAt, DeletedAt, ResetAt.
 
 #### Scope (shared by rules and limits)
 Fields: SegmentID (*uuid), PortfolioID (*uuid), AccountID (*uuid), MerchantID (*uuid), TransactionType (*string), SubType (*string). All optional; at least one must be set.

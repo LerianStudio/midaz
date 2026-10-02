@@ -398,6 +398,9 @@ func TestHuma_UpdateLimit_ImmutableField(t *testing.T) {
 	}{
 		{"limitType present", map[string]any{"limitType": "MONTHLY"}},
 		{"asset present", map[string]any{"asset": "EUR"}},
+		{"resetTime present", map[string]any{"resetTime": "09:00"}},
+		{"resetTime null", map[string]any{"resetTime": nil}},
+		{"resetTime beside a mutable field", map[string]any{"name": "Renamed", "resetTime": "09:00"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := &tenantSpyLimitService{}
