@@ -58,7 +58,7 @@ const (
 
 // TokenTenantMetadataKey is the incoming metadata key lib-auth fills from the
 // token's tenantId claim once it has authorized the call (multi-tenant only).
-const TokenTenantMetadataKey = "md-tenant-id"
+const TokenTenantMetadataKey = "md-tenant-id" // #nosec G101 -- metadata key name, not a credential value.
 
 const (
 	// tokenTypeApplication is the token "type" claim of an Access Manager
@@ -71,7 +71,7 @@ const (
 // Fixed refusal messages: they name no claim value and no key.
 const (
 	seamPrincipalRefusedMessage = "caller is not an allowed reservation seam client"
-	seamAPIKeyRefusedMessage    = "API key missing or invalid"
+	seamAPIKeyRefusedMessage    = "API key missing or invalid" // #nosec G101 -- refusal message, not a credential value.
 )
 
 // Refusal reasons logged by SeamPrincipalInterceptor.

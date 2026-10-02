@@ -33,7 +33,7 @@ const reservationCredentialRejectedTransitionMsg = "Tracer rejected the ledger's
 // reservationCredentialUnavailableTransitionMsg is the Error line a confirm or a
 // release writes when the ledger could not obtain its seam credential, so the
 // call was never sent.
-const reservationCredentialUnavailableTransitionMsg = "Tracer seam credential unavailable on a reservation transition; call not sent, retrying off the request path"
+const reservationCredentialUnavailableTransitionMsg = "Tracer seam credential unavailable on a reservation transition; call not sent, retrying off the request path" // #nosec G101 -- log message, not a credential value.
 
 // tracerReservationConfirmAlreadyReleased counts confirms that found at least one
 // reservation the tracer had already released. Each one is money that moved
