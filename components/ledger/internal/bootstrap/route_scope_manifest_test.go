@@ -231,6 +231,23 @@ func scopeProbeToken(t *testing.T) string {
 	return signed
 }
 
+// scopeProbePartnerToken is a parseable application token bound to a partner. Only a
+// partner-bound credential has its scope read from the request body, so it is the one
+// that drives the routes declaring body dimensions.
+func scopeProbePartnerToken(t *testing.T) string {
+	t.Helper()
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"type":    "application",
+		"owner":   "scope-probe-org",
+		"sub":     "scope-probe-org/scope-probe-app",
+		"partner": "scope-probe-partner",
+	}).SignedString([]byte("scope-probe-secret"))
+	require.NoError(t, err)
+
+	return signed
+}
+
 // TestManifestScope_MatchesTheRouteParameters ties the manifest's scope catalog to the
 // parameters the routes actually spell. The two drift apart silently in both
 // directions:
@@ -314,6 +331,10 @@ func TestManifestScope_MatchesTheRouteParameters(t *testing.T) {
 // the authorization service: each manifest dimension whose parameter the path carries,
 // under its name, with the value the request carried for it.
 //
+// A route that reads dimensions from its body is driven with a partner-bound
+// credential, the only caller whose body is read for scope; every other route with a
+// user credential.
+//
 // The dimension values DIVERGE on purpose. With one shared value, a route that sent the
 // ledger id as the organization would pass.
 func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
@@ -336,7 +357,8 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 	groups := groupRouteRows(collectRouteRows(t, server.app))
 	requireUnambiguousProbeURLs(t, groups)
 
-	token := scopeProbeToken(t)
+	userToken := scopeProbeToken(t)
+	partnerToken := scopeProbePartnerToken(t)
 	names := dimensionNames(dims)
 	shape := make(map[string]int)
 	fullShape := make(map[string]int)
@@ -351,11 +373,14 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 		rawPath := group.rows[0].path
 		want := expectedScopeAttributes(rawPath, dims, values)
 
-		// A route that reads dimensions from its body is sent a body naming them, and
-		// they join the ones its path derives.
+		// A route that reads dimensions from its body is sent a body naming them by a
+		// partner, and they join the ones its path derives.
+		token := userToken
+
 		probe, readsBody := bodyProbes[group.key]
 		if readsBody {
 			bodyProbed++
+			token = partnerToken
 
 			if want == nil {
 				want = make(map[string]string, len(probe.attributes))
@@ -411,6 +436,83 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 
 	assert.Equal(t, len(groups)-unguardedPublicRouteCount, total,
 		"every endpoint outside the public carve-out must have been driven")
+}
+
+// TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner drives every route
+// that declares body dimensions with credentials bound to no partner, carrying the same
+// body a partner would send. The body is not read for scope: each makes exactly one
+// authorization call carrying only the dimensions its path derives, as it did before
+// body dimensions existed.
+func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing.T) {
+	unsetDocsGate(t)
+
+	dims := manifestScopeDimensions(t)
+
+	values := make(map[string]string, len(dims))
+	for i, dim := range dims {
+		values[dim.Param] = scopeProbeValue(i)
+	}
+
+	recorder, authz := newScopeRecorder(t)
+
+	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
+	require.NoError(t, wireAuthScope(auth), "the boot scope wiring must accept the embedded manifest")
+
+	server := buildFullSurfaceServerWithAuth(t, auth)
+
+	groups := groupRouteRows(collectRouteRows(t, server.app))
+	requireUnambiguousProbeURLs(t, groups)
+
+	bodyProbes := bodyScopeProbes(t, dims, values)
+	require.NotEmpty(t, bodyProbes, "the manifest must declare the routes that read their scope from the body")
+
+	applicationToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"type":  "application",
+		"owner": "scope-probe-org",
+		"sub":   "scope-probe-org/scope-probe-app",
+	}).SignedString([]byte("scope-probe-secret"))
+	require.NoError(t, err)
+
+	tokens := map[string]string{"user": scopeProbeToken(t), "application": applicationToken}
+	probed := 0
+
+	for _, group := range groups {
+		probe, readsBody := bodyProbes[group.key]
+		if !readsBody {
+			continue
+		}
+
+		probed++
+
+		rawPath := group.rows[0].path
+		want := expectedScopeAttributes(rawPath, dims, values)
+
+		for kind, token := range tokens {
+			t.Run(group.display()+" "+kind, func(t *testing.T) {
+				before := recorder.calls
+				recorder.attributes = nil
+
+				req := httptest.NewRequest(group.rows[0].method, scopedRouteURL(rawPath, values), bodyReader(probe.body))
+				req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+				req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
+
+				resp, err := server.app.Test(req, fiber.TestConfig{Timeout: 0})
+				require.NoError(t, err)
+
+				defer func() { _ = resp.Body.Close() }()
+
+				require.Equalf(t, fiber.StatusForbidden, resp.StatusCode,
+					"%s must reach the authorization service and be denied", group.display())
+				require.Equalf(t, before+1, recorder.calls,
+					"%s must make exactly one authorization call for a non-partner", group.display())
+
+				assert.Equalf(t, want, recorder.attributes,
+					"%s must send a non-partner only the dimensions its path derives", group.display())
+			})
+		}
+	}
+
+	assert.Equal(t, len(bodyProbes), probed, "every route that reads its scope from the body must have been driven")
 }
 
 // naturalKeyRouteParams is the LOCKED set of path parameters that are not entity ids and
@@ -580,8 +682,8 @@ func TestManifestScope_EveryUUIDDimensionIsValidated(t *testing.T) {
 			probed++
 
 			t.Run(group.display()+" :"+param, func(t *testing.T) {
-				// A route that reads its scope from the body needs a readable one, or the
-				// guard refuses the body before the path is validated.
+				// A route that reads its scope from the body is sent the body a partner
+				// would send, so the probe stays valid whoever the caller is.
 				probe, readsBody := bodyProbes[group.key]
 
 				req := httptest.NewRequest(group.rows[0].method,

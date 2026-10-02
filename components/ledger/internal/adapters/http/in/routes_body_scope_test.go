@@ -419,20 +419,33 @@ func TestBodyScope_InstrumentCreateAsksAboutTheBodyLedger(t *testing.T) {
 }
 
 // TestBodyScope_TenantCredentialIsUnchanged drives the same routes with a tenant
-// credential — one bound to no partner. It is let through exactly as before: the
-// handler runs, the body is untouched, and no partner scope is published to it.
+// credential — one bound to no partner. It is decided exactly as before body
+// dimensions existed: one authorization call carrying only the dimensions the path
+// derives, a body the guard never parses — so one a partner would be refused for
+// still reaches the handler — read untouched, and no partner scope published.
 func TestBodyScope_TenantCredentialIsUnchanged(t *testing.T) {
-	org, ledgerID := uuid.NewString(), uuid.NewString()
+	org, ledgerID, holder := uuid.NewString(), uuid.NewString(), uuid.NewString()
 
 	tests := []struct {
 		name string
 		path string
 		body string
+		want map[string]string
 	}{
 		{
 			name: "direct",
 			path: "/v2/transactions/direct",
 			body: directBody([]string{leg("@a", org, ledgerID)}, []string{leg("@c", org, ledgerID)}),
+		},
+		{
+			name: "direct with a leg naming no ledger",
+			path: "/v2/transactions/direct",
+			body: directBody([]string{leg("@a", org, ledgerID)}, []string{`{"alias":"@c","organizationId":"` + org + `"}`}),
+		},
+		{
+			name: "hold with a body that is not JSON",
+			path: "/v2/transactions/hold",
+			body: `debits=1`,
 		},
 		{
 			name: "batch",
@@ -442,8 +455,15 @@ func TestBodyScope_TenantCredentialIsUnchanged(t *testing.T) {
 		},
 		{
 			name: "instrument create",
-			path: "/v2/organizations/" + org + "/holders/" + uuid.NewString() + "/instruments",
+			path: "/v2/organizations/" + org + "/holders/" + holder + "/instruments",
 			body: `{"ledgerId":"` + ledgerID + `","accountId":"` + uuid.NewString() + `"}`,
+			want: map[string]string{"organizationId": org, "holderId": holder},
+		},
+		{
+			name: "instrument create naming no ledger",
+			path: "/v2/organizations/" + org + "/holders/" + holder + "/instruments",
+			body: `{"accountId":"` + uuid.NewString() + `"}`,
+			want: map[string]string{"organizationId": org, "holderId": holder},
 		},
 	}
 
@@ -456,9 +476,10 @@ func TestBodyScope_TenantCredentialIsUnchanged(t *testing.T) {
 
 			require.Equalf(t, fiber.StatusNoContent, status, "a tenant credential must reach the handler: %s", raw)
 			assert.Equal(t, 1, chain.reached)
-			assert.Len(t, authz.asked(), 1)
+			assert.Equal(t, []map[string]string{tc.want}, authz.asked(),
+				"a tenant credential must make one call carrying only the dimensions the path derives")
 			assert.False(t, chain.scoped, "a tenant credential must not be published as a partner scope")
-			assert.JSONEq(t, tc.body, string(chain.body), "the handler must read the body untouched")
+			assert.Equal(t, tc.body, string(chain.body), "the handler must read the body untouched")
 		})
 	}
 }
