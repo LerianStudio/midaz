@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -27,13 +28,17 @@ import (
 type fakeFeeApplier struct {
 	calls   int
 	lastOrg uuid.UUID
-	mutate  func(cf *model.FeeCalculate)
-	err     error
+	// received holds each calculation as it reached the engine, before any
+	// scripted mutation.
+	received []model.FeeCalculate
+	mutate   func(cf *model.FeeCalculate)
+	err      error
 }
 
 func (f *fakeFeeApplier) CalculateFee(_ context.Context, cf *model.FeeCalculate, organizationID uuid.UUID) error {
 	f.calls++
 	f.lastOrg = organizationID
+	f.received = append(f.received, receivedFeeCalculation(cf))
 
 	if f.err != nil {
 		return f.err
@@ -44,6 +49,17 @@ func (f *fakeFeeApplier) CalculateFee(_ context.Context, cf *model.FeeCalculate,
 	}
 
 	return nil
+}
+
+// receivedFeeCalculation copies the legs and non-payer marks so a later
+// in-place mutation of the transaction cannot rewrite what the engine received.
+func receivedFeeCalculation(cf *model.FeeCalculate) model.FeeCalculate {
+	received := *cf
+	received.Transaction.Send.Source.From = slices.Clone(cf.Transaction.Send.Source.From)
+	received.Transaction.Send.Distribute.To = slices.Clone(cf.Transaction.Send.Distribute.To)
+	received.NonPayerLegs = slices.Clone(cf.NonPayerLegs)
+
+	return received
 }
 
 func baseTransaction() mtransaction.Transaction {
@@ -70,7 +86,7 @@ func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, true /* isAnnotation */, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, nil, true /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the annotation path (NOTED is one-sided, no fee)")
@@ -82,7 +98,7 @@ func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), nil, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)))
@@ -96,7 +112,7 @@ func TestApplyFees_NoOpWhenSkipHonored(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, true /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), nil, false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls,
@@ -113,7 +129,7 @@ func TestApplyFees_SkipHonoredTouchesNoFeeDependency(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, true /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), nil, false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "honored fee skip must leave the transaction unmutated")
@@ -138,7 +154,7 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, nil, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls)
@@ -159,7 +175,7 @@ func TestApplyFees_PropagatesBusinessError(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), nil, false, false /* honoredFeeSkip */)
 
 	require.Error(t, err)
 
@@ -298,9 +314,22 @@ func TestApplyFees_RunsEngine(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), nil, false, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls, "the fee seam must reach the engine when no gate fires")
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(950)))
+}
+
+func TestApplyFees_PassesNonPayerLegsToEngine(t *testing.T) {
+	applier := &fakeFeeApplier{}
+	uc := &UseCase{FeeApplier: applier}
+	input := baseTransaction()
+	bridge := []model.NonPayerLeg{{IsFrom: true, Index: 0}}
+
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), bridge, false, false)
+
+	require.NoError(t, err)
+	require.Len(t, applier.received, 1)
+	assert.Equal(t, bridge, applier.received[0].NonPayerLegs)
 }

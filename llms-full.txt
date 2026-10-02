@@ -551,7 +551,7 @@ with neither, nothing is sent. Plugin auth plus `TRACER_API_KEY` refuses boot. T
 the first identity its configuration enables — token (`PLUGIN_AUTH_ENABLED=true`), API key
 (`API_KEY_ENABLED=true`), transport (`TRACER_TLS_MODE=mtls|mesh`), none. Under the token every RPC is
 authorized against the Access Manager as `tracer/reservations:post`; only application tokens pass,
-their `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and in multi-tenant mode
+their `azp` (client id) or `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and in multi-tenant mode
 their `name` claim must be `ledger-m2m-tracer-{tenant}` for the token's own `tenantId` claim (tenants
 compared canonically),
 `AUTH_M2M_INVERSION_ENABLED=true` is recommended (without it the tracer boots with a Warn and the
