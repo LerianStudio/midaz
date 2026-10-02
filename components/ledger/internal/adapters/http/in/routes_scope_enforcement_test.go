@@ -91,6 +91,18 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 	bothDims := map[string]string{"organizationId": orgID, "ledgerId": ledgerID}
 	orgOnly := map[string]string{"organizationId": orgID}
 
+	// with returns base plus one entity dimension, leaving base untouched.
+	with := func(base map[string]string, name, value string) map[string]string {
+		out := make(map[string]string, len(base)+1)
+		for k, v := range base {
+			out[k] = v
+		}
+
+		out[name] = value
+
+		return out
+	}
+
 	ledgerRegistrar := func(group fiber.Router, api huma.API, auth *middleware.AuthClient) {
 		registerLedgerRoutesToApp(group, api, auth, &LedgerHandler{}, nil, v1OpSuffix)
 	}
@@ -154,11 +166,11 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			want:     bothDims,
 		},
 		{
-			name:     "get one account carries organization and ledger",
+			name:     "get one account carries organization, ledger and account",
 			register: accountRegistrar,
 			method:   fiber.MethodGet,
 			path:     orgLedger + "/accounts/" + entityID,
-			want:     bothDims,
+			want:     with(bothDims, "accountId", entityID),
 		},
 		{
 			name:     "account by alias carries organization and ledger",
@@ -175,11 +187,11 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			want:     orgOnly,
 		},
 		{
-			name:     "get one holder carries the organization only",
+			name:     "get one holder carries organization and holder",
 			register: holderRegistrar,
 			method:   fiber.MethodGet,
 			path:     "/v1/organizations/" + orgID + "/holders/" + entityID,
-			want:     orgOnly,
+			want:     with(orgOnly, "holderId", entityID),
 		},
 		{
 			name:     "get one organization carries the organization",
@@ -226,11 +238,11 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			want:     nil,
 		},
 		{
-			name:     "a v2 transaction lifecycle route carries organization and ledger",
+			name:     "a v2 transaction lifecycle route carries organization, ledger and transaction",
 			register: transactionV2Registrar,
 			method:   fiber.MethodPost,
 			path:     orgLedger + "/transactions/" + entityID + "/commit",
-			want:     bothDims,
+			want:     with(bothDims, "transactionId", entityID),
 		},
 		{
 			name:     "list fee debts carries organization and ledger",
@@ -240,11 +252,11 @@ func TestScopeEnforcement_ProductionRoutesSendTheirInstanceIdentifiers(t *testin
 			want:     bothDims,
 		},
 		{
-			name:     "get one fee debt carries organization and ledger",
+			name:     "get one fee debt carries organization, ledger and fee debt",
 			register: feeDebtRegistrar,
 			method:   fiber.MethodGet,
 			path:     orgLedger + "/fee-debts/some-debt",
-			want:     bothDims,
+			want:     with(bothDims, "feeDebtId", "some-debt"),
 		},
 		{
 			name:     "collect fee debts carries organization and ledger",

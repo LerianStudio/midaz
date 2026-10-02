@@ -59,8 +59,24 @@ service: midaz
 version: 1
 scope:
   dimensions:
-    - { name: organizationId, from: path, param: organization_id, required: true,  multi: false, collection: organizations, label: "Midaz organization" }
-    - { name: ledgerId,       from: path, param: ledger_id,       required: false, multi: true,  collection: ledgers,       label: "ledger" }
+    - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }
+    - { name: ledgerId,           from: path, param: ledger_id,            required: false, multi: true,  collection: ledgers,            label: "ledger" }
+    - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type" }
+    - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account" }
+    - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset" }
+    - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio" }
+    - { name: segmentId,          from: path, param: segment_id,           required: false, multi: true,  collection: segments,           label: "segment" }
+    - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance" }
+    - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction" }
+    - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation" }
+    - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route" }
+    - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route" }
+    - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder" }
+    - { name: instrumentId,       from: path, param: instrument_id,        required: false, multi: true,  collection: instruments,        label: "instrument" }
+    - { name: relatedPartyId,     from: path, param: related_party_id,     required: false, multi: true,  collection: related-parties,    label: "related party" }
+    - { name: billingPackageId,   from: path, param: billing_package_id,   required: false, multi: true,  collection: billing-packages,   label: "billing package" }
+    - { name: packageId,          from: path, param: package_id,           required: false, multi: true,  collection: packages,           label: "fee package" }
+    - { name: feeDebtId,          from: path, param: fee_debt_id,          required: false, multi: true,  collection: fee-debts,          label: "fee debt" }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }
