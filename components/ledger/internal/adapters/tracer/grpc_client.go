@@ -40,11 +40,15 @@ import (
 // call already sent is additionally marked ErrTracerNoAnswer. A business DENIED
 // decision is a successful Reserve return (ReserveResult.Denied=true), not an
 // error.
+//
+// Every RPC attempt is bounded by the operation timeout, tightened by a call
+// timeout the caller set with ContextWithCallTimeout. The bound starts once the
+// call's credential is in hand, so the wait for a token that is not cached yet
+// is bounded by the token source and the caller's context, never by it.
 type TracerGRPCClient struct {
-	conn             *grpc.ClientConn
-	client           reservationv1.ReservationServiceClient
-	operationTimeout time.Duration
-	tokenSource      TokenSource
+	conn        *grpc.ClientConn
+	client      reservationv1.ReservationServiceClient
+	tokenSource TokenSource
 }
 
 // TracerGRPCClientOption configures a TracerGRPCClient.
@@ -61,9 +65,8 @@ type tracerGRPCClientConfig struct {
 	apiKey           string
 }
 
-// WithGRPCOperationTimeout sets the per-operation context timeout from the
-// ledger's tracer.timeoutMs setting. A non-positive value leaves the default in
-// place.
+// WithGRPCOperationTimeout sets the timeout of every RPC attempt
+// (TRACER_TIMEOUT_MS). A non-positive value leaves the default in place.
 func WithGRPCOperationTimeout(d time.Duration) TracerGRPCClientOption {
 	return func(c *tracerGRPCClientConfig) {
 		if d > 0 {
@@ -83,9 +86,10 @@ func WithGRPCDialOptions(opts ...grpc.DialOption) TracerGRPCClientOption {
 
 // WithM2MCredentials makes every seam call carry the Access Manager application
 // token src yields as "authorization: Bearer <token>". A call whose token cannot
-// be obtained is never sent. A call the tracer answers with Unauthenticated is
-// retried once with another token when src has one to offer; PermissionDenied
-// is not retried. When src implements io.Closer, Close closes it.
+// be obtained is never sent, and the wait for a token that is not cached yet is
+// bounded by src, not by the operation timeout. A call the tracer answers with
+// Unauthenticated is retried once with another token when src has one to
+// offer; PermissionDenied is not retried. When src implements io.Closer, Close closes it.
 func WithM2MCredentials(src TokenSource) TracerGRPCClientOption {
 	return func(c *tracerGRPCClientConfig) {
 		c.tokenSource = src
@@ -128,6 +132,10 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 		interceptors = append(interceptors, apiKeyUnaryInterceptor(conf.apiKey))
 	}
 
+	// Innermost, so the timeout wraps each attempt the identity interceptor
+	// sends and never the token wait before it.
+	interceptors = append(interceptors, operationTimeoutUnaryInterceptor(conf.operationTimeout))
+
 	dialOptions := make([]grpc.DialOption, 0, len(conf.dialOptions)+3)
 	dialOptions = append(
 		dialOptions,
@@ -154,10 +162,9 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 	}
 
 	return &TracerGRPCClient{
-		conn:             conn,
-		client:           reservationv1.NewReservationServiceClient(conn),
-		operationTimeout: conf.operationTimeout,
-		tokenSource:      conf.tokenSource,
+		conn:        conn,
+		client:      reservationv1.NewReservationServiceClient(conn),
+		tokenSource: conf.tokenSource,
 	}, nil
 }
 
@@ -194,9 +201,6 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 		return nil, notSent
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
 	resp, err := c.client.Reserve(ctx, toProtoReserveRequest(req))
 	if err != nil {
 		mapped := mapGRPCError(err)
@@ -231,9 +235,6 @@ func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID)
 
 	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
 	resp, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
@@ -258,9 +259,6 @@ func (c *TracerGRPCClient) Release(ctx context.Context, reservationID uuid.UUID)
 
 	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
 	_, err := c.client.ReleaseById(ctx, &reservationv1.ReleaseByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
@@ -281,9 +279,6 @@ func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transaction
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
 
 	resp, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
@@ -309,9 +304,6 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
 	_, err := c.client.ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
@@ -321,6 +313,50 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 	}
 
 	return nil
+}
+
+// ContextWithCallTimeout returns ctx carrying d as the timeout of the seam RPC
+// made with it. It only tightens the client's operation timeout, and unlike a
+// context deadline it does not bound the wait for the call's token. A
+// non-positive d sets none.
+func ContextWithCallTimeout(ctx context.Context, d time.Duration) context.Context {
+	if d <= 0 {
+		return ctx
+	}
+
+	return context.WithValue(ctx, callTimeoutKey{}, d)
+}
+
+// CallTimeout returns the call timeout ctx carries, if any.
+func CallTimeout(ctx context.Context) (time.Duration, bool) {
+	d, ok := ctx.Value(callTimeoutKey{}).(time.Duration)
+
+	return d, ok && d > 0
+}
+
+type callTimeoutKey struct{}
+
+// operationTimeoutUnaryInterceptor bounds one RPC attempt by d, or by the call
+// timeout ctx carries when that is shorter.
+func operationTimeoutUnaryInterceptor(d time.Duration) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		timeout := d
+		if callTimeout, ok := CallTimeout(ctx); ok && callTimeout < timeout {
+			timeout = callTimeout
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
 }
 
 // recordRPCFailure records a failed RPC onto its span by failure class: a

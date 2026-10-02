@@ -199,12 +199,14 @@ func (f *fakeCredentials) invalidatedTenants() []string {
 	return append([]string(nil), f.invalidated...)
 }
 
-func newTestTokenSource(t *testing.T, minter TokenMinter, creds CredentialProvider, clock *testClock) *M2MTokenSource {
+func newTestTokenSource(t *testing.T, minter TokenMinter, creds CredentialProvider, clock *testClock, opts ...M2MTokenSourceOption) *M2MTokenSource {
 	t.Helper()
 
 	scheduler := &fakeScheduler{}
 
-	src, err := NewM2MTokenSource(minter, creds, WithTokenClock(clock.Now), WithRefreshScheduler(scheduler.schedule))
+	all := append([]M2MTokenSourceOption{WithTokenClock(clock.Now), WithRefreshScheduler(scheduler.schedule)}, opts...)
+
+	src, err := NewM2MTokenSource(minter, creds, all...)
 	require.NoError(t, err)
 
 	src.jitter = noJitter

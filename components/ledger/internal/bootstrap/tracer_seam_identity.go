@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	"github.com/LerianStudio/lib-commons/v7/commons/secretsmanager"
@@ -92,7 +93,13 @@ func buildTracerSeamIdentity(ctx context.Context, cfg *Config, logger libLog.Log
 		return "", nil, err
 	}
 
-	src, err := tracerclient.NewM2MTokenSource(minter, creds, tracerclient.WithTokenLogger(logger))
+	tokenTimeout, err := tracerM2MTokenTimeout(cfg)
+	if err != nil {
+		return "", nil, err
+	}
+
+	src, err := tracerclient.NewM2MTokenSource(minter, creds,
+		tracerclient.WithTokenLogger(logger), tracerclient.WithTokenWaitTimeout(tokenTimeout))
 	if err != nil {
 		return "", nil, err
 	}
@@ -102,6 +109,23 @@ func buildTracerSeamIdentity(ctx context.Context, cfg *Config, logger libLog.Log
 	}
 
 	return identity, []tracerclient.TracerGRPCClientOption{tracerclient.WithM2MCredentials(src)}, nil
+}
+
+// tracerM2MTokenTimeout resolves TRACER_M2M_WAIT_TIMEOUT_MS: unset is
+// tracerclient.DefaultTokenWaitTimeout, and a value must be positive and no
+// longer than the mint the wait is for (tracerclient.MaxTokenWaitTimeout).
+func tracerM2MTokenTimeout(cfg *Config) (time.Duration, error) {
+	ms := cfg.TracerM2MTokenTimeoutMs
+	if ms == 0 {
+		return tracerclient.DefaultTokenWaitTimeout, nil
+	}
+
+	maxMs := int(tracerclient.MaxTokenWaitTimeout.Milliseconds())
+	if ms < 0 || ms > maxMs {
+		return 0, fmt.Errorf("invalid TRACER_M2M_WAIT_TIMEOUT_MS %d: expected 1..%d", ms, maxMs)
+	}
+
+	return time.Duration(ms) * time.Millisecond, nil
 }
 
 // buildTracerSeamCredentials resolves the credential provider for token
