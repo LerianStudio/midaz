@@ -715,13 +715,14 @@ func crossLedgerGroupDestinationItems(intent CrossLedgerGroupIntent) []CreateAto
 
 		index := len(items)
 		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
-			OrganizationID: part.OrganizationID,
-			LedgerID:       part.LedgerID,
-			Transaction:    part.Transaction,
-			Action:         constant.ActionDirect,
-			RouteAction:    constant.ActionCommit,
-			Order:          index + 1,
-			OriginalIndex:  index,
+			OrganizationID:    part.OrganizationID,
+			LedgerID:          part.LedgerID,
+			Transaction:       part.Transaction,
+			Action:            constant.ActionDirect,
+			RouteAction:       constant.ActionCommit,
+			Order:             index + 1,
+			OriginalIndex:     index,
+			crossLedgerBridge: crossLedgerDestinationBridge(part.Transaction, intent.Asset),
 		})
 	}
 

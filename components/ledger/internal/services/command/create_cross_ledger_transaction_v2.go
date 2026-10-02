@@ -117,12 +117,13 @@ func buildCrossLedgerAtomicBatchInput(
 	items := make([]CreateAtomicTransactionBatchV2ItemInput, len(parts))
 	for index, part := range parts {
 		items[index] = CreateAtomicTransactionBatchV2ItemInput{
-			OrganizationID: part.ledgerRef.organizationID,
-			LedgerID:       part.ledgerRef.ledgerID,
-			Transaction:    part.transaction,
-			Action:         constant.ActionDirect,
-			Order:          index + 1,
-			OriginalIndex:  index,
+			OrganizationID:    part.ledgerRef.organizationID,
+			LedgerID:          part.ledgerRef.ledgerID,
+			Transaction:       part.transaction,
+			Action:            constant.ActionDirect,
+			Order:             index + 1,
+			OriginalIndex:     index,
+			crossLedgerBridge: part.bridge,
 		}
 	}
 

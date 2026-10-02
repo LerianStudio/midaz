@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -54,6 +55,10 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 	RouteAction   string
 	Order         int
 	OriginalIndex int
+	// crossLedgerBridge locates the bridge leg of a cross-ledger group part in
+	// Transaction.Send, so the fee engine never charges it. Nil outside a group
+	// and for a part that crosses nothing.
+	crossLedgerBridge *crossLedgerBridgePosition
 }
 
 // CreateAtomicTransactionBatchV2Input carries one ordered atomic request. The
@@ -142,6 +147,7 @@ type atomicTransactionBatchItemRun struct {
 	action                  string
 	routeAction             string
 	groupRoutes             crossLedgerGroupRoutePart
+	crossLedgerBridge       *crossLedgerBridgePosition
 	honoredFeeSkip          bool
 	honoredTracerSkip       bool
 	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
@@ -468,6 +474,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 			&item.input,
 			item.organizationID,
 			item.ledgerID,
+			crossLedgerBridgeNonPayerLegs(item.crossLedgerBridge),
 			item.status == constant.NOTED,
 			item.honoredFeeSkip,
 		); err != nil {
@@ -790,7 +797,17 @@ func initializeAtomicTransactionBatchItem(
 		parentTransactionID:     cloneUUIDPointer(in.ParentTransactionID),
 		dependencies:            append([]TransactionEvidenceReference(nil), in.Dependencies...),
 		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
+		crossLedgerBridge:       in.crossLedgerBridge,
 	}, nil
+}
+
+// crossLedgerBridgeNonPayerLegs marks the bridge leg for the fee engine.
+func crossLedgerBridgeNonPayerLegs(bridge *crossLedgerBridgePosition) []model.NonPayerLeg {
+	if bridge == nil {
+		return nil
+	}
+
+	return []model.NonPayerLeg{{IsFrom: bridge.isFrom, Index: bridge.index}}
 }
 
 func atomicTransactionBatchItemRouteAction(in CreateAtomicTransactionBatchV2ItemInput, action string) string {

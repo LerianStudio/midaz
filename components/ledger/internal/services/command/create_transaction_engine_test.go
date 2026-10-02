@@ -413,6 +413,7 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	assert.False(t, replayed)
 	require.NotNil(t, got)
 	assert.Equal(t, 1, feeApplier.calls)
+	assert.Empty(t, feeApplier.received[0].NonPayerLegs, "a single-ledger create marks no leg as non-payer")
 	assert.Equal(t, 1, reserver.reserveCalls)
 	requests := reserver.reserveRequests()
 	require.Len(t, requests, 1)
