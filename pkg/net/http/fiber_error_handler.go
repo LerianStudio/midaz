@@ -69,6 +69,13 @@ func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
 				Code:    constant.ErrBadRequest.Error(),
 				Message: fiberErr.Message,
 			})
+		case fiber.StatusUnprocessableEntity:
+			// The authorization guard answers 422 for a value it could not translate
+			// into a scope dimension, and its message names where it was read.
+			return renderCanonical(c, fiber.StatusUnprocessableEntity, pkg.ValidationError{
+				Code:    constant.ErrScopeReferenceUnresolved.Error(),
+				Message: fiberErr.Message,
+			})
 		case fiber.StatusUnauthorized:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidToken, ""))
 		case fiber.StatusForbidden:

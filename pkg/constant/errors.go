@@ -528,6 +528,11 @@ var (
 	// strictly inside its active time window, which would split one window
 	// across two periods.
 	ErrLimitResetTimeInsideWindow = errors.New("0538")
+	// ErrScopeReferenceUnresolved is returned when a value the authorization guard
+	// translates into a scope dimension (an account alias, an asset code, a
+	// transaction or balance id) names nothing in the request's organization and
+	// ledger. The message names where the value was read.
+	ErrScopeReferenceUnresolved = errors.New("0539")
 	// ErrReservationAlreadySettled is returned when a reserve replays onto a
 	// row that already left RESERVED (confirmed, released or expired).
 	ErrReservationAlreadySettled = errors.New("0533")

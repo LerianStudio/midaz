@@ -481,6 +481,7 @@ in the route's envelope (`TestAuthzRefusal_LedgerEdge`, `TestAuthzRefusal_Tracer
 | Missing or invalid token | 401 | `0042`, or the Access Manager's own `AUT-xxxx` when its 401 carried one |
 | Denied, or a scope dimension the route never declared | 403 | `0043` |
 | A route that reads its scope from the body got a body naming no readable value (not JSON; field missing, empty or not a string; array missing or empty) | 400 | `0047`, the detail naming the field |
+| A value the route translates into a scope dimension (account alias, asset code, transaction or balance id) names nothing in the organization and ledger | 422 | `0539`, the detail naming where it was read |
 | Access Manager never decided (unreachable, 5xx, timeout, breaker open, or answered 400/408/422/429) | 503 | `0525` |
 | Access Manager refused the caller itself | the status it answered | its own `AUT-xxxx` |
 | Access Manager refused with no usable code (401 and 403 take the rows above) | 400 | `0047` |

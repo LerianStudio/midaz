@@ -196,3 +196,22 @@ func TestCanonicalFiberErrorHandler_BadRequestKeepsItsMessage(t *testing.T) {
 	require.Equal(t, constant.ErrBadRequest.Error(), env.Code)
 	require.Equal(t, "The authorization service refused the request.", env.Detail)
 }
+
+// TestCanonicalFiberErrorHandler_UnresolvedScopeReferenceKeepsItsStatusAndMessage covers
+// the 422 the authorization guard answers when a value it must translate into a scope
+// dimension — an account alias, a transaction id — names nothing: the client sees the
+// 422 with its own code and the message naming where the value was read.
+func TestCanonicalFiberErrorHandler_UnresolvedScopeReferenceKeepsItsStatusAndMessage(t *testing.T) {
+	t.Parallel()
+
+	const message = `scope path parameter "alias" names a value that does not resolve to any "accountId"`
+
+	app := fiber.New(fiber.Config{ErrorHandler: CanonicalFiberErrorHandler})
+	app.Get("/422", func(c fiber.Ctx) error { return fiber.NewError(fiber.StatusUnprocessableEntity, message) })
+
+	status, env := decodeEnvelope(t, app, fiber.MethodGet, "/422")
+
+	require.Equal(t, fiber.StatusUnprocessableEntity, status)
+	require.Equal(t, constant.ErrScopeReferenceUnresolved.Error(), env.Code)
+	require.Equal(t, message, env.Detail)
+}
