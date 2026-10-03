@@ -155,3 +155,38 @@ func TestMidazManifest_DeclaresTheTracerM2MEdge(t *testing.T) {
 	require.True(t, manifest.M2M.Exposed, "midaz keeps exposing its own M2M surface")
 	require.Equal(t, []string{"tracer"}, manifest.M2M.Needs)
 }
+
+// wantDimensionCovers is the confinement each scope dimension extends over the
+// collections whose items belong to its instances. A partner credential scoped on
+// one of these dimensions is accepted on a covered collection only when the
+// request names the dimension, so dropping a name here silently widens what such
+// a credential can reach.
+var wantDimensionCovers = map[string][]string{
+	"accountId":   {"balances", "transactions", "operations", "fee-debts", "dashboard", "account-block-exceptions"},
+	"ledgerId":    {"holders", "instruments", "protection"},
+	"portfolioId": {"accounts"},
+	"segmentId":   {"accounts"},
+}
+
+// TestMidazManifest_ScopeDimensionsDeclareCovers parses the embedded manifest as
+// the publisher does and pins the covers of every scope dimension: the four above
+// carry exactly their list, and no other dimension covers anything.
+func TestMidazManifest_ScopeDimensionsDeclareCovers(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+	require.NotNil(t, manifest.Scope, "the manifest declares a scope catalog")
+
+	got := make(map[string][]string, len(manifest.Scope.Dimensions))
+
+	for _, dim := range manifest.Scope.Dimensions {
+		if len(dim.Covers) > 0 {
+			got[dim.Name] = dim.Covers
+		}
+	}
+
+	require.Equal(t, wantDimensionCovers, got, "scope dimension covers drifted from the declared confinement")
+}

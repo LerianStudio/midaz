@@ -57,15 +57,28 @@
 # seed (see below).
 service: midaz
 version: 1
+# A scope dimension can also confine related collections. `covers` lists the
+# collections whose items belong to the dimension's instances: the balances,
+# transactions and operations of an account, the holders and instruments of a
+# ledger, the accounts of a portfolio or segment. A partner credential scoped on
+# a dimension is accepted on the dimension's own collection, or on one it covers,
+# only when the request names that dimension (for example through the route
+# path). So a credential scoped to accounts reads account-level data through the
+# routes that carry `:account_id`; the ledger-wide listings of those collections
+# answer 403 for it.
 scope:
   dimensions:
     - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }
-    - { name: ledgerId,           from: path, param: ledger_id,            required: false, multi: true,  collection: ledgers,            label: "ledger" }
+    - { name: ledgerId,           from: path, param: ledger_id,            required: false, multi: true,  collection: ledgers,            label: "ledger",
+        covers: [holders, instruments, protection] }
     - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type" }
-    - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account" }
+    - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account",
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions] }
     - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset" }
-    - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio" }
-    - { name: segmentId,          from: path, param: segment_id,           required: false, multi: true,  collection: segments,           label: "segment" }
+    - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio",
+        covers: [accounts] }
+    - { name: segmentId,          from: path, param: segment_id,           required: false, multi: true,  collection: segments,           label: "segment",
+        covers: [accounts] }
     - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance" }
     - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction" }
     - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation" }
