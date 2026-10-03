@@ -373,15 +373,16 @@ func TestBodyScope_V2BatchAsksAboutEveryItem(t *testing.T) {
 
 // TestBodyScope_InstrumentCreateAsksAboutTheBodyLedger covers the one route whose
 // path names the organization while the ledger rides in the body: the question
-// carries both, plus the holder the path names, and a ledger outside the scope is
-// refused before the handler.
+// carries both, plus the holder the path names and the account the body names, and
+// a ledger outside the scope is refused before the handler.
 func TestBodyScope_InstrumentCreateAsksAboutTheBodyLedger(t *testing.T) {
 	org, holder := uuid.NewString(), uuid.NewString()
 	ledgerIn, ledgerOut := uuid.NewString(), uuid.NewString()
 
 	path := "/v2/organizations/" + org + "/holders/" + holder + "/instruments"
+	account := uuid.NewString()
 	instrument := func(ledgerID string) string {
-		return `{"ledgerId":"` + ledgerID + `","accountId":"` + uuid.NewString() + `"}`
+		return `{"ledgerId":"` + ledgerID + `","accountId":"` + account + `"}`
 	}
 
 	t.Run("ledger inside the scope", func(t *testing.T) {
@@ -391,7 +392,7 @@ func TestBodyScope_InstrumentCreateAsksAboutTheBodyLedger(t *testing.T) {
 		status, raw := postBodyScope(t, app, path, bodyScopeToken(t, "partner-a"), instrument(ledgerIn))
 
 		require.Equalf(t, fiber.StatusNoContent, status, "%s", raw)
-		assert.Equal(t, []map[string]string{{"organizationId": org, "holderId": holder, "ledgerId": ledgerIn}}, authz.asked())
+		assert.Equal(t, []map[string]string{{"organizationId": org, "holderId": holder, "ledgerId": ledgerIn, "accountId": account}}, authz.asked())
 		assert.Equal(t, 1, chain.reached)
 	})
 
@@ -413,6 +414,17 @@ func TestBodyScope_InstrumentCreateAsksAboutTheBodyLedger(t *testing.T) {
 
 		assert.Equalf(t, fiber.StatusBadRequest, status, "%s", raw)
 		assert.Contains(t, raw, `\"ledgerId\"`)
+		assert.Empty(t, authz.asked())
+		assert.Zero(t, chain.reached)
+	})
+	t.Run("account missing", func(t *testing.T) {
+		authz, server := newBodyScopeAuthz(t, [2]string{org, ledgerIn})
+		app, chain := mountBodyScopeV2(t, server.URL)
+
+		status, raw := postBodyScope(t, app, path, bodyScopeToken(t, "partner-a"), `{"ledgerId":"`+ledgerIn+`"}`)
+
+		assert.Equalf(t, fiber.StatusBadRequest, status, "%s", raw)
+		assert.Contains(t, raw, `\"accountId\"`)
 		assert.Empty(t, authz.asked())
 		assert.Zero(t, chain.reached)
 	})

@@ -102,7 +102,44 @@ scope:
     - method: POST
       path: /v2/organizations/:organization_id/holders/:holder_id/instruments
       dimensions:
-        - { name: ledgerId, from: body, field: ledgerId }
+        - { name: ledgerId,  from: body, field: ledgerId }
+        - { name: accountId, from: body, field: accountId }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions:
+        - { name: portfolioId, from: body, field: portfolioId,     optional: true }
+        - { name: segmentId,   from: body, field: segmentId,       optional: true }
+        - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions:
+        - { name: portfolioId, from: body, field: portfolioId,     optional: true }
+        - { name: segmentId,   from: body, field: segmentId,       optional: true }
+        - { name: holderId,    from: body, field: holderId,        optional: true }
+        - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: PATCH
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
+      dimensions: &accountUpdateBodyDimensions
+        - { name: portfolioId, from: body, field: portfolioId, optional: true }
+        - { name: segmentId,   from: body, field: segmentId,   optional: true }
+    - method: PATCH
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
+      dimensions: *accountUpdateBodyDimensions
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts
+      dimensions:
+        - { name: portfolioId, from: body, field: portfolioId,     optional: true }
+        - { name: segmentId,   from: body, field: segmentId,       optional: true }
+        - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages
+      dimensions:
+        - { name: segmentId,   from: body, field: accountTarget.segmentId,   optional: true }
+        - { name: portfolioId, from: body, field: accountTarget.portfolioId, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
+      dimensions:
+        - { name: segmentId, from: body, field: segmentId, optional: true }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }

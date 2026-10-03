@@ -190,3 +190,97 @@ func TestMidazManifest_ScopeDimensionsDeclareCovers(t *testing.T) {
 
 	require.Equal(t, wantDimensionCovers, got, "scope dimension covers drifted from the declared confinement")
 }
+
+// wantScopeRoutes is every place a route reads a scope dimension from the request
+// beyond its path, keyed by "METHOD path" and spelled "name<-from:field", with a
+// trailing "?" when the request may leave it out. Each one widens or narrows what
+// a partner credential is asked about, so an entry dropped here is a value that
+// stops being checked.
+var wantScopeRoutes = map[string][]string{
+	"POST /v2/transactions/direct":  v2CreateBodyCarriers,
+	"POST /v2/transactions/hold":    v2CreateBodyCarriers,
+	"POST /v2/transactions/block":   v2CreateBodyCarriers,
+	"POST /v2/transactions/unblock": v2CreateBodyCarriers,
+	"POST /v2/transactions/batch": {
+		"organizationId<-body:transactions[].debits[].organizationId",
+		"ledgerId<-body:transactions[].debits[].ledgerId",
+		"organizationId<-body:transactions[].credits[].organizationId",
+		"ledgerId<-body:transactions[].credits[].ledgerId",
+	},
+	"POST /v2/organizations/:organization_id/holders/:holder_id/instruments": {
+		"ledgerId<-body:ledgerId",
+		"accountId<-body:accountId",
+	},
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/accounts": {
+		"portfolioId<-body:portfolioId?",
+		"segmentId<-body:segmentId?",
+		"accountId<-body:parentAccountId?",
+	},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/accounts": {
+		"portfolioId<-body:portfolioId?",
+		"segmentId<-body:segmentId?",
+		"holderId<-body:holderId?",
+		"accountId<-body:parentAccountId?",
+	},
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id": accountUpdateBodyCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id": accountUpdateBodyCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts": {
+		"portfolioId<-body:portfolioId?",
+		"segmentId<-body:segmentId?",
+		"accountId<-body:parentAccountId?",
+	},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages": {
+		"segmentId<-body:accountTarget.segmentId?",
+		"portfolioId<-body:accountTarget.portfolioId?",
+	},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
+		"segmentId<-body:segmentId?",
+	},
+}
+
+var v2CreateBodyCarriers = []string{
+	"organizationId<-body:debits[].organizationId",
+	"ledgerId<-body:debits[].ledgerId",
+	"organizationId<-body:credits[].organizationId",
+	"ledgerId<-body:credits[].ledgerId",
+}
+
+var accountUpdateBodyCarriers = []string{
+	"portfolioId<-body:portfolioId?",
+	"segmentId<-body:segmentId?",
+}
+
+// TestMidazManifest_ScopeRoutesDeclareTheirCarriers pins every route-level scope
+// declaration of the embedded manifest: the exact routes, and on each the exact
+// dimensions with where they are read and whether they may be left out.
+func TestMidazManifest_ScopeRoutesDeclareTheirCarriers(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+	require.NotNil(t, manifest.Scope, "the manifest declares a scope catalog")
+
+	got := make(map[string][]string, len(manifest.Scope.Routes))
+
+	for _, route := range manifest.Scope.Routes {
+		key := route.Method + " " + route.Path
+		require.NotContainsf(t, got, key, "route %s is declared twice", key)
+
+		carriers := make([]string, 0, len(route.Dimensions))
+
+		for _, dim := range route.Dimensions {
+			carrier := dim.Name + "<-" + dim.From + ":" + dim.Field
+			if dim.Optional {
+				carrier += "?"
+			}
+
+			carriers = append(carriers, carrier)
+		}
+
+		got[key] = carriers
+	}
+
+	require.Equal(t, wantScopeRoutes, got, "route-level scope carriers drifted from the declaration")
+}
