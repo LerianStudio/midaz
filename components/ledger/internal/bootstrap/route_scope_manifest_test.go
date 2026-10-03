@@ -29,8 +29,8 @@ import (
 // gains or loses a dimension moves one of these, so a change to what the ledger tells
 // the authorization service has to show up in review.
 const (
-	scopedRoutesBothDimensions   = 171
-	scopedRoutesOrganizationOnly = 36
+	scopedRoutesBothDimensions   = 173
+	scopedRoutesOrganizationOnly = 34
 	scopedRoutesNoDimension      = 13
 )
 
@@ -39,29 +39,34 @@ const (
 var scopedRoutesPerShape = map[string]int{
 	"": scopedRoutesNoDimension,
 
-	"organizationId":                                      22,
-	"organizationId+holderId":                             4,
+	"organizationId":                                      21,
+	"organizationId+holderId":                             3,
 	"organizationId+holderId+instrumentId":                3,
 	"organizationId+holderId+instrumentId+relatedPartyId": 1,
 	"organizationId+operationRouteId":                     3,
 	"organizationId+transactionRouteId":                   3,
 
-	"organizationId+ledgerId":                           89,
-	"organizationId+ledgerId+accountId":                 15,
-	"organizationId+ledgerId+accountId+operationId":     2,
-	"organizationId+ledgerId+accountTypeId":             6,
-	"organizationId+ledgerId+assetId":                   6,
-	"organizationId+ledgerId+balanceId":                 8,
-	"organizationId+ledgerId+billingPackageId":          3,
-	"organizationId+ledgerId+feeDebtId":                 1,
-	"organizationId+ledgerId+holderId":                  2,
-	"organizationId+ledgerId+operationRouteId":          6,
-	"organizationId+ledgerId+packageId":                 3,
-	"organizationId+ledgerId+portfolioId":               6,
-	"organizationId+ledgerId+segmentId":                 6,
-	"organizationId+ledgerId+transactionId":             10,
-	"organizationId+ledgerId+transactionId+operationId": 2,
-	"organizationId+ledgerId+transactionRouteId":        6,
+	"organizationId+ledgerId":                                          82,
+	"organizationId+ledgerId+accountId":                                13,
+	"organizationId+ledgerId+accountId+holderId":                       2,
+	"organizationId+ledgerId+accountId+operationId":                    2,
+	"organizationId+ledgerId+accountId+portfolioId+segmentId":          3,
+	"organizationId+ledgerId+accountId+portfolioId+segmentId+holderId": 2,
+	"organizationId+ledgerId+accountTypeId":                            6,
+	"organizationId+ledgerId+assetId":                                  6,
+	"organizationId+ledgerId+balanceId":                                8,
+	"organizationId+ledgerId+billingPackageId":                         3,
+	"organizationId+ledgerId+feeDebtId":                                1,
+	"organizationId+ledgerId+holderId":                                 1,
+	"organizationId+ledgerId+operationRouteId":                         6,
+	"organizationId+ledgerId+packageId":                                3,
+	"organizationId+ledgerId+portfolioId":                              6,
+	"organizationId+ledgerId+portfolioId+segmentId":                    1,
+	"organizationId+ledgerId+portfolioId+segmentId+holderId":           2,
+	"organizationId+ledgerId+segmentId":                                8,
+	"organizationId+ledgerId+transactionId":                            10,
+	"organizationId+ledgerId+transactionId+operationId":                2,
+	"organizationId+ledgerId+transactionRouteId":                       6,
 }
 
 // manifestScopeDimensions parses the scope section of the embedded manifest — the
@@ -373,20 +378,24 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 		rawPath := group.rows[0].path
 		want := expectedScopeAttributes(rawPath, dims, values)
 
-		// A route that reads dimensions from its body is sent a body naming them by a
-		// partner, and they join the ones its path derives.
+		// A route that reads dimensions from its body or its query is sent a request
+		// naming them by a partner, and they join the ones its path derives.
 		token := userToken
 
-		probe, readsBody := bodyProbes[group.key]
-		if readsBody {
+		probe, declared := bodyProbes[group.key]
+		if declared {
 			bodyProbed++
 			token = partnerToken
 
 			if want == nil {
-				want = make(map[string]string, len(probe.attributes))
+				want = make(map[string]string, len(probe.bodyAttributes)+len(probe.queryAttributes))
 			}
 
-			for name, value := range probe.attributes {
+			for name, value := range probe.bodyAttributes {
+				want[name] = value
+			}
+
+			for name, value := range probe.queryAttributes {
 				want[name] = value
 			}
 		}
@@ -398,8 +407,8 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 			before := recorder.calls
 			recorder.attributes = nil
 
-			req := httptest.NewRequest(group.rows[0].method, scopedRouteURL(rawPath, values), bodyReader(probe.body))
-			if readsBody {
+			req := httptest.NewRequest(group.rows[0].method, probe.url(scopedRouteURL(rawPath, values)), bodyReader(probe.body))
+			if probe.readsBody() {
 				req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 			}
 
@@ -427,7 +436,7 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 	}, shape, "endpoints per organization/ledger projection of the dimensions sent")
 
 	assert.Equal(t, scopedRoutesPerShape, fullShape, "endpoints per set of dimensions sent")
-	assert.Equal(t, len(bodyProbes), bodyProbed, "every route that reads its scope from the body must have been driven")
+	assert.Equal(t, len(bodyProbes), bodyProbed, "every route that reads its scope from the body or the query must have been driven")
 
 	total := 0
 	for _, n := range shape {
@@ -440,9 +449,9 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 
 // TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner drives every route
 // that declares body dimensions with credentials bound to no partner, carrying the same
-// body a partner would send. The body is not read for scope: each makes exactly one
-// authorization call carrying only the dimensions its path derives, as it did before
-// body dimensions existed.
+// request a partner would send. The body is not read for scope: each makes exactly one
+// authorization call carrying only the dimensions its path derives and the ones its
+// query names, as it did before body dimensions existed.
 func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing.T) {
 	unsetDocsGate(t)
 
@@ -476,9 +485,17 @@ func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing
 	tokens := map[string]string{"user": scopeProbeToken(t), "application": applicationToken}
 	probed := 0
 
+	bodyRoutes := 0
+
+	for _, probe := range bodyProbes {
+		if probe.readsBody() {
+			bodyRoutes++
+		}
+	}
+
 	for _, group := range groups {
-		probe, readsBody := bodyProbes[group.key]
-		if !readsBody {
+		probe, declared := bodyProbes[group.key]
+		if !declared || !probe.readsBody() {
 			continue
 		}
 
@@ -487,12 +504,20 @@ func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing
 		rawPath := group.rows[0].path
 		want := expectedScopeAttributes(rawPath, dims, values)
 
+		for name, value := range probe.queryAttributes {
+			if want == nil {
+				want = make(map[string]string, len(probe.queryAttributes))
+			}
+
+			want[name] = value
+		}
+
 		for kind, token := range tokens {
 			t.Run(group.display()+" "+kind, func(t *testing.T) {
 				before := recorder.calls
 				recorder.attributes = nil
 
-				req := httptest.NewRequest(group.rows[0].method, scopedRouteURL(rawPath, values), bodyReader(probe.body))
+				req := httptest.NewRequest(group.rows[0].method, probe.url(scopedRouteURL(rawPath, values)), bodyReader(probe.body))
 				req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 				req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 
@@ -512,7 +537,7 @@ func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing
 		}
 	}
 
-	assert.Equal(t, len(bodyProbes), probed, "every route that reads its scope from the body must have been driven")
+	assert.Equal(t, bodyRoutes, probed, "every route that reads its scope from the body must have been driven")
 }
 
 // naturalKeyRouteParams is the LOCKED set of path parameters that are not entity ids and
@@ -684,11 +709,11 @@ func TestManifestScope_EveryUUIDDimensionIsValidated(t *testing.T) {
 			t.Run(group.display()+" :"+param, func(t *testing.T) {
 				// A route that reads its scope from the body is sent the body a partner
 				// would send, so the probe stays valid whoever the caller is.
-				probe, readsBody := bodyProbes[group.key]
+				probe := bodyProbes[group.key]
 
 				req := httptest.NewRequest(group.rows[0].method,
-					scopedRouteURL(rawPath, map[string]string{param: "not-a-uuid"}), bodyReader(probe.body))
-				if readsBody {
+					probe.url(scopedRouteURL(rawPath, map[string]string{param: "not-a-uuid"})), bodyReader(probe.body))
+				if probe.readsBody() {
 					req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 				}
 

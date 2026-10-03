@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -34,6 +35,17 @@ var bodyScopeCoordinates = map[string]bool{
 	"ledgerId":       true,
 }
 
+// bodyPointerDimensions is the LOCKED set of dimensions a write body may point at
+// besides its coordinates: the portfolio, segment, holder or account a new or
+// updated record is attached to. They are declared per route and pinned by the
+// manifest test of the ledger package.
+var bodyPointerDimensions = map[string]bool{
+	"portfolioId": true,
+	"segmentId":   true,
+	"holderId":    true,
+	"accountId":   true,
+}
+
 // manifestScopeRoutes parses the scope.routes of the embedded manifest.
 func manifestScopeRoutes(t *testing.T) []declaration.DeclarationScopeRoute {
 	t.Helper()
@@ -52,18 +64,23 @@ func scopeRouteKey(r declaration.DeclarationScopeRoute) string {
 	return strings.ToUpper(r.Method) + "\t" + r.Path
 }
 
-// bodyFieldsByRoute renders scope.routes as route key -> dimension name -> the body
-// fields it is read from, sorted.
+// bodyFieldsByRoute renders scope.routes as route key -> coordinate name -> the body
+// fields it is read from, sorted. Only body scope coordinates are rendered.
 func bodyFieldsByRoute(routes []declaration.DeclarationScopeRoute) map[string]map[string][]string {
 	out := make(map[string]map[string][]string, len(routes))
 
 	for _, r := range routes {
 		key := scopeRouteKey(r)
-		if out[key] == nil {
-			out[key] = make(map[string][]string)
-		}
 
 		for _, d := range r.Dimensions {
+			if d.From != "body" || !bodyScopeCoordinates[d.Name] {
+				continue
+			}
+
+			if out[key] == nil {
+				out[key] = make(map[string][]string)
+			}
+
 			out[key][d.Name] = append(out[key][d.Name], d.Field)
 		}
 
@@ -230,8 +247,17 @@ func TestManifestScope_BodyRoutesAreGuardedRoutes(t *testing.T) {
 		assert.Falsef(t, unguardedPublicRoutes[key], "scope.routes declares %s, which is mounted outside the guard", r.Method+" "+r.Path)
 
 		for _, d := range r.Dimensions {
-			assert.Truef(t, bodyScopeCoordinates[d.Name],
-				"%s reads %s from the body, which is not a body scope coordinate", r.Method+" "+r.Path, d.Name)
+			switch d.From {
+			case "body":
+				assert.Truef(t, bodyScopeCoordinates[d.Name] || bodyPointerDimensions[d.Name],
+					"%s reads %s from the body, which is neither a body scope coordinate nor a body pointer",
+					r.Method+" "+r.Path, d.Name)
+			case "query":
+				assert.Equalf(t, "GET", strings.ToUpper(r.Method),
+					"%s reads %s from the query, which only a list filter may carry", r.Method+" "+r.Path, d.Name)
+			default:
+				assert.Failf(t, "undeclared carrier", "%s reads %s from %q", r.Method+" "+r.Path, d.Name, d.From)
+			}
 		}
 	}
 }
@@ -293,12 +319,30 @@ func setBodyField(body map[string]any, field, value string) {
 	node[segments[len(segments)-1]] = value
 }
 
-// bodyScopeProbe is, per declared body route, the request body a probe sends and the
-// attributes that body adds to the ones the path derives: every declared field
-// carries the probe value of its dimension, so each route makes exactly one question.
+// bodyScopeProbe is, per declared scope route, the request body and query string a
+// probe sends and the attributes each adds to the ones the path derives: every
+// declared field carries the probe value of its dimension, so each route makes
+// exactly one question. The body is read for scope only for a partner credential,
+// the query for every caller.
 type bodyScopeProbe struct {
-	body       []byte
-	attributes map[string]string
+	body            []byte
+	query           string
+	bodyAttributes  map[string]string
+	queryAttributes map[string]string
+}
+
+// readsBody reports whether the route reads any dimension from its body.
+func (p bodyScopeProbe) readsBody() bool {
+	return len(p.bodyAttributes) > 0
+}
+
+// url is the probe's request target for path.
+func (p bodyScopeProbe) url(path string) string {
+	if p.query == "" {
+		return path
+	}
+
+	return path + "?" + p.query
 }
 
 func bodyScopeProbes(t *testing.T, dims []declaration.DeclarationDimension, values map[string]string) map[string]bodyScopeProbe {
@@ -313,18 +357,33 @@ func bodyScopeProbes(t *testing.T, dims []declaration.DeclarationDimension, valu
 
 	for _, r := range manifestScopeRoutes(t) {
 		body := make(map[string]any)
-		attributes := make(map[string]string)
+		query := url.Values{}
+		probe := bodyScopeProbe{bodyAttributes: map[string]string{}, queryAttributes: map[string]string{}}
 
 		for _, d := range r.Dimensions {
 			value := values[paramOf[d.Name]]
-			setBodyField(body, d.Field, value)
-			attributes[d.Name] = value
+
+			switch d.From {
+			case "body":
+				setBodyField(body, d.Field, value)
+				probe.bodyAttributes[d.Name] = value
+			case "query":
+				query.Add(d.Field, value)
+				probe.queryAttributes[d.Name] = value
+			default:
+				require.Failf(t, "unprobed carrier", "%s reads %s from %q, which the probe cannot send", r.Method+" "+r.Path, d.Name, d.From)
+			}
 		}
 
-		raw, err := json.Marshal(body)
-		require.NoError(t, err)
+		if probe.readsBody() {
+			raw, err := json.Marshal(body)
+			require.NoError(t, err)
 
-		probes[scopeRouteKey(r)] = bodyScopeProbe{body: raw, attributes: attributes}
+			probe.body = raw
+		}
+
+		probe.query = query.Encode()
+		probes[scopeRouteKey(r)] = probe
 	}
 
 	return probes
