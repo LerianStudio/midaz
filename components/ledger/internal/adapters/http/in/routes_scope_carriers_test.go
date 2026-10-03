@@ -99,7 +99,7 @@ func mountCarrierRoutes(t *testing.T, authzURL string) (*fiber.App, *int) {
 	t.Helper()
 
 	auth := &middleware.AuthClient{Address: authzURL, Enabled: true}
-	require.NoError(t, declaration.WireScope(auth, ledgerembed.MidazManifest))
+	wireManifestScope(t, auth)
 
 	reached := 0
 	options := &pkgHTTP.ProtectedRouteOptions{PostAuthMiddlewares: []fiber.Handler{func(c fiber.Ctx) error {
@@ -226,17 +226,23 @@ func TestScopeCarriers_BodyPointersOnTheOtherWrites(t *testing.T) {
 		body   func(id string) string
 	}{
 		{"v1 account create parent", fiber.MethodPost, "/v1" + ledgerPath + "/accounts",
-			func(id string) string { return `{"name":"a","assetCode":"BRL","type":"deposit","parentAccountId":"` + id + `"}` }},
+			func(id string) string {
+				return `{"name":"a","assetCode":"BRL","type":"deposit","parentAccountId":"` + id + `"}`
+			}},
 		{"v1 account update portfolio", fiber.MethodPatch, "/v1" + ledgerPath + "/accounts/" + account,
 			func(id string) string { return `{"portfolioId":"` + id + `"}` }},
 		{"v2 account update segment", fiber.MethodPatch, "/v2" + ledgerPath + "/accounts/" + account,
 			func(id string) string { return `{"segmentId":"` + id + `"}` }},
 		{"holder account create portfolio", fiber.MethodPost, "/v2" + ledgerPath + "/holders/" + holder + "/accounts",
-			func(id string) string { return `{"name":"a","assetCode":"BRL","type":"deposit","portfolioId":"` + id + `"}` }},
+			func(id string) string {
+				return `{"name":"a","assetCode":"BRL","type":"deposit","portfolioId":"` + id + `"}`
+			}},
 		{"instrument create account", fiber.MethodPost, "/v2/organizations/" + org + "/holders/" + holder + "/instruments",
 			func(id string) string { return `{"ledgerId":"` + ledgerID + `","accountId":"` + id + `"}` }},
 		{"billing package target segment", fiber.MethodPost, "/v2" + ledgerPath + "/billing-packages",
-			func(id string) string { return `{"label":"b","type":"maintenance","accountTarget":{"segmentId":"` + id + `"}}` }},
+			func(id string) string {
+				return `{"label":"b","type":"maintenance","accountTarget":{"segmentId":"` + id + `"}}`
+			}},
 		{"fee package segment", fiber.MethodPost, "/v2" + ledgerPath + "/packages",
 			func(id string) string { return `{"feeGroupLabel":"p","segmentId":"` + id + `"}` }},
 	}

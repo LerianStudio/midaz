@@ -13,7 +13,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
 	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
@@ -23,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -133,7 +131,7 @@ func mountBodyScopeV2(t *testing.T, authzURL string) (*fiber.App, *bodyScopeGuar
 	t.Helper()
 
 	auth := &middleware.AuthClient{Address: authzURL, Enabled: true}
-	require.NoError(t, declaration.WireScope(auth, ledgerembed.MidazManifest))
+	wireManifestScope(t, auth)
 
 	chain := &bodyScopeGuardChain{}
 	options := &pkgHTTP.ProtectedRouteOptions{PostAuthMiddlewares: []fiber.Handler{func(c fiber.Ctx) error {
