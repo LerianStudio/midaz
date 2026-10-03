@@ -332,20 +332,21 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 		return resp.StatusCode
 	}
 
-	t.Run("a known alias is asked as its account", func(t *testing.T) {
+	t.Run("a known alias is asked as its account, after the credential is asked without it", func(t *testing.T) {
 		recorder.reset()
 
 		send(fiber.MethodGet, base+"/accounts/alias/@alice", "")
-		require.Len(t, recorder.attributes, 1)
-		assert.Equal(t, alice.String(), recorder.attributes[0]["accountId"])
-		assert.Equal(t, org.String(), recorder.attributes[0]["organizationId"])
+		require.Len(t, recorder.attributes, 2)
+		assert.Equal(t, map[string]string{"organizationId": org.String(), "ledgerId": ledger.String()}, recorder.attributes[0])
+		assert.Equal(t, alice.String(), recorder.attributes[1]["accountId"])
+		assert.Equal(t, org.String(), recorder.attributes[1]["organizationId"])
 	})
 
-	t.Run("an unknown alias is refused with 422 before any authorization call", func(t *testing.T) {
+	t.Run("an unknown alias is refused with 403 and never asked as an account", func(t *testing.T) {
 		recorder.reset()
 
-		assert.Equal(t, fiber.StatusUnprocessableEntity, send(fiber.MethodGet, base+"/accounts/alias/@ghost", ""))
-		assert.Empty(t, recorder.attributes)
+		assert.Equal(t, fiber.StatusForbidden, send(fiber.MethodGet, base+"/accounts/alias/@ghost", ""))
+		assert.Empty(t, recorder.resolved())
 	})
 
 	t.Run("every leg of a transaction is asked", func(t *testing.T) {
@@ -353,8 +354,8 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 
 		send(fiber.MethodPost, base+"/transactions/"+pending.String()+"/commit", "")
 
-		asked := make([]string, 0, len(recorder.attributes))
-		for _, attrs := range recorder.attributes {
+		asked := make([]string, 0, 2)
+		for _, attrs := range recorder.resolved() {
 			asked = append(asked, attrs["accountId"])
 		}
 
@@ -366,8 +367,10 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 
 		send(fiber.MethodPost, base+"/transactions/json",
 			`{"send":{"asset":"BRL","value":"1","source":{"from":[{"accountAlias":"@alice#default"}]},"distribute":{"to":[{"accountAlias":"@alice"}]}}}`)
-		require.Len(t, recorder.attributes, 1, "two legs naming one account ask once")
-		assert.Equal(t, alice.String(), recorder.attributes[0]["accountId"])
+
+		resolved := recorder.resolved()
+		require.Len(t, resolved, 1, "two legs naming one account ask once")
+		assert.Equal(t, alice.String(), resolved[0]["accountId"])
 	})
 
 	t.Run("a failed lookup is refused with 503", func(t *testing.T) {
@@ -377,8 +380,24 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 		defer func() { fake.err = nil }()
 
 		assert.Equal(t, fiber.StatusServiceUnavailable, send(fiber.MethodGet, base+"/accounts/alias/@alice", ""))
-		assert.Empty(t, recorder.attributes)
+		assert.Empty(t, recorder.resolved())
 	})
+}
+
+// resolved returns the questions that carried a resolved account.
+func (r *allowRecorder) resolved() []map[string]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var out []map[string]string
+
+	for _, attrs := range r.attributes {
+		if _, ok := attrs["accountId"]; ok {
+			out = append(out, attrs)
+		}
+	}
+
+	return out
 }
 
 // allowRecorder stands in for the Access Manager: it allows every question and

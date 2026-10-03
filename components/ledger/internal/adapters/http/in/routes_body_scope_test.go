@@ -218,7 +218,8 @@ func TestBodyScope_V2CreateAsksOncePerDistinctPair(t *testing.T) {
 			want := []map[string]string{legQuestion(org, ledgerA, "@a"), legQuestion(org, ledgerB, "@b"), legQuestion(org, ledgerA, "@c")}
 
 			require.Equalf(t, fiber.StatusNoContent, status, "a body inside the scope must reach the handler: %s", raw)
-			assert.Equal(t, want, authz.asked(), "one question per leg, its alias resolved within its own ledger, in body order")
+			assert.Equal(t, append([]map[string]string{pairQuestion(org, ledgerA), pairQuestion(org, ledgerB)}, want...), authz.asked(),
+				"the credential is first asked about each distinct pair, then each leg with its alias resolved within its own ledger")
 			assert.Equal(t, 1, chain.reached)
 
 			require.True(t, chain.scoped, "a partner request must carry its authorized scope to the handler")
@@ -364,8 +365,11 @@ func TestBodyScope_V2BatchAsksAboutEveryItem(t *testing.T) {
 
 		require.Equalf(t, fiber.StatusNoContent, status, "a batch inside the scope must reach the handler: %s", raw)
 		assert.ElementsMatch(t,
-			[]map[string]string{legQuestion(org, ledgerA, "@a"), legQuestion(org, ledgerB, "@b"), legQuestion(org, ledgerB, "@c"), legQuestion(org, ledgerC, "@d")},
-			authz.asked(), "one question per leg across every item, each alias resolved within its own ledger")
+			[]map[string]string{
+				pairQuestion(org, ledgerA), pairQuestion(org, ledgerB), pairQuestion(org, ledgerC),
+				legQuestion(org, ledgerA, "@a"), legQuestion(org, ledgerB, "@b"), legQuestion(org, ledgerB, "@c"), legQuestion(org, ledgerC, "@d"),
+			},
+			authz.asked(), "each distinct pair, then each leg across every item with its alias resolved within its own ledger")
 		assert.Equal(t, 1, chain.reached)
 	})
 
@@ -377,7 +381,7 @@ func TestBodyScope_V2BatchAsksAboutEveryItem(t *testing.T) {
 
 		assert.Equalf(t, fiber.StatusForbidden, status, "a stray leg anywhere in the batch must refuse it: %s", raw)
 		assert.Zero(t, chain.reached)
-		assert.Contains(t, authz.asked(), legQuestion(org, ledgerC, "@d"), "the stray leg must have been asked about")
+		assert.Contains(t, authz.asked(), pairQuestion(org, ledgerC), "the stray leg's ledger must have been asked about")
 	})
 }
 
@@ -520,6 +524,9 @@ func TestBodyScope_V2SameAliasInTwoLedgersAsksTwoAccounts(t *testing.T) {
 		directBody([]string{leg("@shared", org, ledgerA)}, []string{leg("@shared", org, ledgerB)}))
 
 	require.Equalf(t, fiber.StatusNoContent, status, "%s", raw)
-	assert.Equal(t, []map[string]string{legQuestion(org, ledgerA, "@shared"), legQuestion(org, ledgerB, "@shared")}, authz.asked())
+	assert.Equal(t, []map[string]string{
+		pairQuestion(org, ledgerA), pairQuestion(org, ledgerB),
+		legQuestion(org, ledgerA, "@shared"), legQuestion(org, ledgerB, "@shared"),
+	}, authz.asked())
 	assert.Equal(t, 1, chain.reached)
 }

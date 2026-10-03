@@ -336,6 +336,9 @@ type bodyScopeProbe struct {
 	// resolvedAttributes are the dimensions a resolver translates from the path or
 	// the query. Like the body, they are resolved only for a partner credential.
 	resolvedAttributes map[string]string
+	// resolves reports whether the route resolves any dimension, from any carrier:
+	// a partner is then asked once without the resolved values, before them.
+	resolves bool
 }
 
 // readsBody reports whether the route reads any dimension from its body.
@@ -375,6 +378,10 @@ func bodyScopeProbes(t *testing.T, dims []declaration.DeclarationDimension, valu
 
 		for _, d := range r.Dimensions {
 			value := values[paramOf[d.Name]]
+
+			if d.Resolve != "" {
+				probe.resolves = true
+			}
 
 			switch {
 			case d.From == "body":

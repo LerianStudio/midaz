@@ -185,6 +185,10 @@ func dimensionNames(dims []declaration.DeclarationDimension) []string {
 type scopeRecorder struct {
 	calls      int
 	attributes map[string]string
+	// allowFirst grants the next call and denies every later one, so a route that
+	// resolves a dimension gets past its first question, asked without the resolved
+	// values, and is refused on the question that carries them.
+	allowFirst bool
 }
 
 func newScopeRecorder(t *testing.T) (*scopeRecorder, *httptest.Server) {
@@ -207,10 +211,16 @@ func newScopeRecorder(t *testing.T) (*scopeRecorder, *httptest.Server) {
 		recorder.calls++
 		recorder.attributes = body.Attributes
 
+		answer := `{"authorized":false}`
+		if recorder.allowFirst {
+			recorder.allowFirst = false
+			answer = `{"authorized":true}`
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if _, err := w.Write([]byte(`{"authorized":false}`)); err != nil {
+		if _, err := w.Write([]byte(answer)); err != nil {
 			t.Errorf("scope recorder: write response: %v", err)
 		}
 	}))
@@ -409,6 +419,12 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 		t.Run(group.display(), func(t *testing.T) {
 			before := recorder.calls
 			recorder.attributes = nil
+			recorder.allowFirst = probe.resolves
+
+			wantCalls := 1
+			if probe.resolves {
+				wantCalls = 2
+			}
 
 			req := httptest.NewRequest(group.rows[0].method, probe.url(scopedRouteURL(rawPath, values)), bodyReader(probe.body))
 			if probe.readsBody() {
@@ -424,8 +440,8 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 
 			require.Equalf(t, fiber.StatusForbidden, resp.StatusCode,
 				"%s must reach the authorization service and be denied", group.display())
-			require.Equalf(t, before+1, recorder.calls,
-				"%s must make exactly one authorization call", group.display())
+			require.Equalf(t, before+wantCalls, recorder.calls,
+				"%s must make %d authorization calls", group.display(), wantCalls)
 
 			assert.Equalf(t, want, recorder.attributes,
 				"%s sent the wrong instance identifiers to the authorization service", group.display())
