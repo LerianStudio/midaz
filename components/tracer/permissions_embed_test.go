@@ -176,3 +176,28 @@ func TestTracerManifest_OptsInToPartners(t *testing.T) {
 	require.NoError(t, manifest.Validate())
 	require.True(t, manifest.Partners, "the tracer manifest must opt in to partners")
 }
+
+// TestTracerManifest_EveryPermissionIsTenantLevel pins the tracer as read-only for
+// partners: every permission declares a level, and every one is tenant, so the
+// access manager never grants a partner a tracer write whatever its scope.
+func TestTracerManifest_EveryPermissionIsTenantLevel(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(tracer.TracerManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.NotEmpty(t, manifest.Permissions)
+
+	writes := 0
+
+	for _, permission := range manifest.Permissions {
+		require.Equalf(t, "tenant", permission.Level, "%s %s must be tenant level", permission.Resource, permission.Action)
+
+		if permission.Action != "get" && permission.Action != "head" {
+			writes++
+		}
+	}
+
+	require.Equal(t, 8, writes, "rules and limits post/patch/delete, validations post, reservations post")
+}
