@@ -140,6 +140,29 @@ scope:
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
       dimensions:
         - { name: segmentId, from: body, field: segmentId, optional: true }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions: &accountListQueryDimensions
+        - { name: portfolioId, from: query, field: portfolio_id, optional: true }
+        - { name: segmentId,   from: query, field: segment_id,   optional: true }
+        - { name: holderId,    from: query, field: holder_id,    optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions: *accountListQueryDimensions
+    - method: GET
+      path: /v2/organizations/:organization_id/instruments
+      dimensions:
+        - { name: holderId,  from: query, field: holder_id,  optional: true }
+        - { name: accountId, from: query, field: account_id, optional: true }
+        - { name: ledgerId,  from: query, field: ledger_id,  optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/holders/:holder_id/accounts
+      dimensions:
+        - { name: ledgerId, from: query, field: ledger_id, optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
+      dimensions:
+        - { name: segmentId, from: query, field: segmentId, optional: true }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }

@@ -236,6 +236,25 @@ var wantScopeRoutes = map[string][]string{
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
 		"segmentId<-body:segmentId?",
 	},
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts": accountListQueryCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts": accountListQueryCarriers,
+	"GET /v2/organizations/:organization_id/instruments": {
+		"holderId<-query:holder_id?",
+		"accountId<-query:account_id?",
+		"ledgerId<-query:ledger_id?",
+	},
+	"GET /v2/organizations/:organization_id/holders/:holder_id/accounts": {
+		"ledgerId<-query:ledger_id?",
+	},
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
+		"segmentId<-query:segmentId?",
+	},
+}
+
+var accountListQueryCarriers = []string{
+	"portfolioId<-query:portfolio_id?",
+	"segmentId<-query:segment_id?",
+	"holderId<-query:holder_id?",
 }
 
 var v2CreateBodyCarriers = []string{

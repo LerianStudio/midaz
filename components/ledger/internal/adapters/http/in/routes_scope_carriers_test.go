@@ -298,3 +298,70 @@ func TestScopeCarriers_ScopeRoutesNameMountedRoutes(t *testing.T) {
 		assert.Truef(t, mounted[key], "scope route %s matches no mounted route", key)
 	}
 }
+
+// TestScopeCarriers_ListFiltersJoinTheQuestion drives every list route whose
+// handler applies a scope filter from the query. The filter joins the question,
+// one outside the scope refuses the request, and a list naming no filter is asked
+// about with its path alone.
+func TestScopeCarriers_ListFiltersJoinTheQuestion(t *testing.T) {
+	org, ledgerID, holder := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	inside, outside := uuid.NewString(), uuid.NewString()
+	ledgerPath := "/organizations/" + org + "/ledgers/" + ledgerID
+
+	tests := []struct {
+		name string
+		path string
+		key  string
+		dim  string
+		base map[string]string
+	}{
+		{"v1 accounts by portfolio", "/v1" + ledgerPath + "/accounts", "portfolio_id", "portfolioId", map[string]string{"organizationId": org, "ledgerId": ledgerID}},
+		{"v2 accounts by segment", "/v2" + ledgerPath + "/accounts", "segment_id", "segmentId", map[string]string{"organizationId": org, "ledgerId": ledgerID}},
+		{"v2 accounts by holder", "/v2" + ledgerPath + "/accounts", "holder_id", "holderId", map[string]string{"organizationId": org, "ledgerId": ledgerID}},
+		{"instruments by holder", "/v2/organizations/" + org + "/instruments", "holder_id", "holderId", map[string]string{"organizationId": org}},
+		{"instruments by account", "/v2/organizations/" + org + "/instruments", "account_id", "accountId", map[string]string{"organizationId": org}},
+		{"instruments by ledger", "/v2/organizations/" + org + "/instruments", "ledger_id", "ledgerId", map[string]string{"organizationId": org}},
+		{"holder accounts by ledger", "/v2/organizations/" + org + "/holders/" + holder + "/accounts", "ledger_id", "ledgerId", map[string]string{"organizationId": org, "holderId": holder}},
+		{"fee packages by segment", "/v2" + ledgerPath + "/packages", "segmentId", "segmentId", map[string]string{"organizationId": org, "ledgerId": ledgerID}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name+" inside the scope", func(t *testing.T) {
+			authz, server := newCarrierAuthz(t, outside)
+			app, reached := mountCarrierRoutes(t, server.URL)
+
+			status, raw := sendCarrierRequest(t, app, fiber.MethodGet, tc.path+"?"+tc.key+"="+inside, bodyScopeToken(t, "partner-a"), "")
+
+			require.Equalf(t, fiber.StatusNoContent, status, "%s", raw)
+
+			want := map[string]string{tc.dim: inside}
+			for k, v := range tc.base {
+				want[k] = v
+			}
+
+			assert.Equal(t, []map[string]string{want}, authz.asked())
+			assert.Equal(t, 1, *reached)
+		})
+
+		t.Run(tc.name+" outside the scope", func(t *testing.T) {
+			_, server := newCarrierAuthz(t, outside)
+			app, reached := mountCarrierRoutes(t, server.URL)
+
+			status, raw := sendCarrierRequest(t, app, fiber.MethodGet, tc.path+"?"+tc.key+"="+outside, bodyScopeToken(t, "partner-a"), "")
+
+			assert.Equalf(t, fiber.StatusForbidden, status, "%s", raw)
+			assert.Zero(t, *reached)
+		})
+
+		t.Run(tc.name+" without the filter", func(t *testing.T) {
+			authz, server := newCarrierAuthz(t, outside)
+			app, reached := mountCarrierRoutes(t, server.URL)
+
+			status, raw := sendCarrierRequest(t, app, fiber.MethodGet, tc.path, bodyScopeToken(t, "partner-a"), "")
+
+			require.Equalf(t, fiber.StatusNoContent, status, "%s", raw)
+			assert.Equal(t, []map[string]string{tc.base}, authz.asked())
+			assert.Equal(t, 1, *reached)
+		})
+	}
+}
