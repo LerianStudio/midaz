@@ -69,12 +69,43 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
+// scopeFilters are the query filters a route may authorize, keyed by their
+// lower-cased spelling, with the documented key a refusal names.
+var scopeFilters = map[string]string{"segmentid": "segmentId", "ledgerid": "ledgerId"}
+
 func parseParams(params map[string]string, query *QueryHeader) error {
+	spellings := make(map[string]string, len(scopeFilters))
+
 	for key, value := range params {
+		if err := claimScopeFilter(spellings, key); err != nil {
+			return err
+		}
+
 		if err := parseParam(key, value, query); err != nil {
 			return err
 		}
 	}
+
+	return nil
+}
+
+// claimScopeFilter refuses a scope filter sent in two letter cases. The filter is
+// read case-insensitively, while the authorization guard reads it under its exact
+// key; with two spellings, the value applied would depend on map order and could
+// be one the guard never checked.
+func claimScopeFilter(spellings map[string]string, key string) error {
+	lower := strings.ToLower(key)
+
+	documented, ok := scopeFilters[lower]
+	if !ok {
+		return nil
+	}
+
+	if previous, seen := spellings[lower]; seen && previous != key {
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", documented)
+	}
+
+	spellings[lower] = key
 
 	return nil
 }

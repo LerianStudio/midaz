@@ -552,3 +552,28 @@ func TestQueryHeader_DefaultValues(t *testing.T) {
 	assert.Equal(t, 1, result.Page)
 	assert.Equal(t, "desc", result.SortOrder)
 }
+
+// TestValidateParameters_RefusesAScopeFilterInTwoSpellings sends the segment filter
+// under its documented key and again in another letter case. The route authorizes
+// the documented key only, so the filter applied must not depend on which spelling
+// map order lets win: the request is refused, naming the filter.
+func TestValidateParameters_RefusesAScopeFilterInTwoSpellings(t *testing.T) {
+	t.Parallel()
+
+	inside, outside := uuid.NewString(), uuid.NewString()
+
+	for range 20 {
+		_, err := ValidateParameters(map[string]string{"segmentId": inside, "SEGMENTID": outside})
+
+		require.Error(t, err)
+
+		var ve pkg.ValidationError
+		require.ErrorAs(t, err, &ve)
+		assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), ve.Code)
+		assert.Contains(t, ve.Message, "segmentId")
+	}
+
+	got, err := ValidateParameters(map[string]string{"segmentid": inside})
+	require.NoError(t, err, "one spelling alone is still read")
+	assert.Equal(t, inside, got.SegmentID.String())
+}
