@@ -232,6 +232,7 @@ var wantScopeRoutes = map[string][]string{
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages": {
 		"segmentId<-body:accountTarget.segmentId?",
 		"portfolioId<-body:accountTarget.portfolioId?",
+		"accountId<-body:maintenanceCreditAccount?=>accountByAlias",
 	},
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
 		"segmentId<-body:segmentId?",
@@ -249,7 +250,57 @@ var wantScopeRoutes = map[string][]string{
 	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
 		"segmentId<-query:segmentId?",
 	},
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json":                                      v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation":                                v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block":                                     v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock":                                   v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow":                                    {"accountId<-body:send.distribute.to[].accountAlias=>accountByAlias"},
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow":                                   {"accountId<-body:send.source.from[].accountAlias=>accountByAlias"},
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                            transactionAccountsCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                          transactionAccountsCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit":                    transactionAccountsCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel":                    transactionAccountsCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert":                    transactionAccountsCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id": transactionAccountsCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                    balanceAccountCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                  balanceAccountCarriers,
+	"DELETE /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                 balanceAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history":                            balanceAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias":                                   aliasAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code":                                 externalAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances":                          aliasAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances":                        externalAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                            transactionAccountsCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                          transactionAccountsCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit":                    transactionAccountsCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel":                    transactionAccountsCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert":                    transactionAccountsCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id": transactionAccountsCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                    balanceAccountCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                  balanceAccountCarriers,
+	"DELETE /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                 balanceAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history":                            balanceAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias":                                   aliasAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code":                                 externalAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances":                          aliasAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances":                        externalAccountCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions":                              {"accountId<-body:exceptions[].accountAlias=>accountByAlias"},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect":                                      {"accountId<-body:accountAlias=>accountByAlias"},
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts":                                               {"accountId<-query:account_alias?=>accountByAlias"},
 }
+
+var v1CreateAliasCarriers = []string{
+	"accountId<-body:send.source.from[].accountAlias=>accountByAlias",
+	"accountId<-body:send.distribute.to[].accountAlias=>accountByAlias",
+}
+
+var transactionAccountsCarriers = []string{"accountId<-path:transaction_id=>transactionAccounts"}
+
+var balanceAccountCarriers = []string{"accountId<-path:balance_id=>balanceAccount"}
+
+var aliasAccountCarriers = []string{"accountId<-path:alias=>accountByAlias"}
+
+var externalAccountCarriers = []string{"accountId<-path:code=>externalAccount"}
 
 var accountListQueryCarriers = []string{
 	"portfolioId<-query:portfolio_id?",
@@ -287,12 +338,20 @@ func TestMidazManifest_ScopeRoutesDeclareTheirCarriers(t *testing.T) {
 		key := route.Method + " " + route.Path
 		require.NotContainsf(t, got, key, "route %s is declared twice", key)
 
+		if len(route.Dimensions) == 0 {
+			continue
+		}
+
 		carriers := make([]string, 0, len(route.Dimensions))
 
 		for _, dim := range route.Dimensions {
 			carrier := dim.Name + "<-" + dim.From + ":" + dim.Field
 			if dim.Optional {
 				carrier += "?"
+			}
+
+			if dim.Resolve != "" {
+				carrier += "=>" + dim.Resolve
 			}
 
 			carriers = append(carriers, carrier)
