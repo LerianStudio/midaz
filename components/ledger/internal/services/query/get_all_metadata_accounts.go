@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -27,7 +28,24 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_accounts")
 	defer span.End()
 
-	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccount, filter)
+	// The page is cut in PostgreSQL, over the accounts the metadata matches and the scope
+	// confines, so the metadata read returns every match instead of a page of its own.
+	metadataFilter := filter
+	metadataFilter.UseMetadata = false
+	metadataFilter.EntityIDs = nil
+
+	if allowed, confined := filter.Scope.IDs("accountId"); confined {
+		metadataFilter.EntityIDs = allowed
+	}
+
+	var (
+		metadata []*mongodb.Metadata
+		err      error
+	)
+
+	if !filter.Scope.ListsNothing() {
+		metadata, err = uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccount, metadataFilter)
+	}
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
 		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo", libLog.Err(err))

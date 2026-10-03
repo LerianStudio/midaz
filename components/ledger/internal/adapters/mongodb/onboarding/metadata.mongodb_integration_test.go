@@ -16,6 +16,7 @@ import (
 
 	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -1519,4 +1520,33 @@ func TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips(t *testing
 	}
 
 	assert.Equal(t, "v", nestedK, "nested document value should round-trip")
+}
+
+func TestIntegration_MetadataRepository_FindList_NarrowsToTheEntityIDs(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+	tag := uuid.NewString()
+
+	ids := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	for _, id := range ids {
+		require.NoError(t, repo.Create(ctx, collection, &Metadata{
+			EntityID: id.String(), EntityName: "Account", Data: map[string]any{"tag": tag}, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		}))
+	}
+
+	found, err := repo.FindList(ctx, collection, http.QueryHeader{Metadata: &bson.M{"metadata.tag": tag}, EntityIDs: []uuid.UUID{ids[0], ids[2]}})
+	require.NoError(t, err)
+
+	got := make([]string, 0, len(found))
+	for _, m := range found {
+		got = append(got, m.EntityID)
+	}
+
+	assert.ElementsMatch(t, []string{ids[0].String(), ids[2].String()}, got)
+
+	found, err = repo.FindList(ctx, collection, http.QueryHeader{Metadata: &bson.M{"metadata.tag": tag}, EntityIDs: []uuid.UUID{}})
+	require.NoError(t, err)
+	assert.Empty(t, found, "an empty id list matches nothing")
 }

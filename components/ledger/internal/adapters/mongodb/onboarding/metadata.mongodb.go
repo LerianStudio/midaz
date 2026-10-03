@@ -167,9 +167,26 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 		opts = options.Find().SetLimit(limit).SetSkip(skip)
 	}
 
+	mongoFilter := bson.M{}
+
+	if filter.Metadata != nil {
+		for key, value := range *filter.Metadata {
+			mongoFilter[key] = value
+		}
+	}
+
+	if filter.EntityIDs != nil {
+		entityIDs := make(bson.A, 0, len(filter.EntityIDs))
+		for _, id := range filter.EntityIDs {
+			entityIDs = append(entityIDs, id.String())
+		}
+
+		mongoFilter["entity_id"] = bson.M{"$in": entityIDs}
+	}
+
 	_, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, filter.Metadata, opts)
+	cur, err := coll.Find(ctx, mongoFilter, opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find metadata", err)
 
