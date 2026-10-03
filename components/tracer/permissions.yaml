@@ -43,6 +43,7 @@
 # missing here is not merely undeclared — it stops existing.
 service: tracer
 version: 1
+partners: true
 scope:
   dimensions:
     - { name: ruleId,       from: path, param: rule_id,        required: false, multi: true, collection: rules,        label: "rule" }

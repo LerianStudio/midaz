@@ -164,3 +164,15 @@ func TestTracerManifest_DeclaresTheSeedReservationGrant(t *testing.T) {
 	require.Equal(t, "allow", grants[0].Effect)
 	require.ElementsMatch(t, []string{"editor", "validator", "audit-viewer"}, grants[0].Roles)
 }
+
+// TestTracerManifest_OptsInToPartners pins the opt-in: without it the access
+// manager grants no partner credential access to the tracer.
+func TestTracerManifest_OptsInToPartners(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(tracer.TracerManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.True(t, manifest.Partners, "the tracer manifest must opt in to partners")
+}

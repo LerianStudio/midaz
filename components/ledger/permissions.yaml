@@ -57,6 +57,7 @@
 # seed (see below).
 service: midaz
 version: 1
+partners: true
 scope:
   dimensions:
     - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }

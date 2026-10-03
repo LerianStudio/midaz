@@ -362,3 +362,15 @@ func TestMidazManifest_ScopeRoutesDeclareTheirCarriers(t *testing.T) {
 
 	require.Equal(t, wantScopeRoutes, got, "route-level scope carriers drifted from the declaration")
 }
+
+// TestMidazManifest_OptsInToPartners pins the opt-in: without it the access
+// manager grants no partner credential access to the ledger.
+func TestMidazManifest_OptsInToPartners(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.True(t, manifest.Partners, "the ledger manifest must opt in to partners")
+}
