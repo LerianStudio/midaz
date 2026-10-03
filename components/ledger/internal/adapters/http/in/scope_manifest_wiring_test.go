@@ -25,8 +25,8 @@ func wireManifestScope(t *testing.T, auth *middleware.AuthClient) {
 	t.Helper()
 
 	for _, name := range manifestScopeResolverNames {
-		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) (map[string][]string, error) {
-			t.Errorf("scope resolver %s called for %v on a route these tests do not resolve", in.Resolver, in.Values)
+		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) ([][]string, error) {
+			t.Errorf("scope resolver %s called for %v on a route these tests do not resolve", in.Resolver, in.Items)
 
 			return nil, nil
 		}))

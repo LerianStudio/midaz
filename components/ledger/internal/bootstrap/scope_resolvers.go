@@ -62,47 +62,79 @@ func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeRes
 
 // accountByAlias answers the account of each alias. A balance-key suffix is
 // dropped, as the transaction paths do before resolving an alias.
-func (s scopeResolvers) accountByAlias(ctx context.Context, in middleware.ResolveInput) (map[string][]string, error) {
+func (s scopeResolvers) accountByAlias(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
 	return s.aliasesToAccounts(ctx, in, mtransaction.BareAlias)
 }
 
 // externalAccount answers the external account of each asset code.
-func (s scopeResolvers) externalAccount(ctx context.Context, in middleware.ResolveInput) (map[string][]string, error) {
+func (s scopeResolvers) externalAccount(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
 	return s.aliasesToAccounts(ctx, in, func(code string) string {
 		return constant.DefaultExternalAccountAliasPrefix + code
 	})
 }
 
-func (s scopeResolvers) aliasesToAccounts(ctx context.Context, in middleware.ResolveInput, toAlias func(string) string) (map[string][]string, error) {
-	organizationID, ledgerID, ok, err := confinement(in)
-	if err != nil || !ok {
-		return map[string][]string{}, err
-	}
+// ledgerScope is one organization and ledger a lookup is confined to.
+type ledgerScope struct {
+	organizationID, ledgerID uuid.UUID
+}
 
-	aliasOf := make(map[string]string, len(in.Values))
-	aliases := make([]string, 0, len(in.Values))
-	asked := make(map[string]struct{}, len(in.Values))
+// aliasesToAccounts resolves the items in one read per organization and ledger
+// they are confined to.
+func (s scopeResolvers) aliasesToAccounts(ctx context.Context, in middleware.ResolveInput, toAlias func(string) string) ([][]string, error) {
+	out := make([][]string, len(in.Items))
+	aliasOf := make([]string, len(in.Items))
+	scopeOf := make([]ledgerScope, len(in.Items))
+	resolvable := make([]bool, len(in.Items))
 
-	for _, value := range in.Values {
-		alias := toAlias(value)
-		aliasOf[value] = alias
+	var order []ledgerScope
 
-		if _, dup := asked[alias]; !dup {
-			asked[alias] = struct{}{}
-			aliases = append(aliases, alias)
+	asked := make(map[ledgerScope][]string)
+	seen := make(map[ledgerScope]map[string]struct{})
+
+	for i, item := range in.Items {
+		organizationID, ledgerID, ok, err := confinement(item, in.Known)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ok {
+			continue
+		}
+
+		scope := ledgerScope{organizationID: organizationID, ledgerID: ledgerID}
+		alias := toAlias(item.Value)
+
+		aliasOf[i], scopeOf[i], resolvable[i] = alias, scope, true
+
+		if _, known := seen[scope]; !known {
+			seen[scope] = make(map[string]struct{})
+			order = append(order, scope)
+		}
+
+		if _, dup := seen[scope][alias]; !dup {
+			seen[scope][alias] = struct{}{}
+			asked[scope] = append(asked[scope], alias)
 		}
 	}
 
-	resolution, err := s.resolver.AccountIDsByAlias(ctx, organizationID, ledgerID, aliases)
-	if err != nil {
-		return nil, err
+	resolved := make(map[ledgerScope]map[string]uuid.UUID, len(order))
+
+	for _, scope := range order {
+		resolution, err := s.resolver.AccountIDsByAlias(ctx, scope.organizationID, scope.ledgerID, asked[scope])
+		if err != nil {
+			return nil, err
+		}
+
+		resolved[scope] = resolution.AccountIDs
 	}
 
-	out := make(map[string][]string, len(in.Values))
+	for i := range in.Items {
+		if !resolvable[i] {
+			continue
+		}
 
-	for _, value := range in.Values {
-		if id, found := resolution.AccountIDs[aliasOf[value]]; found {
-			out[value] = []string{id.String()}
+		if id, found := resolved[scopeOf[i]][aliasOf[i]]; found {
+			out[i] = []string{id.String()}
 		}
 	}
 
@@ -110,14 +142,14 @@ func (s scopeResolvers) aliasesToAccounts(ctx context.Context, in middleware.Res
 }
 
 // transactionAccounts answers the accounts of every leg of each transaction.
-func (s scopeResolvers) transactionAccounts(ctx context.Context, in middleware.ResolveInput) (map[string][]string, error) {
+func (s scopeResolvers) transactionAccounts(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
 	return s.byID(ctx, in, func(ctx context.Context, organizationID, ledgerID, id uuid.UUID) ([]uuid.UUID, bool, error) {
 		return s.resolver.AccountIDsOfTransaction(ctx, organizationID, ledgerID, id)
 	})
 }
 
 // balanceAccount answers the account that owns each balance.
-func (s scopeResolvers) balanceAccount(ctx context.Context, in middleware.ResolveInput) (map[string][]string, error) {
+func (s scopeResolvers) balanceAccount(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
 	return s.byID(ctx, in, func(ctx context.Context, organizationID, ledgerID, id uuid.UUID) ([]uuid.UUID, bool, error) {
 		accountID, found, err := s.resolver.AccountIDOfBalance(ctx, organizationID, ledgerID, id)
 
@@ -127,24 +159,24 @@ func (s scopeResolvers) balanceAccount(ctx context.Context, in middleware.Resolv
 
 type idLookup func(ctx context.Context, organizationID, ledgerID, id uuid.UUID) ([]uuid.UUID, bool, error)
 
-// byID resolves each value that is a uuid; one that is not names nothing.
-func (s scopeResolvers) byID(ctx context.Context, in middleware.ResolveInput, lookup idLookup) (map[string][]string, error) {
-	organizationID, ledgerID, ok, err := confinement(in)
-	if err != nil || !ok {
-		return map[string][]string{}, err
-	}
+// byID resolves each item that is a uuid; one that is not names nothing.
+func (s scopeResolvers) byID(ctx context.Context, in middleware.ResolveInput, lookup idLookup) ([][]string, error) {
+	out := make([][]string, len(in.Items))
 
-	out := make(map[string][]string, len(in.Values))
+	for i, item := range in.Items {
+		organizationID, ledgerID, ok, err := confinement(item, in.Known)
+		if err != nil {
+			return nil, err
+		}
 
-	for _, value := range in.Values {
-		id, isUUID := parseUUID(value)
-		if !isUUID {
+		id, isUUID := parseUUID(item.Value)
+		if !ok || !isUUID {
 			continue
 		}
 
 		accountIDs, found, err := lookup(ctx, organizationID, ledgerID, id)
 		if err != nil {
-			return nil, fmt.Errorf("resolve %s %s: %w", in.Dimension, value, err)
+			return nil, fmt.Errorf("resolve %s %s: %w", in.Dimension, item.Value, err)
 		}
 
 		if !found {
@@ -156,25 +188,42 @@ func (s scopeResolvers) byID(ctx context.Context, in middleware.ResolveInput, lo
 			resolved = append(resolved, accountID.String())
 		}
 
-		out[value] = resolved
+		out[i] = resolved
 	}
 
 	return out, nil
 }
 
-// confinement reads the one organization and one ledger the request names. ok is
-// false when they are named but are not uuids: no record can live there, so
-// nothing resolves.
-func confinement(in middleware.ResolveInput) (organizationID, ledgerID uuid.UUID, ok bool, err error) {
-	organizations, ledgers := in.Known["organizationId"], in.Known["ledgerId"]
-	if len(organizations) != 1 || len(ledgers) != 1 {
+// confinement reads the one organization and one ledger an item is looked up in:
+// those of its own body element first, else the ones the request names directly.
+// ok is false when they are named but are not uuids: no record can live there, so
+// the item resolves to nothing.
+func confinement(item middleware.ResolveItem, known map[string][]string) (organizationID, ledgerID uuid.UUID, ok bool, err error) {
+	organization, hasOrganization := single(item.Siblings, known, "organizationId")
+	ledger, hasLedger := single(item.Siblings, known, "ledgerId")
+
+	if !hasOrganization || !hasLedger {
 		return uuid.Nil, uuid.Nil, false, errScopeResolverUnconfined
 	}
 
-	organizationID, orgOK := parseUUID(organizations[0])
-	ledgerID, ledgerOK := parseUUID(ledgers[0])
+	organizationID, orgOK := parseUUID(organization)
+	ledgerID, ledgerOK := parseUUID(ledger)
 
 	return organizationID, ledgerID, orgOK && ledgerOK, nil
+}
+
+// single is the one value of a dimension an item names, from its siblings or
+// else from the request; false when there is none or more than one.
+func single(siblings map[string]string, known map[string][]string, dimension string) (string, bool) {
+	if value, named := siblings[dimension]; named {
+		return value, true
+	}
+
+	if values := known[dimension]; len(values) == 1 {
+		return values[0], true
+	}
+
+	return "", false
 }
 
 func parseUUID(value string) (uuid.UUID, bool) {

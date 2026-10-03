@@ -83,10 +83,15 @@ func (f *fakeScopeResolver) AccountIDOfBalance(_ context.Context, organizationID
 }
 
 func resolveInput(org, ledger uuid.UUID, values ...string) middleware.ResolveInput {
+	items := make([]middleware.ResolveItem, 0, len(values))
+	for _, value := range values {
+		items = append(items, middleware.ResolveItem{Value: value})
+	}
+
 	return middleware.ResolveInput{
 		Product:   "midaz",
 		Dimension: "accountId",
-		Values:    values,
+		Items:     items,
 		Known: map[string][]string{
 			"organizationId": {org.String()},
 			"ledgerId":       {ledger.String()},
@@ -98,26 +103,35 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 	org, ledger := uuid.New(), uuid.New()
 	alice, bob := uuid.New(), uuid.New()
 
-	t.Run("each alias answers its account, keyed by the value the request carried", func(t *testing.T) {
+	t.Run("each alias answers its account, one entry per item in order", func(t *testing.T) {
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice, "@bob": bob}}
 
 		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@alice", "@bob#savings", "0#@alice#default"))
 		require.NoError(t, err)
-		assert.Equal(t, map[string][]string{
-			"@alice":           {alice.String()},
-			"@bob#savings":     {bob.String()},
-			"0#@alice#default": {alice.String()},
-		}, out)
+		assert.Equal(t, [][]string{{alice.String()}, {bob.String()}, {alice.String()}}, out)
 		assert.Equal(t, [][]string{{"@alice", "@bob"}}, fake.aliasCalls, "one batched lookup of the bare aliases")
 		assert.Equal(t, [][2]uuid.UUID{{org, ledger}}, fake.scopes, "confined to the organization and ledger of the path")
 	})
 
-	t.Run("an alias no live account holds is left out, so the request is refused naming it", func(t *testing.T) {
+	t.Run("an alias no live account holds maps to nothing, so the request is refused naming it", func(t *testing.T) {
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice}}
 
 		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@alice", "@ghost"))
 		require.NoError(t, err)
-		assert.Equal(t, map[string][]string{"@alice": {alice.String()}}, out)
+		assert.Equal(t, [][]string{{alice.String()}, nil}, out)
+	})
+
+	t.Run("a body leg is looked up in the organization and ledger its own element names", func(t *testing.T) {
+		otherOrg, otherLedger := uuid.New(), uuid.New()
+		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice}}
+
+		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{Items: []middleware.ResolveItem{
+			{Value: "@alice", Siblings: map[string]string{"organizationId": org.String(), "ledgerId": ledger.String()}},
+			{Value: "@alice", Siblings: map[string]string{"organizationId": otherOrg.String(), "ledgerId": otherLedger.String()}},
+		}})
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{alice.String()}, {alice.String()}}, out)
+		assert.Equal(t, [][2]uuid.UUID{{org, ledger}, {otherOrg, otherLedger}}, fake.scopes, "one lookup per ledger the legs name")
 	})
 
 	t.Run("a lookup failure is an error", func(t *testing.T) {
@@ -127,7 +141,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("a request naming no single organization and ledger cannot be confined", func(t *testing.T) {
+	t.Run("an item naming no single organization and ledger cannot be confined", func(t *testing.T) {
 		fake := &fakeScopeResolver{}
 
 		for name, known := range map[string]map[string][]string{
@@ -137,7 +151,9 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 			"no organization": {"ledgerId": {ledger.String()}},
 		} {
 			t.Run(name, func(t *testing.T) {
-				_, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{Values: []string{"@alice"}, Known: known})
+				_, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{
+					Items: []middleware.ResolveItem{{Value: "@alice"}}, Known: known,
+				})
 				require.ErrorIs(t, err, errScopeResolverUnconfined)
 			})
 		}
@@ -145,15 +161,14 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 		assert.Empty(t, fake.aliasCalls, "no lookup runs without a confinement")
 	})
 
-	t.Run("a path coordinate that is not a uuid resolves nothing", func(t *testing.T) {
+	t.Run("a coordinate that is not a uuid resolves nothing", func(t *testing.T) {
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice}}
 
 		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{
-			Values: []string{"@alice"},
-			Known:  map[string][]string{"organizationId": {"not-a-uuid"}, "ledgerId": {ledger.String()}},
+			Items: []middleware.ResolveItem{{Value: "@alice", Siblings: map[string]string{"organizationId": "not-a-uuid", "ledgerId": ledger.String()}}},
 		})
 		require.NoError(t, err)
-		assert.Empty(t, out)
+		assert.Equal(t, [][]string{nil}, out)
 		assert.Empty(t, fake.aliasCalls)
 	})
 }
@@ -166,7 +181,7 @@ func TestScopeResolvers_ExternalAccount(t *testing.T) {
 
 	out, err := scopeResolvers{fake}.externalAccount(context.Background(), resolveInput(org, ledger, "BRL", "USD"))
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]string{"BRL": {external.String()}}, out)
+	assert.Equal(t, [][]string{{external.String()}, nil}, out)
 	assert.Equal(t, [][]string{{"@external/BRL", "@external/USD"}}, fake.aliasCalls)
 }
 
@@ -175,16 +190,13 @@ func TestScopeResolvers_TransactionAccounts(t *testing.T) {
 	pending, settled, unknown := uuid.New(), uuid.New(), uuid.New()
 	a, b, c := uuid.New(), uuid.New(), uuid.New()
 
-	t.Run("every transaction answers the accounts of its legs; an unknown one is left out", func(t *testing.T) {
+	t.Run("every transaction answers the accounts of its legs; an unknown one maps to nothing", func(t *testing.T) {
 		fake := &fakeScopeResolver{transactions: map[uuid.UUID][]uuid.UUID{pending: {a, b}, settled: {a, b, c}}}
 
 		out, err := scopeResolvers{fake}.transactionAccounts(context.Background(),
 			resolveInput(org, ledger, pending.String(), settled.String(), unknown.String(), "not-a-uuid"))
 		require.NoError(t, err)
-		assert.Equal(t, map[string][]string{
-			pending.String(): {a.String(), b.String()},
-			settled.String(): {a.String(), b.String(), c.String()},
-		}, out)
+		assert.Equal(t, [][]string{{a.String(), b.String()}, {a.String(), b.String(), c.String()}, nil, nil}, out)
 		assert.Equal(t, []uuid.UUID{pending, settled, unknown}, fake.transaction, "a value that is not a uuid is never looked up")
 	})
 
@@ -204,7 +216,7 @@ func TestScopeResolvers_BalanceAccount(t *testing.T) {
 
 	out, err := scopeResolvers{fake}.balanceAccount(context.Background(), resolveInput(org, ledger, balance.String(), unknown.String()))
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]string{balance.String(): {account.String()}}, out)
+	assert.Equal(t, [][]string{{account.String()}, nil}, out)
 
 	fake.err = errors.New("replica down")
 
@@ -219,7 +231,7 @@ func TestScopeResolvers_RegisteredUnderTheManifestNames(t *testing.T) {
 	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}), "a second registration under the same names is refused")
 
 	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount} {
-		assert.Error(t, auth.RegisterScopeResolver(name, func(context.Context, middleware.ResolveInput) (map[string][]string, error) { return nil, nil }),
+		assert.Error(t, auth.RegisterScopeResolver(name, func(context.Context, middleware.ResolveInput) ([][]string, error) { return nil, nil }),
 			"%s must already be registered", name)
 	}
 }
@@ -249,10 +261,10 @@ func wireProbeAuthScope(t *testing.T, auth *middleware.AuthClient) {
 	account := probeResolvedAccount(t)
 
 	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount} {
-		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) (map[string][]string, error) {
-			out := make(map[string][]string, len(in.Values))
-			for _, value := range in.Values {
-				out[value] = []string{account}
+		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) ([][]string, error) {
+			out := make([][]string, len(in.Items))
+			for i := range in.Items {
+				out[i] = []string{account}
 			}
 
 			return out, nil
