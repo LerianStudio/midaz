@@ -101,3 +101,23 @@ func TestTracerLists_ConfinedToThePartnerScope(t *testing.T) {
 		assert.Nil(t, tracerListScope(context.Background(), tracerListScopeDimensions...))
 	})
 }
+
+// TestTracerLists_AbsentDimensionIsUnrestricted pins the two readings of an allowed
+// answer: a dimension the authorization service leaves out confines nothing, and one
+// it answers with an empty list confines to nothing.
+func TestTracerLists_AbsentDimensionIsUnrestricted(t *testing.T) {
+	account := uuid.New()
+
+	t.Run("only accountId answered: the other dimensions confine nothing", func(t *testing.T) {
+		ctx := tracerPartnerContext(t, `,"allowed":{"accountId":["`+account.String()+`"]}`, tracerListScopeDimensions...)
+		assert.Equal(t, pkgHTTP.ScopeConfinement{"accountId": {account}}, tracerListScope(ctx, tracerListScopeDimensions...))
+	})
+
+	t.Run("an empty answer confines to nothing", func(t *testing.T) {
+		ctx := tracerPartnerContext(t, `,"allowed":{"merchantId":[]}`, tracerListScopeDimensions...)
+
+		scope := tracerListScope(ctx, tracerListScopeDimensions...)
+		assert.Equal(t, pkgHTTP.ScopeConfinement{"merchantId": {}}, scope)
+		assert.True(t, scope.ListsNothing())
+	})
+}

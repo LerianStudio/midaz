@@ -121,3 +121,17 @@ func TestListScope(t *testing.T) {
 		assert.Nil(t, listScope(context.Background(), "accountId"))
 	})
 }
+
+// TestListScope_AbsentDimensionIsUnrestricted pins, through the real guard, that a
+// filtered dimension the authorization service leaves out of its answer confines
+// nothing, while one answered with an empty list confines to nothing.
+func TestListScope_AbsentDimensionIsUnrestricted(t *testing.T) {
+	ledgerID := uuid.New()
+
+	got := listScopeThroughGuard(t, `,"allowed":{"ledgerId":["`+ledgerID.String()+`"]}`, partnerListToken(t), scopeDimensionLedger, scopeDimensionAccount)
+	assert.Equal(t, pkgHTTP.ScopeConfinement{"ledgerId": {ledgerID}}, got, "accountId, left out, confines nothing")
+
+	got = listScopeThroughGuard(t, `,"allowed":{"accountId":[]}`, partnerListToken(t), scopeDimensionLedger, scopeDimensionAccount)
+	assert.Equal(t, pkgHTTP.ScopeConfinement{"accountId": {}}, got)
+	assert.True(t, got.ListsNothing(), "an empty answer confines to nothing")
+}
