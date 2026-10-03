@@ -374,3 +374,59 @@ func TestMidazManifest_OptsInToPartners(t *testing.T) {
 	require.NoError(t, manifest.Validate())
 	require.True(t, manifest.Partners, "the ledger manifest must opt in to partners")
 }
+
+// wantPermissionLevels pins how wide one instance of each resource is, which the
+// access manager uses to refuse a partner a write wider than its scope.
+var wantPermissionLevels = map[string]string{
+	"organizations":            "tenant",
+	"settings":                 "tenant",
+	"streaming-manifest":       "tenant",
+	"ledgers":                  "organization",
+	"holders":                  "organization",
+	"encryption":               "organization",
+	"protection":               "organization",
+	"operation-routes":         "organization",
+	"transaction-routes":       "organization",
+	"account-types":            "ledger",
+	"assets":                   "ledger",
+	"asset-rates":              "ledger",
+	"portfolios":               "ledger",
+	"segments":                 "ledger",
+	"packages":                 "ledger",
+	"billing-packages":         "ledger",
+	"billing-calculate":        "ledger",
+	"estimates":                "ledger",
+	"dashboard":                "ledger",
+	"accounts":                 "accountId",
+	"balances":                 "accountId",
+	"transactions":             "accountId",
+	"operations":               "accountId",
+	"fee-debts":                "accountId",
+	"account-block-exceptions": "accountId",
+	"instruments":              "accountId",
+}
+
+// TestMidazManifest_EveryPermissionDeclaresItsLevel requires a level on every
+// permission line, the same for every action of a resource, and pins it.
+func TestMidazManifest_EveryPermissionDeclaresItsLevel(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+
+	got := make(map[string]string)
+
+	for _, permission := range manifest.Permissions {
+		require.NotEmptyf(t, permission.Level, "%s %s declares no level", permission.Resource, permission.Action)
+
+		if previous, seen := got[permission.Resource]; seen {
+			require.Equalf(t, previous, permission.Level, "%s declares two levels", permission.Resource)
+		}
+
+		got[permission.Resource] = permission.Level
+	}
+
+	require.Equal(t, wantPermissionLevels, got)
+}
