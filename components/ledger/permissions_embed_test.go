@@ -234,6 +234,7 @@ var wantScopeRoutes = map[string][]string{
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages": {
 		"segmentId<-body:accountTarget.segmentId?",
 		"portfolioId<-body:accountTarget.portfolioId?",
+		"accountId<-body:accountTarget.aliases[]?=>accountByAlias",
 		"accountId<-body:maintenanceCreditAccount?=>accountByAlias",
 	},
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {

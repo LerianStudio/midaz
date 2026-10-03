@@ -141,6 +141,7 @@ scope:
       dimensions:
         - { name: segmentId,   from: body, field: accountTarget.segmentId,   optional: true }
         - { name: portfolioId, from: body, field: accountTarget.portfolioId, optional: true }
+        - { name: accountId,   from: body, field: "accountTarget.aliases[]", optional: true, resolve: accountByAlias }
         - { name: accountId,   from: body, field: maintenanceCreditAccount,  optional: true, resolve: accountByAlias }
     - method: POST
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages

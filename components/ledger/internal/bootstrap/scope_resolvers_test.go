@@ -292,8 +292,10 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 	alice, source, destination := uuid.New(), uuid.New(), uuid.New()
 	pending := uuid.New()
 
+	bob, carol := uuid.New(), uuid.New()
+
 	fake := &fakeScopeResolver{
-		aliases:      map[string]uuid.UUID{"@alice": alice},
+		aliases:      map[string]uuid.UUID{"@alice": alice, "@bob": bob, "@carol": carol},
 		transactions: map[uuid.UUID][]uuid.UUID{pending: {source, destination}},
 	}
 
@@ -376,6 +378,21 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 		resolved := recorder.resolved()
 		require.Len(t, resolved, 1, "two legs naming one account ask once")
 		assert.Equal(t, alice.String(), resolved[0]["accountId"])
+	})
+
+	t.Run("every target alias and the maintenance credit account of a billing package is asked", func(t *testing.T) {
+		recorder.reset()
+
+		v2 := "/v2/organizations/" + org.String() + "/ledgers/" + ledger.String()
+		send(fiber.MethodPost, v2+"/billing-packages",
+			`{"accountTarget":{"aliases":["@alice","@bob"]},"maintenanceCreditAccount":"@carol"}`)
+
+		asked := make([]string, 0, 3)
+		for _, attrs := range recorder.resolved() {
+			asked = append(asked, attrs["accountId"])
+		}
+
+		assert.ElementsMatch(t, []string{alice.String(), bob.String(), carol.String()}, asked)
 	})
 
 	t.Run("a failed lookup is refused with 503", func(t *testing.T) {
