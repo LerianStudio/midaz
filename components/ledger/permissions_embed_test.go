@@ -204,8 +204,10 @@ var wantScopeRoutes = map[string][]string{
 	"POST /v2/transactions/batch": {
 		"organizationId<-body:transactions[].debits[].organizationId",
 		"ledgerId<-body:transactions[].debits[].ledgerId",
+		"accountId<-body:transactions[].debits[].alias=>accountByAlias",
 		"organizationId<-body:transactions[].credits[].organizationId",
 		"ledgerId<-body:transactions[].credits[].ledgerId",
+		"accountId<-body:transactions[].credits[].alias=>accountByAlias",
 	},
 	"POST /v2/organizations/:organization_id/holders/:holder_id/instruments": {
 		"ledgerId<-body:ledgerId",
@@ -311,8 +313,10 @@ var accountListQueryCarriers = []string{
 var v2CreateBodyCarriers = []string{
 	"organizationId<-body:debits[].organizationId",
 	"ledgerId<-body:debits[].ledgerId",
+	"accountId<-body:debits[].alias=>accountByAlias",
 	"organizationId<-body:credits[].organizationId",
 	"ledgerId<-body:credits[].ledgerId",
+	"accountId<-body:credits[].alias=>accountByAlias",
 }
 
 var accountUpdateBodyCarriers = []string{

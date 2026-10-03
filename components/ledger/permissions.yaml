@@ -88,8 +88,10 @@ scope:
       dimensions: &v2CreateBodyDimensions
         - { name: organizationId, from: body, field: "debits[].organizationId" }
         - { name: ledgerId,       from: body, field: "debits[].ledgerId" }
+        - { name: accountId,      from: body, field: "debits[].alias", resolve: accountByAlias }
         - { name: organizationId, from: body, field: "credits[].organizationId" }
         - { name: ledgerId,       from: body, field: "credits[].ledgerId" }
+        - { name: accountId,      from: body, field: "credits[].alias", resolve: accountByAlias }
     - { method: POST, path: /v2/transactions/hold,    dimensions: *v2CreateBodyDimensions }
     - { method: POST, path: /v2/transactions/block,   dimensions: *v2CreateBodyDimensions }
     - { method: POST, path: /v2/transactions/unblock, dimensions: *v2CreateBodyDimensions }
@@ -98,8 +100,10 @@ scope:
       dimensions:
         - { name: organizationId, from: body, field: "transactions[].debits[].organizationId" }
         - { name: ledgerId,       from: body, field: "transactions[].debits[].ledgerId" }
+        - { name: accountId,      from: body, field: "transactions[].debits[].alias", resolve: accountByAlias }
         - { name: organizationId, from: body, field: "transactions[].credits[].organizationId" }
         - { name: ledgerId,       from: body, field: "transactions[].credits[].ledgerId" }
+        - { name: accountId,      from: body, field: "transactions[].credits[].alias", resolve: accountByAlias }
     - method: POST
       path: /v2/organizations/:organization_id/holders/:holder_id/instruments
       dimensions:

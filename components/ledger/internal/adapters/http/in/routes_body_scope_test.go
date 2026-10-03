@@ -187,10 +187,16 @@ func pairQuestion(organizationID, ledgerID string) map[string]string {
 	return map[string]string{"organizationId": organizationID, "ledgerId": ledgerID}
 }
 
+// legQuestion is the question one leg asks: its organization and ledger, and the
+// account its alias resolves to within that ledger.
+func legQuestion(organizationID, ledgerID, alias string) map[string]string {
+	return map[string]string{"organizationId": organizationID, "ledgerId": ledgerID, "accountId": legAccount(ledgerID, alias)}
+}
+
 // TestBodyScope_V2CreateAsksOncePerDistinctPair drives every v2 create action with
 // legs spread over two ledgers of one organization, all inside the partner's scope.
-// The body names three legs but two distinct (organization, ledger) pairs, so the
-// guard asks exactly two questions and lets the request through.
+// Each leg asks about its organization, its ledger and the account its alias
+// resolves to within that ledger, and the guard lets the request through.
 //
 // NOT parallel: libProblem.Install swaps a process-global huma.NewError hook.
 func TestBodyScope_V2CreateAsksOncePerDistinctPair(t *testing.T) {
@@ -209,14 +215,15 @@ func TestBodyScope_V2CreateAsksOncePerDistinctPair(t *testing.T) {
 
 			status, raw := postBodyScope(t, app, "/v2/transactions/"+action, bodyScopeToken(t, "partner-a"), body)
 
+			want := []map[string]string{legQuestion(org, ledgerA, "@a"), legQuestion(org, ledgerB, "@b"), legQuestion(org, ledgerA, "@c")}
+
 			require.Equalf(t, fiber.StatusNoContent, status, "a body inside the scope must reach the handler: %s", raw)
-			assert.Equal(t, []map[string]string{pairQuestion(org, ledgerA), pairQuestion(org, ledgerB)}, authz.asked(),
-				"one question per distinct pair, in body order")
+			assert.Equal(t, want, authz.asked(), "one question per leg, its alias resolved within its own ledger, in body order")
 			assert.Equal(t, 1, chain.reached)
 
 			require.True(t, chain.scoped, "a partner request must carry its authorized scope to the handler")
 			assert.Equal(t, "partner-a", chain.scope.Partner)
-			assert.Equal(t, []map[string]string{pairQuestion(org, ledgerA), pairQuestion(org, ledgerB)}, chain.scope.Sets)
+			assert.Equal(t, want, chain.scope.Sets)
 			assert.Equal(t, map[string]string{"organizationId": org}, chain.scope.Attributes,
 				"only the identifier every set shares is a request-wide attribute")
 			assert.JSONEq(t, body, string(chain.body), "the handler must read the body untouched")
@@ -258,7 +265,12 @@ func TestBodyScope_V2CreateRefusesALegOutsideTheScope(t *testing.T) {
 
 			assert.Equalf(t, fiber.StatusForbidden, status, "a leg outside the scope must refuse the request: %s", raw)
 			assert.Zero(t, chain.reached, "nothing behind the guard may run on a refused request")
-			assert.Len(t, authz.asked(), 2, "the stray pair must have been asked about")
+
+			asked := authz.asked()
+			require.NotEmpty(t, asked)
+			last := asked[len(asked)-1]
+			assert.Falsef(t, last["organizationId"] == org && last["ledgerId"] == ledgerIn,
+				"the refusal must come from the stray leg, asked last: %v", last)
 		})
 	}
 }
@@ -352,8 +364,8 @@ func TestBodyScope_V2BatchAsksAboutEveryItem(t *testing.T) {
 
 		require.Equalf(t, fiber.StatusNoContent, status, "a batch inside the scope must reach the handler: %s", raw)
 		assert.ElementsMatch(t,
-			[]map[string]string{pairQuestion(org, ledgerA), pairQuestion(org, ledgerB), pairQuestion(org, ledgerC)},
-			authz.asked(), "one question per distinct pair across every item")
+			[]map[string]string{legQuestion(org, ledgerA, "@a"), legQuestion(org, ledgerB, "@b"), legQuestion(org, ledgerB, "@c"), legQuestion(org, ledgerC, "@d")},
+			authz.asked(), "one question per leg across every item, each alias resolved within its own ledger")
 		assert.Equal(t, 1, chain.reached)
 	})
 
@@ -365,7 +377,7 @@ func TestBodyScope_V2BatchAsksAboutEveryItem(t *testing.T) {
 
 		assert.Equalf(t, fiber.StatusForbidden, status, "a stray leg anywhere in the batch must refuse it: %s", raw)
 		assert.Zero(t, chain.reached)
-		assert.Contains(t, authz.asked(), pairQuestion(org, ledgerC), "the stray pair must have been asked about")
+		assert.Contains(t, authz.asked(), legQuestion(org, ledgerC, "@d"), "the stray leg must have been asked about")
 	})
 }
 
@@ -492,4 +504,22 @@ func TestBodyScope_TenantCredentialIsUnchanged(t *testing.T) {
 			assert.Equal(t, tc.body, string(chain.body), "the handler must read the body untouched")
 		})
 	}
+}
+
+// TestBodyScope_V2SameAliasInTwoLedgersAsksTwoAccounts names one alias on two legs of
+// different ledgers: each resolves within its own leg's ledger, so the guard asks
+// about two accounts, not one.
+func TestBodyScope_V2SameAliasInTwoLedgersAsksTwoAccounts(t *testing.T) {
+	org := uuid.NewString()
+	ledgerA, ledgerB := uuid.NewString(), uuid.NewString()
+
+	authz, server := newBodyScopeAuthz(t, [2]string{org, ledgerA}, [2]string{org, ledgerB})
+	app, chain := mountBodyScopeV2(t, server.URL)
+
+	status, raw := postBodyScope(t, app, "/v2/transactions/direct", bodyScopeToken(t, "partner-a"),
+		directBody([]string{leg("@shared", org, ledgerA)}, []string{leg("@shared", org, ledgerB)}))
+
+	require.Equalf(t, fiber.StatusNoContent, status, "%s", raw)
+	assert.Equal(t, []map[string]string{legQuestion(org, ledgerA, "@shared"), legQuestion(org, ledgerB, "@shared")}, authz.asked())
+	assert.Equal(t, 1, chain.reached)
 }
