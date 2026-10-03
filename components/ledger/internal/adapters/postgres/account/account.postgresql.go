@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/scopefilter"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -85,6 +86,14 @@ func accountColumns(withHolder bool) []string {
 		holderCheckSkipped,
 		"closed_at",
 	}
+}
+
+// accountScopeColumns are the columns a list of accounts is confined on, per
+// scope dimension.
+var accountScopeColumns = map[string]string{
+	"accountId":   "id",
+	"portfolioId": "portfolio_id",
+	"segmentId":   "segment_id",
 }
 
 // ErrAccountCloseNotApplied reports that a conditional close matched no row: the
@@ -150,12 +159,18 @@ type Repository interface {
 	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
 	// type external for the given asset code within the organization and ledger.
 	ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error)
-	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
+	// Count counts the live accounts of the ledger the scope confinement lets a
+	// scoped credential see; a nil confinement counts them all.
+	Count(ctx context.Context, organizationID, ledgerID uuid.UUID, scope http.ScopeConfinement) (int64, error)
 	// CountByHolderID returns the number of non-deleted accounts owned by the
 	// holder within the organization, across all ledgers. It backs the CRM
 	// holder-delete ownership guard, so it counts only active (deleted_at IS NULL)
 	// accounts; soft-deleted accounts no longer pin the holder.
 	CountByHolderID(ctx context.Context, organizationID, holderID uuid.UUID) (int64, error)
+	// ListHolderIDs returns the distinct holders of the organization's live
+	// accounts within scope, which confines on ledgerId and accountId. A nil scope
+	// lists every holder that owns a live account.
+	ListHolderIDs(ctx context.Context, organizationID uuid.UUID, scope http.ScopeConfinement) ([]uuid.UUID, error)
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -464,7 +479,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
 	}
 
-	findAll = applyAccountListFilters(findAll, filter).
+	findAll = scopefilter.Where(applyAccountListFilters(findAll, filter), filter.Scope, accountScopeColumns).
 		OrderBy(accountListOrderBy(filter)...).
 		Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
@@ -1666,7 +1681,7 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 }
 
 // Count retrieves the count of accounts from the database.
-func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID, scope http.ScopeConfinement) (int64, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_accounts")
@@ -1681,11 +1696,11 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 		return count, err
 	}
 
-	builder := squirrel.Select("COUNT(*)").
+	builder := scopefilter.Where(squirrel.Select("COUNT(*)").
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("deleted_at IS NULL")), scope, accountScopeColumns).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := builder.ToSql()

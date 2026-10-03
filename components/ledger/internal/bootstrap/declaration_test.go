@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -296,4 +297,130 @@ func TestValidateDeclarationConfig_NamesOnlyTheMissingFields(t *testing.T) {
 	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_ID")
 	assert.NotContains(t, err.Error(), "IDP_HOST", "a field that is set must not be reported missing")
 	assert.NotContains(t, err.Error(), "shhh", "the secret VALUE must never reach the error")
+}
+
+// scopeOnlyIdentity stands in for the identity service and forwards the body of
+// every PUT it receives, so a test can read what a scope-only publisher sent.
+func scopeOnlyIdentity(t *testing.T) (*httptest.Server, <-chan map[string]any) {
+	t.Helper()
+
+	bodies := make(chan map[string]any, 64)
+
+	identity := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
+
+		if r.Method == http.MethodPut {
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("identity stub: decode body: %v", err)
+			}
+
+			select {
+			case bodies <- body:
+			default:
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	return identity, bodies
+}
+
+// drainWithin runs every stop hook off-thread and fails when they do not return in
+// time, so a publisher that cannot be stopped is a reported failure.
+func drainWithin(t *testing.T, stops []func(), timeout time.Duration) {
+	t.Helper()
+
+	drained := make(chan struct{})
+
+	go func() {
+		for _, s := range stops {
+			s()
+		}
+
+		close(drained)
+	}()
+
+	select {
+	case <-drained:
+	case <-time.After(timeout):
+		t.Fatal("declaration publisher stop() did not return")
+	}
+}
+
+// TestBuildDeclarationPublishers_AuthOnDeclarationOff_PublishesTheScopeAlone pins
+// that the scope catalog reaches the identity service whenever auth is on, even with
+// the permission declaration off — and that only the scope does: the permission,
+// role and m2m sections stay out of the body, so the access manager keeps what it
+// already holds for them.
+func TestBuildDeclarationPublishers_AuthOnDeclarationOff_PublishesTheScopeAlone(t *testing.T) {
+	const waitFor = 10 * time.Second
+
+	identity, bodies := scopeOnlyIdentity(t)
+	defer identity.Close()
+
+	cfg := &Config{
+		AuthEnabled:        true,
+		DeclarationEnabled: false,
+		IDPHost:            identity.URL,
+		IDPM2MClientID:     "dummy-client-id",
+		IDPM2MClientSecret: "dummy-client-secret",
+	}
+
+	stops, err := buildDeclarationPublishers(cfg, fixedTokenMinter{}, libLog.NewNop())
+	require.NoError(t, err)
+	require.Len(t, stops, 1, "auth on must start the scope-only publisher")
+
+	var body map[string]any
+
+	select {
+	case body = <-bodies:
+	case <-time.After(waitFor):
+		drainWithin(t, stops, waitFor)
+		t.Fatal("the scope-only publisher never reached the identity service")
+	}
+
+	drainWithin(t, stops, waitFor)
+
+	assert.Equal(t, "midaz", body["service"])
+	assert.Contains(t, body, "scope", "the scope section must be published")
+	assert.NotContains(t, body, "permissions", "the permission section must stay out of a scope-only publication")
+	assert.NotContains(t, body, "roles", "the role section must stay out of a scope-only publication")
+	assert.NotContains(t, body, "m2m", "the m2m section must stay out of a scope-only publication")
+}
+
+// TestBuildDeclarationPublishers_AuthOnDeclarationOff_NeverFailsTheBoot pins the
+// scope-only failure policy: a deployment that cannot publish the catalog keeps
+// booting and starts no publisher. That covers missing IdP settings and a SaaS
+// deployment whose IdP host is cleartext, where publishing would ship the M2M
+// credential unencrypted.
+func TestBuildDeclarationPublishers_AuthOnDeclarationOff_NeverFailsTheBoot(t *testing.T) {
+	rows := []struct {
+		name string
+		cfg  *Config
+	}{
+		{
+			name: "IdP settings missing",
+			cfg:  &Config{AuthEnabled: true},
+		},
+		{
+			name: "SaaS with a cleartext IdP host",
+			cfg: &Config{
+				AuthEnabled:        true,
+				DeploymentMode:     "saas",
+				IDPHost:            "http://identity.invalid",
+				IDPM2MClientID:     "dummy-client-id",
+				IDPM2MClientSecret: "dummy-client-secret",
+			},
+		},
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			stops, err := buildDeclarationPublishers(row.cfg, stubTokenMinter{}, libLog.NewNop())
+			require.NoError(t, err, "the scope-only path must never fail the boot")
+			assert.Empty(t, stops, "no publisher may start when the catalog cannot be published")
+		})
+	}
 }

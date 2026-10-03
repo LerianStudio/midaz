@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // validAuditEventSortFields defines allowed sort columns.
@@ -64,6 +65,11 @@ type AuditEventFilters struct {
 	Cursor    string
 	SortBy    string
 	SortOrder string
+
+	// Scope confines the list to the values a scoped credential may see, per
+	// scope dimension. It is set from the authorization decision, never from
+	// the query.
+	Scope http.ScopeConfinement
 }
 
 // ListAuditEventsResult represents paginated audit event results.

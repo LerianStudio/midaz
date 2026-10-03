@@ -110,6 +110,8 @@ func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationI
 
 	recordSafeQueryAttributes(span, headerParams)
 
+	headerParams.Scope = listScope(ctx, accountListScopeDimensions...)
+
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
@@ -268,7 +270,7 @@ func (handler *AccountHandler) countAccounts(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
 
-	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID)
+	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID, listScope(ctx, accountListScopeDimensions...))
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts", err)
 

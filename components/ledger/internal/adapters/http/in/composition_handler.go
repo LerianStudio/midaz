@@ -44,7 +44,7 @@ var secCompositionBearer = []map[string][]string{
 	{"BearerAuth": {}},
 }
 
-// --- POST /holders/{id}/accounts ----------------------------------------------
+// --- POST /holders/{holder_id}/accounts --------------------------------------
 
 // CreateHolderAccountRequest is the Huma request envelope for POST. RawBody keeps
 // the body out of Huma's validator; the org/ledger/holder path params are validated
@@ -53,7 +53,7 @@ var secCompositionBearer = []map[string][]string{
 type CreateHolderAccountRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Holder ID (UUID)"`
+	ID             string `path:"holder_id" doc:"Holder ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token (forwarded to the composed account-create use case)"`
 	RawBody        []byte `contentType:"application/json"`
 }
@@ -72,7 +72,7 @@ func (handler *CompositionHandler) CreateHolderAccount(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	holderID, err := parsePathUUID(in.ID, "id")
+	holderID, err := parsePathUUID(in.ID, "holder_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -104,7 +104,7 @@ func RegisterCompositionRoutes(api huma.API, h *CompositionHandler, opSuffix str
 	huma.Register(api, huma.Operation{
 		OperationID: "createHolderAccount" + opSuffix,
 		Method:      http.MethodPost,
-		Path:        "/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts",
+		Path:        "/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts",
 		Summary:     "Open a holder-owned account (with optional instrument)",
 		Tags:        []string{"Composition"},
 		Security:    secCompositionBearer,

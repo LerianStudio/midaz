@@ -240,6 +240,21 @@ func (mr *MockRepositoryMockRecorder) HasPendingByAccount(ctx, organizationID, l
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasPendingByAccount", reflect.TypeOf((*MockRepository)(nil).HasPendingByAccount), ctx, organizationID, ledgerID, accountID)
 }
 
+// ListAccountRefsByTransaction mocks base method.
+func (m *MockRepository) ListAccountRefsByTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*AccountRefs, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAccountRefsByTransaction", ctx, organizationID, ledgerID, transactionID)
+	ret0, _ := ret[0].(*AccountRefs)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAccountRefsByTransaction indicates an expected call of ListAccountRefsByTransaction.
+func (mr *MockRepositoryMockRecorder) ListAccountRefsByTransaction(ctx, organizationID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountRefsByTransaction", reflect.TypeOf((*MockRepository)(nil).ListAccountRefsByTransaction), ctx, organizationID, ledgerID, transactionID)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
 	m.ctrl.T.Helper()

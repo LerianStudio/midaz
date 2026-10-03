@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/scopefilter"
 	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -162,6 +163,11 @@ func (am *MongoDBRepository) buildInstrumentFilter(ctx context.Context, organiza
 
 // appendBasicFilters adds non-encrypted field filters to the filter.
 func (am *MongoDBRepository) appendBasicFilters(filter bson.D, query http.QueryHeader) bson.D {
+	filter = scopefilter.Apply(filter, query.Scope, map[string]scopefilter.Field{
+		"ledgerId":  {Name: "ledger_id", AsString: true},
+		"accountId": {Name: "account_id", AsString: true},
+	})
+
 	if !libCommons.IsNilOrEmpty(query.AccountID) {
 		filter = append(filter, bson.E{Key: "account_id", Value: *query.AccountID})
 	}

@@ -40,26 +40,26 @@ type CreateLimitOutputHuma struct {
 	Body   *model.Limit
 }
 
-// GetLimitInputHuma is the Huma request envelope for GET /v1/limits/{id}.
+// GetLimitInputHuma is the Huma request envelope for GET /v1/limits/{limit_id}.
 type GetLimitInputHuma struct {
-	ID string `path:"id" doc:"Limit ID (UUID)"`
+	ID string `path:"limit_id" doc:"Limit ID (UUID)"`
 }
 
-// GetLimitOutputHuma is the Huma response envelope for GET /v1/limits/{id}.
+// GetLimitOutputHuma is the Huma response envelope for GET /v1/limits/{limit_id}.
 type GetLimitOutputHuma struct {
 	Status int
 	Body   *model.Limit
 }
 
-// UpdateLimitInputHuma is the Huma request envelope for PATCH /v1/limits/{id}.
+// UpdateLimitInputHuma is the Huma request envelope for PATCH /v1/limits/{limit_id}.
 // The body is taken raw so the core's immutable-field map-probe +
 // UpdateLimitInput.Validate()/IsEmpty() stay the sole validators.
 type UpdateLimitInputHuma struct {
-	ID      string `path:"id" doc:"Limit ID (UUID)"`
+	ID      string `path:"limit_id" doc:"Limit ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
-// UpdateLimitOutputHuma is the Huma response envelope for PATCH /v1/limits/{id}.
+// UpdateLimitOutputHuma is the Huma response envelope for PATCH /v1/limits/{limit_id}.
 type UpdateLimitOutputHuma struct {
 	Status int
 	Body   *model.Limit
@@ -184,7 +184,7 @@ type ListLimitsOutputHuma struct {
 // LimitIDInputHuma is the shared Huma request envelope for the id-only,
 // body-less lifecycle ops (activate/deactivate/draft) plus get-usage.
 type LimitIDInputHuma struct {
-	ID string `path:"id" doc:"Limit ID (UUID)"`
+	ID string `path:"limit_id" doc:"Limit ID (UUID)"`
 }
 
 // LimitOutputHuma is the shared 200 response envelope for the lifecycle ops.
@@ -194,14 +194,14 @@ type LimitOutputHuma struct {
 }
 
 // GetLimitUsageOutputHuma is the Huma response envelope for GET
-// /v1/limits/{id}/usage.
+// /v1/limits/{limit_id}/usage.
 type GetLimitUsageOutputHuma struct {
 	Status int
 	Body   *model.UsageSnapshot
 }
 
 // DeleteLimitOutputHuma is the Huma response envelope for DELETE
-// /v1/limits/{id}. It has NO Body field: paired with DefaultStatus:204 Huma
+// /v1/limits/{limit_id}. It has NO Body field: paired with DefaultStatus:204 Huma
 // emits a bodiless 204, matching the Fiber http.NoContent path.
 type DeleteLimitOutputHuma struct{}
 
@@ -215,7 +215,7 @@ func (h *LimitHandler) CreateLimitHuma(ctx context.Context, in *CreateLimitInput
 	return &CreateLimitOutputHuma{Status: http.StatusCreated, Body: result}, nil
 }
 
-// GetLimitHuma is the Huma handler for GET /v1/limits/{id}.
+// GetLimitHuma is the Huma handler for GET /v1/limits/{limit_id}.
 func (h *LimitHandler) GetLimitHuma(ctx context.Context, in *GetLimitInputHuma) (*GetLimitOutputHuma, error) {
 	result, err := h.getLimit(ctx, in.ID)
 	if err != nil {
@@ -225,7 +225,7 @@ func (h *LimitHandler) GetLimitHuma(ctx context.Context, in *GetLimitInputHuma) 
 	return &GetLimitOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// UpdateLimitHuma is the Huma handler for PATCH /v1/limits/{id}.
+// UpdateLimitHuma is the Huma handler for PATCH /v1/limits/{limit_id}.
 func (h *LimitHandler) UpdateLimitHuma(ctx context.Context, in *UpdateLimitInputHuma) (*UpdateLimitOutputHuma, error) {
 	result, err := h.updateLimit(ctx, in.ID, in.RawBody)
 	if err != nil {
@@ -245,7 +245,7 @@ func (h *LimitHandler) ListLimitsHuma(ctx context.Context, in *ListLimitsInputHu
 	return &ListLimitsOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// ActivateLimitHuma is the Huma handler for POST /v1/limits/{id}/activate.
+// ActivateLimitHuma is the Huma handler for POST /v1/limits/{limit_id}/activate.
 func (h *LimitHandler) ActivateLimitHuma(ctx context.Context, in *LimitIDInputHuma) (*LimitOutputHuma, error) {
 	result, err := h.activateLimit(ctx, in.ID)
 	if err != nil {
@@ -255,7 +255,7 @@ func (h *LimitHandler) ActivateLimitHuma(ctx context.Context, in *LimitIDInputHu
 	return &LimitOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// DeactivateLimitHuma is the Huma handler for POST /v1/limits/{id}/deactivate.
+// DeactivateLimitHuma is the Huma handler for POST /v1/limits/{limit_id}/deactivate.
 func (h *LimitHandler) DeactivateLimitHuma(ctx context.Context, in *LimitIDInputHuma) (*LimitOutputHuma, error) {
 	result, err := h.deactivateLimit(ctx, in.ID)
 	if err != nil {
@@ -265,7 +265,7 @@ func (h *LimitHandler) DeactivateLimitHuma(ctx context.Context, in *LimitIDInput
 	return &LimitOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// DraftLimitHuma is the Huma handler for POST /v1/limits/{id}/draft.
+// DraftLimitHuma is the Huma handler for POST /v1/limits/{limit_id}/draft.
 func (h *LimitHandler) DraftLimitHuma(ctx context.Context, in *LimitIDInputHuma) (*LimitOutputHuma, error) {
 	result, err := h.draftLimit(ctx, in.ID)
 	if err != nil {
@@ -275,7 +275,7 @@ func (h *LimitHandler) DraftLimitHuma(ctx context.Context, in *LimitIDInputHuma)
 	return &LimitOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// DeleteLimitHuma is the Huma handler for DELETE /v1/limits/{id}. On success it
+// DeleteLimitHuma is the Huma handler for DELETE /v1/limits/{limit_id}. On success it
 // returns an empty DeleteLimitOutputHuma; paired with DefaultStatus:204 Huma
 // emits a bodiless 204.
 func (h *LimitHandler) DeleteLimitHuma(ctx context.Context, in *LimitIDInputHuma) (*DeleteLimitOutputHuma, error) {
@@ -286,7 +286,7 @@ func (h *LimitHandler) DeleteLimitHuma(ctx context.Context, in *LimitIDInputHuma
 	return &DeleteLimitOutputHuma{}, nil
 }
 
-// GetLimitUsageHuma is the Huma handler for GET /v1/limits/{id}/usage.
+// GetLimitUsageHuma is the Huma handler for GET /v1/limits/{limit_id}/usage.
 func (h *LimitHandler) GetLimitUsageHuma(ctx context.Context, in *LimitIDInputHuma) (*GetLimitUsageOutputHuma, error) {
 	result, err := h.getLimitUsage(ctx, in.ID)
 	if err != nil {
@@ -314,7 +314,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getLimit",
 		Method:      http.MethodGet,
-		Path:        "/limits/{id}",
+		Path:        "/limits/{limit_id}",
 		Summary:     "Get a spending limit by ID",
 		Tags:        []string{"Limits"},
 		Security:    secBearerOrAPIKey,
@@ -332,7 +332,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateLimit",
 		Method:           http.MethodPatch,
-		Path:             "/limits/{id}",
+		Path:             "/limits/{limit_id}",
 		Summary:          "Partially update an existing spending limit",
 		Tags:             []string{"Limits"},
 		Security:         secBearerOrAPIKey,
@@ -342,7 +342,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "activateLimit",
 		Method:      http.MethodPost,
-		Path:        "/limits/{id}/activate",
+		Path:        "/limits/{limit_id}/activate",
 		Summary:     "Activate a spending limit",
 		Tags:        []string{"Limits"},
 		Security:    secBearerOrAPIKey,
@@ -351,7 +351,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "deactivateLimit",
 		Method:      http.MethodPost,
-		Path:        "/limits/{id}/deactivate",
+		Path:        "/limits/{limit_id}/deactivate",
 		Summary:     "Deactivate a spending limit",
 		Tags:        []string{"Limits"},
 		Security:    secBearerOrAPIKey,
@@ -360,7 +360,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "draftLimit",
 		Method:      http.MethodPost,
-		Path:        "/limits/{id}/draft",
+		Path:        "/limits/{limit_id}/draft",
 		Summary:     "Transition a limit back to draft",
 		Tags:        []string{"Limits"},
 		Security:    secBearerOrAPIKey,
@@ -369,7 +369,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "deleteLimit",
 		Method:        http.MethodDelete,
-		Path:          "/limits/{id}",
+		Path:          "/limits/{limit_id}",
 		Summary:       "Delete a spending limit",
 		Tags:          []string{"Limits"},
 		Security:      secBearerOrAPIKey,
@@ -379,7 +379,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getLimitUsage",
 		Method:      http.MethodGet,
-		Path:        "/limits/{id}/usage",
+		Path:        "/limits/{limit_id}/usage",
 		Summary:     "Get usage snapshot for a limit",
 		Tags:        []string{"Limits"},
 		Security:    secBearerOrAPIKey,

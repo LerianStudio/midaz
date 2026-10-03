@@ -32,6 +32,7 @@ import (
 
 	pgoperation "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/scopefilter"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -466,11 +467,11 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		}
 	}
 
-	findAll := squirrel.Select(balanceColumnList...).
+	findAll := scopefilter.Where(squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.Eq{"deleted_at": nil}), filter.Scope, map[string]string{"accountId": "account_id"}).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if !filter.StartDate.IsZero() {

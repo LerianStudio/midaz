@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
@@ -57,11 +58,14 @@ import (
 //   - Server-side BOLA rejection, arriving as a *declaration.PublishError on the
 //     async publish path.
 //
-// DeclarationEnabled=false returns (nil, nil) immediately — no validation, no
-// publisher, no goroutine, no runnable. While that flag still exists it is the
-// switch that says whether this deployment is on RI at all, so a deployment that
-// has not adopted RI must boot untouched. When the flag is retired and RI is the
-// only path, the validation becomes unconditional (lmap #5163).
+// DeclarationEnabled=false never fails the boot. While that flag still exists it
+// is the switch that says whether this deployment declares its permissions at all,
+// so a deployment that has not adopted RI boots without the permission sections.
+// The scope catalog is the exception: it is published whenever auth is on (see
+// buildScopePublisher), because the identity provider validates partner scopes
+// against it. With auth off as well, it returns (nil, nil) — no validation, no
+// publisher, no goroutine, no runnable. When the flag is retired and RI is the only
+// path, the validation becomes unconditional (lmap #5163).
 //
 // The secret VALUE is NEVER logged, span-attached, serialized, or included in any
 // returned error. Only the NAMES of empty env vars are reported (names are not
@@ -74,7 +78,7 @@ import (
 // before it is dereferenced, so callers may pass nil there.
 func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) ([]func(), error) {
 	if !cfg.DeclarationEnabled {
-		return nil, nil
+		return buildScopePublisher(cfg, authClient, logger), nil
 	}
 
 	if err := validateDeclarationConfig(cfg); err != nil {
@@ -138,6 +142,18 @@ func drainStops(stops []func()) {
 // required IdP settings are empty. The error names the empty env vars only —
 // never any value, and never the secret.
 func validateDeclarationConfig(cfg *Config) error {
+	missing := missingDeclarationConfig(cfg)
+	if len(missing) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"IDP_DECLARATION_ENABLED=true but the required IdP configuration is empty: %s",
+		strings.Join(missing, ","))
+}
+
+// missingDeclarationConfig names the required IdP settings that are empty.
+func missingDeclarationConfig(cfg *Config) []string {
 	missing := make([]string, 0, 3)
 
 	if cfg.IDPHost == "" {
@@ -152,13 +168,60 @@ func validateDeclarationConfig(cfg *Config) error {
 		missing = append(missing, "IDP_M2M_CLIENT_SECRET")
 	}
 
-	if len(missing) == 0 {
+	return missing
+}
+
+// buildScopePublisher publishes the manifest's scope section alone, for a
+// deployment whose permission declaration is off. It runs only when auth is on: the
+// catalog exists for the authorization the deployment enforces.
+//
+// It never fails the boot. The catalog is what the identity provider validates
+// partner scope writes against; a deployment that cannot publish it keeps serving,
+// and the reason is logged at ERROR. A SaaS deployment with a cleartext IDP_HOST is
+// one such reason — publishing would ship the M2M credential unencrypted.
+func buildScopePublisher(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) []func() {
+	if !cfg.AuthEnabled {
 		return nil
 	}
 
-	return fmt.Errorf(
-		"IDP_DECLARATION_ENABLED=true but the required IdP configuration is empty: %s",
-		strings.Join(missing, ","))
+	ctx := context.Background()
+
+	notPublished := func(reason error) []func() {
+		logger.Log(ctx, libLog.LevelError, "Scope catalog not published; partner scopes for midaz cannot be validated until it is",
+			libLog.Err(reason))
+
+		return nil
+	}
+
+	if missing := missingDeclarationConfig(cfg); len(missing) > 0 {
+		return notPublished(fmt.Errorf("PLUGIN_AUTH_ENABLED=true but the required IdP configuration is empty: %s",
+			strings.Join(missing, ",")))
+	}
+
+	if err := ValidateSaaSDeclarationTLS(cfg.DeploymentMode, true, cfg.IDPHost); err != nil {
+		return notPublished(err)
+	}
+
+	publisher, err := declaration.New(declaration.Config{
+		Slug:         "midaz",
+		Manifest:     ledgerembed.MidazManifest,
+		IdentityAddr: cfg.IDPHost,
+		Auth:         authClient,
+		ClientID:     cfg.IDPM2MClientID,
+		ClientSecret: cfg.IDPM2MClientSecret,
+		Logger:       logger,
+		ScopeOnly:    true,
+	})
+	if err != nil {
+		return notPublished(err)
+	}
+
+	stop, err := publisher.Start(ctx)
+	if err != nil {
+		return notPublished(err)
+	}
+
+	return []func(){stop}
 }
 
 // declarationPublisherRunnable adapts the RI declaration publishers' stop hooks to
@@ -190,4 +253,12 @@ func (r *declarationPublisherRunnable) Run(_ *libCommons.Launcher) error {
 	}
 
 	return nil
+}
+
+// wireAuthScope hands the embedded manifest's scope catalog to the auth client, so
+// every midaz Authorize guard derives the organization and ledger it sends from its
+// own route path. It must run BEFORE any route is registered: Authorize reads the
+// catalog at registration, and a route registered first sends no instance at all.
+func wireAuthScope(auth *middleware.AuthClient) error {
+	return declaration.WireScope(auth, ledgerembed.MidazManifest)
 }

@@ -454,7 +454,7 @@
         ]
       }
     },
-    "/v1/organizations/{id}": {
+    "/v1/organizations/{organization_id}": {
       "delete": {
         "deprecated": true,
         "operationId": "deleteOrganization",
@@ -462,7 +462,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -522,7 +522,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -589,7 +589,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -1421,7 +1421,7 @@
         ]
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}": {
       "delete": {
         "deprecated": true,
         "operationId": "deleteAccountType",
@@ -1449,7 +1449,7 @@
           {
             "description": "Account Type ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "account_type_id",
             "required": true,
             "schema": {
               "description": "Account Type ID (UUID)",
@@ -1529,7 +1529,7 @@
           {
             "description": "Account Type ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "account_type_id",
             "required": true,
             "schema": {
               "description": "Account Type ID (UUID)",
@@ -1616,7 +1616,7 @@
           {
             "description": "Account Type ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "account_type_id",
             "required": true,
             "schema": {
               "description": "Account Type ID (UUID)",
@@ -2442,6 +2442,283 @@
         ]
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}": {
+      "delete": {
+        "deprecated": true,
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
+        "operationId": "deleteAccount",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token (forwarded to the service)",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token (forwarded to the service)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v1)"
+        ]
+      },
+      "get": {
+        "deprecated": true,
+        "operationId": "getAccountByID",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Retrieve a specific account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v1)"
+        ]
+      },
+      "patch": {
+        "deprecated": true,
+        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command.",
+        "operationId": "updateAccount",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v1)"
+        ]
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
         "deprecated": true,
@@ -3068,283 +3345,6 @@
         "summary": "Get Operation",
         "tags": [
           "Midaz_Ledger_API_Operations (v1)"
-        ]
-      }
-    },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
-      "delete": {
-        "deprecated": true,
-        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
-        "operationId": "deleteAccount",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ledger ID (UUID)",
-            "in": "path",
-            "name": "ledger_id",
-            "required": true,
-            "schema": {
-              "description": "Ledger ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Account ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Account ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Bearer token (forwarded to the service)",
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "description": "Bearer token (forwarded to the service)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Delete an account",
-        "tags": [
-          "Midaz_Ledger_API_Accounts (v1)"
-        ]
-      },
-      "get": {
-        "deprecated": true,
-        "operationId": "getAccountByID",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ledger ID (UUID)",
-            "in": "path",
-            "name": "ledger_id",
-            "required": true,
-            "schema": {
-              "description": "Ledger ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Account ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Account ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Account"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Retrieve a specific account",
-        "tags": [
-          "Midaz_Ledger_API_Accounts (v1)"
-        ]
-      },
-      "patch": {
-        "deprecated": true,
-        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command.",
-        "operationId": "updateAccount",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ledger ID (UUID)",
-            "in": "path",
-            "name": "ledger_id",
-            "required": true,
-            "schema": {
-              "description": "Ledger ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Account ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Account ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAccountInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Account"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LegacyError"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Update an account",
-        "tags": [
-          "Midaz_Ledger_API_Accounts (v1)"
         ]
       }
     },
@@ -3979,7 +3979,7 @@
         ]
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}": {
       "delete": {
         "deprecated": true,
         "operationId": "deleteAsset",
@@ -4007,7 +4007,7 @@
           {
             "description": "Asset ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "asset_id",
             "required": true,
             "schema": {
               "description": "Asset ID (UUID)",
@@ -4087,7 +4087,7 @@
           {
             "description": "Asset ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "asset_id",
             "required": true,
             "schema": {
               "description": "Asset ID (UUID)",
@@ -4174,7 +4174,7 @@
           {
             "description": "Asset ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "asset_id",
             "required": true,
             "schema": {
               "description": "Asset ID (UUID)",
@@ -5852,7 +5852,7 @@
         ]
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}": {
       "delete": {
         "deprecated": true,
         "operationId": "deletePortfolio",
@@ -5880,7 +5880,7 @@
           {
             "description": "Portfolio ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "portfolio_id",
             "required": true,
             "schema": {
               "description": "Portfolio ID (UUID)",
@@ -5960,7 +5960,7 @@
           {
             "description": "Portfolio ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "portfolio_id",
             "required": true,
             "schema": {
               "description": "Portfolio ID (UUID)",
@@ -6047,7 +6047,7 @@
           {
             "description": "Portfolio ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "portfolio_id",
             "required": true,
             "schema": {
               "description": "Portfolio ID (UUID)",
@@ -6407,7 +6407,7 @@
         ]
       }
     },
-    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}": {
       "delete": {
         "deprecated": true,
         "operationId": "deleteSegment",
@@ -6435,7 +6435,7 @@
           {
             "description": "Segment ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "segment_id",
             "required": true,
             "schema": {
               "description": "Segment ID (UUID)",
@@ -6515,7 +6515,7 @@
           {
             "description": "Segment ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "segment_id",
             "required": true,
             "schema": {
               "description": "Segment ID (UUID)",
@@ -6602,7 +6602,7 @@
           {
             "description": "Segment ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "segment_id",
             "required": true,
             "schema": {
               "description": "Segment ID (UUID)",
@@ -9319,14 +9319,14 @@
         ]
       }
     },
-    "/v2/organizations/{id}": {
+    "/v2/organizations/{organization_id}": {
       "delete": {
         "operationId": "deleteOrganizationV2",
         "parameters": [
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -9385,7 +9385,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -9451,7 +9451,7 @@
           {
             "description": "Organization ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "organization_id",
             "required": true,
             "schema": {
               "description": "Organization ID (UUID)",
@@ -9920,6 +9920,377 @@
           }
         ],
         "summary": "Create a Holder",
+        "tags": [
+          "Midaz_Ledger_API_Holders (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{holder_id}": {
+      "delete": {
+        "operationId": "deleteHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "hard_delete",
+            "schema": {
+              "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a Holder",
+        "tags": [
+          "Midaz_Ledger_API_Holders (v2)"
+        ]
+      },
+      "get": {
+        "operationId": "getHolderByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Returns the holder even if it was logically deleted (true,false)",
+            "explode": false,
+            "in": "query",
+            "name": "include_deleted",
+            "schema": {
+              "description": "Returns the holder even if it was logically deleted (true,false)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Holder"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Retrieve Holder details",
+        "tags": [
+          "Midaz_Ledger_API_Holders (v2)"
+        ]
+      },
+      "patch": {
+        "operationId": "updateHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHolderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Holder"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a Holder",
+        "tags": [
+          "Midaz_Ledger_API_Holders (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/holders/{holder_id}/accounts": {
+      "get": {
+        "operationId": "listAccountsByHolderV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Holder ID (UUID)",
+            "in": "path",
+            "name": "holder_id",
+            "required": true,
+            "schema": {
+              "description": "Holder ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max items per page (1-100, default 10)",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Max items per page (1-100, default 10)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number (default 1)",
+            "explode": false,
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "description": "Page number (default 1)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc, desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "description": "Sort direction (asc, desc)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.",
+            "explode": false,
+            "in": "query",
+            "name": "ledger_id",
+            "schema": {
+              "description": "Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagination"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List Accounts by Holder",
         "tags": [
           "Midaz_Ledger_API_Holders (v2)"
         ]
@@ -10411,377 +10782,6 @@
         "summary": "Delete a Related Party",
         "tags": [
           "Midaz_Ledger_API_Instruments (v2)"
-        ]
-      }
-    },
-    "/v2/organizations/{organization_id}/holders/{id}": {
-      "delete": {
-        "operationId": "deleteHolderV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Holder ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Holder ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
-            "explode": false,
-            "in": "query",
-            "name": "hard_delete",
-            "schema": {
-              "description": "Use only to perform a physical deletion of the data. This action is irreversible. (true,false)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Delete a Holder",
-        "tags": [
-          "Midaz_Ledger_API_Holders (v2)"
-        ]
-      },
-      "get": {
-        "operationId": "getHolderByIDV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Holder ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Holder ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Returns the holder even if it was logically deleted (true,false)",
-            "explode": false,
-            "in": "query",
-            "name": "include_deleted",
-            "schema": {
-              "description": "Returns the holder even if it was logically deleted (true,false)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Holder"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Retrieve Holder details",
-        "tags": [
-          "Midaz_Ledger_API_Holders (v2)"
-        ]
-      },
-      "patch": {
-        "operationId": "updateHolderV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Holder ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Holder ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateHolderInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Holder"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Update a Holder",
-        "tags": [
-          "Midaz_Ledger_API_Holders (v2)"
-        ]
-      }
-    },
-    "/v2/organizations/{organization_id}/holders/{id}/accounts": {
-      "get": {
-        "operationId": "listAccountsByHolderV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Holder ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Holder ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Max items per page (1-100, default 10)",
-            "explode": false,
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "description": "Max items per page (1-100, default 10)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Page number (default 1)",
-            "explode": false,
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "description": "Page number (default 1)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Sort direction (asc, desc)",
-            "explode": false,
-            "in": "query",
-            "name": "sort_order",
-            "schema": {
-              "description": "Sort direction (asc, desc)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.",
-            "explode": false,
-            "in": "query",
-            "name": "ledger_id",
-            "schema": {
-              "description": "Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Pagination"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "List Accounts by Holder",
-        "tags": [
-          "Midaz_Ledger_API_Holders (v2)"
         ]
       }
     },
@@ -11696,7 +11696,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}": {
       "delete": {
         "operationId": "deleteAccountTypeV2",
         "parameters": [
@@ -11723,7 +11723,7 @@
           {
             "description": "Account Type ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "account_type_id",
             "required": true,
             "schema": {
               "description": "Account Type ID (UUID)",
@@ -11802,7 +11802,7 @@
           {
             "description": "Account Type ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "account_type_id",
             "required": true,
             "schema": {
               "description": "Account Type ID (UUID)",
@@ -11888,7 +11888,7 @@
           {
             "description": "Account Type ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "account_type_id",
             "required": true,
             "schema": {
               "description": "Account Type ID (UUID)",
@@ -12796,6 +12796,280 @@
         ]
       }
     },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}": {
+      "delete": {
+        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
+        "operationId": "deleteAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bearer token (forwarded to the service)",
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "description": "Bearer token (forwarded to the service)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v2)"
+        ]
+      },
+      "get": {
+        "operationId": "getAccountByIDV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountV2"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Retrieve a specific account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v2)"
+        ]
+      },
+      "patch": {
+        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command.",
+        "operationId": "updateAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountV2"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v2)"
+        ]
+      }
+    },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
         "operationId": "getAllBalancesByAccountIDV2",
@@ -13502,280 +13776,6 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
-      "delete": {
-        "description": "Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.",
-        "operationId": "deleteAccountV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ledger ID (UUID)",
-            "in": "path",
-            "name": "ledger_id",
-            "required": true,
-            "schema": {
-              "description": "Ledger ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Account ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Account ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Bearer token (forwarded to the service)",
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "description": "Bearer token (forwarded to the service)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Delete an account",
-        "tags": [
-          "Midaz_Ledger_API_Accounts (v2)"
-        ]
-      },
-      "get": {
-        "operationId": "getAccountByIDV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ledger ID (UUID)",
-            "in": "path",
-            "name": "ledger_id",
-            "required": true,
-            "schema": {
-              "description": "Ledger ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Account ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Account ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountV2"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Retrieve a specific account",
-        "tags": [
-          "Midaz_Ledger_API_Accounts (v2)"
-        ]
-      },
-      "patch": {
-        "description": "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command.",
-        "operationId": "updateAccountV2",
-        "parameters": [
-          {
-            "description": "Organization ID (UUID)",
-            "in": "path",
-            "name": "organization_id",
-            "required": true,
-            "schema": {
-              "description": "Organization ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ledger ID (UUID)",
-            "in": "path",
-            "name": "ledger_id",
-            "required": true,
-            "schema": {
-              "description": "Ledger ID (UUID)",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Account ID (UUID)",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Account ID (UUID)",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAccountInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountV2"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Update an account",
-        "tags": [
-          "Midaz_Ledger_API_Accounts (v2)"
-        ]
-      }
-    },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
       "get": {
         "operationId": "listAssetsV2",
@@ -14071,7 +14071,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}": {
       "delete": {
         "operationId": "deleteAssetV2",
         "parameters": [
@@ -14098,7 +14098,7 @@
           {
             "description": "Asset ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "asset_id",
             "required": true,
             "schema": {
               "description": "Asset ID (UUID)",
@@ -14177,7 +14177,7 @@
           {
             "description": "Asset ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "asset_id",
             "required": true,
             "schema": {
               "description": "Asset ID (UUID)",
@@ -14263,7 +14263,7 @@
           {
             "description": "Asset ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "asset_id",
             "required": true,
             "schema": {
               "description": "Asset ID (UUID)",
@@ -15018,7 +15018,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}": {
       "delete": {
         "operationId": "deleteBillingPackageV2",
         "parameters": [
@@ -15045,7 +15045,7 @@
           {
             "description": "BillingPackage ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "billing_package_id",
             "required": true,
             "schema": {
               "description": "BillingPackage ID (UUID)",
@@ -15124,7 +15124,7 @@
           {
             "description": "BillingPackage ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "billing_package_id",
             "required": true,
             "schema": {
               "description": "BillingPackage ID (UUID)",
@@ -15210,7 +15210,7 @@
           {
             "description": "BillingPackage ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "billing_package_id",
             "required": true,
             "schema": {
               "description": "BillingPackage ID (UUID)",
@@ -16018,7 +16018,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}": {
       "get": {
         "operationId": "getFeeDebtV2",
         "parameters": [
@@ -16045,7 +16045,7 @@
           {
             "description": "Fee debt ID",
             "in": "path",
-            "name": "debt_id",
+            "name": "fee_debt_id",
             "required": true,
             "schema": {
               "description": "Fee debt ID",
@@ -16106,7 +16106,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts": {
       "post": {
         "operationId": "createHolderAccountV2",
         "parameters": [
@@ -16133,7 +16133,7 @@
           {
             "description": "Holder ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "holder_id",
             "required": true,
             "schema": {
               "description": "Holder ID (UUID)",
@@ -16904,7 +16904,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}": {
       "delete": {
         "operationId": "deletePackageV2",
         "parameters": [
@@ -16931,7 +16931,7 @@
           {
             "description": "Package ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "package_id",
             "required": true,
             "schema": {
               "description": "Package ID (UUID)",
@@ -17010,7 +17010,7 @@
           {
             "description": "Package ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "package_id",
             "required": true,
             "schema": {
               "description": "Package ID (UUID)",
@@ -17096,7 +17096,7 @@
           {
             "description": "Package ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "package_id",
             "required": true,
             "schema": {
               "description": "Package ID (UUID)",
@@ -17473,7 +17473,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}": {
       "delete": {
         "operationId": "deletePortfolioV2",
         "parameters": [
@@ -17500,7 +17500,7 @@
           {
             "description": "Portfolio ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "portfolio_id",
             "required": true,
             "schema": {
               "description": "Portfolio ID (UUID)",
@@ -17579,7 +17579,7 @@
           {
             "description": "Portfolio ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "portfolio_id",
             "required": true,
             "schema": {
               "description": "Portfolio ID (UUID)",
@@ -17665,7 +17665,7 @@
           {
             "description": "Portfolio ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "portfolio_id",
             "required": true,
             "schema": {
               "description": "Portfolio ID (UUID)",
@@ -18022,7 +18022,7 @@
         ]
       }
     },
-    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}": {
       "delete": {
         "operationId": "deleteSegmentV2",
         "parameters": [
@@ -18049,7 +18049,7 @@
           {
             "description": "Segment ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "segment_id",
             "required": true,
             "schema": {
               "description": "Segment ID (UUID)",
@@ -18128,7 +18128,7 @@
           {
             "description": "Segment ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "segment_id",
             "required": true,
             "schema": {
               "description": "Segment ID (UUID)",
@@ -18214,7 +18214,7 @@
           {
             "description": "Segment ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "segment_id",
             "required": true,
             "schema": {
               "description": "Segment ID (UUID)",
@@ -21746,14 +21746,14 @@
         ]
       }
     },
-    "/v1/audit-events/{id}": {
+    "/v1/audit-events/{audit_event_id}": {
       "get": {
         "operationId": "getAuditEvent",
         "parameters": [
           {
             "description": "Audit event ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "audit_event_id",
             "required": true,
             "schema": {
               "description": "Audit event ID (UUID)",
@@ -21817,14 +21817,14 @@
         ]
       }
     },
-    "/v1/audit-events/{id}/verify": {
+    "/v1/audit-events/{audit_event_id}/verify": {
       "get": {
         "operationId": "verifyAuditEvent",
         "parameters": [
           {
             "description": "Audit event ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "audit_event_id",
             "required": true,
             "schema": {
               "description": "Audit event ID (UUID)",
@@ -22544,14 +22544,14 @@
         ]
       }
     },
-    "/v1/limits/{id}": {
+    "/v1/limits/{limit_id}": {
       "delete": {
         "operationId": "deleteLimit",
         "parameters": [
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -22613,7 +22613,7 @@
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -22682,7 +22682,7 @@
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -22758,14 +22758,14 @@
         ]
       }
     },
-    "/v1/limits/{id}/activate": {
+    "/v1/limits/{limit_id}/activate": {
       "post": {
         "operationId": "activateLimit",
         "parameters": [
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -22829,14 +22829,14 @@
         ]
       }
     },
-    "/v1/limits/{id}/deactivate": {
+    "/v1/limits/{limit_id}/deactivate": {
       "post": {
         "operationId": "deactivateLimit",
         "parameters": [
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -22900,14 +22900,14 @@
         ]
       }
     },
-    "/v1/limits/{id}/draft": {
+    "/v1/limits/{limit_id}/draft": {
       "post": {
         "operationId": "draftLimit",
         "parameters": [
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -22971,14 +22971,14 @@
         ]
       }
     },
-    "/v1/limits/{id}/usage": {
+    "/v1/limits/{limit_id}/usage": {
       "get": {
         "operationId": "getLimitUsage",
         "parameters": [
           {
             "description": "Limit ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "limit_id",
             "required": true,
             "schema": {
               "description": "Limit ID (UUID)",
@@ -23302,14 +23302,14 @@
         ]
       }
     },
-    "/v1/rules/{id}": {
+    "/v1/rules/{rule_id}": {
       "delete": {
         "operationId": "deleteRule",
         "parameters": [
           {
             "description": "Rule ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "rule_id",
             "required": true,
             "schema": {
               "description": "Rule ID (UUID)",
@@ -23371,7 +23371,7 @@
           {
             "description": "Rule ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "rule_id",
             "required": true,
             "schema": {
               "description": "Rule ID (UUID)",
@@ -23440,7 +23440,7 @@
           {
             "description": "Rule ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "rule_id",
             "required": true,
             "schema": {
               "description": "Rule ID (UUID)",
@@ -23516,14 +23516,14 @@
         ]
       }
     },
-    "/v1/rules/{id}/activate": {
+    "/v1/rules/{rule_id}/activate": {
       "post": {
         "operationId": "activateRule",
         "parameters": [
           {
             "description": "Rule ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "rule_id",
             "required": true,
             "schema": {
               "description": "Rule ID (UUID)",
@@ -23587,14 +23587,14 @@
         ]
       }
     },
-    "/v1/rules/{id}/deactivate": {
+    "/v1/rules/{rule_id}/deactivate": {
       "post": {
         "operationId": "deactivateRule",
         "parameters": [
           {
             "description": "Rule ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "rule_id",
             "required": true,
             "schema": {
               "description": "Rule ID (UUID)",
@@ -23658,14 +23658,14 @@
         ]
       }
     },
-    "/v1/rules/{id}/draft": {
+    "/v1/rules/{rule_id}/draft": {
       "post": {
         "operationId": "draftRule",
         "parameters": [
           {
             "description": "Rule ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "rule_id",
             "required": true,
             "schema": {
               "description": "Rule ID (UUID)",
@@ -23982,14 +23982,14 @@
         ]
       }
     },
-    "/v1/validations/{id}": {
+    "/v1/validations/{validation_id}": {
       "get": {
         "operationId": "getValidation",
         "parameters": [
           {
             "description": "Transaction Validation ID (UUID)",
             "in": "path",
-            "name": "id",
+            "name": "validation_id",
             "required": true,
             "schema": {
               "description": "Transaction Validation ID (UUID)",

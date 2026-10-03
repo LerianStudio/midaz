@@ -33,6 +33,8 @@ func (handler *TransactionHandler) getAllTransactions(ctx context.Context, organ
 
 	recordSafeQueryAttributes(span, headerParams)
 
+	headerParams.Scope = listScope(ctx, scopeDimensionAccount)
+
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		SortOrder: headerParams.SortOrder,

@@ -15,18 +15,19 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	// CountAccounts returns the number of accounts for the specified organization, ledger and optional portfolio.
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
-func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, scope http.ScopeConfinement) (int64, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.count_accounts")
 	defer span.End()
 
-	count, err := uc.AccountRepo.Count(ctx, organizationID, ledgerID)
+	count, err := uc.AccountRepo.Count(ctx, organizationID, ledgerID, scope)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error counting accounts on repo", libLog.Err(err))
 

@@ -566,6 +566,8 @@ func (r *AuditEventRepository) applyFilters(qb sq.SelectBuilder, f *model.AuditE
 		qb = qb.Where("context->'response'->'matchedRuleIds' @> ?", fmt.Sprintf("[\"%s\"]", f.MatchedRuleID.String()))
 	}
 
+	qb = applyListScope(qb, f.Scope, auditEventScopeFields)
+
 	return qb
 }
 

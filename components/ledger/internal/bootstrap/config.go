@@ -1009,6 +1009,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// the request org via a narrow adapter over the ledger query use case, so
 	// CRM never imports the query package. Set once on the shared CRM use case.
 	crmMgo.holderHandler.Service.LedgerAccounts = ledgerAccountReaderAdapter{query: queryUseCase}
+	crmMgo.holderHandler.Service.HolderScope = ledgerAccountReaderAdapter{query: queryUseCase}
 
 	// === Fee use cases ===
 	// Built from the fee Mongo slice + the ledger query.UseCase so fee
@@ -1094,6 +1095,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
+	// Before any route is registered: every midaz guard derives the organization and
+	// ledger it authorizes against from the manifest scope, read at registration.
+	if err := registerScopeResolvers(auth, queryUseCase, newScopeTenant(cfg, onbPG.pgManager, txnPG.pgManager, txnMgo.mongoManager, tenantCache, tenantLoader)); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to register the authorization scope resolvers: %w", err)
+	}
+
+	if err := wireAuthScope(auth); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to wire the authorization scope: %w", err)
+	}
+
 	// === Tracer reservation client ===
 	// Built after the Access Manager client, which mints the seam token, and
 	// before the server starts; the handlers hold commandUseCase by pointer.
@@ -1159,7 +1174,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
 	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
 	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
-	feeDebtHandler := &httpin.FeeDebtHandler{Service: &feesservices.FeeDebtService{Repo: feeMgo.feeDebtRepo}}
+	feeDebtHandler := &httpin.FeeDebtHandler{Service: &feesservices.FeeDebtService{Repo: feeMgo.feeDebtRepo, Accounts: onbPG.accountRepo}}
 
 	// Composition reuses the SAME account-create and instrument-create use-case instances
 	// the onboarding and CRM registrars already use — it composes them, it never

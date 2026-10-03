@@ -155,3 +155,283 @@ func TestMidazManifest_DeclaresTheTracerM2MEdge(t *testing.T) {
 	require.True(t, manifest.M2M.Exposed, "midaz keeps exposing its own M2M surface")
 	require.Equal(t, []string{"tracer"}, manifest.M2M.Needs)
 }
+
+// wantDimensionCovers is the confinement each scope dimension extends over the
+// collections whose items belong to its instances. A partner credential scoped on
+// one of these dimensions is accepted on a covered collection only when the
+// request names the dimension, so dropping a name here silently widens what such
+// a credential can reach.
+var wantDimensionCovers = map[string][]string{
+	"accountId":   {"balances", "transactions", "operations", "fee-debts", "dashboard", "account-block-exceptions"},
+	"ledgerId":    {"holders", "instruments", "protection"},
+	"portfolioId": {"accounts"},
+	"segmentId":   {"accounts"},
+}
+
+// TestMidazManifest_ScopeDimensionsDeclareCovers parses the embedded manifest as
+// the publisher does and pins the covers of every scope dimension: the four above
+// carry exactly their list, and no other dimension covers anything.
+func TestMidazManifest_ScopeDimensionsDeclareCovers(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+	require.NotNil(t, manifest.Scope, "the manifest declares a scope catalog")
+
+	got := make(map[string][]string, len(manifest.Scope.Dimensions))
+
+	for _, dim := range manifest.Scope.Dimensions {
+		if len(dim.Covers) > 0 {
+			got[dim.Name] = dim.Covers
+		}
+	}
+
+	require.Equal(t, wantDimensionCovers, got, "scope dimension covers drifted from the declared confinement")
+}
+
+// wantScopeRoutes is every place a route reads a scope dimension from the request
+// beyond its path, keyed by "METHOD path" and spelled "name<-from:field", with a
+// trailing "?" when the request may leave it out. Each one widens or narrows what
+// a partner credential is asked about, so an entry dropped here is a value that
+// stops being checked.
+var wantScopeRoutes = map[string][]string{
+	"POST /v2/transactions/direct":  v2CreateBodyCarriers,
+	"POST /v2/transactions/hold":    v2CreateBodyCarriers,
+	"POST /v2/transactions/block":   v2CreateBodyCarriers,
+	"POST /v2/transactions/unblock": v2CreateBodyCarriers,
+	"POST /v2/transactions/batch": {
+		"organizationId<-body:transactions[].debits[].organizationId",
+		"ledgerId<-body:transactions[].debits[].ledgerId",
+		"accountId<-body:transactions[].debits[].alias=>accountByAlias",
+		"organizationId<-body:transactions[].credits[].organizationId",
+		"ledgerId<-body:transactions[].credits[].ledgerId",
+		"accountId<-body:transactions[].credits[].alias=>accountByAlias",
+	},
+	"POST /v2/organizations/:organization_id/holders/:holder_id/instruments": {
+		"ledgerId<-body:ledgerId",
+		"accountId<-body:accountId",
+	},
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/accounts": {
+		"portfolioId<-body:portfolioId?",
+		"segmentId<-body:segmentId?",
+		"accountId<-body:parentAccountId?",
+	},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/accounts": {
+		"portfolioId<-body:portfolioId?",
+		"segmentId<-body:segmentId?",
+		"holderId<-body:holderId?",
+		"accountId<-body:parentAccountId?",
+	},
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id": accountUpdateBodyCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id": accountUpdateBodyCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts": {
+		"portfolioId<-body:portfolioId?",
+		"segmentId<-body:segmentId?",
+		"accountId<-body:parentAccountId?",
+	},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages": {
+		"segmentId<-body:accountTarget.segmentId?",
+		"portfolioId<-body:accountTarget.portfolioId?",
+		"accountId<-body:accountTarget.aliases[]?=>accountByAlias",
+		"accountId<-body:maintenanceCreditAccount?=>accountByAlias",
+	},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
+		"segmentId<-body:segmentId?",
+	},
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts": accountListQueryCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts": accountListQueryCarriers,
+	"GET /v2/organizations/:organization_id/instruments": {
+		"holderId<-query:holder_id?",
+		"accountId<-query:account_id?",
+		"ledgerId<-query:ledger_id?",
+	},
+	"GET /v2/organizations/:organization_id/holders/:holder_id/accounts": {
+		"ledgerId<-query:ledger_id?",
+	},
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/packages": {
+		"segmentId<-query:segmentId?",
+	},
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json":                                      v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation":                                v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block":                                     v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock":                                   v1CreateAliasCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow":                                    {"accountId<-body:send.distribute.to[].accountAlias=>accountByAlias"},
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow":                                   {"accountId<-body:send.source.from[].accountAlias=>accountByAlias"},
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                            transactionAccountsCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                          transactionAccountsCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit":                    transactionAccountsCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel":                    transactionAccountsCarriers,
+	"POST /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert":                    transactionAccountsCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id": transactionAccountsCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                    balanceAccountCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                  balanceAccountCarriers,
+	"DELETE /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                 balanceAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history":                            balanceAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias":                                   aliasAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code":                                 externalAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances":                          aliasAccountCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances":                        externalAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                            transactionAccountsCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id":                          transactionAccountsCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit":                    transactionAccountsCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel":                    transactionAccountsCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert":                    transactionAccountsCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id": transactionAccountsCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                    balanceAccountCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                  balanceAccountCarriers,
+	"DELETE /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id":                                 balanceAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history":                            balanceAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias":                                   aliasAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code":                                 externalAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances":                          aliasAccountCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances":                        externalAccountCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions":                              {"accountId<-body:exceptions[].accountAlias=>accountByAlias"},
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect":                                      {"accountId<-body:accountAlias=>accountByAlias"},
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts":                                               {"accountId<-query:account_alias?=>accountByAlias"},
+}
+
+var v1CreateAliasCarriers = []string{
+	"accountId<-body:send.source.from[].accountAlias=>accountByAlias",
+	"accountId<-body:send.distribute.to[].accountAlias=>accountByAlias",
+}
+
+var transactionAccountsCarriers = []string{"accountId<-path:transaction_id=>transactionAccounts"}
+
+var balanceAccountCarriers = []string{"accountId<-path:balance_id=>balanceAccount"}
+
+var aliasAccountCarriers = []string{"accountId<-path:alias=>accountByAlias"}
+
+var externalAccountCarriers = []string{"accountId<-path:code=>externalAccount"}
+
+var accountListQueryCarriers = []string{
+	"portfolioId<-query:portfolio_id?",
+	"segmentId<-query:segment_id?",
+	"holderId<-query:holder_id?",
+}
+
+var v2CreateBodyCarriers = []string{
+	"organizationId<-body:debits[].organizationId",
+	"ledgerId<-body:debits[].ledgerId",
+	"accountId<-body:debits[].alias=>accountByAlias",
+	"organizationId<-body:credits[].organizationId",
+	"ledgerId<-body:credits[].ledgerId",
+	"accountId<-body:credits[].alias=>accountByAlias",
+}
+
+var accountUpdateBodyCarriers = []string{
+	"portfolioId<-body:portfolioId?",
+	"segmentId<-body:segmentId?",
+}
+
+// TestMidazManifest_ScopeRoutesDeclareTheirCarriers pins every route-level scope
+// declaration of the embedded manifest: the exact routes, and on each the exact
+// dimensions with where they are read and whether they may be left out.
+func TestMidazManifest_ScopeRoutesDeclareTheirCarriers(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+	require.NotNil(t, manifest.Scope, "the manifest declares a scope catalog")
+
+	got := make(map[string][]string, len(manifest.Scope.Routes))
+
+	for _, route := range manifest.Scope.Routes {
+		key := route.Method + " " + route.Path
+		require.NotContainsf(t, got, key, "route %s is declared twice", key)
+
+		if len(route.Dimensions) == 0 {
+			continue
+		}
+
+		carriers := make([]string, 0, len(route.Dimensions))
+
+		for _, dim := range route.Dimensions {
+			carrier := dim.Name + "<-" + dim.From + ":" + dim.Field
+			if dim.Optional {
+				carrier += "?"
+			}
+
+			if dim.Resolve != "" {
+				carrier += "=>" + dim.Resolve
+			}
+
+			carriers = append(carriers, carrier)
+		}
+
+		got[key] = carriers
+	}
+
+	require.Equal(t, wantScopeRoutes, got, "route-level scope carriers drifted from the declaration")
+}
+
+// TestMidazManifest_OptsInToPartners pins the opt-in: without it the access
+// manager grants no partner credential access to the ledger.
+func TestMidazManifest_OptsInToPartners(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.True(t, manifest.Partners, "the ledger manifest must opt in to partners")
+}
+
+// wantPermissionLevels pins how wide one instance of each resource is, which the
+// access manager uses to refuse a partner a write wider than its scope.
+var wantPermissionLevels = map[string]string{
+	"organizations":            "tenant",
+	"settings":                 "tenant",
+	"streaming-manifest":       "tenant",
+	"ledgers":                  "organization",
+	"holders":                  "organization",
+	"encryption":               "organization",
+	"protection":               "organization",
+	"operation-routes":         "organization",
+	"transaction-routes":       "organization",
+	"account-types":            "ledger",
+	"assets":                   "ledger",
+	"asset-rates":              "ledger",
+	"portfolios":               "ledger",
+	"segments":                 "ledger",
+	"packages":                 "ledger",
+	"billing-packages":         "ledger",
+	"billing-calculate":        "ledger",
+	"estimates":                "ledger",
+	"dashboard":                "ledger",
+	"accounts":                 "accountId",
+	"balances":                 "accountId",
+	"transactions":             "accountId",
+	"operations":               "accountId",
+	"fee-debts":                "accountId",
+	"account-block-exceptions": "accountId",
+	"instruments":              "accountId",
+}
+
+// TestMidazManifest_EveryPermissionDeclaresItsLevel requires a level on every
+// permission line, the same for every action of a resource, and pins it.
+func TestMidazManifest_EveryPermissionDeclaresItsLevel(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+
+	got := make(map[string]string)
+
+	for _, permission := range manifest.Permissions {
+		require.NotEmptyf(t, permission.Level, "%s %s declares no level", permission.Resource, permission.Action)
+
+		if previous, seen := got[permission.Resource]; seen {
+			require.Equalf(t, previous, permission.Level, "%s declares two levels", permission.Resource)
+		}
+
+		got[permission.Resource] = permission.Level
+	}
+
+	require.Equal(t, wantPermissionLevels, got)
+}

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -36,9 +37,13 @@ import (
 type ListQuery struct {
 	// DebtorBalanceRef ("alias#key") narrows the listing to one debtor; empty lists all.
 	DebtorBalanceRef string
-	Status           Status
-	Limit            int
-	Cursor           string
+	// ConfineDebtors narrows the listing to debts whose debtor is one of
+	// DebtorAliases, on any balance key; with no alias it lists nothing.
+	ConfineDebtors bool
+	DebtorAliases  []string
+	Status         Status
+	Limit          int
+	Cursor         string
 }
 
 // Status narrows a listing to open debts, remaining above zero, or settled ones, the
@@ -414,6 +419,24 @@ func (r *Repository) HasOpenCreditor(ctx context.Context, organizationID, ledger
 	return true, nil
 }
 
+// debtorConfinement matches the debts of the aliases on any balance key: the
+// debtor reference is "alias#key", so the alias is matched literally up to the
+// first separator. No alias matches no debt.
+func debtorConfinement(aliases []string) bson.E {
+	if len(aliases) == 0 {
+		return bson.E{Key: "_id", Value: bson.D{{Key: "$in", Value: bson.A{}}}}
+	}
+
+	quoted := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		quoted = append(quoted, regexp.QuoteMeta(alias))
+	}
+
+	return bson.E{Key: "$and", Value: bson.A{
+		bson.D{{Key: "debtor_balance_ref", Value: bson.Regex{Pattern: "^(?:" + strings.Join(quoted, "|") + ")#"}}},
+	}}
+}
+
 // listFilter selects the listing's debts and names the key it pages on: seq within one
 // debtor, the debt id across the ledger.
 func listFilter(organizationID, ledgerID uuid.UUID, query ListQuery) (bson.D, string) {
@@ -426,6 +449,10 @@ func listFilter(organizationID, ledgerID uuid.UUID, query ListQuery) (bson.D, st
 	if query.DebtorBalanceRef != "" {
 		filter = append(filter, bson.E{Key: "debtor_balance_ref", Value: query.DebtorBalanceRef})
 		key = "seq"
+	}
+
+	if query.ConfineDebtors {
+		filter = append(filter, debtorConfinement(query.DebtorAliases))
 	}
 
 	switch query.Status {

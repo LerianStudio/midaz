@@ -94,7 +94,16 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	filter.ApplyDefaultDateRange()
 
-	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
+	pagination := filter.ToCursorPagination()
+
+	pagination.ScopeAccountAliases, err = uc.scopeAccountAliases(ctx, organizationID, ledgerID, filter.Scope)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read the aliases of the allowed accounts", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, pagination)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))
 

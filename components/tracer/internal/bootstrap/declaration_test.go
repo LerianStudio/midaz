@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,10 +54,10 @@ func (fixedTokenMinter) GetApplicationToken(_ context.Context, _, _ string) (str
 func TestBuildDeclarationPublisher_DisabledReturnsNoStops(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{DeclarationEnabled: false}
+	cfg := &Config{DeclarationEnabled: false, PluginAuthEnabled: false}
 
 	stops, err := buildDeclarationPublisher(cfg, nil, libLog.NewNop())
-	require.NoError(t, err, "the disabled path validates nothing and never errors")
+	require.NoError(t, err, "with declaration and auth off, nothing is validated and nothing errors")
 
 	assert.Empty(t, stops, "disabled declaration must yield no stop funcs")
 }
@@ -368,5 +370,141 @@ func TestDeclarationPublisherRunnable_SIGTERM_DrainsStopsExactlyOnceAndExits(t *
 		case <-deadline.C:
 			t.Fatal("runnable Run did not return after SIGTERM: possible deadlock or leaked goroutine in the drain path")
 		}
+	}
+}
+
+// TestWireAuthScope_AcceptsTheEmbeddedManifest pins that the boot scope wiring takes the
+// embedded manifest's scope catalog. A rejected catalog fails boot, and a client that was
+// never wired sends no entity identifier on any route.
+func TestWireAuthScope_AcceptsTheEmbeddedManifest(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, wireAuthScope(&authMiddleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}))
+	require.Error(t, wireAuthScope(nil), "a nil client must be refused, not silently left unscoped")
+}
+
+// scopeOnlyIdentity stands in for the identity service and forwards the body of
+// every PUT it receives, so a test can read what a scope-only publisher sent.
+func scopeOnlyIdentity(t *testing.T) (*httptest.Server, <-chan map[string]any) {
+	t.Helper()
+
+	bodies := make(chan map[string]any, 64)
+
+	identity := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
+
+		if r.Method == http.MethodPut {
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("identity stub: decode body: %v", err)
+			}
+
+			select {
+			case bodies <- body:
+			default:
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	return identity, bodies
+}
+
+// drainWithin runs every stop hook off-thread and fails when they do not return in
+// time, so a publisher that cannot be stopped is a reported failure.
+func drainWithin(t *testing.T, stops []func(), timeout time.Duration) {
+	t.Helper()
+
+	drained := make(chan struct{})
+
+	go func() {
+		for _, s := range stops {
+			s()
+		}
+
+		close(drained)
+	}()
+
+	select {
+	case <-drained:
+	case <-time.After(timeout):
+		t.Fatal("declaration publisher stop() did not return")
+	}
+}
+
+// TestBuildDeclarationPublisher_AuthOnDeclarationOff_PublishesTheScopeAlone pins
+// that the scope catalog reaches the identity service whenever plugin auth is on,
+// even with the permission declaration off — and that only the scope does: the
+// permission, role and m2m sections stay out of the body, so the access manager
+// keeps what it already holds for them.
+func TestBuildDeclarationPublisher_AuthOnDeclarationOff_PublishesTheScopeAlone(t *testing.T) {
+	const waitFor = 10 * time.Second
+
+	identity, bodies := scopeOnlyIdentity(t)
+	defer identity.Close()
+
+	cfg := &Config{
+		PluginAuthEnabled:  true,
+		DeclarationEnabled: false,
+		IDPHost:            identity.URL,
+		IDPM2MClientID:     "dummy-client-id",
+		IDPM2MClientSecret: "dummy-client-secret",
+	}
+
+	stops, err := buildDeclarationPublisher(cfg, fixedTokenMinter{}, libLog.NewNop())
+	require.NoError(t, err)
+	require.Len(t, stops, 1, "plugin auth on must start the scope-only publisher")
+
+	var body map[string]any
+
+	select {
+	case body = <-bodies:
+	case <-time.After(waitFor):
+		drainWithin(t, stops, waitFor)
+		t.Fatal("the scope-only publisher never reached the identity service")
+	}
+
+	drainWithin(t, stops, waitFor)
+
+	assert.Equal(t, "tracer", body["service"])
+	assert.Contains(t, body, "scope", "the scope section must be published")
+	assert.NotContains(t, body, "permissions", "the permission section must stay out of a scope-only publication")
+	assert.NotContains(t, body, "roles", "the role section must stay out of a scope-only publication")
+	assert.NotContains(t, body, "m2m", "the m2m section must stay out of a scope-only publication")
+}
+
+// TestBuildDeclarationPublisher_AuthOnDeclarationOff_NeverFailsTheBoot pins the
+// scope-only failure policy: a deployment that cannot publish the catalog keeps
+// booting and starts no publisher. That covers missing IdP settings and a SaaS
+// deployment whose IdP host is cleartext, where publishing would ship the M2M
+// credential unencrypted.
+func TestBuildDeclarationPublisher_AuthOnDeclarationOff_NeverFailsTheBoot(t *testing.T) {
+	rows := []struct {
+		name string
+		cfg  *Config
+	}{
+		{
+			name: "IdP settings missing",
+			cfg:  &Config{PluginAuthEnabled: true},
+		},
+		{
+			name: "SaaS with a cleartext IdP host",
+			cfg: &Config{
+				PluginAuthEnabled:  true,
+				DeploymentMode:     "saas",
+				IDPHost:            "http://identity.invalid",
+				IDPM2MClientID:     "dummy-client-id",
+				IDPM2MClientSecret: "dummy-client-secret",
+			},
+		},
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			stops, err := buildDeclarationPublisher(row.cfg, fixedTokenMinter{}, libLog.NewNop())
+			require.NoError(t, err, "the scope-only path must never fail the boot")
+			assert.Empty(t, stops, "no publisher may start when the catalog cannot be published")
+		})
 	}
 }

@@ -19,7 +19,7 @@ import (
 // This file is the ledger's Huma adoption of the organization resource, mirroring
 // the asset exemplar (asset_handler.go) adapted to organization's FIRST-LEVEL
 // path (no org/ledger prefix — only the top-level /organizations collection and a
-// single {id} path param). The conventions are identical to the asset exemplar:
+// single {organization_id} path param). The conventions are identical to the asset exemplar:
 //
 //  1. Path params carry ONLY `doc:` (no `format:"uuid"`) so Huma never emits a
 //     native 422; ParseUUIDPathParameters (wired as a Fiber middleware BEFORE the
@@ -133,12 +133,12 @@ func (handler *OrganizationHandler) ListOrganizations(ctx context.Context, in *L
 	return &ListOrganizationsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /organizations/{id} --------------------------------------------------
+// --- GET /organizations/{organization_id} ------------------------------------
 
 // GetOrganizationRequest is the by-id request envelope. The id path param carries
 // no format tag (ParseUUIDPathParameters is the sole validator).
 type GetOrganizationRequest struct {
-	ID string `path:"id" doc:"Organization ID (UUID)"`
+	ID string `path:"organization_id" doc:"Organization ID (UUID)"`
 }
 
 // GetOrganizationResponse carries the organization verbatim.
@@ -149,7 +149,7 @@ type GetOrganizationResponse struct {
 
 // GetOrganizationByID delegates to the shared getOrganizationByID core.
 func (handler *OrganizationHandler) GetOrganizationByID(ctx context.Context, in *GetOrganizationRequest) (*GetOrganizationResponse, error) {
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -162,11 +162,11 @@ func (handler *OrganizationHandler) GetOrganizationByID(ctx context.Context, in 
 	return &GetOrganizationResponse{Status: http.StatusOK, Body: organization}, nil
 }
 
-// --- PATCH /organizations/{id} ------------------------------------------------
+// --- PATCH /organizations/{organization_id} ----------------------------------
 
 // UpdateOrganizationRequest is the update request envelope (RawBody, see Create).
 type UpdateOrganizationRequest struct {
-	ID      string `path:"id" doc:"Organization ID (UUID)"`
+	ID      string `path:"organization_id" doc:"Organization ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
@@ -179,7 +179,7 @@ type UpdateOrganizationResponse struct {
 // UpdateOrganization decodes+validates the raw body imperatively then delegates
 // to the shared updateOrganization core.
 func (handler *OrganizationHandler) UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest) (*UpdateOrganizationResponse, error) {
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -197,7 +197,7 @@ func (handler *OrganizationHandler) UpdateOrganization(ctx context.Context, in *
 	return &UpdateOrganizationResponse{Status: http.StatusOK, Body: organization}, nil
 }
 
-// --- DELETE /organizations/{id} -----------------------------------------------
+// --- DELETE /organizations/{organization_id} ---------------------------------
 
 // DeleteOrganizationResponse has NO Body field: paired with DefaultStatus 204 it
 // makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
@@ -206,7 +206,7 @@ type DeleteOrganizationResponse struct{}
 // DeleteOrganizationByID delegates to the shared deleteOrganization core (which
 // owns the production-environment guard); returns a bodiless 204 on success.
 func (handler *OrganizationHandler) DeleteOrganizationByID(ctx context.Context, in *GetOrganizationRequest) (*DeleteOrganizationResponse, error) {
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

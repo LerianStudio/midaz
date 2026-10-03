@@ -86,7 +86,7 @@ func buildHumaCompositionApp(t *testing.T, handler *CompositionHandler, authOK b
 	// The :id path param is the holder; ParseUUIDPathParameters("holder") validates
 	// it (mirrors composition_routes.go). Registered group-relative on apiV2.
 	parse := pkgHTTP.ParseUUIDPathParameters("holder")
-	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts", parse)
+	apiV2.Post("/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts", parse)
 
 	RegisterCompositionRoutes(hAPI, handler, v2OpSuffix)
 

@@ -62,9 +62,26 @@ func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
 		}
 
 		switch fiberErr.Code {
+		case fiber.StatusBadRequest:
+			// The authorization guard answers 400 for a body it cannot read the
+			// declared scope from, and its message names the field to fix.
+			return renderCanonical(c, fiber.StatusBadRequest, pkg.ValidationError{
+				Code:    constant.ErrBadRequest.Error(),
+				Message: fiberErr.Message,
+			})
 		case fiber.StatusUnauthorized:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidToken, ""))
 		case fiber.StatusForbidden:
+			// The authorization guard answers a scope value outside the credential's
+			// scope, or one that names nothing, with a message naming where it was read.
+			if strings.HasPrefix(fiberErr.Message, scopeRefusalPrefix) {
+				return renderCanonical(c, fiber.StatusForbidden, pkg.ValidationError{
+					Code:    constant.ErrInsufficientPrivileges.Error(),
+					Title:   "Insufficient Privileges",
+					Message: fiberErr.Message,
+				})
+			}
+
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, ""))
 		case fiber.StatusServiceUnavailable:
 			return WithError(c, pkg.ValidateBusinessError(constant.ErrAuthorizationServiceUnavailable, ""))
@@ -90,6 +107,10 @@ func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
 
 	return WithError(c, pkg.ValidateInternalError(err, ""))
 }
+
+// scopeRefusalPrefix opens the message of the authorization guard's refusal of a
+// scope value, which names where the value was read.
+const scopeRefusalPrefix = "scope "
 
 func isClientError(status int) bool {
 	return status >= fiber.StatusBadRequest && status < fiber.StatusInternalServerError

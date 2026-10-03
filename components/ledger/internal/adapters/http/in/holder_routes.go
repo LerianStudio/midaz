@@ -26,7 +26,7 @@ import (
 func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/holders"
-		idPath   = listPath + "/{id}"
+		idPath   = listPath + "/{holder_id}"
 		tag      = "Holders"
 	)
 
@@ -108,7 +108,7 @@ func RegisterHolderV2RoutesToApp(group fiber.Router, api huma.API, auth *middlew
 func registerHolderRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderHandler, routeOptions, deleteOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		holdersPath  = "/organizations/:organization_id/holders"
-		holderIDPath = holdersPath + "/:id"
+		holderIDPath = holdersPath + "/:holder_id"
 	)
 
 	holderParse := pkgHTTP.ParseUUIDPathParameters("holder")

@@ -67,21 +67,29 @@ type QueryHeader struct {
 	ParentAccountID                               *string
 	LegalDocument                                 *string
 	Alias                                         *string
+	// Scope confines the list to the instances a scoped credential may see. It
+	// is set by the handler from the authorization decision, never from the query.
+	Scope ScopeConfinement
 }
 
 // CursorPagination is the cursor-shaped paginated list envelope returned by
 // list endpoints that page via opaque next/prev cursors rather than page/total.
 type Pagination struct {
-	Items      any       `json:"items"`
-	Limit      int       `json:"limit" example:"10"`
-	Page       int       `json:"page,omitempty" example:"1"`
-	Cursor     string    `json:"-"`
-	SortOrder  string    `json:"-"`
-	StartDate  time.Time `json:"-"`
-	EndDate    time.Time `json:"-"`
-	GroupID    *string   `json:"-"`
-	NextCursor string    `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
-	PrevCursor string    `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+	Items     any       `json:"items"`
+	Limit     int       `json:"limit" example:"10"`
+	Page      int       `json:"page,omitempty" example:"1"`
+	Cursor    string    `json:"-"`
+	SortOrder string    `json:"-"`
+	StartDate time.Time `json:"-"`
+	EndDate   time.Time `json:"-"`
+	GroupID   *string   `json:"-"`
+	// Scope confines the list to the instances a scoped credential may see.
+	Scope ScopeConfinement `json:"-"`
+	// ScopeAccountAliases are the aliases of the accounts Scope allows, for a
+	// list that names accounts by alias where it has no account id.
+	ScopeAccountAliases []string `json:"-"`
+	NextCursor          string   `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
+	PrevCursor          string   `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
 } //	@name CursorPagination
 
 // SetItems sets the pagination items payload.
@@ -101,6 +109,20 @@ func (p *Pagination) SetCursor(next, prev string) {
 
 	p.NextCursor = next
 	p.PrevCursor = prev
+}
+
+// claimScopeFilter records which query key fills a scope filter and refuses a
+// second key filling the same one. The authorization guard reads a scope filter
+// under its exact key; with two keys feeding one filter, the value applied would
+// depend on map order and could be one the guard never checked.
+func claimScopeFilter(claimed map[string]string, filter, key string) error {
+	if previous, ok := claimed[filter]; ok && previous != key {
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", filter)
+	}
+
+	claimed[filter] = key
+
+	return nil
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -150,6 +172,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		alias                               *string
 	)
 
+	scopeFilterKeys := make(map[string]string)
+
 	for key, value := range params {
 		switch {
 		case strings.Contains(key, "metadata."):
@@ -188,8 +212,16 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 
 			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
+			if err := claimScopeFilter(scopeFilterKeys, "portfolio_id", key); err != nil {
+				return nil, err
+			}
+
 			portfolioID = value
 		case strings.Contains(key, "segment_id"):
+			if err := claimScopeFilter(scopeFilterKeys, "segment_id", key); err != nil {
+				return nil, err
+			}
+
 			segmentID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
@@ -208,16 +240,32 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
 		case strings.Contains(key, "holder_id"):
+			if err := claimScopeFilter(scopeFilterKeys, "holder_id", key); err != nil {
+				return nil, err
+			}
+
 			holderID = &value
 		case strings.Contains(key, "external_id"):
 			externalID = &value
 		case key == "document":
 			document = &value
 		case key == "parent_account_id":
+			if err := claimScopeFilter(scopeFilterKeys, "parent_account_id", key); err != nil {
+				return nil, err
+			}
+
 			parentAccountID = &value
 		case strings.Contains(key, "account_id"):
+			if err := claimScopeFilter(scopeFilterKeys, "account_id", key); err != nil {
+				return nil, err
+			}
+
 			accountID = &value
 		case strings.Contains(key, "ledger_id"):
+			if err := claimScopeFilter(scopeFilterKeys, "ledger_id", key); err != nil {
+				return nil, err
+			}
+
 			ledgerID = &value
 		case strings.Contains(key, "banking_details_branch"):
 			bankingDetailsBranch = &value
@@ -537,6 +585,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
 		GroupID:   qh.GroupID,
+		Scope:     qh.Scope,
 	}
 }
 
@@ -552,7 +601,7 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
-		GroupID:   qh.GroupID,
+		GroupID:   qh.GroupID, Scope: qh.Scope,
 	}
 }
 

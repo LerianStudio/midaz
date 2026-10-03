@@ -72,7 +72,7 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 		query.DebtorBalanceRef = mtransaction.AliasKey(accountAlias, balanceKey)
 	}
 
-	debts, pagination, err := handler.Service.ListFeeDebts(ctx, organizationID, ledgerID, query)
+	debts, pagination, err := handler.Service.ListFeeDebts(ctx, organizationID, ledgerID, query, listScope(ctx, scopeDimensionAccount))
 	if err != nil {
 		return nil, feeDebtReadFailed(ctx, span, logger, "Failed to list fee debts", err)
 	}
@@ -115,7 +115,7 @@ func (handler *FeeDebtHandler) getFeeDebt(ctx context.Context, organizationID, l
 
 	id, err := url.PathUnescape(rawID)
 	if err != nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityFeeDebt, "debt_id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityFeeDebt, "fee_debt_id")
 	}
 
 	span.SetAttributes(attribute.String("app.request.fee_debt_id", id))

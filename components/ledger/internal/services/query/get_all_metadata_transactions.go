@@ -55,7 +55,16 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter.ToCursorPagination())
+	pagination := filter.ToCursorPagination()
+
+	pagination.ScopeAccountAliases, err = uc.scopeAccountAliases(ctx, organizationID, ledgerID, filter.Scope)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read the aliases of the allowed accounts", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, pagination)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))
 

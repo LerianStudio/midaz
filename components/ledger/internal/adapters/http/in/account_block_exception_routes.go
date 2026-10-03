@@ -24,7 +24,7 @@ const accountBlockExceptionResource = "account-block-exceptions"
 // accountBlockExceptionPath is the group-relative Huma path of the surface. It
 // sits under the account collection because the grant is scoped to an account
 // alias, and it collides with no account route: the account surface registers no
-// POST under /accounts/{id}.
+// POST under /accounts/{account_id}.
 const (
 	accountBlockExceptionPath = accountListPath + "/block-exceptions"
 	accountBlockExceptionTag  = "Account Block Exceptions"

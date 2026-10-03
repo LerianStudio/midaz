@@ -207,6 +207,8 @@ func (handler *HolderHandler) getAllHolders(ctx context.Context, organizationID 
 
 	recordSafeQueryAttributes(span, headerParams)
 
+	headerParams.Scope = listScope(ctx, scopeDimensionLedger, scopeDimensionAccount)
+
 	holders, err := handler.Service.GetAllHolders(ctx, organizationID.String(), *headerParams, includeDeleted)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get all holders", err)

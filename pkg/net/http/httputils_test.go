@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -1503,4 +1504,53 @@ func TestParseBoolParam(t *testing.T) {
 			assert.Equal(t, *tc.expectedValue, *result, "unexpected value for input: %q", tc.input)
 		})
 	}
+}
+
+// TestValidateParameters_RefusesAScopeFilterNamedTwice sends a scope filter under
+// its own key and again under another key that would also fill it. The route
+// authorizes the value under the exact key, so letting the other key win would
+// filter by a value nobody checked: the request is refused, naming the filter.
+func TestValidateParameters_RefusesAScopeFilterNamedTwice(t *testing.T) {
+	t.Parallel()
+
+	inside, outside := uuid.NewString(), uuid.NewString()
+
+	for _, key := range []string{"portfolio_id", "segment_id", "holder_id", "account_id", "ledger_id"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			for range 20 {
+				_, err := ValidateParameters(map[string]string{key: inside, "x_" + key: outside})
+
+				require.Error(t, err)
+
+				var ve pkg.ValidationError
+				require.ErrorAs(t, err, &ve)
+				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), ve.Code)
+				assert.Contains(t, ve.Message, key)
+			}
+		})
+	}
+}
+
+// TestValidateParameters_ScopeFilterUnderOneKeyIsKept is the positive control: a
+// scope filter named once, under its own key or another one that fills it, is
+// read as before.
+func TestValidateParameters_ScopeFilterUnderOneKeyIsKept(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.NewString()
+
+	got, err := ValidateParameters(map[string]string{"portfolio_id": id, "segment_id": id, "holder_id": id, "account_id": id, "ledger_id": id, "parent_account_id": id})
+	require.NoError(t, err)
+	assert.Equal(t, id, got.PortfolioID)
+	assert.Equal(t, id, got.SegmentID)
+	assert.Equal(t, id, *got.HolderID)
+	assert.Equal(t, id, *got.AccountID)
+	assert.Equal(t, id, *got.LedgerID)
+	assert.Equal(t, id, *got.ParentAccountID)
+
+	got, err = ValidateParameters(map[string]string{"x_holder_id": id})
+	require.NoError(t, err)
+	assert.Equal(t, id, *got.HolderID)
 }

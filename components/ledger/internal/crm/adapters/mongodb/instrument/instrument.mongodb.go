@@ -300,13 +300,14 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	// The account token follows the account: once the account is removed or emptied, the token must
-	// not keep matching list searches and the bank-account index.
-	if accountCleared(instrument.BankingDetails, fieldsToRemove) {
-		fieldsToRemove = append(slices.Clone(fieldsToRemove), "search.banking_details_account")
-	}
-
 	update := mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove)
+
+	// The account token follows the account: once the account is removed or emptied, the token must
+	// not keep matching list searches and the bank-account index. The token is a server-managed field,
+	// which the patch builder refuses to unset on a caller's behalf, so the repository unsets it itself.
+	if accountCleared(instrument.BankingDetails, fieldsToRemove) {
+		unsetServerField(update, "search.banking_details_account")
+	}
 
 	filter := bson.D{
 		{Key: "_id", Value: id},
@@ -435,6 +436,25 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	}
 
 	return nil
+}
+
+// unsetServerField removes a server-managed field in update, overriding any value the patch sets.
+func unsetServerField(update bson.M, field string) {
+	if set, ok := update["$set"].(bson.M); ok {
+		delete(set, field)
+
+		if len(set) == 0 {
+			delete(update, "$set")
+		}
+	}
+
+	unset, ok := update["$unset"].(bson.M)
+	if !ok {
+		unset = bson.M{}
+		update["$unset"] = unset
+	}
+
+	unset[field] = ""
 }
 
 func accountCleared(patch *mmodel.BankingDetails, fieldsToRemove []string) bool {

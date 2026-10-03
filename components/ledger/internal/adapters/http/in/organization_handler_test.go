@@ -90,15 +90,15 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	// (no terminal handler) before the Huma terminal on the {id} routes. Registered
 	// group-relative on apiV1 so Fiber prepends /v1 — matching the group-relative paths
 	// RegisterOrganizationRoutes registers on the Huma API. The static metrics/count
-	// route is registered BEFORE the :id route so it is not shadowed by the param.
+	// route is registered BEFORE the :organization_id route so it is not shadowed by the param.
 	parse := pkgHTTP.ParseUUIDPathParameters("organization")
 	passthrough := func(c fiber.Ctx) error { return c.Next() }
 	apiV1.Post("/organizations", passthrough)
 	apiV1.Get("/organizations", passthrough)
 	apiV1.Head("/organizations/metrics/count", passthrough)
-	apiV1.Get("/organizations/:id", parse)
-	apiV1.Patch("/organizations/:id", parse)
-	apiV1.Delete("/organizations/:id", parse)
+	apiV1.Get("/organizations/:organization_id", parse)
+	apiV1.Patch("/organizations/:organization_id", parse)
+	apiV1.Delete("/organizations/:organization_id", parse)
 
 	RegisterOrganizationRoutes(hAPI, handler, v1OpSuffix)
 

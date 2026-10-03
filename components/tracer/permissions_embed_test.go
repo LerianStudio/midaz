@@ -164,3 +164,103 @@ func TestTracerManifest_DeclaresTheSeedReservationGrant(t *testing.T) {
 	require.Equal(t, "allow", grants[0].Effect)
 	require.ElementsMatch(t, []string{"editor", "validator", "audit-viewer"}, grants[0].Roles)
 }
+
+// TestTracerManifest_OptsInToPartners pins the opt-in: without it the access
+// manager grants no partner credential access to the tracer.
+func TestTracerManifest_OptsInToPartners(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(tracer.TracerManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.True(t, manifest.Partners, "the tracer manifest must opt in to partners")
+}
+
+// wantTracerDimensions pins the catalog order: the rank of a dimension is one plus
+// its index, and accountId must be the deepest so every scoped partner's narrowest
+// dimension ranks at or above none of the levels it can be granted.
+var wantTracerDimensions = []string{"ruleId", "limitId", "validationId", "auditEventId", "portfolioId", "segmentId", "merchantId", "accountId"}
+
+// wantTracerLevels pins the level of every tracer permission: every write tenant
+// but submitting a validation, which is accountId; every read tenant.
+var wantTracerLevels = map[string]string{
+	"rules post": "tenant", "rules get": "tenant", "rules patch": "tenant", "rules delete": "tenant",
+	"limits post": "tenant", "limits get": "tenant", "limits patch": "tenant", "limits delete": "tenant",
+	"validations get": "tenant", "validations post": "accountId",
+	"audit-events get": "tenant", "streaming-manifest get": "tenant",
+	"reservations post": "tenant", "dashboard get": "tenant",
+}
+
+func tracerManifest(t *testing.T) declaration.DeclarationManifest {
+	t.Helper()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(tracer.TracerManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.NotNil(t, manifest.Scope)
+
+	return manifest
+}
+
+// TestTracerManifest_DimensionsAndLevelsArePinned pins the catalog order and the level
+// of every permission line.
+func TestTracerManifest_DimensionsAndLevelsArePinned(t *testing.T) {
+	t.Parallel()
+
+	manifest := tracerManifest(t)
+
+	names := make([]string, 0, len(manifest.Scope.Dimensions))
+	for _, dim := range manifest.Scope.Dimensions {
+		names = append(names, dim.Name)
+	}
+
+	require.Equal(t, wantTracerDimensions, names)
+
+	got := make(map[string]string, len(manifest.Permissions))
+	for _, permission := range manifest.Permissions {
+		got[permission.Resource+" "+permission.Action] = permission.Level
+	}
+
+	require.Equal(t, wantTracerLevels, got)
+}
+
+// TestTracerManifest_PartnerWritesFollowTheRank checks the levels against the rule
+// the access manager applies to a partner: a tenant-level write is never granted,
+// and any other write is granted only when the partner's narrowest dimension ranks
+// at or below the write's level, the rank of a dimension being
+// one plus its catalog index and tenant ranking zero. A partner scoped on any one of
+// portfolioId, segmentId, merchantId or accountId, or on none, may be granted
+// submitting a validation and no rule or limit write.
+func TestTracerManifest_PartnerWritesFollowTheRank(t *testing.T) {
+	t.Parallel()
+
+	manifest := tracerManifest(t)
+
+	rank := map[string]int{"tenant": 0}
+	for i, dim := range manifest.Scope.Dimensions {
+		rank[dim.Name] = i + 1
+	}
+
+	grantable := func(level string, narrowest string) bool {
+		if level == "tenant" {
+			return false
+		}
+
+		return rank[narrowest] <= rank[level]
+	}
+
+	for _, permission := range manifest.Permissions {
+		if permission.Action == "get" || permission.Action == "head" {
+			continue
+		}
+
+		for _, narrowest := range []string{"tenant", "portfolioId", "segmentId", "merchantId", "accountId"} {
+			want := permission.Resource == "validations"
+
+			require.Equalf(t, want, grantable(permission.Level, narrowest),
+				"%s %s for a partner scoped on %s", permission.Resource, permission.Action, narrowest)
+		}
+	}
+}

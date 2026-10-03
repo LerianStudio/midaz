@@ -1466,6 +1466,38 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t
 	assert.Equal(t, alias1, *accounts[0].Alias)
 }
 
+func TestIntegration_AccountRepository_ListAccountsByAlias_ResolvesExternalAndStaysInItsLedger(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	siblingLedgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	external := pgtestutil.DefaultAccountParams()
+	external.Name = "External BRL"
+	external.Alias = constant.DefaultExternalAccountAliasPrefix + "BRL"
+	external.AssetCode = "BRL"
+	external.Type = constant.ExternalAccountType
+	externalID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, external)
+
+	siblingExternalID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, siblingLedgerID, external)
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, siblingLedgerID, nil, "Sibling", "@only-in-sibling", "BRL", nil)
+
+	ctx := context.Background()
+
+	accounts, err := repo.ListAccountsByAlias(ctx, orgID, ledgerID, []string{external.Alias, "@only-in-sibling"})
+	require.NoError(t, err)
+	require.Len(t, accounts, 1, "an alias of a sibling ledger does not resolve here")
+	assert.Equal(t, externalID.String(), accounts[0].ID)
+	assert.NotEqual(t, siblingExternalID.String(), accounts[0].ID)
+
+	accounts, err = repo.ListAccountsByAlias(ctx, orgID, ledgerID, []string{"@external/brl"})
+	require.NoError(t, err)
+	assert.Empty(t, accounts, "the external alias compares exactly, asset code case included")
+}
+
 // ============================================================================
 // ListExternalAccountsByAssetCode Tests
 // ============================================================================
@@ -1617,7 +1649,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 			}
 
 			// Act
-			count, err := repo.Count(context.Background(), orgID, ledgerID)
+			count, err := repo.Count(context.Background(), orgID, ledgerID, nil)
 
 			// Assert
 			require.NoError(t, err)
@@ -1648,8 +1680,8 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	count1, err1 := repo.Count(ctx, org1ID, ledger1ID)
-	count2, err2 := repo.Count(ctx, org2ID, ledger2ID)
+	count1, err1 := repo.Count(ctx, org1ID, ledger1ID, nil)
+	count2, err2 := repo.Count(ctx, org2ID, ledger2ID, nil)
 
 	// Assert
 	require.NoError(t, err1)

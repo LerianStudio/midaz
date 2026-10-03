@@ -481,33 +481,33 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 	// a contract change out of scope for this migration wave.
 	api.Post("/rules", guard.With("rules", "post", false))
 	api.Get("/rules", guard.With("rules", "get", false))
-	api.Get("/rules/:id", guard.With("rules", "get", false))
-	api.Patch("/rules/:id", guard.With("rules", "patch", false))
-	api.Delete("/rules/:id", guard.With("rules", "delete", false))
-	api.Post("/rules/:id/activate", guard.With("rules", "post", false))
-	api.Post("/rules/:id/deactivate", guard.With("rules", "post", false))
-	api.Post("/rules/:id/draft", guard.With("rules", "post", false))
+	api.Get("/rules/:rule_id", guard.With("rules", "get", false))
+	api.Patch("/rules/:rule_id", guard.With("rules", "patch", false))
+	api.Delete("/rules/:rule_id", guard.With("rules", "delete", false))
+	api.Post("/rules/:rule_id/activate", guard.With("rules", "post", false))
+	api.Post("/rules/:rule_id/deactivate", guard.With("rules", "post", false))
+	api.Post("/rules/:rule_id/draft", guard.With("rules", "post", false))
 	RegisterRuleRoutes(humaAPI, h.Rule)
 
 	// Limit endpoints — migrated to Huma (Phase 2b). Same pattern as rules above:
 	// guard.With stays a Fiber middleware on the exact method+path (no terminal
 	// handler) so it runs first, then c.Next() advances into the Huma-registered
-	// handler. Fiber routes keep :id; Huma registers the same paths as {id}.
+	// handler. Fiber routes spell :limit_id; Huma registers the same paths as {limit_id}.
 	// (resource, verb, forceAPIKey) tuples preserved verbatim.
 	api.Post("/limits", guard.With("limits", "post", false))
 	api.Get("/limits", guard.With("limits", "get", false))
-	api.Get("/limits/:id", guard.With("limits", "get", false))
-	api.Get("/limits/:id/usage", guard.With("limits", "get", false))
-	api.Patch("/limits/:id", guard.With("limits", "patch", false))
-	api.Delete("/limits/:id", guard.With("limits", "delete", false))
-	api.Post("/limits/:id/activate", guard.With("limits", "post", false))
-	api.Post("/limits/:id/deactivate", guard.With("limits", "post", false))
-	api.Post("/limits/:id/draft", guard.With("limits", "post", false))
+	api.Get("/limits/:limit_id", guard.With("limits", "get", false))
+	api.Get("/limits/:limit_id/usage", guard.With("limits", "get", false))
+	api.Patch("/limits/:limit_id", guard.With("limits", "patch", false))
+	api.Delete("/limits/:limit_id", guard.With("limits", "delete", false))
+	api.Post("/limits/:limit_id/activate", guard.With("limits", "post", false))
+	api.Post("/limits/:limit_id/deactivate", guard.With("limits", "post", false))
+	api.Post("/limits/:limit_id/draft", guard.With("limits", "post", false))
 	RegisterLimitRoutes(humaAPI, h.Limit)
 
 	// Transaction Validation endpoints (read-only per SOX/GLBA requirements) — Huma.
 	api.Get("/validations", guard.With("validations", "get", false))
-	api.Get("/validations/:id", guard.With("validations", "get", false))
+	api.Get("/validations/:validation_id", guard.With("validations", "get", false))
 	RegisterTransactionValidationRoutes(humaAPI, h.TransactionValidation)
 
 	// Validation endpoint POST — Huma.
@@ -518,8 +518,8 @@ func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHa
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements) — Huma.
 	api.Get("/audit-events", guard.With("audit-events", "get", false))
-	api.Get("/audit-events/:id", guard.With("audit-events", "get", false))
-	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false))
+	api.Get("/audit-events/:audit_event_id", guard.With("audit-events", "get", false))
+	api.Get("/audit-events/:audit_event_id/verify", guard.With("audit-events", "get", false))
 	RegisterAuditEventRoutes(humaAPI, h.AuditEvent)
 
 	// Dashboard endpoints (read-only aggregates over the validation trail) —
