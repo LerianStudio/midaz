@@ -153,6 +153,10 @@ type Repository interface {
 	// projected yet is invisible to it, so a false answer is not proof on its own
 	// that the account has no pending work.
 	HasPendingByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (bool, error)
+	// ListAccountRefsByTransaction returns the distinct accounts of the live
+	// operation rows of a live transaction, together with its submitted body.
+	// An absent transaction answers the entity-not-found business error.
+	ListAccountRefsByTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*AccountRefs, error)
 }
 
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
