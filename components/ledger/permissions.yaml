@@ -57,15 +57,6 @@
 # seed (see below).
 service: midaz
 version: 1
-# A scope dimension can also confine related collections. `covers` lists the
-# collections whose items belong to the dimension's instances: the balances,
-# transactions and operations of an account, the holders and instruments of a
-# ledger, the accounts of a portfolio or segment. A partner credential scoped on
-# a dimension is accepted on the dimension's own collection, or on one it covers,
-# only when the request names that dimension (for example through the route
-# path). So a credential scoped to accounts reads account-level data through the
-# routes that carry `:account_id`; the ledger-wide listings of those collections
-# answer 403 for it.
 scope:
   dimensions:
     - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }
