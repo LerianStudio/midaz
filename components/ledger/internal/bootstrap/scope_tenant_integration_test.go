@@ -61,9 +61,8 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 	tenantPG := &fixedTenantPG{db: db}
 
 	recorder, authz := newAllowRecorder(t)
-	// Application credentials publish a principal only under the M2M inversion
-	// model, which multi-tenant deployments run.
-	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL, M2MInversionEnabled: true}
+	// M2M inversion off: the resolver still receives the validated principal.
+	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL, M2MInversionEnabled: false}
 
 	require.NoError(t, registerScopeResolvers(auth, uc, &multiTenantScope{pg: map[string]tenantPGSource{constant.ModuleOnboarding: tenantPG}}))
 	require.NoError(t, wireAuthScope(auth))
