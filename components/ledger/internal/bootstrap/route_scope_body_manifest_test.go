@@ -255,6 +255,10 @@ func TestManifestScope_BodyRoutesAreGuardedRoutes(t *testing.T) {
 			case "query":
 				assert.Equalf(t, "GET", strings.ToUpper(r.Method),
 					"%s reads %s from the query, which only a list filter may carry", r.Method+" "+r.Path, d.Name)
+			case "path":
+				assert.NotEmptyf(t, d.Resolve, "%s reads %s from the path without a resolver", r.Method+" "+r.Path, d.Name)
+				assert.Containsf(t, routePathParams(r.Path), d.Field,
+					"%s resolves %s from :%s, which its path does not carry", r.Method+" "+r.Path, d.Name, d.Field)
 			default:
 				assert.Failf(t, "undeclared carrier", "%s reads %s from %q", r.Method+" "+r.Path, d.Name, d.From)
 			}
@@ -329,11 +333,20 @@ type bodyScopeProbe struct {
 	query           string
 	bodyAttributes  map[string]string
 	queryAttributes map[string]string
+	// resolvedAttributes are the dimensions a resolver translates from the path or
+	// the query. Like the body, they are resolved only for a partner credential.
+	resolvedAttributes map[string]string
 }
 
 // readsBody reports whether the route reads any dimension from its body.
 func (p bodyScopeProbe) readsBody() bool {
 	return len(p.bodyAttributes) > 0
+}
+
+// partnerOnly reports whether the route sends a partner any dimension it does not
+// send every other caller.
+func (p bodyScopeProbe) partnerOnly() bool {
+	return p.readsBody() || len(p.resolvedAttributes) > 0
 }
 
 // url is the probe's request target for path.
@@ -358,18 +371,23 @@ func bodyScopeProbes(t *testing.T, dims []declaration.DeclarationDimension, valu
 	for _, r := range manifestScopeRoutes(t) {
 		body := make(map[string]any)
 		query := url.Values{}
-		probe := bodyScopeProbe{bodyAttributes: map[string]string{}, queryAttributes: map[string]string{}}
+		probe := bodyScopeProbe{bodyAttributes: map[string]string{}, queryAttributes: map[string]string{}, resolvedAttributes: map[string]string{}}
 
 		for _, d := range r.Dimensions {
 			value := values[paramOf[d.Name]]
 
-			switch d.From {
-			case "body":
+			switch {
+			case d.From == "body":
 				setBodyField(body, d.Field, value)
 				probe.bodyAttributes[d.Name] = value
-			case "query":
+			case d.From == "query" && d.Resolve != "":
+				query.Add(d.Field, value)
+				probe.resolvedAttributes[d.Name] = value
+			case d.From == "query":
 				query.Add(d.Field, value)
 				probe.queryAttributes[d.Name] = value
+			case d.From == "path" && d.Resolve != "":
+				probe.resolvedAttributes[d.Name] = value
 			default:
 				require.Failf(t, "unprobed carrier", "%s reads %s from %q, which the probe cannot send", r.Method+" "+r.Path, d.Name, d.From)
 			}

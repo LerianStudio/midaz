@@ -136,6 +136,7 @@ scope:
       dimensions:
         - { name: segmentId,   from: body, field: accountTarget.segmentId,   optional: true }
         - { name: portfolioId, from: body, field: accountTarget.portfolioId, optional: true }
+        - { name: accountId,   from: body, field: maintenanceCreditAccount,  optional: true, resolve: accountByAlias }
     - method: POST
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
       dimensions:
@@ -163,6 +164,74 @@ scope:
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
       dimensions:
         - { name: segmentId, from: query, field: segmentId, optional: true }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json
+      dimensions: &v1CreateAliasDimensions
+        - { name: accountId, from: body, field: "send.source.from[].accountAlias",   resolve: accountByAlias }
+        - { name: accountId, from: body, field: "send.distribute.to[].accountAlias", resolve: accountByAlias }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation, dimensions: *v1CreateAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block,      dimensions: *v1CreateAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock,    dimensions: *v1CreateAliasDimensions }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow
+      dimensions:
+        - { name: accountId, from: body, field: "send.distribute.to[].accountAlias", resolve: accountByAlias }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow
+      dimensions:
+        - { name: accountId, from: body, field: "send.source.from[].accountAlias", resolve: accountByAlias }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id
+      dimensions: &transactionAccountsPath
+        - { name: accountId, from: path, field: transaction_id, resolve: transactionAccounts }
+    - { method: GET,   path: /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id,                             dimensions: *transactionAccountsPath }
+    - { method: PATCH, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id,                             dimensions: *transactionAccountsPath }
+    - { method: PATCH, path: /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id,                             dimensions: *transactionAccountsPath }
+    - { method: POST,  path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit,                      dimensions: *transactionAccountsPath }
+    - { method: POST,  path: /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit,                      dimensions: *transactionAccountsPath }
+    - { method: POST,  path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel,                      dimensions: *transactionAccountsPath }
+    - { method: POST,  path: /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel,                      dimensions: *transactionAccountsPath }
+    - { method: POST,  path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert,                      dimensions: *transactionAccountsPath }
+    - { method: POST,  path: /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert,                      dimensions: *transactionAccountsPath }
+    - { method: PATCH, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id, dimensions: *transactionAccountsPath }
+    - { method: PATCH, path: /v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id, dimensions: *transactionAccountsPath }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id
+      dimensions: &balanceAccountPath
+        - { name: accountId, from: path, field: balance_id, resolve: balanceAccount }
+    - { method: GET,    path: /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id,         dimensions: *balanceAccountPath }
+    - { method: PATCH,  path: /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id,         dimensions: *balanceAccountPath }
+    - { method: PATCH,  path: /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id,         dimensions: *balanceAccountPath }
+    - { method: DELETE, path: /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id,         dimensions: *balanceAccountPath }
+    - { method: DELETE, path: /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id,         dimensions: *balanceAccountPath }
+    - { method: GET,    path: /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history, dimensions: *balanceAccountPath }
+    - { method: GET,    path: /v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history, dimensions: *balanceAccountPath }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias
+      dimensions: &aliasAccountPath
+        - { name: accountId, from: path, field: alias, resolve: accountByAlias }
+    - { method: GET, path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias,          dimensions: *aliasAccountPath }
+    - { method: GET, path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances, dimensions: *aliasAccountPath }
+    - { method: GET, path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances, dimensions: *aliasAccountPath }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code
+      dimensions: &externalAccountPath
+        - { name: accountId, from: path, field: code, resolve: externalAccount }
+    - { method: GET, path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code,          dimensions: *externalAccountPath }
+    - { method: GET, path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances, dimensions: *externalAccountPath }
+    - { method: GET, path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances, dimensions: *externalAccountPath }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions
+      dimensions:
+        - { name: accountId, from: body, field: "exceptions[].accountAlias", resolve: accountByAlias }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect
+      dimensions:
+        - { name: accountId, from: body, field: accountAlias, resolve: accountByAlias }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts
+      dimensions:
+        - { name: accountId, from: query, field: account_alias, optional: true, resolve: accountByAlias }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
   - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }

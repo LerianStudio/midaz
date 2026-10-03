@@ -46,26 +46,25 @@ var scopedRoutesPerShape = map[string]int{
 	"organizationId+operationRouteId":                     3,
 	"organizationId+transactionRouteId":                   3,
 
-	"organizationId+ledgerId":                                          82,
-	"organizationId+ledgerId+accountId":                                13,
+	"organizationId+ledgerId":                                          65,
+	"organizationId+ledgerId+accountId":                                30,
+	"organizationId+ledgerId+accountId+balanceId":                      8,
 	"organizationId+ledgerId+accountId+holderId":                       2,
 	"organizationId+ledgerId+accountId+operationId":                    2,
-	"organizationId+ledgerId+accountId+portfolioId+segmentId":          3,
+	"organizationId+ledgerId+accountId+portfolioId+segmentId":          4,
 	"organizationId+ledgerId+accountId+portfolioId+segmentId+holderId": 2,
+	"organizationId+ledgerId+accountId+transactionId":                  10,
+	"organizationId+ledgerId+accountId+transactionId+operationId":      2,
 	"organizationId+ledgerId+accountTypeId":                            6,
 	"organizationId+ledgerId+assetId":                                  6,
-	"organizationId+ledgerId+balanceId":                                8,
 	"organizationId+ledgerId+billingPackageId":                         3,
 	"organizationId+ledgerId+feeDebtId":                                1,
 	"organizationId+ledgerId+holderId":                                 1,
 	"organizationId+ledgerId+operationRouteId":                         6,
 	"organizationId+ledgerId+packageId":                                3,
 	"organizationId+ledgerId+portfolioId":                              6,
-	"organizationId+ledgerId+portfolioId+segmentId":                    1,
 	"organizationId+ledgerId+portfolioId+segmentId+holderId":           2,
 	"organizationId+ledgerId+segmentId":                                8,
-	"organizationId+ledgerId+transactionId":                            10,
-	"organizationId+ledgerId+transactionId+operationId":                2,
 	"organizationId+ledgerId+transactionRouteId":                       6,
 }
 
@@ -355,7 +354,7 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 	recorder, authz := newScopeRecorder(t)
 
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, wireAuthScope(auth), "the boot scope wiring must accept the embedded manifest")
+	wireProbeAuthScope(t, auth)
 
 	server := buildFullSurfaceServerWithAuth(t, auth)
 
@@ -396,6 +395,10 @@ func TestManifestScope_EveryProtectedRouteSendsItsDimensions(t *testing.T) {
 			}
 
 			for name, value := range probe.queryAttributes {
+				want[name] = value
+			}
+
+			for name, value := range probe.resolvedAttributes {
 				want[name] = value
 			}
 		}
@@ -465,7 +468,7 @@ func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing
 	recorder, authz := newScopeRecorder(t)
 
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, wireAuthScope(auth), "the boot scope wiring must accept the embedded manifest")
+	wireProbeAuthScope(t, auth)
 
 	server := buildFullSurfaceServerWithAuth(t, auth)
 
@@ -488,14 +491,14 @@ func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing
 	bodyRoutes := 0
 
 	for _, probe := range bodyProbes {
-		if probe.readsBody() {
+		if probe.partnerOnly() {
 			bodyRoutes++
 		}
 	}
 
 	for _, group := range groups {
 		probe, declared := bodyProbes[group.key]
-		if !declared || !probe.readsBody() {
+		if !declared || !probe.partnerOnly() {
 			continue
 		}
 
@@ -518,7 +521,10 @@ func TestManifestScope_BodyRoutesSendOnlyPathDimensionsForANonPartner(t *testing
 				recorder.attributes = nil
 
 				req := httptest.NewRequest(group.rows[0].method, probe.url(scopedRouteURL(rawPath, values)), bodyReader(probe.body))
-				req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+				if probe.readsBody() {
+					req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+				}
+
 				req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 
 				resp, err := server.app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -676,7 +682,7 @@ func TestManifestScope_EveryUUIDDimensionIsValidated(t *testing.T) {
 	t.Cleanup(authz.Close)
 
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, wireAuthScope(auth), "the boot scope wiring must accept the embedded manifest")
+	wireProbeAuthScope(t, auth)
 
 	server := buildFullSurfaceServerWithAuth(t, auth)
 

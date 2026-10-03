@@ -1096,6 +1096,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Before any route is registered: every midaz guard derives the organization and
 	// ledger it authorizes against from the manifest scope, read at registration.
+	if err := registerScopeResolvers(auth, queryUseCase); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to register the authorization scope resolvers: %w", err)
+	}
+
 	if err := wireAuthScope(auth); err != nil {
 		doCleanup()
 

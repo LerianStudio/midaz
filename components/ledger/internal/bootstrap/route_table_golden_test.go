@@ -153,7 +153,7 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 	t.Helper()
 
 	auth := fullSurfaceAuthClient()
-	require.NoError(t, wireAuthScope(auth), "the boot scope wiring must accept the embedded manifest")
+	wireProbeAuthScope(t, auth)
 
 	return buildFullSurfaceServerWithAuth(t, auth)
 }
