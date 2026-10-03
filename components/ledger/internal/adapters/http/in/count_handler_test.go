@@ -25,6 +25,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -345,7 +346,10 @@ func TestTransactionListAndCount_ConfinedToThePartnerScope(t *testing.T) {
 		})).
 		Return(int64(0), nil)
 
-	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: repo}}
+	accounts := account.NewMockRepository(ctrl)
+	accounts.EXPECT().ListAccountsByIDs(gomock.Any(), orgID, ledgerID, []uuid.UUID{allowed}).Return(nil, nil).Times(2)
+
+	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: repo, AccountRepo: accounts}}
 	ctx := partnerScopedContext(t, `,"allowed":{"accountId":["`+allowed.String()+`"]}`, scopeDimensionAccount)
 
 	_, err := handler.GetAllTransactions(ctx, &ListTransactionsRequest{OrganizationID: orgID.String(), LedgerID: ledgerID.String()})

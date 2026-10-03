@@ -29,6 +29,8 @@ type CountFilter struct {
 	EndDate   time.Time // Mandatory upper bound on created_at
 	// Scope confines the count to the transactions a scoped credential may see.
 	Scope http.ScopeConfinement
+	// ScopeAccountAliases are the aliases of the accounts Scope allows.
+	ScopeAccountAliases []string
 }
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database

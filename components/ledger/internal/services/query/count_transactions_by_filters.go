@@ -22,6 +22,15 @@ func (uc *UseCase) CountTransactionsByFilters(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "query.count_transactions_by_filters")
 	defer span.End()
 
+	aliases, err := uc.scopeAccountAliases(ctx, organizationID, ledgerID, filter.Scope)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read the aliases of the allowed accounts", err)
+
+		return 0, err
+	}
+
+	filter.ScopeAccountAliases = aliases
+
 	count, err := uc.TransactionRepo.CountByFilters(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions by filters", err)

@@ -77,3 +77,57 @@ func TestIntegration_TransactionListAndCountConfinedToTheScope(t *testing.T) {
 		})
 	}
 }
+
+func TestIntegration_TransactionListShowsAPendingHoldToItsDestination(t *testing.T) {
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	source := uuid.Must(libCommons.GenerateUUIDv7())
+	destination := uuid.Must(libCommons.GenerateUUIDv7())
+
+	legs := `{"send":{"asset":"USD","value":"10","source":{"from":[{"accountAlias":"@source"}]},"distribute":{"to":[{"accountAlias":"0#@destination#default"}]}}}`
+
+	pending := pgtestutil.CreateTestTransactionWithStatus(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, constant.PENDING, decimal.NewFromInt(10), "USD")
+	accountRefsLeg(t, infra, pending, source, constant.ONHOLD)
+
+	settled := pgtestutil.CreateTestTransactionWithStatus(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, constant.APPROVED, decimal.NewFromInt(10), "USD")
+	accountRefsLeg(t, infra, settled, source, constant.DEBIT)
+
+	for _, id := range []uuid.UUID{pending, settled} {
+		_, err := infra.pgContainer.DB.Exec(`UPDATE "transaction" SET body = $1 WHERE id = $2`, legs, id)
+		require.NoError(t, err)
+	}
+
+	start, end := time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)
+
+	tests := []struct {
+		name    string
+		scope   http.ScopeConfinement
+		aliases []string
+		want    []uuid.UUID
+	}{
+		{name: "the destination of a pending hold sees it", scope: http.ScopeConfinement{"accountId": {destination}}, aliases: []string{"@destination"}, want: []uuid.UUID{pending}},
+		{name: "a body leg of a settled transaction is not a confinement by itself", scope: http.ScopeConfinement{"accountId": {destination}}, aliases: []string{"@destination"}, want: []uuid.UUID{pending}},
+		{name: "an alias is matched whole", scope: http.ScopeConfinement{"accountId": {destination}}, aliases: []string{"@dest"}, want: []uuid.UUID{}},
+		{name: "the source sees both", scope: http.ScopeConfinement{"accountId": {source}}, aliases: []string{"@source"}, want: []uuid.UUID{pending, settled}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trans, _, err := infra.repo.FindOrListAllWithOperations(ctx, infra.orgID, infra.ledgerID, nil,
+				http.Pagination{Limit: 100, SortOrder: "asc", StartDate: start, EndDate: end, Scope: tt.scope, ScopeAccountAliases: tt.aliases})
+			require.NoError(t, err)
+
+			got := make([]uuid.UUID, 0, len(trans))
+			for _, tr := range trans {
+				got = append(got, uuid.MustParse(tr.ID))
+			}
+
+			assert.ElementsMatch(t, tt.want, got)
+
+			count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{StartDate: start, EndDate: end, Scope: tt.scope, ScopeAccountAliases: tt.aliases})
+			require.NoError(t, err)
+			assert.Equal(t, int64(len(tt.want)), count)
+		})
+	}
+}

@@ -84,9 +84,12 @@ type Pagination struct {
 	EndDate   time.Time `json:"-"`
 	GroupID   *string   `json:"-"`
 	// Scope confines the list to the instances a scoped credential may see.
-	Scope      ScopeConfinement `json:"-"`
-	NextCursor string           `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
-	PrevCursor string           `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+	Scope ScopeConfinement `json:"-"`
+	// ScopeAccountAliases are the aliases of the accounts Scope allows, for a
+	// list that names accounts by alias where it has no account id.
+	ScopeAccountAliases []string `json:"-"`
+	NextCursor          string   `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
+	PrevCursor          string   `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
 } //	@name CursorPagination
 
 // SetItems sets the pagination items payload.
