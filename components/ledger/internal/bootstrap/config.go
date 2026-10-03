@@ -1097,7 +1097,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Before any route is registered: every midaz guard derives the organization and
 	// ledger it authorizes against from the manifest scope, read at registration.
-	if err := registerScopeResolvers(auth, queryUseCase); err != nil {
+	if err := registerScopeResolvers(auth, queryUseCase, newScopeTenant(cfg, onbPG.pgManager, txnPG.pgManager, txnMgo.mongoManager, tenantCache, tenantLoader)); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to register the authorization scope resolvers: %w", err)

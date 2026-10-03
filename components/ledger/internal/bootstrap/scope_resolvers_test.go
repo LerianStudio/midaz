@@ -106,7 +106,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 	t.Run("each alias answers its account, one entry per item in order", func(t *testing.T) {
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice, "@bob": bob}}
 
-		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@alice", "@bob#savings", "0#@alice#default"))
+		out, err := scopeResolvers{resolver: fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@alice", "@bob#savings", "0#@alice#default"))
 		require.NoError(t, err)
 		assert.Equal(t, [][]string{{alice.String()}, {bob.String()}, {alice.String()}}, out)
 		assert.Equal(t, [][]string{{"@alice", "@bob"}}, fake.aliasCalls, "one batched lookup of the bare aliases")
@@ -116,7 +116,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 	t.Run("an alias no live account holds maps to nothing, so the request is refused naming it", func(t *testing.T) {
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice}}
 
-		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@alice", "@ghost"))
+		out, err := scopeResolvers{resolver: fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@alice", "@ghost"))
 		require.NoError(t, err)
 		assert.Equal(t, [][]string{{alice.String()}, nil}, out)
 	})
@@ -125,7 +125,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 		otherOrg, otherLedger := uuid.New(), uuid.New()
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice}}
 
-		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{Items: []middleware.ResolveItem{
+		out, err := scopeResolvers{resolver: fake}.accountByAlias(context.Background(), middleware.ResolveInput{Items: []middleware.ResolveItem{
 			{Value: "@alice", Siblings: map[string]string{"organizationId": org.String(), "ledgerId": ledger.String()}},
 			{Value: "@alice", Siblings: map[string]string{"organizationId": otherOrg.String(), "ledgerId": otherLedger.String()}},
 		}})
@@ -137,7 +137,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 	t.Run("a lookup failure is an error", func(t *testing.T) {
 		fake := &fakeScopeResolver{err: query.ScopeAliasAmbiguousError{Alias: "@twin"}}
 
-		_, err := scopeResolvers{fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@twin"))
+		_, err := scopeResolvers{resolver: fake}.accountByAlias(context.Background(), resolveInput(org, ledger, "@twin"))
 		require.Error(t, err)
 	})
 
@@ -151,7 +151,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 			"no organization": {"ledgerId": {ledger.String()}},
 		} {
 			t.Run(name, func(t *testing.T) {
-				_, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{
+				_, err := scopeResolvers{resolver: fake}.accountByAlias(context.Background(), middleware.ResolveInput{
 					Items: []middleware.ResolveItem{{Value: "@alice"}}, Known: known,
 				})
 				require.ErrorIs(t, err, errScopeResolverUnconfined)
@@ -164,7 +164,7 @@ func TestScopeResolvers_AccountByAlias(t *testing.T) {
 	t.Run("a coordinate that is not a uuid resolves nothing", func(t *testing.T) {
 		fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@alice": alice}}
 
-		out, err := scopeResolvers{fake}.accountByAlias(context.Background(), middleware.ResolveInput{
+		out, err := scopeResolvers{resolver: fake}.accountByAlias(context.Background(), middleware.ResolveInput{
 			Items: []middleware.ResolveItem{{Value: "@alice", Siblings: map[string]string{"organizationId": "not-a-uuid", "ledgerId": ledger.String()}}},
 		})
 		require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestScopeResolvers_ExternalAccount(t *testing.T) {
 
 	fake := &fakeScopeResolver{aliases: map[string]uuid.UUID{"@external/BRL": external}}
 
-	out, err := scopeResolvers{fake}.externalAccount(context.Background(), resolveInput(org, ledger, "BRL", "USD"))
+	out, err := scopeResolvers{resolver: fake}.externalAccount(context.Background(), resolveInput(org, ledger, "BRL", "USD"))
 	require.NoError(t, err)
 	assert.Equal(t, [][]string{{external.String()}, nil}, out)
 	assert.Equal(t, [][]string{{"@external/BRL", "@external/USD"}}, fake.aliasCalls)
@@ -193,7 +193,7 @@ func TestScopeResolvers_TransactionAccounts(t *testing.T) {
 	t.Run("every transaction answers the accounts of its legs; an unknown one maps to nothing", func(t *testing.T) {
 		fake := &fakeScopeResolver{transactions: map[uuid.UUID][]uuid.UUID{pending: {a, b}, settled: {a, b, c}}}
 
-		out, err := scopeResolvers{fake}.transactionAccounts(context.Background(),
+		out, err := scopeResolvers{resolver: fake}.transactionAccounts(context.Background(),
 			resolveInput(org, ledger, pending.String(), settled.String(), unknown.String(), "not-a-uuid"))
 		require.NoError(t, err)
 		assert.Equal(t, [][]string{{a.String(), b.String()}, {a.String(), b.String(), c.String()}, nil, nil}, out)
@@ -203,7 +203,7 @@ func TestScopeResolvers_TransactionAccounts(t *testing.T) {
 	t.Run("a lookup failure is an error", func(t *testing.T) {
 		fake := &fakeScopeResolver{err: query.ErrScopeTransactionAccountsUnavailable}
 
-		_, err := scopeResolvers{fake}.transactionAccounts(context.Background(), resolveInput(org, ledger, pending.String()))
+		_, err := scopeResolvers{resolver: fake}.transactionAccounts(context.Background(), resolveInput(org, ledger, pending.String()))
 		require.ErrorIs(t, err, query.ErrScopeTransactionAccountsUnavailable)
 	})
 }
@@ -214,21 +214,21 @@ func TestScopeResolvers_BalanceAccount(t *testing.T) {
 
 	fake := &fakeScopeResolver{balances: map[uuid.UUID]uuid.UUID{balance: account}}
 
-	out, err := scopeResolvers{fake}.balanceAccount(context.Background(), resolveInput(org, ledger, balance.String(), unknown.String()))
+	out, err := scopeResolvers{resolver: fake}.balanceAccount(context.Background(), resolveInput(org, ledger, balance.String(), unknown.String()))
 	require.NoError(t, err)
 	assert.Equal(t, [][]string{{account.String()}, nil}, out)
 
 	fake.err = errors.New("replica down")
 
-	_, err = scopeResolvers{fake}.balanceAccount(context.Background(), resolveInput(org, ledger, balance.String()))
+	_, err = scopeResolvers{resolver: fake}.balanceAccount(context.Background(), resolveInput(org, ledger, balance.String()))
 	require.Error(t, err)
 }
 
 func TestScopeResolvers_RegisteredUnderTheManifestNames(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: true}
 
-	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}))
-	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}), "a second registration under the same names is refused")
+	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil))
+	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil), "a second registration under the same names is refused")
 
 	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount} {
 		assert.Error(t, auth.RegisterScopeResolver(name, func(context.Context, middleware.ResolveInput) ([][]string, error) { return nil, nil }),
@@ -279,7 +279,7 @@ func TestScopeResolvers_TheManifestNeedsEveryRegisteredName(t *testing.T) {
 		"a manifest that names resolvers must be refused until they are registered")
 
 	auth := &middleware.AuthClient{Enabled: true}
-	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}))
+	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil))
 	require.NoError(t, wireAuthScope(auth), "the boot registration must cover every resolver the manifest names")
 }
 
@@ -300,7 +300,7 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 	recorder, authz := newAllowRecorder(t)
 
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, registerScopeResolvers(auth, fake))
+	require.NoError(t, registerScopeResolvers(auth, fake, nil))
 	require.NoError(t, wireAuthScope(auth))
 
 	server := buildFullSurfaceServerWithAuth(t, auth)

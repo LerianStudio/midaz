@@ -38,13 +38,16 @@ var errScopeResolverUnconfined = errors.New("scope resolution needs exactly one 
 // failed lookup is an error, which it refuses with 503.
 type scopeResolvers struct {
 	resolver query.ScopeResolver
+	// tenant attaches the tenant's databases in multi-tenant mode; nil in
+	// single-tenant mode, where the repositories use their static connection.
+	tenant scopeTenant
 }
 
 // registerScopeResolvers registers every resolver the manifest names. It must
 // run before declaration.WireScope, which refuses a manifest naming a resolver
 // that is not registered.
-func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeResolver) error {
-	set := scopeResolvers{resolver: resolver}
+func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeResolver, tenant scopeTenant) error {
+	set := scopeResolvers{resolver: resolver, tenant: tenant}
 
 	for name, fn := range map[string]middleware.ScopeResolver{
 		resolverAccountByAlias:      set.accountByAlias,
@@ -81,6 +84,11 @@ type ledgerScope struct {
 // aliasesToAccounts resolves the items in one read per organization and ledger
 // they are confined to.
 func (s scopeResolvers) aliasesToAccounts(ctx context.Context, in middleware.ResolveInput, toAlias func(string) string) ([][]string, error) {
+	ctx, err := s.attachTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make([][]string, len(in.Items))
 	aliasOf := make([]string, len(in.Items))
 	scopeOf := make([]ledgerScope, len(in.Items))
@@ -161,6 +169,11 @@ type idLookup func(ctx context.Context, organizationID, ledgerID, id uuid.UUID) 
 
 // byID resolves each item that is a uuid; one that is not names nothing.
 func (s scopeResolvers) byID(ctx context.Context, in middleware.ResolveInput, lookup idLookup) ([][]string, error) {
+	ctx, err := s.attachTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make([][]string, len(in.Items))
 
 	for i, item := range in.Items {
@@ -192,6 +205,16 @@ func (s scopeResolvers) byID(ctx context.Context, in middleware.ResolveInput, lo
 	}
 
 	return out, nil
+}
+
+// attachTenant attaches the tenant's databases when the deployment is
+// multi-tenant, and leaves the context as it is otherwise.
+func (s scopeResolvers) attachTenant(ctx context.Context) (context.Context, error) {
+	if s.tenant == nil {
+		return ctx, nil
+	}
+
+	return s.tenant.attach(ctx)
 }
 
 // confinement reads the one organization and one ledger an item is looked up in:
