@@ -46,6 +46,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 	if !filter.Scope.ListsNothing() {
 		metadata, err = uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccount, metadataFilter)
 	}
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
 		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo", libLog.Err(err))
