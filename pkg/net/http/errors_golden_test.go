@@ -548,7 +548,6 @@ func allSentinels() map[string]error {
 		"ErrLimitUnknownType":                         constant.ErrLimitUnknownType,
 		"ErrLimitResetTimeNotAllowed":                 constant.ErrLimitResetTimeNotAllowed,
 		"ErrLimitResetTimeInsideWindow":               constant.ErrLimitResetTimeInsideWindow,
-		"ErrScopeReferenceUnresolved":                 constant.ErrScopeReferenceUnresolved,
 		"ErrLimitCustomPeriodTooLong":                 constant.ErrLimitCustomPeriodTooLong,
 		"ErrLimitCustomPeriodExpired":                 constant.ErrLimitCustomPeriodExpired,
 		"ErrLimitInvalidCustomStartFormat":            constant.ErrLimitInvalidCustomStartFormat,

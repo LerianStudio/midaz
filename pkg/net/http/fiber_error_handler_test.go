@@ -197,21 +197,29 @@ func TestCanonicalFiberErrorHandler_BadRequestKeepsItsMessage(t *testing.T) {
 	require.Equal(t, "The authorization service refused the request.", env.Detail)
 }
 
-// TestCanonicalFiberErrorHandler_UnresolvedScopeReferenceKeepsItsStatusAndMessage covers
-// the 422 the authorization guard answers when a value it must translate into a scope
-// dimension — an account alias, a transaction id — names nothing: the client sees the
-// 422 with its own code and the message naming where the value was read.
-func TestCanonicalFiberErrorHandler_UnresolvedScopeReferenceKeepsItsStatusAndMessage(t *testing.T) {
+// TestCanonicalFiberErrorHandler_ScopeRefusalNamesWhereTheValueWasRead covers the
+// 403 the authorization guard answers when a scope value is outside the credential's
+// scope or does not exist: the client sees the standard 403 code with the guard's
+// message, which names where the value was read. A plain refusal keeps the generic
+// text.
+func TestCanonicalFiberErrorHandler_ScopeRefusalNamesWhereTheValueWasRead(t *testing.T) {
 	t.Parallel()
 
-	const message = `scope path parameter "alias" names a value that does not resolve to any "accountId"`
+	const message = `scope path parameter "alias" is outside this credential's scope or does not exist`
 
 	app := fiber.New(fiber.Config{ErrorHandler: CanonicalFiberErrorHandler})
-	app.Get("/422", func(c fiber.Ctx) error { return fiber.NewError(fiber.StatusUnprocessableEntity, message) })
+	app.Get("/scope", func(c fiber.Ctx) error { return fiber.NewError(fiber.StatusForbidden, message) })
+	app.Get("/plain", func(c fiber.Ctx) error { return fiber.NewError(fiber.StatusForbidden, "Forbidden") })
 
-	status, env := decodeEnvelope(t, app, fiber.MethodGet, "/422")
+	status, env := decodeEnvelope(t, app, fiber.MethodGet, "/scope")
 
-	require.Equal(t, fiber.StatusUnprocessableEntity, status)
-	require.Equal(t, constant.ErrScopeReferenceUnresolved.Error(), env.Code)
+	require.Equal(t, fiber.StatusForbidden, status)
+	require.Equal(t, constant.ErrInsufficientPrivileges.Error(), env.Code)
 	require.Equal(t, message, env.Detail)
+
+	status, env = decodeEnvelope(t, app, fiber.MethodGet, "/plain")
+
+	require.Equal(t, fiber.StatusForbidden, status)
+	require.Equal(t, constant.ErrInsufficientPrivileges.Error(), env.Code)
+	require.NotEqual(t, "Forbidden", env.Detail, "a refusal without a scope message keeps the generic text")
 }

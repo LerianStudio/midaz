@@ -306,6 +306,8 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 	server := buildFullSurfaceServerWithAuth(t, auth)
 	base := "/v1/organizations/" + org.String() + "/ledgers/" + ledger.String()
 
+	var lastBody string
+
 	send := func(method, target, body string) int {
 		t.Helper()
 
@@ -327,6 +329,7 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 		defer func() { _ = resp.Body.Close() }()
 
 		raw, _ := io.ReadAll(resp.Body)
+		lastBody = string(raw)
 		t.Logf("%s %s -> %d %s", method, target, resp.StatusCode, raw)
 
 		return resp.StatusCode
@@ -346,6 +349,8 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 		recorder.reset()
 
 		assert.Equal(t, fiber.StatusForbidden, send(fiber.MethodGet, base+"/accounts/alias/@ghost", ""))
+		assert.Contains(t, lastBody, `path parameter \"alias\" is outside this credential's scope or does not exist`)
+		assert.Contains(t, lastBody, `"code":"0043"`)
 		assert.Empty(t, recorder.resolved())
 	})
 
