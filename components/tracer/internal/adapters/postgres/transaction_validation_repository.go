@@ -628,6 +628,8 @@ func (r *TransactionValidationRepository) applyFilters(qb sq.SelectBuilder, filt
 		qb = qb.Where(sq.Eq{"transaction_type": string(*filters.TransactionType)})
 	}
 
+	qb = applyListScope(qb, filters.Scope, transactionValidationScopeFields)
+
 	return qb
 }
 

@@ -106,6 +106,8 @@ func (h *AuditEventHandler) listAuditEvents(ctx context.Context, bind func(any) 
 		return nil, err
 	}
 
+	filters.Scope = tracerListScope(ctx, tracerListScopeDimensions...)
+
 	result, err := h.service.ListAuditEvents(ctx, filters)
 	if err != nil {
 		return nil, classifyAuditEventError(span, err)

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // validTransactionValidationSortFields defines the whitelist of allowed sort columns for transaction validation queries.
@@ -100,6 +101,11 @@ type TransactionValidationFilters struct {
 
 	// SortOrder is the sort direction: "ASC" or "DESC". Defaults to "DESC".
 	SortOrder string
+
+	// Scope confines the list to the values a scoped credential may see, per
+	// scope dimension. It is set from the authorization decision, never from
+	// the query.
+	Scope http.ScopeConfinement
 }
 
 // ListTransactionValidationsResult represents the paginated result of a transaction validation list query.

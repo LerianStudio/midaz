@@ -232,10 +232,36 @@ func TestTracerManifestScope_RoutesAndDimensionsAgree(t *testing.T) {
 
 	assert.Emptyf(t, problems, "route parameters the manifest does not read:\n%s", strings.Join(problems, "\n"))
 
+	carried := tracerRouteCarriedDimensions(t)
+
 	for _, dim := range dims {
+		if carried[dim.Name] {
+			continue
+		}
+
 		assert.Positivef(t, used[dim.Param],
-			"manifest dimension %s reads :%s, which no route carries", dim.Name, dim.Param)
+			"manifest dimension %s reads :%s, which no route carries in its path or declares in scope.routes", dim.Name, dim.Param)
 	}
+}
+
+// tracerRouteCarriedDimensions names the dimensions some scope.routes entry reads
+// from a body or a query, which no route path needs to spell.
+func tracerRouteCarriedDimensions(t *testing.T) map[string]bool {
+	t.Helper()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(tracerembed.TracerManifest, &manifest))
+
+	carried := make(map[string]bool)
+
+	for _, route := range manifest.Scope.Routes {
+		for _, dim := range route.Dimensions {
+			carried[dim.Name] = true
+		}
+	}
+
+	return carried
 }
 
 // TestTracerManifestScope_EveryProtectedRouteSendsItsDimensions drives every protected

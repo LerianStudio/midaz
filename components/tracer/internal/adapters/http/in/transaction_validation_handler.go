@@ -146,6 +146,8 @@ func (h *TransactionValidationHandler) listTransactionValidations(ctx context.Co
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 
+	filters.Scope = tracerListScope(ctx, tracerListScopeDimensions...)
+
 	result, err := h.service.ListTransactionValidations(ctx, filters)
 	if err != nil {
 		return nil, classifyTransactionValidationError(span, err)

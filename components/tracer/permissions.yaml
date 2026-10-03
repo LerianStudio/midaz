@@ -50,6 +50,33 @@ scope:
     - { name: limitId,      from: path, param: limit_id,       required: false, multi: true, collection: limits,       label: "limit" }
     - { name: validationId, from: path, param: validation_id,  required: false, multi: true, collection: validations,  label: "transaction validation" }
     - { name: auditEventId, from: path, param: audit_event_id, required: false, multi: true, collection: audit-events, label: "audit event" }
+    - { name: portfolioId,  from: path, param: portfolio_id,   required: false, multi: true, collection: portfolios,   label: "portfolio",
+        covers: [validations, audit-events] }
+    - { name: segmentId,    from: path, param: segment_id,     required: false, multi: true, collection: segments,     label: "segment",
+        covers: [validations, audit-events] }
+    - { name: merchantId,   from: path, param: merchant_id,    required: false, multi: true, collection: merchants,    label: "merchant",
+        covers: [validations, audit-events] }
+    - { name: accountId,    from: path, param: account_id,     required: false, multi: true, collection: accounts,     label: "account",
+        covers: [validations, audit-events] }
+  routes:
+    - method: POST
+      path: /v1/validations
+      dimensions:
+        - { name: accountId,   from: body, field: account.accountId }
+        - { name: segmentId,   from: body, field: segment.segmentId,     optional: true }
+        - { name: portfolioId, from: body, field: portfolio.portfolioId, optional: true }
+        - { name: merchantId,  from: body, field: merchant.merchantId,   optional: true }
+    - method: GET
+      path: /v1/validations
+      dimensions: &validationListQueryDimensions
+        - { name: accountId,   from: query, field: account_id,   optional: true }
+        - { name: segmentId,   from: query, field: segment_id,   optional: true }
+        - { name: portfolioId, from: query, field: portfolio_id, optional: true }
+      filter: &validationListFilter [accountId, segmentId, portfolioId, merchantId]
+    - method: GET
+      path: /v1/audit-events
+      dimensions: *validationListQueryDimensions
+      filter: *validationListFilter
 permissions:
   # rules — CEL fraud rules (registerTracerHumaRoutes, the /v1/rules group)
   - { resource: rules, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
@@ -65,7 +92,7 @@ permissions:
 
   # validations — transaction validation (registerTracerHumaRoutes, the /v1/validations group)
   - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer], level: tenant }
-  - { resource: validations, action: post, effect: allow, roles: [editor, validator], level: tenant }
+  - { resource: validations, action: post, effect: allow, roles: [editor, validator], level: accountId }
 
   # audit-events — hash-chained audit read (registerTracerHumaRoutes, the /v1/audit-events group)
   - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer], level: tenant }
