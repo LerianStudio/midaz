@@ -1649,7 +1649,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 			}
 
 			// Act
-			count, err := repo.Count(context.Background(), orgID, ledgerID)
+			count, err := repo.Count(context.Background(), orgID, ledgerID, nil)
 
 			// Assert
 			require.NoError(t, err)
@@ -1680,8 +1680,8 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	count1, err1 := repo.Count(ctx, org1ID, ledger1ID)
-	count2, err2 := repo.Count(ctx, org2ID, ledger2ID)
+	count1, err1 := repo.Count(ctx, org1ID, ledger1ID, nil)
+	count2, err2 := repo.Count(ctx, org2ID, ledger2ID, nil)
 
 	// Assert
 	require.NoError(t, err1)

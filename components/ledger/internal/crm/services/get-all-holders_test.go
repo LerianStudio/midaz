@@ -12,6 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
@@ -141,4 +142,62 @@ func TestGetAllHolders(t *testing.T) {
 			}
 		})
 	}
+}
+
+type holderScopeFake struct {
+	ids   []uuid.UUID
+	err   error
+	asked []http.ScopeConfinement
+}
+
+func (f *holderScopeFake) HolderIDsInScope(_ context.Context, _ uuid.UUID, scope http.ScopeConfinement) ([]uuid.UUID, error) {
+	f.asked = append(f.asked, scope)
+
+	return f.ids, f.err
+}
+
+func TestGetAllHolders_ConfinedToTheScope(t *testing.T) {
+	org := uuid.New()
+	ledgerID, holderID := uuid.New(), uuid.New()
+
+	t.Run("the holders of the allowed ledgers and accounts", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := holder.NewMockRepository(ctrl)
+		scopeReader := &holderScopeFake{ids: []uuid.UUID{holderID}}
+		uc := &UseCase{HolderRepo: repo, HolderScope: scopeReader}
+
+		allowed := http.ScopeConfinement{"ledgerId": {ledgerID}}
+
+		repo.EXPECT().FindAll(gomock.Any(), org.String(), gomock.Cond(func(q http.QueryHeader) bool {
+			return assert.Equal(t, http.ScopeConfinement{"holderId": {holderID}}, q.Scope)
+		}), false).Return([]*mmodel.Holder{}, nil)
+
+		_, err := uc.GetAllHolders(context.Background(), org.String(), http.QueryHeader{Limit: 10, Page: 1, Scope: allowed}, false)
+		require.NoError(t, err)
+		assert.Equal(t, []http.ScopeConfinement{allowed}, scopeReader.asked)
+	})
+
+	t.Run("no holder in scope, or an empty allowed list, lists nothing without reading holders", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		uc := &UseCase{HolderRepo: holder.NewMockRepository(ctrl), HolderScope: &holderScopeFake{}}
+
+		for _, scope := range []http.ScopeConfinement{{"ledgerId": {ledgerID}}, {"accountId": {}}} {
+			holders, err := uc.GetAllHolders(context.Background(), org.String(), http.QueryHeader{Scope: scope}, false)
+			require.NoError(t, err)
+			assert.Empty(t, holders)
+		}
+	})
+
+	t.Run("a confinement it cannot read is an error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		boom := errors.New("replica down")
+
+		uc := &UseCase{HolderRepo: holder.NewMockRepository(ctrl), HolderScope: &holderScopeFake{err: boom}}
+		_, err := uc.GetAllHolders(context.Background(), org.String(), http.QueryHeader{Scope: http.ScopeConfinement{"ledgerId": {ledgerID}}}, false)
+		require.ErrorIs(t, err, boom)
+
+		uc = &UseCase{HolderRepo: holder.NewMockRepository(ctrl)}
+		_, err = uc.GetAllHolders(context.Background(), org.String(), http.QueryHeader{Scope: http.ScopeConfinement{"ledgerId": {ledgerID}}}, false)
+		require.Error(t, err, "without a scope reader the confinement cannot be applied")
+	})
 }

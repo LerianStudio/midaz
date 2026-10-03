@@ -1,0 +1,72 @@
+//go:build integration
+
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package instrument
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+)
+
+func TestIntegration_InstrumentRepo_FindAll_ConfinedToTheScope(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-scope-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+
+	ledger1, ledger2 := uuid.New(), uuid.New()
+	account1, account2, account3 := uuid.New(), uuid.New(), uuid.New()
+
+	seed := func(ledgerID, accountID uuid.UUID, document string) uuid.UUID {
+		params := mongotestutil.DefaultInstrumentParams()
+		params.LedgerID = ledgerID.String()
+		params.AccountID = accountID.String()
+		params.Document = document
+
+		created, err := repo.Create(ctx, organizationID, mongotestutil.CreateTestInstrument(t, uuid.New(), params))
+		require.NoError(t, err)
+
+		return *created.ID
+	}
+
+	i1 := seed(ledger1, account1, "22222222201")
+	i2 := seed(ledger1, account2, "22222222202")
+	i3 := seed(ledger2, account3, "22222222203")
+
+	tests := []struct {
+		name  string
+		scope http.ScopeConfinement
+		want  []uuid.UUID
+	}{
+		{name: "no confinement lists every instrument", want: []uuid.UUID{i1, i2, i3}},
+		{name: "allowed ledger", scope: http.ScopeConfinement{"ledgerId": {ledger1}}, want: []uuid.UUID{i1, i2}},
+		{name: "allowed accounts", scope: http.ScopeConfinement{"accountId": {account2, account3}}, want: []uuid.UUID{i2, i3}},
+		{name: "both dimensions intersect", scope: http.ScopeConfinement{"ledgerId": {ledger1}, "accountId": {account2, account3}}, want: []uuid.UUID{i2}},
+		{name: "an empty allowed list lists nothing", scope: http.ScopeConfinement{"accountId": {}}, want: []uuid.UUID{}},
+		{name: "a dimension instruments cannot be confined on lists nothing", scope: http.ScopeConfinement{"portfolioId": {uuid.New()}}, want: []uuid.UUID{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instruments, err := repo.FindAll(ctx, organizationID, uuid.Nil, http.QueryHeader{Limit: 10, Page: 1, Scope: tt.scope}, false)
+			require.NoError(t, err)
+
+			got := make([]uuid.UUID, 0, len(instruments))
+			for _, i := range instruments {
+				got = append(got, *i.ID)
+			}
+
+			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
+}

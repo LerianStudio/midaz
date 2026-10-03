@@ -28,7 +28,7 @@ func TestCountAccounts(t *testing.T) {
 			name: "Success - Count accounts",
 			setupMock: func(mockRepo *account.MockRepository) {
 				mockRepo.EXPECT().
-					Count(gomock.Any(), gomock.Any(), gomock.Any()).
+					Count(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(5), nil)
 			},
 			organizationID: uuid.New(),
@@ -40,7 +40,7 @@ func TestCountAccounts(t *testing.T) {
 			name: "Success - No accounts found",
 			setupMock: func(mockRepo *account.MockRepository) {
 				mockRepo.EXPECT().
-					Count(gomock.Any(), gomock.Any(), gomock.Any()).
+					Count(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(0), nil)
 			},
 			organizationID: uuid.New(),
@@ -52,7 +52,7 @@ func TestCountAccounts(t *testing.T) {
 			name: "Error - Database error",
 			setupMock: func(mockRepo *account.MockRepository) {
 				mockRepo.EXPECT().
-					Count(gomock.Any(), gomock.Any(), gomock.Any()).
+					Count(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(0), errors.New("database error"))
 			},
 			organizationID: uuid.New(),
@@ -74,7 +74,7 @@ func TestCountAccounts(t *testing.T) {
 				AccountRepo: mockRepo,
 			}
 
-			count, err := uc.CountAccounts(context.Background(), tc.organizationID, tc.ledgerID)
+			count, err := uc.CountAccounts(context.Background(), tc.organizationID, tc.ledgerID, nil)
 
 			if tc.expectedError != nil {
 				assert.Error(t, err)

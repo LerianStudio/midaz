@@ -36,6 +36,10 @@ type UseCase struct {
 	// data-integrity guarantee rather than optional telemetry.
 	LedgerAccounts LedgerAccountReader
 
+	// HolderScope reads which holders a scoped credential may list: those that
+	// own a live account in its allowed ledgers or accounts.
+	HolderScope HolderScopeReader
+
 	// MetricsFactory emits the bounded domain_operations_total /
 	// domain_operation_duration_ms metrics for every state-mutating CRM
 	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so the

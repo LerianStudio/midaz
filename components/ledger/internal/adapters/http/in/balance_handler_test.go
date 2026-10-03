@@ -1079,3 +1079,24 @@ func TestGetAccountBalancesAtTimestamp_MissingDate_Canonical400(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrMissingRequiredQueryParameter.Error(), got["code"])
 }
+
+func TestGetAllBalances_ConfinedToThePartnerScope(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID, ledgerID, allowed := uuid.New(), uuid.New(), uuid.New()
+
+	balanceRepo := balance.NewMockRepository(ctrl)
+	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balanceRepo}}
+
+	balanceRepo.EXPECT().
+		ListAll(gomock.Any(), orgID, ledgerID, gomock.Cond(func(filter pkgHTTP.Pagination) bool {
+			return assert.Equal(t, pkgHTTP.ScopeConfinement{"accountId": {allowed}}, filter.Scope)
+		})).
+		Return([]*mmodel.Balance{}, libHTTP.CursorPagination{}, nil)
+
+	ctx := partnerScopedContext(t, `,"allowed":{"accountId":["`+allowed.String()+`"]}`, scopeDimensionAccount)
+
+	_, err := handler.GetAllBalances(ctx, &ListBalancesRequest{OrganizationID: orgID.String(), LedgerID: ledgerID.String()})
+	require.NoError(t, err)
+}

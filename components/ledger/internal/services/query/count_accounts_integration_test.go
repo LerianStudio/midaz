@@ -56,7 +56,7 @@ func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 	pgtestutil.CreateTestAsset(t, container.DB, orgID, ledgerID, "USD")
 
 	// Get initial count
-	lastCount, err := uc.CountAccounts(ctx, orgID, ledgerID)
+	lastCount, err := uc.CountAccounts(ctx, orgID, ledgerID, nil)
 	require.NoError(t, err, "initial account count should succeed")
 
 	// Create accounts and verify count never decreases
@@ -65,7 +65,7 @@ func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 		pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil,
 			fmt.Sprintf("Account %d", i), alias, "USD", nil)
 
-		newCount, err := uc.CountAccounts(ctx, orgID, ledgerID)
+		newCount, err := uc.CountAccounts(ctx, orgID, ledgerID, nil)
 		require.NoError(t, err, "count after insert %d should succeed", i)
 
 		assert.GreaterOrEqual(t, newCount, lastCount,
@@ -129,18 +129,18 @@ func TestIntegration_CountAccounts_IsolatedByLedger(t *testing.T) {
 	}
 
 	// Count for ledger1 should be 4
-	count1, err := uc.CountAccounts(ctx, orgID, ledger1ID)
+	count1, err := uc.CountAccounts(ctx, orgID, ledger1ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), count1, "ledger1 should have exactly 4 accounts")
 
 	// Count for ledger2 should be 2
-	count2, err := uc.CountAccounts(ctx, orgID, ledger2ID)
+	count2, err := uc.CountAccounts(ctx, orgID, ledger2ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), count2, "ledger2 should have exactly 2 accounts")
 
 	// Count for non-existent ledger should be 0
 	fakeLedgerID := uuid.New()
-	count3, err := uc.CountAccounts(ctx, orgID, fakeLedgerID)
+	count3, err := uc.CountAccounts(ctx, orgID, fakeLedgerID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count3, "non-existent ledger should have 0 accounts")
 }

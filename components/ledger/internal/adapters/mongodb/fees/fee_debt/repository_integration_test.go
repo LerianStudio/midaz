@@ -530,3 +530,53 @@ func decimalStrings(values map[string]decimal.Decimal) map[string]string {
 
 	return out
 }
+
+func TestFindAll_ConfinedToTheDebtorAliases(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := staticRepository(t, container.Client, container.DBName, nil)
+	ctx := context.Background()
+
+	debtIDByRef := map[string]string{}
+
+	for i, ref := range []string{"@alice#default", "@alice#savings", "@bob#default", "@alice2#default", "@al.ce#default"} {
+		change := openedDebt(uuid.MustParse(fmt.Sprintf("01920000-0000-7000-8000-%012d", 100+i)), ref, int64(i+1))
+		require.NoError(t, repo.Apply(ctx, record(t0, "", change)))
+
+		debtIDByRef[ref] = change.DebtID
+	}
+
+	tests := []struct {
+		name  string
+		query fee_debt.ListQuery
+		want  []string
+	}{
+		{
+			name:  "every balance of an allowed debtor, and only of it",
+			query: fee_debt.ListQuery{Limit: 10, ConfineDebtors: true, DebtorAliases: []string{"@alice"}},
+			want:  []string{debtIDByRef["@alice#default"], debtIDByRef["@alice#savings"]},
+		},
+		{
+			name:  "an alias is matched literally",
+			query: fee_debt.ListQuery{Limit: 10, ConfineDebtors: true, DebtorAliases: []string{"@al.ce", "@bob"}},
+			want:  []string{debtIDByRef["@al.ce#default"], debtIDByRef["@bob#default"]},
+		},
+		{
+			name:  "confined to no debtor lists nothing",
+			query: fee_debt.ListQuery{Limit: 10, ConfineDebtors: true},
+			want:  []string{},
+		},
+		{
+			name:  "a debtor filter inside the confinement",
+			query: fee_debt.ListQuery{Limit: 10, ConfineDebtors: true, DebtorAliases: []string{"@bob"}, DebtorBalanceRef: "@alice#default"},
+			want:  []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			debts, _, err := repo.FindAll(ctx, orgID, ledgerID, tt.query)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, debtIDs(debts))
+		})
+	}
+}

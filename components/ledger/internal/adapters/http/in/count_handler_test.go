@@ -15,6 +15,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
@@ -323,4 +324,33 @@ func TestCountTransactions_BadPathUUID_Direct(t *testing.T) {
 	require.ErrorAs(t, err, &detail, "terminal must return the canonical problem detail")
 	assert.Equal(t, http.StatusBadRequest, detail.Status)
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), detail.Code)
+}
+
+func TestTransactionListAndCount_ConfinedToThePartnerScope(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID, ledgerID, allowed := uuid.New(), uuid.New(), uuid.New()
+	want := pkgHTTP.ScopeConfinement{"accountId": {allowed}}
+
+	repo := transaction.NewMockRepository(ctrl)
+	repo.EXPECT().
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, gomock.Any(), gomock.Cond(func(filter pkgHTTP.Pagination) bool {
+			return assert.Equal(t, want, filter.Scope)
+		})).
+		Return([]*transaction.Transaction{}, libHTTP.CursorPagination{}, nil)
+	repo.EXPECT().
+		CountByFilters(gomock.Any(), orgID, ledgerID, gomock.Cond(func(filter transaction.CountFilter) bool {
+			return assert.Equal(t, want, filter.Scope)
+		})).
+		Return(int64(0), nil)
+
+	handler := &TransactionHandler{Query: &query.UseCase{TransactionRepo: repo}}
+	ctx := partnerScopedContext(t, `,"allowed":{"accountId":["`+allowed.String()+`"]}`, scopeDimensionAccount)
+
+	_, err := handler.GetAllTransactions(ctx, &ListTransactionsRequest{OrganizationID: orgID.String(), LedgerID: ledgerID.String()})
+	require.NoError(t, err)
+
+	_, err = handler.CountTransactionsByFilters(ctx, &CountTransactionsRequest{OrganizationID: orgID.String(), LedgerID: ledgerID.String()})
+	require.NoError(t, err)
 }

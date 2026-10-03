@@ -72,7 +72,7 @@ func (handler *FeeDebtHandler) listFeeDebts(ctx context.Context, organizationID,
 		query.DebtorBalanceRef = mtransaction.AliasKey(accountAlias, balanceKey)
 	}
 
-	debts, pagination, err := handler.Service.ListFeeDebts(ctx, organizationID, ledgerID, query)
+	debts, pagination, err := handler.Service.ListFeeDebts(ctx, organizationID, ledgerID, query, listScope(ctx, scopeDimensionAccount))
 	if err != nil {
 		return nil, feeDebtReadFailed(ctx, span, logger, "Failed to list fee debts", err)
 	}

@@ -33,6 +33,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/scopefilter"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -157,6 +158,24 @@ type Repository interface {
 	// operation rows of a live transaction, together with its submitted body.
 	// An absent transaction answers the entity-not-found business error.
 	ListAccountRefsByTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*AccountRefs, error)
+}
+
+// scopePredicates confine a list of transactions per scope dimension. A
+// transaction is in an account's scope when any of its live operation rows
+// names the account.
+func (r *TransactionPostgreSQLRepository) scopePredicates() map[string]scopefilter.Predicate {
+	table := r.tableName
+
+	return map[string]scopefilter.Predicate{
+		"accountId": func(ids pq.StringArray) squirrel.Sqlizer {
+			return squirrel.Expr("EXISTS (SELECT 1 FROM operation scope_op"+
+				" WHERE scope_op.transaction_id = "+table+".id"+
+				" AND scope_op.organization_id = "+table+".organization_id"+
+				" AND scope_op.ledger_id = "+table+".ledger_id"+
+				" AND scope_op.deleted_at IS NULL"+
+				" AND scope_op.account_id = ANY(?::uuid[]))", ids)
+		},
+	}
 }
 
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
@@ -1515,6 +1534,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	subQuery = applyCreatedAtRange(subQuery, filter)
 	subQuery = applyGroupIDFilter(subQuery, filter)
+	subQuery = scopefilter.WherePredicates(subQuery, filter.Scope, r.scopePredicates())
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
@@ -1756,6 +1776,8 @@ func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, or
 	if filter.Status != "" {
 		countQuery = countQuery.Where(squirrel.Eq{"status": filter.Status})
 	}
+
+	countQuery = scopefilter.WherePredicates(countQuery, filter.Scope, r.scopePredicates())
 
 	query, args, err := countQuery.ToSql()
 	if err != nil {

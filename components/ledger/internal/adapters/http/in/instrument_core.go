@@ -228,6 +228,8 @@ func (handler *InstrumentHandler) getAllInstruments(ctx context.Context, organiz
 
 	recordSafeQueryAttributes(span, headerParams)
 
+	headerParams.Scope = listScope(ctx, scopeDimensionLedger, scopeDimensionAccount)
+
 	instruments, err := handler.Service.GetAllInstruments(ctx, organizationID.String(), holderID, *headerParams, includeDeleted)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get all instruments", err)

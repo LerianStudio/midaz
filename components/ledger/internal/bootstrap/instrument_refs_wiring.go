@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
 )
 
@@ -64,4 +65,11 @@ func (a ledgerAccountReaderAdapter) AccountExists(ctx context.Context, organizat
 // ownership guard; errors propagate unchanged.
 func (a ledgerAccountReaderAdapter) CountAccountsByHolder(ctx context.Context, organizationID, holderID uuid.UUID) (int64, error) {
 	return a.query.CountAccountsByHolderID(ctx, organizationID, holderID)
+}
+
+// HolderIDsInScope reports the holders that own a live account within a scope
+// confined on ledgerId and accountId. It backs the CRM holder listing of a
+// scoped credential; errors propagate unchanged.
+func (a ledgerAccountReaderAdapter) HolderIDsInScope(ctx context.Context, organizationID uuid.UUID, scope http.ScopeConfinement) ([]uuid.UUID, error) {
+	return a.query.HolderIDsInScope(ctx, organizationID, scope)
 }

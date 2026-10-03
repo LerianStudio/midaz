@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/scopefilter"
 	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -165,6 +166,8 @@ func (hm *MongoDBRepository) buildHolderFilter(ctx context.Context, organization
 			filter = append(filter, bson.E{Key: key, Value: safeValue})
 		}
 	}
+
+	filter = scopefilter.Apply(filter, query.Scope, map[string]scopefilter.Field{"holderId": {Name: "_id"}})
 
 	return filter, nil
 }

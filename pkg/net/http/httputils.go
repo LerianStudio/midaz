@@ -67,21 +67,26 @@ type QueryHeader struct {
 	ParentAccountID                               *string
 	LegalDocument                                 *string
 	Alias                                         *string
+	// Scope confines the list to the instances a scoped credential may see. It
+	// is set by the handler from the authorization decision, never from the query.
+	Scope ScopeConfinement
 }
 
 // CursorPagination is the cursor-shaped paginated list envelope returned by
 // list endpoints that page via opaque next/prev cursors rather than page/total.
 type Pagination struct {
-	Items      any       `json:"items"`
-	Limit      int       `json:"limit" example:"10"`
-	Page       int       `json:"page,omitempty" example:"1"`
-	Cursor     string    `json:"-"`
-	SortOrder  string    `json:"-"`
-	StartDate  time.Time `json:"-"`
-	EndDate    time.Time `json:"-"`
-	GroupID    *string   `json:"-"`
-	NextCursor string    `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
-	PrevCursor string    `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
+	Items     any       `json:"items"`
+	Limit     int       `json:"limit" example:"10"`
+	Page      int       `json:"page,omitempty" example:"1"`
+	Cursor    string    `json:"-"`
+	SortOrder string    `json:"-"`
+	StartDate time.Time `json:"-"`
+	EndDate   time.Time `json:"-"`
+	GroupID   *string   `json:"-"`
+	// Scope confines the list to the instances a scoped credential may see.
+	Scope      ScopeConfinement `json:"-"`
+	NextCursor string           `json:"next_cursor,omitempty" example:"eyJpZCI6IjAxOTI..."`
+	PrevCursor string           `json:"prev_cursor,omitempty" example:"eyJpZCI6IjAxOTE..."`
 } //	@name CursorPagination
 
 // SetItems sets the pagination items payload.
@@ -577,6 +582,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
 		GroupID:   qh.GroupID,
+		Scope:     qh.Scope,
 	}
 }
 
@@ -592,7 +598,7 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
-		GroupID:   qh.GroupID,
+		GroupID:   qh.GroupID, Scope: qh.Scope,
 	}
 }
 

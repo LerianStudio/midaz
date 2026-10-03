@@ -1009,6 +1009,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// the request org via a narrow adapter over the ledger query use case, so
 	// CRM never imports the query package. Set once on the shared CRM use case.
 	crmMgo.holderHandler.Service.LedgerAccounts = ledgerAccountReaderAdapter{query: queryUseCase}
+	crmMgo.holderHandler.Service.HolderScope = ledgerAccountReaderAdapter{query: queryUseCase}
 
 	// === Fee use cases ===
 	// Built from the fee Mongo slice + the ledger query.UseCase so fee
@@ -1173,7 +1174,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
 	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
 	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
-	feeDebtHandler := &httpin.FeeDebtHandler{Service: &feesservices.FeeDebtService{Repo: feeMgo.feeDebtRepo}}
+	feeDebtHandler := &httpin.FeeDebtHandler{Service: &feesservices.FeeDebtService{Repo: feeMgo.feeDebtRepo, Accounts: onbPG.accountRepo}}
 
 	// Composition reuses the SAME account-create and instrument-create use-case instances
 	// the onboarding and CRM registrars already use — it composes them, it never

@@ -520,7 +520,7 @@ func TestCountAccounts_204WithHeader(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).Return(int64(7), nil).Times(1)
+	accountRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID, gomock.Nil()).Return(int64(7), nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
 
@@ -920,7 +920,7 @@ func TestCountAccounts_ServiceError(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID).
+	accountRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID, gomock.Nil()).
 		Return(int64(0), pkg.ValidateBusinessError(cn.ErrNoAccountsFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
@@ -1026,4 +1026,31 @@ func TestUpdateAccount_DeclaredNullKey_PropagatesNullFields(t *testing.T) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+}
+
+func TestListAccounts_ConfinedToThePartnerScope(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID, ledgerID, allowed := uuid.New(), uuid.New(), uuid.New()
+
+	accountRepo := account.NewMockRepository(ctrl)
+	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
+
+	want := pkgHTTP.ScopeConfinement{"accountId": {allowed}, "segmentId": {}}
+
+	accountRepo.EXPECT().
+		FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Cond(func(filter pkgHTTP.QueryHeader) bool {
+			return assert.Equal(t, want, filter.Scope)
+		}), gomock.Any()).
+		Return([]*mmodel.Account{}, nil)
+	accountRepo.EXPECT().Count(gomock.Any(), orgID, ledgerID, want).Return(int64(0), nil)
+
+	ctx := partnerScopedContext(t, `,"allowed":{"accountId":["`+allowed.String()+`"],"segmentId":[]}`, accountListScopeDimensions...)
+
+	_, err := handler.ListAccounts(ctx, &ListAccountsRequest{OrganizationID: orgID.String(), LedgerID: ledgerID.String()})
+	require.NoError(t, err)
+
+	_, err = handler.CountAccounts(ctx, &CountAccountsRequest{OrganizationID: orgID.String(), LedgerID: ledgerID.String()})
+	require.NoError(t, err)
 }

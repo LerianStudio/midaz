@@ -65,6 +65,7 @@ func (handler *BalanceHandler) getAllBalances(ctx context.Context, organizationI
 	}
 
 	headerParams.Metadata = &bson.M{}
+	headerParams.Scope = listScope(ctx, scopeDimensionAccount)
 
 	balances, cur, err := handler.Query.GetAllBalances(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {

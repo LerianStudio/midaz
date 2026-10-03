@@ -31,6 +31,8 @@ var validTransactionStatuses = func() map[string]bool {
 // countTransactionsByFilters counts the transactions matching filter within the
 // org+ledger scope.
 func (handler *TransactionHandler) countTransactionsByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter transaction.CountFilter) (int64, error) {
+	filter.Scope = listScope(ctx, scopeDimensionAccount)
+
 	return handler.Query.CountTransactionsByFilters(ctx, organizationID, ledgerID, filter)
 }
 

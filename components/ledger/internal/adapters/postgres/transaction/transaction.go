@@ -18,6 +18,7 @@ import (
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // CountFilter holds optional filters for counting transactions.
@@ -26,6 +27,8 @@ type CountFilter struct {
 	Status    string    // Empty means include all statuses
 	StartDate time.Time // Mandatory lower bound on created_at
 	EndDate   time.Time // Mandatory upper bound on created_at
+	// Scope confines the count to the transactions a scoped credential may see.
+	Scope http.ScopeConfinement
 }
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
