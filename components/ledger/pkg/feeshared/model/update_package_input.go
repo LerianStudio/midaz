@@ -30,7 +30,7 @@ type UpdatePackageInput struct {
 	MinAmount      *string        `json:"minimumAmount" example:"100" minimum:"0"`
 	MaxAmount      *string        `json:"maximumAmount" example:"1000" minimum:"0"`
 	WaivedAccounts *[]string      `json:"waivedAccounts" example:"acc001,acc002"`
-	Fee            map[string]Fee `json:"fees" doc:"Fee patches keyed by fee key. An entry naming a stored key verbatim edits that fee, or removes it when the entry sets no field. Any other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits), or the update is refused with 400; a key equal to a stored key except for letter case is also refused with 400, and the stored key must be used."`
+	Fee            map[string]Fee `json:"fees" doc:"Fee patches keyed by fee key. An entry naming a stored key verbatim edits that fee, or removes it when the entry sets no field. Any other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits), or the update is refused with 400; a key equal to a stored key except for letter case is also refused with 400, and the stored key must be used, unless the same patch removes that stored key, which renames the fee (the new key must still match the grammar)."`
 	EnablePackage  *bool          `json:"enable,omitempty" example:"true"`
 }
 
