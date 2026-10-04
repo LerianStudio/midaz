@@ -168,7 +168,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr: false,
 		},
@@ -193,7 +193,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr: false,
 		},
@@ -218,7 +218,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr:   true,
 			errContains: "No entity was found",
@@ -244,7 +244,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr:   true,
 			errContains: "0047",
@@ -257,7 +257,7 @@ func TestUpdatePackage(t *testing.T) {
 			mockSetup: func() {
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr:   true,
 			errContains: "0183",
@@ -317,7 +317,7 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 
 	mockPackageRepo.EXPECT().
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil)
+		Return(amountData, nil).Times(2)
 
 	mockPackageRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
@@ -374,7 +374,7 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 
 	mockPackRepo.EXPECT().
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil)
+		Return(amountData, nil).Times(2)
 	mockPackRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 		Return(persisted, nil)

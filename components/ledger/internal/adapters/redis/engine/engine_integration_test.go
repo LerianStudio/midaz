@@ -1238,7 +1238,7 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 		transaction.ID = uuid.MustParse(id)
 		f.input.Execution.Transactions = append(f.input.Execution.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
-		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"action":"direct","opaque":true}`)})
 	}
 	raw, err := f.run(t)
 	require.NoError(t, err)
@@ -1250,11 +1250,14 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 		field := f.input.Execution.Transactions[i].ID.String() + ":" + f.input.Execution.ExecutionID.String()
 		recoverRecord, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Bytes()
 		require.NoError(t, err)
-		var envelope struct {
-			TransactionID string                     `json:"transactionId"`
-			Result        accounting.ExecutionResult `json:"result"`
+		var evidence struct {
+			Record struct {
+				TransactionID string                     `json:"transactionId"`
+				Result        accounting.ExecutionResult `json:"result"`
+			} `json:"record"`
 		}
-		require.NoError(t, json.Unmarshal(recoverRecord, &envelope))
+		require.NoError(t, json.Unmarshal(recoverRecord, &evidence))
+		envelope := evidence.Record
 		require.Equal(t, f.input.Execution.Transactions[i].ID.String(), envelope.TransactionID)
 		require.Len(t, envelope.Result.Final, 1)
 		require.Len(t, envelope.Result.Movements, 1)
@@ -1284,7 +1287,7 @@ func TestIntegrationEngineThirdTransactionRefusalPreservesAllState(t *testing.T)
 		}
 		f.input.Execution.Transactions = append(f.input.Execution.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
-		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"action":"direct","opaque":true}`)})
 	}
 	require.Equal(t, originalPostingRef, f.input.Execution.Transactions[0].Postings[0].Ref)
 	require.Equal(t, "posting-2", f.input.Execution.Transactions[1].Postings[0].Ref)
@@ -1416,7 +1419,8 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 			raw := string(f.prepared(t).Payload)
 			switch kind {
 			case "duplicate key":
-				raw = strings.Replace(raw, `"protocolVersion":1`, `"protocolVersion":1,"protocolVersion":1`, 1)
+				require.Contains(t, raw, `"protocolVersion":3`)
+				raw = strings.Replace(raw, `"protocolVersion":3`, `"protocolVersion":3,"protocolVersion":3`, 1)
 			case "trailing JSON":
 				raw += `{}`
 			case "array as object", "postings as object":
