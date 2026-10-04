@@ -15,6 +15,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -115,6 +116,32 @@ func TestNewTransactionV2_NilInput(t *testing.T) {
 	assert.Nil(t, newTransactionV2(nil))
 }
 
+// TestNewTransactionV2_ReturnsLegacyFeeExemptionAsString pins the /v2 read of a feeExemption stored
+// as an object: MongoDB decodes it as bson.D, a stored PENDING body as a map.
+func TestNewTransactionV2_ReturnsLegacyFeeExemptionAsString(t *testing.T) {
+	t.Parallel()
+
+	const flat = `{"exempt":true,"reason":"all_source_accounts_exempt"}`
+
+	for name, stored := range map[string]any{
+		"bson.D": bson.D{{Key: "exempt", Value: true}, {Key: "reason", Value: "all_source_accounts_exempt"}},
+		"map":    map[string]any{"exempt": true, "reason": "all_source_accounts_exempt"},
+		"string": flat,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			canonical := buildCanonicalTransactionFixture()
+			canonical.Metadata = map[string]any{"purpose": "test", "feeExemption": stored}
+
+			got := newTransactionV2(canonical)
+
+			assert.Equal(t, map[string]any{"purpose": "test", "feeExemption": flat}, got.Metadata)
+			assert.Equal(t, stored, canonical.Metadata["feeExemption"], "the canonical transaction keeps its stored value")
+		})
+	}
+}
+
 // TestTransactionV2_JSONUsesDebitCreditKeys proves the wire encoding of TransactionV2 carries
 // `debit`/`credit` keys and never the v1 `source`/`destination` keys, at the byte level — the
 // contract a client actually reads, independent of the OpenAPI schema.
@@ -203,6 +230,22 @@ func TestNewPendingTransitionV2Response_PreservesSingularOrGroupedShape(t *testi
 	require.Len(t, response.Transactions, 2)
 	assert.Equal(t, []int{1, 2}, []int{response.Transactions[0].Order, response.Transactions[1].Order})
 	assert.Nil(t, response.TransactionV2)
+}
+
+// TestNewPendingTransitionV2Response_GroupReturnsLegacyFeeExemptionAsString pins the same read on
+// the grouped shape: a committed hold answers with members created before the commit.
+func TestNewPendingTransitionV2Response_GroupReturnsLegacyFeeExemptionAsString(t *testing.T) {
+	t.Parallel()
+
+	member := buildCanonicalTransactionFixture()
+	member.Metadata = map[string]any{"feeExemption": bson.D{{Key: "exempt", Value: true}}}
+
+	response := newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Group: &command.CreateAtomicTransactionBatchV2Result{BatchID: uuid.New(), Transactions: []*transaction.Transaction{member}},
+	})
+
+	require.Len(t, response.Transactions, 1)
+	assert.Equal(t, `{"exempt":true}`, response.Transactions[0].Metadata["feeExemption"])
 }
 
 // TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction locks the v2 response

@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package command
+package fee
 
 import (
 	"encoding/json"
@@ -11,10 +11,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// flattenLegacyFeeExemption rewrites a feeExemption stored as an object to the JSON
-// string the fee engine writes, so records made before that contract stay flat. Any
-// other value, or one that cannot be encoded, is left for the flat-metadata check.
-func flattenLegacyFeeExemption(metadata map[string]any) map[string]any {
+// FlattenLegacyFeeExemption returns a feeExemption stored as an object (written before v4.1.1)
+// as the JSON string the fee engine writes. The input map is never modified.
+func FlattenLegacyFeeExemption(metadata map[string]any) map[string]any {
 	var exemption map[string]any
 
 	switch value := metadata["feeExemption"].(type) {
