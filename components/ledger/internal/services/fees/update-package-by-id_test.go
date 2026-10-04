@@ -12,8 +12,10 @@ import (
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 
@@ -212,7 +214,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-					Return(nil, ErrDatabaseItemNotFound)
+					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection))
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -458,7 +460,7 @@ func TestValidationFeesSetUnset_PriorityComesFromStoreWhenOmitted(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (&UseCase{}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
+			_, err := (&UseCase{}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
 				existing, tt.patch, bson.M{}, bson.M{})
 
 			if tt.wantErr == nil {
@@ -490,9 +492,10 @@ func TestValidationFeesSetUnset_NewFeeStoredUnderNormalizedKey(t *testing.T) {
 	}}
 	setFields := bson.M{}
 
-	err := (&UseCase{resolver: resolver}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
+	count, err := (&UseCase{resolver: resolver}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
 		map[string]model.Fee{"feeA": storedFee(1)}, patch, setFields, bson.M{})
 	require.NoError(t, err)
+	assert.Equal(t, 2, count)
 
 	stored, ok := setFields["fees.Tarifa"].(mongoPack.Fee)
 	require.True(t, ok, "fee must be set under its normalized key, got %v", setFields)
@@ -504,6 +507,47 @@ func TestValidationFeesSetUnset_NewFeeStoredUnderNormalizedKey(t *testing.T) {
 	require.Len(t, stored.CalculationModel.Calculations, 1)
 	assert.Equal(t, model.Flat, stored.CalculationModel.Calculations[0].Type)
 	assert.True(t, stored.CalculationModel.Calculations[0].Value.Equal(decimal.NewFromInt(2)))
+}
+
+// A package the patch leaves without fees is disabled in the same write, and the
+// disable wins over an enable the same patch asks for.
+func TestBuildUpdateFields_DisablesPackageLeftWithoutFees(t *testing.T) {
+	t.Parallel()
+
+	removeFeeA := map[string]model.Fee{"feeA": {}}
+
+	tests := []struct {
+		name         string
+		stored       map[string]model.Fee
+		patch        *model.UpdatePackageInput
+		wantDisabled bool
+	}{
+		{"last fee removed", map[string]model.Fee{"feeA": storedFee(1)}, &model.UpdatePackageInput{Fee: removeFeeA}, true},
+		{"last fee removed while enabling", map[string]model.Fee{"feeA": storedFee(1)}, &model.UpdatePackageInput{Fee: removeFeeA, EnablePackage: boolPtr(true)}, true},
+		{"enabling a package that has no fees", map[string]model.Fee{}, &model.UpdatePackageInput{EnablePackage: boolPtr(true)}, true},
+		{"one of two fees removed", map[string]model.Fee{"feeA": storedFee(1), "feeB": storedFee(2)}, &model.UpdatePackageInput{Fee: removeFeeA}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo := pack.NewMockRepository(gomock.NewController(t))
+			repo.EXPECT().FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(&model.AmountData{MinAmount: decimal.NewFromInt(100), MaxAmount: decimal.NewFromInt(1000), Fees: tt.stored, LedgerID: uuid.New()}, nil)
+
+			setFields, _, _, err := (&UseCase{packageRepo: repo}).buildUpdateFields(context.Background(), nil, uuid.New(), uuid.New(), uuid.Nil, tt.patch)
+			require.NoError(t, err)
+
+			enable, has := setFields["enable"]
+			if !tt.wantDisabled {
+				assert.False(t, has, "a package keeping fees must not have enable written")
+				return
+			}
+
+			assert.Equal(t, false, enable)
+		})
+	}
 }
 
 func storedFee(priority int) model.Fee {

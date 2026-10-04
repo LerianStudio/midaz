@@ -68,18 +68,5 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 		return nil, err
 	}
 
-	// A package without fees is disabled. The write matches only a still-empty fees
-	// map, so a fee added concurrently keeps the package as that update left it.
-	if len(record.Fees) == 0 && (record.Enable == nil || *record.Enable) {
-		filter["fees"] = bson.M{"$in": bson.A{bson.M{}, nil}}
-
-		err = coll.FindOneAndUpdate(ctx, filter, bson.M{"$set": bson.M{"enable": false}}, opts).Decode(&record)
-		if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
-			libOpentelemetry.HandleSpanError(spanUpdate, "Failed to disable package without fees", err)
-
-			return nil, err
-		}
-	}
-
 	return record.ToEntity(), nil
 }

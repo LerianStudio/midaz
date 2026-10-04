@@ -632,30 +632,6 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	assert.Equal(t, "$fee_group_label", *got.Description)
 }
 
-func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
-	repo := newPackRepository(t, container)
-	ctx := context.Background()
-
-	orgID := uuid.New()
-	pkgEntity := newTestPackage(uuid.New())
-	_, err := repo.Create(ctx, pkgEntity, orgID)
-	require.NoError(t, err)
-
-	// Removing the last fee, as the service writes it, must disable the package.
-	update := &bson.M{"$set": bson.M{"updated_at": time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)}, "$unset": bson.M{"fees.adminFee": ""}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
-	require.NoError(t, errUpdate)
-	require.NotNil(t, returned, "Update must return the persisted entity")
-	require.NotNil(t, returned.Enable)
-	assert.False(t, *returned.Enable, "returned entity must reflect the auto-disable side effect")
-
-	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
-	require.NoError(t, err)
-	require.NotNil(t, got.Enable)
-	assert.False(t, *got.Enable, "package with no fees must be auto-disabled by Update")
-}
-
 func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)
