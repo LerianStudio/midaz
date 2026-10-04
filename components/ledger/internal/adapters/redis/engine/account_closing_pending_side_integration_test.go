@@ -99,6 +99,10 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 				TransactionReader:           reader,
 				Engine:                      executor,
 				AppliedTransactionCompleter: &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}},
+				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+					client:     client,
+					executions: func() []command.EngineExecution { return executor.executions },
+				},
 			}
 
 			amount := decimal.NewFromInt(30)

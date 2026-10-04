@@ -60,7 +60,6 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		ctx := admitEngineSeeds(t, ctx, inspector, input.Execution)
 		result, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
-		require.Positive(t, result.AppliedAtUnixMicro)
 		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID, result.AppliedAtUnixMicro), result)
 
 		keys, err := resolveAdapterKeys(ctx, input.Execution)

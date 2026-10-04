@@ -154,7 +154,7 @@ func TestIntegrationEnsureTransactionGuardIsolatesAuthenticatedScope(t *testing.
 	}
 }
 
-func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
+func TestIntegrationEngineFencesConcurrentCommitAndCancelByIndex(t *testing.T) {
 	ctx := context.Background()
 	client, _, _ := newAdapterValkey(t)
 	adapter, err := newAdapterWithLimits(guardClientProvider{client: client}, guardBootstrapLimits())
@@ -203,7 +203,6 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 		}
 
 		failures++
-		// The winner's evidence index fences the loser before its guard is compared.
 		require.ErrorContains(t, candidate.err, "transaction_state_conflict")
 		require.Nil(t, candidate.result)
 	}
@@ -216,6 +215,19 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, winnerNext, guard)
 	assertGuardWinnerBalance(t, ctx, client, commit.Execution, winnerNext)
+
+	t.Run("a moved guard refuses a transition the index does not fence", func(t *testing.T) {
+		movedID := uuid.MustParse("48888888-8888-4888-8888-888888888888")
+		require.NoError(t, client.HSet(ctx, key, movedID.String(), constant.APPROVED).Err())
+		before, beforeExpiry := guardHashState(t, ctx, client, key)
+		moved := guardTransitionExecution(t, organizationID, ledgerID, movedID, constant.ActionCancel, constant.CANCELED, balances, snapshots)
+		result, executeErr := adapter.Execute(ctx, moved)
+		require.ErrorContains(t, executeErr, "execution_guard_conflict")
+		require.Nil(t, result)
+		after, afterExpiry := guardHashState(t, ctx, client, key)
+		require.Equal(t, before, after, "a refused transition must not rewrite the guard hash")
+		require.Equal(t, beforeExpiry, afterExpiry)
+	})
 }
 
 func guardBootstrapLimits() Limits {
