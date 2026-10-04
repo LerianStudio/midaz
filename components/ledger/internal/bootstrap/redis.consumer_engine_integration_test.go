@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -140,7 +141,8 @@ func warmRecoveryEngineBalances(t *testing.T, ctx context.Context, client *redis
 		raw, err := balancecache.Encode(balance, balancecache.FormatDual)
 		require.NoError(t, err)
 
-		key := utils.BalanceInternalKey(input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef)
+		key, err := tmvalkey.GetKeyContext(ctx, utils.BalanceInternalKey(input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef))
+		require.NoError(t, err)
 		require.NoError(t, client.Set(ctx, key, raw, 24*time.Hour).Err())
 	}
 }
