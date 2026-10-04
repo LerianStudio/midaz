@@ -210,9 +210,9 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 		_, feeExists := existingFees[key]
 
 		if !feeExists {
-			// New fee - validate it and set it whole. Only a key that adds a fee answers
-			// to the grammar: a stored key is edited or removed verbatim, whatever its shape.
-			if err := model.ValidateFeeKey(key); err != nil {
+			// New fee - validate it and set it whole. A stored key is edited or removed
+			// verbatim, whatever its shape; only a key that adds a fee is checked.
+			if err := model.ValidateAddedFeeKey(key, existingFees, updateFeesEntity); err != nil {
 				return 0, err
 			}
 

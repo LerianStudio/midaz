@@ -12,13 +12,15 @@ import (
 
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
-// A conforming key is stored, patched and read back exactly as the client sent it.
+// A conforming key is stored, patched and read back exactly as the client sent it, and
+// a case variant of it cannot add a second fee.
 func TestIntegration_FeeKeyKeptVerbatimAcrossCreatePatchGet(t *testing.T) {
 	svc, _ := newLivePackageUseCase(t)
 	ctx := context.Background()
@@ -50,6 +52,14 @@ func TestIntegration_FeeKeyKeptVerbatimAcrossCreatePatchGet(t *testing.T) {
 
 	require.NoError(t, svc.UpdatePackageByID(ctx, created.ID, orgID, ledgerID,
 		&model.UpdatePackageInput{Fee: map[string]model.Fee{"tarifaTED2": {FeeLabel: "Tarifa TED 2"}}}))
+
+	// A case variant of the stored key is that fee misspelled: refused, not added beside it.
+	errVariant := svc.UpdatePackageByID(ctx, created.ID, orgID, ledgerID,
+		&model.UpdatePackageInput{Fee: map[string]model.Fee{"tarifaTed2": create.Fee["tarifaTED2"]}})
+
+	var fieldsErr pkg.ValidationKnownFieldsError
+	require.ErrorAs(t, errVariant, &fieldsErr)
+	require.Contains(t, fieldsErr.Fields["fees.tarifaTed2"], "stored key tarifaTED2")
 
 	got, err := svc.GetPackageByID(ctx, created.ID, orgID, ledgerID)
 	require.NoError(t, err)

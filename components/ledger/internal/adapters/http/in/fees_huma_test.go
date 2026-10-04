@@ -860,6 +860,50 @@ func (s *realFeeUpdateService) UpdatePackageByID(ctx context.Context, id, organi
 	return s.service.UpdatePackageByID(ctx, id, organizationID, ledgerID, up)
 }
 
+// realFeeUpdateHandler serves PATCH through the production fee service over a package
+// that stores the given fees; update answers the repository write.
+func realFeeUpdateHandler(t *testing.T, stored map[string]model.Fee, update func(*bson.M)) *PackageHandler {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	packageRepo := pack.NewMockRepository(ctrl)
+
+	packageRepo.EXPECT().
+		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&model.AmountData{
+			MinAmount: decimal.NewFromInt(100),
+			MaxAmount: decimal.NewFromInt(1000),
+			Fees:      stored,
+			// The ledger the request names, or the package reads as absent.
+			LedgerID: uuid.MustParse(validLedgerUUID()),
+		}, nil).
+		// Once to name the ledger to lock, once more under the lock.
+		Times(2)
+
+	writes := packageRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, fields *bson.M) (*pack.Package, error) {
+			update(fields)
+
+			return &pack.Package{ID: id}, nil
+		})
+	// Nothing may be written on a refusal, and the write is what says so.
+	if update == nil {
+		writes.Times(0)
+	}
+
+	resolver := feeshared.NewMockMidazResolver(ctrl)
+	resolver.EXPECT().AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	service, err := feesservices.NewUseCase(packageRepo, resolver)
+	require.NoError(t, err)
+
+	return &PackageHandler{Service: &realFeeUpdateService{
+		stubPackageService: &stubPackageService{getByIDResult: &pack.Package{}},
+		service:            service,
+	}}
+}
+
 // TestUpdatePackage_MissingCalculationModel_Canonical400 pins what a caller gets back
 // when a PATCH adds a fee carrying a label and no calculation model.
 //
@@ -872,32 +916,7 @@ func TestUpdatePackage_MissingCalculationModel_Canonical400(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	packID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	packageRepo := pack.NewMockRepository(ctrl)
-
-	packageRepo.EXPECT().
-		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&model.AmountData{
-			MinAmount: decimal.NewFromInt(100),
-			MaxAmount: decimal.NewFromInt(1000),
-			Fees:      map[string]model.Fee{},
-			// The ledger the request names, or the package reads as absent.
-			LedgerID: uuid.MustParse(validLedgerUUID()),
-		}, nil).
-		// Once to name the ledger to lock, once more under the lock.
-		Times(2)
-
-	// Nothing may be written on a refusal, and the write is what says so.
-	packageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
-
-	service, errService := feesservices.NewUseCase(packageRepo, feeshared.NewMockMidazResolver(ctrl))
-	require.NoError(t, errService)
-
-	handler := &PackageHandler{Service: &realFeeUpdateService{stubPackageService: &stubPackageService{}, service: service}}
+	handler := realFeeUpdateHandler(t, map[string]model.Fee{}, nil)
 
 	body := `{"fees":{"adminFee":{"feeLabel":"Taxa Administrativa"}}}`
 
@@ -915,9 +934,9 @@ func TestUpdatePackage_MissingCalculationModel_Canonical400(t *testing.T) {
 		"the refusal must name the fee the caller has to fix: %s", string(respBody))
 }
 
-// assertFeeKeyRefused asserts the 400 field-validation envelope naming fees.<key>
-// and stating the key grammar.
-func assertFeeKeyRefused(t *testing.T, resp *http.Response, key string) {
+// assertFeeKeyRefused asserts the 400 field-validation envelope naming fees.<key> and
+// returns its message.
+func assertFeeKeyRefused(t *testing.T, resp *http.Response, key string) string {
 	t.Helper()
 
 	respBody, _ := io.ReadAll(resp.Body)
@@ -932,7 +951,10 @@ func assertFeeKeyRefused(t *testing.T, resp *http.Response, key string) {
 
 	detail, _ := errs[0].(map[string]any)
 	assert.Equal(t, "fees."+key, detail["location"])
-	assert.Contains(t, detail["message"], "^[a-z][a-zA-Z0-9]*$")
+
+	message, _ := detail["message"].(string)
+
+	return message
 }
 
 func TestCreatePackage_NonConformingFeeKey_400(t *testing.T) {
@@ -948,44 +970,6 @@ func TestCreatePackage_NonConformingFeeKey_400(t *testing.T) {
 	assert.False(t, stub.createCalled, "a refused key must short-circuit before the service")
 }
 
-// realFeeUpdateHandler serves PATCH through the production fee service over a package
-// that stores the given fees; update answers the repository write.
-func realFeeUpdateHandler(t *testing.T, stored map[string]model.Fee, update func(*bson.M)) *PackageHandler {
-	t.Helper()
-
-	ctrl := gomock.NewController(t)
-	packageRepo := pack.NewMockRepository(ctrl)
-
-	packageRepo.EXPECT().
-		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&model.AmountData{
-			MinAmount: decimal.NewFromInt(100),
-			MaxAmount: decimal.NewFromInt(1000),
-			Fees:      stored,
-			LedgerID:  uuid.MustParse(validLedgerUUID()),
-		}, nil).
-		Times(2)
-
-	writes := packageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, fields *bson.M) (*pack.Package, error) {
-			update(fields)
-
-			return &pack.Package{ID: id}, nil
-		})
-	if update == nil {
-		writes.Times(0)
-	}
-
-	service, err := feesservices.NewUseCase(packageRepo, feeshared.NewMockMidazResolver(ctrl))
-	require.NoError(t, err)
-
-	return &PackageHandler{Service: &realFeeUpdateService{
-		stubPackageService: &stubPackageService{getByIDResult: &pack.Package{}},
-		service:            service,
-	}}
-}
-
 func storedPackageFee(priority int) model.Fee {
 	return model.Fee{
 		FeeLabel:         "stored",
@@ -998,7 +982,7 @@ func storedPackageFee(priority int) model.Fee {
 }
 
 func TestUpdatePackage_AddNonConformingFeeKey_400(t *testing.T) {
-	handler := realFeeUpdateHandler(t, map[string]model.Fee{"tarifa": storedPackageFee(1)}, nil)
+	handler := realFeeUpdateHandler(t, map[string]model.Fee{"tarifaTED2": storedPackageFee(1)}, nil)
 
 	body := `{"fees":{"Tarifa":` + packageFeeJSON("Tarifa", "originalAmount", 2) + `}}`
 
@@ -1008,15 +992,19 @@ func TestUpdatePackage_AddNonConformingFeeKey_400(t *testing.T) {
 	assertFeeKeyRefused(t, resp, "Tarifa")
 }
 
-// A key stored before the grammar existed stays editable and removable verbatim:
-// removing it and adding a conforming key is the rename path.
+// A key stored before the grammar existed stays editable and removable verbatim, and
+// renaming it is one patch that removes it and adds a conforming key.
 func TestUpdatePackage_StoredNonConformingKeyEditableAndRemovable(t *testing.T) {
 	tests := []struct {
-		name, body, op, path string
-		value                any
+		name, body string
+		writes     map[string]string
 	}{
-		{"edit", `{"fees":{"Tarifa":{"feeLabel":"Tarifa TED"}}}`, "$set", "fees.Tarifa.fee_label", "Tarifa TED"},
-		{"remove", `{"fees":{"Tarifa":{}}}`, "$unset", "fees.Tarifa", ""},
+		{"edit", `{"fees":{"Tarifa":{"feeLabel":"Tarifa TED"}}}`, map[string]string{"$set": "fees.Tarifa.fee_label"}},
+		{"remove", `{"fees":{"Tarifa":{}}}`, map[string]string{"$unset": "fees.Tarifa"}},
+		{
+			"rename", `{"fees":{"Tarifa":{},"tarifa":` + packageFeeJSON("Tarifa", "originalAmount", 3) + `}}`,
+			map[string]string{"$unset": "fees.Tarifa", "$set": "fees.tarifa"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1032,8 +1020,33 @@ func TestUpdatePackage_StoredNonConformingKeyEditableAndRemovable(t *testing.T) 
 			respBody, _ := io.ReadAll(resp.Body)
 			require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 
-			fields, _ := written[tt.op].(bson.M)
-			assert.Equal(t, tt.value, fields[tt.path], "write: %v", written)
+			for op, path := range tt.writes {
+				fields, _ := written[op].(bson.M)
+				assert.Contains(t, fields, path, "write: %v", written)
+			}
+		})
+	}
+}
+
+// A key differing only in case from a stored key names that fee misspelled, so it is
+// refused whatever the entry carries, and nothing is written.
+func TestUpdatePackage_CaseVariantOfStoredKey_400(t *testing.T) {
+	tests := []struct{ name, entry string }{
+		{"full fee", packageFeeJSON("Tarifa PIX", "originalAmount", 2)},
+		{"partial edit", `{"feeLabel":"Tarifa PIX"}`},
+		{"removal", `{}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := realFeeUpdateHandler(t, map[string]model.Fee{"tarifaPix": storedPackageFee(1)}, nil)
+
+			body := `{"fees":{"tarifaPIX":` + tt.entry + `}}`
+
+			resp := patchPackage(t, buildHumaPackageApp(t, handler, true), uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7()), body)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Contains(t, assertFeeKeyRefused(t, resp, "tarifaPIX"), "stored key tarifaPix")
 		})
 	}
 }

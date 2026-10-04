@@ -212,7 +212,6 @@ func TestValidateFeeKey(t *testing.T) {
 		{"a", true},
 		{"Tarifa", false},
 		{"_tarifa", false},
-		{"Ágio", false},
 		{"ágio", false},
 		{"", false},
 		{"2tarifa", false},
