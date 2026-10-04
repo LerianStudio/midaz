@@ -253,7 +253,7 @@ func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
 	require.NoError(t, err)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "Written Through Ledger B"}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, ledgerB, update)
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, ledgerB, pkgEntity.UpdatedAt, update)
 	require.Error(t, errUpdate, "a package on ledger A must not be writable through ledger B")
 	assert.Nil(t, returned)
 
@@ -268,7 +268,7 @@ func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
 
 	// Positive control: the same update through the owning ledger lands.
 	ownedUpdate := &bson.M{"$set": bson.M{"fee_group_label": "Written Through Ledger A"}}
-	owned, errOwned := repo.Update(ctx, pkgEntity.ID, orgID, ledgerA, ownedUpdate)
+	owned, errOwned := repo.Update(ctx, pkgEntity.ID, orgID, ledgerA, pkgEntity.UpdatedAt, ownedUpdate)
 	require.NoError(t, errOwned, "the owning ledger must still write its own package")
 	require.NotNil(t, owned)
 	assert.Equal(t, "Written Through Ledger A", owned.FeeGroupLabel)
@@ -326,7 +326,7 @@ func TestIntegration_PackRepo_ByID_OrganizationScopeUnchanged(t *testing.T) {
 	require.NotNil(t, found)
 	assert.Equal(t, pkgEntity.ID, found.ID)
 
-	updated, err := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil,
+	updated, err := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, pkgEntity.UpdatedAt,
 		&bson.M{"$set": bson.M{"fee_group_label": "Org Scoped Write"}})
 	require.NoError(t, err)
 	require.NotNil(t, updated)
@@ -620,7 +620,7 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 
 	// A value starting with "$" is stored as written, never read as a field path.
 	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label", "description": "$fee_group_label"}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, pkgEntity.UpdatedAt, update)
 	require.NoError(t, errUpdate)
 	require.NotNil(t, returned, "Update must return the persisted entity")
 	assert.Equal(t, "Updated Package Label", returned.FeeGroupLabel, "returned entity must reflect the change")
@@ -637,7 +637,7 @@ func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
 	repo := newPackRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "x"}}
-	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, update)
+	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, time.Time{}, update)
 
 	require.Error(t, err)
 	var notFound pkg.EntityNotFoundError
@@ -736,7 +736,7 @@ func TestIntegration_PackRepo_Deferrable(t *testing.T) {
 	_, err = (&model.Fee{Deferrable: boolPtr(false)}).SetAndValidateHasFieldsToUpdate(ctx, nil, decimal.Zero,
 		created.Fees, "adminFee", orgID, uuid.Nil, fields, nil)
 	require.NoError(t, err)
-	_, err = repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, &bson.M{"$set": fields})
+	_, err = repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, pkgEntity.UpdatedAt, &bson.M{"$set": fields})
 	require.NoError(t, err)
 	assert.False(t, deferrable(t, pkgEntity.ID), "the patch key names the stored field")
 
