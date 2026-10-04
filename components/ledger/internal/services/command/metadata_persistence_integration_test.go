@@ -9,6 +9,7 @@ package command
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -367,6 +368,63 @@ func TestIntegration_MetadataPersistence_TransactionUpdate(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Equal(t, int64(0), env.count(t, entity, id))
 	})
+}
+
+// Client PATCHes racing the completion of the transaction they name leave one document holding the
+// completion mark, the frozen keys, the reserved key and the client key, whichever inserts first.
+func TestIntegration_MetadataPersistence_PatchRacingCompletionConverges(t *testing.T) {
+	env := setupMetadataPersistenceEnv(t)
+	ctx := context.Background()
+	entity := constant.EntityTransaction
+	completion := NewTransactionCompletionService(nil, env.uc.TransactionMetadataRepo)
+
+	unique, err := txmongodb.EnsureUniqueEntityIDIndex(ctx, env.db.Collection(strings.ToLower(entity)))
+	require.NoError(t, err)
+	require.True(t, unique)
+
+	// Identical patches race each other's first insert as well as the completion's.
+	const patches = 4
+
+	for range 30 {
+		id := uuid.NewString()
+		frozen := &txmongodb.Metadata{
+			EntityID: id, EntityName: entity, Data: txmongodb.JSON{"purpose": "frozen", "feeApplied": "true"},
+			CreatedAt: seededMetadataTime, UpdatedAt: seededMetadataTime,
+		}
+		start := make(chan struct{})
+
+		errs := make(chan error, patches+1)
+
+		var wg sync.WaitGroup
+
+		for range patches {
+			wg.Go(func() {
+				<-start
+
+				_, err := env.uc.UpdateTransactionMetadata(ctx, entity, id, map[string]any{"client": "patched"})
+				errs <- err
+			})
+		}
+
+		wg.Go(func() {
+			<-start
+
+			errs <- completion.persistMetadata(ctx, frozen)
+		})
+		close(start)
+		wg.Wait()
+		close(errs)
+
+		for err := range errs {
+			require.NoError(t, err)
+		}
+
+		require.Equal(t, int64(1), env.count(t, entity, id), "the race must leave one document")
+
+		doc := env.read(t, entity, id)
+		assert.Equal(t, entity, doc.EntityName)
+		assert.Equal(t, map[string]any{"purpose": "frozen", "feeApplied": "true", "client": "patched"}, doc.Data)
+	}
 }
 
 // TestIntegration_MetadataPersistence_TransactionRouteCreate runs
