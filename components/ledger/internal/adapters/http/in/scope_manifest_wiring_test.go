@@ -17,11 +17,12 @@ import (
 
 // manifestScopeResolverNames are the resolvers the embedded manifest names; the
 // boot registers them before wiring the scope.
-var manifestScopeResolverNames = []string{"accountByAlias", "externalAccount", "transactionAccounts", "balanceAccount", "holderLedgers"}
+var manifestScopeResolverNames = []string{"accountByAlias", "externalAccount", "transactionAccounts", "balanceAccount", "holderLedgers", "accountPortfolio", "accountSegment"}
 
-// wireManifestScope wires the embedded manifest as the boot does. Every resolver but
-// accountByAlias fails the test when called; accountByAlias answers legAccount for
-// the ledger each alias's own element names.
+// wireManifestScope wires the embedded manifest as the boot does. accountByAlias
+// answers legAccount for the ledger each alias's own element names, and the account
+// placement resolvers answer an account in no portfolio and no segment; every other
+// resolver fails the test when called.
 func wireManifestScope(t *testing.T, auth *middleware.AuthClient) {
 	t.Helper()
 
@@ -30,6 +31,12 @@ func wireManifestScope(t *testing.T, auth *middleware.AuthClient) {
 			t.Errorf("scope resolver %s called for %v on a route these tests do not resolve", in.Resolver, in.Items)
 
 			return nil, nil
+		}
+
+		if name == "accountPortfolio" || name == "accountSegment" {
+			resolver = func(_ context.Context, in middleware.ResolveInput) ([][]string, error) {
+				return make([][]string, len(in.Items)), nil
+			}
 		}
 
 		if name == "accountByAlias" {

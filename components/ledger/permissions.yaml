@@ -122,14 +122,25 @@ scope:
         - { name: segmentId,   from: body, field: segmentId,       optional: true }
         - { name: holderId,    from: body, field: holderId,        optional: true }
         - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
+      dimensions: &accountPlacementPath
+        - { name: portfolioId, from: path, field: account_id, resolve: accountPortfolio, optional: true }
+        - { name: segmentId,   from: path, field: account_id, resolve: accountSegment,   optional: true }
+    - { method: GET,    path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id,       dimensions: *accountPlacementPath }
+    - { method: DELETE, path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id,       dimensions: *accountPlacementPath }
+    - { method: DELETE, path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id,       dimensions: *accountPlacementPath }
+    - { method: POST,   path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/close, dimensions: *accountPlacementPath }
     - method: PATCH
       path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
-      dimensions: &accountUpdateBodyDimensions
+      dimensions: &accountUpdateDimensions
         - { name: portfolioId, from: body, field: portfolioId, optional: true }
         - { name: segmentId,   from: body, field: segmentId,   optional: true }
+        - { name: portfolioId, from: path, field: account_id, resolve: accountPortfolio, optional: true }
+        - { name: segmentId,   from: path, field: account_id, resolve: accountSegment,   optional: true }
     - method: PATCH
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
-      dimensions: *accountUpdateBodyDimensions
+      dimensions: *accountUpdateDimensions
     - method: POST
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts
       dimensions:

@@ -255,9 +255,13 @@ func TestScopeCarriers_BodyPointersOnTheOtherWrites(t *testing.T) {
 			status, raw := sendCarrierRequest(t, app, tc.method, tc.path, bodyScopeToken(t, "partner-a"), tc.body(inside))
 
 			require.Equalf(t, fiber.StatusNoContent, status, "%s", raw)
-			require.Len(t, authz.asked(), 1)
-			assert.Contains(t, authz.asked()[0], "organizationId")
-			assert.Containsf(t, valuesOf(authz.asked()[0]), inside, "the body pointer must join the question")
+			require.NotEmpty(t, authz.asked())
+
+			for _, question := range authz.asked() {
+				assert.Contains(t, question, "organizationId")
+				assert.Containsf(t, valuesOf(question), inside, "the body pointer must join every question")
+			}
+
 			assert.Equal(t, 1, *reached)
 		})
 

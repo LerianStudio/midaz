@@ -24,6 +24,8 @@ const (
 	resolverTransactionAccounts = "transactionAccounts"
 	resolverBalanceAccount      = "balanceAccount"
 	resolverHolderLedgers       = "holderLedgers"
+	resolverAccountPortfolio    = "accountPortfolio"
+	resolverAccountSegment      = "accountSegment"
 )
 
 // errScopeResolverNoOrganization refuses a holder lookup the request does not
@@ -60,6 +62,8 @@ func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeRes
 		resolverTransactionAccounts: set.transactionAccounts,
 		resolverBalanceAccount:      set.balanceAccount,
 		resolverHolderLedgers:       set.holderLedgers,
+		resolverAccountPortfolio:    set.accountPortfolio,
+		resolverAccountSegment:      set.accountSegment,
 	} {
 		if err := auth.RegisterScopeResolver(name, fn); err != nil {
 			return err
@@ -217,6 +221,85 @@ func (s scopeResolvers) holderLedgers(ctx context.Context, in middleware.Resolve
 
 		for _, ledgerID := range ledgers[id] {
 			out[i] = append(out[i], ledgerID.String())
+		}
+	}
+
+	return out, nil
+}
+
+// accountPortfolio answers the portfolio of each account; an account in none
+// names nothing.
+func (s scopeResolvers) accountPortfolio(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
+	return s.accountPlacement(ctx, in, func(p query.AccountPlacement) *uuid.UUID { return p.PortfolioID })
+}
+
+// accountSegment answers the segment of each account; an account in none names
+// nothing.
+func (s scopeResolvers) accountSegment(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
+	return s.accountPlacement(ctx, in, func(p query.AccountPlacement) *uuid.UUID { return p.SegmentID })
+}
+
+// accountPlacement reads the placement of the accounts in one read per
+// organization and ledger they are confined to, and answers the part pick
+// selects. A value that is not a uuid names nothing.
+func (s scopeResolvers) accountPlacement(ctx context.Context, in middleware.ResolveInput, pick func(query.AccountPlacement) *uuid.UUID) ([][]string, error) {
+	out := make([][]string, len(in.Items))
+	accountOf := make([]uuid.UUID, len(in.Items))
+	scopeOf := make([]ledgerScope, len(in.Items))
+	resolvable := make([]bool, len(in.Items))
+
+	var order []ledgerScope
+
+	asked := make(map[ledgerScope][]uuid.UUID)
+
+	for i, item := range in.Items {
+		organizationID, ledgerID, ok, err := confinement(item, in.Known)
+		if err != nil {
+			return nil, err
+		}
+
+		id, isUUID := parseUUID(item.Value)
+		if !ok || !isUUID {
+			continue
+		}
+
+		scope := ledgerScope{organizationID: organizationID, ledgerID: ledgerID}
+		accountOf[i], scopeOf[i], resolvable[i] = id, scope, true
+
+		if _, known := asked[scope]; !known {
+			order = append(order, scope)
+		}
+
+		asked[scope] = append(asked[scope], id)
+	}
+
+	if len(order) == 0 {
+		return out, nil
+	}
+
+	ctx, err := s.attachTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	placed := make(map[ledgerScope]map[uuid.UUID]query.AccountPlacement, len(order))
+
+	for _, scope := range order {
+		placements, err := s.resolver.PlacementOfAccounts(ctx, scope.organizationID, scope.ledgerID, asked[scope])
+		if err != nil {
+			return nil, fmt.Errorf("resolve %s of accounts: %w", in.Dimension, err)
+		}
+
+		placed[scope] = placements
+	}
+
+	for i := range in.Items {
+		if !resolvable[i] {
+			continue
+		}
+
+		if id := pick(placed[scopeOf[i]][accountOf[i]]); id != nil {
+			out[i] = []string{id.String()}
 		}
 	}
 

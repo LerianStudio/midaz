@@ -30,12 +30,37 @@ type fakeScopeResolver struct {
 	transactions map[uuid.UUID][]uuid.UUID
 	balances     map[uuid.UUID]uuid.UUID
 	holders      map[uuid.UUID][]uuid.UUID
+	placements   map[uuid.UUID]query.AccountPlacement
 	err          error
 
 	aliasCalls  [][]string
 	scopes      [][2]uuid.UUID
 	transaction []uuid.UUID
 	holderCalls []holderCall
+	placeCalls  []placementCall
+}
+
+type placementCall struct {
+	organizationID, ledgerID uuid.UUID
+	accountIDs               []uuid.UUID
+}
+
+func (f *fakeScopeResolver) PlacementOfAccounts(_ context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (map[uuid.UUID]query.AccountPlacement, error) {
+	f.placeCalls = append(f.placeCalls, placementCall{organizationID: organizationID, ledgerID: ledgerID, accountIDs: accountIDs})
+
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	out := map[uuid.UUID]query.AccountPlacement{}
+
+	for _, id := range accountIDs {
+		if placement, ok := f.placements[id]; ok {
+			out[id] = placement
+		}
+	}
+
+	return out, nil
 }
 
 type holderCall struct {
@@ -306,13 +331,61 @@ func TestScopeResolvers_HolderLedgers(t *testing.T) {
 	})
 }
 
+func TestScopeResolvers_AccountPlacement(t *testing.T) {
+	org, ledger := uuid.New(), uuid.New()
+	placed, bare, unknown := uuid.New(), uuid.New(), uuid.New()
+	portfolio, segment := uuid.New(), uuid.New()
+
+	fake := func() *fakeScopeResolver {
+		return &fakeScopeResolver{placements: map[uuid.UUID]query.AccountPlacement{
+			placed: {PortfolioID: &portfolio, SegmentID: &segment},
+			bare:   {},
+		}}
+	}
+
+	t.Run("each account answers its portfolio, every account in one read confined to the ledger", func(t *testing.T) {
+		f := fake()
+
+		out, err := scopeResolvers{resolver: f}.accountPortfolio(context.Background(), resolveInput(org, ledger, placed.String(), bare.String(), unknown.String(), "not-a-uuid"))
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{portfolio.String()}, nil, nil, nil}, out,
+			"an account in no portfolio, an unknown account and a value that is not a uuid name nothing")
+		assert.Equal(t, []placementCall{{organizationID: org, ledgerID: ledger, accountIDs: []uuid.UUID{placed, bare, unknown}}}, f.placeCalls)
+	})
+
+	t.Run("each account answers its segment", func(t *testing.T) {
+		out, err := scopeResolvers{resolver: fake()}.accountSegment(context.Background(), resolveInput(org, ledger, placed.String(), bare.String()))
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{segment.String()}, nil}, out)
+	})
+
+	t.Run("a request naming no single ledger is not resolved", func(t *testing.T) {
+		f := fake()
+		in := resolveInput(org, ledger, placed.String())
+		in.Known["ledgerId"] = nil
+
+		_, err := scopeResolvers{resolver: f}.accountPortfolio(context.Background(), in)
+		require.ErrorIs(t, err, errScopeResolverUnconfined)
+		assert.Empty(t, f.placeCalls)
+	})
+
+	t.Run("a failed read is an error", func(t *testing.T) {
+		boom := errors.New("replica down")
+		f := fake()
+		f.err = boom
+
+		_, err := scopeResolvers{resolver: f}.accountSegment(context.Background(), resolveInput(org, ledger, placed.String()))
+		require.ErrorIs(t, err, boom)
+	})
+}
+
 func TestScopeResolvers_RegisteredUnderTheManifestNames(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: true}
 
 	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil))
 	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil), "a second registration under the same names is refused")
 
-	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers} {
+	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers, resolverAccountPortfolio, resolverAccountSegment} {
 		assert.Error(t, auth.RegisterScopeResolver(name, func(context.Context, middleware.ResolveInput) ([][]string, error) { return nil, nil }),
 			"%s must already be registered", name)
 	}
@@ -329,7 +402,7 @@ func wireProbeAuthScope(t *testing.T, auth *middleware.AuthClient) {
 		probes[dim.Name] = scopeProbeValue(i)
 	}
 
-	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers} {
+	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers, resolverAccountPortfolio, resolverAccountSegment} {
 		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) ([][]string, error) {
 			out := make([][]string, len(in.Items))
 			for i := range in.Items {

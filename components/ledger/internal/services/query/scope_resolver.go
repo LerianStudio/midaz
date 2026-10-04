@@ -80,6 +80,16 @@ type ScopeResolver interface {
 	// owns a live account in, the rule the holder list is confined by. A holder
 	// without one is absent from the answer.
 	LedgerIDsOfHolders(ctx context.Context, organizationID uuid.UUID, holderIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
+	// PlacementOfAccounts returns the portfolio and segment of each live account
+	// of the ledger. An account not found is absent from the answer.
+	PlacementOfAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (map[uuid.UUID]AccountPlacement, error)
+}
+
+// AccountPlacement is the portfolio and segment an account belongs to; nil when
+// it belongs to none.
+type AccountPlacement struct {
+	PortfolioID *uuid.UUID
+	SegmentID   *uuid.UUID
 }
 
 var _ ScopeResolver = (*UseCase)(nil)
@@ -216,12 +226,7 @@ func (uc *UseCase) LedgerIDsOfHolders(ctx context.Context, organizationID uuid.U
 	ctx, span := tracer.Start(ctx, "query.scope_resolver.ledger_ids_of_holders")
 	defer span.End()
 
-	distinct := make([]uuid.UUID, 0, len(holderIDs))
-	for _, id := range holderIDs {
-		if !slices.Contains(distinct, id) {
-			distinct = append(distinct, id)
-		}
-	}
+	distinct := distinctIDs(holderIDs)
 
 	span.SetAttributes(attribute.Int("app.scope.holders", len(distinct)))
 
@@ -237,6 +242,93 @@ func (uc *UseCase) LedgerIDsOfHolders(ctx context.Context, organizationID uuid.U
 	}
 
 	return ledgers, nil
+}
+
+// PlacementOfAccounts implements ScopeResolver.
+func (uc *UseCase) PlacementOfAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (map[uuid.UUID]AccountPlacement, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.scope_resolver.placement_of_accounts")
+	defer span.End()
+
+	distinct := distinctIDs(accountIDs)
+
+	span.SetAttributes(attribute.Int("app.scope.accounts", len(distinct)))
+
+	placements := make(map[uuid.UUID]AccountPlacement, len(distinct))
+
+	if len(distinct) == 0 {
+		return placements, nil
+	}
+
+	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, distinct)
+	if err != nil && !errors.Is(err, services.ErrDatabaseItemNotFound) {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve account placement", err)
+
+		return nil, err
+	}
+
+	for _, acc := range accounts {
+		if acc == nil {
+			continue
+		}
+
+		id, err := accountUUID(acc)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to parse account id", err)
+
+			return nil, err
+		}
+
+		portfolioID, err := optionalUUID(acc.PortfolioID)
+		if err != nil {
+			err = fmt.Errorf("account %s carries portfolio id: %w", id, err)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to parse account portfolio id", err)
+
+			return nil, err
+		}
+
+		segmentID, err := optionalUUID(acc.SegmentID)
+		if err != nil {
+			err = fmt.Errorf("account %s carries segment id: %w", id, err)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to parse account segment id", err)
+
+			return nil, err
+		}
+
+		placements[id] = AccountPlacement{PortfolioID: portfolioID, SegmentID: segmentID}
+	}
+
+	return placements, nil
+}
+
+// optionalUUID parses an optional id; nil or empty is no id.
+func optionalUUID(value *string) (*uuid.UUID, error) {
+	if value == nil || *value == "" {
+		return nil, nil
+	}
+
+	id, err := uuid.Parse(*value)
+	if err != nil {
+		return nil, fmt.Errorf("%q is not a uuid: %w", *value, err)
+	}
+
+	return &id, nil
+}
+
+// distinctIDs drops repeated ids, keeping first-seen order.
+func distinctIDs(ids []uuid.UUID) []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(ids))
+
+	for _, id := range ids {
+		if !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+
+	return out
 }
 
 // transactionAccountRefs loads the account references of a transaction from the

@@ -46,11 +46,11 @@ var scopedRoutesPerShape = map[string]int{
 	"organizationId+transactionRouteId":                   3,
 
 	"organizationId+ledgerId":                                          60,
-	"organizationId+ledgerId+accountId":                                35,
+	"organizationId+ledgerId+accountId":                                30,
 	"organizationId+ledgerId+accountId+balanceId":                      8,
 	"organizationId+ledgerId+accountId+holderId":                       2,
 	"organizationId+ledgerId+accountId+operationId":                    2,
-	"organizationId+ledgerId+accountId+portfolioId+segmentId":          4,
+	"organizationId+ledgerId+accountId+portfolioId+segmentId":          9,
 	"organizationId+ledgerId+accountId+portfolioId+segmentId+holderId": 2,
 	"organizationId+ledgerId+accountId+transactionId":                  10,
 	"organizationId+ledgerId+accountId+transactionId+operationId":      2,

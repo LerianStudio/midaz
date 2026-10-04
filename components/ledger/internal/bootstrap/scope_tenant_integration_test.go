@@ -63,6 +63,12 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 	holderParams.HolderID = &holderID
 	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, holderParams)
 
+	portfolioID := pgtestutil.CreateTestPortfolio(t, container.DB, orgID, ledgerID)
+	placedParams := pgtestutil.DefaultAccountParams()
+	placedParams.Alias = "@placed"
+	placedParams.PortfolioID = &portfolioID
+	placedID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, placedParams)
+
 	uc := &query.UseCase{AccountRepo: account.NewAccountPostgreSQLRepository(nil, true)}
 	tenantPG := &fixedTenantPG{db: db}
 
@@ -144,6 +150,27 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 		}
 
 		assert.Equal(t, []string{ledgerID.String()}, ledgers, "the holder's ledger, read from its tenant's accounts")
+	})
+
+	t.Run("the credential's tenant database resolves the portfolio of an account", func(t *testing.T) {
+		recorder.reset()
+
+		claims := jwt.MapClaims{"tenantId": tenant}
+		for k, v := range partner {
+			claims[k] = v
+		}
+
+		sendTo("/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+placedID.String(), claims)
+
+		var portfolios []string
+
+		for _, attrs := range recorder.snapshot() {
+			if portfolio, ok := attrs["portfolioId"]; ok {
+				portfolios = append(portfolios, portfolio)
+			}
+		}
+
+		assert.Equal(t, []string{portfolioID.String()}, portfolios, "the account's portfolio, read from its tenant's accounts")
 	})
 
 	t.Run("a holder lookup for a credential naming no tenant is refused as unavailable", func(t *testing.T) {

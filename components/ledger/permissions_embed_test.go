@@ -224,8 +224,13 @@ var wantScopeRoutes = map[string][]string{
 		"holderId<-body:holderId?",
 		"accountId<-body:parentAccountId?",
 	},
-	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id": accountUpdateBodyCarriers,
-	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id": accountUpdateBodyCarriers,
+	"GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id":        accountPlacementCarriers,
+	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id":        accountPlacementCarriers,
+	"DELETE /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id":     accountPlacementCarriers,
+	"DELETE /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id":     accountPlacementCarriers,
+	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/close": accountPlacementCarriers,
+	"PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id":      accountUpdateCarriers,
+	"PATCH /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id":      accountUpdateCarriers,
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts": {
 		"portfolioId<-body:portfolioId?",
 		"segmentId<-body:segmentId?",
@@ -327,9 +332,18 @@ var v2CreateBodyCarriers = []string{
 	"accountId<-body:credits[].alias=>accountByAlias",
 }
 
-var accountUpdateBodyCarriers = []string{
+var accountUpdateCarriers = []string{
 	"portfolioId<-body:portfolioId?",
 	"segmentId<-body:segmentId?",
+	"portfolioId<-path:account_id?=>accountPortfolio",
+	"segmentId<-path:account_id?=>accountSegment",
+}
+
+// accountPlacementCarriers is the carrier of every account detail route: the
+// portfolio and segment the account belongs to, left out when it has none.
+var accountPlacementCarriers = []string{
+	"portfolioId<-path:account_id?=>accountPortfolio",
+	"segmentId<-path:account_id?=>accountSegment",
 }
 
 // TestMidazManifest_ScopeRoutesDeclareTheirCarriers pins every route-level scope
