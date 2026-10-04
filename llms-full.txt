@@ -492,9 +492,9 @@ transaction then records the send plus the fee, less the debt it opened (send 10
 holds 105: amount 105, debt 5). Enable it only once every ledger pod
 runs a release that knows fee debt (see `docs/architecture/engine.md`).
 
-A package switched off (`enable: false`) or deleted, or a fee whose `deferrable` turned `false`,
-may keep applying for up to 60 seconds when a transaction read the packages concurrently with the
-change.
+A package switched off (`enable: false`) or deleted may keep applying, and a fee whose
+`deferrable` changed to `false` may still open fee debt when unfunded, for up to 60 seconds when a
+transaction read the packages concurrently with the change.
 
 Closing an account is permanent. To retire a fee account, point the fee package at the new fee
 account and leave the old account open: reverts of earlier transactions and collections of fee
@@ -1259,7 +1259,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 | github.com/LerianStudio/lib-commons/v7 | v7.14.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
 | github.com/LerianStudio/lib-observability/v4 | v4.6.1 | Logging, metrics, tracing, assertions, panic recovery, redaction |
 | github.com/LerianStudio/lib-streaming/v4 | v4.1.0 | CloudEvents/Kafka streaming producer (franz-go) |
-| github.com/LerianStudio/lib-auth/v5 | v5.2.0 | Authentication middleware |
+| github.com/LerianStudio/lib-auth/v5 | v5.3.0 | Authentication middleware |
 | github.com/danielgtaylor/huma/v2 | v2.39.1 | OpenAPI 3.1 contract + request/response validation over Fiber |
 | github.com/gofiber/fiber/v3 | v3.5.0 | HTTP framework (runtime router / middleware) |
 | github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |
