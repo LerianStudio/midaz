@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
+	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
@@ -25,6 +26,7 @@ import (
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -45,6 +47,10 @@ type BillingPackageService struct {
 
 	// Streaming emits past-tense fee domain events; nil disables event emission.
 	Streaming libStreaming.Emitter
+
+	// RouteLock serializes the writes that can enable a volume package on one
+	// billing route. Assigned at bootstrap; a nil value disables it.
+	RouteLock *libRedis.RedisLockManager
 }
 
 // ErrNilBillingPackageRepo is returned when a nil billing package repository is provided.
@@ -122,16 +128,18 @@ func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, ledger
 	}
 
 	// Step 2: Type-specific business rules.
-	switch bp.Type {
-	case model.BillingPackageTypeVolume:
-		if err := s.validateVolumeCreate(ctx, bp); err != nil {
-			return nil, err
-		}
-	case model.BillingPackageTypeMaintenance:
-		if err := s.validateMaintenanceCreate(ctx, bp); err != nil {
-			return nil, err
-		}
+	unlock := func() {}
+	if bp.Type == model.BillingPackageTypeVolume {
+		unlock, err = s.admitVolumeCreate(ctx, span, bp)
+	} else {
+		err = s.validateMaintenanceCreate(ctx, bp)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer unlock()
 
 	// Step 3: Set defaults and metadata.
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -161,9 +169,29 @@ func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, ledger
 		return nil, err
 	}
 
+	unlock()
+
 	s.emitBillingPackageCreatedEvent(ctx, span, logger, result)
 
 	return result, nil
+}
+
+// admitVolumeCreate validates a volume package under its route's lock; the caller holds the returned unlock through the write.
+func (s *BillingPackageService) admitVolumeCreate(ctx context.Context, span trace.Span, bp *model.BillingPackage) (func(), error) {
+	unlock, err := s.lockBillingRoute(ctx, bp.OrganizationID, bp.LedgerID, bp.EventFilter.TransactionRoute)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to lock the billing route", err)
+
+		return nil, err
+	}
+
+	if err := s.validateVolumeCreate(ctx, bp); err != nil {
+		unlock()
+
+		return nil, err
+	}
+
+	return unlock, nil
 }
 
 // validateVolumeCreate performs volume-specific validation: route overlap and account checks.
@@ -173,32 +201,8 @@ func (s *BillingPackageService) validateVolumeCreate(ctx context.Context, bp *mo
 	ctx, childSpan := tracer.Start(ctx, "service.billing_package.validate_volume_create")
 	defer childSpan.End()
 
-	// Guard: EventFilter must be non-nil before accessing fields.
-	// Although bp.Validate() checks this, validateVolumeCreate may be called independently.
-	if bp.EventFilter == nil {
-		return pkg.ValidateBusinessError(constant.ErrMissingVolumeFields, "BillingPackage")
-	}
-
-	// Check route overlap.
-	existing, err := s.billingPackageRepo.FindMatchingPackages(
-		ctx, bp.OrganizationID, bp.LedgerID, bp.EventFilter.TransactionRoute,
-	)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(childSpan, "Failed to find matching packages for route overlap check", err)
-
+	if err := s.rejectRouteOverlap(ctx, childSpan, bp); err != nil {
 		return err
-	}
-
-	if len(existing) > 0 {
-		conflictErr := pkg.EntityConflictError{
-			EntityType: "BillingPackage",
-			Code:       constant.ErrBillingRouteOverlap.Error(),
-			Title:      "Billing route overlap",
-			Message:    "A billing package already exists for this organization, ledger, and transaction route combination.",
-		}
-		libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Billing route overlap detected", conflictErr)
-
-		return conflictErr
 	}
 
 	// Validate debit account exists.
@@ -220,6 +224,85 @@ func (s *BillingPackageService) validateVolumeCreate(ctx context.Context, bp *mo
 	}
 
 	return nil
+}
+
+// rejectRouteOverlap answers 409 when an enabled package already bills bp's route.
+func (s *BillingPackageService) rejectRouteOverlap(ctx context.Context, span trace.Span, bp *model.BillingPackage) error {
+	existing, err := s.billingPackageRepo.FindMatchingPackages(
+		ctx, bp.OrganizationID, bp.LedgerID, bp.EventFilter.TransactionRoute,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to find matching packages for route overlap check", err)
+
+		return err
+	}
+
+	if len(existing) > 0 {
+		conflictErr := pkg.EntityConflictError{
+			EntityType: "BillingPackage",
+			Code:       constant.ErrBillingRouteOverlap.Error(),
+			Title:      "Billing route overlap",
+			Message:    "A billing package already exists for this organization, ledger, and transaction route combination.",
+		}
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing route overlap detected", conflictErr)
+
+		return conflictErr
+	}
+
+	return nil
+}
+
+// lockBillingRoute locks one ledger's billing route for its overlap guard and the write it admits.
+func (s *BillingPackageService) lockBillingRoute(ctx context.Context, organizationID, ledgerID, transactionRoute string) (func(), error) {
+	return lockFeeScope(ctx, s.RouteLock, "billing_packages:{"+organizationID+":"+ledgerID+"}:"+transactionRoute, constant.EntityBillingPackage)
+}
+
+// admitEnable: route and type never change on update, so enabling a disabled package is the only update that can store an overlap.
+func (s *BillingPackageService) admitEnable(ctx context.Context, span trace.Span, id, organizationID uuid.UUID, ledgerScope string) (func(), error) {
+	noop := func() {}
+
+	stored, err := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String(), ledgerScope)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return noop, nil
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read billing package", err)
+
+		return nil, err
+	}
+
+	if stored.Type != model.BillingPackageTypeVolume {
+		return noop, nil
+	}
+
+	unlock, err := s.lockBillingRoute(ctx, stored.OrganizationID, stored.LedgerID, stored.EventFilter.TransactionRoute)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to lock the billing route", err)
+
+		return nil, err
+	}
+
+	// The read above only names the route to lock: a concurrent write may have
+	// enabled or deleted the package since.
+	stored, err = s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String(), ledgerScope)
+
+	switch {
+	case errors.Is(err, mongo.ErrNoDocuments):
+		return unlock, nil
+	case err != nil:
+		libOpentelemetry.HandleSpanError(span, "Failed to read billing package", err)
+	case !*stored.Enable:
+		err = s.rejectRouteOverlap(ctx, span, stored)
+	}
+
+	if err != nil {
+		unlock()
+
+		return nil, err
+	}
+
+	return unlock, nil
 }
 
 // validateMaintenanceCreate performs maintenance-specific validation: account target and credit account check.
@@ -395,12 +478,25 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 		"$set": setFields,
 	}
 
-	result, err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), billingPackageLedgerScope(ledgerID), &updateFields)
+	ledgerScope := billingPackageLedgerScope(ledgerID)
+	unlock := func() {}
+
+	if enable, _ := updates["enable"].(bool); enable {
+		if unlock, err = s.admitEnable(ctx, span, id, organizationID, ledgerScope); err != nil {
+			return nil, err
+		}
+
+		defer unlock()
+	}
+
+	result, err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), ledgerScope, &updateFields)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update billing package", err)
 
 		return nil, err
 	}
+
+	unlock()
 
 	if result != nil {
 		s.emitBillingPackageUpdatedEvent(ctx, span, logger, result)

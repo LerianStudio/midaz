@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
@@ -42,17 +43,15 @@ func newConnection(t *testing.T, container *mongotestutil.ContainerResult) *fees
 	}
 }
 
-// newRepository builds the repository and ensures indexes against the real
-// container, mirroring the production constructor's EnsureIndexes call.
+// newRepository builds the repository through the production constructor, which
+// also ensures the indexes against the real container.
 func newRepository(t *testing.T, container *mongotestutil.ContainerResult) *billing_package.BillingPackageMongoDBRepository {
 	t.Helper()
 
-	conn := newConnection(t, container)
+	repo, err := billing_package.NewBillingPackageMongoDBRepository(newConnection(t, container), libLog.NewNop())
+	require.NoError(t, err, "repository construction must succeed")
 
-	require.NoError(t, billing_package.EnsureIndexes(context.Background(), conn),
-		"EnsureIndexes must succeed during repository setup")
-
-	return billing_package.NewBillingPackageMongoDBRepositoryFromConnection(conn)
+	return repo
 }
 
 // collection returns the raw billing_package collection on the test database so
