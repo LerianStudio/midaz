@@ -715,12 +715,12 @@ func TestGetAllMetadataIndexes_FilteredRepoFailure_Canonical500(t *testing.T) {
 
 	// Filtered reads propagate the repo failure (unlike the unfiltered sweep).
 	transaction.EXPECT().
-		FindAllIndexes(gomock.Any(), "operation").
+		FindAllIndexes(gomock.Any(), "operationroute").
 		Return(nil, errors.New("database error")).Times(1)
 
 	app := buildHumaMetadataApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/settings/metadata-indexes?entity_name=operation", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/settings/metadata-indexes?entity_name=operation_route", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
