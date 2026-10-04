@@ -202,7 +202,7 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 		_, feeExists := existingFees[keyFormatted]
 
 		if !feeExists {
-			// New fee - validate and add to final state
+			// New fee - validate it and set it whole
 			err := fee.ValidateNewFee(key, minAmount)
 			if err != nil {
 				return err
@@ -213,7 +213,9 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 				return errGetAccount
 			}
 
-			mongoFees, errConvert := pack.FromEntityFeeMap(map[string]model.Fee{keyFormatted: fee})
+			// The converter normalizes the raw key into keyFormatted. Normalization is
+			// not idempotent, so it must see the key the client sent.
+			mongoFees, errConvert := pack.FromEntityFeeMap(map[string]model.Fee{key: fee})
 			if errConvert != nil {
 				return errConvert
 			}
