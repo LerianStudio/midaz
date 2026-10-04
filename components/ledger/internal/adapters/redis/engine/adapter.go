@@ -117,7 +117,7 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	started := time.Now()
-	defer func() { recordExecutionOutcome(ctx, factory, logger, time.Since(started), err) }()
+	defer func() { recordExecutionOutcome(ctx, factory, logger, time.Since(started), input.Execution, err) }()
 
 	if err := ctx.Err(); err != nil {
 		return nil, technical("context_canceled", false, err)
