@@ -108,9 +108,9 @@ test:
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
-# The ledger's integration shards from ci/integration-shards.tsv, each under its own
+# The integration shards the ledger owns (lifecycle-migration also carries a few tracer tests), each under its own
 # CPU, memory, container and wall-clock budget. Every shard runs; any failure fails the target.
-LEDGER_INTEGRATION_SHARDS := ledger-postgres ledger-mongodb-crm async-broker lifecycle-migration
+LEDGER_INTEGRATION_SHARDS := ledger-postgres ledger-mongodb-crm async-broker lifecycle-migration chaos-capability
 
 .PHONY: test-integration
 test-integration:
