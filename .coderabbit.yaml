@@ -1,4 +1,5 @@
 reviews:
+  request_changes_workflow: true
   auto_review:
     base_branches:
       - "develop"
