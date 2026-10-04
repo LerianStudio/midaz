@@ -30,12 +30,18 @@ type refusalRow struct {
 	name string
 	// amStatus/amBody are what the Access Manager answers on /v1/authorize.
 	// withToken=false never reaches it: lib-auth refuses before the round trip.
-	withToken  bool
+	withToken bool
+	// token replaces the parseable bearer token when set.
+	token      string
 	amStatus   int
 	amBody     string
 	wantStatus int
 	wantCode   string
+	// wantMessage, when set, pins the message the caller reads.
+	wantMessage string
 }
+
+const invalidTokenMessage = "The provided token is expired, invalid or malformed. Please provide a valid token and try again."
 
 func refusalRows() []refusalRow {
 	return []refusalRow{
@@ -90,6 +96,36 @@ func refusalRows() []refusalRow {
 			wantCode:   "0047",
 		},
 		{
+			// A partner the authorization service holds suspended finishes the
+			// credential: the caller reads the partner as the cause, not a bad token.
+			name:        "partner suspended",
+			withToken:   true,
+			amStatus:    http.StatusOK,
+			amBody:      `{"authorized":false,"reason":"suspended"}`,
+			wantStatus:  fiber.StatusUnauthorized,
+			wantCode:    "AUT-1009",
+			wantMessage: "the partner of this credential is suspended",
+		},
+		{
+			name:        "partner outside its validity period",
+			withToken:   true,
+			amStatus:    http.StatusOK,
+			amBody:      `{"authorized":false,"reason":"expired"}`,
+			wantStatus:  fiber.StatusUnauthorized,
+			wantCode:    "AUT-1010",
+			wantMessage: "the partner of this credential is outside its validity period",
+		},
+		{
+			name:        "malformed token",
+			withToken:   true,
+			token:       "not-a-jwt",
+			amStatus:    http.StatusOK,
+			amBody:      `{"authorized":true}`,
+			wantStatus:  fiber.StatusUnauthorized,
+			wantCode:    "0042",
+			wantMessage: invalidTokenMessage,
+		},
+		{
 			name:       "access manager has no subject for the token",
 			withToken:  true,
 			amStatus:   http.StatusNotFound,
@@ -98,12 +134,13 @@ func refusalRows() []refusalRow {
 			wantCode:   "AUT-1015",
 		},
 		{
-			name:       "access manager refused with a numeric code",
-			withToken:  true,
-			amStatus:   http.StatusUnauthorized,
-			amBody:     `{"code":401}`,
-			wantStatus: fiber.StatusUnauthorized,
-			wantCode:   "0042",
+			name:        "access manager refused with a numeric code",
+			withToken:   true,
+			amStatus:    http.StatusUnauthorized,
+			amBody:      `{"code":401}`,
+			wantStatus:  fiber.StatusUnauthorized,
+			wantCode:    "0042",
+			wantMessage: invalidTokenMessage,
 		},
 		{
 			name:       "access manager refused without a code",
@@ -141,6 +178,7 @@ func newAccessManager(t *testing.T, row refusalRow) *httptest.Server {
 type refusalBody struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	Detail  string `json:"detail"`
 	Status  int    `json:"status"`
 }
 
@@ -187,7 +225,12 @@ func TestAuthzRefusal_LedgerEdge(t *testing.T) {
 
 				req := httptest.NewRequest(fiber.MethodGet, family.prefix+"/organizations", nil)
 				if row.withToken {
-					req.Header.Set(fiber.HeaderAuthorization, "Bearer "+guardBearerToken(t))
+					token := row.token
+					if token == "" {
+						token = guardBearerToken(t)
+					}
+
+					req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 				}
 
 				resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -205,6 +248,15 @@ func TestAuthzRefusal_LedgerEdge(t *testing.T) {
 				var body refusalBody
 				require.NoError(t, json.Unmarshal(raw, &body))
 				assert.Equal(t, row.wantCode, body.Code)
+
+				if row.wantMessage != "" {
+					message := body.Detail
+					if family.legacy {
+						message = body.Message
+					}
+
+					assert.Equal(t, row.wantMessage, message)
+				}
 
 				if family.legacy {
 					assert.Zero(t, body.Status, "the legacy envelope carries no status member")

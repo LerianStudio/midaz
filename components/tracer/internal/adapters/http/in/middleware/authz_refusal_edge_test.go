@@ -71,6 +71,22 @@ func TestAuthzRefusal_TracerEdge(t *testing.T) {
 			wantCode:   "AUT-0021",
 		},
 		{
+			name:       "partner suspended",
+			withToken:  true,
+			amStatus:   http.StatusOK,
+			amBody:     `{"authorized":false,"reason":"suspended"}`,
+			wantStatus: fiber.StatusUnauthorized,
+			wantCode:   "AUT-1009",
+		},
+		{
+			name:       "partner outside its validity period",
+			withToken:  true,
+			amStatus:   http.StatusOK,
+			amBody:     `{"authorized":false,"reason":"expired"}`,
+			wantStatus: fiber.StatusUnauthorized,
+			wantCode:   "AUT-1010",
+		},
+		{
 			name:       "access manager has no subject for the token",
 			withToken:  true,
 			amStatus:   http.StatusNotFound,
