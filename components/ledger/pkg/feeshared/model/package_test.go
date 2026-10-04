@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
@@ -196,6 +197,41 @@ func TestCreatePackageInput_ValidateFees(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestValidateFeeKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		key   string
+		valid bool
+	}{
+		{"tarifaTED2", true},
+		{"a", true},
+		{"Tarifa", false},
+		{"_tarifa", false},
+		{"ágio", false},
+		{"", false},
+		{"2tarifa", false},
+		{"tarifa.ted", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateFeeKey(tt.key)
+			if tt.valid {
+				assert.NoError(t, err)
+				return
+			}
+
+			var fieldsErr pkg.ValidationKnownFieldsError
+			require.ErrorAs(t, err, &fieldsErr)
+			assert.Equal(t, constant.ErrBadRequest.Error(), fieldsErr.Code)
+			assert.Contains(t, fieldsErr.Fields["fees."+tt.key], feeKeyRule)
 		})
 	}
 }
