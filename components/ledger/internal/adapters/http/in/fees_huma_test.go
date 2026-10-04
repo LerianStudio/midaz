@@ -1031,17 +1031,19 @@ func TestUpdatePackage_StoredNonConformingKeyEditableAndRemovable(t *testing.T) 
 // A key differing only in case from a stored key names that fee misspelled, so it is
 // refused whatever the entry carries, and nothing is written.
 func TestUpdatePackage_CaseVariantOfStoredKey_400(t *testing.T) {
-	tests := []struct{ name, entry string }{
-		{"full fee", packageFeeJSON("Tarifa PIX", "originalAmount", 2)},
-		{"partial edit", `{"feeLabel":"Tarifa PIX"}`},
-		{"removal", `{}`},
+	full := packageFeeJSON("Tarifa PIX", "originalAmount", 2)
+	tests := []struct{ name, fees string }{
+		{"full fee", `"tarifaPIX":` + full},
+		{"partial edit", `"tarifaPIX":{"feeLabel":"Tarifa PIX"}`},
+		{"removal", `"tarifaPIX":{}`},
+		{"beside an edit of the stored key", `"tarifaPix":{"feeLabel":"Tarifa PIX"},"tarifaPIX":` + full},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := realFeeUpdateHandler(t, map[string]model.Fee{"tarifaPix": storedPackageFee(1)}, nil)
 
-			body := `{"fees":{"tarifaPIX":` + tt.entry + `}}`
+			body := `{"fees":{` + tt.fees + `}}`
 
 			resp := patchPackage(t, buildHumaPackageApp(t, handler, true), uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7()), body)
 			defer func() { _ = resp.Body.Close() }()

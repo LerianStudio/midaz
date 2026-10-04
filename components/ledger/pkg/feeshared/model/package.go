@@ -5,7 +5,9 @@
 package model
 
 import (
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/LerianStudio/lib-commons/v7/commons/safe"
@@ -56,10 +58,10 @@ func ValidateFeeKey(key string) error {
 }
 
 // ValidateAddedFeeKey refuses a key that adds a fee beside the stored ones. A case variant
-// of a stored key the patch leaves unnamed is that fee misspelled, not a second fee.
+// of a stored key the patch does not remove is that fee misspelled, not a second fee.
 func ValidateAddedFeeKey(key string, stored, patch map[string]Fee) error {
-	for storedKey := range stored {
-		if _, named := patch[storedKey]; !named && strings.EqualFold(key, storedKey) {
+	for _, storedKey := range slices.Sorted(maps.Keys(stored)) {
+		if p, named := patch[storedKey]; (!named || !p.removesTheFee()) && strings.EqualFold(key, storedKey) {
 			return pkg.ValidateBadRequestFieldsError(nil, pkg.FieldValidations{
 				"fees." + key: "fee key " + key + " conflicts with stored key " + storedKey + "; use the stored key",
 			}, "", nil)
