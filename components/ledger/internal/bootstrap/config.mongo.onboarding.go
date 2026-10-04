@@ -137,8 +137,12 @@ func ensureOnboardingMongoIndexes(conn *libMongo.Client, logger libLog.Logger) {
 			SetUnique(false),
 	}
 
-	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
-	for _, collection := range collections {
+	entities := []string{
+		constant.EntityOrganization, constant.EntityLedger, constant.EntitySegment, constant.EntityAccount,
+		constant.EntityPortfolio, constant.EntityAsset, constant.EntityAccountType,
+	}
+	for _, entity := range entities {
+		collection := strings.ToLower(entity)
 		if err := conn.EnsureIndexes(ctx, collection, indexModel); err != nil {
 			logger.Log(ctx, libLog.LevelWarn, "Failed to ensure indexes for collection", libLog.String("collection", collection), libLog.Err(err))
 		}

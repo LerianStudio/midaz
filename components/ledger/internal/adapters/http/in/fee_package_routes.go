@@ -66,6 +66,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a package",
+		Description:      "A package switched off (enable: false) may keep applying, and a fee whose deferrable changed to false may still open fee debt when unfunded, for up to 60 seconds when a transaction read the packages concurrently with the update. Closing an account is permanent. To retire a fee account, point the fee package at the new fee account and leave the old account open: reverts of earlier transactions and collections of fee debt already owed to it still post there.",
 		Tags:             []string{tag},
 		Security:         secPackageBearer,
 		SkipValidateBody: true, // body validated imperatively — see createPackage.
@@ -77,6 +78,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler, opSuffix string) {
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "SoftDelete a Package by ID",
+		Description: "A deleted package may keep applying for up to 60 seconds when a transaction read the packages concurrently with the delete.",
 		Tags:        []string{tag},
 		Security:    secPackageBearer,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
