@@ -490,6 +490,10 @@ several apply, the one carrying the most selectors wins, each metadata pair coun
 is refused (`0198`). Two packages on overlapping bands collide (`0184`/`0199`) only when their
 selectors are identical.
 
+A fee key inside a package's `fees` map must match `^[a-z][a-zA-Z0-9]*$` and is stored and returned
+verbatim: create refuses any other key with `400` naming `fees.<key>`, and update applies the rule
+only to a key that adds a fee, so a stored key of any shape stays editable and removable.
+
 A fee may set `deferrable` (optional, default `false`, returned on every read). When the payer
 cannot fund a deferrable fee, the unfunded share opens a fee debt that the payer's later credits
 settle, oldest first, instead of refusing the transaction with `0018`; the debt is listed on
