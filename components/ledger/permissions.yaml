@@ -195,6 +195,7 @@ scope:
       path: /v2/organizations/:organization_id/holders/:holder_id/accounts
       dimensions:
         - { name: ledgerId, from: query, field: ledger_id, optional: true }
+      filter: [ledgerId]
     - method: GET
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
       dimensions:

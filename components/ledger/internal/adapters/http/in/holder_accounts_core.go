@@ -62,6 +62,8 @@ func (handler *HolderAccountsHandler) getAccountsByHolder(ctx context.Context, o
 
 	recordSafeQueryAttributes(span, headerParams)
 
+	headerParams.Scope = listScope(ctx, scopeDimensionLedger)
+
 	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID.String(), holderID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to list accounts by holder", err)

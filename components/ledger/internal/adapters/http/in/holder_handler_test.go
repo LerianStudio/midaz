@@ -1023,6 +1023,7 @@ type stubHolderAccountsReader struct {
 	gotHolderID       uuid.UUID
 	gotHolderFilter   *string
 	gotLedgerID       *string
+	gotScope          pkgHTTP.ScopeConfinement
 }
 
 func (s *stubHolderAccountsReader) ListAccountsByHolder(_ context.Context, organizationID string, holderID uuid.UUID, filter pkgHTTP.QueryHeader) ([]*mmodel.Account, error) {
@@ -1030,6 +1031,7 @@ func (s *stubHolderAccountsReader) ListAccountsByHolder(_ context.Context, organ
 	s.gotHolderID = holderID
 	s.gotHolderFilter = filter.HolderID
 	s.gotLedgerID = filter.LedgerID
+	s.gotScope = filter.Scope
 
 	return s.accounts, s.err
 }

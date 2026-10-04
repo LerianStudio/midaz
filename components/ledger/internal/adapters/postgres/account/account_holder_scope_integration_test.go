@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -124,4 +125,45 @@ func TestIntegration_AccountRepository_ListLedgerIDsOfHolders(t *testing.T) {
 	empty, err := repo.ListLedgerIDsOfHolders(context.Background(), orgID, nil)
 	require.NoError(t, err)
 	assert.Empty(t, empty)
+}
+
+func TestIntegration_AccountRepository_FindAllByHolderConfinedToTheScope(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1 := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2 := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	holder := uuid.Must(libCommons.GenerateUUIDv7())
+
+	owned := func(ledgerID uuid.UUID, alias string) uuid.UUID {
+		p := pgtestutil.DefaultAccountParams()
+		p.Alias = alias
+		p.HolderID = &holder
+
+		return pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, p)
+	}
+
+	in1, in2 := owned(ledger1, "@in-1"), owned(ledger2, "@in-2")
+
+	list := func(scope http.ScopeConfinement) []uuid.UUID {
+		t.Helper()
+
+		filter := holderListFilter(10, 1, "asc")
+		filter.Scope = scope
+
+		accounts, err := repo.FindAllByHolder(context.Background(), orgID, holder, nil, filter, mmodel.HolderOnV2)
+		require.NoError(t, err)
+
+		ids := make([]uuid.UUID, 0, len(accounts))
+		for _, acc := range accounts {
+			ids = append(ids, uuid.MustParse(acc.ID))
+		}
+
+		return ids
+	}
+
+	assert.ElementsMatch(t, []uuid.UUID{in1, in2}, list(nil), "no confinement lists the holder's accounts in every ledger")
+	assert.ElementsMatch(t, []uuid.UUID{in2}, list(http.ScopeConfinement{"ledgerId": {ledger2}}), "only the accounts of the allowed ledgers")
+	assert.Empty(t, list(http.ScopeConfinement{"ledgerId": {}}), "an empty allowed list lists nothing")
 }

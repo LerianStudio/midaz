@@ -88,6 +88,12 @@ func accountColumns(withHolder bool) []string {
 	}
 }
 
+// holderAccountScopeColumns are the columns a holder's accounts, which span
+// every ledger of the organization, are confined on.
+var holderAccountScopeColumns = map[string]string{
+	"ledgerId": "ledger_id",
+}
+
 // accountScopeColumns are the columns a list of accounts is confined on, per
 // scope dimension.
 var accountScopeColumns = map[string]string{
@@ -551,7 +557,7 @@ func (r *AccountPostgreSQLRepository) FindAllByHolder(ctx context.Context, organ
 	// contradict it.
 	filter.HolderID = nil
 
-	findAll = applyAccountListFilters(findAll, filter).
+	findAll = scopefilter.Where(applyAccountListFilters(findAll, filter), filter.Scope, holderAccountScopeColumns).
 		OrderBy(accountListOrderBy(filter)...).
 		Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).

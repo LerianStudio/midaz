@@ -31,6 +31,7 @@ var wantListFilters = map[string][]string{
 	"HEAD\t/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count": {"accountId"},
 	"GET\t/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts":                   {"accountId"},
 	"GET\t/v2/organizations/:organization_id/holders":                                        {"ledgerId", "accountId"},
+	"GET\t/v2/organizations/:organization_id/holders/:holder_id/accounts":                    {"ledgerId"},
 	"GET\t/v2/organizations/:organization_id/instruments":                                    {"ledgerId", "accountId"},
 }
 
