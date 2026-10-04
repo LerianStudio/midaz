@@ -1030,13 +1030,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// ledger with no fee packages skips the Mongo lookup; invalidated on package CUD.
 	fees.useCase.PackageCache = txnRedisRepo
 
-	// Serialize each ledger's package creates and updates across replicas, so the
-	// overlap guard and the write it admits run as one step.
+	// Serialize each ledger's package writes and each billing route's enabling
+	// writes across replicas, so an overlap guard and the write it admits run as
+	// one step.
 	fees.useCase.PackageLock, err = libRedis.NewRedisLockManager(redisConnection)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize fee package lock: %w", err)
 	}
+
+	fees.billingPackageService.RouteLock = fees.useCase.PackageLock
 
 	// === Handlers ===
 
