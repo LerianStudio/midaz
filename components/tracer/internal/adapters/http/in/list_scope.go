@@ -17,6 +17,12 @@ import (
 // lists are confined on.
 var tracerListScopeDimensions = []string{"accountId", "segmentId", "portfolioId", "merchantId"}
 
+// Dimensions the rule and limit lists are confined on.
+const (
+	ruleListScopeDimension  = "ruleId"
+	limitListScopeDimension = "limitId"
+)
+
 // tracerListScope reads, for each dimension a list filters on, the values the
 // authorization decision allows a partner credential to see. It returns nil for
 // every other caller. A value that is not an id names nothing and is dropped,

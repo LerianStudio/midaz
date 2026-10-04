@@ -197,6 +197,7 @@ func (h *LimitHandler) listLimits(ctx context.Context, bind func(any) error) (*L
 
 	// Convert to service filter
 	filter := ToListLimitsFilter(&input)
+	filter.Scope = tracerListScope(ctx, limitListScopeDimension)
 
 	result, err := h.service.ListLimits(ctx, filter)
 	if err != nil {

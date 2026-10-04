@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
 	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // LimitType represents the period type of a limit
@@ -1081,6 +1082,10 @@ type ListLimitsFilter struct {
 	Cursor      string       `json:"cursor,omitempty"`
 	SortBy      string       `json:"sortBy,omitempty"`
 	SortOrder   string       `json:"sortOrder,omitempty"`
+
+	// Scope confines the list to the limits a scoped credential may see. It is
+	// set from the authorization decision, never from the query.
+	Scope http.ScopeConfinement `json:"-"`
 }
 
 // DefaultLimitSortField is the default sort column for limit queries.

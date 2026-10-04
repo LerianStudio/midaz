@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -76,4 +77,97 @@ func TestTransactionValidationRepository_ListConfinedToTheScope_Integration(t *t
 			assert.ElementsMatch(t, tt.want, got)
 		})
 	}
+}
+
+func TestRuleAndLimitRepositories_ListConfinedToTheScope_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	ctx := context.Background()
+	prefix := "scope-list-" + uuid.NewString()[:8]
+	now := time.Now().UTC()
+
+	rules := NewRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
+	limits := NewLimitRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
+
+	newRule := func(name string) uuid.UUID {
+		t.Helper()
+
+		rule, err := model.NewRule(prefix+name, "amount > 0", model.DecisionDeny, nil, nil, now)
+		require.NoError(t, err)
+
+		created, err := rules.CreateWithTx(ctx, db, rule)
+		require.NoError(t, err)
+
+		t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM rules WHERE id = $1`, created.ID) })
+
+		return created.ID
+	}
+
+	newLimit := func(name string) uuid.UUID {
+		t.Helper()
+
+		account := uuid.New()
+		lmt, err := model.NewLimit(prefix+name, model.LimitTypeDaily, decimal.RequireFromString("1000"), "BRL",
+			[]model.Scope{{AccountID: &account}}, nil, now)
+		require.NoError(t, err)
+		require.NoError(t, limits.CreateWithTx(ctx, db, lmt))
+
+		t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM limits WHERE id = $1`, lmt.ID) })
+
+		return lmt.ID
+	}
+
+	ruleA, ruleB := newRule("-a"), newRule("-b")
+	limitA, limitB := newLimit("-a"), newLimit("-b")
+
+	name := prefix
+
+	tests := []struct {
+		name       string
+		scope      http.ScopeConfinement
+		wantRules  []uuid.UUID
+		wantLimits []uuid.UUID
+	}{
+		{name: "no confinement lists every one", wantRules: []uuid.UUID{ruleA, ruleB}, wantLimits: []uuid.UUID{limitA, limitB}},
+		{name: "the allowed ones only", scope: http.ScopeConfinement{"ruleId": {ruleA}, "limitId": {limitB}}, wantRules: []uuid.UUID{ruleA}, wantLimits: []uuid.UUID{limitB}},
+		{name: "an empty allowed list lists nothing", scope: http.ScopeConfinement{"ruleId": {}, "limitId": {}}, wantRules: []uuid.UUID{}, wantLimits: []uuid.UUID{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ruleScope, limitScope http.ScopeConfinement
+			if tt.scope != nil {
+				ruleScope = http.ScopeConfinement{"ruleId": tt.scope["ruleId"]}
+				limitScope = http.ScopeConfinement{"limitId": tt.scope["limitId"]}
+			}
+
+			gotRules, err := rules.List(ctx, &model.ListRulesFilter{Name: &name, Limit: 100, SortBy: "created_at", SortOrder: "DESC", Scope: ruleScope})
+			require.NoError(t, err)
+
+			ruleIDs := make([]uuid.UUID, 0, len(gotRules.Rules))
+			for _, r := range gotRules.Rules {
+				ruleIDs = append(ruleIDs, r.ID)
+			}
+
+			assert.ElementsMatch(t, tt.wantRules, ruleIDs)
+
+			gotLimits, err := limits.List(ctx, &model.ListLimitsFilter{Name: &name, Limit: 100, Scope: limitScope})
+			require.NoError(t, err)
+
+			limitIDs := make([]uuid.UUID, 0, len(gotLimits.Limits))
+			for _, l := range gotLimits.Limits {
+				limitIDs = append(limitIDs, l.ID)
+			}
+
+			assert.ElementsMatch(t, tt.wantLimits, limitIDs)
+		})
+	}
+
+	t.Run("a confinement on a dimension the list does not carry lists nothing", func(t *testing.T) {
+		got, err := rules.List(ctx, &model.ListRulesFilter{Name: &name, Limit: 100, SortBy: "created_at", SortOrder: "DESC",
+			Scope: http.ScopeConfinement{"limitId": {limitA}}})
+		require.NoError(t, err)
+		assert.Empty(t, got.Rules)
+	})
 }

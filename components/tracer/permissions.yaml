@@ -77,6 +77,8 @@ scope:
       path: /v1/audit-events
       dimensions: *validationListQueryDimensions
       filter: *validationListFilter
+    - { method: GET, path: /v1/rules,  filter: [ruleId] }
+    - { method: GET, path: /v1/limits, filter: [limitId] }
 permissions:
   # rules — CEL fraud rules (registerTracerHumaRoutes, the /v1/rules group)
   - { resource: rules, action: post,   effect: allow, roles: [editor, contributor], level: tenant }

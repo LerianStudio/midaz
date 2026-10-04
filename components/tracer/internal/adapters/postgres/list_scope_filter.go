@@ -32,6 +32,13 @@ var auditEventScopeFields = map[string]string{
 	"merchantId":  "context->'request'->'merchant'->>'merchantId'",
 }
 
+// ruleScopeFields and limitScopeFields are the columns a list of rules or of
+// limits is confined on.
+var (
+	ruleScopeFields  = map[string]string{"ruleId": "id::text"}
+	limitScopeFields = map[string]string{"limitId": "id::text"}
+)
+
 // applyListScope narrows qb to the values scope allows. A dimension confined to
 // no value, or one the list has no field for, matches nothing: an unapplied
 // confinement must never widen the list.

@@ -256,6 +256,7 @@ func (h *Handler) listRules(ctx context.Context, bind func(any) error) (*ListRul
 
 	// Convert to service filter
 	filter := toListFilter(&input)
+	filter.Scope = tracerListScope(ctx, ruleListScopeDimension)
 
 	result, err := h.service.ListRules(ctx, filter)
 	if err != nil {

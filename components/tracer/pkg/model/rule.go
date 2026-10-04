@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // RuleStatus represents the lifecycle status of a rule
@@ -346,6 +347,10 @@ type ListRulesFilter struct {
 	Cursor      string // Base64 encoded cursor for pagination
 	SortBy      string
 	SortOrder   string
+
+	// Scope confines the list to the rules a scoped credential may see. It is
+	// set from the authorization decision, never from the query.
+	Scope http.ScopeConfinement
 }
 
 // ListRulesResult represents the result of listing rules.

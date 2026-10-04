@@ -659,7 +659,7 @@ func (r *Repository) applyFilters(query sq.SelectBuilder, filter *model.ListRule
 		query = query.Where(scopeFilter, filterArgs...)
 	}
 
-	return query
+	return applyListScope(query, filter.Scope, ruleScopeFields)
 }
 
 // applyOrderBy applies ORDER BY clause for keyset pagination.

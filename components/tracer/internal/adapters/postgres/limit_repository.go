@@ -685,7 +685,7 @@ func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *mode
 		query = query.Where(scopeFilter, filterArgs...)
 	}
 
-	return query
+	return applyListScope(query, filters.Scope, limitScopeFields)
 }
 
 // validateAndNormalizeSort validates and normalizes sort parameters.
