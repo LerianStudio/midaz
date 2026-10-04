@@ -60,6 +60,7 @@ func TestIntegration_TransactionRouteCache_UpdateDropsLedgerKeyAndRewritesOrgani
 	seedRouteCache(t, ctx, infra.uc, organizationKey, current)
 
 	metadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	metadataRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	infra.uc.TransactionMetadataRepo = metadataRepo
 
