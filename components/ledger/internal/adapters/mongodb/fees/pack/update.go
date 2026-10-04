@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
@@ -24,7 +25,7 @@ import (
 )
 
 // Update updates a package in the database and returns the persisted document.
-func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updateFields *bson.M) (*Package, error) {
+func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updatedAt time.Time, updateFields *bson.M) (*Package, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.package.update")
@@ -46,6 +47,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	filter := packageScopeFilter(id, organizationID, ledgerID)
+	filter["updated_at"] = updatedAt
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
 	_, spanUpdate := tracer.Start(ctx, "repository.package.update.find_one_and_update")
