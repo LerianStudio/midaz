@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -56,7 +57,35 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, le
 		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
-	setOperationFields, unsetOperationFields, ownerLedgerID, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, ledgerID, up)
+	feesAmountData, err := uc.packageRepo.FindFeesAndAmountDataByPackageID(ctx, organizationID, id)
+	if err != nil {
+		return err
+	}
+
+	// A package on another ledger reads as absent, in the exact envelope the lookup
+	// gives an unknown id, before any check reads that ledger's accounts or ranges.
+	if ledgerID != uuid.Nil && feesAmountData.LedgerID != ledgerID {
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", "Package")
+	}
+
+	unlock, err := uc.lockPackageScope(ctx, organizationID, feesAmountData.LedgerID)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to lock the ledger's fee packages", err)
+
+		return err
+	}
+
+	defer unlock()
+
+	// Every check below judges the package as it stands under the lock: the read
+	// above only names the ledger to lock, and a concurrent mutation may have moved
+	// its bounds or fees since.
+	feesAmountData, err = uc.packageRepo.FindFeesAndAmountDataByPackageID(ctx, organizationID, id)
+	if err != nil {
+		return err
+	}
+
+	setOperationFields, unsetOperationFields, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, feesAmountData, up)
 	if errUpdateFields != nil {
 		return errUpdateFields
 	}
@@ -84,11 +113,14 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, le
 		return err
 	}
 
+	// The write has landed: the cache and the broker are no reason to hold the lock.
+	unlock()
+
 	// Invalidate the cached enabled-package set for this (org,ledger): an update
 	// can change amounts, fees, waivers, or the enable flag, all of which the
-	// cached set carries. The ledger is the owning one resolved while building the
-	// update fields, which under organization scope is the only place it appears.
-	uc.invalidatePackageCache(ctx, logger, organizationID, ownerLedgerID)
+	// cached set carries. The ledger is the owning one, which under organization
+	// scope is the only place it appears.
+	uc.invalidatePackageCache(ctx, logger, organizationID, feesAmountData.LedgerID)
 
 	uc.emitFeesPackageUpdatedEvent(ctx, span, logger, updatedPackage, organizationID)
 
@@ -107,38 +139,16 @@ func (uc *UseCase) emitFeesPackageUpdatedEvent(ctx context.Context, span trace.S
 		})
 }
 
-// buildUpdateFields Build the fields that will be updated. It also returns the
-// package's ledger ID (resolved from the existing document) so the caller can
-// invalidate the per-(org,ledger) package cache after the update commits.
-//
-// ledgerID is the ledger the caller is acting within, or uuid.Nil for organization
-// scope. A package owned by a different ledger is rejected as absent here rather
-// than by the write, because the validations below read and answer from the owning
-// ledger — its accounts, its amount range — and must not run for a caller that is
-// not entitled to it.
-func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, packageID, organizationID, ledgerID uuid.UUID, up *model.UpdatePackageInput) (bson.M, bson.M, uuid.UUID, error) {
+// buildUpdateFields Build the fields that will be updated, validated against the
+// stored package feesAmountData describes.
+func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, packageID, organizationID uuid.UUID, feesAmountData *model.AmountData, up *model.UpdatePackageInput) (bson.M, bson.M, error) {
 	setFields := bson.M{}
 	unsetFields := bson.M{}
-
-	feesAmountData, errFindFees := uc.packageRepo.
-		FindFeesAndAmountDataByPackageID(ctx, organizationID, packageID)
-	if errFindFees != nil {
-		return nil, nil, uuid.Nil, errFindFees
-	}
-
-	// The envelope is the one the lookup above produces for an id that exists
-	// nowhere, down to the entity type: two 404s that differ in any rendered field
-	// let a caller tell "exists on a ledger you cannot reach" from "does not exist".
-	if ledgerID != uuid.Nil && feesAmountData.LedgerID != ledgerID {
-		return nil, nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", "Package")
-	}
-
-	ownerLedgerID := feesAmountData.LedgerID
 
 	// Update amounts
 	if up.MinAmount != nil || up.MaxAmount != nil {
 		if errSetAmounts := uc.SetAmountsDataToUpdate(ctx, logger, up, feesAmountData, organizationID, &packageID, setFields); errSetAmounts != nil {
-			return nil, nil, ownerLedgerID, errSetAmounts
+			return nil, nil, errSetAmounts
 		}
 	}
 
@@ -147,7 +157,7 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 	// payments too small to charge it on. The fees this patch restates are validated
 	// below, against this same new minimum.
 	if errStoredFees := up.ValidateStoredFeesAgainstMinimum(feesAmountData.Fees); errStoredFees != nil {
-		return nil, nil, ownerLedgerID, errStoredFees
+		return nil, nil, errStoredFees
 	}
 
 	if !commons.IsNilOrEmpty(&up.FeeGroupLabel) {
@@ -170,22 +180,22 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 	if up.Fee != nil {
 		minAmount, errMinAmount := up.EffectiveMinimumAmount(feesAmountData.MinAmount)
 		if errMinAmount != nil {
-			return nil, nil, ownerLedgerID, errMinAmount
+			return nil, nil, errMinAmount
 		}
 
 		errValidationFeesSet := uc.validationFeesSetUnset(ctx, minAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
 		if errValidationFeesSet != nil {
-			return nil, nil, ownerLedgerID, errValidationFeesSet
+			return nil, nil, errValidationFeesSet
 		}
 	}
 
 	if len(setFields) == 0 && len(unsetFields) == 0 {
-		return setFields, unsetFields, ownerLedgerID, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
+		return setFields, unsetFields, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
 	}
 
 	setFields["updated_at"] = time.Now()
 
-	return setFields, unsetFields, ownerLedgerID, nil
+	return setFields, unsetFields, nil
 }
 
 // validationFeesSetUnset Validate the fee struct to update correctly

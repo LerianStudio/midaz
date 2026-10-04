@@ -884,7 +884,9 @@ func TestUpdatePackage_MissingCalculationModel_Canonical400(t *testing.T) {
 			Fees:      map[string]model.Fee{},
 			// The ledger the request names, or the package reads as absent.
 			LedgerID: uuid.MustParse(validLedgerUUID()),
-		}, nil)
+		}, nil).
+		// Once to name the ledger to lock, once more under the lock.
+		Times(2)
 
 	// Nothing may be written on a refusal, and the write is what says so.
 	packageRepo.EXPECT().
