@@ -176,6 +176,7 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 			require.NoError(t, err)
 			engine := &countingAtomicBatchRecoveryEngine{delegate: adapter}
 			execution := atomicBatchRecoveryExecution(t, tenantID)
+			warmRecoveryEngineBalances(t, testCtx, client, execution)
 			effectiveKey, appliedRecord := seedAtomicBatchRecoveryIdempotency(t, testCtx, repository, execution)
 
 			result, err := engine.Execute(testCtx, execution)
@@ -227,23 +228,23 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 				clock:          func() time.Time { return completedAt },
 			}
 
-			firstEnvelope, err := command.DecodeTransactionCompletionRecord([]byte(messages[fields[0]]))
+			firstEnvelope, err := command.DecodeTransactionWriteBehindEnvelope([]byte(messages[fields[0]]))
 			require.NoError(t, err)
-			require.NoError(t, coordinator.complete(
+			require.NoError(t, coordinator.completeWriteBehind(
 				testCtx,
 				txredis.RecoveryQueueSourceEngineRecover,
 				fields[0],
 				messages[fields[0]],
 				firstEnvelope,
 			))
-			assert.Equal(t, 1, store.durableWrites[firstEnvelope.TransactionID])
+			assert.Equal(t, 1, store.durableWrites[firstEnvelope.Record.TransactionID])
 			assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[0], "")
 			assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[1], messages[fields[1]])
 			assertAtomicBatchRecoveryProtection(t, testCtx, client, artifactKeys, 2)
 
-			secondEnvelope, err := command.DecodeTransactionCompletionRecord([]byte(messages[fields[1]]))
+			secondEnvelope, err := command.DecodeTransactionWriteBehindEnvelope([]byte(messages[fields[1]]))
 			require.NoError(t, err)
-			err = coordinator.complete(
+			err = coordinator.completeWriteBehind(
 				testCtx,
 				txredis.RecoveryQueueSourceEngineRecover,
 				fields[1],
@@ -280,7 +281,7 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 			assert.Equal(t, 1, engine.calls, "recovery must never invoke accounting")
 
 			if test.failSecondCompletion {
-				require.NoError(t, coordinator.complete(
+				require.NoError(t, coordinator.completeWriteBehind(
 					testCtx,
 					txredis.RecoveryQueueSourceEngineRecover,
 					fields[1],
@@ -305,7 +306,7 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 			assert.Equal(t, monetaryState, client.Get(testCtx, balanceKey).Val())
 			assertAtomicBatchRecoveryProtection(t, testCtx, client, artifactKeys, 2)
 
-			expectedResponse := atomicBatchRecoveryExpectedResponse(t, appliedRecord.BatchID, appliedRecord.TransactionIDs, store)
+			expectedResponse := atomicBatchRecoveryExpectedResponse(t, appliedRecord.TransactionIDs, store)
 			claim := txredis.AtomicTransactionBatchIdempotencyRecord{
 				FormatVersion:      txredis.AtomicTransactionBatchIdempotencyFormatVersion,
 				State:              txredis.AtomicTransactionBatchStateClaimed,
@@ -347,6 +348,7 @@ func TestIntegrationAtomicTransactionBatchCompatibleRecoveryUsesEngineOnly(t *te
 	require.NoError(t, err)
 	engine := &countingAtomicBatchRecoveryEngine{delegate: adapter}
 	execution := atomicBatchRecoveryExecution(t, tenantID)
+	warmRecoveryEngineBalances(t, testCtx, client, execution)
 	_, _ = seedAtomicBatchRecoveryIdempotency(t, testCtx, repository, execution)
 
 	result, err := engine.Execute(testCtx, execution)
@@ -367,9 +369,9 @@ func TestIntegrationAtomicTransactionBatchCompatibleRecoveryUsesEngineOnly(t *te
 	for _, field := range atomicBatchRecoveryFields(execution) {
 		raw := engineMessages[field]
 		require.NotEmpty(t, raw)
-		record, decodeErr := command.DecodeTransactionCompletionRecord([]byte(raw))
+		writeBehind, decodeErr := command.DecodeTransactionWriteBehindEnvelope([]byte(raw))
 		require.NoError(t, decodeErr)
-		assert.Equal(t, command.TransactionCompletionFormatVersion, record.FormatVersion)
+		assert.Equal(t, command.TransactionCompletionFormatVersion, writeBehind.Record.FormatVersion)
 	}
 	artifactKeys := atomicBatchRecoveryArtifactKeys(t, testCtx, execution)
 	assertAtomicBatchRecoveryProtection(t, testCtx, client, artifactKeys, int64(len(execution.Execution.Transactions)))
@@ -551,7 +553,6 @@ func seedAtomicBatchRecoveryIdempotency(
 
 func atomicBatchRecoveryExpectedResponse(
 	t *testing.T,
-	batchID uuid.UUID,
 	transactionIDs []uuid.UUID,
 	store *failureInjectedBatchProjectionStore,
 ) []byte {
@@ -566,9 +567,8 @@ func atomicBatchRecoveryExpectedResponse(
 		transactions[index] = &public
 	}
 	response := struct {
-		BatchID      uuid.UUID                  `json:"batchId"`
 		Transactions []*transaction.Transaction `json:"transactions"`
-	}{BatchID: batchID, Transactions: transactions}
+	}{Transactions: transactions}
 	encoded, err := json.Marshal(response)
 	require.NoError(t, err)
 

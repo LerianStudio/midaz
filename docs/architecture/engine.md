@@ -1366,9 +1366,14 @@ accounting result or error. No monetary state or identifiers are emitted.
 | `engine_pool_balance_count` | Full snapshot pool carried into preflight | None |
 | `engine_touched_balance_count` | Distinct balance references targeted by postings | None |
 
-`refused` means a recognized pre-write protocol refusal, not necessarily an HTTP
-business error: missing companions and on-hold underflow remain integrity
-failures. The metrics do not perform public error mapping.
+`refused` means a recognized pre-write protocol refusal, or a confirmed technical
+code that the public error mapping answers as a client error:
+`transaction_already_reverted`, `execution_guard_conflict`, `account_closed`,
+`account_closing_in_progress`, and `fee_debt_record_pending`. It follows
+`command.MapEngineError` only, so a code a caller remaps on its own path, such as
+a pending-transition race answered 409, still counts as technical. A protocol
+refusal is not necessarily an HTTP business error: missing companions and on-hold
+underflow remain integrity failures.
 
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, and 5000 ms.
 Payload buckets are 1, 4, 16, 64, 256 KiB and 1, 4, 16 MiB; these are observation

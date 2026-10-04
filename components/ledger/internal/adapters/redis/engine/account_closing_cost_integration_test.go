@@ -115,7 +115,8 @@ func (f *integrationFixture) evalOnce(t *testing.T) (string, error) {
 	require.NoError(t, err)
 
 	return accountClosingCostScript.Run(context.Background(), f.client, prepared.Keys, string(prepared.Payload),
-		strconv.Itoa(f.limits.MaxRequestBytes), strconv.Itoa(f.limits.MaxPreparedBytes)).Text()
+		strconv.Itoa(f.limits.MaxRequestBytes), strconv.Itoa(f.limits.MaxPreparedBytes),
+		strconv.Itoa(f.limits.MaxTransactions), strconv.Itoa(f.limits.MaxPostings), strconv.Itoa(f.limits.MaxBalances)).Text()
 }
 
 // rotateExecution gives the next sample a fresh execution and transaction
