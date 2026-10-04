@@ -890,7 +890,7 @@ func TestUpdatePackage_MissingCalculationModel_Canonical400(t *testing.T) {
 
 	// Nothing may be written on a refusal, and the write is what says so.
 	packageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
 	service, errService := feesservices.NewUseCase(packageRepo, feeshared.NewMockMidazResolver(ctrl))

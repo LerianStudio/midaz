@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
@@ -163,7 +164,7 @@ func TestUpdatePackage(t *testing.T) {
 			packInput: &model.UpdatePackageInput{Fee: feeRemove},
 			mockSetup: func() {
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
@@ -188,7 +189,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
@@ -213,12 +214,17 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection))
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(amountData, nil).Times(2)
+
+				// The re-read after the no-match finds nothing: the package is gone.
+				mockPackageRepo.EXPECT().
+					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.EntityPackage))
 			},
 			expectErr:   true,
 			errContains: "No entity was found",
@@ -239,7 +245,7 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(nil, constant.ErrBadRequest)
 
 				mockPackageRepo.EXPECT().
@@ -302,7 +308,12 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 		Fees:      map[string]model.Fee{},
 		LedgerID:  uuid.New(),
 		SegmentID: nil,
+		UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
+
+	// The read under the lock sees a later version than the read that named the ledger.
+	lockedRead := *amountData
+	lockedRead.UpdatedAt = time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	packSvc := &UseCase{
 		packageRepo: mockPackageRepo,
@@ -315,13 +326,19 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 
 	var capturedUpdateFields interface{}
 
-	mockPackageRepo.EXPECT().
-		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil).Times(2)
+	gomock.InOrder(
+		mockPackageRepo.EXPECT().
+			FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(amountData, nil),
+		mockPackageRepo.EXPECT().
+			FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&lockedRead, nil),
+	)
 
+	// The write is conditioned on the version the read under the lock saw.
 	mockPackageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, updateFields interface{}) (*pack.Package, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Eq(lockedRead.UpdatedAt), gomock.Any()).
+		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, _ time.Time, updateFields interface{}) (*pack.Package, error) {
 			capturedUpdateFields = updateFields
 			return &pack.Package{ID: id, LedgerID: amountData.LedgerID}, nil
 		})
@@ -376,7 +393,7 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(amountData, nil).Times(2)
 	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 		Return(persisted, nil)
 
 	svc := &UseCase{
