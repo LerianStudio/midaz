@@ -435,3 +435,144 @@ func TestMidazManifest_EveryPermissionDeclaresItsLevel(t *testing.T) {
 
 	require.Equal(t, wantPermissionLevels, got)
 }
+
+// wantDimensionParents pins the parent of every scope dimension, the dimension
+// whose single instance holds one of its own; a root maps to "". Siblings share a
+// parent and so rank the same when the access manager orders scope levels.
+var wantDimensionParents = map[string]string{
+	"organizationId":     "",
+	"ledgerId":           "organizationId",
+	"holderId":           "organizationId",
+	"accountTypeId":      "ledgerId",
+	"accountId":          "ledgerId",
+	"assetId":            "ledgerId",
+	"portfolioId":        "ledgerId",
+	"segmentId":          "ledgerId",
+	"transactionId":      "ledgerId",
+	"operationRouteId":   "ledgerId",
+	"transactionRouteId": "ledgerId",
+	"billingPackageId":   "ledgerId",
+	"packageId":          "ledgerId",
+	"feeDebtId":          "ledgerId",
+	"balanceId":          "accountId",
+	"operationId":        "accountId",
+	"instrumentId":       "holderId",
+	"relatedPartyId":     "instrumentId",
+}
+
+func midazManifest(t *testing.T) declaration.DeclarationManifest {
+	t.Helper()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest))
+	require.NoError(t, manifest.Validate())
+	require.NotNil(t, manifest.Scope)
+
+	return manifest
+}
+
+// TestMidazManifest_ScopeDimensionsDeclareTheirParent pins the parent of every
+// dimension, so a dimension added without a decision about where it sits fails.
+func TestMidazManifest_ScopeDimensionsDeclareTheirParent(t *testing.T) {
+	t.Parallel()
+
+	manifest := midazManifest(t)
+
+	got := make(map[string]string, len(manifest.Scope.Dimensions))
+	for _, dim := range manifest.Scope.Dimensions {
+		got[dim.Name] = dim.Parent
+	}
+
+	require.Equal(t, wantDimensionParents, got)
+}
+
+// TestMidazManifest_BootRefusesABrokenHierarchy proves the hierarchy is checked at
+// boot: declaration.New accepts the embedded manifest, and refuses the same
+// manifest once its root is given a parent that closes a cycle.
+func TestMidazManifest_BootRefusesABrokenHierarchy(t *testing.T) {
+	t.Parallel()
+
+	_, err := declaration.New(newConfig(midazSlug))
+	require.NoError(t, err)
+
+	manifest := midazManifest(t)
+
+	for i := range manifest.Scope.Dimensions {
+		if manifest.Scope.Dimensions[i].Name == "organizationId" {
+			manifest.Scope.Dimensions[i].Parent = "accountId"
+		}
+	}
+
+	cyclic, err := yaml.Marshal(manifest)
+	require.NoError(t, err)
+
+	config := newConfig(midazSlug)
+	config.Manifest = cyclic
+
+	_, err = declaration.New(config)
+	require.ErrorContains(t, err, "makes a cycle")
+}
+
+// dimensionDepth is 1 for a root and its parent's depth plus 1 otherwise.
+func dimensionDepth(t *testing.T, parents map[string]string, name string) int {
+	t.Helper()
+
+	depth := 1
+
+	for parent := parents[name]; parent != ""; parent = parents[parent] {
+		depth++
+		require.LessOrEqualf(t, depth, len(parents), "following the parents of %s does not end at a root", name)
+	}
+
+	return depth
+}
+
+// TestMidazManifest_ScopeDimensionDepths pins the depth of every dimension: an
+// account and a portfolio are siblings under the ledger, neither narrower than
+// the other, so a partner confined to a portfolio may still be granted account
+// writes.
+func TestMidazManifest_ScopeDimensionDepths(t *testing.T) {
+	t.Parallel()
+
+	manifest := midazManifest(t)
+
+	parents := make(map[string]string, len(manifest.Scope.Dimensions))
+	for _, dim := range manifest.Scope.Dimensions {
+		parents[dim.Name] = dim.Parent
+	}
+
+	tests := []struct {
+		dimension string
+		depth     int
+	}{
+		{"organizationId", 1},
+		{"ledgerId", 2},
+		{"holderId", 2},
+		{"accountTypeId", 3},
+		{"accountId", 3},
+		{"assetId", 3},
+		{"portfolioId", 3},
+		{"segmentId", 3},
+		{"transactionId", 3},
+		{"operationRouteId", 3},
+		{"transactionRouteId", 3},
+		{"billingPackageId", 3},
+		{"packageId", 3},
+		{"feeDebtId", 3},
+		{"instrumentId", 3},
+		{"balanceId", 4},
+		{"operationId", 4},
+		{"relatedPartyId", 4},
+	}
+
+	require.Len(t, tests, len(parents), "every dimension has a row")
+
+	for _, tt := range tests {
+		require.Equalf(t, tt.depth, dimensionDepth(t, parents, tt.dimension), "depth of %s", tt.dimension)
+	}
+
+	require.Equal(t, dimensionDepth(t, parents, "portfolioId"), dimensionDepth(t, parents, "accountId"),
+		"portfolio and account are siblings")
+	require.Equal(t, parents["portfolioId"], parents["accountId"], "portfolio and account share their parent")
+}

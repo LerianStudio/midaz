@@ -62,26 +62,26 @@ scope:
   dimensions:
     - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }
     - { name: ledgerId,           from: path, param: ledger_id,            required: false, multi: true,  collection: ledgers,            label: "ledger",
-        covers: [holders, instruments, protection] }
-    - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type" }
+        covers: [holders, instruments, protection], parent: organizationId }
+    - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type", parent: ledgerId }
     - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account",
-        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions] }
-    - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset" }
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions], parent: ledgerId }
+    - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset", parent: ledgerId }
     - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio",
-        covers: [accounts] }
+        covers: [accounts], parent: ledgerId }
     - { name: segmentId,          from: path, param: segment_id,           required: false, multi: true,  collection: segments,           label: "segment",
-        covers: [accounts] }
-    - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance" }
-    - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction" }
-    - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation" }
-    - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route" }
-    - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route" }
-    - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder" }
-    - { name: instrumentId,       from: path, param: instrument_id,        required: false, multi: true,  collection: instruments,        label: "instrument" }
-    - { name: relatedPartyId,     from: path, param: related_party_id,     required: false, multi: true,  collection: related-parties,    label: "related party" }
-    - { name: billingPackageId,   from: path, param: billing_package_id,   required: false, multi: true,  collection: billing-packages,   label: "billing package" }
-    - { name: packageId,          from: path, param: package_id,           required: false, multi: true,  collection: packages,           label: "fee package" }
-    - { name: feeDebtId,          from: path, param: fee_debt_id,          required: false, multi: true,  collection: fee-debts,          label: "fee debt" }
+        covers: [accounts], parent: ledgerId }
+    - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance", parent: accountId }
+    - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction", parent: ledgerId }
+    - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation", parent: accountId }
+    - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route", parent: ledgerId }
+    - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route", parent: ledgerId }
+    - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder", parent: organizationId }
+    - { name: instrumentId,       from: path, param: instrument_id,        required: false, multi: true,  collection: instruments,        label: "instrument", parent: holderId }
+    - { name: relatedPartyId,     from: path, param: related_party_id,     required: false, multi: true,  collection: related-parties,    label: "related party", parent: instrumentId }
+    - { name: billingPackageId,   from: path, param: billing_package_id,   required: false, multi: true,  collection: billing-packages,   label: "billing package", parent: ledgerId }
+    - { name: packageId,          from: path, param: package_id,           required: false, multi: true,  collection: packages,           label: "fee package", parent: ledgerId }
+    - { name: feeDebtId,          from: path, param: fee_debt_id,          required: false, multi: true,  collection: fee-debts,          label: "fee debt", parent: ledgerId }
   routes:
     - method: POST
       path: /v2/transactions/direct

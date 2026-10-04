@@ -264,3 +264,14 @@ func TestTracerManifest_PartnerWritesFollowTheRank(t *testing.T) {
 		}
 	}
 }
+
+// TestTracerManifest_EveryDimensionIsARoot pins that no tracer dimension names a
+// parent: the tracer holds no organization or ledger, so its own ids and the
+// account, segment, portfolio and merchant it reads are all roots.
+func TestTracerManifest_EveryDimensionIsARoot(t *testing.T) {
+	t.Parallel()
+
+	for _, dim := range tracerManifest(t).Scope.Dimensions {
+		require.Emptyf(t, dim.Parent, "%s declares parent %q", dim.Name, dim.Parent)
+	}
+}
