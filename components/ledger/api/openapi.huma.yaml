@@ -16069,6 +16069,7 @@ paths:
         - Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
     delete:
+      description: A deleted package may keep applying for up to 60 seconds when a transaction read the packages concurrently with the delete.
       operationId: deletePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -16173,7 +16174,7 @@ paths:
       tags:
         - Packages (v2)
     patch:
-      description: "A package switched off (enable: false), or a fee whose deferrable turned false, may keep applying for up to 60 seconds: transactions read packages through a cache with that expiry."
+      description: "A package switched off (enable: false), or a fee whose deferrable turned false, may keep applying for up to 60 seconds when a transaction read the packages concurrently with the update."
       operationId: updatePackageV2
       parameters:
         - description: Organization ID (UUID)
