@@ -19,6 +19,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	tracerembed "github.com/LerianStudio/midaz/v4/components/tracer"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/scoperesolver"
 )
 
 // wireDeclarationPublisher builds the RI permission-declaration publisher over
@@ -233,11 +234,15 @@ func (r *declarationPublisherRunnable) Run(_ *libCommons.Launcher) error {
 	return nil
 }
 
-// wireAuthScope hands the embedded manifest's scope catalog to the auth client, so
-// every tracer guard derives the rule, limit, validation or audit event it sends
-// from its own route path. It must run BEFORE any route is registered: Authorize
-// reads the catalog at registration, and a route registered first sends no
-// instance at all.
-func wireAuthScope(auth *authMiddleware.AuthClient) error {
+// wireAuthScope registers the scope resolvers the manifest names, then hands the
+// embedded manifest's scope catalog to the auth client, so every tracer guard
+// derives the rule, limit, validation or audit event it sends from its own route
+// path. It must run BEFORE any route is registered: Authorize reads the catalog at
+// registration, and a route registered first sends no instance at all.
+func wireAuthScope(auth *authMiddleware.AuthClient, validations scoperesolver.ValidationReader, tenant scoperesolver.TenantAttacher) error {
+	if err := scoperesolver.Register(auth, validations, tenant); err != nil {
+		return err
+	}
+
 	return declaration.WireScope(auth, tracerembed.TracerManifest)
 }

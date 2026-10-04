@@ -11,7 +11,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
 	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -20,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	tracerembed "github.com/LerianStudio/midaz/v4/components/tracer"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -57,7 +55,7 @@ func TestTracerListScope_RulesAndLimits(t *testing.T) {
 	t.Cleanup(authz.Close)
 
 	authClient := &authMiddleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, declaration.WireScope(authClient, tracerembed.TracerManifest))
+	wireTracerScope(t, authClient, nil)
 
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"type": "application", "owner": "scope-org", "sub": "scope-org/scope-app", "partner": "scope-partner",

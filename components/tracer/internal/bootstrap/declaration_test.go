@@ -379,8 +379,8 @@ func TestDeclarationPublisherRunnable_SIGTERM_DrainsStopsExactlyOnceAndExits(t *
 func TestWireAuthScope_AcceptsTheEmbeddedManifest(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, wireAuthScope(&authMiddleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}))
-	require.Error(t, wireAuthScope(nil), "a nil client must be refused, not silently left unscoped")
+	require.NoError(t, wireAuthScope(&authMiddleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}, nil, nil))
+	require.Error(t, wireAuthScope(nil, nil, nil), "a nil client must be refused, not silently left unscoped")
 }
 
 // scopeOnlyIdentity stands in for the identity service and forwards the body of

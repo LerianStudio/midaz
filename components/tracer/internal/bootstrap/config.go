@@ -1192,9 +1192,17 @@ func initHTTPServer(
 ) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 
+	transactionValidationRepo := postgres.NewTransactionValidationRepositoryWithConnection(pgConn)
+
+	var scopePG *tmpostgres.Manager
+	if mtComponents != nil {
+		scopePG = mtComponents.pgManager
+	}
+
 	// Before any route is registered: every tracer guard derives the entity ids it
-	// authorizes against from the manifest scope, read at registration.
-	if err := wireAuthScope(authClient); err != nil {
+	// authorizes against from the manifest scope, read at registration. A
+	// validation read by id is resolved in the database of the credential's tenant.
+	if err := wireAuthScope(authClient, transactionValidationRepo, seamtenant.NewResolver(scopePG, cfg.MultiTenantEnabled)); err != nil {
 		return nil, nil, fmt.Errorf("failed to wire the authorization scope: %w", err)
 	}
 
@@ -1213,8 +1221,7 @@ func initHTTPServer(
 		),
 	)
 
-	// Init Transaction Validation repository and queries
-	transactionValidationRepo := postgres.NewTransactionValidationRepositoryWithConnection(pgConn)
+	// Init Transaction Validation queries
 	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
 	listTransactionValidationsQuery := query.NewListTransactionValidationsQuery(transactionValidationRepo)
 

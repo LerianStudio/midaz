@@ -14,7 +14,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
 	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -23,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	tracerembed "github.com/LerianStudio/midaz/v4/components/tracer"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
@@ -67,7 +65,7 @@ func TestTracerBodyScope_ValidationSubmission(t *testing.T) {
 	t.Cleanup(authz.Close)
 
 	authClient := &authMiddleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, declaration.WireScope(authClient, tracerembed.TracerManifest))
+	wireTracerScope(t, authClient, nil)
 
 	deps := newTestRouterDeps(t, middleware.AuthGuardConfig{PluginAuthEnabled: true, AppName: constant.ApplicationName})
 	deps.ValidationService.EXPECT().Validate(gomock.Any(), gomock.Any()).Return(nil, errors.New("not reached in this test")).AnyTimes()

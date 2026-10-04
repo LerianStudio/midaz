@@ -67,6 +67,13 @@ scope:
         - { name: portfolioId, from: body, field: portfolio.portfolioId, optional: true }
         - { name: merchantId,  from: body, field: merchant.merchantId,   optional: true }
     - method: GET
+      path: /v1/validations/:validation_id
+      dimensions:
+        - { name: accountId,   from: path, field: validation_id, resolve: validationAccount }
+        - { name: segmentId,   from: path, field: validation_id, resolve: validationSegment,   optional: true }
+        - { name: portfolioId, from: path, field: validation_id, resolve: validationPortfolio, optional: true }
+        - { name: merchantId,  from: path, field: validation_id, resolve: validationMerchant,  optional: true }
+    - method: GET
       path: /v1/validations
       dimensions: &validationListQueryDimensions
         - { name: accountId,   from: query, field: account_id,   optional: true }

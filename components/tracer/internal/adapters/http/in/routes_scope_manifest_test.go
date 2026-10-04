@@ -192,8 +192,7 @@ func buildScopedTracerApp(t *testing.T, authzURL string) *fiber.App {
 	t.Helper()
 
 	authClient := &authMiddleware.AuthClient{Enabled: true, Address: authzURL}
-	require.NoError(t, declaration.WireScope(authClient, tracerembed.TracerManifest),
-		"the boot scope wiring must accept the embedded manifest")
+	wireTracerScope(t, authClient, nil)
 
 	deps := newTestRouterDeps(t, middleware.AuthGuardConfig{PluginAuthEnabled: true, AppName: constant.ApplicationName})
 

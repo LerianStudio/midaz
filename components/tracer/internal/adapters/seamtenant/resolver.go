@@ -10,8 +10,9 @@
 // claim, which lib-auth publishes as md-tenant-id once the token is
 // authorized. Under the other identities (API key, mTLS or mesh peer, none)
 // the seam runs single-tenant and the ledger's x-tenant-id is the carrier.
-// User-facing tracer routes keep their own JWT-claim tenant path; this
-// resolver is wired ONLY onto the reservation RPCs.
+// User-facing tracer routes keep their own JWT-claim tenant path; besides the
+// reservation RPCs, this resolver serves only the authorization scope lookups,
+// which take the tenant from the credential lib-auth has validated.
 package seamtenant
 
 import (
