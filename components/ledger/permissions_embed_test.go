@@ -247,6 +247,9 @@ var wantScopeRoutes = map[string][]string{
 		"accountId<-query:account_id?",
 		"ledgerId<-query:ledger_id?",
 	},
+	"GET /v2/organizations/:organization_id/holders/:holder_id":    holderLedgersCarriers,
+	"PATCH /v2/organizations/:organization_id/holders/:holder_id":  holderLedgersCarriers,
+	"DELETE /v2/organizations/:organization_id/holders/:holder_id": holderLedgersCarriers,
 	"GET /v2/organizations/:organization_id/holders/:holder_id/accounts": {
 		"ledgerId<-query:ledger_id?",
 	},
@@ -291,6 +294,10 @@ var wantScopeRoutes = map[string][]string{
 	"POST /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect":                                      {"accountId<-body:accountAlias=>accountByAlias"},
 	"GET /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts":                                               {"accountId<-query:account_alias?=>accountByAlias"},
 }
+
+// holderLedgersCarriers is the carrier of every holder detail route: the ledgers
+// the holder owns a live account in, any one of which may allow the request.
+var holderLedgersCarriers = []string{"ledgerId<-path:holder_id=>holderLedgers[any]"}
 
 var v1CreateAliasCarriers = []string{
 	"accountId<-body:send.source.from[].accountAlias=>accountByAlias",
@@ -357,6 +364,10 @@ func TestMidazManifest_ScopeRoutesDeclareTheirCarriers(t *testing.T) {
 
 			if dim.Resolve != "" {
 				carrier += "=>" + dim.Resolve
+			}
+
+			if dim.Match != "" {
+				carrier += "[" + dim.Match + "]"
 			}
 
 			carriers = append(carriers, carrier)
