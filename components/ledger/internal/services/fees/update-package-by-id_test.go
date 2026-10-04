@@ -532,11 +532,9 @@ func TestBuildUpdateFields_DisablesPackageLeftWithoutFees(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo := pack.NewMockRepository(gomock.NewController(t))
-			repo.EXPECT().FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(&model.AmountData{MinAmount: decimal.NewFromInt(100), MaxAmount: decimal.NewFromInt(1000), Fees: tt.stored, LedgerID: uuid.New()}, nil)
+			stored := &model.AmountData{MinAmount: decimal.NewFromInt(100), MaxAmount: decimal.NewFromInt(1000), Fees: tt.stored, LedgerID: uuid.New()}
 
-			setFields, _, _, err := (&UseCase{packageRepo: repo}).buildUpdateFields(context.Background(), nil, uuid.New(), uuid.New(), uuid.Nil, tt.patch)
+			setFields, _, err := (&UseCase{}).buildUpdateFields(context.Background(), nil, uuid.New(), uuid.New(), stored, tt.patch)
 			require.NoError(t, err)
 
 			enable, has := setFields["enable"]
