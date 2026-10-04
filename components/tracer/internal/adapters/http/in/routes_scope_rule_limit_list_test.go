@@ -115,7 +115,29 @@ func TestTracerListScope_RulesAndLimits(t *testing.T) {
 		assert.Equal(t, fiber.StatusOK, list(deps.buildWithAuthClient(authClient), "/v1/rules", `{"authorized":true,"allowed":{"ruleId":[]}}`))
 	})
 
-	t.Run("a grant without allowed values is refused, never served unconfined", func(t *testing.T) {
+	t.Run("an unrestricted partner lists every rule and every limit", func(t *testing.T) {
+		deps := newTestRouterDeps(t, middleware.AuthGuardConfig{PluginAuthEnabled: true, AppName: constant.ApplicationName})
+		deps.RuleService.EXPECT().ListRules(gomock.Any(), gomock.Cond(func(f *model.ListRulesFilter) bool {
+			return assert.Nil(t, f.Scope, "an unrestricted answer confines nothing")
+		})).Return(&model.ListRulesResult{}, nil)
+		deps.LimitService.EXPECT().ListLimits(gomock.Any(), gomock.Cond(func(f *model.ListLimitsFilter) bool {
+			return assert.Nil(t, f.Scope, "an unrestricted answer confines nothing")
+		})).Return(&model.ListLimitsResult{}, nil)
+
+		app := deps.buildWithAuthClient(authClient)
+		assert.Equal(t, fiber.StatusOK, list(app, "/v1/rules", `{"authorized":true,"unrestricted":true}`))
+		assert.Equal(t, fiber.StatusOK, list(app, "/v1/limits", `{"authorized":true,"unrestricted":true}`))
+	})
+
+	t.Run("the same partner without a grant is refused", func(t *testing.T) {
+		deps := newTestRouterDeps(t, middleware.AuthGuardConfig{PluginAuthEnabled: true, AppName: constant.ApplicationName})
+
+		app := deps.buildWithAuthClient(authClient)
+		assert.Equal(t, fiber.StatusForbidden, list(app, "/v1/rules", `{"authorized":false,"unrestricted":true}`))
+		assert.Equal(t, fiber.StatusForbidden, list(app, "/v1/limits", `{"authorized":false}`))
+	})
+
+	t.Run("a grant neither unrestricted nor carrying allowed values is refused, never served unconfined", func(t *testing.T) {
 		deps := newTestRouterDeps(t, middleware.AuthGuardConfig{PluginAuthEnabled: true, AppName: constant.ApplicationName})
 
 		app := deps.buildWithAuthClient(authClient)
