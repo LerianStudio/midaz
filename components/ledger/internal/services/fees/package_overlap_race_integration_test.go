@@ -42,6 +42,21 @@ func (r *interleavingRepo) FindList(ctx context.Context, filter http.QueryHeader
 	return found, err
 }
 
+// staleAmountsRepo runs between once, after an update's first read of the package
+// it edits: the read a concurrent mutation can leave stale before the lock is held.
+type staleAmountsRepo struct {
+	pack.Repository
+	once    sync.Once
+	between func()
+}
+
+func (r *staleAmountsRepo) FindFeesAndAmountDataByPackageID(ctx context.Context, organizationID, packageID uuid.UUID) (*model.AmountData, error) {
+	found, err := r.Repository.FindFeesAndAmountDataByPackageID(ctx, organizationID, packageID)
+	r.once.Do(r.between)
+
+	return found, err
+}
+
 func packageInput(minAmount, maxAmount string) *model.CreatePackageInput {
 	return &model.CreatePackageInput{
 		FeeGroupLabel: "Pacote " + minAmount,
@@ -134,4 +149,40 @@ func TestIntegration_PackageOverlapGuard_ConcurrentMutationsKeepOnePackage(t *te
 			require.Len(t, stored, 1, "overlapping packages must never both be stored")
 		})
 	}
+
+	// Replica A raises only the maximum of [1000, 2000] to 5000. Between its first
+	// read and its lock, replica B moves the package to [0, 500] and creates
+	// [600, 900]. Judged against the minimum A first read, [1000, 5000] clears
+	// [600, 900] and the write would store [0, 5000] over it; judged against the
+	// package under the lock, A is refused.
+	t.Run("single-bound update racing a move and a create", func(t *testing.T) {
+		organizationID, ledgerID := uuid.New(), uuid.New()
+		replicaB := &UseCase{packageRepo: repo, PackageLock: lock}
+
+		moved, errSeed := replicaB.CreatePackage(ctx, packageInput("1000", "2000"), organizationID, ledgerID, uuid.Nil)
+		require.NoError(t, errSeed)
+
+		var moveErr, createErr error
+
+		replicaA := &UseCase{packageRepo: &staleAmountsRepo{Repository: repo, between: func() {
+			newMinimum, newMaximum := "0", "500"
+			moveErr = replicaB.UpdatePackageByID(ctx, moved.ID, organizationID, ledgerID, &model.UpdatePackageInput{MinAmount: &newMinimum, MaxAmount: &newMaximum})
+			_, createErr = replicaB.CreatePackage(ctx, packageInput("600", "900"), organizationID, ledgerID, uuid.Nil)
+		}}, PackageLock: lock}
+
+		raisedMaximum := "5000"
+		raiseErr := replicaA.UpdatePackageByID(ctx, moved.ID, organizationID, ledgerID, &model.UpdatePackageInput{MaxAmount: &raisedMaximum})
+
+		require.NoError(t, moveErr)
+		require.NoError(t, createErr)
+
+		var conflict pkg.EntityConflictError
+
+		require.ErrorAs(t, raiseErr, &conflict, "the update must be judged against the package under the lock")
+		require.Equal(t, constant.ErrPackageRange.Error(), conflict.Code)
+
+		stored, errFind := repo.FindFeesAndAmountDataByPackageID(ctx, organizationID, moved.ID)
+		require.NoError(t, errFind)
+		require.Equal(t, "500", stored.MaxAmount.String(), "the moved package must keep its maximum")
+	})
 }

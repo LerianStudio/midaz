@@ -21,6 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -64,9 +65,9 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 		return nil, errAccountOnMidaz
 	}
 
-	unlock, err := uc.lockPackageScope(ctx, logger, organizationID, ledgerID)
+	unlock, err := uc.lockPackageScope(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to lock the ledger's fee packages", err)
+		spanattr.HandleSpanByErrorClass(span, "Failed to lock the ledger's fee packages", err)
 
 		return nil, err
 	}

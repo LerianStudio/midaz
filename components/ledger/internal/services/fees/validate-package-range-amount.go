@@ -6,7 +6,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"sync"
 	"time"
@@ -29,8 +28,11 @@ import (
 // packageScopePageSize is the page size the overlap guard reads its scope with.
 const packageScopePageSize = 100
 
-// packageLockOptions bound the wait behind another mutation of the same ledger's
-// packages to about two seconds; the read and write the lock spans take milliseconds.
+// packageLockWait bounds the wait behind another mutation of the same ledger's
+// packages, and behind a Redis that stopped answering; the read and write the lock
+// spans take milliseconds.
+const packageLockWait = 2 * time.Second
+
 var packageLockOptions = libRedis.LockOptions{
 	Expiry:      10 * time.Second,
 	Tries:       40,
@@ -42,7 +44,7 @@ var packageLockOptions = libRedis.LockOptions{
 // ledger from its overlap guard to its write: the guard reads before it writes, so
 // two mutations in flight would each pass against the other's absence. The
 // returned unlock may be called more than once.
-func (uc *UseCase) lockPackageScope(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID) (func(), error) {
+func (uc *UseCase) lockPackageScope(ctx context.Context, organizationID, ledgerID uuid.UUID) (func(), error) {
 	if uc.PackageLock == nil {
 		return func() {}, nil
 	}
@@ -52,24 +54,22 @@ func (uc *UseCase) lockPackageScope(ctx context.Context, logger libLog.Logger, o
 		return nil, err
 	}
 
-	handle, acquired, err := uc.PackageLock.TryLockWithOptions(ctx, key, packageLockOptions)
+	lockCtx, cancel := context.WithTimeout(ctx, packageLockWait)
+	defer cancel()
+
+	handle, acquired, err := uc.PackageLock.TryLockWithOptions(lockCtx, key, packageLockOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	if !acquired {
-		return nil, fmt.Errorf("fee packages of ledger %s: %w", ledgerID, libRedis.ErrLockContended)
+		return nil, pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, constant.EntityPackage)
 	}
 
 	var once sync.Once
 
-	return func() {
-		once.Do(func() {
-			if errUnlock := handle.Unlock(context.WithoutCancel(ctx)); errUnlock != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to release the fee package lock", libLog.Err(errUnlock))
-			}
-		})
-	}, nil
+	// The handle logs its own release failure; the lease expiry frees the key anyway.
+	return func() { once.Do(func() { _ = handle.Unlock(context.WithoutCancel(ctx)) }) }, nil
 }
 
 // ValidatePackageMaxAndMinAmountRange validating max and min amount range of a package

@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -67,14 +68,22 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, le
 		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", "Package")
 	}
 
-	unlock, err := uc.lockPackageScope(ctx, logger, organizationID, feesAmountData.LedgerID)
+	unlock, err := uc.lockPackageScope(ctx, organizationID, feesAmountData.LedgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to lock the ledger's fee packages", err)
+		spanattr.HandleSpanByErrorClass(span, "Failed to lock the ledger's fee packages", err)
 
 		return err
 	}
 
 	defer unlock()
+
+	// Every check below judges the package as it stands under the lock: the read
+	// above only names the ledger to lock, and a concurrent mutation may have moved
+	// its bounds or fees since.
+	feesAmountData, err = uc.packageRepo.FindFeesAndAmountDataByPackageID(ctx, organizationID, id)
+	if err != nil {
+		return err
+	}
 
 	setOperationFields, unsetOperationFields, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, feesAmountData, up)
 	if errUpdateFields != nil {
