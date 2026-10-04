@@ -48,7 +48,6 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id, organi
 	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
 	filter := billingPackageScopeFilter(id, organizationID, ledgerID)
-	pipeline := buildUpdatePipeline(updateFields)
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
 	_, spanUpdate := tracer.Start(ctx, "repository.billing_package.update.find_one_and_update")
@@ -58,7 +57,7 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id, organi
 
 	var record BillingPackageMongoDBModel
 
-	if err = coll.FindOneAndUpdate(ctx, filter, pipeline, opts).Decode(&record); err != nil {
+	if err = coll.FindOneAndUpdate(ctx, filter, updateFields, opts).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No document matched for update", bizErr)
@@ -79,40 +78,4 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id, organi
 	}
 
 	return entity, nil
-}
-
-// buildUpdatePipeline translates the classic $set/$unset update document into an
-// aggregation pipeline so a single FindOneAndUpdate can return the persisted document.
-func buildUpdatePipeline(updateFields *bson.M) bson.A {
-	pipeline := bson.A{}
-
-	if updateFields == nil {
-		return pipeline
-	}
-
-	if setFields, ok := (*updateFields)["$set"]; ok {
-		pipeline = append(pipeline, bson.M{"$set": setFields})
-	}
-
-	if unsetPaths := unsetFieldPaths((*updateFields)["$unset"]); len(unsetPaths) > 0 {
-		pipeline = append(pipeline, bson.M{"$unset": unsetPaths})
-	}
-
-	return pipeline
-}
-
-// unsetFieldPaths extracts field paths from a classic $unset document into the
-// array form the aggregation pipeline $unset stage expects.
-func unsetFieldPaths(unset any) bson.A {
-	unsetMap, ok := unset.(bson.M)
-	if !ok {
-		return nil
-	}
-
-	paths := make(bson.A, 0, len(unsetMap))
-	for path := range unsetMap {
-		paths = append(paths, path)
-	}
-
-	return paths
 }

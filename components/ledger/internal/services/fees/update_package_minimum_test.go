@@ -102,7 +102,7 @@ func TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee(t *testing.T) {
 
 	mockPackageRepo.EXPECT().
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil)
+		Return(amountData, nil).Times(2)
 	mockPackageRepo.EXPECT().
 		FindList(gomock.Any(), gomock.Any()).
 		Return([]*pack.Package{}, nil).
@@ -158,7 +158,7 @@ func TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee(t *tes
 
 			mockPackageRepo.EXPECT().
 				FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(amountData, nil)
+				Return(amountData, nil).Times(2)
 			mockPackageRepo.EXPECT().
 				FindList(gomock.Any(), gomock.Any()).
 				Return([]*pack.Package{}, nil).
@@ -237,7 +237,7 @@ func TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum(t *testing.T) {
 
 			mockPackageRepo.EXPECT().
 				FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(amountData, nil)
+				Return(amountData, nil).Times(2)
 			mockPackageRepo.EXPECT().
 				FindList(gomock.Any(), gomock.Any()).
 				Return([]*pack.Package{}, nil).
@@ -333,7 +333,7 @@ func TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum(t *testing.T) 
 
 			mockPackageRepo.EXPECT().
 				FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(amountData, nil)
+				Return(amountData, nil).Times(2)
 			mockPackageRepo.EXPECT().
 				FindList(gomock.Any(), gomock.Any()).
 				Return([]*pack.Package{}, nil).

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -91,6 +92,10 @@ type UseCase struct {
 	// caching and every CalculateFee fetches from Mongo. Invalidated on
 	// create/update/delete of a package in the affected (org,ledger).
 	PackageCache PackageCache
+
+	// PackageLock serializes the package creates and updates of one ledger.
+	// Assigned at bootstrap; a nil value disables it.
+	PackageLock *libRedis.RedisLockManager
 
 	// Streaming emits past-tense fee domain events; nil disables event emission.
 	Streaming libStreaming.Emitter
