@@ -77,6 +77,11 @@ func (r *pendingLifecycleReader) GetEngineBalances(ctx context.Context, organiza
 	return balances, balances, err
 }
 
+// GetFeeDebtSeeds answers that no balance it serves holds fee debt.
+func (r *pendingLifecycleReader) GetFeeDebtSeeds(context.Context, uuid.UUID, uuid.UUID, []string) (map[string][]core.FeeDebtItem, error) {
+	return nil, nil
+}
+
 func (r *pendingLifecycleReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }
