@@ -45,11 +45,18 @@ var packageLockOptions = libRedis.LockOptions{
 // two mutations in flight would each pass against the other's absence. The
 // returned unlock may be called more than once.
 func (uc *UseCase) lockPackageScope(ctx context.Context, organizationID, ledgerID uuid.UUID) (func(), error) {
-	if uc.PackageLock == nil {
+	return lockFeeScope(ctx, uc.PackageLock, packageCacheKey(organizationID, ledgerID), constant.EntityPackage)
+}
+
+// lockFeeScope holds scopeKey across replicas from an overlap guard's read to its
+// write: the guard reads before it writes, so two writers in flight would each pass
+// against the other's absence. Contention answers 0086; a nil lock locks nothing.
+func lockFeeScope(ctx context.Context, lock *libRedis.RedisLockManager, scopeKey, entity string) (func(), error) {
+	if lock == nil {
 		return func() {}, nil
 	}
 
-	key, err := tmvalkey.GetKeyContext(ctx, "lock:"+packageCacheKey(organizationID, ledgerID))
+	key, err := tmvalkey.GetKeyContext(ctx, "lock:"+scopeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -57,13 +64,13 @@ func (uc *UseCase) lockPackageScope(ctx context.Context, organizationID, ledgerI
 	lockCtx, cancel := context.WithTimeout(ctx, packageLockWait)
 	defer cancel()
 
-	handle, acquired, err := uc.PackageLock.TryLockWithOptions(lockCtx, key, packageLockOptions)
+	handle, acquired, err := lock.TryLockWithOptions(lockCtx, key, packageLockOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	if !acquired {
-		return nil, pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, constant.EntityPackage)
+		return nil, pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, entity)
 	}
 
 	var once sync.Once
