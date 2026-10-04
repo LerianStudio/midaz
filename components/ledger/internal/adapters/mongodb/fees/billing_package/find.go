@@ -34,7 +34,7 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id, orga
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -90,7 +90,7 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -208,7 +208,7 @@ func (r *BillingPackageMongoDBRepository) FindMatchingPackages(ctx context.Conte
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -290,7 +290,7 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
