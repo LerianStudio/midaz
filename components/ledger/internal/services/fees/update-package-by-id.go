@@ -24,7 +24,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
-	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -208,11 +207,15 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 
 	// Process update fees
 	for key, fee := range updateFeesEntity {
-		keyFormatted := strcase.ToLowerCamel(key)
-		_, feeExists := existingFees[keyFormatted]
+		_, feeExists := existingFees[key]
 
 		if !feeExists {
-			// New fee - validate it and set it whole
+			// New fee - validate it and set it whole. Only a key that adds a fee answers
+			// to the grammar: a stored key is edited or removed verbatim, whatever its shape.
+			if err := model.ValidateFeeKey(key); err != nil {
+				return 0, err
+			}
+
 			err := fee.ValidateNewFee(key, minAmount)
 			if err != nil {
 				return 0, err
@@ -223,29 +226,27 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 				return 0, errGetAccount
 			}
 
-			// The converter normalizes the raw key into keyFormatted. Normalization is
-			// not idempotent, so it must see the key the client sent.
 			mongoFees, errConvert := pack.FromEntityFeeMap(map[string]model.Fee{key: fee})
 			if errConvert != nil {
 				return 0, errConvert
 			}
 
-			setFields["fees."+keyFormatted] = mongoFees[keyFormatted]
-			priorities[keyFormatted] = fee.Priority
+			setFields["fees."+key] = mongoFees[key]
+			priorities[key] = fee.Priority
 		} else {
 			// Existing fee - check if it's being updated or removed
-			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, keyFormatted, organizationID, ledgerID, setFields, uc.resolver)
+			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, key, organizationID, ledgerID, setFields, uc.resolver)
 			if errSetFieldsToUpdate != nil {
 				return 0, errSetFieldsToUpdate
 			}
 
 			switch {
 			case !hasFieldsToUpdate:
-				unsetFields["fees."+keyFormatted] = ""
+				unsetFields["fees."+key] = ""
 
-				delete(priorities, keyFormatted)
+				delete(priorities, key)
 			case fee.Priority != 0:
-				priorities[keyFormatted] = fee.Priority
+				priorities[key] = fee.Priority
 			}
 		}
 	}

@@ -5,6 +5,8 @@
 package model
 
 import (
+	"regexp"
+
 	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -21,6 +23,23 @@ const (
 	Flat           = "flat"
 	Percentage     = "percentage"
 )
+
+// feeKeyRule is the grammar a fee key must match to add a fee to a package. Keys are
+// stored and returned verbatim, so two distinct keys always name two distinct fees.
+const feeKeyRule = `^[a-z][a-zA-Z0-9]*$`
+
+var feeKeyPattern = regexp.MustCompile(feeKeyRule)
+
+// ValidateFeeKey refuses a key outside feeKeyRule, naming the field fees.<key>.
+func ValidateFeeKey(key string) error {
+	if feeKeyPattern.MatchString(key) {
+		return nil
+	}
+
+	return pkg.ValidateBadRequestFieldsError(nil, pkg.FieldValidations{
+		"fees." + key: "fee key must match " + feeKeyRule + ": a lowercase ASCII letter followed by ASCII letters and digits only",
+	}, "", nil)
+}
 
 // Fee is a struct designed to encapsulate request create payload data.
 type Fee struct {

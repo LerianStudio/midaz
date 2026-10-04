@@ -473,42 +473,6 @@ func TestValidationFeesSetUnset_PriorityComesFromStoreWhenOmitted(t *testing.T) 
 	}
 }
 
-// A fee added under a key the converter normalizes is stored whole under that
-// normalized key: the key is normalized once, so the lookup lands on the value.
-func TestValidationFeesSetUnset_NewFeeStoredUnderNormalizedKey(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	resolver := feeshared.NewMockMidazResolver(ctrl)
-	resolver.EXPECT().AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), "@fees").Return(nil)
-
-	patch := map[string]model.Fee{"_tarifa": {
-		FeeLabel:         "Tarifa TED",
-		CalculationModel: &model.CalculationModel{ApplicationRule: "flatFee", Calculations: []model.Calculation{{Type: model.Flat, Value: "2"}}},
-		ReferenceAmount:  "originalAmount",
-		Priority:         2,
-		IsDeductibleFrom: boolPtr(false),
-		CreditAccount:    "@fees",
-	}}
-	setFields := bson.M{}
-
-	count, err := (&UseCase{resolver: resolver}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
-		map[string]model.Fee{"feeA": storedFee(1)}, patch, setFields, bson.M{})
-	require.NoError(t, err)
-	assert.Equal(t, 2, count)
-
-	stored, ok := setFields["fees.Tarifa"].(mongoPack.Fee)
-	require.True(t, ok, "fee must be set under its normalized key, got %v", setFields)
-	assert.Equal(t, "Tarifa TED", stored.FeeLabel)
-	assert.Equal(t, 2, stored.Priority)
-	assert.Equal(t, "originalAmount", stored.ReferenceAmount)
-	assert.Equal(t, "@fees", stored.CreditAccount)
-	assert.Equal(t, "flatFee", stored.CalculationModel.ApplicationRule)
-	require.Len(t, stored.CalculationModel.Calculations, 1)
-	assert.Equal(t, model.Flat, stored.CalculationModel.Calculations[0].Type)
-	assert.True(t, stored.CalculationModel.Calculations[0].Value.Equal(decimal.NewFromInt(2)))
-}
-
 // A package the patch leaves without fees is disabled in the same write, and the
 // disable wins over an enable the same patch asks for.
 func TestBuildUpdateFields_DisablesPackageLeftWithoutFees(t *testing.T) {

@@ -39,6 +39,10 @@ func (cp *CreatePackageInput) GetTransactionRoute() string {
 // ValidateFees Validating the Fee map values
 func (cp *CreatePackageInput) ValidateFees() error {
 	for key, fee := range cp.Fee {
+		if err := ValidateFeeKey(key); err != nil {
+			return err
+		}
+
 		if fee.Priority == 1 && fee.ReferenceAmount != OriginalAmount {
 			return pkg.ValidateBusinessError(constant.ErrPriorityOne, "", key)
 		}
