@@ -42,10 +42,12 @@ type tenantMongoSource interface {
 // any resolver runs, and attaches that tenant's databases the way the tenant
 // middleware attaches them to a request, under the same module keys.
 type multiTenantScope struct {
-	pg     map[string]tenantPGSource
-	mongo  map[string]tenantMongoSource
-	cache  *tenantcache.TenantCache
-	loader *tenantcache.TenantLoader
+	pg    map[string]tenantPGSource
+	mongo map[string]tenantMongoSource
+	// generic is attached on the module-less key the CRM repositories read.
+	generic tenantMongoSource
+	cache   *tenantcache.TenantCache
+	loader  *tenantcache.TenantLoader
 }
 
 func (s *multiTenantScope) attach(ctx context.Context) (context.Context, error) {
@@ -85,6 +87,15 @@ func (s *multiTenantScope) attach(ctx context.Context) (context.Context, error) 
 		}
 
 		ctx = tmcore.ContextWithMB(ctx, db, module)
+	}
+
+	if s.generic != nil {
+		db, err := s.generic.tenantDatabase(ctx, tenantID)
+		if err != nil {
+			return ctx, fmt.Errorf("scope resolution crm documents: %w", err)
+		}
+
+		ctx = tmcore.ContextWithMB(ctx, db)
 	}
 
 	return ctx, nil
@@ -140,4 +151,16 @@ func newScopeTenant(cfg *Config, onboardingPG, transactionPG *tmpostgres.Manager
 	}
 
 	return scope
+}
+
+// newCRMScopeTenant is the tenant attachment of the instrument resolver: nil in
+// single-tenant mode, and in multi-tenant mode the tenant's CRM documents, on the
+// key the CRM repositories read. It is kept apart from newScopeTenant so a lookup
+// in the ledger stores never depends on the CRM database.
+func newCRMScopeTenant(cfg *Config, crmMongo *tmmongo.Manager, cache *tenantcache.TenantCache, loader *tenantcache.TenantLoader) scopeTenant {
+	if !cfg.MultiTenantEnabled || crmMongo == nil {
+		return nil
+	}
+
+	return &multiTenantScope{generic: mongoManagerSource{manager: crmMongo}, cache: cache, loader: loader}
 }

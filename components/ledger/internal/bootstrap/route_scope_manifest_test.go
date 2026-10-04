@@ -29,8 +29,8 @@ import (
 // gains or loses a dimension moves one of these, so a change to what the ledger tells
 // the authorization service has to show up in review.
 const (
-	scopedRoutesBothDimensions   = 176
-	scopedRoutesOrganizationOnly = 31
+	scopedRoutesBothDimensions   = 180
+	scopedRoutesOrganizationOnly = 27
 	scopedRoutesNoDimension      = 13
 )
 
@@ -39,11 +39,9 @@ const (
 var scopedRoutesPerShape = map[string]int{
 	"": scopedRoutesNoDimension,
 
-	"organizationId":                                      21,
-	"organizationId+holderId+instrumentId":                3,
-	"organizationId+holderId+instrumentId+relatedPartyId": 1,
-	"organizationId+operationRouteId":                     3,
-	"organizationId+transactionRouteId":                   3,
+	"organizationId":                    21,
+	"organizationId+operationRouteId":   3,
+	"organizationId+transactionRouteId": 3,
 
 	"organizationId+ledgerId":                                          60,
 	"organizationId+ledgerId+accountId":                                30,
@@ -59,6 +57,8 @@ var scopedRoutesPerShape = map[string]int{
 	"organizationId+ledgerId+billingPackageId":                         3,
 	"organizationId+ledgerId+feeDebtId":                                1,
 	"organizationId+ledgerId+holderId":                                 4,
+	"organizationId+ledgerId+holderId+instrumentId":                    3,
+	"organizationId+ledgerId+holderId+instrumentId+relatedPartyId":     1,
 	"organizationId+ledgerId+operationRouteId":                         6,
 	"organizationId+ledgerId+packageId":                                3,
 	"organizationId+ledgerId+portfolioId":                              6,

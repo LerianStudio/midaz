@@ -125,7 +125,7 @@ func TestScopeResolvers_AccountByIDThroughTheRouter(t *testing.T) {
 	authz, server := newScopedPartnerAuthz(t)
 
 	auth := &middleware.AuthClient{Enabled: true, Address: server.URL}
-	require.NoError(t, registerScopeResolvers(auth, fake, nil))
+	require.NoError(t, registerScopeResolvers(auth, fake, nil, scopeInstruments{}))
 	require.NoError(t, wireAuthScope(auth))
 
 	app := buildFullSurfaceServerWithAuth(t, auth)

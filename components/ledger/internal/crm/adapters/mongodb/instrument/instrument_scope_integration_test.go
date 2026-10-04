@@ -70,3 +70,47 @@ func TestIntegration_InstrumentRepo_FindAll_ConfinedToTheScope(t *testing.T) {
 		})
 	}
 }
+
+func TestIntegration_InstrumentRepo_LedgerIDsByIDs(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-ledgers-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+
+	holder, otherHolder := uuid.New(), uuid.New()
+	ledger1, ledger2 := uuid.New(), uuid.New()
+
+	seed := func(holderID uuid.UUID, ledgerID, document string) uuid.UUID {
+		params := mongotestutil.DefaultInstrumentParams()
+		params.LedgerID = ledgerID
+		params.AccountID = uuid.NewString()
+		params.Document = document
+
+		created, err := repo.Create(ctx, organizationID, mongotestutil.CreateTestInstrument(t, holderID, params))
+		require.NoError(t, err)
+
+		return *created.ID
+	}
+
+	in1 := seed(holder, ledger1.String(), "33333333301")
+	in2 := seed(holder, ledger2.String(), "33333333302")
+	deleted := seed(holder, ledger1.String(), "33333333303")
+	foreign := seed(otherHolder, ledger2.String(), "33333333304")
+	noLedger := seed(holder, "", "33333333305")
+	unknown := uuid.New()
+
+	require.NoError(t, repo.Delete(ctx, organizationID, holder, deleted, false))
+
+	got, err := repo.LedgerIDsByIDs(ctx, organizationID, holder, []uuid.UUID{in1, in2, deleted, foreign, noLedger, unknown})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[uuid.UUID]string{
+		in1:     ledger1.String(),
+		in2:     ledger2.String(),
+		deleted: ledger1.String(),
+	}, got, "every instrument of the holder answers its own ledger, deleted ones too; one naming no ledger, another holder's and an unknown one are absent")
+
+	none, err := repo.LedgerIDsByIDs(ctx, organizationID, holder, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}

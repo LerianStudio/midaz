@@ -86,7 +86,7 @@ func TestScopeResolvers_HolderByIDThroughTheRouter(t *testing.T) {
 	authz, askedLedgers := ledgerPartnerAuthz(t, ownLedger.String())
 
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, registerScopeResolvers(auth, fake, nil))
+	require.NoError(t, registerScopeResolvers(auth, fake, nil, scopeInstruments{}))
 	require.NoError(t, wireAuthScope(auth))
 
 	server := buildFullSurfaceServerWithAuth(t, auth)

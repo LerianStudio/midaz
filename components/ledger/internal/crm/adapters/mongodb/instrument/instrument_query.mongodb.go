@@ -319,3 +319,60 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	return count, nil
 }
+
+// LedgerIDsByIDs implements Repository.
+func (am *MongoDBRepository) LedgerIDsByIDs(ctx context.Context, organizationID string, holderID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.ledger_ids_of_instruments")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.Int("app.request.instruments", len(ids)),
+	)
+
+	ledgers := make(map[uuid.UUID]string, len(ids))
+
+	if len(ids) == 0 {
+		return ledgers, nil
+	}
+
+	db, err := am.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
+
+	cursor, err := coll.Find(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}, {Key: "holder_id", Value: holderID}},
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}, {Key: "ledger_id", Value: 1}}))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to find instrument ledgers", err)
+
+		return nil, err
+	}
+
+	var records []MongoDBModel
+	if err := cursor.All(ctx, &records); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to decode instrument ledgers", err)
+
+		return nil, err
+	}
+
+	for _, record := range records {
+		if record.ID == nil || record.LedgerID == nil || *record.LedgerID == "" {
+			continue
+		}
+
+		ledgers[*record.ID] = *record.LedgerID
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(ledgers)))
+
+	return ledgers, nil
+}

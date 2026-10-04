@@ -379,13 +379,105 @@ func TestScopeResolvers_AccountPlacement(t *testing.T) {
 	})
 }
 
+// fakeInstrumentLedgers answers the ledger of instruments from a fixed table and
+// records what it was asked.
+type fakeInstrumentLedgers struct {
+	ledgers map[uuid.UUID]string
+	err     error
+	calls   []instrumentCall
+}
+
+type instrumentCall struct {
+	organizationID string
+	holderID       uuid.UUID
+	ids            []uuid.UUID
+}
+
+func (f *fakeInstrumentLedgers) LedgerIDsByIDs(_ context.Context, organizationID string, holderID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	f.calls = append(f.calls, instrumentCall{organizationID: organizationID, holderID: holderID, ids: ids})
+
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	out := map[uuid.UUID]string{}
+
+	for _, id := range ids {
+		if ledger, ok := f.ledgers[id]; ok {
+			out[id] = ledger
+		}
+	}
+
+	return out, nil
+}
+
+func TestScopeResolvers_InstrumentLedger(t *testing.T) {
+	org, holder := uuid.New(), uuid.New()
+	inLedger, noLedger := uuid.New(), uuid.New()
+	ledger := uuid.New()
+
+	instrumentInput := func(known map[string][]string, values ...string) middleware.ResolveInput {
+		items := make([]middleware.ResolveItem, 0, len(values))
+		for _, value := range values {
+			items = append(items, middleware.ResolveItem{Value: value})
+		}
+
+		return middleware.ResolveInput{Product: "midaz", Dimension: "ledgerId", Items: items, Known: known}
+	}
+
+	known := map[string][]string{"organizationId": {org.String()}, "holderId": {holder.String()}}
+
+	t.Run("each instrument answers its own ledger, every one in one read confined to the holder", func(t *testing.T) {
+		fake := &fakeInstrumentLedgers{ledgers: map[uuid.UUID]string{inLedger: ledger.String()}}
+		set := scopeResolvers{instruments: scopeInstruments{reader: fake}}
+
+		out, err := set.instrumentLedger(context.Background(), instrumentInput(known, inLedger.String(), noLedger.String(), "not-a-uuid"))
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{ledger.String()}, nil, nil}, out, "an instrument naming no ledger and a value that is not a uuid name nothing")
+		assert.Equal(t, []instrumentCall{{organizationID: org.String(), holderID: holder, ids: []uuid.UUID{inLedger, noLedger}}}, fake.calls)
+	})
+
+	t.Run("a request naming no single holder is not resolved", func(t *testing.T) {
+		fake := &fakeInstrumentLedgers{}
+		set := scopeResolvers{instruments: scopeInstruments{reader: fake}}
+
+		_, err := set.instrumentLedger(context.Background(), instrumentInput(map[string][]string{"organizationId": {org.String()}}, inLedger.String()))
+		require.ErrorIs(t, err, errScopeResolverNoHolder)
+		assert.Empty(t, fake.calls)
+	})
+
+	t.Run("a holder that is not a uuid names nothing and reads nothing", func(t *testing.T) {
+		fake := &fakeInstrumentLedgers{}
+		set := scopeResolvers{instruments: scopeInstruments{reader: fake}}
+
+		out, err := set.instrumentLedger(context.Background(),
+			instrumentInput(map[string][]string{"organizationId": {org.String()}, "holderId": {"h"}}, inLedger.String()))
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{nil}, out)
+		assert.Empty(t, fake.calls)
+	})
+
+	t.Run("no instrument reader configured is an error, never an empty answer", func(t *testing.T) {
+		_, err := scopeResolvers{}.instrumentLedger(context.Background(), instrumentInput(known, inLedger.String()))
+		require.ErrorIs(t, err, errScopeInstrumentsUnavailable)
+	})
+
+	t.Run("a failed read is an error", func(t *testing.T) {
+		boom := errors.New("replica down")
+		set := scopeResolvers{instruments: scopeInstruments{reader: &fakeInstrumentLedgers{err: boom}}}
+
+		_, err := set.instrumentLedger(context.Background(), instrumentInput(known, inLedger.String()))
+		require.ErrorIs(t, err, boom)
+	})
+}
+
 func TestScopeResolvers_RegisteredUnderTheManifestNames(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: true}
 
-	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil))
-	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil), "a second registration under the same names is refused")
+	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil, scopeInstruments{}))
+	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil, scopeInstruments{}), "a second registration under the same names is refused")
 
-	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers, resolverAccountPortfolio, resolverAccountSegment} {
+	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers, resolverAccountPortfolio, resolverAccountSegment, resolverInstrumentLedger} {
 		assert.Error(t, auth.RegisterScopeResolver(name, func(context.Context, middleware.ResolveInput) ([][]string, error) { return nil, nil }),
 			"%s must already be registered", name)
 	}
@@ -402,7 +494,7 @@ func wireProbeAuthScope(t *testing.T, auth *middleware.AuthClient) {
 		probes[dim.Name] = scopeProbeValue(i)
 	}
 
-	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers, resolverAccountPortfolio, resolverAccountSegment} {
+	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers, resolverAccountPortfolio, resolverAccountSegment, resolverInstrumentLedger} {
 		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) ([][]string, error) {
 			out := make([][]string, len(in.Items))
 			for i := range in.Items {
@@ -421,7 +513,7 @@ func TestScopeResolvers_TheManifestNeedsEveryRegisteredName(t *testing.T) {
 		"a manifest that names resolvers must be refused until they are registered")
 
 	auth := &middleware.AuthClient{Enabled: true}
-	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil))
+	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil, scopeInstruments{}))
 	require.NoError(t, wireAuthScope(auth), "the boot registration must cover every resolver the manifest names")
 }
 
@@ -444,7 +536,7 @@ func TestScopeResolvers_ThroughTheRouter(t *testing.T) {
 	recorder, authz := newAllowRecorder(t)
 
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
-	require.NoError(t, registerScopeResolvers(auth, fake, nil))
+	require.NoError(t, registerScopeResolvers(auth, fake, nil, scopeInstruments{}))
 	require.NoError(t, wireAuthScope(auth))
 
 	server := buildFullSurfaceServerWithAuth(t, auth)

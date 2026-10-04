@@ -43,6 +43,10 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error
 	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, instrumentID, relatedPartyID uuid.UUID) error
 	Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error)
+	// LedgerIDsByIDs returns the ledger each of the holder's instruments
+	// belongs to, deleted ones included, in one read. An instrument not found,
+	// or one that names no ledger, is absent from the answer.
+	LedgerIDsByIDs(ctx context.Context, organizationID string, holderID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error)
 }
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository

@@ -252,9 +252,13 @@ var wantScopeRoutes = map[string][]string{
 		"accountId<-query:account_id?",
 		"ledgerId<-query:ledger_id?",
 	},
-	"GET /v2/organizations/:organization_id/holders/:holder_id":    holderLedgersCarriers,
-	"PATCH /v2/organizations/:organization_id/holders/:holder_id":  holderLedgersCarriers,
-	"DELETE /v2/organizations/:organization_id/holders/:holder_id": holderLedgersCarriers,
+	"GET /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id":                                      instrumentLedgerCarriers,
+	"PATCH /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id":                                    instrumentLedgerCarriers,
+	"DELETE /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id":                                   instrumentLedgerCarriers,
+	"DELETE /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id": instrumentLedgerCarriers,
+	"GET /v2/organizations/:organization_id/holders/:holder_id":                                                                 holderLedgersCarriers,
+	"PATCH /v2/organizations/:organization_id/holders/:holder_id":                                                               holderLedgersCarriers,
+	"DELETE /v2/organizations/:organization_id/holders/:holder_id":                                                              holderLedgersCarriers,
 	"GET /v2/organizations/:organization_id/holders/:holder_id/accounts": {
 		"ledgerId<-query:ledger_id?",
 	},
@@ -302,6 +306,10 @@ var wantScopeRoutes = map[string][]string{
 
 // holderLedgersCarriers is the carrier of every holder detail route: the ledgers
 // the holder owns a live account in, any one of which may allow the request.
+// instrumentLedgerCarriers is the carrier of every instrument detail route: the
+// ledger the instrument itself names, left out when it names none.
+var instrumentLedgerCarriers = []string{"ledgerId<-path:instrument_id?=>instrumentLedger"}
+
 var holderLedgersCarriers = []string{"ledgerId<-path:holder_id=>holderLedgers[any]"}
 
 var v1CreateAliasCarriers = []string{

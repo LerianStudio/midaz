@@ -26,11 +26,21 @@ const (
 	resolverHolderLedgers       = "holderLedgers"
 	resolverAccountPortfolio    = "accountPortfolio"
 	resolverAccountSegment      = "accountSegment"
+	resolverInstrumentLedger    = "instrumentLedger"
 )
 
 // errScopeResolverNoOrganization refuses a holder lookup the request does not
 // confine to one organization: holders are unique only inside one.
 var errScopeResolverNoOrganization = errors.New("scope resolution needs exactly one organization named by the request")
+
+// errScopeResolverNoHolder refuses an instrument lookup the request does not
+// confine to one holder: instruments are read under the holder that owns them.
+var errScopeResolverNoHolder = errors.New("scope resolution needs exactly one holder named by the request")
+
+// errScopeInstrumentsUnavailable refuses an instrument lookup when no instrument
+// reader is configured: answering nothing would ask the question without the
+// instrument's ledger.
+var errScopeInstrumentsUnavailable = errors.New("scope resolution of instruments has no instrument reader configured")
 
 // errScopeResolverUnconfined refuses a lookup the request does not confine to one
 // organization and one ledger: an alias, a transaction or a balance is only
@@ -48,13 +58,28 @@ type scopeResolvers struct {
 	// tenant attaches the tenant's databases in multi-tenant mode; nil in
 	// single-tenant mode, where the repositories use their static connection.
 	tenant scopeTenant
+	// instruments reads the ledger of a holder's instruments from the CRM.
+	instruments scopeInstruments
+}
+
+// instrumentLedgerReader reads the ledger each of a holder's instruments
+// belongs to.
+type instrumentLedgerReader interface {
+	LedgerIDsByIDs(ctx context.Context, organizationID string, holderID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error)
+}
+
+// scopeInstruments is the CRM side of the scope resolvers: the instrument reader
+// and, in multi-tenant mode, the attachment of the tenant's CRM database.
+type scopeInstruments struct {
+	reader instrumentLedgerReader
+	tenant scopeTenant
 }
 
 // registerScopeResolvers registers every resolver the manifest names. It must
 // run before declaration.WireScope, which refuses a manifest naming a resolver
 // that is not registered.
-func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeResolver, tenant scopeTenant) error {
-	set := scopeResolvers{resolver: resolver, tenant: tenant}
+func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeResolver, tenant scopeTenant, instruments scopeInstruments) error {
+	set := scopeResolvers{resolver: resolver, tenant: tenant, instruments: instruments}
 
 	for name, fn := range map[string]middleware.ScopeResolver{
 		resolverAccountByAlias:      set.accountByAlias,
@@ -64,6 +89,7 @@ func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeRes
 		resolverHolderLedgers:       set.holderLedgers,
 		resolverAccountPortfolio:    set.accountPortfolio,
 		resolverAccountSegment:      set.accountSegment,
+		resolverInstrumentLedger:    set.instrumentLedger,
 	} {
 		if err := auth.RegisterScopeResolver(name, fn); err != nil {
 			return err
@@ -300,6 +326,71 @@ func (s scopeResolvers) accountPlacement(ctx context.Context, in middleware.Reso
 
 		if id := pick(placed[scopeOf[i]][accountOf[i]]); id != nil {
 			out[i] = []string{id.String()}
+		}
+	}
+
+	return out, nil
+}
+
+// instrumentLedger answers the ledger each instrument of the path's holder
+// belongs to, read for every instrument of the request at once. An instrument
+// that names no ledger, or a value that is not a uuid, names nothing.
+func (s scopeResolvers) instrumentLedger(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
+	if s.instruments.reader == nil {
+		return nil, errScopeInstrumentsUnavailable
+	}
+
+	organization, named := single(nil, in.Known, "organizationId")
+	if !named {
+		return nil, errScopeResolverNoOrganization
+	}
+
+	holder, named := single(nil, in.Known, "holderId")
+	if !named {
+		return nil, errScopeResolverNoHolder
+	}
+
+	out := make([][]string, len(in.Items))
+
+	holderID, ok := parseUUID(holder)
+	if !ok {
+		return out, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(in.Items))
+
+	for _, item := range in.Items {
+		if id, isUUID := parseUUID(item.Value); isUUID {
+			ids = append(ids, id)
+		}
+	}
+
+	if len(ids) == 0 {
+		return out, nil
+	}
+
+	if s.instruments.tenant != nil {
+		var err error
+
+		ctx, err = s.instruments.tenant.attach(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ledgers, err := s.instruments.reader.LedgerIDsByIDs(ctx, organization, holderID, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s of instruments: %w", in.Dimension, err)
+	}
+
+	for i, item := range in.Items {
+		id, isUUID := parseUUID(item.Value)
+		if !isUUID {
+			continue
+		}
+
+		if ledger := ledgers[id]; ledger != "" {
+			out[i] = []string{ledger}
 		}
 	}
 

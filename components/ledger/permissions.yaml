@@ -192,6 +192,13 @@ scope:
     - { method: PATCH,  path: /v2/organizations/:organization_id/holders/:holder_id, dimensions: *holderLedgersPath }
     - { method: DELETE, path: /v2/organizations/:organization_id/holders/:holder_id, dimensions: *holderLedgersPath }
     - method: GET
+      path: /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id
+      dimensions: &instrumentLedgerPath
+        - { name: ledgerId, from: path, field: instrument_id, resolve: instrumentLedger, optional: true }
+    - { method: PATCH,  path: /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id, dimensions: *instrumentLedgerPath }
+    - { method: DELETE, path: /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id, dimensions: *instrumentLedgerPath }
+    - { method: DELETE, path: /v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id, dimensions: *instrumentLedgerPath }
+    - method: GET
       path: /v2/organizations/:organization_id/holders/:holder_id/accounts
       dimensions:
         - { name: ledgerId, from: query, field: ledger_id, optional: true }

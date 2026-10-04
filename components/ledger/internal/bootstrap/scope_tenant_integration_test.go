@@ -9,6 +9,7 @@ package bootstrap
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
@@ -19,10 +20,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
@@ -76,7 +80,7 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 	// M2M inversion off: the resolver still receives the validated principal.
 	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL, M2MInversionEnabled: false}
 
-	require.NoError(t, registerScopeResolvers(auth, uc, &multiTenantScope{pg: map[string]tenantPGSource{constant.ModuleOnboarding: tenantPG}}))
+	require.NoError(t, registerScopeResolvers(auth, uc, &multiTenantScope{pg: map[string]tenantPGSource{constant.ModuleOnboarding: tenantPG}}, scopeInstruments{}))
 	require.NoError(t, wireAuthScope(auth))
 
 	server := buildFullSurfaceServerWithAuth(t, auth)
@@ -186,4 +190,101 @@ func (r *allowRecorder) snapshot() []map[string]string {
 	defer r.mu.Unlock()
 
 	return append([]map[string]string(nil), r.attributes...)
+}
+
+// fixedTenantMongo hands every tenant the one test document database, recording
+// who asked.
+type fixedTenantMongo struct {
+	db    *mongo.Database
+	asked []string
+}
+
+func (f *fixedTenantMongo) tenantDatabase(_ context.Context, tenantID string) (*mongo.Database, error) {
+	f.asked = append(f.asked, tenantID)
+
+	return f.db, nil
+}
+
+// TestScopeResolvers_MultiTenantInstrumentLedgerReachesTheTenantCRM drives an
+// instrument detail route with a partner credential, with an instrument
+// repository that has no static connection: the instrument's ledger is read from
+// the CRM database of the credential's tenant, and a credential naming no tenant
+// is refused as unavailable.
+func TestScopeResolvers_MultiTenantInstrumentLedgerReachesTheTenantCRM(t *testing.T) {
+	unsetDocsGate(t)
+
+	container := mongotestutil.SetupReusableContainer(t)
+
+	org, holder, ledger := uuid.New(), uuid.New(), uuid.New()
+	instrumentID := uuid.New()
+	ledgerID := ledger.String()
+
+	_, err := container.Database.Collection(strings.ToLower("aliases_"+org.String())).
+		InsertOne(t.Context(), instrument.MongoDBModel{ID: &instrumentID, HolderID: &holder, LedgerID: &ledgerID})
+	require.NoError(t, err)
+
+	reader, err := instrument.NewMongoDBRepository(nil, nil)
+	require.NoError(t, err)
+
+	tenantCRM := &fixedTenantMongo{db: container.Database}
+
+	recorder, authz := newAllowRecorder(t)
+	auth := &middleware.AuthClient{Enabled: true, Address: authz.URL}
+
+	require.NoError(t, registerScopeResolvers(auth, &query.UseCase{}, nil,
+		scopeInstruments{reader: reader, tenant: &multiTenantScope{generic: tenantCRM}}))
+	require.NoError(t, wireAuthScope(auth))
+
+	server := buildFullSurfaceServerWithAuth(t, auth)
+
+	send := func(claims jwt.MapClaims) int {
+		t.Helper()
+
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("mt-secret"))
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(fiber.MethodGet, "/v2/organizations/"+org.String()+"/holders/"+holder.String()+"/instruments/"+instrumentID.String(), nil)
+		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
+
+		resp, err := server.app.Test(req, fiber.TestConfig{Timeout: 0})
+		require.NoError(t, err)
+
+		defer func() { _ = resp.Body.Close() }()
+
+		return resp.StatusCode
+	}
+
+	partner := jwt.MapClaims{"type": "application", "owner": "mt-org", "sub": "mt-org/mt-app", "partner": "mt-partner"}
+	tenant := uuid.NewString()
+
+	t.Run("the credential's tenant CRM resolves the instrument's ledger", func(t *testing.T) {
+		recorder.reset()
+
+		claims := jwt.MapClaims{"tenantId": tenant}
+		for k, v := range partner {
+			claims[k] = v
+		}
+
+		send(claims)
+
+		var ledgers []string
+
+		for _, attrs := range recorder.snapshot() {
+			if value, ok := attrs["ledgerId"]; ok {
+				ledgers = append(ledgers, value)
+			}
+		}
+
+		assert.Equal(t, []string{ledgerID}, ledgers, "the instrument's own ledger, read from its tenant's CRM")
+
+		canonical, err := tmcore.CanonicalTenantID(tenant)
+		require.NoError(t, err)
+		assert.Contains(t, tenantCRM.asked, canonical)
+	})
+
+	t.Run("a credential naming no tenant is refused as unavailable", func(t *testing.T) {
+		recorder.reset()
+
+		assert.Equal(t, fiber.StatusServiceUnavailable, send(partner))
+	})
 }

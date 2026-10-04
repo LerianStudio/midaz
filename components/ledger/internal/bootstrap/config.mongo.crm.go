@@ -36,6 +36,7 @@ type crmComponents struct {
 	encryption        *crmEncryption
 	holderHandler     *httpin.HolderHandler
 	instrumentHandler *httpin.InstrumentHandler
+	instrumentRepo    *instrument.MongoDBRepository
 	encryptionHandler *httpin.EncryptionHandler // nil in legacy mode
 	auditHandler      *httpin.AuditHandler      // nil in legacy mode
 	mongoManager      *tmmongo.Manager          // nil in single-tenant mode; exposed for middleware/eviction wiring
@@ -102,6 +103,7 @@ func initCRMMultiTenant(opts *Options, cfg *Config, metricsFactory *metrics.Metr
 		encryption:        crmEnc,
 		holderHandler:     holderHandler,
 		instrumentHandler: instrumentHandler,
+		instrumentRepo:    instrumentRepo,
 		encryptionHandler: newEncryptionHandler(crmEnc.provisioningService),
 		auditHandler:      newAuditHandler(crmEnc.auditRepo),
 		mongoManager:      mongoMgr,
@@ -156,6 +158,7 @@ func initCRMSingleTenant(multiTenantEnabled bool, cfg *Config, metricsFactory *m
 		encryption:        crmEnc,
 		holderHandler:     holderHandler,
 		instrumentHandler: instrumentHandler,
+		instrumentRepo:    instrumentRepo,
 		encryptionHandler: newEncryptionHandler(crmEnc.provisioningService),
 		auditHandler:      newAuditHandler(crmEnc.auditRepo),
 	}, nil
