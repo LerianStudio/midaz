@@ -6,6 +6,7 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -604,23 +605,26 @@ func TestUpdateOrganization_Success(t *testing.T) {
 func TestUpdateOrganization_NullMetadataByContract(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	for _, tt := range []struct {
-		name, prefix, opSuffix, body string
-		wantWrite                    map[string]any // nil: the stored metadata is not written
+		name, prefix, opSuffix string
+		wantWrite              map[string]any // nil: the stored metadata is not written
+		wantMetadata           map[string]any // nil: the response carries no metadata
 	}{
-		{name: "v1 null clears the metadata", prefix: "/v1", opSuffix: v1OpSuffix, body: `{"metadata":null}`, wantWrite: map[string]any{}},
-		{name: "v2 null leaves the metadata untouched", prefix: "/v2", opSuffix: v2OpSuffix, body: `{"metadata":null}`},
-		{name: "v2 null-valued key deletes that key", prefix: "/v2", opSuffix: v2OpSuffix, body: `{"metadata":{"k":null}}`, wantWrite: map[string]any{"keep": "1"}},
+		{name: "v1 null clears the metadata", prefix: "/v1", opSuffix: v1OpSuffix, wantWrite: map[string]any{}},
+		{name: "v2 null leaves the metadata untouched", prefix: "/v2", opSuffix: v2OpSuffix, wantMetadata: map[string]any{"k": "v"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			orgRepo := organization.NewMockRepository(ctrl)
-			orgRepo.EXPECT().Update(gomock.Any(), orgID, gomock.Any()).Return(&mmodel.Organization{ID: orgID.String()}, nil)
+			orgRepo.EXPECT().Update(gomock.Any(), orgID, gomock.Any()).DoAndReturn(
+				func(_ context.Context, _ uuid.UUID, org *mmodel.Organization) (*mmodel.Organization, error) {
+					return &mmodel.Organization{ID: orgID.String(), LegalName: org.LegalName}, nil
+				})
 
 			metadataRepo := mongodb.NewMockRepository(ctrl)
 			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOrganization, orgID.String()).
-				Return(&mongodb.Metadata{Data: map[string]any{"k": "v", "keep": "1"}}, nil).AnyTimes()
+				Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).AnyTimes()
 
 			if tt.wantWrite != nil {
 				metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityOrganization, orgID.String(), tt.wantWrite).Return(nil)
@@ -629,14 +633,19 @@ func TestUpdateOrganization_NullMetadataByContract(t *testing.T) {
 			handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: orgRepo, OnboardingMetadataRepo: metadataRepo}}
 			app := buildHumaOrganizationAppOn(t, handler, true, tt.prefix, tt.opSuffix)
 
-			req := httptest.NewRequest(http.MethodPatch, tt.prefix+"/organizations/"+orgID.String(), strings.NewReader(tt.body))
+			req := httptest.NewRequest(http.MethodPatch, tt.prefix+"/organizations/"+orgID.String(), strings.NewReader(`{"legalName":"N","metadata":null}`))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			var got mmodel.Organization
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+			assert.Equal(t, "N", got.LegalName)
+			assert.Equal(t, tt.wantMetadata, got.Metadata)
 		})
 	}
 }

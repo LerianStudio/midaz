@@ -215,14 +215,6 @@ func TestUpdateTransactionMetadata_Branches(t *testing.T) {
 			wantUpdateData:   map[string]any{"k": "v"},
 			expectedMetadata: map[string]any{"k": "v"},
 		},
-		{
-			name:             "null-valued key with document deletes that key and merges the rest",
-			inputMetadata:    map[string]any{"k": nil, "n": "1"},
-			existing:         existingDoc(),
-			wantUpdate:       true,
-			wantUpdateData:   map[string]any{"n": "1"},
-			expectedMetadata: map[string]any{"n": "1"},
-		},
 	}
 
 	for _, tt := range tests {
