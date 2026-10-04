@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
@@ -275,6 +276,8 @@ type AmountData struct {
 	SegmentID        *uuid.UUID
 	TransactionRoute *string
 	MetadataSelector map[string]string
+	// UpdatedAt is the stored version as read, at the store's millisecond precision.
+	UpdatedAt time.Time
 }
 
 func (a *AmountData) GetTransactionRoute() string {
