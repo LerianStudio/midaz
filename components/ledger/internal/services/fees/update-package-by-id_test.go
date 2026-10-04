@@ -490,16 +490,15 @@ func TestValidationFeesSetUnset_PriorityComesFromStoreWhenOmitted(t *testing.T) 
 	}
 }
 
-// A fee added under a key the converter normalizes is stored whole under that
-// normalized key: the key is normalized once, so the lookup lands on the value.
-func TestValidationFeesSetUnset_NewFeeStoredUnderNormalizedKey(t *testing.T) {
+// A fee added by a patch is set whole under the key the client sent, verbatim.
+func TestValidationFeesSetUnset_NewFeeStoredUnderVerbatimKey(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	resolver := feeshared.NewMockMidazResolver(ctrl)
 	resolver.EXPECT().AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), "@fees").Return(nil)
 
-	patch := map[string]model.Fee{"_tarifa": {
+	patch := map[string]model.Fee{"tarifaTED2": {
 		FeeLabel:         "Tarifa TED",
 		CalculationModel: &model.CalculationModel{ApplicationRule: "flatFee", Calculations: []model.Calculation{{Type: model.Flat, Value: "2"}}},
 		ReferenceAmount:  "originalAmount",
@@ -514,8 +513,8 @@ func TestValidationFeesSetUnset_NewFeeStoredUnderNormalizedKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
-	stored, ok := setFields["fees.Tarifa"].(mongoPack.Fee)
-	require.True(t, ok, "fee must be set under its normalized key, got %v", setFields)
+	stored, ok := setFields["fees.tarifaTED2"].(mongoPack.Fee)
+	require.True(t, ok, "fee must be set under the key sent, got %v", setFields)
 	assert.Equal(t, "Tarifa TED", stored.FeeLabel)
 	assert.Equal(t, 2, stored.Priority)
 	assert.Equal(t, "originalAmount", stored.ReferenceAmount)

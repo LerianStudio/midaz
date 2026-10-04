@@ -129,6 +129,7 @@ On the ledger-scoped surface the path is the sole authority on which ledger a re
   so the response model can keep `ledgerId` while the request does not. The path is the sole ledger
   input — a body that still sends `ledgerId` is rejected as an unknown field (`400`). The former
   body-versus-path mismatch guard and its `0234` code are retired.
+- **`0236` (duplicate fee key) is retired.** Fee keys are stored verbatim, so two never collide.
 - **`?ledgerId=` is refused on the two listings** (`400`, `0235`) — the only ledger-scoped
   operations that read a query at all. It can only restate the path or contradict it, and its empty
   value means "every ledger of the organization" — the one scope a ledger-scoped listing must not
