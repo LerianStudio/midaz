@@ -6,33 +6,28 @@ package pack
 
 import (
 	"context"
-	"strings"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 )
 
-// Repository provides an interface for operations related to mongo metadata entities.
-//
-// FindByID, Update and SoftDelete take the ledger the caller is acting within.
-// uuid.Nil means organization scope and matches the package on whichever ledger
-// owns it; any other value matches only a package owned by that ledger, and a
-// package owned by another ledger of the same organization is reported as absent.
+// Repository stores fee packages. FindByID, Update and SoftDelete match only a package
+// on ledgerID, or on any ledger of the organization when it is uuid.Nil; Update also
+// needs the stored updated_at to equal updatedAt. Any other package reads as absent.
 //
 //go:generate mockgen --destination=./package_mongodb_mock.go --package=pack . Repository
 type Repository interface {
 	Create(ctx context.Context, pack *Package, organizationID uuid.UUID) (*Package, error)
 	FindList(ctx context.Context, filters http.QueryHeader) ([]*Package, error)
 	FindByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*Package, error)
-	Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updateFields *bson.M) (*Package, error)
+	Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updatedAt time.Time, updateFields *bson.M) (*Package, error)
 	SoftDelete(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error
 	FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error)
 	FindFeesAndAmountDataByPackageID(ctx context.Context, organizationID, packageID uuid.UUID) (*model.AmountData, error)
@@ -41,30 +36,12 @@ type Repository interface {
 // PackageMongoDBRepository is a MongoDD-specific implementation of the PackageRepository.
 type PackageMongoDBRepository struct {
 	connection *mmongoDB.MongoConnection
-	Database   string
-}
-
-// getDatabase resolves the MongoDB database for the current request.
-// Multi-tenant: returns tenant-specific database from context.
-// Single-tenant: falls back to the static connection.
-func (pm *PackageMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
-	if db := tmcore.GetMBContext(ctx); db != nil {
-		return db, nil
-	}
-
-	client, err := pm.connection.GetDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.Database(strings.ToLower(pm.Database)), nil
 }
 
 // NewPackageMongoDBRepository returns a new instance of PackageMongoDBRepository using the given MongoDB connection.
 func NewPackageMongoDBRepository(mc *mmongoDB.MongoConnection, logger libLog.Logger) (*PackageMongoDBRepository, error) {
 	r := &PackageMongoDBRepository{
 		connection: mc,
-		Database:   mc.Database,
 	}
 	ctx := context.Background()
 

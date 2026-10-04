@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	mg "go.mongodb.org/mongo-driver/v2/mongo"
@@ -109,4 +110,49 @@ func TestMongoConnection_GetDB_SyncOncePoisoning(t *testing.T) {
 		"SYNC.ONCE POISONING BUG: both calls returned the exact same cached error object. "+
 			"A transient failure is permanently blocking all future connection attempts. "+
 			"Fix: do not cache failed initialization; retry on next call.")
+}
+
+// TestMongoConnection_ResolveDatabase pins the tenant boundary of every fee adapter:
+// single-tenant mode serves only the static database, multi-tenant mode serves only
+// the tenant database on ctx and never falls back to the static one all tenants share.
+func TestMongoConnection_ResolveDatabase(t *testing.T) {
+	t.Parallel()
+
+	static, err := mg.Connect(options.Client().ApplyURI("mongodb://127.0.0.1:19999"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, static.Disconnect(context.Background())) })
+
+	tenantDB := static.Database("tenant_fees")
+	withTenant := tmcore.ContextWithMB(context.Background(), tenantDB)
+
+	t.Run("single-tenant serves the static database even with a tenant database on ctx", func(t *testing.T) {
+		t.Parallel()
+
+		conn := &MongoConnection{Database: "Fees", DB: static}
+
+		got, err := conn.ResolveDatabase(withTenant)
+		require.NoError(t, err)
+		assert.Same(t, static, got.Client())
+		assert.Equal(t, "fees", got.Name())
+	})
+
+	t.Run("multi-tenant serves the tenant database on ctx", func(t *testing.T) {
+		t.Parallel()
+
+		conn := &MongoConnection{Database: "fees", DB: static, RequireTenant: true}
+
+		got, err := conn.ResolveDatabase(withTenant)
+		require.NoError(t, err)
+		assert.Same(t, tenantDB, got)
+	})
+
+	t.Run("multi-tenant without a tenant database on ctx fails instead of serving the static one", func(t *testing.T) {
+		t.Parallel()
+
+		conn := &MongoConnection{Database: "fees", DB: static, RequireTenant: true}
+
+		got, err := conn.ResolveDatabase(context.Background())
+		require.ErrorIs(t, err, tmcore.ErrTenantContextRequired)
+		assert.Nil(t, got)
+	})
 }

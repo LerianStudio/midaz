@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
@@ -51,7 +52,7 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 		attribute.Bool("app.request.has_enable", filters.Enable != nil),
 	)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err
@@ -149,7 +150,7 @@ func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizati
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -204,7 +205,7 @@ func (pm *PackageMongoDBRepository) FindByOrganizationIDAndLedgerID(ctx context.
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err
@@ -272,7 +273,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err
@@ -295,6 +296,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		"segment_id":        1,
 		"transaction_route": 1,
 		"metadata_selector": 1,
+		"updated_at":        1,
 	}
 
 	var result struct {
@@ -305,6 +307,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		SegmentID        *uuid.UUID          `bson:"segment_id"`
 		TransactionRoute *string             `bson:"transaction_route"`
 		MetadataSelector map[string]string   `bson:"metadata_selector"`
+		UpdatedAt        time.Time           `bson:"updated_at"`
 	}
 
 	_, spanFindOne := tracer.Start(ctx, "repository.package.find_fees_by_package_id.find_one")
@@ -334,6 +337,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		SegmentID:        result.SegmentID,
 		TransactionRoute: result.TransactionRoute,
 		MetadataSelector: result.MetadataSelector,
+		UpdatedAt:        result.UpdatedAt,
 	}
 
 	return amountData, nil
