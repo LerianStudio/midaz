@@ -752,7 +752,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	}
 
 	if !slices.ContainsFunc(specs, func(s mongo.IndexSpecification) bool { return s.Name == indexName }) {
-		notFound := pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+		notFound := pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, constant.EntityMetadataIndex)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Metadata index not found", notFound)
 
 		return notFound
@@ -764,7 +764,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 
 		var cmdErr mongo.CommandError
 		if errors.As(err, &cmdErr) && cmdErr.Name == "IndexNotFound" {
-			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, constant.EntityMetadataIndex)
 		}
 
 		return err
