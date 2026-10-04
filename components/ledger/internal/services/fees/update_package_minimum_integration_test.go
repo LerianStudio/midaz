@@ -86,14 +86,16 @@ func TestIntegration_UpdatePackage_LoweredMinimumLeavesTheStoredPackageUntouched
 		"the refused update must leave the stored fee alone")
 }
 
-// The same package accepts a minimum it can still charge the stored fee on.
+// The same package accepts a minimum it can still charge the stored fee on. It is
+// stamped at nanosecond precision the store keeps to the millisecond, and the PATCH,
+// written only on the version it read, still lands.
 func TestIntegration_UpdatePackage_MinimumAboveTheStoredFeeIsApplied(t *testing.T) {
 	svc, repo := newLivePackageUseCase(t)
 	ctx := context.Background()
 
 	orgID := uuid.New()
 	ledgerID := uuid.New()
-	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 123456789, time.UTC)
 
 	stored := &pack.Package{
 		ID:             uuid.New(),
