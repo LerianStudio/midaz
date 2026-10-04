@@ -52,6 +52,7 @@ help:
 	@echo "  make clean                       - Clean build artifacts"
 	@echo "  make run                         - Run the application with .env config"
 	@echo "  make coverage-unit               - Run unit tests with coverage report"
+	@echo "  make test-integration            - Run the ledger integration shards (requires Docker)"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run golangci-lint (read-only gate)"
@@ -106,6 +107,19 @@ test:
 	$(call title1,"Running tests")
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
+
+# The integration shards the ledger owns (lifecycle-migration also carries a few tracer tests), each under its own
+# CPU, memory, container and wall-clock budget. Every shard runs; any failure fails the target.
+LEDGER_INTEGRATION_SHARDS := ledger-postgres ledger-mongodb-crm async-broker lifecycle-migration chaos-capability
+
+.PHONY: test-integration
+test-integration:
+	$(call title1,"Running ledger integration shards")
+	@failed=""; \
+	for shard in $(LEDGER_INTEGRATION_SHARDS); do \
+		$(MIDAZ_ROOT)/scripts/run-integration-ci-shard.sh $$shard || failed="$$failed $$shard"; \
+	done; \
+	if [ -n "$$failed" ]; then echo "[error] integration shards failed:$$failed" >&2; exit 1; fi
 
 #-------------------------------------------------------
 # Ledger-Specific Commands

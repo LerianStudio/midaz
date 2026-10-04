@@ -242,10 +242,8 @@ func SetupTestSuite(m *testing.M) int {
 	code := m.Run()
 
 	// Cleanup: shutdown service before terminating container
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	if globalSuite.service != nil {
-		if err := globalSuite.service.Shutdown(shutdownCtx); err != nil {
+		if err := shutdownService(globalSuite.service); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to shutdown service: %v\n", err)
 		}
 	}
@@ -315,6 +313,17 @@ func getTestDB(ctx context.Context) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 	return db, nil
+}
+
+// shutdownService stops svc within 10s. The test client's pooled connections are closed first:
+// the server counts a connection that never sent a request as active and would wait for it.
+func shutdownService(svc *bootstrap.Service) error {
+	testutil.HTTPClient.CloseIdleConnections()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return svc.Shutdown(ctx)
 }
 
 // waitForServer polls the canonical /readyz endpoint until the server is
@@ -407,12 +416,9 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 	}
 
 	// Shutdown current server
-	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	if err := globalSuite.service.Shutdown(shutdownCtx); err != nil {
-		cancel()
+	if err := shutdownService(globalSuite.service); err != nil {
 		return nil, fmt.Errorf("failed to shutdown server: %w", err)
 	}
-	cancel()
 
 	// Apply new env vars
 	for key, val := range envOverrides {
@@ -450,9 +456,7 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 	// Wait for server to be ready (use newServerURL which may differ from original)
 	if err := waitForServer(newServerURL, 30*time.Second); err != nil {
 		// Shutdown the service we just started to avoid resource leak
-		shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		_ = service.Shutdown(shutdownCtx)
-		cancel()
+		_ = shutdownService(service)
 		// Restore all saved env vars on failure
 		for key, val := range savedValues {
 			if val == nil {
@@ -471,12 +475,9 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 
 	// Return cleanup function that restores original config
 	cleanup = func() error {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := globalSuite.service.Shutdown(shutdownCtx); err != nil {
-			cancel()
+		if err := shutdownService(globalSuite.service); err != nil {
 			return fmt.Errorf("failed to shutdown server during cleanup: %w", err)
 		}
-		cancel()
 
 		// Restore original values (unset vars that didn't exist before)
 		for key, val := range savedValues {
@@ -504,9 +505,7 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 
 		if err := waitForServer(originalServerURL, 30*time.Second); err != nil {
 			// Shutdown the service we just started to avoid resource leak
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_ = service.Shutdown(shutdownCtx)
-			cancel()
+			_ = shutdownService(service)
 			return fmt.Errorf("server failed to restart: %w", err)
 		}
 
