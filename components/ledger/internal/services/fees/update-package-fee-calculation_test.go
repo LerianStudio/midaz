@@ -156,7 +156,7 @@ func TestUpdatePackageByID_FeeWithoutCalculationIsRefused(t *testing.T) {
 				// so the write itself is what fails the case, rather than a
 				// later assertion on an error the write would not have stopped.
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Times(0)
 
 				svc := &UseCase{packageRepo: mockPackageRepo, resolver: mockResolver}

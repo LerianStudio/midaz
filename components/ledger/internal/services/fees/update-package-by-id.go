@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -94,9 +94,16 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, le
 		updateFields["$unset"] = unsetOperationFields
 	}
 
-	updatedPackage, err := uc.packageRepo.Update(ctx, id, organizationID, ledgerID, &updateFields)
+	updatedPackage, err := uc.packageRepo.Update(ctx, id, organizationID, ledgerID, feesAmountData.UpdatedAt, &updateFields)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update package on repo by id", err)
+		var notFound pkg.EntityNotFoundError
+		if errors.As(err, &notFound) {
+			if _, err = uc.packageRepo.FindFeesAndAmountDataByPackageID(ctx, organizationID, id); err == nil {
+				err = pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, constant.EntityPackage)
+			}
+		}
+
+		spanattr.HandleSpanByErrorClass(span, "Failed to update package on repo by id", err)
 
 		return err
 	}

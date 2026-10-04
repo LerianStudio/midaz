@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
@@ -881,8 +882,8 @@ func realFeeUpdateHandler(t *testing.T, stored map[string]model.Fee, update func
 		Times(2)
 
 	writes := packageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, fields *bson.M) (*pack.Package, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, _ time.Time, fields *bson.M) (*pack.Package, error) {
 			update(fields)
 
 			return &pack.Package{ID: id}, nil
