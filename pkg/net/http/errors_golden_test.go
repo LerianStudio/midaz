@@ -397,7 +397,6 @@ func allSentinels() map[string]error {
 		"ErrInvalidSegmentID":                         constant.ErrInvalidSegmentID,
 		"ErrInvalidLedgerID":                          constant.ErrInvalidLedgerID,
 		"ErrLedgerScopedQueryParameter":               constant.ErrLedgerScopedQueryParameter,
-		"ErrDuplicateFeeKey":                          constant.ErrDuplicateFeeKey,
 		"ErrDeferrableDeductibleFee":                  constant.ErrDeferrableDeductibleFee,
 		"ErrConvertToDecimal":                         constant.ErrConvertToDecimal,
 		"ErrIsDeductibleFrom":                         constant.ErrIsDeductibleFrom,

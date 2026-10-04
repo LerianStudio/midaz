@@ -19,7 +19,6 @@ import (
 	"github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	"github.com/google/uuid"
-	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -31,7 +30,7 @@ type UpdatePackageInput struct {
 	MinAmount      *string        `json:"minimumAmount" example:"100" minimum:"0"`
 	MaxAmount      *string        `json:"maximumAmount" example:"1000" minimum:"0"`
 	WaivedAccounts *[]string      `json:"waivedAccounts" example:"acc001,acc002"`
-	Fee            map[string]Fee `json:"fees"`
+	Fee            map[string]Fee `json:"fees" doc:"Fee patches keyed by fee key. An entry naming a stored key verbatim edits that fee, or removes it when the entry sets no field. Any other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits), or the update is refused with 400; a key equal to a stored key except for letter case is also refused with 400, and the stored key must be used, unless the same patch removes that stored key, which renames the fee (the new key must still match the grammar)."`
 	EnablePackage  *bool          `json:"enable,omitempty" example:"true"`
 }
 
@@ -54,10 +53,6 @@ func (up *UpdatePackageInput) GetMaximumAmount() string {
 }
 
 func (up *UpdatePackageInput) ValidateFees() error {
-	if _, err := up.normalisedFees(); err != nil {
-		return err
-	}
-
 	for key, fee := range up.Fee {
 		if !fee.ValidateIfFeeIsNil() {
 			if fee.Priority != 0 && fee.ReferenceAmount != "" {
@@ -107,11 +102,6 @@ func (up *UpdatePackageInput) EffectiveMinimumAmount(storedMinAmount decimal.Dec
 // A fee the patch itself settles is skipped, so lowering the minimum and clearing what
 // stood in its way in one call is applied rather than refused.
 func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[string]Fee) error {
-	patches, err := up.normalisedFees()
-	if err != nil {
-		return err
-	}
-
 	if up.MinAmount == nil {
 		return nil
 	}
@@ -125,7 +115,7 @@ func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[st
 			continue
 		}
 
-		if patch, patched := patches[key]; patched && patch.settlesTheMinimumCheck() {
+		if patch, patched := up.Fee[key]; patched && patch.settlesTheMinimumCheck() {
 			continue
 		}
 
@@ -135,27 +125,6 @@ func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[st
 	}
 
 	return nil
-}
-
-// normalisedFees indexes this patch's entries under the key the update applies them
-// to, which is their lower camel form. Two keys that fold to the same one name a
-// single fee twice, leaving no way to tell which entry was meant; Go's map order
-// would otherwise decide it, so the request is refused instead of answered at
-// random, and the refusal names the key they collide on.
-func (up *UpdatePackageInput) normalisedFees() (map[string]Fee, error) {
-	normalised := make(map[string]Fee, len(up.Fee))
-
-	for key, fee := range up.Fee {
-		formatted := strcase.ToLowerCamel(key)
-
-		if _, duplicated := normalised[formatted]; duplicated {
-			return nil, pkg.ValidateBusinessError(constant.ErrDuplicateFeeKey, "", formatted)
-		}
-
-		normalised[formatted] = fee
-	}
-
-	return normalised, nil
 }
 
 // settlesTheMinimumCheck reports whether this patch entry already decides the fee's

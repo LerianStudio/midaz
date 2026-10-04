@@ -98,12 +98,6 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 			wantCode:   constant.ErrCalculationValueFlatFee.Error(),
 		},
 		{
-			name:       "patch key differs in case from the stored key",
-			newMinimum: stringPtr("1"),
-			storedFees: map[string]Fee{"feeOne": deductibleFee(Flat, "25", true)},
-			patch:      map[string]Fee{"FeeOne": deductibleFee(Flat, "1", true)},
-		},
-		{
 			name:       "patch carries no minimum",
 			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
 		},
@@ -203,80 +197,6 @@ func TestFeeRemovalPredicateAgreesWithTheApplyPath(t *testing.T) {
 			require.Equal(t, !tt.survives, patch.removesTheFee(), "the predicate disagrees with the write")
 		})
 	}
-}
-
-// Two patch entries whose keys fold to the same fee leave no way to tell which one
-// the operator meant, and Go map order would otherwise pick one, so the request is
-// refused and the refusal names the key they collide on.
-func TestUpdatePackageInputRefusesAmbiguousFeeKeys(t *testing.T) {
-	t.Parallel()
-
-	ambiguous := func() *UpdatePackageInput {
-		return &UpdatePackageInput{
-			MinAmount: stringPtr("1"),
-			Fee: map[string]Fee{
-				"fee1":  deductibleFee(Flat, "1", true),
-				"Fee_1": {FeeLabel: "Novo rotulo"},
-			},
-		}
-	}
-
-	stored := map[string]Fee{"fee1": deductibleFee(Flat, "25", true)}
-
-	t.Run("at the request boundary", func(t *testing.T) {
-		t.Parallel()
-
-		err := ambiguous().ValidateFees()
-
-		require.ErrorContains(t, err, constant.ErrDuplicateFeeKey.Error())
-		require.ErrorContains(t, err, "fee1")
-	})
-
-	t.Run("when the stored fees are measured against the new minimum", func(t *testing.T) {
-		t.Parallel()
-
-		err := ambiguous().ValidateStoredFeesAgainstMinimum(stored)
-
-		require.ErrorContains(t, err, constant.ErrDuplicateFeeKey.Error())
-		require.ErrorContains(t, err, "fee1")
-	})
-
-	t.Run("a patch carrying no minimum is refused just the same", func(t *testing.T) {
-		t.Parallel()
-
-		up := ambiguous()
-		up.MinAmount = nil
-
-		require.ErrorContains(t, up.ValidateStoredFeesAgainstMinimum(stored), constant.ErrDuplicateFeeKey.Error())
-	})
-
-	// The negative control. A guard that over-fires here would refuse every update
-	// carrying more than one fee, which is worse than the defect it closes.
-	t.Run("two fees that are actually different are accepted", func(t *testing.T) {
-		t.Parallel()
-
-		up := &UpdatePackageInput{
-			MinAmount: stringPtr("100"),
-			Fee: map[string]Fee{
-				"fee1":     deductibleFee(Flat, "1", true),
-				"fee_2":    deductibleFee(Flat, "2", true),
-				"feeThree": {FeeLabel: "Novo rotulo"},
-			},
-		}
-
-		require.NoError(t, up.ValidateFees())
-		require.NoError(t, up.ValidateStoredFeesAgainstMinimum(map[string]Fee{"fee1": deductibleFee(Flat, "1", true)}))
-	})
-
-	// The defect this closes answered the same body two ways across runs, so one
-	// call proves nothing: only a repeat can tell a refusal from a coin toss.
-	t.Run("every call answers the same way", func(t *testing.T) {
-		t.Parallel()
-
-		for range 200 {
-			require.ErrorContains(t, ambiguous().ValidateStoredFeesAgainstMinimum(stored), constant.ErrDuplicateFeeKey.Error())
-		}
-	})
 }
 
 // When more than one stored fee breaks the new minimum, the one the operator is told
