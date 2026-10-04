@@ -8,6 +8,7 @@ package account
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -69,4 +70,58 @@ func TestIntegration_AccountRepository_ListHolderIDsInScope(t *testing.T) {
 			assert.ElementsMatch(t, tt.want, got)
 		})
 	}
+}
+
+func TestIntegration_AccountRepository_ListLedgerIDsOfHolders(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	otherOrg := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1 := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2 := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	foreignLedger := pgtestutil.CreateTestLedger(t, container.DB, otherOrg)
+
+	holderBoth := uuid.Must(libCommons.GenerateUUIDv7())
+	holderOne := uuid.Must(libCommons.GenerateUUIDv7())
+	holderGone := uuid.Must(libCommons.GenerateUUIDv7())
+	holderNone := uuid.Must(libCommons.GenerateUUIDv7())
+
+	owned := func(org, ledgerID uuid.UUID, alias string, holder uuid.UUID, deleted *time.Time) {
+		p := pgtestutil.DefaultAccountParams()
+		p.Alias = alias
+		p.HolderID = &holder
+		p.DeletedAt = deleted
+
+		pgtestutil.CreateTestAccountWithParams(t, container.DB, org, ledgerID, p)
+	}
+
+	gone := time.Now()
+	owned(orgID, ledger1, "@both-1", holderBoth, nil)
+	owned(orgID, ledger1, "@both-1b", holderBoth, nil)
+	owned(orgID, ledger2, "@both-2", holderBoth, nil)
+	owned(orgID, ledger2, "@one", holderOne, nil)
+	owned(orgID, ledger1, "@one-gone", holderOne, &gone)
+	owned(orgID, ledger1, "@gone", holderGone, &gone)
+	owned(otherOrg, foreignLedger, "@foreign", holderOne, nil)
+
+	got, err := repo.ListLedgerIDsOfHolders(context.Background(), orgID, []uuid.UUID{holderBoth, holderOne, holderGone, holderNone})
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []uuid.UUID{ledger1, ledger2}, got[holderBoth], "every ledger the holder has a live account in, each once")
+	assert.Equal(t, []uuid.UUID{ledger2}, got[holderOne], "a deleted account and another organization's account add no ledger")
+	assert.NotContains(t, got, holderGone, "a holder whose accounts are all deleted has no ledger")
+	assert.NotContains(t, got, holderNone, "a holder without accounts has no ledger")
+
+	inScope, err := repo.ListHolderIDs(context.Background(), orgID, http.ScopeConfinement{"ledgerId": {ledger2}})
+	require.NoError(t, err)
+
+	for _, holder := range []uuid.UUID{holderBoth, holderOne, holderGone, holderNone} {
+		assert.Equal(t, slices.Contains(inScope, holder), slices.Contains(got[holder], ledger2),
+			"holder %s: resolving its ledgers must agree with the list's inclusion rule", holder)
+	}
+
+	empty, err := repo.ListLedgerIDsOfHolders(context.Background(), orgID, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
 }

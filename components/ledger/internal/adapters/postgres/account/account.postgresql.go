@@ -171,6 +171,10 @@ type Repository interface {
 	// accounts within scope, which confines on ledgerId and accountId. A nil scope
 	// lists every holder that owns a live account.
 	ListHolderIDs(ctx context.Context, organizationID uuid.UUID, scope http.ScopeConfinement) ([]uuid.UUID, error)
+	// ListLedgerIDsOfHolders returns, per holder, the distinct ledgers of the
+	// organization it owns a live account in. A holder without one is absent
+	// from the map. It is the inclusion rule of ListHolderIDs read per holder.
+	ListLedgerIDsOfHolders(ctx context.Context, organizationID uuid.UUID, holderIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.

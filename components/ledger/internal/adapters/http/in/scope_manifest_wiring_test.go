@@ -17,7 +17,7 @@ import (
 
 // manifestScopeResolverNames are the resolvers the embedded manifest names; the
 // boot registers them before wiring the scope.
-var manifestScopeResolverNames = []string{"accountByAlias", "externalAccount", "transactionAccounts", "balanceAccount"}
+var manifestScopeResolverNames = []string{"accountByAlias", "externalAccount", "transactionAccounts", "balanceAccount", "holderLedgers"}
 
 // wireManifestScope wires the embedded manifest as the boot does. Every resolver but
 // accountByAlias fails the test when called; accountByAlias answers legAccount for

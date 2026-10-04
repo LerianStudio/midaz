@@ -23,7 +23,12 @@ const (
 	resolverExternalAccount     = "externalAccount"
 	resolverTransactionAccounts = "transactionAccounts"
 	resolverBalanceAccount      = "balanceAccount"
+	resolverHolderLedgers       = "holderLedgers"
 )
+
+// errScopeResolverNoOrganization refuses a holder lookup the request does not
+// confine to one organization: holders are unique only inside one.
+var errScopeResolverNoOrganization = errors.New("scope resolution needs exactly one organization named by the request")
 
 // errScopeResolverUnconfined refuses a lookup the request does not confine to one
 // organization and one ledger: an alias, a transaction or a balance is only
@@ -54,6 +59,7 @@ func registerScopeResolvers(auth *middleware.AuthClient, resolver query.ScopeRes
 		resolverExternalAccount:     set.externalAccount,
 		resolverTransactionAccounts: set.transactionAccounts,
 		resolverBalanceAccount:      set.balanceAccount,
+		resolverHolderLedgers:       set.holderLedgers,
 	} {
 		if err := auth.RegisterScopeResolver(name, fn); err != nil {
 			return err
@@ -163,6 +169,58 @@ func (s scopeResolvers) balanceAccount(ctx context.Context, in middleware.Resolv
 
 		return []uuid.UUID{accountID}, found, err
 	})
+}
+
+// holderLedgers answers, for each holder, the ledgers it owns a live account in,
+// read for every holder of the request at once. A holder without one, or a value
+// that is not a uuid, names nothing.
+func (s scopeResolvers) holderLedgers(ctx context.Context, in middleware.ResolveInput) ([][]string, error) {
+	organization, named := single(nil, in.Known, "organizationId")
+	if !named {
+		return nil, errScopeResolverNoOrganization
+	}
+
+	out := make([][]string, len(in.Items))
+
+	organizationID, ok := parseUUID(organization)
+	if !ok {
+		return out, nil
+	}
+
+	holders := make([]uuid.UUID, 0, len(in.Items))
+
+	for _, item := range in.Items {
+		if id, isUUID := parseUUID(item.Value); isUUID {
+			holders = append(holders, id)
+		}
+	}
+
+	if len(holders) == 0 {
+		return out, nil
+	}
+
+	ctx, err := s.attachTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ledgers, err := s.resolver.LedgerIDsOfHolders(ctx, organizationID, holders)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s of holders: %w", in.Dimension, err)
+	}
+
+	for i, item := range in.Items {
+		id, isUUID := parseUUID(item.Value)
+		if !isUUID {
+			continue
+		}
+
+		for _, ledgerID := range ledgers[id] {
+			out[i] = append(out[i], ledgerID.String())
+		}
+	}
+
+	return out, nil
 }
 
 type idLookup func(ctx context.Context, organizationID, ledgerID, id uuid.UUID) ([]uuid.UUID, bool, error)

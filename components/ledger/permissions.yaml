@@ -175,6 +175,12 @@ scope:
         - { name: ledgerId,  from: query, field: ledger_id,  optional: true }
       filter: [ledgerId, accountId]
     - method: GET
+      path: /v2/organizations/:organization_id/holders/:holder_id
+      dimensions: &holderLedgersPath
+        - { name: ledgerId, from: path, field: holder_id, resolve: holderLedgers, match: any }
+    - { method: PATCH,  path: /v2/organizations/:organization_id/holders/:holder_id, dimensions: *holderLedgersPath }
+    - { method: DELETE, path: /v2/organizations/:organization_id/holders/:holder_id, dimensions: *holderLedgersPath }
+    - method: GET
       path: /v2/organizations/:organization_id/holders/:holder_id/accounts
       dimensions:
         - { name: ledgerId, from: query, field: ledger_id, optional: true }

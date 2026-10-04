@@ -29,11 +29,36 @@ type fakeScopeResolver struct {
 	aliases      map[string]uuid.UUID
 	transactions map[uuid.UUID][]uuid.UUID
 	balances     map[uuid.UUID]uuid.UUID
+	holders      map[uuid.UUID][]uuid.UUID
 	err          error
 
 	aliasCalls  [][]string
 	scopes      [][2]uuid.UUID
 	transaction []uuid.UUID
+	holderCalls []holderCall
+}
+
+type holderCall struct {
+	organizationID uuid.UUID
+	holderIDs      []uuid.UUID
+}
+
+func (f *fakeScopeResolver) LedgerIDsOfHolders(_ context.Context, organizationID uuid.UUID, holderIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	f.holderCalls = append(f.holderCalls, holderCall{organizationID: organizationID, holderIDs: holderIDs})
+
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	out := map[uuid.UUID][]uuid.UUID{}
+
+	for _, id := range holderIDs {
+		if ledgers, ok := f.holders[id]; ok {
+			out[id] = ledgers
+		}
+	}
+
+	return out, nil
 }
 
 func (f *fakeScopeResolver) AccountIDsByAlias(_ context.Context, organizationID, ledgerID uuid.UUID, aliases []string) (*query.AliasResolution, error) {
@@ -224,47 +249,91 @@ func TestScopeResolvers_BalanceAccount(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestScopeResolvers_HolderLedgers(t *testing.T) {
+	org := uuid.New()
+	both, one, none := uuid.New(), uuid.New(), uuid.New()
+	ledger1, ledger2 := uuid.New(), uuid.New()
+
+	holderInput := func(known map[string][]string, values ...string) middleware.ResolveInput {
+		items := make([]middleware.ResolveItem, 0, len(values))
+		for _, value := range values {
+			items = append(items, middleware.ResolveItem{Value: value})
+		}
+
+		return middleware.ResolveInput{Product: "midaz", Dimension: "ledgerId", Items: items, Known: known}
+	}
+
+	inOrg := map[string][]string{"organizationId": {org.String()}}
+
+	t.Run("each holder answers its ledgers, every holder in one read confined to the organization", func(t *testing.T) {
+		fake := &fakeScopeResolver{holders: map[uuid.UUID][]uuid.UUID{both: {ledger1, ledger2}, one: {ledger2}}}
+
+		out, err := scopeResolvers{resolver: fake}.holderLedgers(context.Background(), holderInput(inOrg, both.String(), none.String(), one.String(), "not-a-uuid"))
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{ledger1.String(), ledger2.String()}, nil, {ledger2.String()}, nil}, out,
+			"a holder without a live account and a value that is not a uuid name nothing")
+		assert.Equal(t, []holderCall{{organizationID: org, holderIDs: []uuid.UUID{both, none, one}}}, fake.holderCalls)
+	})
+
+	t.Run("a request naming no single organization is not resolved", func(t *testing.T) {
+		fake := &fakeScopeResolver{}
+
+		_, err := scopeResolvers{resolver: fake}.holderLedgers(context.Background(), holderInput(nil, both.String()))
+		require.ErrorIs(t, err, errScopeResolverNoOrganization)
+
+		_, err = scopeResolvers{resolver: fake}.holderLedgers(context.Background(),
+			holderInput(map[string][]string{"organizationId": {org.String(), uuid.NewString()}}, both.String()))
+		require.ErrorIs(t, err, errScopeResolverNoOrganization)
+		assert.Empty(t, fake.holderCalls)
+	})
+
+	t.Run("an organization that is not a uuid names nothing and reads nothing", func(t *testing.T) {
+		fake := &fakeScopeResolver{}
+
+		out, err := scopeResolvers{resolver: fake}.holderLedgers(context.Background(),
+			holderInput(map[string][]string{"organizationId": {"org"}}, both.String()))
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{nil}, out)
+		assert.Empty(t, fake.holderCalls)
+	})
+
+	t.Run("a failed read is an error", func(t *testing.T) {
+		boom := errors.New("replica down")
+		fake := &fakeScopeResolver{err: boom}
+
+		_, err := scopeResolvers{resolver: fake}.holderLedgers(context.Background(), holderInput(inOrg, both.String()))
+		require.ErrorIs(t, err, boom)
+	})
+}
+
 func TestScopeResolvers_RegisteredUnderTheManifestNames(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: true}
 
 	require.NoError(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil))
 	require.Error(t, registerScopeResolvers(auth, &fakeScopeResolver{}, nil), "a second registration under the same names is refused")
 
-	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount} {
+	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers} {
 		assert.Error(t, auth.RegisterScopeResolver(name, func(context.Context, middleware.ResolveInput) ([][]string, error) { return nil, nil }),
 			"%s must already be registered", name)
 	}
 }
 
-// probeResolvedAccount is the value every probe resolver answers: the probe value of
-// the accountId dimension, so a resolved request asks about the same account a path
-// naming it would.
-func probeResolvedAccount(t *testing.T) string {
-	t.Helper()
-
-	for i, dim := range manifestScopeDimensions(t) {
-		if dim.Name == "accountId" {
-			return scopeProbeValue(i)
-		}
-	}
-
-	require.Fail(t, "the manifest must declare the accountId dimension")
-
-	return ""
-}
-
 // wireProbeAuthScope registers a probe resolver under every name the manifest uses,
-// each answering probeResolvedAccount for any value, and wires the scope as boot does.
+// each answering the probe value of the dimension it resolves for any value, and
+// wires the scope as boot does.
 func wireProbeAuthScope(t *testing.T, auth *middleware.AuthClient) {
 	t.Helper()
 
-	account := probeResolvedAccount(t)
+	probes := make(map[string]string)
+	for i, dim := range manifestScopeDimensions(t) {
+		probes[dim.Name] = scopeProbeValue(i)
+	}
 
-	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount} {
+	for _, name := range []string{resolverAccountByAlias, resolverExternalAccount, resolverTransactionAccounts, resolverBalanceAccount, resolverHolderLedgers} {
 		require.NoError(t, auth.RegisterScopeResolver(name, func(_ context.Context, in middleware.ResolveInput) ([][]string, error) {
 			out := make([][]string, len(in.Items))
 			for i := range in.Items {
-				out[i] = []string{account}
+				out[i] = []string{probes[in.Dimension]}
 			}
 
 			return out, nil

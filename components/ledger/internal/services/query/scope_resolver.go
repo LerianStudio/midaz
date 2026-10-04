@@ -76,6 +76,10 @@ type ScopeResolver interface {
 	AccountIDsOfTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) ([]uuid.UUID, bool, error)
 	// AccountIDOfBalance returns the account that owns a balance.
 	AccountIDOfBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (uuid.UUID, bool, error)
+	// LedgerIDsOfHolders returns, per holder, the ledgers of the organization it
+	// owns a live account in, the rule the holder list is confined by. A holder
+	// without one is absent from the answer.
+	LedgerIDsOfHolders(ctx context.Context, organizationID uuid.UUID, holderIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
 var _ ScopeResolver = (*UseCase)(nil)
@@ -203,6 +207,36 @@ func (uc *UseCase) AccountIDOfBalance(ctx context.Context, organizationID, ledge
 	}
 
 	return accountID, true, nil
+}
+
+// LedgerIDsOfHolders implements ScopeResolver.
+func (uc *UseCase) LedgerIDsOfHolders(ctx context.Context, organizationID uuid.UUID, holderIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.scope_resolver.ledger_ids_of_holders")
+	defer span.End()
+
+	distinct := make([]uuid.UUID, 0, len(holderIDs))
+	for _, id := range holderIDs {
+		if !slices.Contains(distinct, id) {
+			distinct = append(distinct, id)
+		}
+	}
+
+	span.SetAttributes(attribute.Int("app.scope.holders", len(distinct)))
+
+	if len(distinct) == 0 {
+		return map[uuid.UUID][]uuid.UUID{}, nil
+	}
+
+	ledgers, err := uc.AccountRepo.ListLedgerIDsOfHolders(ctx, organizationID, distinct)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve holder ledgers", err)
+
+		return nil, err
+	}
+
+	return ledgers, nil
 }
 
 // transactionAccountRefs loads the account references of a transaction from the
