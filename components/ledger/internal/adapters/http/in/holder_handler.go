@@ -197,7 +197,7 @@ func (handler *HolderHandler) UpdateHolder(ctx context.Context, in *UpdateHolder
 
 	payload := new(mmodel.UpdateHolderInput)
 
-	originalMap, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload)
+	originalMap, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullKeepsV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

@@ -61,15 +61,18 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Security:    secPortfolioBearer,
 	}, h.GetPortfolioByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updatePortfolio" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a portfolio",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secPortfolioBearer,
 		SkipValidateBody: true, // body validated imperatively.
-	}, h.UpdatePortfolio)
+	}, withMetadataNull(metadataNull, h.UpdatePortfolio))
 	attachTypedRequestBody[mmodel.UpdatePortfolioInput](api, "updatePortfolio"+opSuffix)
 
 	huma.Register(api, huma.Operation{

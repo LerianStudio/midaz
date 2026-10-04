@@ -194,7 +194,7 @@ type UpdateOperationRouteResponse struct {
 // UpdateOperationRoute decodes+validates the raw body imperatively then delegates
 // to the shared updateOperationRoute core, feeding in.RawBody so the RFC 7396 merge
 // distinguishes accountingEntries absent from accountingEntries:null.
-func (handler *OperationRouteHandler) UpdateOperationRoute(ctx context.Context, in *UpdateOperationRouteRequest) (*UpdateOperationRouteResponse, error) {
+func (handler *OperationRouteHandler) UpdateOperationRoute(ctx context.Context, in *UpdateOperationRouteRequest, metadataNull metadataNullPolicy) (*UpdateOperationRouteResponse, error) {
 	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -206,7 +206,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(ctx context.Context, 
 	}
 
 	payload := new(mmodel.UpdateOperationRouteInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

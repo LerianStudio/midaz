@@ -491,6 +491,25 @@ by an older pod clears only the per-ledger key and leaves the newer pods' entry 
 and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
 afterwards.
 
+## Metadata on a PATCH: `null` is a `/v2` no-op
+
+Every PATCH whose body carries `metadata` applies it as an RFC 7396 merge patch: organization,
+ledger, portfolio, segment, account, account type, asset, transaction, operation, operation route,
+transaction route, holder and instrument. The contracts differ on one body only, an explicit
+`"metadata": null`:
+
+| Body | `/v1` | `/v2` |
+| --- | --- | --- |
+| no `metadata` key, or `"metadata": {}` | stored metadata left as it is | stored metadata left as it is |
+| `"metadata": {"k": "v"}` | `k` added or replaced, every other key kept | same |
+| `"metadata": {"k": null}` | `k` deleted, every other key kept | same |
+| `"metadata": null` | every key the client wrote deleted; the ledger's reserved fee keys on a transaction or operation stay | stored metadata left as it is |
+
+The other patched fields apply in every row. `/v2` clears metadata one key at a time, so a client
+whose serializer writes an unset map as `null` cannot erase it by accident; `/v1` keeps the reading
+it shipped with. Fee packages, billing packages and balances carry no `metadata` on their PATCH, and
+the asset rate is a `/v1` `PUT`.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,

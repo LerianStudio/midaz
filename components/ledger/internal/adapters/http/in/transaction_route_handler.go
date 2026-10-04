@@ -189,7 +189,7 @@ type UpdateTransactionRouteResponse struct {
 
 // UpdateTransactionRoute decodes+validates the raw body imperatively then delegates
 // to the shared updateTransactionRoute core.
-func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Context, in *UpdateTransactionRouteRequest) (*UpdateTransactionRouteResponse, error) {
+func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Context, in *UpdateTransactionRouteRequest, metadataNull metadataNullPolicy) (*UpdateTransactionRouteResponse, error) {
 	orgID, _, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -201,7 +201,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Conte
 	}
 
 	payload := new(mmodel.UpdateTransactionRouteInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

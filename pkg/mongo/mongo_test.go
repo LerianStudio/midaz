@@ -62,6 +62,13 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantUnset:      nil,
 		},
 		{
+			name:           "an empty metadata document sets nothing",
+			updateDocument: bson.M{"name": "John", "metadata": bson.D{}},
+			fieldsToRemove: nil,
+			wantSet:        bson.M{"name": "John"},
+			wantUnset:      nil,
+		},
+		{
 			name:           "metadata prefix preserved in unset",
 			updateDocument: bson.M{},
 			fieldsToRemove: []string{"metadata.customKey"},

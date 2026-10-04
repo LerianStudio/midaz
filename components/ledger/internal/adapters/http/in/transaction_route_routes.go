@@ -65,15 +65,18 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Security:    secTransactionRouteBearer,
 	}, h.GetTransactionRouteByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateTransactionRoute" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update Transaction Route",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secTransactionRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
-	}, h.UpdateTransactionRoute)
+	}, withMetadataNull(metadataNull, h.UpdateTransactionRoute))
 	attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, "updateTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{

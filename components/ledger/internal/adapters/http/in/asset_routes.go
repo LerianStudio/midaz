@@ -65,15 +65,18 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Security:    secAssetBearer,
 	}, h.GetAssetByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateAsset" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an asset",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secAssetBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAsset.
-	}, h.UpdateAsset)
+	}, withMetadataNull(metadataNull, h.UpdateAsset))
 	attachTypedRequestBody[mmodel.UpdateAssetInput](api, "updateAsset"+opSuffix)
 
 	huma.Register(api, huma.Operation{
