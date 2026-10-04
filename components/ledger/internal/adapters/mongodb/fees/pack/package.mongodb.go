@@ -6,16 +6,13 @@ package pack
 
 import (
 	"context"
-	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 )
@@ -41,30 +38,12 @@ type Repository interface {
 // PackageMongoDBRepository is a MongoDD-specific implementation of the PackageRepository.
 type PackageMongoDBRepository struct {
 	connection *mmongoDB.MongoConnection
-	Database   string
-}
-
-// getDatabase resolves the MongoDB database for the current request.
-// Multi-tenant: returns tenant-specific database from context.
-// Single-tenant: falls back to the static connection.
-func (pm *PackageMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
-	if db := tmcore.GetMBContext(ctx); db != nil {
-		return db, nil
-	}
-
-	client, err := pm.connection.GetDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.Database(strings.ToLower(pm.Database)), nil
 }
 
 // NewPackageMongoDBRepository returns a new instance of PackageMongoDBRepository using the given MongoDB connection.
 func NewPackageMongoDBRepository(mc *mmongoDB.MongoConnection, logger libLog.Logger) (*PackageMongoDBRepository, error) {
 	r := &PackageMongoDBRepository{
 		connection: mc,
-		Database:   mc.Database,
 	}
 	ctx := context.Background()
 

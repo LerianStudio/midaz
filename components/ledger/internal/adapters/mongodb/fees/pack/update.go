@@ -37,7 +37,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err

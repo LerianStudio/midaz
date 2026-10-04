@@ -55,7 +55,7 @@ func newPackRepository(t *testing.T, container *mongotestutil.ContainerResult) *
 	require.NoError(t, EnsureIndexes(context.Background(), conn),
 		"EnsureIndexes must succeed during repository setup")
 
-	return &PackageMongoDBRepository{connection: conn, Database: conn.Database}
+	return &PackageMongoDBRepository{connection: conn}
 }
 
 // packCollection returns the raw package collection so tests can assert
