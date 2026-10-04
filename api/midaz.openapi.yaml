@@ -8502,7 +8502,10 @@ paths:
         dependency answers 503 (0520). Once the account is closed, any movement
         that would touch it is refused with 0519, including the commit of a
         pending transaction that names it as destination, and the revert of a
-        transaction whose fee legs credited it.
+        transaction whose fee legs credited it. Closing is permanent. To retire
+        a fee account, point the fee package at the new fee account and leave
+        the old account open: reverts of earlier transactions and collections of
+        fee debt already owed to it still post there.
       operationId: closeAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -11081,7 +11084,10 @@ paths:
       description: >-
         A package switched off (enable: false), or a fee whose deferrable turned
         false, may keep applying for up to 60 seconds when a transaction read
-        the packages concurrently with the update.
+        the packages concurrently with the update. Closing an account is
+        permanent. To retire a fee account, point the fee package at the new fee
+        account and leave the old account open: reverts of earlier transactions
+        and collections of fee debt already owed to it still post there.
       operationId: updatePackageV2
       parameters:
         - description: Organization ID (UUID)

@@ -496,6 +496,10 @@ A package switched off (`enable: false`) or deleted, or a fee whose `deferrable`
 may keep applying for up to 60 seconds when a transaction read the packages concurrently with the
 change.
 
+Closing an account is permanent. To retire a fee account, point the fee package at the new fee
+account and leave the old account open: reverts of earlier transactions and collections of fee
+debt already owed to it still post there.
+
 `POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
 debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
 capped at `maxAmount` and at what the balance owes. It charges no fee and never originates a debt.
