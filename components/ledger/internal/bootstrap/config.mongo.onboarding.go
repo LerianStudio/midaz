@@ -14,9 +14,6 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -116,35 +113,8 @@ func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboar
 
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	// Ensure indexes for known collections (only in single-tenant mode)
-	ensureOnboardingMongoIndexes(mongoConnection, logger)
-
 	return &onboardingMongoComponents{
 		connection:   mongoConnection,
 		metadataRepo: metadataRepo,
 	}, nil
-}
-
-// ensureOnboardingMongoIndexes creates the entity_id index on known onboarding collections.
-// Only called in single-tenant mode (multi-tenant indexes are managed per-tenant).
-func ensureOnboardingMongoIndexes(conn *libMongo.Client, logger libLog.Logger) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "entity_id", Value: 1}},
-		Options: options.Index().
-			SetUnique(false),
-	}
-
-	entities := []string{
-		constant.EntityOrganization, constant.EntityLedger, constant.EntitySegment, constant.EntityAccount,
-		constant.EntityPortfolio, constant.EntityAsset, constant.EntityAccountType,
-	}
-	for _, entity := range entities {
-		collection := strings.ToLower(entity)
-		if err := conn.EnsureIndexes(ctx, collection, indexModel); err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to ensure indexes for collection", libLog.String("collection", collection), libLog.Err(err))
-		}
-	}
 }

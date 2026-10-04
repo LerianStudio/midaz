@@ -610,6 +610,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if onbMgo.connection != nil {
 		addCleanup(func() { _ = onbMgo.connection.Close(context.Background()) })
+		ensureMetadataIndexes(onbMgo.connection, logger, onboardingMetadataEntities)
 	}
 
 	// 4. Transaction MongoDB → metadata repo
@@ -623,6 +624,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if txnMgo.connection != nil {
 		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
+		ensureMetadataIndexes(txnMgo.connection, logger, transactionMetadataEntities)
 	}
 
 	// 4b. CRM MongoDB → holder/instrument repos + handlers (collapsed from the
