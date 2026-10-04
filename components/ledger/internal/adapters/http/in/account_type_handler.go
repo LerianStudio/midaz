@@ -188,7 +188,7 @@ type UpdateAccountTypeResponse struct {
 
 // UpdateAccountType decodes+validates the raw body imperatively then delegates to
 // the shared updateAccountType core.
-func (handler *AccountTypeHandler) UpdateAccountType(ctx context.Context, in *UpdateAccountTypeRequest) (*UpdateAccountTypeResponse, error) {
+func (handler *AccountTypeHandler) UpdateAccountType(ctx context.Context, in *UpdateAccountTypeRequest, metadataNull metadataNullPolicy) (*UpdateAccountTypeResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -200,7 +200,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(ctx context.Context, in *Up
 	}
 
 	payload := new(mmodel.UpdateAccountTypeInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

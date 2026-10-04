@@ -357,6 +357,14 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
 | DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
 
+**PATCH metadata.** Every PATCH whose body carries `metadata` (organization, ledger, portfolio,
+segment, account, account type, asset, transaction, operation, operation and transaction routes,
+holder, instrument) applies it as an RFC 7396 merge patch: no `metadata` key or `{}` leaves the
+stored metadata untouched, `{"k": null}` deletes `k`, any other key is added or replaced.
+`"metadata": null` deletes every client key on `/v1` (the ledger's reserved fee keys stay) and
+leaves the stored metadata untouched on `/v2`, which deletes keys one at a time. See
+`docs/api/SCOPING.md`.
+
 #### Settings / Metadata
 
 | Method | Path | Description |

@@ -57,6 +57,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a Holder",
+		Description:      patchMetadataDocV2,
 		Tags:             []string{tag},
 		Security:         secHolderBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.

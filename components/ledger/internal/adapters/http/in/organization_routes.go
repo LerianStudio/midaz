@@ -79,15 +79,18 @@ func registerOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		Security:    secOrgBearer,
 	}, h.GetOrganizationByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateOrganization" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an existing organization",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secOrgBearer,
 		SkipValidateBody: true, // body validated imperatively — see createOrganization.
-	}, h.UpdateOrganization)
+	}, withMetadataNull(metadataNull, h.UpdateOrganization))
 	attachTypedRequestBody[mmodel.UpdateOrganizationInput](api, "updateOrganization"+opSuffix)
 
 	huma.Register(api, huma.Operation{

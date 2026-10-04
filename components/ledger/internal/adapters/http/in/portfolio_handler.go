@@ -174,7 +174,7 @@ type UpdatePortfolioResponse struct {
 
 // UpdatePortfolio decodes+validates the raw body imperatively then delegates to
 // the shared updatePortfolio core.
-func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *UpdatePortfolioRequest) (*UpdatePortfolioResponse, error) {
+func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *UpdatePortfolioRequest, metadataNull metadataNullPolicy) (*UpdatePortfolioResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -186,7 +186,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *Update
 	}
 
 	payload := new(mmodel.UpdatePortfolioInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
