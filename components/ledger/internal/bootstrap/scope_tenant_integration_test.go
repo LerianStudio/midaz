@@ -57,6 +57,12 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 	aliceID := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Alice", "@alice", "USD", nil)
 
+	holderID := uuid.New()
+	holderParams := pgtestutil.DefaultAccountParams()
+	holderParams.Alias = "@held"
+	holderParams.HolderID = &holderID
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, holderParams)
+
 	uc := &query.UseCase{AccountRepo: account.NewAccountPostgreSQLRepository(nil, true)}
 	tenantPG := &fixedTenantPG{db: db}
 
@@ -69,13 +75,16 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 
 	server := buildFullSurfaceServerWithAuth(t, auth)
 
-	send := func(claims jwt.MapClaims) int {
+	aliasPath := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/accounts/alias/@alice"
+	holderPath := "/v2/organizations/" + orgID.String() + "/holders/" + holderID.String()
+
+	sendTo := func(path string, claims jwt.MapClaims) int {
 		t.Helper()
 
 		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("mt-secret"))
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(fiber.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/alias/@alice", nil)
+		req := httptest.NewRequest(fiber.MethodGet, path, nil)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 
 		resp, err := server.app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -85,6 +94,8 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 
 		return resp.StatusCode
 	}
+
+	send := func(claims jwt.MapClaims) int { return sendTo(aliasPath, claims) }
 
 	tenant := uuid.NewString()
 	partner := jwt.MapClaims{"type": "application", "owner": "mt-org", "sub": "mt-org/mt-app", "partner": "mt-partner"}
@@ -113,4 +124,39 @@ func TestScopeResolvers_MultiTenantReachTheTenantDatabase(t *testing.T) {
 		assert.Equal(t, fiber.StatusServiceUnavailable, send(partner))
 		assert.Empty(t, recorder.resolved())
 	})
+
+	t.Run("the credential's tenant database resolves the ledgers of a holder", func(t *testing.T) {
+		recorder.reset()
+
+		claims := jwt.MapClaims{"tenantId": tenant}
+		for k, v := range partner {
+			claims[k] = v
+		}
+
+		sendTo(holderPath, claims)
+
+		var ledgers []string
+
+		for _, attrs := range recorder.snapshot() {
+			if ledger, ok := attrs["ledgerId"]; ok {
+				ledgers = append(ledgers, ledger)
+			}
+		}
+
+		assert.Equal(t, []string{ledgerID.String()}, ledgers, "the holder's ledger, read from its tenant's accounts")
+	})
+
+	t.Run("a holder lookup for a credential naming no tenant is refused as unavailable", func(t *testing.T) {
+		recorder.reset()
+
+		assert.Equal(t, fiber.StatusServiceUnavailable, sendTo(holderPath, partner))
+	})
+}
+
+// snapshot returns every question recorded so far.
+func (r *allowRecorder) snapshot() []map[string]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]map[string]string(nil), r.attributes...)
 }
