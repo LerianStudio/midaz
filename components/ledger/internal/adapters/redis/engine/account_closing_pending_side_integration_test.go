@@ -99,6 +99,10 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 				TransactionReader:           reader,
 				Engine:                      executor,
 				AppliedTransactionCompleter: &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}},
+				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+					client:     client,
+					executions: func() []command.EngineExecution { return executor.executions },
+				},
 			}
 
 			amount := decimal.NewFromInt(30)
@@ -137,6 +141,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 			require.NoError(t, markers.SetAccountClosedMarker(ctx, organizationID, ledgerID, destinationAccountID, accountClosingLifecycleInstant))
 
 			reader.persisted = pending
+			reader.executionID = executor.executions[0].Execution.ExecutionID
 			reader.balances[0].Available = decimal.NewFromInt(70)
 			reader.balances[0].OnHold = decimal.NewFromInt(30)
 			reader.balances[0].Version = 8
