@@ -659,7 +659,8 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 	_, err := repo.Create(ctx, bp)
 	require.NoError(t, err)
 
-	update := &bson.M{"$set": bson.M{"label": "Updated Label", "enable": false}}
+	// A value starting with "$" is stored as written, never read as a field path.
+	update := &bson.M{"$set": bson.M{"label": "Updated Label", "description": "$label", "enable": false}}
 	updated, err := repo.Update(ctx, bp.ID, orgID, billing_package.AnyLedger, update)
 	require.NoError(t, err)
 	require.NotNil(t, updated, "Update must return the persisted entity")
@@ -670,6 +671,8 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 	got, err := repo.FindByID(ctx, bp.ID, orgID, billing_package.AnyLedger)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Label", got.Label, "label change must be persisted")
+	require.NotNil(t, got.Description)
+	assert.Equal(t, "$label", *got.Description)
 	require.NotNil(t, got.Enable)
 	assert.False(t, *got.Enable, "enable change must be persisted")
 }
