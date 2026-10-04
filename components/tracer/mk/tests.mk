@@ -64,31 +64,16 @@ else
 endif
 # Tracer's integration recipe uses RUN_FLAG (no default ^TestIntegration pattern).
 INTEG_RUN_FLAG := $(RUN_FLAG)
+# Integration discovery is tag-based, scoped to tracer's own tree.
+INTEG_PACKAGE_PATTERNS := ./internal/... ./pkg/... ./tests/...
 
-# Pull in the shared scaffolding. Knobs above + the discovery/chaos macro
-# overrides below reproduce tracer's pre-extraction behavior.
+# Pull in the shared scaffolding. Knobs above + the chaos macro
+# override below reproduce tracer's pre-extraction behavior.
 include $(MIDAZ_ROOT)/mk/test-go.mk
 
 # ------------------------------------------------------
-# Tracer-specific overrides of the shared discovery / chaos macros
+# Tracer-specific override of the shared chaos macro
 # ------------------------------------------------------
-# Tracer discovers integration tests from two sources:
-#   1. ./internal and ./pkg: files named *_integration_test.go (component tests)
-#   2. ./tests/integration: E2E API tests with //go:build integration tag
-# (recipe expansion is late-bound, so redefining after include takes effect).
-define integ_discover
-	if [ -n "$(PKG)" ]; then \
-	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list $(PKG) 2>/dev/null | tr '\n' ' '); \
-	else \
-	  echo "Finding packages with integration test files..."; \
-	  dirs=$$(find ./internal ./pkg -name '*_integration_test.go' 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	  e2e_pkgs=$$(go list -tags=$(_INTEG_TAGS) ./tests/integration/... 2>/dev/null | tr '\n' ' '); \
-	  pkgs="$$pkgs $$e2e_pkgs"; \
-	fi
-endef
-
 # Tracer's integration suite has no CHAOS notion — suppress the root chaos notice.
 # Must expand to a shell no-op (`:`), not empty: the root recipe uses it as
 # `$(integ_chaos_notice); \`, so an empty value leaves a bare `;` that aborts
