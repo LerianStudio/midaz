@@ -6,13 +6,11 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -32,8 +30,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
-
-var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 
 // UpdatePackageByID update an example from the repository within the given ledger.
 // A ledgerID of uuid.Nil updates the package on whichever ledger of the
@@ -101,13 +97,6 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, le
 
 	updatedPackage, err := uc.packageRepo.Update(ctx, id, organizationID, ledgerID, &updateFields)
 	if err != nil {
-		if errors.Is(err, ErrDatabaseItemNotFound) {
-			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Package not found for update", bizErr)
-
-			return bizErr
-		}
-
 		libOpentelemetry.HandleSpanError(span, "Failed to update package on repo by id", err)
 
 		return err
@@ -176,6 +165,8 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 		setFields["waived_accounts"] = up.WaivedAccounts
 	}
 
+	feeCount := len(feesAmountData.Fees)
+
 	// Update fee map
 	if up.Fee != nil {
 		minAmount, errMinAmount := up.EffectiveMinimumAmount(feesAmountData.MinAmount)
@@ -183,7 +174,9 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 			return nil, nil, errMinAmount
 		}
 
-		errValidationFeesSet := uc.validationFeesSetUnset(ctx, minAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
+		var errValidationFeesSet error
+
+		feeCount, errValidationFeesSet = uc.validationFeesSetUnset(ctx, minAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
 		if errValidationFeesSet != nil {
 			return nil, nil, errValidationFeesSet
 		}
@@ -193,21 +186,24 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 		return setFields, unsetFields, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
 	}
 
+	// A package without fees is disabled, whatever the patch asks of enable.
+	if feeCount == 0 {
+		setFields["enable"] = false
+	}
+
 	setFields["updated_at"] = time.Now()
 
 	return setFields, unsetFields, nil
 }
 
-// validationFeesSetUnset Validate the fee struct to update correctly
-func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal.Decimal, organizationID, ledgerID uuid.UUID, existingFees map[string]model.Fee, updateFeesEntity map[string]model.Fee, setFields, unsetFields bson.M) error {
-	// First pass: process all fees and build final state
-	finalFees := make(map[string]model.Fee)
-	prioritySet := make(map[int]struct{})
-
-	// Start with existing fees
+// validationFeesSetUnset validates the fee patch, writes it into the set and
+// unset fields, and returns how many fees the package holds once it applies.
+func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal.Decimal, organizationID, ledgerID uuid.UUID, existingFees map[string]model.Fee, updateFeesEntity map[string]model.Fee, setFields, unsetFields bson.M) (int, error) {
+	// The priority each fee holds once the patch is applied: a patch entry that
+	// leaves priority out keeps the stored one.
+	priorities := make(map[string]int, len(existingFees))
 	for key, fee := range existingFees {
-		finalFees[key] = fee
-		prioritySet[fee.Priority] = struct{}{}
+		priorities[key] = fee.Priority
 	}
 
 	// Process update fees
@@ -216,57 +212,54 @@ func (uc *UseCase) validationFeesSetUnset(ctx context.Context, minAmount decimal
 		_, feeExists := existingFees[keyFormatted]
 
 		if !feeExists {
-			// New fee - validate and add to final state
+			// New fee - validate it and set it whole
 			err := fee.ValidateNewFee(key, minAmount)
 			if err != nil {
-				return err
+				return 0, err
 			}
 
 			// Validate that the credit account exists.
 			if errGetAccount := uc.resolver.AccountExistsByAlias(ctx, organizationID, ledgerID, fee.CreditAccount); errGetAccount != nil {
-				return errGetAccount
+				return 0, errGetAccount
 			}
 
-			// Convert fee to MongoDB format and add to setFields
-			mongoFee, errConvert := uc.convertFeeToMongoFormat(fee)
+			// The converter normalizes the raw key into keyFormatted. Normalization is
+			// not idempotent, so it must see the key the client sent.
+			mongoFees, errConvert := pack.FromEntityFeeMap(map[string]model.Fee{key: fee})
 			if errConvert != nil {
-				return errConvert
+				return 0, errConvert
 			}
 
-			setFields["fees."+keyFormatted] = mongoFee
-
-			// Add to final state for priority validation
-			finalFees[keyFormatted] = fee
+			setFields["fees."+keyFormatted] = mongoFees[keyFormatted]
+			priorities[keyFormatted] = fee.Priority
 		} else {
 			// Existing fee - check if it's being updated or removed
 			hasFieldsToUpdate, errSetFieldsToUpdate := fee.SetAndValidateHasFieldsToUpdate(ctx, fee.IsDeductibleFrom, minAmount, existingFees, keyFormatted, organizationID, ledgerID, setFields, uc.resolver)
 			if errSetFieldsToUpdate != nil {
-				return errSetFieldsToUpdate
+				return 0, errSetFieldsToUpdate
 			}
 
-			if !hasFieldsToUpdate {
-				// Fee is being removed
+			switch {
+			case !hasFieldsToUpdate:
 				unsetFields["fees."+keyFormatted] = ""
 
-				delete(finalFees, keyFormatted)
-			} else {
-				// Fee is being updated - update in final state
-				finalFees[keyFormatted] = fee
+				delete(priorities, keyFormatted)
+			case fee.Priority != 0:
+				priorities[keyFormatted] = fee.Priority
 			}
 		}
 	}
 
-	// Second pass: validate priorities in final state
-	finalPrioritySet := make(map[int]struct{})
-	for _, fee := range finalFees {
-		if _, exists := finalPrioritySet[fee.Priority]; exists {
-			return pkg.ValidateBusinessError(constant.ErrPriorityInvalid, "")
+	seen := make(map[int]struct{}, len(priorities))
+	for _, priority := range priorities {
+		if _, taken := seen[priority]; taken {
+			return 0, pkg.ValidateBusinessError(constant.ErrPriorityInvalid, "")
 		}
 
-		finalPrioritySet[fee.Priority] = struct{}{}
+		seen[priority] = struct{}{}
 	}
 
-	return nil
+	return len(priorities), nil
 }
 
 // SetAmountsDataToUpdate Setting the amounts data existent of update object
@@ -320,40 +313,4 @@ func (uc *UseCase) SetAmountsDataToUpdate(ctx context.Context, logger libLog.Log
 	}
 
 	return nil
-}
-
-// convertFeeToMongoFormat converts a model.Fee to pack.Fee (MongoDB format)
-func (uc *UseCase) convertFeeToMongoFormat(fee model.Fee) (pack.Fee, error) {
-	// Convert calculations to MongoDB format
-	calculations := make([]pack.Calculation, 0, len(fee.CalculationModel.Calculations))
-
-	for _, calc := range fee.CalculationModel.Calculations {
-		value, err := decimal.NewFromString(calc.Value)
-		if err != nil {
-			return pack.Fee{}, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, constant.EntityPackage, "calculationModel.calculations.value")
-		}
-
-		calculations = append(calculations, pack.Calculation{
-			Type:  calc.Type,
-			Value: bsondecimal.Decimal{Decimal: value},
-		})
-	}
-
-	// Convert calculation model
-	calcModel := pack.CalculationModel{
-		ApplicationRule: fee.CalculationModel.ApplicationRule,
-		Calculations:    calculations,
-	}
-
-	return pack.Fee{
-		FeeLabel:         fee.FeeLabel,
-		CalculationModel: calcModel,
-		ReferenceAmount:  fee.ReferenceAmount,
-		Priority:         fee.Priority,
-		IsDeductibleFrom: fee.IsDeductibleFrom,
-		CreditAccount:    fee.CreditAccount,
-		RouteFrom:        fee.RouteFrom,
-		RouteTo:          fee.RouteTo,
-		Deferrable:       fee.GetDeferrable(),
-	}, nil
 }

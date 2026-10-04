@@ -46,7 +46,6 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
 	filter := packageScopeFilter(id, organizationID, ledgerID)
-	pipeline := buildUpdatePipeline(updateFields)
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
 	_, spanUpdate := tracer.Start(ctx, "repository.package.update.find_one_and_update")
@@ -56,7 +55,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 
 	var record PackageMongoDBModel
 
-	if err = coll.FindOneAndUpdate(ctx, filter, pipeline, opts).Decode(&record); err != nil {
+	if err = coll.FindOneAndUpdate(ctx, filter, updateFields, opts).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No document matched for update", bizErr)
@@ -70,50 +69,4 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	}
 
 	return record.ToEntity(), nil
-}
-
-// buildUpdatePipeline translates the classic $set/$unset update document into an
-// aggregation pipeline and appends the auto-disable stage, so a single
-// FindOneAndUpdate reflects the fees change and its enable side effect in one
-// atomic write. The final stage sets enable to false when the resulting fees map
-// is empty, and otherwise leaves it as the value produced by the preceding stages.
-func buildUpdatePipeline(updateFields *bson.M) bson.A {
-	pipeline := bson.A{}
-
-	if updateFields != nil {
-		if setFields, ok := (*updateFields)["$set"]; ok {
-			pipeline = append(pipeline, bson.M{"$set": setFields})
-		}
-
-		if unsetPaths := unsetFieldPaths((*updateFields)["$unset"]); len(unsetPaths) > 0 {
-			pipeline = append(pipeline, bson.M{"$unset": unsetPaths})
-		}
-	}
-
-	autoDisable := bson.M{"$set": bson.M{"enable": bson.M{"$cond": bson.A{
-		bson.M{"$eq": bson.A{
-			bson.M{"$size": bson.M{"$objectToArray": bson.M{"$ifNull": bson.A{"$fees", bson.M{}}}}}, 0,
-		}},
-		false,
-		"$enable",
-	}}}}
-
-	return append(pipeline, autoDisable)
-}
-
-// unsetFieldPaths extracts the field paths from a classic $unset document (a map
-// whose keys are the paths to remove) into the array form the aggregation
-// pipeline $unset stage expects.
-func unsetFieldPaths(unset any) bson.A {
-	unsetMap, ok := unset.(bson.M)
-	if !ok {
-		return nil
-	}
-
-	paths := make(bson.A, 0, len(unsetMap))
-	for path := range unsetMap {
-		paths = append(paths, path)
-	}
-
-	return paths
 }
