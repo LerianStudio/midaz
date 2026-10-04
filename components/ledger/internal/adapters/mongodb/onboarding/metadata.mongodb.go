@@ -335,6 +335,12 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	_, spanUpdate := tracer.Start(ctx, "mongodb.update_metadata.update_one")
 
 	_, err = coll.UpdateOne(ctx, filter, update, opts)
+	if mongo.IsDuplicateKeyError(err) {
+		// The unique entity_id index refused a concurrent upsert. DocumentDB does not retry the
+		// losing upsert (MongoDB >= 4.2 does), so match the winner's document.
+		_, err = coll.UpdateOne(ctx, filter, update, opts)
+	}
+
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, collection)
