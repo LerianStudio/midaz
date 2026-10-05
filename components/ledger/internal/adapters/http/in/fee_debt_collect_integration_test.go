@@ -48,7 +48,7 @@ func (h *feeHarness) newFeeDebtCollectApp() *fiber.App {
 func (h *feeHarness) enableFeeDebtCollect(t *testing.T) *fee_debt.Repository {
 	t.Helper()
 
-	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
+	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: h.mongoContainer.DBName, DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)
 
 	engineRedis, ok := h.redisRepo.(*redistransaction.RedisConsumerRepository)
