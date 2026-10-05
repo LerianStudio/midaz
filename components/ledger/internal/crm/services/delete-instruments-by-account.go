@@ -53,6 +53,10 @@ func (uc *UseCase) DeleteInstrumentsByAccount(ctx context.Context, organizationI
 		if err == nil {
 			deleted++
 
+			logger.Log(ctx, libLog.LevelInfo, "Instrument soft-deleted by account cascade",
+				libLog.String("instrument_id", ref.ID.String()),
+				libLog.String("action", "cascade_soft_delete"))
+
 			continue
 		}
 

@@ -125,6 +125,28 @@ func TestDeleteInstrumentsByAccount(t *testing.T) {
 			expectedCount: 0,
 			expectedErr:   deleteErr,
 		},
+		{
+			name: "technical error after a success returns the partial count",
+			mockSetup: func(repo *instrument.MockRepository) {
+				repo.EXPECT().
+					FindLiveRefsByAccount(gomock.Any(), cascadeOrgID, cascadeLedgerID, cascadeAccountID).
+					Return([]instrument.InstrumentRef{
+						{ID: cascadeInstrumentID, HolderID: cascadeHolderID},
+						{ID: cascadeInstrumentID2, HolderID: cascadeHolderID},
+					}, nil)
+				gomock.InOrder(
+					repo.EXPECT().
+						Delete(gomock.Any(), cascadeOrgID, cascadeHolderID, cascadeInstrumentID, false).
+						Return(nil),
+					repo.EXPECT().
+						Delete(gomock.Any(), cascadeOrgID, cascadeHolderID, cascadeInstrumentID2, false).
+						Return(deleteErr),
+				)
+			},
+			expectedCount:   1,
+			expectedErr:     deleteErr,
+			expectedEmitted: []uuid.UUID{cascadeInstrumentID},
+		},
 	}
 
 	for _, tc := range testCases {
