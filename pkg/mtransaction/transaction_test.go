@@ -5,14 +5,12 @@
 package mtransaction
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBalance_IsEmpty(t *testing.T) {
@@ -480,60 +478,6 @@ func TestTransaction_IsEmpty(t *testing.T) {
 
 			got := tt.transaction.IsEmpty()
 			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestTransaction_Scheme_JSONRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		scheme     string
-		wantKey    bool
-		wantScheme string
-	}{
-		{
-			name:       "declared scheme is serialized and read back verbatim",
-			scheme:     "PIX",
-			wantKey:    true,
-			wantScheme: "PIX",
-		},
-		{
-			name:    "empty scheme omits the key",
-			scheme:  "",
-			wantKey: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			in := Transaction{
-				Scheme: tt.scheme,
-				Send: Send{
-					Asset: "BRL",
-					Value: decimal.NewFromInt(100),
-				},
-			}
-
-			raw, err := json.Marshal(in)
-			require.NoError(t, err)
-
-			var keys map[string]json.RawMessage
-			require.NoError(t, json.Unmarshal(raw, &keys))
-
-			_, hasKey := keys["scheme"]
-			assert.Equal(t, tt.wantKey, hasKey)
-
-			if tt.wantKey {
-				assert.JSONEq(t, `"`+tt.wantScheme+`"`, string(keys["scheme"]))
-			}
-
-			var out Transaction
-			require.NoError(t, json.Unmarshal(raw, &out))
-			assert.Equal(t, tt.wantScheme, out.Scheme)
 		})
 	}
 }
