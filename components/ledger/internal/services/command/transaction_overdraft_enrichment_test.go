@@ -155,8 +155,8 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 	assert.Equal(t, libConstants.CREATED, companionOp.Amount.TransactionType)
 	assert.Equal(t, "BRL", companionOp.Amount.Asset)
 
-	// validate must be mirrored so ValidateBalancesRules sees matching counts.
-	// The concat-form key matches the companion BalanceOperation.Alias so
+	// validate must be mirrored so the companion's operation record finds its
+	// amount by alias. The concat-form key matches the companion BalanceOperation.Alias so
 	// there is exactly one canonical key per companion entry.
 	companionKey := "0#@alice#overdraft"
 	companionEntry, ok := validate.From[companionKey]
@@ -765,8 +765,8 @@ func TestEnrichOverdraftOperations_DestinationRefundSplit(t *testing.T) {
 	assert.True(t, companionOp.Amount.Value.Equal(decimal.NewFromInt(50)),
 		"companion repay amount must equal min(80, 50) = 50, got %s", companionOp.Amount.Value)
 
-	// Validate must carry the companion in validate.To so ValidateBalancesRules
-	// keeps its len(balances) == len(From)+len(To) invariant.
+	// Validate must carry the companion in validate.To so the companion's
+	// operation record finds its amount by alias.
 	companionKey := "0#@alice#overdraft"
 	entry, ok := validate.To[companionKey]
 	require.True(t, ok, "companion alias must be registered in validate.To")
