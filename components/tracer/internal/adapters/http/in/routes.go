@@ -12,6 +12,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
@@ -197,6 +198,10 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 	f := fiber.New(fiber.Config{
 		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
+		// A slow or idle client cannot hold a connection open indefinitely.
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	})
 
 	// Suppress the Fiber startup banner. Fiber v3 dropped the Config-level
