@@ -28,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -172,8 +173,11 @@ func resReadStatus(t *testing.T, db *sql.DB, reservationID uuid.UUID) string {
 
 // resWireService builds a ReservationService over the integration DB, with the
 // given resolver specs and a counting audit writer. The returned audit writer is
-// shared with the reaper in tests that need it.
-func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, audit *resCountingAudit) *services.ReservationService {
+// shared with the reaper in tests that need it. clk is the clock the service uses
+// to stamp reserve/confirm/release timestamps; pass nil for RealClock (the proofs
+// that don't race a reaper TTL against it), or a fixed clock shared with the
+// reaper so the TTL horizon the two sides compute from is identical.
+func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, audit *resCountingAudit, clk clock.Clock) *services.ReservationService {
 	t.Helper()
 
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
@@ -186,7 +190,7 @@ func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, a
 		resRepo,
 		audit,
 		allowRuleEvaluator{}, // these proofs exercise the limit lifecycle only
-		nil,                  // RealClock for reserve/confirm/release timestamps
+		clk,
 	)
 	require.NoError(t, err, "failed to wire reservation service")
 
@@ -216,6 +220,19 @@ func resWireReaper(t *testing.T, db *sql.DB, audit *resCountingAudit, sweepAt ti
 	require.NoError(t, err, "failed to wire reservation reaper worker")
 
 	return reaper
+}
+
+// resDrainStaleReservations sweeps every RESERVED row already past sweepAt
+// before a proof reserves. The integration tests share one database and the
+// reaper's find is DB-wide by design, so a reservation another test left
+// RESERVED would be counted by the proof's own sweep and break its exact
+// released count. The drain uses a throwaway audit writer so the proof's
+// batch-summary count stays at one.
+func resDrainStaleReservations(t *testing.T, db *sql.DB, sweepAt time.Time) {
+	t.Helper()
+
+	_, err := resWireReaper(t, db, &resCountingAudit{}, sweepAt).RunOnce(context.Background())
+	require.NoError(t, err, "failed to drain stale reservations before the proof")
 }
 
 // resSpec is a small helper for the stub resolver: one counter-backed limit. The
@@ -272,12 +289,21 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		periodKey := "2026-06"
 		txID := testutil.MustDeterministicUUID(8721)
 
+		// The service and the reaper share one fixed clock: the reservation's
+		// expiry is computed from baseTime, and the sweep horizon is baseTime +
+		// TTL + a margin, so the two sides can never drift against the wall clock.
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		audit := &resCountingAudit{}
 		svc := resWireService(t, db, resStubResolver{
 			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 400, 10000)},
-		}, audit)
+		}, audit, clk)
 
 		ctx := context.Background()
+
+		resDrainStaleReservations(t, db, sweepAt)
 
 		// Phase one: reserve. Capacity is held in reserved_usage.
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
@@ -291,9 +317,8 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		// --- LEDGER CRASH: neither Confirm nor Release is ever called. ---
 
-		// TTL elapses. The reaper sweeps at now + TTL + a margin and expires the
-		// abandoned reservation.
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		// TTL elapses. The reaper sweeps past the TTL and expires the abandoned
+		// reservation.
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -326,12 +351,18 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		periodKey := "2026-06"
 		txID := testutil.MustDeterministicUUID(8722)
 
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		audit := &resCountingAudit{}
 		svc := resWireService(t, db, resStubResolver{
 			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 700, 10000)},
-		}, audit)
+		}, audit, clk)
 
 		ctx := context.Background()
+
+		resDrainStaleReservations(t, db, sweepAt)
 
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
@@ -344,7 +375,6 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		// From the tracer's perspective nothing arrived; the reservation is still
 		// RESERVED. The TTL reaper is the durability backstop.
 
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -381,6 +411,12 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		audit := &resCountingAudit{}
 
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
+		resDrainStaleReservations(t, db, sweepAt)
+
 		// Two separate transactions, each reserving + confirming against the SAME
 		// counter, so the committed sum is unambiguous: 300 + 250 = 550.
 		var confirmedIDs []uuid.UUID
@@ -394,7 +430,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		} {
 			svc := resWireService(t, db, resStubResolver{
 				specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, c.amount, 10000)},
-			}, audit)
+			}, audit, clk)
 
 			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), services.ReserveOptions{})
 			require.NoError(t, err)
@@ -419,7 +455,6 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		// --- LEDGER CRASH after the confirms, before any reaper sweep. ---
 		// The reaper runs: there are NO RESERVED rows, so it is a no-op and the
 		// CONFIRMED state is untouched.
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -458,15 +493,21 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		periodKey := "2026-06"
 		txID := testutil.MustDeterministicUUID(8724)
 
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		audit := &resCountingAudit{}
 		svc := resWireService(t, db, resStubResolver{
 			specs: []query.ReservationSpec{
 				resSpec(limitA, scopeA, periodKey, 400, 10000),
 				resSpec(limitB, scopeB, periodKey, 250, 10000),
 			},
-		}, audit)
+		}, audit, clk)
 
 		ctx := context.Background()
+
+		resDrainStaleReservations(t, db, sweepAt)
 
 		// One transaction, two reservations, in ONE service call.
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
@@ -479,7 +520,6 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		require.Equal(t, int64(250), rsvB)
 
 		// --- Confirm lost for the whole transaction. TTL elapses. ---
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -575,7 +615,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 				audit := &resCountingAudit{}
 				svc := resWireService(t, db, resStubResolver{
 					specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 1, capacity)},
-				}, audit)
+				}, audit, nil)
 
 				txID := testutil.MustDeterministicUUID(8820 + int64(idx))
 
@@ -656,7 +696,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 					audit := &resCountingAudit{}
 					svc := resWireService(t, db, resStubResolver{
 						specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, amounts[idx], capacity)},
-					}, audit)
+					}, audit, nil)
 
 					txID := testutil.MustDeterministicUUID(int64(810000 + round*100 + idx))
 
@@ -718,7 +758,7 @@ func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
 	audit := &resCountingAudit{}
 	svc := resWireService(t, db, resStubResolver{
 		specs: []query.ReservationSpec{resSpecDec(limitID, scopeKey, periodKey, want, decimal.NewFromInt(20))},
-	}, audit)
+	}, audit, nil)
 
 	ctx := context.Background()
 
