@@ -405,7 +405,7 @@ also when a later package fails, so a warmed cache does not keep serving the del
 transaction already in flight that loaded the package before the invalidation may still try to
 credit the alias once and answer `0019`; the engine refuses it before any movement.
 
-**Events.** `instrument.deleted`, `fee_packages.updated`, and `billing_package.updated` are emitted
+**Events.** `instrument.deleted`, `fee_packages.updated`, and `fee_billing_packages.updated` are emitted
 by the CRM and fees use cases inside the cascade, so they precede `account.deleted`. No field on the
 package records why it changed; the `updated` event and the delete log are the trail.
 
