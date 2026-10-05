@@ -36,20 +36,13 @@ func reserveRules(t *testing.T, accountID uuid.UUID, amount string) *reservation
 
 // reserveRulesFor is reserveRules with an explicit ledger transaction id and
 // revert flag.
-//
-// The transaction's reservations are released when the test ends: the
-// integration database is shared, and a RESERVED row left behind would be
-// swept by any reaper another test drives past the reservation TTL.
 func reserveRulesFor(t *testing.T, transactionID, accountID uuid.UUID, amount string, revert bool) *reservationv1.ReserveResult {
 	t.Helper()
-
-	client := testutil.DialReservationClient(t)
-	t.Cleanup(func() { releaseTypedReservations(t, client, transactionID) })
 
 	ctx, cancel := context.WithTimeout(context.Background(), reserveRulesTimeout)
 	defer cancel()
 
-	got, err := client.Reserve(ctx, &reservationv1.ReserveRequest{
+	got, err := testutil.DialReservationClient(t).Reserve(ctx, &reservationv1.ReserveRequest{
 		TransactionId:        transactionID.String(),
 		RequestId:            uuid.New().String(),
 		Amount:               amount,
