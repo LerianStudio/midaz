@@ -51,7 +51,7 @@ func (h *feeHarness) newAccountAdminV2App() *fiber.App {
 func TestFeeDebtCreditorGuard(t *testing.T) {
 	h := setupFeeHarness(t)
 
-	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
+	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: h.mongoContainer.DBName, DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)
 
 	h.commandUC.FeeDebts = feeDebts
