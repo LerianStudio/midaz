@@ -136,15 +136,22 @@ func TestIntegration_AccountRepository_FindAllByHolderConfinedToTheScope(t *test
 	ledger2 := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 	holder := uuid.Must(libCommons.GenerateUUIDv7())
 
-	owned := func(ledgerID uuid.UUID, alias string) uuid.UUID {
+	portfolio1 := pgtestutil.CreateTestPortfolio(t, container.DB, orgID, ledger1)
+	portfolio2 := pgtestutil.CreateTestPortfolio(t, container.DB, orgID, ledger1)
+	segment1 := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledger1, pgtestutil.DefaultSegmentParams())
+
+	owned := func(ledgerID uuid.UUID, alias string, portfolioID, segmentID *uuid.UUID) uuid.UUID {
 		p := pgtestutil.DefaultAccountParams()
 		p.Alias = alias
 		p.HolderID = &holder
+		p.PortfolioID = portfolioID
+		p.SegmentID = segmentID
 
 		return pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, p)
 	}
 
-	in1, in2 := owned(ledger1, "@in-1"), owned(ledger2, "@in-2")
+	in1, in2 := owned(ledger1, "@in-1", &portfolio1, &segment1), owned(ledger2, "@in-2", nil, nil)
+	inP2 := owned(ledger1, "@in-p2", &portfolio2, nil)
 
 	list := func(scope http.ScopeConfinement) []uuid.UUID {
 		t.Helper()
@@ -163,7 +170,12 @@ func TestIntegration_AccountRepository_FindAllByHolderConfinedToTheScope(t *test
 		return ids
 	}
 
-	assert.ElementsMatch(t, []uuid.UUID{in1, in2}, list(nil), "no confinement lists the holder's accounts in every ledger")
+	assert.ElementsMatch(t, []uuid.UUID{in1, in2, inP2}, list(nil), "no confinement lists the holder's accounts in every ledger")
 	assert.ElementsMatch(t, []uuid.UUID{in2}, list(http.ScopeConfinement{"ledgerId": {ledger2}}), "only the accounts of the allowed ledgers")
+	assert.ElementsMatch(t, []uuid.UUID{in1, inP2}, list(http.ScopeConfinement{"ledgerId": {ledger1}}), "a ledger reaches every account of the holder in it")
+	assert.ElementsMatch(t, []uuid.UUID{in1}, list(http.ScopeConfinement{"ledgerId": {ledger1}, "portfolioId": {portfolio1}}), "only the accounts of the allowed portfolios")
+	assert.ElementsMatch(t, []uuid.UUID{in1}, list(http.ScopeConfinement{"ledgerId": {ledger1}, "segmentId": {segment1}}), "only the accounts of the allowed segments")
+	assert.ElementsMatch(t, []uuid.UUID{inP2}, list(http.ScopeConfinement{"ledgerId": {ledger1}, "accountId": {inP2}}), "only the allowed accounts")
 	assert.Empty(t, list(http.ScopeConfinement{"ledgerId": {}}), "an empty allowed list lists nothing")
+	assert.Empty(t, list(http.ScopeConfinement{"ledgerId": {ledger1}, "portfolioId": {}}), "an empty allowed portfolio list lists nothing")
 }

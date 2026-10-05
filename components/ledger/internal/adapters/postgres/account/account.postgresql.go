@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -88,12 +89,6 @@ func accountColumns(withHolder bool) []string {
 	}
 }
 
-// holderAccountScopeColumns are the columns a holder's accounts, which span
-// every ledger of the organization, are confined on.
-var holderAccountScopeColumns = map[string]string{
-	"ledgerId": "ledger_id",
-}
-
 // accountScopeColumns are the columns a list of accounts is confined on, per
 // scope dimension.
 var accountScopeColumns = map[string]string{
@@ -101,6 +96,16 @@ var accountScopeColumns = map[string]string{
 	"portfolioId": "portfolio_id",
 	"segmentId":   "segment_id",
 }
+
+// holderAccountScopeColumns are the columns a holder's accounts are confined
+// on: those of any account list, plus the ledger, since they span every ledger
+// of the organization.
+var holderAccountScopeColumns = func() map[string]string {
+	columns := maps.Clone(accountScopeColumns)
+	columns["ledgerId"] = "ledger_id"
+
+	return columns
+}()
 
 // ErrAccountCloseNotApplied reports that a conditional close matched no row: the
 // account does not exist in the scope, is soft-deleted, or is already closed. The

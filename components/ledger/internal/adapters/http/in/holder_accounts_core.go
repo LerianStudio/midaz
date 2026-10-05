@@ -62,7 +62,7 @@ func (handler *HolderAccountsHandler) getAccountsByHolder(ctx context.Context, o
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	headerParams.Scope = listScope(ctx, scopeDimensionLedger)
+	headerParams.Scope = listScope(ctx, holderAccountListScopeDimensions...)
 
 	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID.String(), holderID, *headerParams)
 	if err != nil {

@@ -19,11 +19,21 @@ const (
 	scopeDimensionPortfolio = "portfolioId"
 	scopeDimensionSegment   = "segmentId"
 	scopeDimensionLedger    = "ledgerId"
+	scopeDimensionHolder    = "holderId"
 )
 
 // accountListScopeDimensions are the dimensions the account list and its count
 // are confined on.
 var accountListScopeDimensions = []string{scopeDimensionAccount, scopeDimensionPortfolio, scopeDimensionSegment}
+
+// holderAccountListScopeDimensions are the dimensions a holder's account list is
+// confined on: those of the account list, plus the ledger, since a holder's
+// accounts span every ledger of the organization.
+var holderAccountListScopeDimensions = append([]string{scopeDimensionLedger}, accountListScopeDimensions...)
+
+// instrumentListScopeDimensions are the dimensions the instrument list is
+// confined on.
+var instrumentListScopeDimensions = []string{scopeDimensionLedger, scopeDimensionAccount, scopeDimensionHolder}
 
 // listScope reads, for each dimension the route filters on, the instances the
 // authorization decision allows a partner credential to see. It returns nil for

@@ -26,22 +26,23 @@ func TestIntegration_InstrumentRepo_FindAll_ConfinedToTheScope(t *testing.T) {
 
 	ledger1, ledger2 := uuid.New(), uuid.New()
 	account1, account2, account3 := uuid.New(), uuid.New(), uuid.New()
+	holder1, holder2 := uuid.New(), uuid.New()
 
-	seed := func(ledgerID, accountID uuid.UUID, document string) uuid.UUID {
+	seed := func(ledgerID, accountID, holderID uuid.UUID, document string) uuid.UUID {
 		params := mongotestutil.DefaultInstrumentParams()
 		params.LedgerID = ledgerID.String()
 		params.AccountID = accountID.String()
 		params.Document = document
 
-		created, err := repo.Create(ctx, organizationID, mongotestutil.CreateTestInstrument(t, uuid.New(), params))
+		created, err := repo.Create(ctx, organizationID, mongotestutil.CreateTestInstrument(t, holderID, params))
 		require.NoError(t, err)
 
 		return *created.ID
 	}
 
-	i1 := seed(ledger1, account1, "22222222201")
-	i2 := seed(ledger1, account2, "22222222202")
-	i3 := seed(ledger2, account3, "22222222203")
+	i1 := seed(ledger1, account1, holder1, "22222222201")
+	i2 := seed(ledger1, account2, holder2, "22222222202")
+	i3 := seed(ledger2, account3, holder2, "22222222203")
 
 	tests := []struct {
 		name  string
@@ -52,7 +53,10 @@ func TestIntegration_InstrumentRepo_FindAll_ConfinedToTheScope(t *testing.T) {
 		{name: "allowed ledger", scope: http.ScopeConfinement{"ledgerId": {ledger1}}, want: []uuid.UUID{i1, i2}},
 		{name: "allowed accounts", scope: http.ScopeConfinement{"accountId": {account2, account3}}, want: []uuid.UUID{i2, i3}},
 		{name: "both dimensions intersect", scope: http.ScopeConfinement{"ledgerId": {ledger1}, "accountId": {account2, account3}}, want: []uuid.UUID{i2}},
+		{name: "allowed holders", scope: http.ScopeConfinement{"holderId": {holder2}}, want: []uuid.UUID{i2, i3}},
+		{name: "holder and ledger intersect", scope: http.ScopeConfinement{"holderId": {holder2}, "ledgerId": {ledger1}}, want: []uuid.UUID{i2}},
 		{name: "an empty allowed list lists nothing", scope: http.ScopeConfinement{"accountId": {}}, want: []uuid.UUID{}},
+		{name: "an empty allowed holder list lists nothing", scope: http.ScopeConfinement{"holderId": {}}, want: []uuid.UUID{}},
 		{name: "a dimension instruments cannot be confined on lists nothing", scope: http.ScopeConfinement{"portfolioId": {uuid.New()}}, want: []uuid.UUID{}},
 	}
 

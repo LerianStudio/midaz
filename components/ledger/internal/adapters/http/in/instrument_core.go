@@ -228,7 +228,7 @@ func (handler *InstrumentHandler) getAllInstruments(ctx context.Context, organiz
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	headerParams.Scope = listScope(ctx, scopeDimensionLedger, scopeDimensionAccount)
+	headerParams.Scope = listScope(ctx, instrumentListScopeDimensions...)
 
 	instruments, err := handler.Service.GetAllInstruments(ctx, organizationID.String(), holderID, *headerParams, includeDeleted)
 	if err != nil {

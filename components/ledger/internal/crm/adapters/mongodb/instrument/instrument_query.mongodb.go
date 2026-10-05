@@ -166,6 +166,7 @@ func (am *MongoDBRepository) appendBasicFilters(filter bson.D, query http.QueryH
 	filter = scopefilter.Apply(filter, query.Scope, map[string]scopefilter.Field{
 		"ledgerId":  {Name: "ledger_id", AsString: true},
 		"accountId": {Name: "account_id", AsString: true},
+		"holderId":  {Name: "holder_id"},
 	})
 
 	if !libCommons.IsNilOrEmpty(query.AccountID) {

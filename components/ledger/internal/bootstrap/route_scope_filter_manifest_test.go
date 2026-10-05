@@ -31,8 +31,8 @@ var wantListFilters = map[string][]string{
 	"HEAD\t/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count": {"accountId"},
 	"GET\t/v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts":                   {"accountId"},
 	"GET\t/v2/organizations/:organization_id/holders":                                        {"ledgerId", "accountId"},
-	"GET\t/v2/organizations/:organization_id/holders/:holder_id/accounts":                    {"ledgerId"},
-	"GET\t/v2/organizations/:organization_id/instruments":                                    {"ledgerId", "accountId"},
+	"GET\t/v2/organizations/:organization_id/holders/:holder_id/accounts":                    {"ledgerId", "accountId", "portfolioId", "segmentId"},
+	"GET\t/v2/organizations/:organization_id/instruments":                                    {"ledgerId", "accountId", "holderId"},
 }
 
 // TestManifestScope_ListFiltersArePinned ties the manifest's filter declarations to
@@ -48,6 +48,24 @@ func TestManifestScope_ListFiltersArePinned(t *testing.T) {
 	}
 
 	assert.Equal(t, wantListFilters, got)
+}
+
+// TestManifestScope_HolderAccountsFilterOnEveryAccountDimension ties the holder's
+// account list to the account list: both list accounts, so the holder's list
+// filters on every dimension the account list does, plus the ledger its path
+// leaves out.
+func TestManifestScope_HolderAccountsFilterOnEveryAccountDimension(t *testing.T) {
+	filters := make(map[string][]string)
+
+	for _, r := range manifestScopeRoutes(t) {
+		filters[scopeRouteKey(r)] = r.Filter
+	}
+
+	accounts := filters["GET\t/v2/organizations/:organization_id/ledgers/:ledger_id/accounts"]
+	require.NotEmpty(t, accounts, "the account list must filter")
+
+	assert.ElementsMatch(t, append([]string{"ledgerId"}, accounts...),
+		filters["GET\t/v2/organizations/:organization_id/holders/:holder_id/accounts"])
 }
 
 // TestManifestScope_ListFiltersReachTheAuthorizationService drives every filtering
