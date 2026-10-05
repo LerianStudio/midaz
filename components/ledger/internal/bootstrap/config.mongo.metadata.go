@@ -30,8 +30,8 @@ var (
 )
 
 // ensureMetadataIndexes gives each single-tenant metadata collection that lacks one a unique
-// entity_id index; the Tenant Manager provisions tenant databases. It never drops an index: a
-// non-unique one is reported for the backfill runner to convert, and nothing here stops the boot.
+// entity_id index; tenant databases get it from the Mongo migrations shipped to the Tenant Manager.
+// It never drops an index: a non-unique one is left to the backfill runner; nothing stops the boot.
 func ensureMetadataIndexes(conn *libMongo.Client, logger libLog.Logger, entities []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
