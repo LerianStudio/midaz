@@ -151,6 +151,12 @@ func (uc *UseCase) detachAliasFromPack(ctx context.Context, span trace.Span, log
 	for attempt := 1; ; attempt++ {
 		detach, matched := buildPackageAliasDetach(current, alias)
 		if !matched {
+			if attempt > 1 {
+				logger.Log(ctx, libLog.LevelDebug, "Skipped fee package that no longer references the deleted account alias",
+					libLog.String("package_id", current.ID.String()),
+				)
+			}
+
 			return false, false, nil
 		}
 
@@ -179,6 +185,10 @@ func (uc *UseCase) detachAliasFromPack(ctx context.Context, span trace.Span, log
 
 		fresh, errFind := uc.packageRepo.FindByID(ctx, current.ID, organizationID, ledgerID)
 		if errors.Is(errFind, mongo.ErrNoDocuments) {
+			logger.Log(ctx, libLog.LevelDebug, "Skipped fee package deleted while detaching account alias",
+				libLog.String("package_id", current.ID.String()),
+			)
+
 			return false, false, nil
 		}
 

@@ -73,6 +73,10 @@ func (s *BillingPackageService) DetachAccountAlias(ctx context.Context, organiza
 		if errUpdate != nil {
 			var notFound pkg.EntityNotFoundError
 			if errors.As(errUpdate, &notFound) {
+				logger.Log(ctx, libLog.LevelDebug, "Skipped billing package deleted while detaching account alias",
+					libLog.String("package_id", bp.ID),
+				)
+
 				continue
 			}
 
