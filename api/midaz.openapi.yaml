@@ -16553,6 +16553,16 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: Payment scheme the transaction declared; absent when none.
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
+          examples:
+            - PIX
+          type: string
         status:
           $ref: '#/components/schemas/TransactionStatus'
         tracerSkipped:
@@ -17246,6 +17256,19 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: >-
+            Optional payment scheme of the transaction. CARD covers any card
+            payment and is never the card brand. Forwarded to the tracer
+            reservation so scheme-scoped limits and rules apply.
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
+          examples:
+            - PIX
+          type: string
         skip:
           $ref: '#/components/schemas/TransactionSkip'
       required:
@@ -17812,6 +17835,19 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        scheme:
+          description: >-
+            Optional payment scheme of the transaction. CARD covers any card
+            payment and is never the card brand. Forwarded to the tracer
+            reservation so scheme-scoped limits and rules apply.
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
+          examples:
+            - PIX
           type: string
         skip:
           $ref: '#/components/schemas/TransactionSkip'
@@ -20952,6 +20988,16 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        scheme:
+          description: Payment scheme the transaction declared; absent when none.
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
+          examples:
+            - PIX
           type: string
         status:
           $ref: '#/components/schemas/TransactionStatus'
