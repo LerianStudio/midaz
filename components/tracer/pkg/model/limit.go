@@ -1167,13 +1167,14 @@ type ListLimitsResult struct {
 	HasMore    bool    `json:"hasMore"`
 }
 
-// UsageSnapshot represents aggregated usage information for a limit.
-// This is the response structure for GetLimitUsage as defined in api-design.md section 4.3.3.
-// For PER_TRANSACTION limits, CurrentUsage is always 0 and ResetAt is nil.
+// UsageSnapshot is the usage of a limit in its current period.
+// Every scope of a limit is enforced against MaxAmount on its own, so
+// CurrentUsage is the most consumed scope of the period, never a sum across
+// scopes. For PER_TRANSACTION limits, CurrentUsage is always 0 and ResetAt is nil.
 type UsageSnapshot struct {
 	// Limit identifier
 	LimitID uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	// Current usage amount (sum of all counters)
+	// Usage of the most consumed scope in the current period
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
 	// Total limit amount (from Limit.MaxAmount)
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
@@ -1188,7 +1189,8 @@ type UsageSnapshot struct {
 // NearLimitThreshold is the threshold percentage (80%) above which nearLimit is true.
 const NearLimitThreshold = 80.0
 
-// NewUsageSnapshot creates a UsageSnapshot from a Limit and its usage counters.
+// NewUsageSnapshot creates a UsageSnapshot from a Limit and the usage counters
+// of its current period, one per scope. CurrentUsage is the largest of them.
 // For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
 func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 	currentUsage := decimal.Zero
@@ -1196,7 +1198,9 @@ func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 	// For PER_TRANSACTION limits, currentUsage is always 0
 	if limit.LimitType != LimitTypePerTransaction {
 		for _, counter := range counters {
-			currentUsage = currentUsage.Add(counter.CurrentUsage)
+			if counter.CurrentUsage.GreaterThan(currentUsage) {
+				currentUsage = counter.CurrentUsage
+			}
 		}
 	}
 
