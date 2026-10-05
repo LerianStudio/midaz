@@ -13,6 +13,7 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -34,6 +35,9 @@ const detachPackageMaxAttempts = 3
 // across every detach attempt.
 var errDetachConflictExhausted = errors.New("fee package kept changing while detaching account alias")
 
+// errNilBillingPackages reports a UseCase wired without its billing package service.
+var errNilBillingPackages = errors.New("billing package service is required to detach an account alias")
+
 // packageAliasDetach is the write that removes one alias from one fee package.
 // disables is true only when the write turns an enabled package off.
 type packageAliasDetach struct {
@@ -43,11 +47,13 @@ type packageAliasDetach struct {
 }
 
 // DetachAccountAlias removes every reference to alias from the ledger's
-// non-deleted fee packages, enabled or not: a fee crediting alias is removed
-// whole, alias leaves waivedAccounts, and a package left without fees is
-// disabled. Packages that do not reference alias are not written. The first
-// failure aborts and is returned; packages already written stay written, and a
-// repeated call finds nothing left to change in them.
+// non-deleted fee packages and then from its billing packages, enabled or not.
+// In a fee package a fee crediting alias is removed whole, alias leaves
+// waivedAccounts, and a package left without fees is disabled; billing packages
+// follow BillingPackageService.DetachAccountAlias. Packages that do not
+// reference alias are not written. The first failure aborts and is returned;
+// packages already written stay written, and a repeated call finds nothing left
+// to change in them.
 func (uc *UseCase) DetachAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (result model.FeeAliasDetachResult, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -67,10 +73,27 @@ func (uc *UseCase) DetachAccountAlias(ctx context.Context, organizationID, ledge
 		attribute.String("app.request.alias", alias),
 	)
 
+	if uc.BillingPackages == nil {
+		err = errNilBillingPackages
+		libOpentelemetry.HandleSpanError(span, "Fee use case wired without billing package service", err)
+
+		return model.FeeAliasDetachResult{}, err
+	}
+
 	result, err = uc.detachAliasFromPacks(ctx, span, logger, organizationID, ledgerID, alias)
 	if err != nil {
 		return model.FeeAliasDetachResult{}, err
 	}
+
+	billingUpdated, billingDisabled, err := uc.BillingPackages.DetachAccountAlias(ctx, organizationID, ledgerID, alias)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to detach account alias from billing packages", err)
+
+		return model.FeeAliasDetachResult{}, err
+	}
+
+	result.PackagesUpdated += billingUpdated
+	result.PackagesDisabled += billingDisabled
 
 	span.SetAttributes(
 		attribute.Int("app.fee_packages_updated", result.PackagesUpdated),

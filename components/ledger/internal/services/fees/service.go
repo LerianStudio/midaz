@@ -99,6 +99,11 @@ type UseCase struct {
 
 	// Streaming emits past-tense fee domain events; nil disables event emission.
 	Streaming libStreaming.Emitter
+
+	// BillingPackages detaches a deleted account's alias from the ledger's
+	// billing packages. Assigned at bootstrap; DetachAccountAlias fails while
+	// it is nil rather than leave billing packages referencing the alias.
+	BillingPackages *BillingPackageService
 }
 
 // ErrNilPackageRepo is returned when a nil PackageRepo is provided to NewUseCase.

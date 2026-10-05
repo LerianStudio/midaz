@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 
+	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
@@ -41,10 +42,11 @@ var (
 )
 
 type detachHarness struct {
-	uc       *UseCase
-	packRepo *pack.MockRepository
-	cache    *fakePackageCache
-	emitter  *pkgStreaming.MockEmitter
+	uc          *UseCase
+	packRepo    *pack.MockRepository
+	billingRepo *billing_package.MockRepository
+	cache       *fakePackageCache
+	emitter     *pkgStreaming.MockEmitter
 }
 
 func newDetachHarness(t *testing.T) *detachHarness {
@@ -52,20 +54,36 @@ func newDetachHarness(t *testing.T) *detachHarness {
 
 	ctrl := gomock.NewController(t)
 
+	resolver := feeshared.NewMockMidazResolver(ctrl)
+
 	h := &detachHarness{
-		packRepo: pack.NewMockRepository(ctrl),
-		cache:    newFakePackageCache(),
-		emitter:  pkgStreaming.NewMockEmitter(),
+		packRepo:    pack.NewMockRepository(ctrl),
+		billingRepo: billing_package.NewMockRepository(ctrl),
+		cache:       newFakePackageCache(),
+		emitter:     pkgStreaming.NewMockEmitter(),
 	}
 
+	billing, err := NewBillingPackageService(h.billingRepo, resolver)
+	require.NoError(t, err)
+
+	billing.Streaming = h.emitter
+
 	h.uc = &UseCase{
-		packageRepo:  h.packRepo,
-		resolver:     feeshared.NewMockMidazResolver(ctrl),
-		PackageCache: h.cache,
-		Streaming:    h.emitter,
+		packageRepo:     h.packRepo,
+		resolver:        resolver,
+		PackageCache:    h.cache,
+		Streaming:       h.emitter,
+		BillingPackages: billing,
 	}
 
 	return h
+}
+
+// expectBillingPackages answers the billing half's listing with packages.
+func (h *detachHarness) expectBillingPackages(packages ...*model.BillingPackage) {
+	h.billingRepo.EXPECT().
+		FindNotDeletedByLedger(gomock.Any(), detachOrgID.String(), detachLedgerID.String()).
+		Return(packages, nil)
 }
 
 func detachFee(creditAccount string) model.Fee {
@@ -188,6 +206,8 @@ func TestDetachAccountAlias_FeePacks(t *testing.T) {
 				h.expectPackUpdate(detachPackA, detachReadAt, &captured)
 			}
 
+			h.expectBillingPackages()
+
 			got, err := h.uc.DetachAccountAlias(context.Background(), detachOrgID, detachLedgerID, detachAlias)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
@@ -231,6 +251,7 @@ func TestDetachAccountAlias_FeePacksEventPerPackageAndOneInvalidation(t *testing
 
 	h.expectPackUpdate(detachPackA, detachReadAt, &capturedA)
 	h.expectPackUpdate(detachPackB, detachReadAt, &capturedB)
+	h.expectBillingPackages()
 
 	got, err := h.uc.DetachAccountAlias(context.Background(), detachOrgID, detachLedgerID, detachAlias)
 	require.NoError(t, err)
@@ -272,6 +293,8 @@ func TestDetachAccountAlias_FeePackConflict(t *testing.T) {
 			h.expectPackUpdate(detachPackA, detachFreshAt, &captured),
 		)
 
+		h.expectBillingPackages()
+
 		got, err := h.uc.DetachAccountAlias(context.Background(), detachOrgID, detachLedgerID, detachAlias)
 		require.NoError(t, err)
 		assert.Equal(t, model.FeeAliasDetachResult{PackagesUpdated: 1}, got)
@@ -311,6 +334,8 @@ func TestDetachAccountAlias_FeePackConflict(t *testing.T) {
 		h.packRepo.EXPECT().FindByID(gomock.Any(), detachPackA, detachOrgID, detachLedgerID).
 			Return(nil, mongo.ErrNoDocuments)
 
+		h.expectBillingPackages()
+
 		got, err := h.uc.DetachAccountAlias(context.Background(), detachOrgID, detachLedgerID, detachAlias)
 		require.NoError(t, err)
 		assert.Zero(t, got)
@@ -328,6 +353,8 @@ func TestDetachAccountAlias_FeePackConflict(t *testing.T) {
 			Return(nil, packConflict())
 		h.packRepo.EXPECT().FindByID(gomock.Any(), detachPackA, detachOrgID, detachLedgerID).
 			Return(detachPack(detachPackA, true, map[string]model.Fee{"cust": detachFee(detachOtherAlias)}, nil), nil)
+
+		h.expectBillingPackages()
 
 		got, err := h.uc.DetachAccountAlias(context.Background(), detachOrgID, detachLedgerID, detachAlias)
 		require.NoError(t, err)
