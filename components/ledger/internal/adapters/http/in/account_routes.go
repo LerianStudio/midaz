@@ -42,6 +42,16 @@ const accountClosedAtInputDoc = "The closing instant is output only: a body nami
 const balanceDeletionRefusalDoc = "A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. " +
 	"A state that cannot be established answers 503 (0520) and may be retried."
 
+// accountDeleteCascadeDoc lists the effects an account deletion has on the CRM and on fees.
+// It is the same text on both contracts, because the deletion is the same use case.
+const accountDeleteCascadeDoc = "The CRM instrument linked to the account is soft-deleted. " +
+	"In every fee package of the ledger, a fee whose creditAccount is the account's alias is removed and the alias leaves waivedAccounts; " +
+	"a package left without fees is disabled. " +
+	"In billing packages, a debitAccountAlias, creditAccountAlias or maintenanceCreditAccount equal to the alias is cleared and the package is disabled; " +
+	"the alias leaves accountTarget.aliases, and the package is disabled only when that list empties. " +
+	"These effects happen before the account is deleted. " +
+	"If one of them fails, the account stays in place and the request may be retried."
+
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
 // the humafiber adapter registers on that group and Fiber prepends the version prefix).
@@ -122,7 +132,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
-		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc + " " + accountDeleteCascadeDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -219,7 +229,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
-		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc + " " + accountDeleteCascadeDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.

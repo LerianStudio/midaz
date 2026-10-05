@@ -1964,7 +1964,16 @@ paths:
         Deletes an account together with its balances. A balance that still owes
         pending fees (0527) or that other balances still owe pending fees to
         (0528) is refused with 422. A state that cannot be established answers
-        503 (0520) and may be retried.
+        503 (0520) and may be retried. The CRM instrument linked to the account
+        is soft-deleted. In every fee package of the ledger, a fee whose
+        creditAccount is the account's alias is removed and the alias leaves
+        waivedAccounts; a package left without fees is disabled. In billing
+        packages, a debitAccountAlias, creditAccountAlias or
+        maintenanceCreditAccount equal to the alias is cleared and the package
+        is disabled; the alias leaves accountTarget.aliases, and the package is
+        disabled only when that list empties. These effects happen before the
+        account is deleted. If one of them fails, the account stays in place and
+        the request may be retried.
       operationId: deleteAccount
       parameters:
         - description: Organization ID (UUID)
@@ -8830,7 +8839,16 @@ paths:
         Deletes an account together with its balances. A balance that still owes
         pending fees (0527) or that other balances still owe pending fees to
         (0528) is refused with 422. A state that cannot be established answers
-        503 (0520) and may be retried.
+        503 (0520) and may be retried. The CRM instrument linked to the account
+        is soft-deleted. In every fee package of the ledger, a fee whose
+        creditAccount is the account's alias is removed and the alias leaves
+        waivedAccounts; a package left without fees is disabled. In billing
+        packages, a debitAccountAlias, creditAccountAlias or
+        maintenanceCreditAccount equal to the alias is cleared and the package
+        is disabled; the alias leaves accountTarget.aliases, and the package is
+        disabled only when that list empties. These effects happen before the
+        account is deleted. If one of them fails, the account stays in place and
+        the request may be retried.
       operationId: deleteAccountV2
       parameters:
         - description: Organization ID (UUID)
