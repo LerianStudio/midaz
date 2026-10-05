@@ -102,7 +102,7 @@ func (uc *UseCase) validateBankAccountPatch(ctx context.Context, organizationID 
 
 // sameBankAccount compares bankId and the account exactly. Branches match when either is
 // empty or both are equal once trimmed, numeric ones without leading zeros ("1" is "0001").
-// A holder whose account was since removed or emptied still carries the old token and never matches.
+// A holder whose account was since removed or emptied never matches.
 func sameBankAccount(stored, candidate *mmodel.BankingDetails) bool {
 	if stored == nil || stored.Account == nil || *stored.Account != *candidate.Account ||
 		valueOf(stored.BankID) != valueOf(candidate.BankID) {
