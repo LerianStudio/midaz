@@ -6,6 +6,8 @@ package bootstrap
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -108,6 +110,47 @@ func TestService_Shutdown_RespectsParentContext(t *testing.T) {
 	elapsed := time.Since(start)
 	assert.Less(t, elapsed, 5*time.Second,
 		"cancelled parent ctx must cut the grace sleep short")
+}
+
+// TestService_Shutdown_HTTPFailureRunsLaterSteps holds a request in flight and
+// shuts down with a cancelled context, so the HTTP drain fails; the later
+// teardown steps must still run and the HTTP error must be returned.
+func TestService_Shutdown_HTTPFailureRunsLaterSteps(t *testing.T) {
+	svc, _ := newDrainTestService(t, &Config{})
+	listenerApp := &tenantListenerApp{shutdownCh: make(chan struct{})}
+	svc.eventListener = listenerApp
+
+	entered, release := make(chan struct{}), make(chan struct{})
+	svc.app.Get("/slow", func(fiber.Ctx) error {
+		close(entered)
+		<-release
+
+		return nil
+	})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	go func() { _ = svc.app.Listener(ln, fiber.ListenConfig{DisableStartupMessage: true}) }()
+	go func() {
+		if resp, err := http.Get("http://" + ln.Addr().String() + "/slow"); err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+
+	<-entered
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.ErrorIs(t, svc.Shutdown(ctx), context.Canceled)
+
+	select {
+	case <-listenerApp.shutdownCh:
+	default:
+		t.Fatal("tenant listener shutdown was skipped after the HTTP drain failed")
+	}
 }
 
 // TestService_Shutdown_NoHealthChecker tolerates a Service with no

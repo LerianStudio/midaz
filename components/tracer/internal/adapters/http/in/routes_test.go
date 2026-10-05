@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 
@@ -122,6 +123,14 @@ func (d *testRouterDeps) build() *fiber.App {
 func createTestRouter(t *testing.T, guardCfg middleware.AuthGuardConfig) *fiber.App {
 	deps := newTestRouterDeps(t, guardCfg)
 	return deps.build()
+}
+
+func TestRoutes_ServerTimeoutsBounded(t *testing.T) {
+	app := createTestRouter(t, middleware.AuthGuardConfig{AppName: "tracer"})
+
+	assert.Equal(t, 30*time.Second, app.Config().ReadTimeout)
+	assert.Equal(t, 30*time.Second, app.Config().WriteTimeout)
+	assert.Equal(t, 120*time.Second, app.Config().IdleTimeout)
 }
 
 func TestRoutes_PublicEndpoints_NoAuthRequired(t *testing.T) {
