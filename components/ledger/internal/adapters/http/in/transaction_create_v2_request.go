@@ -85,9 +85,9 @@ type CreateTransactionV2Request struct {
 	Skip *mtransaction.TransactionSkip `json:"skip,omitempty"`
 
 	// Scheme is the payment scheme of the transaction (CARD for any card, never the
-	// brand). It exists only on this contract because the reservation seam that
-	// consumes it is /v2-only; the enum is matched verbatim, with no normalization.
-	Scheme string `json:"scheme,omitempty" validate:"omitempty,oneof=CARD WIRE PIX CRYPTO" enum:"CARD,WIRE,PIX,CRYPTO" example:"PIX" doc:"Optional payment scheme of the transaction. CARD covers any card payment and is never the card brand. Forwarded to the tracer reservation so scheme-scoped limits and rules apply."`
+	// brand). It exists only on this /v2 contract; the enum is matched verbatim, with
+	// no normalization.
+	Scheme string `json:"scheme,omitempty" validate:"omitempty,oneof=CARD WIRE PIX CRYPTO" enum:"CARD,WIRE,PIX,CRYPTO" example:"PIX" doc:"Optional payment scheme of the transaction. CARD covers any card payment and is never the card brand."`
 
 	// AccountBlockExceptionID presents a single-use account-block exception,
 	// minted by the block-exception create route. It authorizes ONE debit of an

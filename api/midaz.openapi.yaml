@@ -17259,8 +17259,7 @@ components:
         scheme:
           description: >-
             Optional payment scheme of the transaction. CARD covers any card
-            payment and is never the card brand. Forwarded to the tracer
-            reservation so scheme-scoped limits and rules apply.
+            payment and is never the card brand.
           enum:
             - CARD
             - WIRE
@@ -17839,8 +17838,7 @@ components:
         scheme:
           description: >-
             Optional payment scheme of the transaction. CARD covers any card
-            payment and is never the card brand. Forwarded to the tracer
-            reservation so scheme-scoped limits and rules apply.
+            payment and is never the card brand.
           enum:
             - CARD
             - WIRE

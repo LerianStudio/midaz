@@ -227,7 +227,7 @@ func (uc *UseCase) reserveTransaction(
 		LongLived:            ttl == reservationTTLLongLived,
 		Revert:               purpose == reservationForRevert,
 		Metadata:             reserveMD,
-		TransactionType:      scheme, // the tracer names the payment scheme transactionType
+		TransactionType:      scheme,
 	}
 
 	reserveCtx := ctx
