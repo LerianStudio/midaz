@@ -469,8 +469,8 @@ Two path scopes serve the same routes:
 
 | Scope | Paths | Contracts | `ledgerId` on create |
 | --- | --- | --- | --- |
-| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{operation_route_id|transaction_route_id}]` | `/v2` only | absent — the route has no ledger |
-| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{operation_route_id|transaction_route_id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
+| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{operation_route_id\|transaction_route_id}]` | `/v2` only | absent — the route has no ledger |
+| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{operation_route_id\|transaction_route_id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
 
 On the ledger paths the ledger is **provenance, not a filter**: list, get, patch and delete reach
 every route of the organization, whichever ledger it was created under and including routes created

@@ -260,49 +260,49 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 |--------|------|-------------|
 | POST | /organizations | Create organization |
 | GET | /organizations | List organizations |
-| GET | /organizations/:org_id | Get organization |
-| PATCH | /organizations/:org_id | Update organization |
-| DELETE | /organizations/:org_id | Delete organization |
+| GET | /organizations/:organization_id | Get organization |
+| PATCH | /organizations/:organization_id | Update organization |
+| DELETE | /organizations/:organization_id | Delete organization |
 | HEAD | /organizations/metrics/count | Count organizations |
-| POST | /organizations/:org_id/ledgers | Create ledger |
-| GET | /organizations/:org_id/ledgers | List ledgers |
-| GET | /organizations/:org_id/ledgers/:lid | Get ledger |
-| PATCH | /organizations/:org_id/ledgers/:lid | Update ledger |
-| DELETE | /organizations/:org_id/ledgers/:lid | Delete ledger |
-| HEAD | /organizations/:org_id/ledgers/metrics/count | Count ledgers |
-| GET | /organizations/:org_id/ledgers/:lid/settings | Get ledger settings |
-| PATCH | /organizations/:org_id/ledgers/:lid/settings | Update ledger settings |
-| POST | /organizations/:org_id/ledgers/:lid/assets | Create asset |
-| GET | /organizations/:org_id/ledgers/:lid/assets | List assets |
-| GET | /organizations/:org_id/ledgers/:lid/assets/:asset_id | Get asset |
-| PATCH | /organizations/:org_id/ledgers/:lid/assets/:asset_id | Update asset |
-| DELETE | /organizations/:org_id/ledgers/:lid/assets/:asset_id | Delete asset |
-| HEAD | /organizations/:org_id/ledgers/:lid/assets/metrics/count | Count assets |
-| POST | /organizations/:org_id/ledgers/:lid/portfolios | Create portfolio |
-| GET | /organizations/:org_id/ledgers/:lid/portfolios | List portfolios |
-| GET | /organizations/:org_id/ledgers/:lid/portfolios/:portfolio_id | Get portfolio |
-| PATCH | /organizations/:org_id/ledgers/:lid/portfolios/:portfolio_id | Update portfolio |
-| DELETE | /organizations/:org_id/ledgers/:lid/portfolios/:portfolio_id | Delete portfolio |
-| HEAD | /organizations/:org_id/ledgers/:lid/portfolios/metrics/count | Count portfolios |
-| POST | /organizations/:org_id/ledgers/:lid/segments | Create segment |
-| GET | /organizations/:org_id/ledgers/:lid/segments | List segments |
-| GET | /organizations/:org_id/ledgers/:lid/segments/:segment_id | Get segment |
-| PATCH | /organizations/:org_id/ledgers/:lid/segments/:segment_id | Update segment |
-| DELETE | /organizations/:org_id/ledgers/:lid/segments/:segment_id | Delete segment |
-| HEAD | /organizations/:org_id/ledgers/:lid/segments/metrics/count | Count segments |
-| POST | /organizations/:org_id/ledgers/:lid/accounts | Create account |
-| GET | /organizations/:org_id/ledgers/:lid/accounts | List accounts |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/:account_id | Get account |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/alias/:alias | Get account by alias |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/external/:code | Get external account |
-| PATCH | /organizations/:org_id/ledgers/:lid/accounts/:account_id | Update account |
-| DELETE | /organizations/:org_id/ledgers/:lid/accounts/:account_id | Delete account |
-| HEAD | /organizations/:org_id/ledgers/:lid/accounts/metrics/count | Count accounts |
-| POST | /organizations/:org_id/ledgers/:lid/account-types | Create account type |
-| GET | /organizations/:org_id/ledgers/:lid/account-types | List account types |
-| GET | /organizations/:org_id/ledgers/:lid/account-types/:account_type_id | Get account type |
-| PATCH | /organizations/:org_id/ledgers/:lid/account-types/:account_type_id | Update account type |
-| DELETE | /organizations/:org_id/ledgers/:lid/account-types/:account_type_id | Delete account type |
+| POST | /organizations/:organization_id/ledgers | Create ledger |
+| GET | /organizations/:organization_id/ledgers | List ledgers |
+| GET | /organizations/:organization_id/ledgers/:ledger_id | Get ledger |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id | Update ledger |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id | Delete ledger |
+| HEAD | /organizations/:organization_id/ledgers/metrics/count | Count ledgers |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/settings | Get ledger settings |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/settings | Update ledger settings |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/assets | Create asset |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/assets | List assets |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Get asset |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Update asset |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Delete asset |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count | Count assets |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/portfolios | Create portfolio |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/portfolios | List portfolios |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Get portfolio |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Update portfolio |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Delete portfolio |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count | Count portfolios |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/segments | Create segment |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/segments | List segments |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Get segment |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Update segment |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Delete segment |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count | Count segments |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/accounts | Create account |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts | List accounts |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Get account |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias | Get account by alias |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code | Get external account |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Update account |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Delete account |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count | Count accounts |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/account-types | Create account type |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/account-types | List account types |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Get account type |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Update account type |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Delete account type |
 
 #### Transaction Resources
 
@@ -313,49 +313,49 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
 | POST | /v2/transactions/batch | Create an ordered atomic batch of direct and hold transactions |
-| POST | .../transactions/:tid/commit | Commit pending transaction |
-| POST | .../transactions/:tid/cancel | Cancel pending transaction |
-| POST | .../transactions/:tid/revert | Revert transaction |
-| PATCH | .../transactions/:tid | Update transaction metadata |
+| POST | .../transactions/:transaction_id/commit | Commit pending transaction |
+| POST | .../transactions/:transaction_id/cancel | Cancel pending transaction |
+| POST | .../transactions/:transaction_id/revert | Revert transaction |
+| PATCH | .../transactions/:transaction_id | Update transaction metadata |
 | GET | .../transactions | List transactions |
-| GET | .../transactions/:tid | Get transaction |
+| GET | .../transactions/:transaction_id | Get transaction |
 | HEAD | .../transactions/metrics/count | Count transactions |
-| GET | .../accounts/:aid/operations | List operations by account |
-| GET | .../accounts/:aid/operations/:oid | Get operation |
-| PATCH | .../transactions/:tid/operations/:oid | Update operation |
+| GET | .../accounts/:account_id/operations | List operations by account |
+| GET | .../accounts/:account_id/operations/:operation_id | Get operation |
+| PATCH | .../transactions/:transaction_id/operations/:operation_id | Update operation |
 | PUT | .../asset-rates | Create/update asset rate |
 | GET | .../asset-rates/:external_id | Get asset rate |
 | GET | .../asset-rates/from/:asset_code | List asset rates by code |
 | GET | .../balances | List balances |
-| GET | .../balances/:bid | Get balance |
-| GET | .../balances/:bid/history | Get balance as recorded by the ledger at timestamp |
-| PATCH | .../balances/:bid | Update balance |
-| DELETE | .../balances/:bid | Delete balance |
-| GET | .../accounts/:aid/balances | List balances by account |
-| GET | .../accounts/:aid/balances/history | Account balances as recorded by the ledger at timestamp |
+| GET | .../balances/:balance_id | Get balance |
+| GET | .../balances/:balance_id/history | Get balance as recorded by the ledger at timestamp |
+| PATCH | .../balances/:balance_id | Update balance |
+| DELETE | .../balances/:balance_id | Delete balance |
+| GET | .../accounts/:account_id/balances | List balances by account |
+| GET | .../accounts/:account_id/balances/history | Account balances as recorded by the ledger at timestamp |
 | GET | .../accounts/alias/:alias/balances | Balances by alias |
 | GET | .../accounts/external/:code/balances | Balances by external code |
-| POST | .../accounts/:aid/balances | Create additional balance |
+| POST | .../accounts/:account_id/balances | Create additional balance |
 | POST | .../operation-routes | Create operation route |
 | GET | .../operation-routes | List operation routes |
-| GET | .../operation-routes/:orid | Get operation route |
-| PATCH | .../operation-routes/:orid | Update operation route |
-| DELETE | .../operation-routes/:orid | Delete operation route |
+| GET | .../operation-routes/:operation_route_id | Get operation route |
+| PATCH | .../operation-routes/:operation_route_id | Update operation route |
+| DELETE | .../operation-routes/:operation_route_id | Delete operation route |
 | POST | .../transaction-routes | Create transaction route |
 | GET | .../transaction-routes | List transaction routes |
-| GET | .../transaction-routes/:trid | Get transaction route |
-| PATCH | .../transaction-routes/:trid | Update transaction route |
-| DELETE | .../transaction-routes/:trid | Delete transaction route |
-| POST | /v2/organizations/:org_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
-| GET | /v2/organizations/:org_id/operation-routes | List every operation route of the organization |
-| GET | /v2/organizations/:org_id/operation-routes/:orid | Get operation route |
-| PATCH | /v2/organizations/:org_id/operation-routes/:orid | Update operation route |
-| DELETE | /v2/organizations/:org_id/operation-routes/:orid | Delete operation route |
-| POST | /v2/organizations/:org_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
-| GET | /v2/organizations/:org_id/transaction-routes | List every transaction route of the organization |
-| GET | /v2/organizations/:org_id/transaction-routes/:trid | Get transaction route |
-| PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
-| DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
+| GET | .../transaction-routes/:transaction_route_id | Get transaction route |
+| PATCH | .../transaction-routes/:transaction_route_id | Update transaction route |
+| DELETE | .../transaction-routes/:transaction_route_id | Delete transaction route |
+| POST | /v2/organizations/:organization_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:organization_id/operation-routes | List every operation route of the organization |
+| GET | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Get operation route |
+| PATCH | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Update operation route |
+| DELETE | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Delete operation route |
+| POST | /v2/organizations/:organization_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:organization_id/transaction-routes | List every transaction route of the organization |
+| GET | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Get transaction route |
+| PATCH | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Update transaction route |
+| DELETE | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Delete transaction route |
 
 **PATCH metadata.** Every PATCH whose body carries `metadata` (organization, ledger, portfolio,
 segment, account, account type, asset, transaction, operation, operation and transaction routes,
