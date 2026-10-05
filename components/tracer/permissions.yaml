@@ -43,33 +43,65 @@
 # missing here is not merely undeclared — it stops existing.
 service: tracer
 version: 1
+partners: true
+scope:
+  dimensions:
+    - { name: ruleId,       from: path, param: rule_id,        required: false, multi: true, collection: rules,        label: "rule" }
+    - { name: limitId,      from: path, param: limit_id,       required: false, multi: true, collection: limits,       label: "limit" }
+    - { name: validationId, from: path, param: validation_id,  required: false, multi: true, collection: validations,  label: "transaction validation" }
+    - { name: auditEventId, from: path, param: audit_event_id, required: false, multi: true, collection: audit-events, label: "audit event" }
+    - { name: portfolioId,  from: path, param: portfolio_id,   required: false, multi: true, collection: portfolios,   label: "portfolio",
+        covers: [validations, audit-events] }
+    - { name: segmentId,    from: path, param: segment_id,     required: false, multi: true, collection: segments,     label: "segment",
+        covers: [validations, audit-events] }
+    - { name: merchantId,   from: path, param: merchant_id,    required: false, multi: true, collection: merchants,    label: "merchant",
+        covers: [validations, audit-events] }
+    - { name: accountId,    from: path, param: account_id,     required: false, multi: true, collection: accounts,     label: "account",
+        covers: [validations, audit-events] }
+  routes:
+    - method: POST
+      path: /v1/validations
+      dimensions:
+        - { name: accountId,   from: body, field: account.accountId }
+        - { name: segmentId,   from: body, field: segment.segmentId,     optional: true }
+        - { name: portfolioId, from: body, field: portfolio.portfolioId, optional: true }
+        - { name: merchantId,  from: body, field: merchant.merchantId,   optional: true }
+    - method: GET
+      path: /v1/validations
+      dimensions: &validationListQueryDimensions
+        - { name: accountId,   from: query, field: account_id,   optional: true }
+        - { name: segmentId,   from: query, field: segment_id,   optional: true }
+        - { name: portfolioId, from: query, field: portfolio_id, optional: true }
+    - method: GET
+      path: /v1/audit-events
+      dimensions: *validationListQueryDimensions
 permissions:
   # rules — CEL fraud rules (registerTracerHumaRoutes, the /v1/rules group)
-  - { resource: rules, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: rules, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: rules, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: rules, action: delete, effect: allow, roles: [editor] }
+  - { resource: rules, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: rules, action: get,    effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: rules, action: patch,  effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: rules, action: delete, effect: allow, roles: [editor], level: tenant }
 
   # limits — spending limits (registerTracerHumaRoutes, the /v1/limits group)
-  - { resource: limits, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: limits, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: limits, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: limits, action: delete, effect: allow, roles: [editor] }
+  - { resource: limits, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: limits, action: get,    effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: limits, action: patch,  effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: limits, action: delete, effect: allow, roles: [editor], level: tenant }
 
   # validations — transaction validation (registerTracerHumaRoutes, the /v1/validations group)
-  - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer] }
-  - { resource: validations, action: post, effect: allow, roles: [editor, validator] }
+  - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer], level: tenant }
+  - { resource: validations, action: post, effect: allow, roles: [editor, validator], level: accountId }
 
   # audit-events — hash-chained audit read (registerTracerHumaRoutes, the /v1/audit-events group)
-  - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer] }
+  - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer], level: tenant }
 
   # streaming-manifest — event catalog (RegisterStreamingManifestRoute)
-  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer], level: tenant }
 
   # reservations — the reservation seam's grant (gRPC, every ReservationService
   # RPC). Mirrors the seed's tracer-reservation-permission; consumed by the
   # ledger's application token, refused to human tokens by the seam guard.
-  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer] }
+  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer], level: tenant }
 
   # dashboard — read-only aggregates over the validation trail (registerTracerHumaRoutes,
   # the /v1/dashboard group). The figures are derived from the SAME rows the
@@ -77,7 +109,7 @@ permissions:
   # validations/get tiers exactly: a role that may read a validation may read a
   # count of validations, and a role that may not, may not. audit-viewer is
   # included because it already reads the audit trail of those same decisions.
-  - { resource: dashboard, action: get, effect: allow, roles: [editor, validator, viewer, audit-viewer] }
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, validator, viewer, audit-viewer], level: tenant }
 
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
