@@ -66,6 +66,8 @@ scope:
     - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type", parent: ledgerId }
     - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account",
         covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions], parent: ledgerId }
+    - { name: accountAlias,       from: path, param: alias,                required: false, multi: true,  collection: accounts,           label: "account alias",
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions], parent: ledgerId }
     - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset", parent: ledgerId }
     - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio",
         covers: [accounts], parent: ledgerId }
@@ -88,8 +90,10 @@ scope:
       dimensions: &v2CreateBodyDimensions
         - { name: organizationId, from: body, field: "debits[].organizationId" }
         - { name: ledgerId,       from: body, field: "debits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "debits[].alias",  optional: true }
         - { name: organizationId, from: body, field: "credits[].organizationId" }
         - { name: ledgerId,       from: body, field: "credits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "credits[].alias", optional: true }
     - { method: POST, path: /v2/transactions/hold,    dimensions: *v2CreateBodyDimensions }
     - { method: POST, path: /v2/transactions/block,   dimensions: *v2CreateBodyDimensions }
     - { method: POST, path: /v2/transactions/unblock, dimensions: *v2CreateBodyDimensions }
@@ -98,8 +102,30 @@ scope:
       dimensions:
         - { name: organizationId, from: body, field: "transactions[].debits[].organizationId" }
         - { name: ledgerId,       from: body, field: "transactions[].debits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "transactions[].debits[].alias",  optional: true }
         - { name: organizationId, from: body, field: "transactions[].credits[].organizationId" }
         - { name: ledgerId,       from: body, field: "transactions[].credits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "transactions[].credits[].alias", optional: true }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json
+      dimensions: &v1SourceAliasDimensions
+        - { name: accountAlias, from: body, field: "send.source.from[].accountAlias", optional: true }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation, dimensions: *v1SourceAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block,      dimensions: *v1SourceAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock,    dimensions: *v1SourceAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow,    dimensions: *v1SourceAliasDimensions }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions
+      dimensions:
+        - { name: accountAlias, from: body, field: "exceptions[].accountAlias", optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect
+      dimensions:
+        - { name: accountAlias, from: body, field: accountAlias, optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts
+      dimensions:
+        - { name: accountAlias, from: query, field: account_alias, optional: true }
     - method: POST
       path: /v2/organizations/:organization_id/holders/:holder_id/instruments
       dimensions:
@@ -137,6 +163,7 @@ scope:
       dimensions:
         - { name: segmentId,   from: body, field: accountTarget.segmentId,   optional: true }
         - { name: portfolioId, from: body, field: accountTarget.portfolioId, optional: true }
+        - { name: accountAlias, from: body, field: "accountTarget.aliases[]", optional: true }
     - method: POST
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
       dimensions:
