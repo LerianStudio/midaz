@@ -34,13 +34,20 @@ const typeScopeLimitCap = "1000"
 // reserveTyped reserves for accountID over the gRPC seam with a ledger-shaped
 // request carrying transactionType; an empty transactionType omits the field.
 // It returns the transport error so a caller can assert the gRPC status.
+//
+// The transaction's reservations are released when the test ends: the
+// integration database is shared, and a RESERVED row left behind would be
+// swept by any reaper another test drives past the reservation TTL.
 func reserveTyped(t *testing.T, transactionID, accountID uuid.UUID, amount, transactionType string) (*reservationv1.ReserveResult, error) {
 	t.Helper()
+
+	client := testutil.DialReservationClient(t)
+	t.Cleanup(func() { releaseTypedReservations(t, client, transactionID) })
 
 	ctx, cancel := context.WithTimeout(context.Background(), typeScopeReserveTimeout)
 	defer cancel()
 
-	return testutil.DialReservationClient(t).Reserve(ctx, &reservationv1.ReserveRequest{
+	return client.Reserve(ctx, &reservationv1.ReserveRequest{
 		TransactionId:        transactionID.String(),
 		RequestId:            uuid.New().String(),
 		Amount:               amount,
@@ -53,6 +60,21 @@ func reserveTyped(t *testing.T, transactionID, accountID uuid.UUID, amount, tran
 		},
 		Metadata: map[string]string{"channel": "app"},
 	})
+}
+
+// releaseTypedReservations releases every reservation transactionID holds.
+// The release is idempotent, so a transaction the seam refused or denied is a
+// no-op.
+func releaseTypedReservations(t *testing.T, client reservationv1.ReservationServiceClient, transactionID uuid.UUID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), typeScopeReserveTimeout)
+	defer cancel()
+
+	_, err := client.ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{
+		TransactionId: transactionID.String(),
+	})
+	assert.NoError(t, err, "ReleaseByTransaction must succeed over the gRPC seam")
 }
 
 // mustReserveTyped is reserveTyped for a request the seam must accept.
