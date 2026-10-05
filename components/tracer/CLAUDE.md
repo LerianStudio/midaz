@@ -240,7 +240,7 @@ tracer/
 |-----------|---------|-----------------|
 | `ActiveRulesRepository` | GetActiveRulesForScopes | `cache.CacheAdapter`, `postgres.Repository` |
 | `LimitRepository` | GetByID, List | `postgres.LimitRepository` |
-| `UsageCounterRepository` | GetByLimitID, IncrementOrInsert, GetByScopeAndPeriod | `postgres.UsageCounterRepository` |
+| `UsageCounterRepository` | GetByLimitIDAndPeriod, UpsertAndIncrementAtomic, GetUsageForLimits | `postgres.UsageCounterRepository` |
 
 **Infrastructure** (`internal/adapters/postgres/db/`):
 

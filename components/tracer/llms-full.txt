@@ -124,7 +124,7 @@ pkg/contextutil/                   — Context value extraction helpers
 #### Query Layer (internal/services/query/)
 - `ActiveRulesRepository` — GetActiveRulesForScopes(ctx, scopes) (DB or cache)
 - `LimitRepository` — GetByID, List (with cursor pagination)
-- `UsageCounterRepository` — GetByLimitID, IncrementOrInsert, GetByScopeAndPeriod
+- `UsageCounterRepository` — GetByLimitIDAndPeriod, UpsertAndIncrementAtomic, GetUsageForLimits
 - `TransactionValidationRepository` — FindByID, FindByRequestID, List
 - `AuditEventRepository` — FindByEventID, ListWithFilters, FindPrecedingEvents
 
