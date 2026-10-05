@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
@@ -36,4 +37,8 @@ type LimitRepository interface {
 	// Returns constant.ErrInvalidCursor if the cursor is malformed or expired.
 	// Returns constant.ErrInvalidSortColumn if sortBy is not in the allowed list.
 	List(ctx context.Context, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error)
+
+	// ListWithTx is List on the caller's db handle. A caller holding a
+	// transaction passes it so the read never acquires a second pool connection.
+	ListWithTx(ctx context.Context, db pgdb.DB, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error)
 }
