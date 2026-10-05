@@ -28,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -172,8 +173,11 @@ func resReadStatus(t *testing.T, db *sql.DB, reservationID uuid.UUID) string {
 
 // resWireService builds a ReservationService over the integration DB, with the
 // given resolver specs and a counting audit writer. The returned audit writer is
-// shared with the reaper in tests that need it.
-func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, audit *resCountingAudit) *services.ReservationService {
+// shared with the reaper in tests that need it. clk is the clock the service uses
+// to stamp reserve/confirm/release timestamps; pass nil for RealClock (the proofs
+// that don't race a reaper TTL against it), or a fixed clock shared with the
+// reaper so the TTL horizon the two sides compute from is identical.
+func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, audit *resCountingAudit, clk clock.Clock) *services.ReservationService {
 	t.Helper()
 
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
@@ -186,7 +190,7 @@ func resWireService(t *testing.T, db *sql.DB, resolver services.LimitResolver, a
 		resRepo,
 		audit,
 		allowRuleEvaluator{}, // these proofs exercise the limit lifecycle only
-		nil,                  // RealClock for reserve/confirm/release timestamps
+		clk,
 	)
 	require.NoError(t, err, "failed to wire reservation service")
 
@@ -285,16 +289,20 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		periodKey := "2026-06"
 		txID := testutil.MustDeterministicUUID(8721)
 
+		// The service and the reaper share one fixed clock: the reservation's
+		// expiry is computed from baseTime, and the sweep horizon is baseTime +
+		// TTL + a margin, so the two sides can never drift against the wall clock.
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		audit := &resCountingAudit{}
 		svc := resWireService(t, db, resStubResolver{
 			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 400, 10000)},
-		}, audit)
+		}, audit, clk)
 
 		ctx := context.Background()
 
-		// The sweep instant is now + TTL + a margin, fixed before the reserve so
-		// the drain below and the proof's own sweep see the same horizon.
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		resDrainStaleReservations(t, db, sweepAt)
 
 		// Phase one: reserve. Capacity is held in reserved_usage.
@@ -343,14 +351,17 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		periodKey := "2026-06"
 		txID := testutil.MustDeterministicUUID(8722)
 
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		audit := &resCountingAudit{}
 		svc := resWireService(t, db, resStubResolver{
 			specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 700, 10000)},
-		}, audit)
+		}, audit, clk)
 
 		ctx := context.Background()
 
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		resDrainStaleReservations(t, db, sweepAt)
 
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
@@ -400,7 +411,10 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		audit := &resCountingAudit{}
 
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		resDrainStaleReservations(t, db, sweepAt)
 
 		// Two separate transactions, each reserving + confirming against the SAME
@@ -416,7 +430,7 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		} {
 			svc := resWireService(t, db, resStubResolver{
 				specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, c.amount, 10000)},
-			}, audit)
+			}, audit, clk)
 
 			res, err := svc.Reserve(ctx, testutil.MustDeterministicUUID(c.txSeed), resCheckInput(t), services.ReserveOptions{})
 			require.NoError(t, err)
@@ -479,17 +493,20 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		periodKey := "2026-06"
 		txID := testutil.MustDeterministicUUID(8724)
 
+		baseTime := testutil.FixedTime()
+		sweepAt := baseTime.Add(6 * time.Minute)
+		clk := testutil.NewMockClock(baseTime)
+
 		audit := &resCountingAudit{}
 		svc := resWireService(t, db, resStubResolver{
 			specs: []query.ReservationSpec{
 				resSpec(limitA, scopeA, periodKey, 400, 10000),
 				resSpec(limitB, scopeB, periodKey, 250, 10000),
 			},
-		}, audit)
+		}, audit, clk)
 
 		ctx := context.Background()
 
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		resDrainStaleReservations(t, db, sweepAt)
 
 		// One transaction, two reservations, in ONE service call.
@@ -598,7 +615,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 				audit := &resCountingAudit{}
 				svc := resWireService(t, db, resStubResolver{
 					specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, 1, capacity)},
-				}, audit)
+				}, audit, nil)
 
 				txID := testutil.MustDeterministicUUID(8820 + int64(idx))
 
@@ -679,7 +696,7 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 					audit := &resCountingAudit{}
 					svc := resWireService(t, db, resStubResolver{
 						specs: []query.ReservationSpec{resSpec(limitID, scopeKey, periodKey, amounts[idx], capacity)},
-					}, audit)
+					}, audit, nil)
 
 					txID := testutil.MustDeterministicUUID(int64(810000 + round*100 + idx))
 
@@ -741,7 +758,7 @@ func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
 	audit := &resCountingAudit{}
 	svc := resWireService(t, db, resStubResolver{
 		specs: []query.ReservationSpec{resSpecDec(limitID, scopeKey, periodKey, want, decimal.NewFromInt(20))},
-	}, audit)
+	}, audit, nil)
 
 	ctx := context.Background()
 
