@@ -1758,6 +1758,24 @@ func TestNewUsageSnapshot_ReportsWorstScopeOfPeriod(t *testing.T) {
 	assert.True(t, snapshot.NearLimit, "a scope above 80% makes the limit near its cap")
 }
 
+// TestNewUsageSnapshot_CountsReservedCapacity proves a bucket's consumption is
+// its committed usage plus outstanding reservations, because enforcement denies
+// on that sum.
+func TestNewUsageSnapshot_CountsReservedCapacity(t *testing.T) {
+	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
+
+	counters := []UsageCounter{
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("300"), ReservedUsage: decimal.RequireFromString("600")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("500"), ReservedUsage: decimal.Zero},
+	}
+
+	snapshot := NewUsageSnapshot(limit, counters)
+
+	assert.True(t, decimal.RequireFromString("900").Equal(snapshot.CurrentUsage), "want committed plus reserved of the worst scope, got %s", snapshot.CurrentUsage)
+	assert.Equal(t, 90.0, snapshot.UtilizationPercent)
+	assert.True(t, snapshot.NearLimit, "a scope above 80% of its cap counting reservations is near the limit")
+}
+
 // TestNewUsageSnapshot_NearLimitThreshold tests nearLimit flag at boundary.
 func TestNewUsageSnapshot_NearLimitThreshold(t *testing.T) {
 	tests := []struct {

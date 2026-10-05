@@ -170,7 +170,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 	).Log(ctx, libLog.LevelDebug, "Getting or creating usage counter with lock")
 
 	// Try to get existing counter with FOR UPDATE lock
-	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 		From(usageCountersTable).
 		Where(sq.Eq{
 			"limit_id":   limitID,
@@ -238,7 +238,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 		// Handle concurrent insert race condition
 		// Another transaction inserted the counter, try to select it again
-		selectQuery = sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+		selectQuery = sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 			From(usageCountersTable).
 			Where(sq.Eq{
 				"limit_id":   limitID,
@@ -273,7 +273,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	// Re-select the inserted row with FOR UPDATE to acquire the row-level lock
 	// This ensures the returned counter has the lock, matching the existing row path
-	selectInserted := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+	selectInserted := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 		From(usageCountersTable).
 		Where(sq.Eq{"id": newCounter.ID}).
 		Suffix("FOR UPDATE").
@@ -633,7 +633,7 @@ func (r *UsageCounterRepository) GetByLimitIDAndPeriod(ctx context.Context, limi
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 		From(usageCountersTable).
 		Where(sq.Eq{"limit_id": limitID, "period_key": periodKey}).
 		OrderBy("scope_key ASC").
@@ -790,6 +790,7 @@ func (r *UsageCounterRepository) scanCounter(ctx context.Context, row *sql.Row) 
 		&dbModel.ScopeKey,
 		&dbModel.PeriodKey,
 		&dbModel.CurrentUsage,
+		&dbModel.ReservedUsage,
 		&dbModel.LastUpdatedAt,
 	)
 	if err != nil {
@@ -820,6 +821,7 @@ func (r *UsageCounterRepository) scanCounterFromRows(ctx context.Context, rows *
 		&dbModel.ScopeKey,
 		&dbModel.PeriodKey,
 		&dbModel.CurrentUsage,
+		&dbModel.ReservedUsage,
 		&dbModel.LastUpdatedAt,
 	)
 	if err != nil {
