@@ -618,11 +618,11 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 	return reservedUsage, nil
 }
 
-// GetByLimitID retrieves all usage counters for a specific limit.
-func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error) {
+// GetByLimitIDAndPeriod retrieves the usage counters of a limit in one period.
+func (r *UsageCounterRepository) GetByLimitIDAndPeriod(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_by_limit_id")
+	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_by_limit_id_and_period")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -635,8 +635,8 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 
 	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
 		From(usageCountersTable).
-		Where(sq.Eq{"limit_id": limitID}).
-		OrderBy("period_key DESC", "scope_key ASC").
+		Where(sq.Eq{"limit_id": limitID, "period_key": periodKey}).
+		OrderBy("scope_key ASC").
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -646,9 +646,10 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	}
 
 	logger.With(
-		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
+		libLog.String("operation", "repository.usage_counter.get_by_limit_id_and_period"),
 		libLog.String("limit_id", limitID.String()),
-	).Log(ctx, libLog.LevelDebug, "Getting usage counters by limit ID")
+		libLog.String("period_key", periodKey),
+	).Log(ctx, libLog.LevelDebug, "Getting usage counters by limit ID and period")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -675,8 +676,9 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	}
 
 	logger.With(
-		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
+		libLog.String("operation", "repository.usage_counter.get_by_limit_id_and_period"),
 		libLog.String("limit_id", limitID.String()),
+		libLog.String("period_key", periodKey),
 		libLog.Int("count", len(counters)),
 	).Log(ctx, libLog.LevelDebug, "Retrieved usage counters")
 
