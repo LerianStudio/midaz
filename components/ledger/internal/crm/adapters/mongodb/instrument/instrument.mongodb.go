@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -300,13 +299,12 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	// The account token follows the account: once the account is removed or emptied, the token must
-	// not keep matching list searches and the bank-account index.
-	if accountCleared(instrument.BankingDetails, fieldsToRemove) {
-		fieldsToRemove = append(slices.Clone(fieldsToRemove), "search.banking_details_account")
-	}
-
 	update := mongoUtils.BuildDocumentToPatch(updateDocument, fieldsToRemove)
+
+	// A search token follows its field: once the field is removed or emptied, the token must not keep
+	// matching list searches and the bank-account index. Tokens are server-owned, so their unset is
+	// added here: fieldsToRemove is the client's list and never reaches search.*.
+	unsetClearedTokens(update)
 
 	filter := bson.D{
 		{Key: "_id", Value: id},
@@ -437,9 +435,31 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	return nil
 }
 
-func accountCleared(patch *mmodel.BankingDetails, fieldsToRemove []string) bool {
-	return (patch != nil && patch.Account != nil && *patch.Account == "") ||
-		slices.Contains(fieldsToRemove, "bankingDetails") || slices.Contains(fieldsToRemove, "bankingDetails.account")
+// searchTokens maps each searchable field to the token minted from it.
+var searchTokens = map[string]string{
+	"banking_details.account":                "search.banking_details_account",
+	"banking_details.iban":                   "search.banking_details_iban",
+	"regulatory_fields.participant_document": "search.regulatory_fields_participant_document",
+}
+
+// unsetClearedTokens unsets the token of every field the built update empties (set without a token)
+// or removes (the field or its parent unset), so any client spelling of the removal counts.
+func unsetClearedTokens(update bson.M) {
+	set, _ := update["$set"].(bson.M)
+	unset, _ := update["$unset"].(bson.M)
+	has := func(m bson.M, key string) bool { _, ok := m[key]; return ok }
+
+	for field, token := range searchTokens {
+		parent, _, _ := strings.Cut(field, ".")
+		if !has(set, token) && (has(set, field) || has(unset, field) || has(unset, parent)) {
+			if unset == nil {
+				unset = bson.M{}
+				update["$unset"] = unset
+			}
+
+			unset[token] = ""
+		}
+	}
 }
 
 // repositoryInputAttributes returns non-sensitive presence/count span attributes

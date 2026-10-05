@@ -749,7 +749,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          description: "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -2573,6 +2573,7 @@ components:
         fees:
           additionalProperties:
             $ref: "#/components/schemas/Fee"
+          description: Fees keyed by fee key. A key must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits) and is stored and returned verbatim; any other key is refused with 400.
           type: object
         maximumAmount:
           examples:
@@ -3011,6 +3012,7 @@ components:
         fees:
           additionalProperties:
             $ref: "#/components/schemas/Fee"
+          description: Fee patches keyed by fee key. An entry naming a stored key verbatim edits that fee, or removes it when the entry sets no field. Any other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits), or the update is refused with 400; a key equal to a stored key except for letter case is also refused with 400, and the stored key must be used, unless the same patch removes that stored key, which renames the fee (the new key must still match the grammar).
           type: object
         maximumAmount:
           examples:
@@ -5001,7 +5003,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
-          description: "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          description: "Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -5716,6 +5718,7 @@ paths:
         - Organizations (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateOrganization
       parameters:
         - description: Organization ID (UUID)
@@ -6034,6 +6037,7 @@ paths:
         - Ledgers (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateLedger
       parameters:
         - description: Organization ID (UUID)
@@ -6354,6 +6358,7 @@ paths:
         - Account Types (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -7423,7 +7428,7 @@ paths:
         - Accounts (v1)
     patch:
       deprecated: true
-      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command."
+      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateAccount
       parameters:
         - description: Organization ID (UUID)
@@ -7996,6 +8001,7 @@ paths:
         - Assets (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateAsset
       parameters:
         - description: Organization ID (UUID)
@@ -8822,6 +8828,7 @@ paths:
         - Operation Routes (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -9189,6 +9196,7 @@ paths:
         - Portfolios (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updatePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -9542,6 +9550,7 @@ paths:
         - Segments (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateSegment
       parameters:
         - description: Organization ID (UUID)
@@ -9952,6 +9961,7 @@ paths:
         - Transaction Routes (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -10665,6 +10675,7 @@ paths:
         - Transactions (v1)
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -10839,6 +10850,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       deprecated: true
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
       operationId: updateOperation
       parameters:
         - description: Organization ID (UUID)
@@ -11346,6 +11358,7 @@ paths:
       tags:
         - Organizations (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOrganizationV2
       parameters:
         - description: Organization ID (UUID)
@@ -11834,7 +11847,7 @@ paths:
       tags:
         - Instruments (v2)
     patch:
-      description: Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043).
+      description: "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043). Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateInstrumentV2
       parameters:
         - description: Organization ID (UUID)
@@ -12058,6 +12071,7 @@ paths:
       tags:
         - Holders (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateHolderV2
       parameters:
         - description: Organization ID (UUID)
@@ -12557,6 +12571,7 @@ paths:
       tags:
         - Ledgers (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateLedgerV2
       parameters:
         - description: Organization ID (UUID)
@@ -12872,6 +12887,7 @@ paths:
       tags:
         - Account Types (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateAccountTypeV2
       parameters:
         - description: Organization ID (UUID)
@@ -13683,7 +13699,7 @@ paths:
         - Balances (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/close:
     post:
-      description: Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.
+      description: "Closes an account whose balances are all exactly zero and whose funds no pending transaction still holds, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination, and the revert of a transaction whose fee legs credited it. Closing is permanent. To retire a fee account, point the fee package at the new fee account and leave the old account open: reverts of earlier transactions and collections of fee debt already owed to it still post there."
       operationId: closeAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -14033,7 +14049,7 @@ paths:
       tags:
         - Accounts (v2)
     patch:
-      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command."
+      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -14387,6 +14403,7 @@ paths:
       tags:
         - Assets (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateAssetV2
       parameters:
         - description: Organization ID (UUID)
@@ -15872,6 +15889,7 @@ paths:
       tags:
         - Operation Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -16069,6 +16087,7 @@ paths:
         - Packages (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
     delete:
+      description: A deleted package may keep applying for up to 60 seconds when a transaction read the packages concurrently with the delete.
       operationId: deletePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -16173,6 +16192,7 @@ paths:
       tags:
         - Packages (v2)
     patch:
+      description: "A package switched off (enable: false) may keep applying, and a fee whose deferrable changed to false may still open fee debt when unfunded, for up to 60 seconds when a transaction read the packages concurrently with the update. Closing an account is permanent. To retire a fee account, point the fee package at the new fee account and leave the old account open: reverts of earlier transactions and collections of fee debt already owed to it still post there."
       operationId: updatePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -16534,6 +16554,7 @@ paths:
       tags:
         - Portfolios (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updatePortfolioV2
       parameters:
         - description: Organization ID (UUID)
@@ -16881,6 +16902,7 @@ paths:
       tags:
         - Segments (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateSegmentV2
       parameters:
         - description: Organization ID (UUID)
@@ -17284,6 +17306,7 @@ paths:
       tags:
         - Transaction Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -17567,6 +17590,7 @@ paths:
       tags:
         - Transactions (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -17747,6 +17771,7 @@ paths:
         - Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOperationV2
       parameters:
         - description: Organization ID (UUID)
@@ -18096,6 +18121,7 @@ paths:
       tags:
         - Operation Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOrganizationOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -18467,6 +18493,7 @@ paths:
       tags:
         - Transaction Routes (v2)
     patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)

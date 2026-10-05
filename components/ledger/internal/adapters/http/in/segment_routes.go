@@ -61,15 +61,18 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 		Security:    secSegmentBearer,
 	}, h.GetSegmentByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateSegment" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a segment",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secSegmentBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
-	}, h.UpdateSegment)
+	}, withMetadataNull(metadataNull, h.UpdateSegment))
 	attachTypedRequestBody[mmodel.UpdateSegmentInput](api, "updateSegment"+opSuffix)
 
 	huma.Register(api, huma.Operation{

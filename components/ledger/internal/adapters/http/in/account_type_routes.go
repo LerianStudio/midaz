@@ -64,15 +64,18 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Security:    secAccountTypeBearer,
 	}, h.GetAccountTypeByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateAccountType" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an account type",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secAccountTypeBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAccountType.
-	}, h.UpdateAccountType)
+	}, withMetadataNull(metadataNull, h.UpdateAccountType))
 	attachTypedRequestBody[mmodel.UpdateAccountTypeInput](api, "updateAccountType"+opSuffix)
 
 	huma.Register(api, huma.Operation{

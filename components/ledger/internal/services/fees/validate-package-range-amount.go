@@ -7,7 +7,11 @@ package services
 import (
 	"context"
 	"maps"
+	"sync"
+	"time"
 
+	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -23,6 +27,57 @@ import (
 
 // packageScopePageSize is the page size the overlap guard reads its scope with.
 const packageScopePageSize = 100
+
+// packageLockWait bounds the wait behind another mutation of the same ledger's
+// packages, and behind a Redis that stopped answering; the read and write the lock
+// spans take milliseconds.
+const packageLockWait = 2 * time.Second
+
+var packageLockOptions = libRedis.LockOptions{
+	Expiry:      10 * time.Second,
+	Tries:       40,
+	RetryDelay:  50 * time.Millisecond,
+	DriftFactor: 0.01,
+}
+
+// lockPackageScope serializes, across replicas, every package mutation of one
+// ledger from its overlap guard to its write: the guard reads before it writes, so
+// two mutations in flight would each pass against the other's absence. The
+// returned unlock may be called more than once.
+func (uc *UseCase) lockPackageScope(ctx context.Context, organizationID, ledgerID uuid.UUID) (func(), error) {
+	return lockFeeScope(ctx, uc.PackageLock, packageCacheKey(organizationID, ledgerID), constant.EntityPackage)
+}
+
+// lockFeeScope holds scopeKey across replicas from an overlap guard's read to its
+// write: the guard reads before it writes, so two writers in flight would each pass
+// against the other's absence. Contention answers 0086; a nil lock locks nothing.
+func lockFeeScope(ctx context.Context, lock *libRedis.RedisLockManager, scopeKey, entity string) (func(), error) {
+	if lock == nil {
+		return func() {}, nil
+	}
+
+	key, err := tmvalkey.GetKeyContext(ctx, "lock:"+scopeKey)
+	if err != nil {
+		return nil, err
+	}
+
+	lockCtx, cancel := context.WithTimeout(ctx, packageLockWait)
+	defer cancel()
+
+	handle, acquired, err := lock.TryLockWithOptions(lockCtx, key, packageLockOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if !acquired {
+		return nil, pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, entity)
+	}
+
+	var once sync.Once
+
+	// The handle logs its own release failure; the lease expiry frees the key anyway.
+	return func() { once.Do(func() { _ = handle.Unlock(context.WithoutCancel(ctx)) }) }, nil
+}
 
 // ValidatePackageMaxAndMinAmountRange validating max and min amount range of a package
 func (uc *UseCase) ValidatePackageMaxAndMinAmountRange(ctx context.Context, logger libLog.Logger,

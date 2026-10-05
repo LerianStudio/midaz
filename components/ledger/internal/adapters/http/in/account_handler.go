@@ -285,7 +285,7 @@ func (handler *AccountHandler) UpdateAccount(ctx context.Context, in *UpdateAcco
 	}
 
 	payload := new(mmodel.UpdateAccountInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullClearsV1); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

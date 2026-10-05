@@ -65,15 +65,18 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler, opSuffix string) {
 		Security:    secLedgerBearer,
 	}, h.GetLedgerByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateLedger" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an existing ledger",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secLedgerBearer,
 		SkipValidateBody: true, // body validated imperatively — see createLedger.
-	}, h.UpdateLedger)
+	}, withMetadataNull(metadataNull, h.UpdateLedger))
 	attachTypedRequestBody[mmodel.UpdateLedgerInput](api, "updateLedger"+opSuffix)
 
 	huma.Register(api, huma.Operation{

@@ -72,7 +72,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an Instrument",
-		Description:      "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043).",
+		Description:      "Updates an instrument as an RFC 7396 merge patch. A change to bankId, branch or account that leaves the instrument holding a bank account already registered to another live instrument of the organization is refused with 409 (CRM-0043). " + patchMetadataDocV2,
 		Tags:             []string{tag},
 		Security:         secInstrumentBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.

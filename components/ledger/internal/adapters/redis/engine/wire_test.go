@@ -832,7 +832,7 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 	fees := make(map[string]feemodel.Fee, feeCount)
 	notDeductible := false
 	for i := range feeCount {
-		key := fmt.Sprintf("fee-%06d", i)
+		key := fmt.Sprintf("fee%06d", i)
 		fees[key] = feemodel.Fee{
 			FeeLabel: key,
 			CalculationModel: &feemodel.CalculationModel{

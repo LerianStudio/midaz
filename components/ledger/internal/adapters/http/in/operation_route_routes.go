@@ -64,15 +64,18 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler, opSuff
 		Security:    secOperationRouteBearer,
 	}, h.GetOperationRouteByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateOperationRoute" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an operation route",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secOperationRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
-	}, h.UpdateOperationRoute)
+	}, withMetadataNull(metadataNull, h.UpdateOperationRoute))
 	attachTypedRequestBody[mmodel.UpdateOperationRouteInput](api, "updateOperationRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{

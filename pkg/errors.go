@@ -2116,12 +2116,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Deductible fee cannot be deferrable",
 			Message:    fmt.Sprintf("Fee %v is deducted from the payment (isDeductibleFrom true), so it cannot be deferrable. Set deferrable to false or isDeductibleFrom to false.", args...),
 		},
-		constant.ErrDuplicateFeeKey: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrDuplicateFeeKey.Error(),
-			Title:      "Duplicate fee key",
-			Message:    fmt.Sprintf("More than one fee in this request resolves to the key '%v', so the fee it applies to is ambiguous. Please send each fee once.", args...),
-		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrAccessMidaz.Error(),

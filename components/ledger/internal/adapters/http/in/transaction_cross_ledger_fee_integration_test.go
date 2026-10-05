@@ -47,7 +47,7 @@ func (fixture *atomicBatchHTTPIntegrationFixture) withFees(t *testing.T) pack.Re
 
 	packageRepo, err := pack.NewPackageMongoDBRepository(&feesmongo.MongoConnection{
 		ConnectionStringSource: fixture.infra.mongoContainer.URI,
-		Database:               "test_db",
+		Database:               fixture.infra.mongoContainer.DBName,
 		MaxPoolSize:            1,
 		DB:                     fixture.infra.mongoContainer.Client,
 	}, &libLog.GoLogger{})

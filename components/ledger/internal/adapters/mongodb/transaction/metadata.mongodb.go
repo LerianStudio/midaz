@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -130,6 +131,12 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	opts := options.UpdateOne().SetUpsert(true)
 
 	_, err = coll.UpdateOne(ctx, filter, update, opts)
+	if mongo.IsDuplicateKeyError(err) {
+		// The unique entity_id index refused a concurrent upsert. DocumentDB does not retry the
+		// losing upsert (MongoDB >= 4.2 does), so match the winner's document.
+		_, err = coll.UpdateOne(ctx, filter, update, opts)
+	}
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanUpsert, "Failed to upsert metadata", err)
 
@@ -501,6 +508,12 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	_, spanUpdate := tracer.Start(ctx, "mongodb.update_metadata.update_one")
 
 	_, err = coll.UpdateOne(ctx, filter, update, opts)
+	if mongo.IsDuplicateKeyError(err) {
+		// The unique entity_id index refused a concurrent upsert. DocumentDB does not retry the
+		// losing upsert (MongoDB >= 4.2 does), so match the winner's document.
+		_, err = coll.UpdateOne(ctx, filter, update, opts)
+	}
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update metadata", err)
 
@@ -742,13 +755,28 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	_, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
 
+	// MongoDB 8 drops a missing index without error, so presence is checked first.
+	specs, err := coll.Indexes().ListSpecifications(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanDelete, "Failed to list indexes", err)
+
+		return err
+	}
+
+	if !slices.ContainsFunc(specs, func(s mongo.IndexSpecification) bool { return s.Name == indexName }) {
+		notFound := pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, constant.EntityMetadataIndex)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Metadata index not found", notFound)
+
+		return notFound
+	}
+
 	err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete index", err)
 
 		var cmdErr mongo.CommandError
 		if errors.As(err, &cmdErr) && cmdErr.Name == "IndexNotFound" {
-			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, constant.EntityMetadataIndex)
 		}
 
 		return err

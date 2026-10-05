@@ -164,8 +164,11 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		return nil, err
 	}
 
-	// Get applicable limits (active limits matching asset and scopes)
-	limits, err := s.getApplicableLimits(ctx, input)
+	// Read on db: a caller holding a transaction on a bounded pool must not
+	// wait on the pool for a second connection while holding one.
+	limits, err := s.getApplicableLimits(ctx, input, func(ctx context.Context, filter *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+		return s.limitRepo.ListWithTx(ctx, db, filter)
+	})
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get applicable limits", err)
 		return nil, err
@@ -477,9 +480,13 @@ func (s *LimitCheckerService) processLimitAtomic(
 	return detail, false, nil
 }
 
-// getApplicableLimits fetches active limits matching asset and scopes.
+// getApplicableLimits fetches active limits matching asset and scopes through list.
 // Handles pagination to retrieve all matching limits beyond MaxPaginationLimit.
-func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *model.CheckLimitsInput) ([]model.Limit, error) {
+func (s *LimitCheckerService) getApplicableLimits(
+	ctx context.Context,
+	input *model.CheckLimitsInput,
+	list func(context.Context, *model.ListLimitsFilter) (*model.ListLimitsResult, error),
+) ([]model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit_checker.get_applicable_limits")
@@ -510,7 +517,7 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 			Cursor: cursor,
 		}
 
-		result, err := s.limitRepo.List(ctx, filter)
+		result, err := list(ctx, filter)
 		if err != nil {
 			libOtel.HandleSpanError(span, "Failed to list limits", err)
 			return nil, err

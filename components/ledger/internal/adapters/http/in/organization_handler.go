@@ -178,14 +178,14 @@ type UpdateOrganizationResponse struct {
 
 // UpdateOrganization decodes+validates the raw body imperatively then delegates
 // to the shared updateOrganization core.
-func (handler *OrganizationHandler) UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest) (*UpdateOrganizationResponse, error) {
+func (handler *OrganizationHandler) UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest, metadataNull metadataNullPolicy) (*UpdateOrganizationResponse, error) {
 	id, err := parsePathUUID(in.ID, "id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
 	payload := new(mmodel.UpdateOrganizationInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

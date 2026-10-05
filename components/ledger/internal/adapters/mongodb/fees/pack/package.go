@@ -14,7 +14,6 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
-	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
 )
 
@@ -303,7 +302,7 @@ func FromEntityFeeMap(fees map[string]model.Fee) (map[string]Fee, error) {
 			fee.RouteTo = nil
 		}
 
-		feesDBModel[strcase.ToLowerCamel(key)] = Fee{
+		feesDBModel[key] = Fee{
 			FeeLabel:         fee.FeeLabel,
 			CalculationModel: calcModelDB,
 			ReferenceAmount:  fee.ReferenceAmount,

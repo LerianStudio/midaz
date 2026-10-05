@@ -49,7 +49,9 @@ type feesMongoComponents struct {
 // tenant-manager Mongo manager keyed on constant.ModuleFees for per-request DB
 // resolution.
 func initFeesMongo(opts *Options, cfg *Config, logger libLog.Logger) (*feesMongoComponents, error) {
-	connection, err := buildFeesMongoConnection(cfg, logger)
+	multiTenant := opts != nil && opts.MultiTenantEnabled
+
+	connection, err := buildFeesMongoConnection(cfg, multiTenant, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +74,7 @@ func initFeesMongo(opts *Options, cfg *Config, logger libLog.Logger) (*feesMongo
 		billingPackageRepo: billingPackageRepo,
 	}
 
-	if opts != nil && opts.MultiTenantEnabled {
+	if multiTenant {
 		mongoMgr, mgrErr := buildFeesMongoManager(opts, cfg, logger)
 		if mgrErr != nil {
 			return nil, mgrErr
@@ -124,7 +126,7 @@ func buildFeesMongoManager(opts *Options, cfg *Config, logger libLog.Logger) (*t
 
 // buildFeesMongoConnection builds the static fee Mongo connection wrapper from
 // the FeesPrefixed* config. The repos lazily dial it via GetDB.
-func buildFeesMongoConnection(cfg *Config, logger libLog.Logger) (*feesmongo.MongoConnection, error) {
+func buildFeesMongoConnection(cfg *Config, multiTenant bool, logger libLog.Logger) (*feesmongo.MongoConnection, error) {
 	mongoSource, err := resolveFeesMongoURI(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -141,6 +143,7 @@ func buildFeesMongoConnection(cfg *Config, logger libLog.Logger) (*feesmongo.Mon
 		Logger:                 logger,
 		MaxPoolSize:            mongoMaxPoolSize,
 		TLSCACert:              strings.TrimSpace(cfg.FeesPrefixedMongoTLSCACert),
+		RequireTenant:          multiTenant,
 	}, nil
 }
 

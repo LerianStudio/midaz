@@ -98,8 +98,7 @@ func (uc *UseCase) applyFees(
 // repos read GetMBContext(ctx) on the generic key, but the route-scoped
 // feesTenantMiddleware that writes it is mounted on FEE routes only — never on
 // the transaction route — so without this the fee lookup on an MT transaction
-// would fall through to the static single-tenant fee DB shared across all
-// tenants (a client-data-isolation breach). The resolution mirrors that
+// would find no fee database and fail. The resolution mirrors that
 // middleware's single-manager path: GetDatabaseForTenant(tenantID) +
 // ContextWithMB(ctx, db) with NO module.
 //
@@ -108,8 +107,8 @@ func (uc *UseCase) applyFees(
 // fee DB onto the module-keyed onboarding/transaction injection the rest of the
 // request relies on (the exact cross-route leak route-scoping prevents).
 //
-// In single-tenant mode (or when no manager is wired) the static fee connection
-// is correct, so this is a no-op returning ctx unchanged.
+// In single-tenant mode, or with no manager wired, ctx is returned unchanged; in
+// multi-tenant mode the fee repos then fail for want of a tenant database.
 func (uc *UseCase) resolveFeesTenantContext(ctx context.Context) (context.Context, error) {
 	if !uc.MultiTenantEnabled || uc.FeesMongoManager == nil {
 		return ctx, nil
