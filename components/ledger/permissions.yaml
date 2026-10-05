@@ -144,14 +144,6 @@ scope:
         - { name: segmentId,   from: body, field: segmentId,       optional: true }
         - { name: holderId,    from: body, field: holderId,        optional: true }
         - { name: accountId,   from: body, field: parentAccountId, optional: true }
-    - method: PATCH
-      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
-      dimensions: &accountUpdateDimensions
-        - { name: portfolioId, from: body, field: portfolioId, optional: true }
-        - { name: segmentId,   from: body, field: segmentId,   optional: true }
-    - method: PATCH
-      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id
-      dimensions: *accountUpdateDimensions
     - method: POST
       path: /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts
       dimensions:
