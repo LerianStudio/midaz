@@ -381,6 +381,45 @@ The atomic batch and the cross-ledger request keep their own fingerprint rules; 
 [Atomic transaction batch](atomic-transaction-batch.md) and
 [Cross-ledger transactions](cross-ledger-transactions.md).
 
+### Account delete cascades to CRM and fees on both contracts
+
+An account `DELETE` is the same use case (`DeleteAccountByID`) on `/v1` and `/v2`, and no version
+policy is threaded into it. The effects on the CRM and on fees are referential integrity, like the
+`0012` guard that refuses an account with funds, so both contracts apply them alike.
+
+**Order.** The account is found, its balances are deleted (with the `0012`, `0527`, and `0528`
+guards), the live CRM instrument linked to the account is soft-deleted, the account alias is
+detached from the fee and billing packages of the ledger, and only then is the account row deleted
+and `account.deleted` emitted. The detach removes a fee whose `creditAccount` is the alias, pulls
+the alias from `waivedAccounts` and `accountTarget.aliases`, clears a billing leg equal to it, and
+disables a package that cannot charge anymore; the endpoint description lists the exact rules.
+
+**Fail-closed with idempotent steps.** A technical failure in any step answers with an error before
+the row is deleted, so the account stays in place and the client repeats the `DELETE`. Every step
+converges on a repeat: an instrument already soft-deleted keeps its `deletedAt`, and a package
+already cleaned of the alias is not written again. A failure after the instruments were cascaded
+leaves them soft-deleted while the account still exists, until the retry completes.
+
+**Cache.** The per-(organization, ledger) fee package cache is invalidated after the package writes,
+also when a later package fails, so a warmed cache does not keep serving the deleted alias. A
+transaction already in flight that loaded the package before the invalidation may still try to
+credit the alias once and answer `0019`; the engine refuses it before any movement.
+
+**Events.** `instrument.deleted`, `fee_packages.updated`, and `billing_package.updated` are emitted
+by the CRM and fees use cases inside the cascade, so they precede `account.deleted`. No field on the
+package records why it changed; the `updated` event and the delete log are the trail.
+
+**Tenant isolation.** The CRM and fees stores are resolved per call from the tenant context of the
+request, each through its own tenant manager, the same way the holder reader on account create is.
+
+Accepted residuals:
+
+- The concurrency window between the holder-delete check and the holder delete is unchanged.
+- References that were already dangling before this behavior existed are not backfilled.
+- Billing packages have no PATCH for an alias, so a billing package disabled by a cleared leg must
+  be recreated.
+- Lookups match the stored alias and IDs exactly.
+
 ## The holder seam is `/v2`-only
 
 The same contract-versus-scope split applies to accounts. The **holder seam** on account create —
