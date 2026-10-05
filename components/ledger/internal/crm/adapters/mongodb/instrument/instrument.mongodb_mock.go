@@ -131,6 +131,21 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, holderID, fil
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, holderID, filter, includeDeleted)
 }
 
+// FindLiveRefsByAccount mocks base method.
+func (m *MockRepository) FindLiveRefsByAccount(ctx context.Context, organizationID string, ledgerID, accountID uuid.UUID) ([]InstrumentRef, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindLiveRefsByAccount", ctx, organizationID, ledgerID, accountID)
+	ret0, _ := ret[0].([]InstrumentRef)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindLiveRefsByAccount indicates an expected call of FindLiveRefsByAccount.
+func (mr *MockRepositoryMockRecorder) FindLiveRefsByAccount(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindLiveRefsByAccount", reflect.TypeOf((*MockRepository)(nil).FindLiveRefsByAccount), ctx, organizationID, ledgerID, accountID)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, input *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error) {
 	m.ctrl.T.Helper()

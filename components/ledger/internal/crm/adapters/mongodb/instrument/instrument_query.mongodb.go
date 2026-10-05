@@ -6,6 +6,7 @@ package instrument
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 
@@ -312,4 +313,96 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 	}
 
 	return count, nil
+}
+
+// instrumentRefRecord is the projection decoded by FindLiveRefsByAccount.
+type instrumentRefRecord struct {
+	ID       *uuid.UUID `bson:"_id"`
+	HolderID *uuid.UUID `bson:"holder_id"`
+}
+
+// errIncompleteInstrumentRef reports a stored instrument missing its id or holder id.
+var errIncompleteInstrumentRef = errors.New("instrument document without _id or holder_id")
+
+// FindLiveRefsByAccount returns the references of the live instruments linked to an account
+func (am *MongoDBRepository) FindLiveRefsByAccount(ctx context.Context, organizationID string, ledgerID, accountID uuid.UUID) ([]InstrumentRef, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_live_instrument_refs_by_account")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := am.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
+
+	_, spanFind := tracer.Start(ctx, "mongodb.find_live_instrument_refs_by_account.find")
+	defer spanFind.End()
+
+	spanFind.SetAttributes(attributes...)
+
+	filter := bson.D{
+		{Key: "ledger_id", Value: ledgerID.String()},
+		{Key: "account_id", Value: accountID.String()},
+		{Key: "deleted_at", Value: nil},
+	}
+
+	opts := options.Find().
+		SetProjection(bson.D{{Key: "_id", Value: 1}, {Key: "holder_id", Value: 1}}).
+		SetSort(bson.D{{Key: "_id", Value: 1}})
+
+	cursor, err := coll.Find(ctx, filter, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find instrument refs by account", err)
+
+		return nil, err
+	}
+
+	defer func() {
+		if closeErr := cursor.Close(ctx); closeErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
+		}
+	}()
+
+	refs := make([]InstrumentRef, 0)
+
+	for cursor.Next(ctx) {
+		var record instrumentRefRecord
+		if err := cursor.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decode instrument ref", err)
+
+			return nil, err
+		}
+
+		if record.ID == nil || record.HolderID == nil {
+			libOpentelemetry.HandleSpanError(span, "Incomplete instrument ref", errIncompleteInstrumentRef)
+
+			return nil, errIncompleteInstrumentRef
+		}
+
+		refs = append(refs, InstrumentRef{ID: *record.ID, HolderID: *record.HolderID})
+	}
+
+	if err := cursor.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate instrument refs", err)
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(refs)))
+
+	return refs, nil
 }
