@@ -98,8 +98,10 @@ func TestUsageSnapshot_CountsOutstandingReservations(t *testing.T) {
 		require.Len(t, got.GetReservationIds(), 1)
 
 		assertUsageSnapshot(t, limitID, "900", 90.0, true)
-		assert.Equal(t, "DENY", validatePix(t, accountID.String(), "200.00").Decision,
-			"900 held plus 200 exceeds the 1000 cap the snapshot reports against")
+
+		denied := validatePix(t, accountID.String(), "200.00")
+		assert.Equal(t, "DENY", denied.Decision, "900 held plus 200 exceeds the 1000 cap the snapshot reports against")
+		assertLimitUsage(t, denied, limitID, "1100.00", true)
 
 		confirmTransaction(t, transactionID)
 
@@ -114,6 +116,15 @@ func TestUsageSnapshot_CountsOutstandingReservations(t *testing.T) {
 		releaseTransaction(t, heldID)
 
 		assertUsageSnapshot(t, limitID, "900", 90.0, true)
+
+		heldAgainID := testutil.MustDeterministicUUID(98107)
+		require.False(t, reservePix(t, heldAgainID, accountID, "50.00").GetDenied())
+
+		allowed := validatePix(t, accountID.String(), "30.00")
+		assert.Equal(t, "ALLOW", allowed.Decision)
+		assertLimitUsage(t, allowed, limitID, "980.00", false)
+
+		releaseTransaction(t, heldAgainID)
 	})
 }
 

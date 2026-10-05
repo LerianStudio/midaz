@@ -82,7 +82,8 @@ func usageCounterColumns() []string {
 }
 
 // upsertAtomicSQL is the expected SQL for UpsertAndIncrementAtomic using CTE.
-// The CTE (WITH attempt) tries the upsert and returns (current_usage, succeeded) flag.
+// The CTE (WITH attempt) tries the upsert and returns (consumed, succeeded), where
+// consumed is the bucket's current_usage + reserved_usage.
 // COALESCE falls back to SELECT + false when WHERE guard fails.
 // This eliminates the need for a second query when limit is exceeded.
 // Includes expires_at column for automatic cleanup.
@@ -96,15 +97,15 @@ const upsertAtomicSQL = `
 				last_updated_at = $8,
 				expires_at = $11
 			WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10
-			RETURNING current_usage, true as succeeded
+			RETURNING current_usage + reserved_usage AS consumed, true as succeeded
 		)
 		SELECT 
 			COALESCE(
-				(SELECT current_usage FROM attempt),
-				(SELECT current_usage FROM usage_counters 
+				(SELECT consumed FROM attempt),
+				(SELECT current_usage + reserved_usage FROM usage_counters 
 				 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
 				$5
-			) as current_usage,
+			) as consumed,
 			COALESCE(
 				(SELECT succeeded FROM attempt),
 				false
@@ -570,7 +571,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 					AddRow(limitID1, decimal.RequireFromString("50")).
 					AddRow(limitID2, decimal.RequireFromString("25"))
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage + reserved_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
 					WithArgs(limitID1, limitID2, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
@@ -601,7 +602,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"limit_id", "current_usage"}).
 					AddRow(limitID1, decimal.RequireFromString("50"))
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage + reserved_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
 					WithArgs(limitID1, limitID2, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
@@ -618,7 +619,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 			scopeKey:  "acct:123",
 			periodKey: "2025-01",
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage + reserved_usage FROM usage_counters`)).
 					WithArgs(limitID1, "2025-01", "acct:123").
 					WillReturnError(errors.New("database error"))
 			},
