@@ -228,6 +228,7 @@ func buildPackageAliasDetach(p *pack.Package, alias string) (packageAliasDetach,
 
 	if waived {
 		setFields["waived_accounts"] = slices.DeleteFunc(slices.Clone(*p.WaivedAccounts), func(a string) bool { return a == alias })
+
 		detach.actions = append(detach.actions, "alias_waiver_removed")
 	}
 
