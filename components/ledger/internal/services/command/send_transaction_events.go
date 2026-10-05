@@ -296,6 +296,7 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		Metadata:                 tran.Metadata,
 		FeesSkipped:              tran.FeesSkipped,
 		TracerSkipped:            tran.TracerSkipped,
+		Scheme:                   tran.Scheme,
 		CreatedAt:                tran.CreatedAt,
 		UpdatedAt:                tran.UpdatedAt,
 	}, nil

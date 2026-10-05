@@ -200,6 +200,7 @@ func (uc *UseCase) reserveTransaction(
 	ttl reservationTTLPolicy,
 	purpose reservationPurpose,
 	honoredTracerSkip bool,
+	scheme string,
 ) reservationOutcome {
 	// off, unconfigured, no client injected, or an honored per-call tracer skip:
 	// the create path is unchanged and no reserve request is built or sent. An
@@ -226,6 +227,7 @@ func (uc *UseCase) reserveTransaction(
 		LongLived:            ttl == reservationTTLLongLived,
 		Revert:               purpose == reservationForRevert,
 		Metadata:             reserveMD,
+		TransactionType:      scheme, // the tracer names the payment scheme transactionType
 	}
 
 	reserveCtx := ctx
