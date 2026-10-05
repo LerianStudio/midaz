@@ -9,6 +9,7 @@ package instrument
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -102,13 +103,23 @@ func TestIntegration_InstrumentRepo_Update_BankAccountTwinRefusedByIndex(t *test
 	requireBankAccountConflict(t, err)
 }
 
-func TestIntegration_InstrumentRepo_ClearingTheAccountReleasesIt(t *testing.T) {
+func TestIntegration_InstrumentRepo_ClearingAFieldReleasesItsToken(t *testing.T) {
+	const account, iban, participant = "banking_details_account", "banking_details_iban", "regulatory_fields_participant_document"
+
 	for name, clear := range map[string]struct {
 		patch          *mmodel.Instrument
 		fieldsToRemove []string
+		gone           []string
 	}{
-		"account removed": {patch: &mmodel.Instrument{}, fieldsToRemove: []string{"bankingDetails.account"}},
-		"account emptied": {patch: &mmodel.Instrument{BankingDetails: &mmodel.BankingDetails{Account: strPtr("")}}},
+		"account removed":               {patch: &mmodel.Instrument{}, fieldsToRemove: []string{"bankingDetails.account"}, gone: []string{account}},
+		"account emptied":               {patch: &mmodel.Instrument{BankingDetails: &mmodel.BankingDetails{Account: strPtr("")}}, gone: []string{account}},
+		"account removed, case variant": {patch: &mmodel.Instrument{}, fieldsToRemove: []string{"bankingDetails.Account"}, gone: []string{account}},
+		"details removed":               {patch: &mmodel.Instrument{}, fieldsToRemove: []string{"bankingDetails"}, gone: []string{account, iban}},
+		"details removed, case variant": {patch: &mmodel.Instrument{}, fieldsToRemove: []string{"BankingDetails"}, gone: []string{account, iban}},
+		"iban removed":                  {patch: &mmodel.Instrument{}, fieldsToRemove: []string{"bankingDetails.iban"}, gone: []string{iban}},
+		"participant document emptied": {
+			patch: &mmodel.Instrument{RegulatoryFields: &mmodel.RegulatoryFields{ParticipantDocument: strPtr("")}}, gone: []string{participant},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			container := mongotestutil.SetupReusableContainer(t)
@@ -117,19 +128,49 @@ func TestIntegration_InstrumentRepo_ClearingTheAccountReleasesIt(t *testing.T) {
 			ctx := context.Background()
 
 			first := bankAccountInstrument(t, "001", "0001", "123456", "CACC")
+			first.BankingDetails.IBAN = strPtr("BR1800360305000010009795493C1")
+			first.RegulatoryFields = &mmodel.RegulatoryFields{ParticipantDocument: strPtr("12345678000199")}
 			_, err := repo.Create(ctx, organizationID, first)
 			require.NoError(t, err)
 
 			_, err = repo.Update(ctx, organizationID, *first.HolderID, *first.ID, clear.patch, clear.fieldsToRemove)
 			require.NoError(t, err)
 
-			_, err = findRawInstrument(t, container, organizationID, *first.ID).LookupErr("search", "banking_details_account")
-			require.Error(t, err, "the account token must leave with the account")
+			raw := findRawInstrument(t, container, organizationID, *first.ID)
+			for _, token := range []string{account, iban, participant} {
+				_, err = raw.LookupErr("search", token)
+				assert.Equal(t, slices.Contains(clear.gone, token), err != nil, "token %s gone", token)
+			}
 
 			_, err = repo.Create(ctx, organizationID, bankAccountInstrument(t, "001", "0001", "123456", "CACC"))
-			require.NoError(t, err, "an account no instrument holds any more is free to register")
+			if slices.Contains(clear.gone, account) {
+				require.NoError(t, err, "an account no instrument holds any more is free to register")
+			} else {
+				requireBankAccountConflict(t, err)
+			}
 		})
 	}
+}
+
+func TestIntegration_InstrumentRepo_ChangingTheAccountMovesItsToken(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-bankchg-" + uuid.NewString()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+
+	first := bankAccountInstrument(t, "001", "0001", "123456", "CACC")
+	_, err := repo.Create(ctx, organizationID, first)
+	require.NoError(t, err)
+
+	_, err = repo.Update(ctx, organizationID, *first.HolderID, *first.ID,
+		&mmodel.Instrument{BankingDetails: &mmodel.BankingDetails{Account: strPtr("654321")}}, nil)
+	require.NoError(t, err)
+
+	_, err = findRawInstrument(t, container, organizationID, *first.ID).LookupErr("search", "banking_details_account")
+	require.NoError(t, err, "a changed account keeps a token")
+
+	_, err = repo.Create(ctx, organizationID, bankAccountInstrument(t, "001", "0001", "123456", "CACC"))
+	require.NoError(t, err, "the previous account is free to register")
 }
 
 // recordingLogger captures log lines; ContextWithLogger needs only log.Universal.
