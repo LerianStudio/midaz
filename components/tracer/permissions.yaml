@@ -46,18 +46,20 @@ version: 1
 partners: true
 scope:
   dimensions:
-    - { name: ruleId,       from: path, param: rule_id,        required: false, multi: true, collection: rules,        label: "rule" }
-    - { name: limitId,      from: path, param: limit_id,       required: false, multi: true, collection: limits,       label: "limit" }
+    - { name: ruleId,       from: path, param: rule_id,        required: false, multi: true, collection: rules,        label: "rule",
+        covers: [limits] }
+    - { name: limitId,      from: path, param: limit_id,       required: false, multi: true, collection: limits,       label: "limit",
+        covers: [rules] }
     - { name: validationId, from: path, param: validation_id,  required: false, multi: true, collection: validations,  label: "transaction validation" }
     - { name: auditEventId, from: path, param: audit_event_id, required: false, multi: true, collection: audit-events, label: "audit event" }
     - { name: portfolioId,  from: path, param: portfolio_id,   required: false, multi: true, collection: portfolios,   label: "portfolio",
-        covers: [validations, audit-events] }
+        covers: [validations, audit-events, rules, limits] }
     - { name: segmentId,    from: path, param: segment_id,     required: false, multi: true, collection: segments,     label: "segment",
-        covers: [validations, audit-events] }
+        covers: [validations, audit-events, rules, limits] }
     - { name: merchantId,   from: path, param: merchant_id,    required: false, multi: true, collection: merchants,    label: "merchant",
-        covers: [validations, audit-events] }
+        covers: [validations, audit-events, rules, limits] }
     - { name: accountId,    from: path, param: account_id,     required: false, multi: true, collection: accounts,     label: "account",
-        covers: [validations, audit-events] }
+        covers: [validations, audit-events, rules, limits] }
   routes:
     - method: POST
       path: /v1/validations
