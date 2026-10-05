@@ -103,7 +103,9 @@ be written against these variables:
 - `metadata` — the transaction metadata the ledger forwards: keys matching `^[a-zA-Z0-9_]+$` of
   at most 64 characters, at most 50 entries, and every value a STRING (the ledger renders numbers
   and booleans as strings, so compare `metadata["tier"] == "1"`, not `== 1`).
-- `transactionType` and `subType` are empty strings, `account["status"]` is empty, and
+- `transactionType` is the scheme the ledger transaction declared (`CARD`, `WIRE`, `PIX`,
+  `CRYPTO`) or an empty string when none was declared; `subType` is an empty string,
+  `account["status"]` is empty, and
   `account["metadata"]`, `segment`, `portfolio` and `merchant` are empty maps.
 
 On reserve the transaction timestamp is only checked for being in the future; the maximum-age

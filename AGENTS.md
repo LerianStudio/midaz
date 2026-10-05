@@ -133,7 +133,7 @@ permanent bypass. Idempotency replay returns the first outcome.
 
 The transaction and holder skip seams are **`/v2` contracts**: a `/v1` transaction create never reaches
 the fee engine and a `/v1` account create never reaches the holder seam, so a `skip` object
-in a `/v1` body is inert and can never raise the 422. A `/v1` account create links no holder
+in a `/v1` body is inert and can never raise the 422. `scheme` is the other `/v2`-only create field (exactly one of `CARD`, `WIRE`, `PIX`, `CRYPTO`): `reserveTransaction` — the only translation point — forwards it as the reserve's `transactionType`, empty when none was declared; a `/v2` revert inherits it from the original transaction row, and commit/cancel never send it. A `/v1` account create links no holder
 (`holder_id` stays NULL) and its response withholds `holderId` + `holderCheckSkipped`.
 Outside the seam on both contracts: organization create (neither contract writes a CRM
 self-holder — the idempotent backfill runner is the only provisioning path), the
