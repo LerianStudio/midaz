@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v5 v5.3.1-0.20261005182543-df8557752ed8
+	github.com/LerianStudio/lib-auth/v5 v5.3.1-0.20261005182804-5c447ae62838
 	github.com/LerianStudio/lib-commons/v7 v7.14.0
 	github.com/LerianStudio/lib-observability/v4 v4.6.1
 	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
