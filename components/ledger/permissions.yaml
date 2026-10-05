@@ -65,20 +65,21 @@ scope:
         covers: [holders, instruments, protection], parent: organizationId }
     - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type", parent: ledgerId }
     - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account",
-        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions], parent: ledgerId }
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
     - { name: accountAlias,       from: path, param: alias,                required: false, multi: true,  collection: accounts,           label: "account alias",
-        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions], parent: ledgerId }
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
     - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset", parent: ledgerId }
     - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio",
-        covers: [accounts], parent: ledgerId }
+        covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
     - { name: segmentId,          from: path, param: segment_id,           required: false, multi: true,  collection: segments,           label: "segment",
-        covers: [accounts], parent: ledgerId }
+        covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
     - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance", parent: accountId }
     - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction", parent: ledgerId }
     - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation", parent: accountId }
     - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route", parent: ledgerId }
     - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route", parent: ledgerId }
-    - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder", parent: organizationId }
+    - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder",
+        covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments], parent: organizationId }
     - { name: instrumentId,       from: path, param: instrument_id,        required: false, multi: true,  collection: instruments,        label: "instrument", parent: holderId }
     - { name: relatedPartyId,     from: path, param: related_party_id,     required: false, multi: true,  collection: related-parties,    label: "related party", parent: instrumentId }
     - { name: billingPackageId,   from: path, param: billing_package_id,   required: false, multi: true,  collection: billing-packages,   label: "billing package", parent: ledgerId }
