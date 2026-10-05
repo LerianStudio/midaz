@@ -13,7 +13,7 @@ import (
 )
 
 // entityIDIndexName is the name MongoDB derives for the ascending entity_id index of a metadata
-// collection, under which the Tenant Manager must provision it unique on tenant databases.
+// collection, and the name the tenant Mongo migrations (migrations/<module>/mongodb) create it under.
 const entityIDIndexName = "entity_id_1"
 
 // EnsureUniqueEntityIDIndex creates entity_id_1 unique on a metadata collection that has none, so
