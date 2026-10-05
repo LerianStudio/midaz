@@ -51,20 +51,20 @@ var feesV2FullRoutes = []string{
 // /v1 counterpart with the version suffix appended, which keeps the IDs unique within
 // the shared document and across the ledger↔tracer hub-spec join — see v2OpSuffix.
 var feesV2OperationIDs = map[string]string{
-	"POST /organizations/{organization_id}/ledgers/{ledger_id}/packages":                "createPackageV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages":                 "getAllPackagesV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":            "getPackageByIDV2",
-	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":          "updatePackageV2",
-	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":         "deletePackageV2",
-	"POST /organizations/{organization_id}/ledgers/{ledger_id}/estimates":               "estimateFeeCalculationV2",
-	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages":        "createBillingPackageV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages":         "getAllBillingPackagesV2",
+	"POST /organizations/{organization_id}/ledgers/{ledger_id}/packages":                                "createPackageV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages":                                 "getAllPackagesV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":                    "getPackageByIDV2",
+	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":                  "updatePackageV2",
+	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}":                 "deletePackageV2",
+	"POST /organizations/{organization_id}/ledgers/{ledger_id}/estimates":                               "estimateFeeCalculationV2",
+	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages":                        "createBillingPackageV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages":                         "getAllBillingPackagesV2",
 	"GET /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}":    "getBillingPackageByIDV2",
 	"PATCH /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}":  "updateBillingPackageV2",
 	"DELETE /organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}": "deleteBillingPackageV2",
-	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate":       "calculateBillingV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts":                "listFeeDebtsV2",
-	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}":      "getFeeDebtV2",
+	"POST /organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate":                       "calculateBillingV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts":                                "listFeeDebtsV2",
+	"GET /organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}":                  "getFeeDebtV2",
 }
 
 // mountFeesV2Routes wires the five fee registrars on a /v2 group, mirroring the
