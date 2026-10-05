@@ -31,15 +31,29 @@ const typeScopeReserveTimeout = 10 * time.Second
 // PIX-scoped limit, so the same spend reaches both at once.
 const typeScopeLimitCap = "1000"
 
+// typeScopeRequestSeedOffset separates a reserve's request-id seed from its
+// transaction-id seed, so both ids stay deterministic and distinct.
+const typeScopeRequestSeedOffset = 100
+
+// typeScopeTransactionID is the deterministic transaction id of the reserve
+// seeded by seed.
+func typeScopeTransactionID(seed int64) uuid.UUID {
+	return testutil.MustDeterministicUUID(seed)
+}
+
 // reserveTyped reserves for accountID over the gRPC seam with a ledger-shaped
 // request carrying transactionType; an empty transactionType omits the field.
 // It returns the transport error so a caller can assert the gRPC status.
+// seed derives the transaction and request ids, so each call site passes its
+// own seed to keep reservations apart.
 //
 // The transaction's reservations are released when the test ends: the
 // integration database is shared, and a RESERVED row left behind would be
 // swept by any reaper another test drives past the reservation TTL.
-func reserveTyped(t *testing.T, transactionID, accountID uuid.UUID, amount, transactionType string) (*reservationv1.ReserveResult, error) {
+func reserveTyped(t *testing.T, seed int64, accountID uuid.UUID, amount, transactionType string) (*reservationv1.ReserveResult, error) {
 	t.Helper()
+
+	transactionID := typeScopeTransactionID(seed)
 
 	client := testutil.DialReservationClient(t)
 	t.Cleanup(func() { releaseTypedReservations(t, client, transactionID) })
@@ -49,7 +63,7 @@ func reserveTyped(t *testing.T, transactionID, accountID uuid.UUID, amount, tran
 
 	return client.Reserve(ctx, &reservationv1.ReserveRequest{
 		TransactionId:        transactionID.String(),
-		RequestId:            uuid.New().String(),
+		RequestId:            testutil.MustDeterministicUUID(seed + typeScopeRequestSeedOffset).String(),
 		Amount:               amount,
 		Asset:                "BRL",
 		TransactionType:      transactionType,
@@ -78,10 +92,10 @@ func releaseTypedReservations(t *testing.T, client reservationv1.ReservationServ
 }
 
 // mustReserveTyped is reserveTyped for a request the seam must accept.
-func mustReserveTyped(t *testing.T, accountID uuid.UUID, amount, transactionType string) *reservationv1.ReserveResult {
+func mustReserveTyped(t *testing.T, seed int64, accountID uuid.UUID, amount, transactionType string) *reservationv1.ReserveResult {
 	t.Helper()
 
-	got, err := reserveTyped(t, uuid.New(), accountID, amount, transactionType)
+	got, err := reserveTyped(t, seed, accountID, amount, transactionType)
 	require.NoError(t, err, "Reserve must succeed over the gRPC seam")
 	require.NotNil(t, got)
 
@@ -139,9 +153,9 @@ func TestIntegration_Reservation_TransactionTypeScope_TypedReserveCountsBothLimi
 	accountID := testutil.MustDeterministicUUID(96501)
 	accountLimitID, pixLimitID := createActiveTypeScopedLimits(t, accountID)
 
-	assertReserveAllowed(t, mustReserveTyped(t, accountID, "600.00", string(model.TransactionTypePix)), 2)
-	assertReserveAllowed(t, mustReserveTyped(t, accountID, "400.00", string(model.TransactionTypePix)), 2)
-	assertReserveLimitExceeded(t, mustReserveTyped(t, accountID, "1.00", string(model.TransactionTypePix)))
+	assertReserveAllowed(t, mustReserveTyped(t, 96510, accountID, "600.00", string(model.TransactionTypePix)), 2)
+	assertReserveAllowed(t, mustReserveTyped(t, 96511, accountID, "400.00", string(model.TransactionTypePix)), 2)
+	assertReserveLimitExceeded(t, mustReserveTyped(t, 96512, accountID, "1.00", string(model.TransactionTypePix)))
 
 	wantUsage := decimal.RequireFromString(typeScopeLimitCap)
 	assert.True(t, limitUsage(t, db, accountLimitID).Equal(wantUsage),
@@ -160,9 +174,9 @@ func TestIntegration_Reservation_TransactionTypeScope_TypelessReserveSkipsTypedL
 	accountID := testutil.MustDeterministicUUID(96502)
 	accountLimitID, pixLimitID := createActiveTypeScopedLimits(t, accountID)
 
-	assertReserveAllowed(t, mustReserveTyped(t, accountID, "600.00", ""), 1)
-	assertReserveAllowed(t, mustReserveTyped(t, accountID, "400.00", ""), 1)
-	assertReserveLimitExceeded(t, mustReserveTyped(t, accountID, "1.00", ""))
+	assertReserveAllowed(t, mustReserveTyped(t, 96513, accountID, "600.00", ""), 1)
+	assertReserveAllowed(t, mustReserveTyped(t, 96514, accountID, "400.00", ""), 1)
+	assertReserveLimitExceeded(t, mustReserveTyped(t, 96515, accountID, "1.00", ""))
 
 	assert.True(t, limitUsage(t, db, accountLimitID).Equal(decimal.RequireFromString(typeScopeLimitCap)),
 		"the account-only limit must hold the full typeless spend")
@@ -179,11 +193,12 @@ func TestIntegration_Reservation_TransactionTypeScope_UnknownTypeRejected(t *tes
 	accountID := testutil.MustDeterministicUUID(96503)
 	createActiveTypeScopedLimits(t, accountID)
 
-	transactionID := uuid.New()
-	got, err := reserveTyped(t, transactionID, accountID, "1.00", "TED")
+	const seed = 96516
+
+	got, err := reserveTyped(t, seed, accountID, "1.00", "TED")
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, got)
-	assert.Zero(t, reservationRowCount(t, db, transactionID), "a rejected reserve must not write a reservation row")
+	assert.Zero(t, reservationRowCount(t, db, typeScopeTransactionID(seed)), "a rejected reserve must not write a reservation row")
 }
