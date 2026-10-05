@@ -119,21 +119,14 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 
 	h := &feeHarness{}
 
-	h.pgContainer = postgrestestutil.SetupContainer(t)
-	h.mongoContainer = mongotestutil.SetupContainer(t)
-	h.redisContainer = redistestutil.SetupContainer(t)
+	h.pgContainer = postgrestestutil.SetupLedgerContainer(t)
+	h.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	h.redisContainer = redistestutil.SetupReusableContainer(t)
 	h.db = h.pgContainer.DB
 
-	// Transaction schema via golang-migrate (owns schema_migrations).
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	connStr := postgrestestutil.BuildConnectionString(h.pgContainer.Host, h.pgContainer.Port, h.pgContainer.Config)
-	h.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, h.pgContainer.Config.DBName, migrationsPath)
-
-	// Onboarding schema applied directly (disjoint tables; IF NOT EXISTS).
-	postgrestestutil.ApplyOnboardingSchema(t, h.db)
-
-	mongoTxnConn := mongotestutil.CreateConnection(t, h.mongoContainer.URI, "test_db")
-	redisConn := redistestutil.CreateConnection(t, h.redisContainer.Addr)
+	h.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, h.pgContainer.DSN, h.pgContainer.DSN)
+	mongoTxnConn := mongotestutil.CreateConnection(t, h.mongoContainer.URI, h.mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, h.redisContainer.Addr, h.redisContainer.DB)
 
 	// Transaction-domain repos.
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(h.pgConn, false)
@@ -195,7 +188,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	logger := &libLog.GoLogger{}
 	feeConn := &feesmongo.MongoConnection{
 		ConnectionStringSource: h.mongoContainer.URI,
-		Database:               "test_db",
+		Database:               h.mongoContainer.DBName,
 		MaxPoolSize:            1,
 		DB:                     h.mongoContainer.Client,
 	}

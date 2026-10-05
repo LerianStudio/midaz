@@ -78,7 +78,7 @@ func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegr
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
 	infra := setupTestInfra(t)
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	engine, err := redisengine.NewAdapter(redisConn)
 	require.NoError(t, err)
 
