@@ -80,7 +80,7 @@ func normalizeCreateCrossLedgerTransactionV2Body(in CreateTransactionV2Request, 
 	return normalizedCrossLedgerTransactionV2Body{
 		transaction: mtransaction.Transaction{
 			Description: in.Description, Code: in.Code, Pending: pending, Metadata: in.Metadata,
-			RouteID: cloneStringPtr(in.RouteID), Skip: cloneTransactionSkip(in.Skip),
+			RouteID: cloneStringPtr(in.RouteID), Skip: cloneTransactionSkip(in.Skip), Scheme: in.Scheme,
 			Send: mtransaction.Send{
 				Asset: in.Asset, Value: value, Source: mtransaction.Source{From: from}, Distribute: mtransaction.Distribute{To: to},
 			},
@@ -183,7 +183,8 @@ func normalizeCreateTransactionV2Body(in CreateTransactionV2Request, pending boo
 				Source:     mtransaction.Source{From: from},
 				Distribute: mtransaction.Distribute{To: to},
 			},
-			Skip: cloneTransactionSkip(in.Skip),
+			Skip:   cloneTransactionSkip(in.Skip),
+			Scheme: in.Scheme,
 		},
 		scope: scope,
 	}, nil

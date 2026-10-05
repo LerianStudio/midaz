@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -297,6 +298,21 @@ func TestCreateTransactionV2Request_Validation(t *testing.T) {
 				in.OperationRouteID = nil
 			},
 			wantErr: false,
+		},
+		{
+			name:    "scheme PIX passes (oneof tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "PIX" },
+			wantErr: false,
+		},
+		{
+			name:    "lower-case scheme fails (oneof tag, no upper-casing)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "pix" },
+			wantErr: true,
+		},
+		{
+			name:    "scheme outside the enum fails (oneof tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "TED" },
+			wantErr: true,
 		},
 	}
 
@@ -1070,4 +1086,112 @@ func TestCreateTransactionV2Request_TranslateSkip(t *testing.T) {
 			assert.NotSame(t, &skip, tran.Skip, "Translate must clone the skip block, not alias the input's pointer")
 		})
 	}
+}
+
+// TestCreateTransactionV2Request_DecodeScheme drives the scheme field through the real
+// singular decode pipeline (unmarshal -> unknown-field re-marshal -> struct tags), the
+// path a wire body takes before any normalizer runs. The enum is matched verbatim: a
+// case or spelling variant is a 400 at this boundary, never normalized.
+func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
+	t.Parallel()
+
+	legs := `"debits":[{"alias":"@person1",` + scopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@person2",` + scopeJSON + `,"amount":"1000"}]`
+
+	tests := []struct {
+		name       string
+		scheme     string
+		wantScheme string
+		wantStatus int
+	}{
+		{name: "absent scheme decodes empty", scheme: "", wantScheme: ""},
+		{name: "CARD decodes verbatim", scheme: "CARD", wantScheme: "CARD"},
+		{name: "WIRE decodes verbatim", scheme: "WIRE", wantScheme: "WIRE"},
+		{name: "PIX decodes verbatim", scheme: "PIX", wantScheme: "PIX"},
+		{name: "CRYPTO decodes verbatim", scheme: "CRYPTO", wantScheme: "CRYPTO"},
+		{name: "lower-case pix is rejected", scheme: "pix", wantStatus: http.StatusBadRequest},
+		{name: "mixed-case Pix is rejected", scheme: "Pix", wantStatus: http.StatusBadRequest},
+		{name: "TED is outside the enum", scheme: "TED", wantStatus: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := `{"asset":"BRL","amount":"1000",` + legs
+			if tt.scheme != "" {
+				body += `,"scheme":"` + tt.scheme + `"`
+			}
+
+			body += `}`
+
+			in, err := decodeCreateTransactionV2Body([]byte(body))
+			if tt.wantStatus != 0 {
+				require.Error(t, err)
+
+				problem := requireV2BodyProblem(t, err)
+				assert.Equal(t, tt.wantStatus, problem.Status)
+				assert.Empty(t, in.Scheme)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantScheme, in.Scheme)
+		})
+	}
+}
+
+// TestCreateTransactionV2Request_TranslateScheme locks that both v2 normalizers carry the
+// declared scheme onto the canonical transaction: the singular translator and the
+// cross-ledger one, which builds its transaction through a separate field list.
+func TestCreateTransactionV2Request_TranslateScheme(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		scheme string
+	}{
+		{name: "absent scheme stays empty", scheme: ""},
+		{name: "PIX reaches the transaction", scheme: "PIX"},
+		{name: "CARD reaches the transaction", scheme: "CARD"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			singular := validV2Input()
+			singular.Scheme = tt.scheme
+
+			tran, _, err := singular.Translate(false)
+			require.NoError(t, err)
+			assert.Equal(t, tt.scheme, tran.Scheme)
+
+			crossLedger := validV2Input()
+			crossLedger.Scheme = tt.scheme
+			crossLedger.Credits[0].LedgerID = otherLedgerID
+
+			normalized, err := normalizeCreateCrossLedgerTransactionV2Body(crossLedger, false)
+			require.NoError(t, err)
+			require.Len(t, normalized.scopes, 2)
+			assert.Equal(t, tt.scheme, normalized.transaction.Scheme)
+		})
+	}
+}
+
+// TestDecodeAndValidateRevisedAtomicTransactionBatchV2_PreservesScheme locks that a batch
+// item, which embeds the singular v2 request, decodes the scheme through the batch path and
+// hands it to the item's normalized transaction.
+func TestDecodeAndValidateRevisedAtomicTransactionBatchV2_PreservesScheme(t *testing.T) {
+	t.Parallel()
+
+	request := validAtomicBatchV2Request("@source", "@destination", batchTestLedgerID)
+	request.Scheme = "PIX"
+	item := revisedAtomicBatchV2Item(t, request, "direct", 1)
+
+	result, err := decodeAndValidateRevisedAtomicTransactionBatchV2(marshalAtomicBatchV2Wrapper(t, item), 50)
+	require.NoError(t, err)
+	require.Len(t, result.items, 1)
+	assert.Equal(t, "PIX", result.items[0].normalized.transaction.Scheme)
 }
