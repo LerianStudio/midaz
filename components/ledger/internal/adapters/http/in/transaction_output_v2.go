@@ -96,6 +96,10 @@ type TransactionV2 struct {
 	// example: false
 	TracerSkipped bool `json:"tracerSkipped" example:"false"`
 
+	// Payment scheme the transaction declared (CARD, WIRE, PIX, CRYPTO); absent when none
+	// example: PIX
+	Scheme string `json:"scheme,omitempty" example:"PIX"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -288,6 +292,7 @@ func newTransactionV2(t *transaction.Transaction) *TransactionV2 {
 		RouteID:             t.RouteID,
 		FeesSkipped:         t.FeesSkipped,
 		TracerSkipped:       t.TracerSkipped,
+		Scheme:              t.Scheme,
 		CreatedAt:           t.CreatedAt,
 		UpdatedAt:           t.UpdatedAt,
 		DeletedAt:           t.DeletedAt,

@@ -29,6 +29,8 @@ package tracer
 import (
 	"context"
 	"net"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +46,7 @@ import (
 	tracermodel "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	tracerreservationmap "github.com/LerianStudio/midaz/v4/components/tracer/pkg/reservationmap"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
@@ -382,4 +385,62 @@ func TestReserveContract_LegacyTracerRejectsLedgerAccountType(t *testing.T) {
 	_, err = client.Reserve(context.Background(), req)
 	require.NoError(t, err)
 	assert.True(t, current.parsed)
+}
+
+// ledgerSchemeEnum reads the closed set of schemes the ledger accepts on a create from
+// the validate tag of mtransaction.Transaction.Scheme, so the lock tracks the tag
+// itself rather than a copy of its values.
+func ledgerSchemeEnum(t *testing.T) map[string]struct{} {
+	t.Helper()
+
+	field, ok := reflect.TypeOf(mtransaction.Transaction{}).FieldByName("Scheme")
+	require.True(t, ok, "mtransaction.Transaction must carry a Scheme field")
+
+	var values []string
+
+	for _, rule := range strings.Split(field.Tag.Get("validate"), ",") {
+		if raw, found := strings.CutPrefix(rule, "oneof="); found {
+			values = strings.Fields(raw)
+		}
+	}
+
+	require.NotEmpty(t, values, "the Scheme validate tag must carry a oneof= rule")
+
+	enum := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		enum[v] = struct{}{}
+	}
+
+	return enum
+}
+
+// TestReserveContract_SchemeEnumMatchesTracerTransactionType locks the ledger's
+// scheme enum to the tracer's TransactionType: a scheme the ledger admits on a
+// create is forwarded verbatim as the reserve's transaction type, so a value on
+// one side and not the other makes the tracer refuse a request the ledger already
+// validated, or the ledger refuse one the tracer would price.
+func TestReserveContract_SchemeEnumMatchesTracerTransactionType(t *testing.T) {
+	t.Parallel()
+
+	tracerTypes := []tracermodel.TransactionType{
+		tracermodel.TransactionTypeCard,
+		tracermodel.TransactionTypeWire,
+		tracermodel.TransactionTypePix,
+		tracermodel.TransactionTypeCrypto,
+	}
+
+	tracerEnum := make(map[string]struct{}, len(tracerTypes))
+
+	for _, tt := range tracerTypes {
+		require.Truef(t, tt.IsValid(), "tracer constant %q must be valid on the tracer side", tt)
+		tracerEnum[string(tt)] = struct{}{}
+	}
+
+	assert.Equal(t, tracerEnum, ledgerSchemeEnum(t),
+		"the ledger scheme enum and the tracer TransactionType set must be identical")
+
+	const outsider = "TED"
+
+	assert.False(t, tracermodel.TransactionType(outsider).IsValid(), "the tracer must refuse %q", outsider)
+	assert.NotContains(t, ledgerSchemeEnum(t), outsider, "the ledger must refuse %q", outsider)
 }
