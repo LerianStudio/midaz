@@ -218,6 +218,19 @@ func resWireReaper(t *testing.T, db *sql.DB, audit *resCountingAudit, sweepAt ti
 	return reaper
 }
 
+// resDrainStaleReservations sweeps every RESERVED row already past sweepAt
+// before a proof reserves. The integration tests share one database and the
+// reaper's find is DB-wide by design, so a reservation another test left
+// RESERVED would be counted by the proof's own sweep and break its exact
+// released count. The drain uses a throwaway audit writer so the proof's
+// batch-summary count stays at one.
+func resDrainStaleReservations(t *testing.T, db *sql.DB, sweepAt time.Time) {
+	t.Helper()
+
+	_, err := resWireReaper(t, db, &resCountingAudit{}, sweepAt).RunOnce(context.Background())
+	require.NoError(t, err, "failed to drain stale reservations before the proof")
+}
+
 // resSpec is a small helper for the stub resolver: one counter-backed limit. The
 // whole-unit proofs pass int64 amounts; the spec carries them as decimals.
 func resSpec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount int64) query.ReservationSpec {
@@ -279,6 +292,11 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		ctx := context.Background()
 
+		// The sweep instant is now + TTL + a margin, fixed before the reserve so
+		// the drain below and the proof's own sweep see the same horizon.
+		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		resDrainStaleReservations(t, db, sweepAt)
+
 		// Phase one: reserve. Capacity is held in reserved_usage.
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
@@ -291,9 +309,8 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		// --- LEDGER CRASH: neither Confirm nor Release is ever called. ---
 
-		// TTL elapses. The reaper sweeps at now + TTL + a margin and expires the
-		// abandoned reservation.
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		// TTL elapses. The reaper sweeps past the TTL and expires the abandoned
+		// reservation.
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -333,6 +350,9 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		ctx := context.Background()
 
+		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		resDrainStaleReservations(t, db, sweepAt)
+
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
 		require.Len(t, res.ReservationIDs, 1)
@@ -344,7 +364,6 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		// From the tracer's perspective nothing arrived; the reservation is still
 		// RESERVED. The TTL reaper is the durability backstop.
 
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -380,6 +399,9 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		ctx := context.Background()
 
 		audit := &resCountingAudit{}
+
+		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		resDrainStaleReservations(t, db, sweepAt)
 
 		// Two separate transactions, each reserving + confirming against the SAME
 		// counter, so the committed sum is unambiguous: 300 + 250 = 550.
@@ -419,7 +441,6 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		// --- LEDGER CRASH after the confirms, before any reaper sweep. ---
 		// The reaper runs: there are NO RESERVED rows, so it is a no-op and the
 		// CONFIRMED state is untouched.
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
@@ -468,6 +489,9 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 
 		ctx := context.Background()
 
+		sweepAt := time.Now().UTC().Add(6 * time.Minute)
+		resDrainStaleReservations(t, db, sweepAt)
+
 		// One transaction, two reservations, in ONE service call.
 		res, err := svc.Reserve(ctx, txID, resCheckInput(t), services.ReserveOptions{})
 		require.NoError(t, err)
@@ -479,7 +503,6 @@ func TestIntegration_ReservationCrashConvergence(t *testing.T) {
 		require.Equal(t, int64(250), rsvB)
 
 		// --- Confirm lost for the whole transaction. TTL elapses. ---
-		sweepAt := time.Now().UTC().Add(6 * time.Minute)
 		reaper := resWireReaper(t, db, audit, sweepAt)
 
 		released, err := reaper.RunOnce(ctx)
