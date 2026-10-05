@@ -324,7 +324,8 @@ type instrumentRefRecord struct {
 // errIncompleteInstrumentRef reports a stored instrument missing its id or holder id.
 var errIncompleteInstrumentRef = errors.New("instrument document without _id or holder_id")
 
-// FindLiveRefsByAccount returns the references of the live instruments linked to an account
+// FindLiveRefsByAccount filters on the live-only account_id partial unique index
+// and projects only identifiers, so no encrypted field is decrypted.
 func (am *MongoDBRepository) FindLiveRefsByAccount(ctx context.Context, organizationID string, ledgerID, accountID uuid.UUID) ([]InstrumentRef, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
