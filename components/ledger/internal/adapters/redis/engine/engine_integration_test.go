@@ -486,6 +486,13 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 			live: func(balance *accounting.BalanceSnapshot) { balance.Blocked = true },
 		},
 		{
+			name: "live account block precedes sending permission", permission: accounting.BalancePermissionSend, rejectBlocked: true, failure: accounting.FailureAccountBlocked,
+			live: func(balance *accounting.BalanceSnapshot) {
+				balance.Blocked = true
+				balance.AllowSending = false
+			},
+		},
+		{
 			name: "transaction asset", permission: accounting.BalancePermissionSend, failure: accounting.FailureAssetMismatch,
 			prepare: func(balance *accounting.BalanceSnapshot) { balance.AssetCode = "EUR" },
 		},
