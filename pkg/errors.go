@@ -1301,6 +1301,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction can't be reverted",
 			Message:    "Transaction can't be reverted. Please try again",
 		},
+		constant.ErrBlockUnblockNotRevertible: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrBlockUnblockNotRevertible.Error(),
+			Title:      "Block And Unblock Cannot Be Reverted",
+			Message:    "Block and unblock transactions cannot be reverted. Use an unblock to undo a block, or a block to undo an unblock.",
+		},
 		constant.ErrTransactionAmbiguous: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),

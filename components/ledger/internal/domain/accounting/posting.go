@@ -67,6 +67,9 @@ type Posting struct {
 	Amount          decimal.Decimal `json:"amount"`
 	DrawPolicy      DrawPolicy      `json:"drawPolicy"`
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount"`
+	// RepayForbidden (credit only, with a zero OverdraftAmount) adds the whole
+	// credit to available and leaves any outstanding overdraft untouched.
+	RepayForbidden bool `json:"repayForbidden,omitempty"`
 	// DeferShortfall (debit only) moves at most the payer's available funds and
 	// opens the unfunded rest as a fee debt instead of refusing.
 	DeferShortfall bool `json:"deferShortfall,omitempty"`

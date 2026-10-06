@@ -341,7 +341,10 @@ already-qualified alias. Do not recursively generate companions of companions.
 For non-external credit/empty-direction `credit`, repayment is `min(x, U)`.
 When `OverdraftAmount > 0`, additionally cap repayment at that value. Add only the
 remainder to A and generate a companion credit for the real repayment. Existing
-debt can be repaid even when future draws have been disabled.
+debt can be repaid even when future draws have been disabled. A `credit` posting
+marked `RepayForbidden` never repays: it adds the whole x to A, leaves U
+unchanged, and generates no companion movement. It is valid only on a `credit`
+with a zero `OverdraftAmount`.
 
 `release` is not a general credit operation. With a zero override, it restores A
 and decreases H without repaying debt. Only a positive override on a non-external
@@ -356,6 +359,13 @@ policy eligibility, and any overdraft cap recovered from historical operations.
 Its inputs are intentionally limited to lifecycle action and status, leg side,
 the per-leg route-validation decision, and the historical cap. It cannot inspect
 the balance pool or derive monetary results.
+
+A block (`OperationTypeOverride` `BLOCK`) is kept away from overdraft: its plan
+forbids every draw, marks every credit `RepayForbidden`, drops the historical cap
+and builds no companion spec, so the amount it sets aside returns whole on the
+unblock. An unblock keeps the ordinary plan, so its credit repays outstanding
+debt first. Both label their primary rows with the override, while an overdraft
+companion row always keeps the `OVERDRAFT` type.
 
 There is one Lua accounting engine for every executable path. API version,
 lifecycle, and route-validation differences are expressed by the ordered
