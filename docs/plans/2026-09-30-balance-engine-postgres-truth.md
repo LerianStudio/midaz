@@ -31,7 +31,7 @@
 
 ## Contexto e decisões já tomadas
 
-### Hoje (develop v4.3.0-beta.27 em 2026-10-06; main v4.2.0 desde 2026-10-02; versão em produção a confirmar com o Fred)
+### Hoje (develop v4.3.0-beta.27 em 2026-10-06; main v4.2.0 desde 2026-10-02; produção `lerian-eks-production` aponta ledger e tracer 4.2.0 desde 2026-10-06, commit `71ba596` do `lerian-aws-gitops`)
 
 O Lua dentro do Valkey decide o saldo em um EVAL e o cliente recebe 201 antes do Postgres saber. O Postgres recebe uma projeção depois, por RabbitMQ (write-behind) ou por completion síncrona. Se a projeção falha, o serviço registra o aviso "Applied transaction projection deferred to recovery" e ainda responde 201 (`components/ledger/internal/services/command/create_transaction_engine.go`, função `finalizeCreateEngineResult`). Um Valkey restaurado de snapshot com chave NÃO vazia vence o Postgres: `loadBalancePool` em `components/ledger/internal/adapters/redis/engine/scripts/engine/execution.lua` trata o valor do Redis como autoridade e `query.GetBalances` só reconstrói da trilha quando a chave falta. O saldo bifurca; não só volta no tempo. As listas de fee debt vivem só no Valkey, sem reseed exato (`docs/architecture/engine.md`, seção "Compatibility changes and rollout"). O Valkey de produção é compartilhado, `appendonly=no`, snapshot diário, réplica assíncrona.
 
