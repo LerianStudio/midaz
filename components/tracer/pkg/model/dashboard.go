@@ -189,10 +189,10 @@ type DashboardFraudTypes struct {
 type TopRule struct {
 	// Name is the rule's name, the label the console renders.
 	Name string `json:"name" example:"high-value-wire"`
-	// ProductType is the transaction type the rule is SCOPED to (CARD, WIRE,
-	// PIX, CRYPTO), read from the rule's own scopes — never inferred from the
-	// traffic it happened to see. Empty when the rule scopes no transaction
-	// type, which means it applies to all of them.
+	// ProductType is the payment scheme the rule is SCOPED to, read from the
+	// rule's own scopes — never inferred from the traffic it happened to see.
+	// Empty when the rule scopes no scheme, which means it applies to all of
+	// them.
 	ProductType string `json:"productType,omitempty" example:"WIRE"`
 	// Matches is the number of validations in the window where the rule fired.
 	Matches int64 `json:"matches" example:"1287"`

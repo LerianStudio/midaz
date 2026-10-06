@@ -388,7 +388,7 @@ func (r *DashboardRepository) Volume(ctx context.Context, window model.Dashboard
 	return volume, nil
 }
 
-// FraudTypes returns the flagged breakdown by transaction type.
+// FraudTypes returns the flagged breakdown by payment scheme.
 func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.DashboardWindow) (*model.DashboardFraudTypes, error) {
 	ctx, span, logger := r.startSpan(ctx, "repository.dashboard.fraud_types")
 	defer span.End()

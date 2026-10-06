@@ -1447,7 +1447,7 @@ paths:
         - Audit
   /dashboard/fraud-types:
     get:
-      description: Returns DENY + REVIEW decisions broken down by transaction type, with each type's share of the flagged traffic.
+      description: "Returns DENY + REVIEW decisions broken down by payment scheme, with each scheme's share of the flagged traffic: the ten schemes that flag most, plus one OTHER slice summing the rest."
       operationId: getDashboardFraudTypes
       parameters:
         - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."

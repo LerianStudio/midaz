@@ -13,7 +13,7 @@ plus `audit-viewer`, declared in `permissions.yaml`.
 |---|---|
 | `/metrics` | counts, decision rates, blocked volume per asset, mean latency, live active rule/limit counts |
 | `/volume` | validations per UTC day |
-| `/fraud-types` | DENY + REVIEW split by transaction type |
+| `/fraud-types` | DENY + REVIEW split by payment scheme: the ten schemes that flag most, plus one `OTHER` slice summing the rest |
 | `/top-rules` | the ten busiest rules: matches, executions, detection rate, mean latency |
 
 ## Window
@@ -58,7 +58,7 @@ fired, so a rule that guards nothing is reported with `matches: 0` rather than
 being absent — the answer an operator most needs is the one a matched-only
 query withholds. `productType` is read from the rule's own scope, never
 inferred from the traffic it saw, and is absent when the rule scopes no
-transaction type. `avgProcessingMs` is the mean end-to-end latency of the
+scheme. `avgProcessingMs` is the mean end-to-end latency of the
 validations the rule MATCHED, not the rule's own evaluation cost, which the
 trail does not record per rule.
 
@@ -87,10 +87,15 @@ End-to-end **HTTP**, three runs, all inside the 200ms bound:
 
 | Endpoint | 7d | 30d | 90d | Plan at 90d |
 |---|---|---|---|---|
-| `/metrics` | 7ms | 23ms | 67ms | Index Only Scan, `idx_transaction_validations_dashboard` |
+| `/metrics` | 7ms | 23ms | 67ms | Index Only Scan, `idx_transaction_validations_dashboard`* |
 | `/volume` | 5ms | 18ms | 53ms | Index Only Scan, `idx_transaction_validations_created` |
-| `/fraud-types` | 5ms | 15ms | 25ms | Parallel Index Only Scan, `idx_transaction_validations_dashboard` |
+| `/fraud-types` | 5ms | 15ms | 25ms | Parallel Index Only Scan, `idx_transaction_validations_dashboard`* |
 | `/top-rules` | 29ms | 46ms | **106ms** | Parallel Index Scan, `idx_transaction_validations_created`, + heap |
+
+\* Measured on `idx_transaction_validations_dashboard`, the index
+`idx_transaction_validations_dashboard_scheme` replaces (see [Index](#index)).
+The replacement carries one more INCLUDE column (`scheme`) and was not
+re-measured.
 
 `/top-rules` is the expensive one and always will be: `CROSS JOIN LATERAL
 unnest(evaluated_rule_ids)` turns each validation into one row per rule it
@@ -151,9 +156,14 @@ day, not validations per day, and 340,000 is roughly 1,000,000 of those.
 
 ### Index
 
-Migration `000024` adds `idx_transaction_validations_dashboard`, a covering
-index on `created_at` INCLUDE (decision, transaction_type, asset, amount,
-processing_time_ms). Measured on this fixture:
+The dashboard reads are served by `idx_transaction_validations_dashboard_scheme`,
+a covering index on `created_at` INCLUDE (decision, transaction_type, asset,
+amount, processing_time_ms, scheme). Migration `000030` builds it and `000031`
+drops `idx_transaction_validations_dashboard`, the index migration `000024`
+added with every column but `scheme`; `/fraud-types` groups on
+`transaction_validation_scheme(scheme, transaction_type)`, so both columns must
+be covered for the read to stay index-only. The figures below were measured on
+the `000024` index, on this fixture:
 
 It costs **56MB** beside a 300MB table and **+0.6 to +0.7us** per validation
 insert, about 4% of the write's existing index maintenance. It buys **1.4-1.7x**
