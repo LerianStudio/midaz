@@ -1114,6 +1114,7 @@ func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
 		scheme     string
 		wantScheme string
 		wantStatus int
+		wantHint   bool
 	}{
 		{name: "absent scheme decodes empty", scheme: "", wantScheme: ""},
 		{name: "CARD decodes as sent", scheme: "CARD", wantScheme: "CARD"},
@@ -1121,7 +1122,7 @@ func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
 		{name: "lower-case pix decodes as sent", scheme: "pix", wantScheme: "pix"},
 		{name: "padded pix decodes as sent", scheme: " pix ", wantScheme: " pix "},
 		{name: "TED decodes as sent", scheme: "TED", wantScheme: "TED"},
-		{name: "punctuation is rejected", scheme: "pix!", wantStatus: http.StatusBadRequest},
+		{name: "punctuation is rejected", scheme: "pix!", wantStatus: http.StatusBadRequest, wantHint: true},
 		{name: "inner whitespace is rejected", scheme: "a b", wantStatus: http.StatusBadRequest},
 		{name: "one over the length bound is rejected", scheme: strings.Repeat("A", scheme.MaxLength+1), wantStatus: http.StatusBadRequest},
 	}
@@ -1144,6 +1145,15 @@ func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
 				problem := requireV2BodyProblem(t, err)
 				assert.Equal(t, tt.wantStatus, problem.Status)
 				assert.Empty(t, in.Scheme)
+
+				if tt.wantHint {
+					require.NotEmpty(t, problem.Errors)
+
+					msg := problem.Errors[0].Message
+					assert.Contains(t, msg, "scheme")
+					assert.Contains(t, msg, scheme.FormatHint)
+					assert.NotContains(t, msg, "Error:Field validation")
+				}
 
 				return
 			}

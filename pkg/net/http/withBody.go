@@ -630,6 +630,14 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("scheme", trans, func(ut ut.Translator) error {
+		return ut.Add("scheme", "{0} "+scheme.FormatHint, true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("scheme", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
 	_ = v.RegisterTranslation("metadatakeyformat", trans, func(ut ut.Translator) error {
 		return ut.Add("metadatakeyformat", "{0} must start with a letter and contain only alphanumeric characters and underscores", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {

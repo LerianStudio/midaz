@@ -5,6 +5,7 @@
 package scheme
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -50,5 +51,22 @@ func TestMaxLength_IsFifty(t *testing.T) {
 
 	if MaxLength != 50 {
 		t.Fatalf("MaxLength = %d, want 50", MaxLength)
+	}
+}
+
+func TestFormatHint_NamesMaxLength(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(FormatHint, "1 to "+strconv.Itoa(MaxLength)+" characters") {
+		t.Fatalf("FormatHint = %q, want it to name the bound %d", FormatHint, MaxLength)
+	}
+}
+
+func TestPattern_BoundTracksMaxLength(t *testing.T) {
+	t.Parallel()
+
+	want := "^[A-Z0-9_-]{1," + strconv.Itoa(MaxLength) + "}$"
+	if got := pattern.String(); got != want {
+		t.Fatalf("pattern = %q, want %q", got, want)
 	}
 }

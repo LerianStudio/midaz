@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -2727,7 +2728,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidTransactionType.Error(),
 			Title:      "Check Limits Invalid Transaction Type",
-			Message:    "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
+			Message:    "scheme " + scheme.FormatHint,
 		},
 		constant.ErrCheckLimitsInvalidSubType: ValidationError{
 			EntityType: entityType,
@@ -2781,7 +2782,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidTransactionType.Error(),
 			Title:      "Validation Invalid Transaction Type",
-			Message:    "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
+			Message:    "scheme (or transactionType) is required and " + scheme.FormatHint,
 		},
 		constant.ErrValidationSchemeAliasConflict: ValidationError{
 			EntityType: entityType,

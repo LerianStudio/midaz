@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 type SimpleStruct struct {
@@ -599,6 +600,25 @@ func TestSchemeValidation_Tag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSchemeValidation_TranslatedFieldDetail(t *testing.T) {
+	t.Parallel()
+
+	type testStruct struct {
+		Scheme string `json:"scheme" validate:"omitempty,scheme"`
+	}
+
+	err := ValidateStruct(&testStruct{Scheme: "pix!"})
+	require.Error(t, err)
+
+	var vErr *pkg.ValidationKnownFieldsError
+	require.ErrorAs(t, err, &vErr)
+
+	detail, ok := vErr.Fields["scheme"]
+	require.True(t, ok, "fields = %v, want a scheme entry", vErr.Fields)
+	assert.Equal(t, "scheme "+scheme.FormatHint, detail)
+	assert.NotContains(t, detail, "Error:Field validation")
 }
 
 func TestMetadataValidation_ValueMaxLength(t *testing.T) {

@@ -12,9 +12,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
-
-const schemeShapeMessage = "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing"
 
 func TestValidateBusinessError_TracerSchemeContract(t *testing.T) {
 	t.Parallel()
@@ -31,14 +30,14 @@ func TestValidateBusinessError_TracerSchemeContract(t *testing.T) {
 			sentinel:    constant.ErrCheckLimitsInvalidTransactionType,
 			wantCode:    "0405",
 			wantTitle:   "Check Limits Invalid Transaction Type",
-			wantMessage: schemeShapeMessage,
+			wantMessage: "scheme must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
 		},
 		{
 			name:        "validation transaction type shape",
 			sentinel:    constant.ErrValidationInvalidTransactionType,
 			wantCode:    "0414",
 			wantTitle:   "Validation Invalid Transaction Type",
-			wantMessage: schemeShapeMessage,
+			wantMessage: "scheme (or transactionType) is required and must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
 		},
 		{
 			name:        "scheme alias conflict",
@@ -61,5 +60,18 @@ func TestValidateBusinessError_TracerSchemeContract(t *testing.T) {
 			assert.Equal(t, tc.wantTitle, mapped.Title)
 			assert.Equal(t, tc.wantMessage, mapped.Message)
 		})
+	}
+}
+
+func TestValidateBusinessError_TracerSchemeMessagesCarryFormatHint(t *testing.T) {
+	t.Parallel()
+
+	for _, sentinel := range []error{
+		constant.ErrCheckLimitsInvalidTransactionType,
+		constant.ErrValidationInvalidTransactionType,
+	} {
+		mapped, ok := pkg.ValidateBusinessError(sentinel, "Validation").(pkg.ValidationError)
+		require.True(t, ok)
+		assert.Contains(t, mapped.Message, scheme.FormatHint)
 	}
 }

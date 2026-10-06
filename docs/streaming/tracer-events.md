@@ -99,10 +99,19 @@ Catalog (`buildCatalog`) and the manifest:
 
 ## Event catalog
 
-`limit.created` and `limit.updated` carry `SchemaVersion = 1.2.0` (the
-additive `resetTime` field in `1.1.0`, the additive scope `scheme` in `1.2.0`);
-`rule.created` and `rule.updated` carry `SchemaVersion = 1.1.0` (the additive
-scope `scheme`); the other 8 events carry `SchemaVersion = 1.0.0`.
+`limit.created` and `limit.updated` carry `SchemaVersion = 1.2.0`;
+`rule.created` and `rule.updated` carry `SchemaVersion = 1.1.0`; the other 8
+events carry `SchemaVersion = 1.0.0`. The limit `1.1.0` bump added `resetTime`.
+The limit `1.2.0` and rule `1.1.0` bumps changed the meaning of the scope's
+`transactionType`: it widened from the closed set `CARD`/`WIRE`/`PIX`/`CRYPTO`
+to a free-form normalized scheme. The scope's `scheme` key arrived in the same
+bump as an additive alias of `transactionType`. A consumer that switched
+exhaustively on the four former values now sees other values and must handle
+them.
+
+An additive optional key (emitted with `omitempty`) does not bump
+`ce-schemaversion`: consumers must ignore keys they do not know, and the
+version moves only when an existing key changes meaning, type or presence.
 
 | Event key | `ce-type` | `ce-subject` | Schema version |
 |-----------|-----------|--------------|----------------|

@@ -209,6 +209,12 @@ The reserve request carries the fee-inclusive `amount` and `asset`, the transact
   `PIX` it also matches scopes naming `PIX`. `subType` is never sent, and confirm and release
   address the transaction by id and carry no type. A `/v1` body cannot declare it (see below).
 
+Upgrade order: deploy the tracer first — its migrations `000028`–`000032` and image — then the
+ledger. A ledger that sends a scheme outside `CARD`/`WIRE`/`PIX`/`CRYPTO` to a tracer that still
+enforces the closed set is refused as invalid (`0532`, whatever `failPosture`). During the tracer
+rollout, pods of the previous build may fail reads of rows written with a free-form scheme until
+every pod runs the new build.
+
 The asset follows the ledger's asset code grammar exactly: uppercase Unicode letters, at most 100
 characters. An asset the ledger accepts is never refused by the tracer for its shape.
 
