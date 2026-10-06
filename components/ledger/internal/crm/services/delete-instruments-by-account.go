@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DeleteInstrumentsByAccount soft-deletes every live instrument linked to the
@@ -22,11 +24,17 @@ import (
 // goes through DeleteInstrumentByID, so it gets the same event and metric as a
 // manual soft delete. An instrument deleted concurrently is skipped without
 // counting; any other failure aborts and propagates.
-func (uc *UseCase) DeleteInstrumentsByAccount(ctx context.Context, organizationID string, ledgerID, accountID uuid.UUID) (int, error) {
+func (uc *UseCase) DeleteInstrumentsByAccount(ctx context.Context, organizationID string, ledgerID, accountID uuid.UUID) (deleted int, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_instruments_by_account")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "crm", "delete_instruments_by_account", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -34,8 +42,6 @@ func (uc *UseCase) DeleteInstrumentsByAccount(ctx context.Context, organizationI
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.account_id", accountID.String()),
 	)
-
-	deleted := 0
 
 	defer func() {
 		span.SetAttributes(attribute.Int("app.instruments_deleted", deleted))
@@ -49,8 +55,8 @@ func (uc *UseCase) DeleteInstrumentsByAccount(ctx context.Context, organizationI
 	}
 
 	for _, ref := range refs {
-		err := uc.DeleteInstrumentByID(ctx, organizationID, ref.HolderID, ref.ID, false)
-		if err == nil {
+		delErr := uc.DeleteInstrumentByID(ctx, organizationID, ref.HolderID, ref.ID, false)
+		if delErr == nil {
 			deleted++
 
 			logger.Log(ctx, libLog.LevelDebug, "Instrument soft-deleted by account cascade",
@@ -60,14 +66,16 @@ func (uc *UseCase) DeleteInstrumentsByAccount(ctx context.Context, organizationI
 			continue
 		}
 
-		if isInstrumentNotFound(err) {
+		if isInstrumentNotFound(delErr) {
 			logger.Log(ctx, libLog.LevelDebug, "Instrument already deleted, skipping",
 				libLog.String("instrument_id", ref.ID.String()))
 
 			continue
 		}
 
-		recordSpanError(span, "Failed to delete instrument linked to account", err)
+		recordSpanError(span, "Failed to delete instrument linked to account", delErr)
+
+		err = delErr
 
 		return deleted, err
 	}

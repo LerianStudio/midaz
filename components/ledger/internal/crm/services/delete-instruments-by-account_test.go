@@ -193,3 +193,60 @@ func TestDeleteInstrumentsByAccount(t *testing.T) {
 		})
 	}
 }
+
+// TestDeleteInstrumentsByAccount_DomainMetrics verifies the cascade counts as
+// one domain operation regardless of how many instruments it touches, while
+// each instrument delete still keeps its own per-instrument metric.
+func TestDeleteInstrumentsByAccount_DomainMetrics(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	reader, factory := newReaderFactory(t)
+
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		InstrumentRepo: mockInstrumentRepo,
+		Streaming:      pkgStreaming.NewMockEmitter(),
+		MetricsFactory: factory,
+	}
+
+	ctx := context.Background()
+
+	// Zero refs: success with no instruments found.
+	mockInstrumentRepo.EXPECT().
+		FindLiveRefsByAccount(gomock.Any(), cascadeOrgID, cascadeLedgerID, cascadeAccountID).
+		Return([]instrument.InstrumentRef{}, nil)
+
+	_, err := uc.DeleteInstrumentsByAccount(ctx, cascadeOrgID, cascadeLedgerID, cascadeAccountID)
+	require.NoError(t, err)
+
+	// One ref soft-deleted: success, and the inner delete_instrument metric fires once.
+	mockInstrumentRepo.EXPECT().
+		FindLiveRefsByAccount(gomock.Any(), cascadeOrgID, cascadeLedgerID, cascadeAccountID).
+		Return([]instrument.InstrumentRef{{ID: cascadeInstrumentID, HolderID: cascadeHolderID}}, nil)
+	mockInstrumentRepo.EXPECT().
+		Delete(gomock.Any(), cascadeOrgID, cascadeHolderID, cascadeInstrumentID, false).
+		Return(nil)
+
+	_, err = uc.DeleteInstrumentsByAccount(ctx, cascadeOrgID, cascadeLedgerID, cascadeAccountID)
+	require.NoError(t, err)
+
+	// FindLiveRefsByAccount technical error: the cascade itself counts a technical error.
+	findErr := errors.New("find failed")
+	mockInstrumentRepo.EXPECT().
+		FindLiveRefsByAccount(gomock.Any(), cascadeOrgID, cascadeLedgerID, cascadeAccountID).
+		Return(nil, findErr)
+
+	_, err = uc.DeleteInstrumentsByAccount(ctx, cascadeOrgID, cascadeLedgerID, cascadeAccountID)
+	require.ErrorIs(t, err, findErr)
+
+	totals := collectDomainCounters(t, reader)
+
+	require.Equal(t, int64(2), totals["crm/delete_instruments_by_account/success"],
+		"both the zero-ref and the one-ref cascade calls must count as success")
+	require.Equal(t, int64(1), totals["crm/delete_instruments_by_account/technical_error"],
+		"the find error must count as a single technical error")
+	require.Equal(t, int64(1), totals["crm/delete_instrument/success"],
+		"the inner delete must still be counted once per instrument")
+}
