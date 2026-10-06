@@ -80,10 +80,10 @@ func buildHumaPortfolioApp(t *testing.T, handler *PortfolioHandler, authOK bool)
 	parse := pkgHTTP.ParseUUIDPathParameters("portfolio")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/portfolios"
 	apiV1.Post(base, parse)
-	apiV1.Patch(base+"/:id", parse)
+	apiV1.Patch(base+"/:portfolio_id", parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Get(base+"/:portfolio_id", parse)
+	apiV1.Delete(base+"/:portfolio_id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
 	RegisterPortfolioRoutes(hAPI, handler, v1OpSuffix)

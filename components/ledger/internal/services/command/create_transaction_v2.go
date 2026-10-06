@@ -189,7 +189,7 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 	// every downstream consumer reads the same pointer. applyFees resolves the
 	// tenant's fee DB internally, only once it has decided fees actually apply, so
 	// the MT tenant resolution rides inside the same gate as the fee computation.
-	if err = uc.applyFees(ctx, &run.input, run.organizationID, run.ledgerID, run.status == constant.NOTED, run.honoredFeeSkip); err != nil {
+	if err = uc.applyFees(ctx, &run.input, run.organizationID, run.ledgerID, nil, run.status == constant.NOTED, run.honoredFeeSkip); err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 

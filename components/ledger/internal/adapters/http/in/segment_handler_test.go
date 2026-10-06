@@ -79,10 +79,10 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 	parse := pkgHTTP.ParseUUIDPathParameters("segment")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/segments"
 	apiV1.Post(base, parse)
-	apiV1.Patch(base+"/:id", parse)
+	apiV1.Patch(base+"/:segment_id", parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Get(base+"/:segment_id", parse)
+	apiV1.Delete(base+"/:segment_id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
 	RegisterSegmentRoutes(hAPI, handler, v1OpSuffix)

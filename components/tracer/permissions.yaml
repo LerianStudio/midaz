@@ -3,13 +3,15 @@
 # Identity (service slug): "tracer" — the real-time transaction validation /
 # fraud-prevention service (its own deployable, components/tracer). The slug is
 # the first argument of auth.Authorize(g.cfg.AppName, resource, method) in the
-# route guard (middleware/auth_guard.go:87); cfg.AppName resolves to the constant
-# ApplicationName = "tracer" (pkg/constant/app.go:7, config.go). Keys mirror the
+# route guard (AuthGuard.Protect, middleware/auth_guard.go); cfg.AppName resolves
+# to the constant ApplicationName = "tracer" (components/tracer/pkg/constant/app.go,
+# config.go). Keys mirror the
 # yaml tags on lib-auth/v5 auth/declaration.DeclarationManifest.
 #
 # The (resource, action) tuples are the EXACT surface the tracer routes enforce
 # via guard.With(resource, method, forceAPIKey) — each traces to a registration
-# in components/tracer/internal/adapters/http/in/routes.go (file:line per group).
+# in registerTracerHumaRoutes (components/tracer/internal/adapters/http/in/routes.go),
+# named per group below by its path prefix.
 # The action is the HTTP verb (get/post/patch/delete), preserved verbatim, so a
 # granted role's permission matches what the middleware checks. `resource` is
 # bare; the reconciler composes the "tracer/" prefix.
@@ -23,53 +25,93 @@
 # data, so the seed is the only source of truth for who gets what. Five seeded
 # tiers:
 #
-#   editor       -> rules/limits at post/get/patch/delete
+#   editor       -> rules/limits at post/get/patch/delete, plus reservations/post
 #   contributor  -> rules/limits at post/get/patch (no delete)
 #   viewer       -> rules/limits/validations at get
 #   validator    -> validations at get/post, plus reservations/post
 #   audit-viewer -> audit-events at get, plus reservations/post
 #
-# reservations (called by the ledger over the reservation seam) is therefore NOT
-# editor-only: the seed grants it to editor, validator and audit-viewer alike.
+# reservations/post is not an HTTP route: it is the grant the gRPC reservation
+# seam authorizes every RPC against (reserve, confirm, release), and the
+# ledger's Access Manager application token is what consumes it there. The
+# tiers above carry it because the seed does; a human holding it still cannot
+# use the seam, whose guard refuses every token that is not an application
+# token.
 #
 # This manifest must stay a SUPERSET of the seed. The tenant-manager's
 # template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
 # missing here is not merely undeclared — it stops existing.
 service: tracer
 version: 1
+partners: true
+scope:
+  dimensions:
+    - { name: ruleId,       from: path, param: rule_id,        required: false, multi: true, collection: rules,        label: "rule",
+        covers: [limits] }
+    - { name: limitId,      from: path, param: limit_id,       required: false, multi: true, collection: limits,       label: "limit",
+        covers: [rules] }
+    - { name: validationId, from: path, param: validation_id,  required: false, multi: true, collection: validations,  label: "transaction validation" }
+    - { name: auditEventId, from: path, param: audit_event_id, required: false, multi: true, collection: audit-events, label: "audit event" }
+    - { name: portfolioId,  from: path, param: portfolio_id,   required: false, multi: true, collection: portfolios,   label: "portfolio",
+        covers: [validations, audit-events, rules, limits] }
+    - { name: segmentId,    from: path, param: segment_id,     required: false, multi: true, collection: segments,     label: "segment",
+        covers: [validations, audit-events, rules, limits] }
+    - { name: merchantId,   from: path, param: merchant_id,    required: false, multi: true, collection: merchants,    label: "merchant",
+        covers: [validations, audit-events, rules, limits] }
+    - { name: accountId,    from: path, param: account_id,     required: false, multi: true, collection: accounts,     label: "account",
+        covers: [validations, audit-events, rules, limits] }
+  routes:
+    - method: POST
+      path: /v1/validations
+      dimensions:
+        - { name: accountId,   from: body, field: account.accountId }
+        - { name: segmentId,   from: body, field: segment.segmentId,     optional: true }
+        - { name: portfolioId, from: body, field: portfolio.portfolioId, optional: true }
+        - { name: merchantId,  from: body, field: merchant.merchantId,   optional: true }
+    - method: GET
+      path: /v1/validations
+      dimensions: &validationListQueryDimensions
+        - { name: accountId,   from: query, field: account_id,   optional: true }
+        - { name: segmentId,   from: query, field: segment_id,   optional: true }
+        - { name: portfolioId, from: query, field: portfolio_id, optional: true }
+    - method: GET
+      path: /v1/audit-events
+      dimensions: *validationListQueryDimensions
 permissions:
-  # rules — CEL fraud rules (routes.go:506)
-  - { resource: rules, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: rules, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: rules, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: rules, action: delete, effect: allow, roles: [editor] }
+  # rules — CEL fraud rules (registerTracerHumaRoutes, the /v1/rules group)
+  - { resource: rules, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: rules, action: get,    effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: rules, action: patch,  effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: rules, action: delete, effect: allow, roles: [editor], level: tenant }
 
-  # limits — spending limits (routes.go:521)
-  - { resource: limits, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: limits, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: limits, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: limits, action: delete, effect: allow, roles: [editor] }
+  # limits — spending limits (registerTracerHumaRoutes, the /v1/limits group)
+  - { resource: limits, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: limits, action: get,    effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: limits, action: patch,  effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: limits, action: delete, effect: allow, roles: [editor], level: tenant }
 
-  # validations — transaction validation (routes.go:533)
-  - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer] }
-  - { resource: validations, action: post, effect: allow, roles: [editor, validator] }
+  # validations — transaction validation (registerTracerHumaRoutes, the /v1/validations group)
+  - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer], level: tenant }
+  - { resource: validations, action: post, effect: allow, roles: [editor, validator], level: accountId }
 
-  # reservations — limit reservation (M2M; called by the ledger) (routes.go:565)
-  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer] }
+  # audit-events — hash-chained audit read (registerTracerHumaRoutes, the /v1/audit-events group)
+  - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer], level: tenant }
 
-  # audit-events — hash-chained audit read (routes.go:574)
-  - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer] }
+  # streaming-manifest — event catalog (RegisterStreamingManifestRoute)
+  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer], level: tenant }
 
-  # streaming-manifest — event catalog (streaming_manifest_route.go:48)
-  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+  # reservations — the reservation seam's grant (gRPC, every ReservationService
+  # RPC). Mirrors the seed's tracer-reservation-permission; consumed by the
+  # ledger's application token, refused to human tokens by the seam guard.
+  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer], level: tenant }
 
-  # dashboard — read-only aggregates over the validation trail (routes.go, the
-  # /v1/dashboard group). The figures are derived from the SAME rows the
+  # dashboard — read-only aggregates over the validation trail (registerTracerHumaRoutes,
+  # the /v1/dashboard group). The figures are derived from the SAME rows the
   # validations resource already exposes row by row, so the grant follows the
   # validations/get tiers exactly: a role that may read a validation may read a
   # count of validations, and a role that may not, may not. audit-viewer is
   # included because it already reads the audit trail of those same decisions.
-  - { resource: dashboard, action: get, effect: allow, roles: [editor, validator, viewer, audit-viewer] }
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, validator, viewer, audit-viewer], level: tenant }
 
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
@@ -91,10 +133,8 @@ roles:
   #
   # All FIVE seeded tiers are declared, because once the tenant-manager's
   # template-origin prune runs, whatever this manifest does not declare stops
-  # existing. `validator` and `audit-viewer` are the ones that would hurt: the
-  # seed grants them reservations/post — the surface the ledger calls over the
-  # reservation seam — and audit-events/get, neither of which the editor/viewer
-  # pair covers.
+  # existing: a seeded tier absent here loses its group's access on the next
+  # reconcile, even though the seed still binds members to that group.
   #
   # NOTE: the seed defines tracer-contributor-role, but at least one provisioned
   # tenant carries tracer-contributor-group with no matching role (seeded before
@@ -123,8 +163,8 @@ roles:
       - group: tracer-viewer-group
 
 m2m:
-  # EXPORT: tracer exposes its M2M surface — the `reservations` API guarded by
-  # tracer's own reservation permission. The ledger (midaz) reaches it over the
-  # gRPC/mTLS reservation seam, not an RI declaration M2M edge. tracer imports
-  # nothing over M2M.
+  # EXPORT: tracer exposes its M2M surface — the validation API
+  # (`/v1/validations`) under the validations grants above, and the gRPC
+  # reservation seam, which the ledger (midaz) calls with its application token
+  # under reservations/post. tracer imports nothing over M2M.
   exposed: true

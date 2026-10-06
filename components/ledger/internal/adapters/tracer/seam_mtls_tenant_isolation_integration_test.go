@@ -155,7 +155,8 @@ func TestSeamMTLSTenantIsolation(t *testing.T) {
 		// this transaction. The handler signals "not found for this tenant" as a
 		// codes.NotFound — proving B's view excludes A's reservation rather than
 		// silently confirming A's state under B's key.
-		err := client.ConfirmByTransaction(ctxB, fixedTransactionID)
+		outcome, err := client.ConfirmByTransaction(ctxB, fixedTransactionID)
+		require.Equal(t, ConfirmOutcome{}, outcome, "a refused confirm reports no outcome")
 		require.Error(t, err, "tenant B must not be able to confirm tenant A's transaction")
 		require.Equal(t, codes.NotFound, status.Code(err),
 			"the seam must report B's view as empty, not confirm A's reservation")
@@ -352,9 +353,9 @@ func reconstructedTenantInterceptor(poolByTenant map[string]dbresolver.DB) grpc.
 	}
 }
 
-// tenantIDFromIncomingMetadata reads the trusted tenant id from incoming gRPC
-// metadata under isolationTenantMetadataKey, mirroring the tracer's
-// tenantIDFromMetadata. Empty when absent.
+// tenantIDFromIncomingMetadata reads the tenant id from incoming gRPC metadata
+// under isolationTenantMetadataKey, mirroring how the tracer reads
+// seamtenant.MetadataKey with firstMetadataValue. Empty when absent.
 func tenantIDFromIncomingMetadata(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {

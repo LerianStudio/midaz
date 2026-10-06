@@ -8,10 +8,9 @@ package in
 
 // This file is the shared harness for the P4 third-rail fee proof suite. The
 // proof classes themselves live in transaction_fee_proof_integration_test.go
-// (T16), transaction_fee_revert_integration_test.go (T14), and
-// transaction_fee_async_integration_test.go (T25). The harness wires a
-// fee-enabled TransactionHandler against real Postgres + Mongo + Redis (and, for
-// the async file, RabbitMQ) by reusing the production composition: the same
+// (T16) and transaction_fee_revert_integration_test.go (T14). The harness wires a
+// fee-enabled TransactionHandler against real Postgres + Mongo + Redis by reusing
+// the production composition: the same
 // command/query/fees use cases the unified ledger bootstrap builds at
 // config.go:798 (transactionHandler := &TransactionHandler{Command, Query,
 // FeeApplier: fees.useCase}).
@@ -105,9 +104,13 @@ type feeHarness struct {
 // and an in-process MidazResolver over the same query.UseCase, and injected as
 // the handler's FeeApplier — the seam exercised by executeCreateTransaction.
 //
-// RabbitMQ is intentionally absent: the default sync path persists inline, which
-// is what every proof class except the T25 async file needs. The async file
-// builds its own RabbitMQ-backed variant.
+// Monetary commands run through the accounting engine exactly as the bootstrap
+// wires them: the engine, the applied-transaction completer, the write-behind
+// evidence codec the lifecycle reads decode, and the evidence resolver a commit,
+// cancel or revert needs to complete behind its predecessor.
+//
+// RabbitMQ is intentionally absent: the default sync path persists inline. A proof
+// of the async path swaps in TransactionWriteBehindAsync and a dispatcher.
 func setupFeeHarness(t *testing.T) *feeHarness {
 	t.Helper()
 
@@ -116,21 +119,14 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 
 	h := &feeHarness{}
 
-	h.pgContainer = postgrestestutil.SetupContainer(t)
-	h.mongoContainer = mongotestutil.SetupContainer(t)
-	h.redisContainer = redistestutil.SetupContainer(t)
+	h.pgContainer = postgrestestutil.SetupLedgerContainer(t)
+	h.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	h.redisContainer = redistestutil.SetupReusableContainer(t)
 	h.db = h.pgContainer.DB
 
-	// Transaction schema via golang-migrate (owns schema_migrations).
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	connStr := postgrestestutil.BuildConnectionString(h.pgContainer.Host, h.pgContainer.Port, h.pgContainer.Config)
-	h.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, h.pgContainer.Config.DBName, migrationsPath)
-
-	// Onboarding schema applied directly (disjoint tables; IF NOT EXISTS).
-	postgrestestutil.ApplyOnboardingSchema(t, h.db)
-
-	mongoTxnConn := mongotestutil.CreateConnection(t, h.mongoContainer.URI, "test_db")
-	redisConn := redistestutil.CreateConnection(t, h.redisContainer.Addr)
+	h.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, h.pgContainer.DSN, h.pgContainer.DSN)
+	mongoTxnConn := mongotestutil.CreateConnection(t, h.mongoContainer.URI, h.mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, h.redisContainer.Addr, h.redisContainer.DB)
 
 	// Transaction-domain repos.
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(h.pgConn, false)
@@ -192,7 +188,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	logger := &libLog.GoLogger{}
 	feeConn := &feesmongo.MongoConnection{
 		ConnectionStringSource: h.mongoContainer.URI,
-		Database:               "test_db",
+		Database:               h.mongoContainer.DBName,
 		MaxPoolSize:            1,
 		DB:                     h.mongoContainer.Client,
 	}
@@ -209,24 +205,20 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	h.commandUC.TransactionReader = h.queryUC
 	h.handler = &TransactionHandler{Query: h.queryUC, Command: h.commandUC}
 
+	engineAdapter, err := redisengine.NewAdapter(h.engineProvider)
+	require.NoError(t, err, "accounting engine")
+
+	h.commandUC.Engine = engineAdapter
+	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo)
+	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: redisRepo}
+	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
+
 	// Seed a real organization + ledger so GetParsedLedgerSettings succeeds and
 	// the fee resolver resolves accounts against a real ledger.
 	h.orgID = postgrestestutil.CreateTestOrganization(t, h.db)
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 
 	return h
-}
-
-// enableAccountingEngine opts this harness into the same engine-backed create
-// and synchronous completion path used by the production bootstrap. Existing
-// fee proof tests keep their legacy-path fixture unless they explicitly opt in.
-func (h *feeHarness) enableAccountingEngine(t *testing.T) {
-	t.Helper()
-
-	engineAdapter, err := redisengine.NewAdapter(h.engineProvider)
-	require.NoError(t, err, "accounting engine")
-	h.commandUC.Engine = engineAdapter
-	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo)
 }
 
 // dropFeePrecisionTable is a no-op assertion that the ISO-4217 precision table
@@ -552,6 +544,14 @@ type packageSpec struct {
 func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 	t.Helper()
 
+	return seedFeePackage(t, h.packageRepo, h.orgID, h.ledgerID, spec)
+}
+
+// seedFeePackage persists a package from the spec for one organization and
+// ledger through the real repository and returns its ID.
+func seedFeePackage(t *testing.T, packageRepo pack.Repository, organizationID, ledgerID uuid.UUID, spec packageSpec) uuid.UUID {
+	t.Helper()
+
 	enable := true
 	fees := make(map[string]feemodel.Fee, len(spec.fees))
 
@@ -592,7 +592,7 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 		maxAmt = decimal.NewFromInt(1_000_000_000)
 	}
 
-	p, err := pack.NewPackage(h.orgID, h.ledgerID, spec.label, spec.minAmount, maxAmt, fees, &enable)
+	p, err := pack.NewPackage(organizationID, ledgerID, spec.label, spec.minAmount, maxAmt, fees, &enable)
 	require.NoError(t, err, "build package")
 
 	p.SegmentID = spec.segmentID
@@ -602,7 +602,7 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 		p.WaivedAccounts = &wa
 	}
 
-	created, err := h.packageRepo.Create(h.ctx(), p, h.orgID)
+	created, err := packageRepo.Create(context.Background(), p, organizationID)
 	require.NoError(t, err, "persist package")
 
 	return created.ID

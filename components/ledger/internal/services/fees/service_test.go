@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -119,29 +118,6 @@ func TestFeesEmit_NilAndNoopEmitter_NoPanic(t *testing.T) {
 			require.NoError(t, err, "disabled streaming must not break the delete mutation")
 		})
 	}
-}
-
-// TestPackageRepositoryUpdate_ReturnsPersistedEntity asserts the Repository
-// interface Update returns the persisted entity (DECISION 1). This is a
-// compile-and-shape lock on the mock; the real Mongo behavior is covered by
-// integration tests.
-func TestPackageRepositoryUpdate_ReturnsPersistedEntity(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-
-	want := &pack.Package{ID: uuid.New(), FeeGroupLabel: "persisted"}
-
-	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-		Return(want, nil)
-
-	updateFields := bson.M{}
-
-	got, err := mockPackRepo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, &updateFields)
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
 }
 
 // unmarshalPayload decodes a captured emit payload into a generic map so

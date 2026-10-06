@@ -243,6 +243,18 @@
     },
     {
       "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_ApplyMarker_AllAttemptsTimeOutApplyOnce",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_ApplyMarker_ClientRetryAppliesOnce",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
       "test": "TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource",
       "reason": "Set CHAOS=1 to run chaos tests",
       "alternate_capability": "integration-chaos:CHAOS=1"
@@ -292,6 +304,18 @@
     {
       "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
       "test": "TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Reconcile_LostResponseConvertsToSuccess",
+      "reason": "Set CHAOS=1 to run chaos tests",
+      "alternate_capability": "integration-chaos:CHAOS=1"
+    },
+    {
+      "package": "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction",
+      "test": "TestIntegration_Chaos_Reconcile_NoExecutionKeepsError",
       "reason": "Set CHAOS=1 to run chaos tests",
       "alternate_capability": "integration-chaos:CHAOS=1"
     },

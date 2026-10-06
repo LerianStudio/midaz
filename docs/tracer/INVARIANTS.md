@@ -71,9 +71,11 @@ no case normalization (the Midaz ledger sends its free-form account type, e.g. `
 
 ### Reserve context
 
-The reserve path (the ledger's `/v2` reservation seam) evaluates the same rules with the same
-evaluator as `POST /v1/validations`, BEFORE any limit is resolved. The response carries
-`decision`, `reason` and `matchedRuleIds` beside `denied`, which stays `true` for both `DENY` and
+The reserve path is the `Reserve` RPC of the gRPC reservation seam
+(`lerian.midaz.reservation.v1.ReservationService`, `TRACER_GRPC_PORT`, default `:4021`), which the
+ledger calls for its `/v2` transactions; the HTTP API has no reservation route. It evaluates the
+same rules with the same evaluator as `POST /v1/validations`, BEFORE any limit is resolved. The
+response carries `decision`, `reason` and `matched_rule_ids` beside `denied`, which stays `true` for both `DENY` and
 `REVIEW`. Three rules differ from `POST /v1/validations`:
 
 - **Only a matched rule refuses.** A matched rule's `DENY` or `REVIEW` refuses the reserve with no
@@ -85,8 +87,7 @@ evaluator as `POST /v1/validations`, BEFORE any limit is resolved. The response 
   `decision=REVIEW` and `reason=rule_evaluation_error`, and no limit counter is touched.
   Infrastructure failures (database, cache) stay errors. Two conditions answer Unavailable
   instead of evaluating: a tenant whose rule cache is not loaded yet, and a tenant that reached
-  its per-tenant worker cap on the reservation seam (HTTP 503 with `Retry-After`, gRPC
-  `Unavailable` with code `0445`). The ledger treats both as an unavailable tracer and routes
+  its per-tenant worker cap on the reservation seam (gRPC `Unavailable` with code `0445`). The ledger treats both as an unavailable tracer and routes
   them through its `failPosture`.
 - **A revert skips the rules.** A reserve with `revert=true` evaluates no rule and still reserves
   its limits: limits measure gross activity, and a rule that could refuse a revert would leave an
@@ -108,6 +109,29 @@ be written against these variables:
 On reserve the transaction timestamp is only checked for being in the future; the maximum-age
 window applies to `POST /v1/validations` alone.
 
+### Reservation state machine
+
+A reservation row is `RESERVED`, then settles once into `CONFIRMED`, `RELEASED` or `EXPIRED`
+(the TTL reaper). The seam holds these rules:
+
+- **A reserve never reopens a settled row.** A reserve replayed onto a transaction whose row is
+  still `RESERVED` adopts that row and moves no counter twice. A replay onto a row in any other
+  status answers gRPC `FailedPrecondition` with `0533` (`ErrReservationAlreadySettled`) and moves
+  no counter.
+- **A confirm reports what it found.** `ConfirmByTransaction` returns `confirmed` (rows it moved
+  to `CONFIRMED` from `RESERVED` or `EXPIRED`) and `already_released` (rows already `RELEASED`,
+  whose spend is never counted); `ConfirmById` returns `already_released`. A confirm on an
+  `EXPIRED` row counts the spend without disturbing the capacity the reaper already returned.
+- **The tenant must be active.** Under multi-tenant mode the tenant comes from the `tenantId`
+  claim of the ledger's Access Manager token, whose `name` claim must be that tenant's ledger→tracer
+  client (`ledger-m2m-tracer-{tenant}`, tenants compared canonically; an `x-tenant-id` naming another tenant is refused); a
+  tenant that is not provisioned, suspended or purged answers
+  gRPC `Unavailable` with `0534` (`ErrReservationTenantInactive`) and never falls back to another
+  pool.
+- **Every settling confirm and release is audited.** Each writes a `RESERVATION_CONFIRMED` /
+  `RESERVATION_RELEASED` audit event in the same database transaction as the row flip, readable
+  through `GET /v1/audit-events`.
+
 ### `amount` precision (MANDATORY caveat)
 
 The `amount` variable is internally converted from `decimal.Decimal` to `float64` (via
@@ -120,7 +144,7 @@ results.
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in
   the final decision. Do not introduce ordered/short-circuit rule evaluation.
-- Rules are created in `DRAFT` and must be activated (`POST /v1/rules/{id}/activate`) before
+- Rules are created in `DRAFT` and must be activated (`POST /v1/rules/{rule_id}/activate`) before
   they participate in validation.
 
 ---
@@ -136,7 +160,7 @@ are why several migrations are held to the renumbering invariant below.
   DB-side: the `calculate_audit_event_hash()` trigger function (migration `000001`) runs
   `encode(sha256(hash_input::bytea), 'hex')`, backed by the `pgcrypto` extension enabled in
   migration `000004`. There is no application-side SHA-256 (`pkg/hash/` holds only an FNV-1a
-  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{id}/verify`
+  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{audit_event_id}/verify`
   re-walks the chain to prove integrity; this is the compliance proof and must keep working
   across upgrades.
 - **Synchronous, compliance-blocking write.** Audit persistence is SYNCHRONOUS, not
@@ -284,3 +308,17 @@ Kubernetes `ClusterIP` Service, NetworkPolicy, or equivalent firewall — never 
 public ingress. Public endpoints: `/health`, `/readyz`, `/metrics`, `/version`, `/swagger/*`.
 Everything else requires auth (API Key `X-API-Key` with constant-time comparison, plus the
 Access Manager plugin via `PLUGIN_AUTH_ENABLED` / `PLUGIN_AUTH_ADDRESS`).
+
+The gRPC reservation seam (`:4021`) enforces the first caller identity the configuration enables:
+the ledger's Access Manager application token (`PLUGIN_AUTH_ENABLED=true`: every RPC authorized as
+`tracer/reservations:post`, application tokens only, the token `azp` (client id) or `sub` listed in
+`TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, `AUTH_M2M_INVERSION_ENABLED=true` recommended, a boot Warn without it),
+the API key (`API_KEY_ENABLED=true`, metadata `x-api-key`, the same constant-time check as
+`X-API-Key`), the transport, or none. Under `TRACER_TLS_MODE=mtls` the listener requires a client
+certificate signed by `TRACER_TLS_CLIENT_CA_FILE` whose DNS SAN or URI SAN (or, on a certificate
+without SANs, Subject CN) matches `TRACER_TLS_CLIENT_ALLOWED_NAMES`; under `mesh` a service-mesh
+sidecar owns mTLS and must admit only the ledger. A seam with no identity boots with a warning
+except under `DEPLOYMENT_MODE=saas` or multi-tenant mode, which refuse to boot; `saas` also refuses a
+token or API key on a plaintext seam (`TRACER_TLS_MODE=server` encrypts it without client
+certificates). The allowlist is never applied to the HTTP listener. Do not add a reservation route to the HTTP API: the reservation
+lifecycle has one caller, the ledger, and one surface.

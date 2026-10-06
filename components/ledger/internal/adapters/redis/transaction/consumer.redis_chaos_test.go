@@ -1380,7 +1380,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 	ledgerID := uuid.New()
 	alias := "@approved-src-" + uuid.New().String()[:8]
 	initialAvailable := decimal.NewFromInt(2000)
-	initialOnHold := decimal.NewFromInt(0)
+	initialOnHold := decimal.NewFromInt(100) // the recovery release needs a hold left: on_hold never goes negative
 	initialVersion := int64(1)
 
 	ctx := context.Background()
@@ -1732,7 +1732,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 	ledgerID := uuid.New()
 	alias := "@cancel-rel-" + uuid.New().String()[:8]
 	initialAvailable := decimal.NewFromInt(3000)
-	initialOnHold := decimal.NewFromInt(0)
+	initialOnHold := decimal.NewFromInt(100) // the recovery release needs a hold left: on_hold never goes negative
 	initialVersion := int64(1)
 
 	ctx := context.Background()
@@ -2090,7 +2090,7 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 	ledgerID := uuid.New()
 	alias := "@timeout-approved-" + uuid.New().String()[:8]
 	initialAvailable := decimal.NewFromInt(1000)
-	initialOnHold := decimal.NewFromInt(200)
+	initialOnHold := decimal.NewFromInt(300) // covers phase 1, a phase 3 that lands anyway, and the recovery
 	initialVersion := int64(3)
 
 	ctx := context.Background()

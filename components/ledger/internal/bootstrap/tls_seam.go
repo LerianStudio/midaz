@@ -19,17 +19,16 @@ import (
 // cert material. These mirror the tracer-side constants so both ends of the
 // seam agree on the vocabulary.
 const (
-	tlsModeMTLS = "mtls"
-	tlsModeMesh = "mesh"
+	tlsModeMTLS   = "mtls"
+	tlsModeMesh   = "mesh"
+	tlsModeServer = "server"
 )
 
 // buildSeamClientTLSConfig builds the *tls.Config the ledger uses to dial the
-// tracer reservation seam over mutual TLS. It is the single place the ledger's
-// client-side mTLS posture is decided, so the gRPC and REST transports cannot
-// drift (both consume the returned config).
+// tracer reservation seam. It is the single place the ledger's client-side TLS
+// posture is decided; the gRPC client consumes the returned config.
 //
-// Behavior contract (per the Seam Contract — identity is mutual TLS, no shared
-// secret):
+// Behavior contract:
 //
 //   - mode "" / "mesh"  ⇒ (nil, nil). The ledger dials plaintext; a local
 //     service-mesh sidecar (Istio/Linkerd) originates mTLS. No cert material is
@@ -38,6 +37,10 @@ const (
 //     certificate (GetClientCertificate) and verifying the tracer's server
 //     certificate against the loaded CA pool (RootCAs). serverName pins the
 //     name the leaf is verified against.
+//   - mode "server"     ⇒ (*tls.Config, nil) verifying the tracer's server
+//     certificate against TRACER_TLS_CA_FILE and presenting no client
+//     certificate: the channel is encrypted and the ledger identifies itself
+//     with its token or API key instead. TRACER_TLS_CA_FILE is required.
 //   - mode "mtls" + missing/unreadable material ⇒ error naming the failing knob,
 //     so a misconfigured deploy fails fast at boot rather than silently dialing
 //     an unverified seam.
@@ -56,9 +59,30 @@ func buildSeamClientTLSConfig(cfg *Config, serverName string) (*tls.Config, erro
 		return nil, nil
 	case tlsModeMTLS:
 		return buildClientMTLSConfig(cfg, serverName)
+	case tlsModeServer:
+		return buildClientServerTLSConfig(cfg, serverName)
 	default:
-		return nil, fmt.Errorf("invalid TRACER_TLS_MODE %q: expected %q or %q", cfg.TracerTLSMode, tlsModeMTLS, tlsModeMesh)
+		return nil, fmt.Errorf("invalid TRACER_TLS_MODE %q: expected %q, %q or %q", cfg.TracerTLSMode, tlsModeMTLS, tlsModeMesh, tlsModeServer)
 	}
+}
+
+// buildClientServerTLSConfig assembles the client-side config for server mode:
+// verify the tracer's server leaf against the CA, present no certificate.
+func buildClientServerTLSConfig(cfg *Config, serverName string) (*tls.Config, error) {
+	if strings.TrimSpace(cfg.TracerTLSCAFile) == "" {
+		return nil, fmt.Errorf("reservation seam requires a CA: TRACER_TLS_MODE=server requires TRACER_TLS_CA_FILE")
+	}
+
+	rootCAs, err := loadCertPool(cfg.TracerTLSCAFile)
+	if err != nil {
+		return nil, fmt.Errorf("load tracer server CA (TRACER_TLS_CA_FILE): %w", err)
+	}
+
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: serverName,
+		RootCAs:    rootCAs,
+	}, nil
 }
 
 // buildClientMTLSConfig assembles the client-side mutual-TLS config for mtls

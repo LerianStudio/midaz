@@ -5,6 +5,7 @@
 package model
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -167,7 +168,7 @@ func TestLimitStatus_IsValid(t *testing.T) {
 	}
 }
 
-func TestCalculateResetAt(t *testing.T) {
+func TestLimitNextResetAt_WithoutResetTime(t *testing.T) {
 	// Fixed reference time: 2025-01-15 10:30:00 UTC
 	now := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -211,7 +212,7 @@ func TestCalculateResetAt(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CalculateResetAt(tc.limitType, tc.now)
+			result := (&Limit{LimitType: tc.limitType}).NextResetAt(tc.now)
 			if tc.expected == nil {
 				assert.Nil(t, result)
 			} else {
@@ -1723,18 +1724,56 @@ func TestNewUsageSnapshot_DailyLimit(t *testing.T) {
 	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
 
 	counters := []UsageCounter{
-		{CurrentUsage: decimal.RequireFromString("300")},
-		{CurrentUsage: decimal.RequireFromString("200")},
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("300")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("200")},
 	}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
 	assert.Equal(t, limit.ID, snapshot.LimitID)
-	assert.True(t, decimal.RequireFromString("500").Equal(snapshot.CurrentUsage), "should sum all counters")
+	assert.True(t, decimal.RequireFromString("300").Equal(snapshot.CurrentUsage), "should report the most consumed scope")
 	assert.True(t, decimal.RequireFromString("1000").Equal(snapshot.LimitAmount))
-	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
-	assert.False(t, snapshot.NearLimit, "50% should not be near limit")
+	assert.Equal(t, 30.0, snapshot.UtilizationPercent)
+	assert.False(t, snapshot.NearLimit, "30% should not be near limit")
 	assert.NotNil(t, snapshot.ResetAt, "DAILY limit should have resetAt")
+}
+
+// TestNewUsageSnapshot_ReportsWorstScopeOfPeriod proves the snapshot reports the
+// most consumed scope bucket, not the sum across scopes: every bucket is
+// enforced against maxAmount on its own, so a sum would exceed the cap for a
+// limit no transaction has exhausted.
+func TestNewUsageSnapshot_ReportsWorstScopeOfPeriod(t *testing.T) {
+	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
+
+	counters := []UsageCounter{
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("100")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("900")},
+		{ScopeKey: "acct:c", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("400")},
+	}
+
+	snapshot := NewUsageSnapshot(limit, counters)
+
+	assert.True(t, decimal.RequireFromString("900").Equal(snapshot.CurrentUsage), "want the worst scope, got %s", snapshot.CurrentUsage)
+	assert.Equal(t, 90.0, snapshot.UtilizationPercent)
+	assert.True(t, snapshot.NearLimit, "a scope above 80% makes the limit near its cap")
+}
+
+// TestNewUsageSnapshot_CountsReservedCapacity proves a bucket's consumption is
+// its committed usage plus outstanding reservations, because enforcement denies
+// on that sum.
+func TestNewUsageSnapshot_CountsReservedCapacity(t *testing.T) {
+	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
+
+	counters := []UsageCounter{
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("300"), ReservedUsage: decimal.RequireFromString("600")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("500"), ReservedUsage: decimal.Zero},
+	}
+
+	snapshot := NewUsageSnapshot(limit, counters)
+
+	assert.True(t, decimal.RequireFromString("900").Equal(snapshot.CurrentUsage), "want committed plus reserved of the worst scope, got %s", snapshot.CurrentUsage)
+	assert.Equal(t, 90.0, snapshot.UtilizationPercent)
+	assert.True(t, snapshot.NearLimit, "a scope above 80% of its cap counting reservations is near the limit")
 }
 
 // TestNewUsageSnapshot_NearLimitThreshold tests nearLimit flag at boundary.
@@ -1947,4 +1986,327 @@ func TestLimit_Update_NormalizesScopeSubType(t *testing.T) {
 	require.Equal(t, "buy", *limit.Scopes[1].SubType)
 
 	assert.Nil(t, limit.Scopes[2].SubType)
+}
+
+func resetTimePtr(s string) *TimeOfDay {
+	tod := mustNewTimeOfDay(s)
+
+	return &tod
+}
+
+func mustRFC3339(t *testing.T, s string) time.Time {
+	t.Helper()
+
+	ts, err := time.Parse(time.RFC3339, s)
+	require.NoError(t, err)
+
+	return ts
+}
+
+// midnightPeriodCases are the period keys and resets of midnight-UTC periods.
+// A limit without a reset time, or with an explicit 00:00, must keep producing
+// them byte for byte: persisted usage counters are addressed by these keys.
+var midnightPeriodCases = []struct {
+	limitType LimitType
+	at        string
+	key       string
+	resetAt   string
+}{
+	{LimitTypeDaily, "2026-10-01T00:00:00Z", "2026-10-01", "2026-10-02T00:00:00Z"},
+	{LimitTypeDaily, "2026-10-01T00:01:00Z", "2026-10-01", "2026-10-02T00:00:00Z"},
+	{LimitTypeDaily, "2026-10-01T23:59:00Z", "2026-10-01", "2026-10-02T00:00:00Z"},
+	{LimitTypeDaily, "2026-10-05T00:00:00Z", "2026-10-05", "2026-10-06T00:00:00Z"},
+	{LimitTypeDaily, "2026-11-01T00:00:00Z", "2026-11-01", "2026-11-02T00:00:00Z"},
+	{LimitTypeDaily, "2026-12-31T23:59:00Z", "2026-12-31", "2027-01-01T00:00:00Z"},
+	{LimitTypeDaily, "2027-01-01T00:00:00Z", "2027-01-01", "2027-01-02T00:00:00Z"},
+	{LimitTypeWeekly, "2026-10-01T00:00:00Z", "2026-W40", "2026-10-05T00:00:00Z"},
+	{LimitTypeWeekly, "2026-10-01T00:01:00Z", "2026-W40", "2026-10-05T00:00:00Z"},
+	{LimitTypeWeekly, "2026-10-01T23:59:00Z", "2026-W40", "2026-10-05T00:00:00Z"},
+	{LimitTypeWeekly, "2026-10-05T00:00:00Z", "2026-W41", "2026-10-12T00:00:00Z"},
+	{LimitTypeWeekly, "2026-11-01T00:00:00Z", "2026-W44", "2026-11-02T00:00:00Z"},
+	{LimitTypeWeekly, "2026-12-31T23:59:00Z", "2026-W53", "2027-01-04T00:00:00Z"},
+	{LimitTypeWeekly, "2027-01-01T00:00:00Z", "2026-W53", "2027-01-04T00:00:00Z"},
+	{LimitTypeMonthly, "2026-10-01T00:00:00Z", "2026-10", "2026-11-01T00:00:00Z"},
+	{LimitTypeMonthly, "2026-10-01T00:01:00Z", "2026-10", "2026-11-01T00:00:00Z"},
+	{LimitTypeMonthly, "2026-10-01T23:59:00Z", "2026-10", "2026-11-01T00:00:00Z"},
+	{LimitTypeMonthly, "2026-10-05T00:00:00Z", "2026-10", "2026-11-01T00:00:00Z"},
+	{LimitTypeMonthly, "2026-11-01T00:00:00Z", "2026-11", "2026-12-01T00:00:00Z"},
+	{LimitTypeMonthly, "2026-12-31T23:59:00Z", "2026-12", "2027-01-01T00:00:00Z"},
+	{LimitTypeMonthly, "2027-01-01T00:00:00Z", "2027-01", "2027-02-01T00:00:00Z"},
+}
+
+func TestLimitPeriod_WithoutResetTimeKeepsMidnightPeriods(t *testing.T) {
+	for _, tc := range midnightPeriodCases {
+		at := mustRFC3339(t, tc.at)
+		wantReset := mustRFC3339(t, tc.resetAt)
+
+		boundaries := map[string]*TimeOfDay{
+			"absent":         nil,
+			"explicit 00:00": resetTimePtr("00:00"),
+		}
+
+		for label, resetTime := range boundaries {
+			t.Run(string(tc.limitType)+" "+tc.at+" "+label, func(t *testing.T) {
+				limit := &Limit{LimitType: tc.limitType, ResetTime: resetTime}
+
+				key, err := limit.PeriodKey(at)
+				require.NoError(t, err)
+				assert.Equal(t, tc.key, key)
+
+				resetAt := limit.NextResetAt(at)
+				require.NotNil(t, resetAt)
+				assert.Equal(t, wantReset, *resetAt)
+			})
+		}
+	}
+}
+
+func TestLimitPeriod_MonthlyResetTimeMovesMonthBoundary(t *testing.T) {
+	limit := &Limit{LimitType: LimitTypeMonthly, ResetTime: resetTimePtr("09:00")}
+
+	tests := []struct {
+		at      string
+		key     string
+		resetAt string
+	}{
+		{"2026-11-01T08:59:00Z", "2026-10", "2026-11-01T09:00:00Z"},
+		{"2026-11-01T09:00:00Z", "2026-11", "2026-12-01T09:00:00Z"},
+		{"2026-11-30T23:59:00Z", "2026-11", "2026-12-01T09:00:00Z"},
+		{"2027-01-01T08:59:00Z", "2026-12", "2027-01-01T09:00:00Z"},
+		{"2027-01-01T09:00:00Z", "2027-01", "2027-02-01T09:00:00Z"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.at, func(t *testing.T) {
+			at := mustRFC3339(t, tc.at)
+
+			key, err := limit.PeriodKey(at)
+			require.NoError(t, err)
+			assert.Equal(t, tc.key, key)
+
+			resetAt := limit.NextResetAt(at)
+			require.NotNil(t, resetAt)
+			assert.Equal(t, mustRFC3339(t, tc.resetAt), *resetAt)
+		})
+	}
+}
+
+func TestLimitPeriod_NonPeriodicTypesIgnoreBoundary(t *testing.T) {
+	at := mustRFC3339(t, "2026-10-02T00:30:00Z")
+
+	t.Run("PER_TRANSACTION has no period and no reset", func(t *testing.T) {
+		limit := &Limit{LimitType: LimitTypePerTransaction}
+
+		key, err := limit.PeriodKey(at)
+		require.NoError(t, err)
+		assert.Empty(t, key)
+		assert.Nil(t, limit.NextResetAt(at))
+	})
+
+	t.Run("CUSTOM resets the day after its end date", func(t *testing.T) {
+		end := mustRFC3339(t, "2026-12-15T13:00:00Z")
+		limit := &Limit{LimitType: LimitTypeCustom, CustomEndDate: &end}
+
+		key, err := limit.PeriodKey(at)
+		require.NoError(t, err)
+		assert.Equal(t, "custom", key)
+
+		resetAt := limit.NextResetAt(at)
+		require.NotNil(t, resetAt)
+		assert.Equal(t, mustRFC3339(t, "2026-12-16T00:00:00Z"), *resetAt)
+	})
+
+	t.Run("CUSTOM without an end date has no reset", func(t *testing.T) {
+		limit := &Limit{LimitType: LimitTypeCustom}
+
+		assert.Nil(t, limit.NextResetAt(at))
+	})
+
+	t.Run("unknown type is an error", func(t *testing.T) {
+		limit := &Limit{LimitType: LimitType("HOURLY")}
+
+		_, err := limit.PeriodKey(at)
+		require.ErrorIs(t, err, constant.ErrCheckLimitsUnknownLimitType)
+		assert.Nil(t, limit.NextResetAt(at))
+	})
+}
+
+func TestNewLimit_WithResetTime(t *testing.T) {
+	createdAt := mustRFC3339(t, "2026-10-02T00:30:00Z")
+	scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}}
+	resetTime := resetTimePtr("9:00")
+
+	t.Run("daily limit stores the boundary and resets at it", func(t *testing.T) {
+		limit, err := NewLimit("Pix night", LimitTypeDaily, decimal.RequireFromString("1000"), "BRL", scopes, nil, createdAt, WithResetTime(resetTime))
+		require.NoError(t, err)
+
+		require.NotNil(t, limit.ResetTime)
+		assert.Equal(t, "09:00", limit.ResetTime.String())
+		assert.NotSame(t, resetTime, limit.ResetTime, "the limit must not alias the caller's value")
+		require.NotNil(t, limit.ResetAt)
+		assert.Equal(t, mustRFC3339(t, "2026-10-02T09:00:00Z"), *limit.ResetAt)
+	})
+
+	t.Run("overnight window ending at the boundary is accepted", func(t *testing.T) {
+		limit, err := NewLimitWithTimeWindow("Pix night", LimitTypeDaily, decimal.RequireFromString("1000"), "BRL", scopes, nil, "23:00", "09:00", createdAt, WithResetTime(resetTime))
+		require.NoError(t, err)
+
+		require.NotNil(t, limit.ResetTime)
+		assert.Equal(t, "09:00", limit.ResetTime.String())
+		require.NotNil(t, limit.ResetAt)
+		assert.Equal(t, mustRFC3339(t, "2026-10-02T09:00:00Z"), *limit.ResetAt)
+	})
+
+	t.Run("nil reset time leaves the limit on midnight periods", func(t *testing.T) {
+		limit, err := NewLimit("Daily", LimitTypeDaily, decimal.RequireFromString("1000"), "BRL", scopes, nil, createdAt, WithResetTime(nil))
+		require.NoError(t, err)
+
+		assert.Nil(t, limit.ResetTime)
+		require.NotNil(t, limit.ResetAt)
+		assert.Equal(t, mustRFC3339(t, "2026-10-03T00:00:00Z"), *limit.ResetAt)
+	})
+}
+
+func TestNewLimit_ResetTimeRejectedForNonPeriodicTypes(t *testing.T) {
+	createdAt := mustRFC3339(t, "2026-10-02T00:30:00Z")
+	scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}}
+	customStart := mustRFC3339(t, "2026-10-01T00:00:00Z")
+	customEnd := mustRFC3339(t, "2026-12-31T00:00:00Z")
+	amount := decimal.RequireFromString("1000")
+	opt := WithResetTime(resetTimePtr("09:00"))
+
+	tests := []struct {
+		name  string
+		build func() (*Limit, error)
+	}{
+		{"PER_TRANSACTION", func() (*Limit, error) {
+			return NewLimit("Per tx", LimitTypePerTransaction, amount, "BRL", scopes, nil, createdAt, opt)
+		}},
+		{"PER_TRANSACTION with window", func() (*Limit, error) {
+			return NewLimitWithTimeWindow("Per tx", LimitTypePerTransaction, amount, "BRL", scopes, nil, "10:00", "12:00", createdAt, opt)
+		}},
+		{"CUSTOM", func() (*Limit, error) {
+			return NewLimitWithCustomPeriod("Campaign", LimitTypeCustom, amount, "BRL", scopes, nil, customStart, customEnd, createdAt, opt)
+		}},
+		{"CUSTOM with window", func() (*Limit, error) {
+			return NewLimitWithCustomPeriodAndTimeWindow("Campaign", LimitTypeCustom, amount, "BRL", scopes, nil, customStart, customEnd, "10:00", "12:00", createdAt, opt)
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			limit, err := tc.build()
+			require.ErrorIs(t, err, constant.ErrLimitResetTimeNotAllowed)
+			assert.Nil(t, limit)
+		})
+	}
+}
+
+func TestNewLimit_ResetTimeInsideActiveWindow(t *testing.T) {
+	createdAt := mustRFC3339(t, "2026-10-02T00:30:00Z")
+	scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}}
+
+	tests := []struct {
+		start, end, resetTime string
+		wantErr               error
+	}{
+		{"23:00", "09:00", "00:00", constant.ErrLimitResetTimeInsideWindow},
+		{"23:00", "09:00", "08:59", constant.ErrLimitResetTimeInsideWindow},
+		{"23:00", "09:00", "23:01", constant.ErrLimitResetTimeInsideWindow},
+		{"23:00", "09:00", "09:00", nil},
+		{"23:00", "09:00", "23:00", nil},
+		{"23:00", "09:00", "12:00", nil},
+		{"09:00", "17:00", "12:00", constant.ErrLimitResetTimeInsideWindow},
+		{"09:00", "17:00", "09:00", nil},
+		{"09:00", "17:00", "17:00", nil},
+		{"09:00", "17:00", "00:00", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.start+"-"+tc.end+" reset "+tc.resetTime, func(t *testing.T) {
+			limit, err := NewLimitWithTimeWindow("Windowed", LimitTypeDaily, decimal.RequireFromString("1000"), "BRL", scopes, nil, tc.start, tc.end, createdAt, WithResetTime(resetTimePtr(tc.resetTime)))
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				assert.Nil(t, limit)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, limit.ResetTime)
+			assert.Equal(t, tc.resetTime, limit.ResetTime.String())
+		})
+	}
+}
+
+func TestValidateResetTime(t *testing.T) {
+	invalid := TimeOfDay{}
+
+	tests := []struct {
+		name       string
+		limitType  LimitType
+		resetTime  *TimeOfDay
+		start, end *TimeOfDay
+		wantErr    error
+	}{
+		{"absent on any type", LimitTypePerTransaction, nil, nil, nil, nil},
+		{"absent with window", LimitTypeDaily, nil, resetTimePtr("23:00"), resetTimePtr("09:00"), nil},
+		{"weekly without window", LimitTypeWeekly, resetTimePtr("09:00"), nil, nil, nil},
+		{"monthly without window", LimitTypeMonthly, resetTimePtr("09:00"), nil, nil, nil},
+		{"unset value", LimitTypeDaily, &invalid, nil, nil, constant.ErrTimeOfDayInvalidFormat},
+		{"custom", LimitTypeCustom, resetTimePtr("09:00"), nil, nil, constant.ErrLimitResetTimeNotAllowed},
+		{"type gate before window gate", LimitTypeCustom, resetTimePtr("12:00"), resetTimePtr("09:00"), resetTimePtr("17:00"), constant.ErrLimitResetTimeNotAllowed},
+		{"explicit midnight inside overnight window", LimitTypeDaily, resetTimePtr("00:00"), resetTimePtr("23:00"), resetTimePtr("09:00"), constant.ErrLimitResetTimeInsideWindow},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateResetTime(tc.limitType, tc.resetTime, tc.start, tc.end)
+			if tc.wantErr == nil {
+				assert.NoError(t, err)
+
+				return
+			}
+
+			assert.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+}
+
+func TestLimit_Update_WindowMustNotContainResetTime(t *testing.T) {
+	createdAt := mustRFC3339(t, "2026-10-02T00:30:00Z")
+	scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}}
+
+	limit, err := NewLimit("Pix night", LimitTypeDaily, decimal.RequireFromString("1000"), "BRL", scopes, nil, createdAt, WithResetTime(resetTimePtr("09:00")))
+	require.NoError(t, err)
+
+	updatedAt := createdAt.Add(time.Hour)
+
+	err = limit.Update(nil, nil, nil, nil, resetTimePtr("08:00"), resetTimePtr("10:00"), nil, nil, updatedAt)
+	require.ErrorIs(t, err, constant.ErrLimitResetTimeInsideWindow)
+	assert.Nil(t, limit.ActiveTimeStart, "a rejected window must not be applied")
+	assert.Nil(t, limit.ActiveTimeEnd, "a rejected window must not be applied")
+	assert.Equal(t, createdAt, limit.UpdatedAt)
+
+	err = limit.Update(nil, nil, nil, nil, resetTimePtr("23:00"), resetTimePtr("09:00"), nil, nil, updatedAt)
+	require.NoError(t, err)
+	require.NotNil(t, limit.ActiveTimeStart)
+	assert.Equal(t, "23:00", limit.ActiveTimeStart.String())
+	assert.Equal(t, "09:00", limit.ResetTime.String())
+	assert.Equal(t, updatedAt, limit.UpdatedAt)
+}
+
+func TestLimit_ResetTimeJSON(t *testing.T) {
+	withBoundary, err := json.Marshal(&Limit{LimitType: LimitTypeDaily, ResetTime: resetTimePtr("09:00")})
+	require.NoError(t, err)
+	assert.Contains(t, string(withBoundary), `"resetTime":"09:00"`)
+
+	withoutBoundary, err := json.Marshal(&Limit{LimitType: LimitTypeDaily})
+	require.NoError(t, err)
+	assert.NotContains(t, string(withoutBoundary), "resetTime")
+
+	var decoded Limit
+	require.NoError(t, json.Unmarshal([]byte(`{"limitType":"DAILY","resetTime":"9:00"}`), &decoded))
+	require.NotNil(t, decoded.ResetTime)
+	assert.Equal(t, "09:00", decoded.ResetTime.String())
 }

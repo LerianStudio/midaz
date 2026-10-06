@@ -174,10 +174,8 @@ func newFeeDebtPropertyHarness(t *testing.T) (*feeHarness, *fee_debt.Repository,
 	t.Helper()
 
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 
-	debts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
+	debts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: h.mongoContainer.DBName, DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)
 
 	h.commandUC.FeeDebts = debts

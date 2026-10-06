@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -32,7 +31,6 @@ import (
 
 func TestTransactionRoute_OtherLedgerOfTheOrganizationPostsWithIt(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	routes := h.seedDirectRoutes(t, 1, 1)
 	v1App := h.newApp()
 	v2App := h.newV2App()
@@ -80,7 +78,6 @@ func TestTransactionRoute_OtherLedgerOfTheOrganizationPostsWithIt(t *testing.T) 
 
 func TestTransactionRoute_OtherOrganizationIsNotFound(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	routes := h.seedDirectRoutes(t, 1, 1)
 	app := h.newV2App()
 
@@ -118,9 +115,6 @@ func TestTransactionRoute_OtherOrganizationIsNotFound(t *testing.T) {
 
 func TestTransactionRoute_RevertInAnotherLedgerOfTheOrganizationPassesTheBidirectionalCheck(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	// A revert resolves its origin through the engine evidence, as production wires it.
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 	app := h.newV2App()
 
 	// Routes created under the first ledger; the transaction and its revert

@@ -95,7 +95,8 @@ func TestWidenAssetColumnsMigration(t *testing.T) {
 		{
 			name: "points_limit_round_trips_through_the_repository",
 			run: func(t *testing.T, mig *migrate.Migrate, db *sql.DB) {
-				require.NoError(t, applyWidenMigrationUp(mig), "apply migrations up to 000025")
+				// The repository reads and writes the HEAD limits schema.
+				require.NoError(t, upToHead(mig), "apply migrations up to HEAD")
 
 				accountID := testutil.MustDeterministicUUID(25001)
 				createdAt := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)

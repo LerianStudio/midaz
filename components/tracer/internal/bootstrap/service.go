@@ -37,9 +37,8 @@ import (
 type Service struct {
 	*HTTPServer
 	libLog.Logger
-	// grpcServer is the opt-in reservation gRPC seam. Nil when TRACER_GRPC_PORT
-	// is unset; when wired it runs as its own Launcher app so it drains on
-	// SIGTERM alongside the HTTP server.
+	// grpcServer is the reservation gRPC seam. It runs as its own Launcher app
+	// so it drains on SIGTERM alongside the HTTP server.
 	grpcServer    *GRPCServer
 	postgresConn  *libPostgres.Client
 	cleanupWorker *workers.UsageCleanupWorker
@@ -151,8 +150,8 @@ func (app *Service) Run() {
 			pkgsd.NewRunnable(app.ServiceDiscovery, app.ServiceDescriptor, app.Logger, app.ServiceDiscoveryMetrics)))
 	}
 
-	// gRPC reservation seam (opt-in via TRACER_GRPC_PORT). Registered as its own
-	// Launcher app so its ServerManager drains in-flight RPCs on SIGTERM.
+	// gRPC reservation seam. Registered as its own Launcher app so its
+	// ServerManager drains in-flight RPCs on SIGTERM.
 	if app.grpcServer != nil {
 		opts = append(opts, libCommons.RunApp("gRPC Service", app.grpcServer))
 	}
@@ -354,9 +353,10 @@ func (r *streamingProducerRunnable) drain() {
 //     the pool until its goroutine exits.
 //
 // Reversing steps 1-3 is FORBIDDEN: it produces dropped in-flight requests
-// during rolling deploys.
+// during rolling deploys. Every step runs even when the HTTP drain fails; that
+// error is returned, the close failures after it are logged where they occur.
 func (app *Service) Shutdown(ctx context.Context) error {
-	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Step 1: flip drainingState. /readyz starts returning 503 immediately
 	// so K8s removes the pod from service endpoints during the grace window.
@@ -385,16 +385,20 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	var httpErr error
+
 	if app.HTTPServer != nil && app.app != nil {
-		if err := app.app.ShutdownWithContext(ctx); err != nil {
+		if httpErr = app.app.ShutdownWithContext(ctx); httpErr != nil {
 			logger.With(
 				libLog.String("service.name", "HTTP Service"),
-				libLog.String("error.message", err.Error()),
+				libLog.String("error.message", httpErr.Error()),
 			).Log(ctx, libLog.LevelError, "failed to shutdown HTTP server")
-
-			return err
 		}
 	}
+
+	// Stop the reservation gRPC seam with the HTTP server so a restarted
+	// service can bind the same port.
+	app.grpcServer.Stop(ctx)
 
 	// The cleanup worker uses signal.NotifyContext for graceful shutdown.
 	// When running via Launcher, shutdown is coordinated through OS signals.
@@ -459,5 +463,5 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return httpErr
 }

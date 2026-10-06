@@ -28,12 +28,14 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	tracerpostgres "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
 	tracermigrations "github.com/LerianStudio/midaz/v4/components/tracer/migrations"
@@ -50,8 +52,8 @@ const legacyHeadVersion = 12
 const legacyFixtureRoot = "testdata/legacy_dual_runner"
 
 // headVersion is the expected final schema_migrations.version after applying
-// the HEAD migrations (unified single-runner, 000001..000025).
-const headVersion = 25
+// the HEAD migrations (unified single-runner, 000001..000027).
+const headVersion = 27
 
 // legacyFixtureManifestSHA256 pins the manifest for the immutable historical
 // migration fixture under testdata/legacy_dual_runner. The SQL files were
@@ -726,6 +728,9 @@ func assertUpgradedState(ctx context.Context, t *testing.T, dsn string) {
 		require.NoError(t, err, "lookup limits.max_amount data_type")
 		require.Equal(t, "numeric", maxAmountType,
 			"limits.max_amount must be DECIMAL/numeric after upgrade (was the convert-cents guard applied correctly?)")
+
+		// 6. limits.reset_time exists with each of its CHECK constraints.
+		assertLimitResetTimeSchema(ctx, t, db, "public")
 	})
 }
 
@@ -777,4 +782,159 @@ func assertUpgradedStateForLegacyVersion(ctx context.Context, t *testing.T, dsn 
 		require.True(t, dedupIndexExists,
 			"idx_audit_events_validation_dedup must exist after upgrade from v=%d", legacyVersion)
 	})
+}
+
+// limitResetTimeMigrationVersion is the version that adds limits.reset_time
+// (000027_add_limit_reset_time).
+const limitResetTimeMigrationVersion = 27
+
+// limitResetTimeConstraints are the CHECK constraints 000027 adds on limits.
+var limitResetTimeConstraints = []string{
+	"chk_limits_reset_time_format",
+	"chk_limits_reset_time_period_type",
+	"chk_limits_reset_time_outside_window",
+}
+
+// TestUpgradePath_AddLimitResetTime is the behavioral contract for migration
+// 000027_add_limit_reset_time.
+//
+// Post-conditions enforced:
+//  1. A limit written before 000027 reads back through the repository with no
+//     reset time: the column is nullable and nothing is backfilled.
+//  2. Re-executing the 000027 up file on a migrated database is a no-op that
+//     leaves each constraint present exactly once (Migration Renumbering
+//     Invariant).
+//  3. An up -> down -> up cycle removes and restores the column and its
+//     constraints.
+//  4. A schema-isolated tenant migrated to HEAD gets the constraints on its
+//     own limits table.
+func TestUpgradePath_AddLimitResetTime(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+
+	t.Run("pre_existing_limit_reads_back_without_reset_time", func(t *testing.T) {
+		dsn := startUpgradePathContainer(ctx, t)
+		mig, db := newHeadReservationMigrate(ctx, t, dsn)
+
+		require.NoError(t, mig.Migrate(limitResetTimeMigrationVersion-1), "migrate to the version before 000027")
+
+		var limitID string
+
+		require.NoError(t, db.QueryRowContext(ctx,
+			`INSERT INTO limits (name, limit_type, max_amount, asset)
+			 VALUES ('pre-reset-time-daily', 'DAILY', 1000, 'BRL')
+			 RETURNING id`).Scan(&limitID), "seed a limit before 000027")
+
+		require.NoError(t, mig.Migrate(limitResetTimeMigrationVersion), "apply 000027 over the seeded limit")
+
+		var resetTime sql.NullString
+
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT reset_time FROM limits WHERE id = $1`, limitID).Scan(&resetTime), "read reset_time after 000027")
+		require.False(t, resetTime.Valid, "000027 must not backfill reset_time")
+
+		// The repository reads the HEAD limits schema.
+		require.NoError(t, upToHead(mig), "apply migrations up to HEAD")
+
+		repo := tracerpostgres.NewLimitRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
+
+		got, err := repo.GetByID(ctx, uuid.MustParse(limitID))
+		require.NoError(t, err, "read the pre-existing limit through the repository")
+		require.Nil(t, got.ResetTime, "a limit written before 000027 must have no reset time")
+	})
+
+	t.Run("replaying_the_up_file_is_a_no_op", func(t *testing.T) {
+		dsn := startUpgradePathContainer(ctx, t)
+		mig, db := newHeadReservationMigrate(ctx, t, dsn)
+
+		require.NoError(t, mig.Migrate(limitResetTimeMigrationVersion), "apply migrations up to 000027")
+
+		upSQL, err := os.ReadFile(filepath.Join(resolveHeadMigrationsDir(ctx, t), "000027_add_limit_reset_time.up.sql"))
+		require.NoError(t, err, "read the 000027 up file")
+
+		_, err = db.ExecContext(ctx, string(upSQL))
+		require.NoError(t, err, "re-executing 000027 on a migrated database must succeed")
+
+		assertLimitResetTimeSchema(ctx, t, db, "public")
+	})
+
+	t.Run("up_down_up_cycle_restores_the_column", func(t *testing.T) {
+		dsn := startUpgradePathContainer(ctx, t)
+		mig, db := newHeadReservationMigrate(ctx, t, dsn)
+
+		require.NoError(t, mig.Migrate(limitResetTimeMigrationVersion), "apply migrations up to 000027")
+		require.NoError(t, mig.Steps(-1), "step down 000027")
+
+		_, _, exists := columnCharInfo(ctx, t, db, "limits", "reset_time")
+		require.False(t, exists, "the down migration must drop limits.reset_time")
+
+		for _, constraint := range limitResetTimeConstraints {
+			require.Equal(t, 0, countLimitsConstraint(ctx, t, db, "public", constraint),
+				"the down migration must drop %s", constraint)
+		}
+
+		require.NoError(t, mig.Migrate(limitResetTimeMigrationVersion), "re-apply 000027")
+
+		assertLimitResetTimeSchema(ctx, t, db, "public")
+	})
+
+	t.Run("tenant_schema_gets_its_own_constraints", func(t *testing.T) {
+		schema, db, mig := newTenantSchemaMigrate(ctx, t)
+
+		require.NoError(t, upToHead(mig), "migrate the tenant schema to HEAD")
+
+		for _, constraint := range limitResetTimeConstraints {
+			require.Equal(t, 1, countLimitsConstraint(ctx, t, db, schema, constraint),
+				"the tenant's limits table must carry %s", constraint)
+		}
+	})
+}
+
+// assertLimitResetTimeSchema asserts that schema.limits has the nullable
+// VARCHAR(5) reset_time column and each 000027 constraint exactly once.
+func assertLimitResetTimeSchema(ctx context.Context, t *testing.T, db *sql.DB, schema string) {
+	t.Helper()
+
+	var (
+		dataType   string
+		maxLength  sql.NullInt64
+		isNullable string
+	)
+
+	err := db.QueryRowContext(
+		ctx,
+		`SELECT data_type, character_maximum_length, is_nullable
+		 FROM information_schema.columns
+		 WHERE table_schema = $1 AND table_name = 'limits' AND column_name = 'reset_time'`,
+		schema,
+	).Scan(&dataType, &maxLength, &isNullable)
+	require.NoError(t, err, "limits.reset_time must exist in schema %s", schema)
+	require.Equal(t, "character varying", dataType, "limits.reset_time must be VARCHAR")
+	require.Equal(t, int64(5), maxLength.Int64, "limits.reset_time must be VARCHAR(5)")
+	require.Equal(t, "YES", isNullable, "limits.reset_time must be nullable")
+
+	for _, constraint := range limitResetTimeConstraints {
+		require.Equal(t, 1, countLimitsConstraint(ctx, t, db, schema, constraint),
+			"%s must exist exactly once on %s.limits", constraint, schema)
+	}
+}
+
+// countLimitsConstraint counts the constraints named constraint on
+// schema.limits.
+func countLimitsConstraint(ctx context.Context, t *testing.T, db *sql.DB, schema, constraint string) int {
+	t.Helper()
+
+	var count int
+
+	require.NoError(t, db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*)
+		 FROM pg_constraint c
+		 JOIN pg_class r ON r.oid = c.conrelid
+		 JOIN pg_namespace n ON n.oid = r.relnamespace
+		 WHERE c.conname = $1 AND r.relname = 'limits' AND n.nspname = $2`,
+		constraint, schema,
+	).Scan(&count), "count %s on %s.limits", constraint, schema)
+
+	return count
 }

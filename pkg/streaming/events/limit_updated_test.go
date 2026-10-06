@@ -18,7 +18,7 @@ func TestLimitUpdatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "limit.updated", events.LimitUpdatedDefinition.Key())
 	assert.Equal(t, "limit", events.LimitUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.LimitUpdatedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.LimitUpdatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.LimitUpdatedDefinition.SchemaVersion)
 }
 
 func TestNewLimitUpdated_MapsMinimalLimit(t *testing.T) {
@@ -32,6 +32,7 @@ func TestNewLimitUpdated_MapsMinimalLimit(t *testing.T) {
 	assert.Len(t, payload.Scopes, 0)
 	assert.Nil(t, payload.ActiveTimeStart)
 	assert.Nil(t, payload.ResetAt)
+	assert.Nil(t, payload.ResetTime)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.UpdatedAt)
 }
 
@@ -45,6 +46,13 @@ func TestNewLimitUpdated_MapsAllOptionalFields(t *testing.T) {
 	require.NotNil(t, payload.ResetAt)
 	assert.Equal(t, "2026-05-13T12:34:56Z", *payload.ResetAt)
 	require.Len(t, payload.Scopes, 1)
+}
+
+func TestNewLimitUpdated_MapsResetTime(t *testing.T) {
+	payload := events.NewLimitUpdated(periodicLimitWithResetTime(t, "09:00"))
+
+	require.NotNil(t, payload.ResetTime)
+	assert.Equal(t, "09:00", *payload.ResetTime)
 }
 
 func TestLimitUpdatedPayload_ToEmitRequest(t *testing.T) {
@@ -80,6 +88,7 @@ func TestLimitUpdatedPayload_JSONShape(t *testing.T) {
 		"activeTimeEnd":   {},
 		"customStartDate": {},
 		"customEndDate":   {},
+		"resetTime":       {},
 		"resetAt":         {},
 		"createdAt":       {},
 		"updatedAt":       {},
@@ -100,5 +109,19 @@ func TestLimitUpdatedPayload_JSONShape(t *testing.T) {
 		assert.Falsef(t, present, "fenced field %q must NOT appear on the wire", forbidden)
 	}
 
-	assert.Lenf(t, generic, 12, "expected 12 top-level fields, got %d (drift?)", len(generic))
+	assert.Lenf(t, generic, 13, "expected 13 top-level fields, got %d (drift?)", len(generic))
+}
+
+func TestLimitUpdatedPayload_JSONShape_NullableKeysPresentWhenUnset(t *testing.T) {
+	data, err := json.Marshal(events.NewLimitUpdated(minimalLimit()))
+	require.NoError(t, err)
+
+	var generic map[string]any
+	require.NoError(t, json.Unmarshal(data, &generic))
+
+	for _, key := range []string{"activeTimeStart", "activeTimeEnd", "customStartDate", "customEndDate", "resetTime", "resetAt"} {
+		val, present := generic[key]
+		require.Truef(t, present, "%q key must be present even when unset", key)
+		assert.Nilf(t, val, "%q must serialize null when unset", key)
+	}
 }

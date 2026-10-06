@@ -67,7 +67,7 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 		return nil, false, err
 	}
 
-	limits, err := s.getApplicableLimits(ctx, input)
+	limits, err := s.getApplicableLimits(ctx, input, s.limitRepo.List)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get applicable limits", err)
 		return nil, false, err
@@ -104,7 +104,7 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 			continue
 		}
 
-		periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
+		periodKey, err := limit.PeriodKey(serverNow)
 		if err != nil {
 			libOtel.HandleSpanError(span, "Failed to calculate period key", err)
 			return nil, false, err

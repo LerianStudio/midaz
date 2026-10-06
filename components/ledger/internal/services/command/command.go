@@ -139,6 +139,20 @@ type UseCase struct {
 	// settings (RequireHolder false), preserving permissive behaviour.
 	SettingsReader SettingsReader
 
+	// --- Account delete cascade (CRM and fees seams, wired at bootstrap) ---
+
+	// InstrumentCascader soft-deletes the CRM instruments linked to an account
+	// before the account row is deleted, so command never imports the CRM
+	// package. A nil value skips the step; it is a test/compatibility seam, and
+	// production bootstrap always wires it.
+	InstrumentCascader InstrumentCascader
+
+	// FeeAliasDetacher removes a deleted account's alias from the ledger's fee
+	// and billing packages before the account row is deleted. A nil value skips
+	// the step; it is a test/compatibility seam, and production bootstrap always
+	// wires it.
+	FeeAliasDetacher FeeAliasDetacher
+
 	// --- Transaction create seam (wired at bootstrap) ---
 
 	// TransactionReader serves the reads the transaction create path needs
@@ -209,6 +223,18 @@ type UseCase struct {
 	// reserver means the tracer integration is disabled (the create path stays
 	// unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
+
+	// TracerClientTimeout is the ceiling the tracer client applies to every
+	// reservation call (TRACER_TIMEOUT_MS). The settle of an unanswered reserve
+	// waits it out, plus the tracer's lock wait, before its first attempt. Zero
+	// means the client default.
+	TracerClientTimeout time.Duration
+
+	// unansweredSettles overrides the process-wide queue that settles
+	// unanswered reserves. Nil uses the shared queue. It is a per-UseCase field
+	// rather than a swapped package global so the many parallel tests that drain
+	// their own settles never share, or race on, one queue.
+	unansweredSettles *unansweredSettleQueue
 
 	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
 	// from it, and balance deletion and account closing read the debts owed to a balance.

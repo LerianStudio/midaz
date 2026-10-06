@@ -31,7 +31,7 @@ func (pm *PackageMongoDBRepository) Create(ctx context.Context, p *Package, orga
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 

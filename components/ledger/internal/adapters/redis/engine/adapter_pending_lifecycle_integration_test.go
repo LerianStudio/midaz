@@ -77,6 +77,11 @@ func (r *pendingLifecycleReader) GetEngineBalances(ctx context.Context, organiza
 	return balances, balances, err
 }
 
+// GetFeeDebtSeeds answers that no balance it serves holds fee debt.
+func (r *pendingLifecycleReader) GetFeeDebtSeeds(context.Context, uuid.UUID, uuid.UUID, []string) (map[string][]core.FeeDebtItem, error) {
+	return nil, nil
+}
+
 func (r *pendingLifecycleReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }
@@ -272,9 +277,9 @@ func (s *pendingLifecycleTracer) Reserve(_ context.Context, request tracer.Reser
 	return &tracer.ReserveResult{TransactionID: request.TransactionID, ReservationIDs: []uuid.UUID{s.reservationID}}, nil
 }
 
-func (s *pendingLifecycleTracer) Confirm(_ context.Context, reservationID uuid.UUID) error {
+func (s *pendingLifecycleTracer) Confirm(_ context.Context, reservationID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.confirmedIDs = append(s.confirmedIDs, reservationID)
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (s *pendingLifecycleTracer) Release(_ context.Context, reservationID uuid.UUID) error {
@@ -282,9 +287,9 @@ func (s *pendingLifecycleTracer) Release(_ context.Context, reservationID uuid.U
 	return nil
 }
 
-func (s *pendingLifecycleTracer) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) error {
+func (s *pendingLifecycleTracer) ConfirmByTransaction(_ context.Context, transactionID uuid.UUID) (tracer.ConfirmOutcome, error) {
 	s.confirmedTxns = append(s.confirmedTxns, transactionID)
-	return nil
+	return tracer.ConfirmOutcome{}, nil
 }
 
 func (s *pendingLifecycleTracer) ReleaseByTransaction(_ context.Context, transactionID uuid.UUID) error {

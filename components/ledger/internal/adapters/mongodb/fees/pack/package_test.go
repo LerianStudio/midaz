@@ -740,8 +740,8 @@ func TestFromEntityFeeMap_MultipleFees(t *testing.T) {
 	}
 
 	fees := map[string]model.Fee{
-		"FeeKey1": fee1,
-		"FeeKey2": fee2,
+		"feeKey1": fee1,
+		"feeKey2": fee2,
 	}
 
 	result, err := FromEntityFeeMap(fees)
@@ -752,62 +752,6 @@ func TestFromEntityFeeMap_MultipleFees(t *testing.T) {
 	assert.Contains(t, result, "feeKey2")
 	assert.Equal(t, "Fee 1", result["feeKey1"].FeeLabel)
 	assert.Equal(t, "Fee 2", result["feeKey2"].FeeLabel)
-}
-
-func TestFromEntityFeeMap_KeyCaseConversion(t *testing.T) {
-	t.Parallel()
-
-	fee := model.Fee{
-		FeeLabel:        "Test Fee",
-		ReferenceAmount: "originalAmount",
-		Priority:        1,
-		CreditAccount:   "credit_account",
-		CalculationModel: &model.CalculationModel{
-			ApplicationRule: "maxBetweenTypes",
-			Calculations:    []model.Calculation{},
-		},
-	}
-
-	tests := []struct {
-		name     string
-		inputKey string
-		expected string
-	}{
-		{
-			name:     "PascalCase to lowerCamelCase",
-			inputKey: "FeeKey",
-			expected: "feeKey",
-		},
-		{
-			name:     "UPPER_CASE to lowerCamelCase",
-			inputKey: "FEE_KEY",
-			expected: "feeKey",
-		},
-		{
-			name:     "snake_case to lowerCamelCase",
-			inputKey: "fee_key",
-			expected: "feeKey",
-		},
-		{
-			name:     "Already lowerCamelCase",
-			inputKey: "feeKey",
-			expected: "feeKey",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fees := map[string]model.Fee{
-				tt.inputKey: fee,
-			}
-
-			result, err := FromEntityFeeMap(fees)
-
-			assert.NoError(t, err)
-			assert.Contains(t, result, tt.expected)
-			assert.Equal(t, "Test Fee", result[tt.expected].FeeLabel)
-		})
-	}
 }
 
 func TestToEntityFeeMap_WithNilIsDeductibleFrom(t *testing.T) {

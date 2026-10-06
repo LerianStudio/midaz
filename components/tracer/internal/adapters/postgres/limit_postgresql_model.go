@@ -36,6 +36,7 @@ type LimitPostgreSQLModel struct {
 	ActiveTimeEnd   sql.NullString  `db:"active_time_end"`
 	CustomStartDate sql.NullTime    `db:"custom_start_date"`
 	CustomEndDate   sql.NullTime    `db:"custom_end_date"`
+	ResetTime       sql.NullString  `db:"reset_time"`
 	CreatedAt       time.Time       `db:"created_at"`
 	UpdatedAt       time.Time       `db:"updated_at"`
 	DeletedAt       sql.NullTime    `db:"deleted_at"`
@@ -116,6 +117,17 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		activeTimeEnd = &parsed
 	}
 
+	var resetTime *model.TimeOfDay
+
+	if m.ResetTime.Valid {
+		parsed, err := model.NewTimeOfDay(m.ResetTime.String)
+		if err != nil {
+			return nil, fmt.Errorf("invalid reset_time in database: %w", err)
+		}
+
+		resetTime = &parsed
+	}
+
 	// Convert custom period dates
 	var customStartDate, customEndDate *time.Time
 	if m.CustomStartDate.Valid {
@@ -140,6 +152,7 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		ActiveTimeEnd:   activeTimeEnd,
 		CustomStartDate: customStartDate,
 		CustomEndDate:   customEndDate,
+		ResetTime:       resetTime,
 		CreatedAt:       m.CreatedAt,
 		UpdatedAt:       m.UpdatedAt,
 		DeletedAt:       deletedAt,
@@ -211,6 +224,12 @@ func (m *LimitPostgreSQLModel) FromEntity(entity *model.Limit) error {
 		m.ActiveTimeEnd = sql.NullString{String: entity.ActiveTimeEnd.String(), Valid: true}
 	} else {
 		m.ActiveTimeEnd = sql.NullString{Valid: false}
+	}
+
+	if entity.ResetTime != nil {
+		m.ResetTime = sql.NullString{String: entity.ResetTime.String(), Valid: true}
+	} else {
+		m.ResetTime = sql.NullString{Valid: false}
 	}
 
 	// Convert custom period dates

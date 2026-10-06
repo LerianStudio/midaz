@@ -82,7 +82,13 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 
 	var input CreateLimitInput
 	if err := json.Unmarshal(rawBody, &input); err != nil {
+		if hasInvalidResetTime(rawBody) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid resetTime format", err)
+			return nil, pkg.ValidateBusinessError(constant.ErrTimeOfDayInvalidFormat, constant.EntityLimit)
+		}
+
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
+
 		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
@@ -108,7 +114,7 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 }
 
 func (h *LimitHandler) GetLimit(c fiber.Ctx) error {
-	result, err := h.getLimit(c.Context(), c.Params("id"))
+	result, err := h.getLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -130,7 +136,7 @@ func (h *LimitHandler) getLimit(ctx context.Context, idParam string) (*model.Lim
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	result, err := h.service.GetLimit(ctx, id)
@@ -210,7 +216,7 @@ func (h *LimitHandler) listLimits(ctx context.Context, bind func(any) error) (*L
 }
 
 func (h *LimitHandler) UpdateLimit(c fiber.Ctx) error {
-	result, err := h.updateLimit(c.Context(), c.Params("id"), c.Body())
+	result, err := h.updateLimit(c.Context(), c.Params("limit_id"), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -235,7 +241,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	if _, err := http.RefuseOutOfBoundTokens(rawBody, (*UpdateLimitInput)(nil)); err != nil {
@@ -244,7 +250,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	}
 
 	// Check for immutable fields BEFORE parsing into struct
-	// This ensures we detect if limitType or asset was sent in the request
+	// This ensures we detect if limitType, asset or resetTime was sent in the request
 	var rawMap map[string]any
 	if err := json.Unmarshal(rawBody, &rawMap); err == nil {
 		if _, hasLimitType := rawMap["limitType"]; hasLimitType {
@@ -254,6 +260,11 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 
 		if _, hasAsset := rawMap["asset"]; hasAsset {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field asset in request", constant.ErrLimitImmutableField)
+			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
+		}
+
+		if _, hasResetTime := rawMap["resetTime"]; hasResetTime {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field resetTime in request", constant.ErrLimitImmutableField)
 			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 	}
@@ -291,7 +302,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 }
 
 func (h *LimitHandler) ActivateLimit(c fiber.Ctx) error {
-	limit, err := h.activateLimit(c.Context(), c.Params("id"))
+	limit, err := h.activateLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -313,7 +324,7 @@ func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*mode
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	limit, err := h.service.ActivateLimit(ctx, id)
@@ -330,7 +341,7 @@ func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*mode
 }
 
 func (h *LimitHandler) DeactivateLimit(c fiber.Ctx) error {
-	limit, err := h.deactivateLimit(c.Context(), c.Params("id"))
+	limit, err := h.deactivateLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -352,7 +363,7 @@ func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*mo
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	limit, err := h.service.DeactivateLimit(ctx, id)
@@ -369,7 +380,7 @@ func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*mo
 }
 
 func (h *LimitHandler) DraftLimit(c fiber.Ctx) error {
-	limit, err := h.draftLimit(c.Context(), c.Params("id"))
+	limit, err := h.draftLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -391,7 +402,7 @@ func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.L
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	limit, err := h.service.DraftLimit(ctx, id)
@@ -408,7 +419,7 @@ func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.L
 }
 
 func (h *LimitHandler) DeleteLimit(c fiber.Ctx) error {
-	if err := h.deleteLimit(c.Context(), c.Params("id")); err != nil {
+	if err := h.deleteLimit(c.Context(), c.Params("limit_id")); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -429,7 +440,7 @@ func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	if err := h.service.DeleteLimit(ctx, id); err != nil {
@@ -445,7 +456,7 @@ func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 }
 
 func (h *LimitHandler) GetLimitUsage(c fiber.Ctx) error {
-	snapshot, err := h.getLimitUsage(c.Context(), c.Params("id"))
+	snapshot, err := h.getLimitUsage(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -467,7 +478,7 @@ func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*mode
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	snapshot, err := h.service.GetLimitUsage(ctx, id)
@@ -543,8 +554,26 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	case errors.Is(err, constant.ErrLimitInvalidScope):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid scope", err)
 		return pkg.ValidateBusinessError(constant.ErrLimitInvalidScope, constant.EntityLimit)
+	case errors.Is(err, constant.ErrLimitResetTimeNotAllowed):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reset time not allowed for limit type", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitResetTimeNotAllowed, constant.EntityLimit)
+	case errors.Is(err, constant.ErrLimitResetTimeInsideWindow):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reset time inside active window", err)
+		return pkg.ValidateBusinessError(constant.ErrLimitResetTimeInsideWindow, constant.EntityLimit)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
+}
+
+// hasInvalidResetTime reports whether the body's resetTime is a value that
+// cannot be decoded as a time of day, so a create body that fails to decode
+// because of it answers the time-of-day format code instead of the generic
+// malformed-body code.
+func hasInvalidResetTime(rawBody []byte) bool {
+	var probe struct {
+		ResetTime *model.TimeOfDay `json:"resetTime"`
+	}
+
+	return errors.Is(json.Unmarshal(rawBody, &probe), constant.ErrTimeOfDayInvalidFormat)
 }

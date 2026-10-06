@@ -29,9 +29,9 @@ var assetV2Ops = []struct {
 }{
 	{action: "create", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets", v1OperationID: "createAsset"},
 	{action: "list", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets", v1OperationID: "listAssets"},
-	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", v1OperationID: "getAssetByID"},
-	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", v1OperationID: "updateAsset"},
-	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", v1OperationID: "deleteAsset"},
+	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}", v1OperationID: "getAssetByID"},
+	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}", v1OperationID: "updateAsset"},
+	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}", v1OperationID: "deleteAsset"},
 	{action: "count", method: http.MethodHead, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count", v1OperationID: "countAssets"},
 }
 

@@ -141,11 +141,13 @@ func newRealReaper(
 }
 
 // countExpiryAuditRows returns the number of batch-summary expiry audit rows
-// written for the sweep window. The reaper writes exactly ONE row per non-empty
-// sweep (RESERVATION_EXPIRED / resource_type='reservation'), regardless of how
-// many reservations expired (Q11). We scope the count to a sweptAt context value
-// unique to this test so a shared DB across tests cannot inflate it.
-func countExpiryAuditRows(t *testing.T, db *sql.DB, sweptAt time.Time) int {
+// written for the sweep window after the afterID high-water mark. The reaper
+// writes exactly ONE row per non-empty sweep (RESERVATION_EXPIRED /
+// resource_type='reservation'), regardless of how many reservations expired
+// (Q11). audit_events rows can never be deleted and sweptAt is a fixed clock
+// value, so a retained row from an earlier run matches the sweptAt filter too;
+// only rows above afterID belong to this run's sweep.
+func countExpiryAuditRows(t *testing.T, db *sql.DB, sweptAt time.Time, afterID int64) int {
 	t.Helper()
 
 	var n int
@@ -156,10 +158,36 @@ func countExpiryAuditRows(t *testing.T, db *sql.DB, sweptAt time.Time) int {
 		WHERE event_type = 'RESERVATION_EXPIRED'
 		  AND resource_type = 'reservation'
 		  AND context->>'sweptAt' = $1
-	`, sweptAt.UTC().Format(time.RFC3339Nano)).Scan(&n)
+		  AND id > $2
+	`, sweptAt.UTC().Format(time.RFC3339Nano), afterID).Scan(&n)
 	require.NoError(t, err, "failed to count expiry audit rows")
 
 	return n
+}
+
+// auditHighWaterMark returns the highest audit_events id written so far. Ids are
+// assigned under the hash-chain lock, so every row inserted afterwards is above it.
+func auditHighWaterMark(t *testing.T, db *sql.DB) int64 {
+	t.Helper()
+
+	var id int64
+
+	err := db.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM audit_events`).Scan(&id)
+	require.NoError(t, err, "failed to read audit high-water mark")
+
+	return id
+}
+
+// seedStaleExpiryAuditRow writes a batch-summary row for sweptAt through the real
+// auditor, standing in for a row a previous run left behind.
+func seedStaleExpiryAuditRow(t *testing.T, db *sql.DB, sweptAt time.Time) {
+	t.Helper()
+
+	auditor := command.NewRecordAuditEventCommand(
+		NewAuditEventRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db}),
+	)
+	require.NoError(t, auditor.RecordReservationExpiryBatch(context.Background(),
+		command.ReservationExpiryBatchSummary{ExpiredCount: 1, SweptAt: sweptAt}))
 }
 
 // TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval is the
@@ -203,10 +231,12 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	resRepo := newReservationRepoIntegration(db)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
+		_, err := resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
+		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, fresh, decimal.NewFromInt(10000))
+		_, err := resRepo.ReserveWithTx(ctx, tx, fresh, decimal.NewFromInt(10000))
+		return err
 	}))
 
 	// Sanity: both rows are RESERVED and holding their amounts before the sweep.
@@ -229,6 +259,10 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	txb := sqlTxBeginner{db: db}
 	worker := newRealReaper(t, db, conn, txb, clk, "", nil)
 
+	// A retained row for the same sweptAt must not count as this sweep's row.
+	seedStaleExpiryAuditRow(t, db, now)
+	auditMark := auditHighWaterMark(t, db)
+
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
 
@@ -240,6 +274,13 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 	require.Eventually(t, func() bool {
 		return readReservationStatus(t, db, expired.ID) == string(model.StatusExpired)
 	}, 5*time.Second, 20*time.Millisecond, "expired reservation must be released within the sub-minute cadence")
+
+	// The per-row release commits before the sweep writes its batch audit row on
+	// the same ctx, so cancelling as soon as the status flips can abort that
+	// insert. Wait for the audit row before stopping the loop.
+	require.Eventually(t, func() bool {
+		return countExpiryAuditRows(t, db, now, auditMark) >= 1
+	}, 5*time.Second, 20*time.Millisecond, "the sweep must write its batch-summary audit row")
 
 	cancel()
 	require.NoError(t, <-done, "reaper loop must stop cleanly on context cancel")
@@ -258,7 +299,7 @@ func TestIntegration_ReservationReaperCadence_ReleasesExpiredWithinInterval(t *t
 		"a non-expired reservation must survive the sweep")
 
 	// Exactly ONE batch-summary audit row for the sweep, scoped to this run's now.
-	assert.Equal(t, 1, countExpiryAuditRows(t, db, now),
+	assert.Equal(t, 1, countExpiryAuditRows(t, db, now, auditMark),
 		"a non-empty sweep writes exactly one batch-summary audit row (Q11)")
 }
 
@@ -297,7 +338,8 @@ func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing
 
 	resRepo := newReservationRepoIntegration(db)
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		return resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
+		_, err := resRepo.ReserveWithTx(ctx, tx, expired, decimal.NewFromInt(10000))
+		return err
 	}))
 
 	// Spy connection + tx-beginner wrap the root DB and record any access. The
@@ -312,6 +354,7 @@ func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing
 
 	// MT mode (non-empty tenantID) + failing pool resolver: every cycle must skip.
 	worker := newRealReaper(t, db, conn, txb, clk, "tenant-x", failingPoolResolver{})
+	auditMark := auditHighWaterMark(t, db)
 
 	runCtx, cancel := context.WithTimeout(ctx, 700*time.Millisecond)
 	defer cancel()
@@ -332,6 +375,6 @@ func TestIntegration_ReservationReaperCadence_SkipsCycleOnPoolFailure(t *testing
 	assert.Equal(t, string(model.StatusReserved), readReservationStatus(t, db, expired.ID))
 
 	// No batch-summary audit row: a skipped cycle audits nothing.
-	assert.Equal(t, 0, countExpiryAuditRows(t, db, now),
+	assert.Equal(t, 0, countExpiryAuditRows(t, db, now, auditMark),
 		"a skipped cycle writes no batch-summary audit row")
 }

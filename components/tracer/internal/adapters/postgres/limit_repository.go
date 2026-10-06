@@ -108,8 +108,8 @@ func (r *LimitRepository) createInternal(ctx context.Context, db pgdb.DB, lmt *m
 	}
 
 	query := sq.Insert(r.tableName).
-		Columns("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at").
-		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Asset, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.ActiveTimeStart, dbModel.ActiveTimeEnd, dbModel.CustomStartDate, dbModel.CustomEndDate, dbModel.CreatedAt, dbModel.UpdatedAt).
+		Columns("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "reset_time", "created_at", "updated_at").
+		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Asset, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.ActiveTimeStart, dbModel.ActiveTimeEnd, dbModel.CustomStartDate, dbModel.CustomEndDate, dbModel.ResetTime, dbModel.CreatedAt, dbModel.UpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -154,7 +154,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "reset_time", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(sq.Eq{"id": limitID}).
 		Where(sq.Eq{"deleted_at": nil}).
@@ -188,6 +188,23 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 
 // List retrieves limits with optional filters and cursor-based pagination.
 func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+	return r.listInternal(ctx, nil, filters)
+}
+
+// ListWithTx is List on the caller's db handle, so a caller holding a
+// transaction reads on that transaction's connection instead of acquiring a
+// second one from the pool. The db handle MUST be non-nil.
+func (r *LimitRepository) ListWithTx(ctx context.Context, db pgdb.DB, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
+	return r.listInternal(ctx, db, filters)
+}
+
+// listInternal runs the List query on db, or on a connection resolved via
+// r.conn.GetDB when db is nil.
+func (r *LimitRepository) listInternal(ctx context.Context, db pgdb.DB, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.limit.list")
@@ -209,13 +226,14 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		sortBy = model.DefaultLimitSortField
 	}
 
-	db, err := r.conn.GetDB(ctx)
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to get database connection", err)
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	if db == nil {
+		if db, err = r.conn.GetDB(ctx); err != nil {
+			libOtel.HandleSpanError(span, "Failed to get database connection", err)
+			return nil, fmt.Errorf("failed to get database connection: %w", err)
+		}
 	}
 
-	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "asset", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "reset_time", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(sq.Eq{"deleted_at": nil}).
 		PlaceholderFormat(sq.Dollar)
@@ -366,6 +384,7 @@ func (r *LimitRepository) updateInternal(ctx context.Context, db pgdb.DB, lmt *m
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
+	// reset_time is immutable after create, so it is never written here.
 	query := sq.Update(r.tableName).
 		Set("name", dbModel.Name).
 		Set("description", dbModel.Description).
@@ -786,6 +805,7 @@ func (r *LimitRepository) scanLimit(ctx context.Context, row *sql.Row) (*model.L
 		&dbModel.ActiveTimeEnd,
 		&dbModel.CustomStartDate,
 		&dbModel.CustomEndDate,
+		&dbModel.ResetTime,
 		&dbModel.CreatedAt,
 		&dbModel.UpdatedAt,
 		&dbModel.DeletedAt,
@@ -838,6 +858,7 @@ func (r *LimitRepository) scanLimitFromRows(ctx context.Context, rows *sql.Rows)
 		&dbModel.ActiveTimeEnd,
 		&dbModel.CustomStartDate,
 		&dbModel.CustomEndDate,
+		&dbModel.ResetTime,
 		&dbModel.CreatedAt,
 		&dbModel.UpdatedAt,
 		&dbModel.DeletedAt,

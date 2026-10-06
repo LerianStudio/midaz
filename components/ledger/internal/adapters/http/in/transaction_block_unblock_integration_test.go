@@ -26,8 +26,10 @@ import (
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -72,16 +74,13 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 
 	infra := &blockUnblockInfra{}
 
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
 
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
-	pgConn := postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
-
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	pgConn := postgrestestutil.ConnectPostgresClient(t.Context(), t, infra.pgContainer.DSN, infra.pgContainer.DSN)
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
@@ -117,6 +116,16 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 		TransactionRedisRepo:    redisRepo,
 		TransactionReader:       queryUC,
 	}
+
+	// Block and unblock are monetary commands: they execute through the
+	// accounting engine and complete through the applied-transaction completer,
+	// as the bootstrap wires them.
+	engine, err := redisengine.NewAdapter(redisConn)
+	require.NoError(t, err, "failed to create accounting engine")
+
+	commandUC.Engine = engine
+	commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(completion.NewStore(transactionRepo, operationRepo), metadataRepo)
+	queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 
 	infra.txHandler = &TransactionHandler{Query: queryUC, Command: commandUC}
 	infra.opHandler = &OperationHandler{Query: queryUC, Command: commandUC}

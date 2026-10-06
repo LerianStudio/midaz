@@ -13,7 +13,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
@@ -182,11 +181,8 @@ func TestFeeProof_T13_CommitParity(t *testing.T) {
 // the fee account is credited only when the pending transaction is committed.
 func TestFeeProof_AtomicBatchV2HoldReservesAndSettlesFee(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	engineRedis, ok := h.redisRepo.(*redistransaction.RedisConsumerRepository)
 	require.True(t, ok, "Redis repository must expose the batch state machine and engine evidence")
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
-	h.commandUC.TransactionEvidenceResolver = testEngineEvidenceResolver{repository: engineRedis}
 	h.commandUC.AtomicTransactionBatchIdempotencyRepo = engineRedis
 	h.commandUC.UUIDv7Generator = libCommons.GenerateUUIDv7
 	h.commandUC.Clock = func() time.Time { return time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC) }
@@ -272,7 +268,6 @@ func settlementLegs(legs []persistedLeg) []persistedLeg {
 // carries it, and the unscoped package is charged when the metadata does not.
 func TestFeeProof_MetadataSelectorScoping(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	app := h.newV2App()
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")

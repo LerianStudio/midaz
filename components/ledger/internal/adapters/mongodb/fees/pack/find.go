@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 
@@ -51,7 +52,7 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 		attribute.Bool("app.request.has_enable", filters.Enable != nil),
 	)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err
@@ -149,7 +150,7 @@ func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizati
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -204,7 +205,7 @@ func (pm *PackageMongoDBRepository) FindByOrganizationIDAndLedgerID(ctx context.
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err
@@ -257,6 +258,78 @@ func (pm *PackageMongoDBRepository) FindByOrganizationIDAndLedgerID(ctx context.
 	return packages, nil
 }
 
+// FindNotDeletedByOrganizationIDAndLedgerID omits the enable filter so disabled
+// packages are returned too, sorted by created_at for a deterministic order.
+func (pm *PackageMongoDBRepository) FindNotDeletedByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.package.find_not_deleted_by_org_and_ledger")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := pm.connection.ResolveDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
+
+	queryFilter := bson.M{
+		"organization_id": organizationID,
+		"ledger_id":       ledgerID,
+		"deleted_at":      bson.D{{Key: "$eq", Value: nil}},
+	}
+
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: 1}, {Key: "_id", Value: 1}})
+
+	_, spanFind := tracer.Start(ctx, "repository.package.find_not_deleted_by_org_and_ledger.find")
+
+	spanFind.SetAttributes(attributes...)
+
+	cur, err := coll.Find(ctx, queryFilter, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find not deleted packages by organization and ledger", err)
+		spanFind.End()
+
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	spanFind.End()
+
+	var results []*PackageMongoDBModel
+
+	for cur.Next(ctx) {
+		var record PackageMongoDBModel
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decode package", err)
+			return nil, err
+		}
+
+		results = append(results, &record)
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate packages", err)
+		return nil, err
+	}
+
+	packages := make([]*Package, 0, len(results))
+	for i := range results {
+		packages = append(packages, results[i].ToEntity())
+	}
+
+	return packages, nil
+}
+
 // FindFeesAndAmountDataByPackageID find fees and amount data by package id
 func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context.Context, organizationID, packageID uuid.UUID) (*model.AmountData, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
@@ -272,7 +345,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 		return nil, err
@@ -295,6 +368,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		"segment_id":        1,
 		"transaction_route": 1,
 		"metadata_selector": 1,
+		"updated_at":        1,
 	}
 
 	var result struct {
@@ -305,6 +379,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		SegmentID        *uuid.UUID          `bson:"segment_id"`
 		TransactionRoute *string             `bson:"transaction_route"`
 		MetadataSelector map[string]string   `bson:"metadata_selector"`
+		UpdatedAt        time.Time           `bson:"updated_at"`
 	}
 
 	_, spanFindOne := tracer.Start(ctx, "repository.package.find_fees_by_package_id.find_one")
@@ -334,6 +409,7 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		SegmentID:        result.SegmentID,
 		TransactionRoute: result.TransactionRoute,
 		MetadataSelector: result.MetadataSelector,
+		UpdatedAt:        result.UpdatedAt,
 	}
 
 	return amountData, nil

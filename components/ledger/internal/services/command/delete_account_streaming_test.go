@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -175,4 +177,122 @@ func TestDeleteAccountByID_NilStreamingDoesNotPanic(t *testing.T) {
 
 	err := uc.DeleteAccountByID(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), "Bearer test")
 	require.NoError(t, err)
+}
+
+// TestDeleteAccountByID_CascadeStreaming verifies that account.deleted is emitted
+// exactly once, after the cascade steps and the row delete, and never when a
+// cascade step fails.
+func TestDeleteAccountByID_CascadeStreaming(t *testing.T) {
+	organizationID := uuid.MustParse("0191a0b2-0000-7000-8000-000000000011")
+	ledgerID := uuid.MustParse("0191a0b2-0000-7000-8000-000000000012")
+	accountID := uuid.MustParse("0191a0b2-0000-7000-8000-000000000013")
+	alias := "@cascade_streaming"
+
+	errInstruments := errors.New("crm store unavailable")
+	errFees := errors.New("fees store unavailable")
+
+	tests := []struct {
+		name       string
+		cascadeErr error
+		feeErr     error
+		wantSteps  []string
+		wantErr    error
+		wantEvents int
+	}{
+		{
+			name:       "both ports succeed",
+			wantSteps:  []string{"instruments", "fees", "row"},
+			wantEvents: 1,
+		},
+		{
+			name:       "instrument cascade fails",
+			cascadeErr: errInstruments,
+			wantSteps:  []string{"instruments"},
+			wantErr:    errInstruments,
+		},
+		{
+			name:      "fee detach fails",
+			feeErr:    errFees,
+			wantSteps: []string{"instruments", "fees"},
+			wantErr:   errFees,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockEmitter := pkgStreaming.NewMockEmitter()
+			mockAccountRepo := account.NewMockRepository(ctrl)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+			var steps []string
+
+			record := func(step string) func() {
+				return func() {
+					assert.Empty(t, mockEmitter.Events(), "account.deleted must not be emitted before %s", step)
+
+					steps = append(steps, step)
+				}
+			}
+
+			mockAccountRepo.EXPECT().
+				Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
+				Return(&mmodel.Account{
+					ID:             accountID.String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					Alias:          &alias,
+					Type:           "deposit",
+				}, nil).
+				Times(1)
+
+			mockBalanceRepo.EXPECT().
+				ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+				Return([]*mmodel.Balance{}, nil).
+				Times(1)
+
+			rowDeletes := 0
+			if tt.wantErr == nil {
+				rowDeletes = 1
+			}
+
+			mockAccountRepo.EXPECT().
+				Delete(gomock.Any(), organizationID, ledgerID, nil, accountID).
+				DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID) error {
+					record("row")()
+
+					return nil
+				}).
+				Times(rowDeletes)
+
+			uc := &UseCase{
+				AccountRepo:        mockAccountRepo,
+				BalanceRepo:        mockBalanceRepo,
+				Streaming:          mockEmitter,
+				InstrumentCascader: &stubInstrumentCascader{cascaded: 1, err: tt.cascadeErr, onCall: record("instruments")},
+				FeeAliasDetacher: &stubFeeAliasDetacher{
+					result: model.FeeAliasDetachResult{PackagesUpdated: 1},
+					err:    tt.feeErr,
+					onCall: record("fees"),
+				},
+			}
+
+			err := uc.DeleteAccountByID(context.Background(), organizationID, ledgerID, nil, accountID, "Bearer test")
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.wantSteps, steps, "cascade step order")
+			require.Len(t, mockEmitter.Events(), tt.wantEvents)
+
+			if tt.wantEvents > 0 {
+				pkgStreaming.AssertEventEmitted(t, mockEmitter, "account", "deleted")
+				assert.Equal(t, accountID.String(), mockEmitter.Events()[0].Subject)
+			}
+		})
+	}
 }

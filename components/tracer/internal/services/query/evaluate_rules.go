@@ -19,6 +19,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -103,7 +104,7 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	start := time.Now()
 
 	defer func() {
-		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rules_evaluate", start, retErr)
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rules_evaluate", start, domainOperationError(retErr))
 	}()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -143,6 +144,17 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	// Evaluate all rules (no short-circuit)
 	collector, err := q.completeEvaluator.EvaluateAll(ctx, rules, req)
 	if err != nil {
+		if IsRuleExpressionFailure(err) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rules could not be evaluated", RedactedRuleExpressionFailure(err))
+
+			if incomplete, ok := IncompleteEvaluationOf(err); ok {
+				incomplete.TotalRulesLoaded = originalCount
+				incomplete.Truncated = truncated
+			}
+
+			return nil, fmt.Errorf("failed to evaluate rules: %w", err)
+		}
+
 		libOpentelemetry.HandleSpanError(span, "Failed to evaluate rules", err)
 
 		logger.With(
@@ -179,4 +191,15 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	)
 
 	return result.WithTruncationInfo(originalCount, truncated), nil
+}
+
+// domainOperationError classifies retErr for the domain operation metric: a
+// rule-expression failure is an outcome of the rules and the request, so it
+// counts as a business error rather than a technical one.
+func domainOperationError(retErr error) error {
+	if IsRuleExpressionFailure(retErr) {
+		return pkg.UnprocessableOperationError{Err: retErr}
+	}
+
+	return retErr
 }

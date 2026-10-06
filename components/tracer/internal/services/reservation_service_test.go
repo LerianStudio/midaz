@@ -10,16 +10,17 @@ import (
 	"testing"
 	"time"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	otelCodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	servicesMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
@@ -36,12 +37,12 @@ type reservationDeps struct {
 	repo        *servicesMocks.MockReservationRepository
 	auditWriter *servicesMocks.MockReservationAuditWriter
 	clock       clock.Clock
+	tracing     *testutil.TestTracer
+	logger      *testutil.MockLogger
 }
 
 func newReservationServiceDeps(t *testing.T) (*ReservationService, *reservationDeps) {
 	t.Helper()
-
-	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
 
@@ -53,12 +54,80 @@ func newReservationServiceDeps(t *testing.T) (*ReservationService, *reservationD
 		repo:        servicesMocks.NewMockReservationRepository(ctrl),
 		auditWriter: servicesMocks.NewMockReservationAuditWriter(ctrl),
 		clock:       testutil.NewMockClock(testutil.FixedTime()),
+		tracing:     testutil.SetupTestTracing(t),
+		logger:      testutil.NewMockLogger(),
 	}
 
 	svc, err := NewReservationService(deps.conn, deps.resolver, deps.repo, deps.auditWriter, allowRuleEvaluator{}, deps.clock)
 	require.NoError(t, err)
 
 	return svc, deps
+}
+
+// ctx returns a context whose tracking logger is the capturing MockLogger, so a
+// subtest can assert on the level and fields the service logs at.
+func (d *reservationDeps) ctx() context.Context {
+	return libObservability.ContextWithLogger(context.Background(), d.logger)
+}
+
+// logCalls returns the captured log calls at the given level.
+func (d *reservationDeps) logCalls(level string) []testutil.LogCall {
+	var out []testutil.LogCall
+
+	for _, call := range d.logger.Calls {
+		if call.Level == level {
+			out = append(out, call)
+		}
+	}
+
+	return out
+}
+
+// spanEvents returns the names of the events recorded on the span with the
+// given name, together with that span's status code.
+func (d *reservationDeps) spanEvents(t *testing.T, spanName string) ([]string, otelCodes.Code) {
+	t.Helper()
+
+	for _, span := range d.tracing.GetSpans() {
+		if span.Name != spanName {
+			continue
+		}
+
+		names := make([]string, 0, len(span.Events))
+		for _, event := range span.Events {
+			names = append(names, event.Name)
+		}
+
+		return names, span.Status.Code
+	}
+
+	require.Failf(t, "span not recorded", "no span named %q was exported", spanName)
+
+	return nil, otelCodes.Unset
+}
+
+// spanIntAttribute returns the int attribute key recorded on the span with the
+// given name, and whether it was set.
+func (d *reservationDeps) spanIntAttribute(t *testing.T, spanName, key string) (int64, bool) {
+	t.Helper()
+
+	for _, span := range d.tracing.GetSpans() {
+		if span.Name != spanName {
+			continue
+		}
+
+		for _, attr := range span.Attributes {
+			if string(attr.Key) == key {
+				return attr.Value.AsInt64(), true
+			}
+		}
+
+		return 0, false
+	}
+
+	require.Failf(t, "span not recorded", "no span named %q was exported", spanName)
+
+	return 0, false
 }
 
 // expectTxCommit wires the mock TxBeginner to hand out the mock Tx and expects a
@@ -166,11 +235,11 @@ func TestReservationService_Reserve(t *testing.T) {
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000))).
-			Return(nil).
+			Return(false, nil).
 			Times(1)
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000))).
-			Return(nil).
+			Return(false, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
@@ -183,7 +252,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		assert.Len(t, result.ReservationIDs, 2)
 	})
 
-	t.Run("A replayed reserve hands back the existing row's id", func(t *testing.T) {
+	t.Run("A replay onto a RESERVED row hands back its id and writes no second audit row", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
 		req := testReserveRequest(t)
@@ -206,23 +275,18 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				r.ID = owningID
 
-				return nil
+				return true, nil
 			}).
 			Times(1)
 
-		var auditedID uuid.UUID
-
+		// The original reserve already wrote the RESERVED audit row: a replay must
+		// not write a second one. gomock fails the test on any unexpected call.
 		deps.auditWriter.EXPECT().
-			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, _ any, _ model.AuditEventType, _ model.AuditAction, id uuid.UUID, _ command.ReservationAuditContext) error {
-				auditedID = id
-
-				return nil
-			}).
-			Times(1)
+			RecordReservationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
 
 		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
 		require.NoError(t, err)
@@ -230,8 +294,40 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.Len(t, result.ReservationIDs, 1)
 		assert.Equal(t, owningID, result.ReservationIDs[0],
 			"the handle returned must address the row that owns the held capacity")
-		assert.Equal(t, owningID, auditedID,
-			"the audit row must reference the reservation that owns the held capacity")
+	})
+
+	t.Run("A replay onto a settled row fails with 0533, no audit row, no id", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		req := testReserveRequest(t)
+		input := req.ToCheckLimitsInput()
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(oneSpec(), false, nil).
+			Times(1)
+
+		// Exactly one BeginTx: 0533 is a business refusal, never a transient retry.
+		deps.expectTxRollback()
+		deps.expectScopeLock()
+
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			Return(false, constant.ErrReservationAlreadySettled).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		result, err := svc.Reserve(deps.ctx(), txID, req, ReserveOptions{})
+		require.ErrorIs(t, err, constant.ErrReservationAlreadySettled)
+		assert.Nil(t, result, "a settled replay holds nothing and returns no handle")
+
+		assert.Empty(t, deps.logger.Calls,
+			"the service records a settled replay on the span only: the gRPC boundary logs it")
+
+		_, status := deps.spanEvents(t, "service.reservation.reserve")
+		assert.NotEqual(t, otelCodes.Error, status, "a settled replay is a business refusal: the span stays green")
 	})
 
 	t.Run("Fractional spec amount reaches the reservation row intact", func(t *testing.T) {
@@ -262,10 +358,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured decimal.Decimal
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.Amount
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -316,7 +412,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			Return(constant.ErrUsageCounterExceedsLimit).
+			Return(false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
 		result, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
@@ -392,10 +488,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -444,10 +540,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		repo.EXPECT().
 			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		auditWriter.EXPECT().
@@ -481,10 +577,10 @@ func TestReservationService_Reserve(t *testing.T) {
 		var captured time.Time
 		deps.repo.EXPECT().
 			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
 				captured = r.ReservationExpiresAt
 
-				return nil
+				return false, nil
 			}).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -548,13 +644,13 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 	tx1ReserveCalls := 0
 	deps.repo.EXPECT().
 		ReserveWithTx(gomock.Any(), tx1, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) error {
+		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) (bool, error) {
 			tx1ReserveCalls++
 			if tx1ReserveCalls == 2 {
-				return &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
+				return false, &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
 			}
 
-			return nil
+			return false, nil
 		}).
 		Times(2)
 	deps.auditWriter.EXPECT().
@@ -570,7 +666,7 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 		Times(1)
 	deps.repo.EXPECT().
 		ReserveWithTx(gomock.Any(), tx2, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
-		Return(nil).
+		Return(false, nil).
 		Times(2)
 	deps.auditWriter.EXPECT().
 		RecordReservationEventWithTx(gomock.Any(), tx2, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
@@ -631,24 +727,27 @@ func oneSpec() []query.ReservationSpec {
 func TestReservationService_Confirm(t *testing.T) {
 	resID := testutil.MustDeterministicUUID(7200)
 
-	t.Run("Success - counter move + row flip + audit in one tx", func(t *testing.T) {
+	t.Run("Success - counter move + row flip + audit in one tx reports one confirmed", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
 		deps.expectTxCommit()
 
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(nil).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReserved}, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, resID, gomock.Any()).
 			Return(nil).
 			Times(1)
 
-		require.NoError(t, svc.Confirm(context.Background(), resID))
+		outcome, err := svc.Confirm(deps.ctx(), resID)
+		require.NoError(t, err)
+		assert.Equal(t, ConfirmOutcome{Confirmed: 1}, outcome)
+		assert.Empty(t, deps.logCalls("warn"), "a clean confirm is not a divergence")
 	})
 
-	t.Run("Idempotent double-confirm - terminal row maps to success, NO second counter move", func(t *testing.T) {
+	t.Run("Idempotent double-confirm - CONFIRMED row is a no-op success, NO second counter move", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
 		// Repo reports already-terminal; the service rolls back and returns nil
@@ -656,12 +755,47 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(constant.ErrReservationAlreadyTerminal).
+			Return(&model.Reservation{ID: resID, Status: model.StatusConfirmed}, constant.ErrReservationAlreadyTerminal).
 			Times(1)
-		// No audit call expected on the idempotent path.
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
 
-		require.NoError(t, svc.Confirm(context.Background(), resID),
-			"retried confirm against a terminal reservation must be an idempotent success")
+		outcome, err := svc.Confirm(deps.ctx(), resID)
+		require.NoError(t, err, "retried confirm against a CONFIRMED reservation must be an idempotent success")
+		assert.Equal(t, ConfirmOutcome{}, outcome)
+		assert.Empty(t, deps.logCalls("warn"), "a CONFIRMED replay is Debug, not a divergence")
+
+		events, _ := deps.spanEvents(t, "service.reservation.confirm")
+		assert.NotContains(t, events, "reservation.confirm.already_released")
+	})
+
+	t.Run("Confirm on a RELEASED row reports it as already released with a Warn and span event", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxRollback()
+		deps.repo.EXPECT().
+			ConfirmWithTx(gomock.Any(), deps.tx, resID).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReleased}, constant.ErrReservationAlreadyTerminal).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		outcome, err := svc.Confirm(deps.ctx(), resID)
+		require.NoError(t, err, "a confirm that finds the row RELEASED is an outcome, not a failure")
+		assert.Equal(t, ConfirmOutcome{AlreadyReleased: 1}, outcome)
+
+		warns := deps.logCalls("warn")
+		require.Len(t, warns, 1)
+
+		fields := testutil.FieldsToMap(warns[0].Fields)
+		assert.Equal(t, resID.String(), fields["reservation_id"])
+		assert.EqualValues(t, 1, fields["already_released"])
+
+		events, status := deps.spanEvents(t, "service.reservation.confirm")
+		assert.Contains(t, events, "reservation.confirm.already_released")
+		assert.NotEqual(t, otelCodes.Error, status, "an already-released row is a business observation: the span stays green")
 	})
 
 	t.Run("Not found propagates", func(t *testing.T) {
@@ -670,10 +804,21 @@ func TestReservationService_Confirm(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ConfirmWithTx(gomock.Any(), deps.tx, resID).
-			Return(constant.ErrReservationNotFound).
+			Return(nil, constant.ErrReservationNotFound).
 			Times(1)
 
-		err := svc.Confirm(context.Background(), resID)
+		outcome, err := svc.Confirm(deps.ctx(), resID)
+		require.ErrorIs(t, err, constant.ErrReservationNotFound)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
+
+		_, status := deps.spanEvents(t, "service.reservation.confirm")
+		assert.NotEqual(t, otelCodes.Error, status, "an unknown reservation is a business outcome: the span stays green")
+	})
+
+	t.Run("Missing reservation id is rejected before a tx", func(t *testing.T) {
+		svc, _ := newReservationServiceDeps(t)
+
+		_, err := svc.Confirm(context.Background(), uuid.Nil)
 		require.ErrorIs(t, err, constant.ErrReservationNotFound)
 	})
 }
@@ -688,7 +833,7 @@ func TestReservationService_Release(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
-			Return(nil).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReserved}, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReleased, model.AuditActionRelease, resID, gomock.Any()).
@@ -704,10 +849,25 @@ func TestReservationService_Release(t *testing.T) {
 		deps.expectTxRollback()
 		deps.repo.EXPECT().
 			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
-			Return(constant.ErrReservationAlreadyTerminal).
+			Return(&model.Reservation{ID: resID, Status: model.StatusReleased}, constant.ErrReservationAlreadyTerminal).
 			Times(1)
 
 		require.NoError(t, svc.Release(context.Background(), resID))
+	})
+
+	t.Run("Not found propagates with a green span", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		deps.expectTxRollback()
+		deps.repo.EXPECT().
+			ReleaseWithTx(gomock.Any(), deps.tx, resID, model.StatusReleased).
+			Return(nil, constant.ErrReservationNotFound).
+			Times(1)
+
+		require.ErrorIs(t, svc.Release(deps.ctx(), resID), constant.ErrReservationNotFound)
+
+		_, status := deps.spanEvents(t, "service.reservation.release")
+		assert.NotEqual(t, otelCodes.Error, status, "an unknown reservation is a business outcome: the span stays green")
 	})
 }
 
@@ -727,16 +887,18 @@ func twoReservations(txID uuid.UUID) []*model.Reservation {
 func TestReservationService_ConfirmByTransaction(t *testing.T) {
 	txID := testutil.MustDeterministicUUID(7400)
 
-	t.Run("Flips ALL reserved rows in one tx, audits each", func(t *testing.T) {
+	t.Run("Flips ALL reserved rows in one tx, audits each, counts released from the lock", func(t *testing.T) {
 		svc, deps := newReservationServiceDeps(t)
 
 		reservations := twoReservations(txID)
 
 		deps.expectTxCommit()
 
+		// The released count comes from the confirm's own locked read: no query
+		// runs after the audit inserts.
 		deps.repo.EXPECT().
 			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(reservations, nil).
+			Return(reservations, 0, nil).
 			Times(1)
 		// One audit row per flipped reservation, same tx.
 		deps.auditWriter.EXPECT().
@@ -744,9 +906,46 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 			Return(nil).
 			Times(2)
 
-		flipped, err := svc.ConfirmByTransaction(context.Background(), txID)
+		outcome, err := svc.ConfirmByTransaction(deps.ctx(), txID)
 		require.NoError(t, err)
-		assert.Equal(t, 2, flipped, "every reserved row of the transaction is confirmed")
+		assert.Equal(t, ConfirmOutcome{Confirmed: 2}, outcome, "every reserved row of the transaction is confirmed")
+		assert.Empty(t, deps.logCalls("warn"))
+	})
+
+	t.Run("One RELEASED row among the transaction's rows is reported with a Warn and span event", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		reservations := twoReservations(txID)[:1]
+
+		deps.expectTxCommit()
+
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(reservations, 1, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, reservations[0].ID, gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		outcome, err := svc.ConfirmByTransaction(deps.ctx(), txID)
+		require.NoError(t, err, "a released row is an outcome the caller reads, not a failure")
+		assert.Equal(t, ConfirmOutcome{Confirmed: 1, AlreadyReleased: 1}, outcome)
+
+		warns := deps.logCalls("warn")
+		require.Len(t, warns, 1)
+
+		fields := testutil.FieldsToMap(warns[0].Fields)
+		assert.Equal(t, txID.String(), fields["transaction_id"])
+		assert.EqualValues(t, 1, fields["already_released"])
+
+		events, status := deps.spanEvents(t, "service.reservation.confirm_by_transaction")
+		assert.Contains(t, events, "reservation.confirm.already_released")
+		assert.NotEqual(t, otelCodes.Error, status, "an already-released row is a business observation: the span stays green")
+
+		releasedCount, ok := deps.spanIntAttribute(t, "service.reservation.confirm_by_transaction", "app.reservation.already_released")
+		require.True(t, ok, "the confirm span carries the released count")
+		assert.EqualValues(t, 1, releasedCount)
 	})
 
 	t.Run("No reserved rows is an idempotent no-op success (re-run), NO audit", func(t *testing.T) {
@@ -756,13 +955,52 @@ func TestReservationService_ConfirmByTransaction(t *testing.T) {
 
 		deps.repo.EXPECT().
 			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
-			Return(nil, nil).
+			Return(nil, 0, nil).
 			Times(1)
 		// No audit call expected on the empty path.
 
-		flipped, err := svc.ConfirmByTransaction(context.Background(), txID)
+		outcome, err := svc.ConfirmByTransaction(deps.ctx(), txID)
 		require.NoError(t, err)
-		assert.Equal(t, 0, flipped, "re-run over an already-confirmed transaction is a clean no-op")
+		assert.Equal(t, ConfirmOutcome{}, outcome, "re-run over an already-confirmed transaction is a clean no-op")
+		assert.Empty(t, deps.logCalls("warn"))
+	})
+
+	t.Run("Repository failure rolls the confirm back", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		repoErr := errors.New("lock failed")
+
+		deps.expectTxRollback()
+
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(nil, 0, repoErr).
+			Times(1)
+
+		outcome, err := svc.ConfirmByTransaction(context.Background(), txID)
+		require.ErrorIs(t, err, repoErr)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
+	})
+
+	t.Run("Audit failure rolls the confirm back", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		auditErr := errors.New("audit failed")
+
+		deps.expectTxRollback()
+
+		deps.repo.EXPECT().
+			ConfirmByTransactionWithTx(gomock.Any(), deps.tx, txID).
+			Return(twoReservations(txID), 0, nil).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationConfirmed, model.AuditActionConfirm, gomock.Any(), gomock.Any()).
+			Return(auditErr).
+			Times(1)
+
+		outcome, err := svc.ConfirmByTransaction(context.Background(), txID)
+		require.ErrorIs(t, err, auditErr)
+		assert.Equal(t, ConfirmOutcome{}, outcome)
 	})
 
 	t.Run("Missing transaction id is rejected before a tx", func(t *testing.T) {

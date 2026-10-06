@@ -49,7 +49,7 @@ func TestTracerErrorContract(t *testing.T) {
 		// --- generic input / path / query (400) ---
 		{
 			name:           "invalid path parameter -> 0065 / 400",
-			err:            pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"),
+			err:            pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id"),
 			expectedStatus: 400,
 			expectedCode:   "0065",
 			expectedTitle:  "Invalid Path Parameter",
@@ -132,21 +132,6 @@ func TestTracerErrorContract(t *testing.T) {
 			expectedStatus: 422,
 			expectedCode:   "0380",
 			expectedTitle:  "Limit Immutable Field",
-		},
-		// --- reservation ---
-		{
-			name:           "reservation not found -> 0482 / 404",
-			err:            pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation),
-			expectedStatus: 404,
-			expectedCode:   "0482",
-			expectedTitle:  "Reservation Not Found",
-		},
-		{
-			name:           "reservation already terminal -> 0483 / 422",
-			err:            pkg.ValidateBusinessError(constant.ErrReservationAlreadyTerminal, constant.EntityReservation),
-			expectedStatus: 422,
-			expectedCode:   "0483",
-			expectedTitle:  "Reservation Already Terminal",
 		},
 		// --- audit / transaction validation ---
 		{

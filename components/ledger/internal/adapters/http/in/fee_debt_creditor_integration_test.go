@@ -50,9 +50,8 @@ func (h *feeHarness) newAccountAdminV2App() *fiber.App {
 // can be neither closed nor deleted, balance or account, until the debt is settled.
 func TestFeeDebtCreditorGuard(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 
-	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
+	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: h.mongoContainer.DBName, DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)
 
 	h.commandUC.FeeDebts = feeDebts

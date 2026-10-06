@@ -22,10 +22,10 @@ GET  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_i
 POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json
 
 POST /v1/organizations/{organization_id}/holders
-GET  /v1/organizations/{organization_id}/holders/{id}
+GET  /v1/organizations/{organization_id}/holders/{holder_id}
 POST /v1/organizations/{organization_id}/holders/{holder_id}/instruments
 
-POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts
+POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts
 
 POST /v1/organizations/{organization_id}/packages
 POST /v1/organizations/{organization_id}/estimates
@@ -55,13 +55,13 @@ not match and Fiber returns `404`. The former "missing scoping header" error cla
   a validated UUID rather than a raw header string.
 - **`X-Ledger-Id` was removed entirely.** It is no longer a live contract on any CRM or composition
   route. The single route that legitimately needs a ledger — composition account-open — now carries
-  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts`),
+  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts`),
   because it creates a real ledger account.
 - **`ledger_id` keeps two non-scoping roles.** It remains a **create-body field** on instrument
   creation, and an **optional list filter** (`?ledger_id=`) on `GET .../instruments` and on
-  `GET .../holders/{id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
+  `GET .../holders/{holder_id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
 
-  `GET /v2/organizations/{organization_id}/holders/{id}/accounts` is org-scoped by its path, and
+  `GET /v2/organizations/{organization_id}/holders/{holder_id}/accounts` is org-scoped by its path, and
   holder ownership is org-global, so the listing spans **every ledger of the organization**;
   `?ledger_id=` narrows it to one. A malformed value is `0082` / 400, not a 404: it is a
   query-parameter format error, not a missing ledger. Because the read touches the onboarding
@@ -107,14 +107,14 @@ The same twelve fee and billing operations are **also** served ledger-scoped on 
 on whichever ledger of the organization owns it, `/v2` reaches only what the named ledger owns.
 
 ```
-/v1/organizations/{organization_id}/packages[/{id}]           organization-scoped
+/v1/organizations/{organization_id}/packages[/{package_id}]           organization-scoped
 /v1/organizations/{organization_id}/estimates
-/v1/organizations/{organization_id}/billing-packages[/{id}]
+/v1/organizations/{organization_id}/billing-packages[/{billing_package_id}]
 /v1/organizations/{organization_id}/billing/calculate
 
-/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{id}]          ledger-scoped
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{package_id}]          ledger-scoped
 /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates
-/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{id}]
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{billing_package_id}]
 /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate
 ```
 
@@ -129,6 +129,7 @@ On the ledger-scoped surface the path is the sole authority on which ledger a re
   so the response model can keep `ledgerId` while the request does not. The path is the sole ledger
   input — a body that still sends `ledgerId` is rejected as an unknown field (`400`). The former
   body-versus-path mismatch guard and its `0234` code are retired.
+- **`0236` (duplicate fee key) is retired.** Fee keys are stored verbatim, so two never collide.
 - **`?ledgerId=` is refused on the two listings** (`400`, `0235`) — the only ledger-scoped
   operations that read a query at all. It can only restate the path or contradict it, and its empty
   value means "every ledger of the organization" — the one scope a ledger-scoped listing must not
@@ -157,9 +158,10 @@ those packages apply only to the transactions it posts on `/v2`.
 The same boundary governs the tracer. The reservation lifecycle is **`/v2`-only** across all three
 of its seams: the reserve anchor on create and revert, and the by-transaction confirm/release on
 commit and cancel. A `/v1` route never reaches the tracer — no reserve request is built, no
-connection is dialled, and a `/v1` create can never answer `0177` (reservation denied) or `0178`
-(reservation unavailable). Like fees, `/v1` shipped before the tracer existed, and the per-ledger
-`tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
+connection is dialled, and a `/v1` create can never answer `0177` (reservation denied by a limit),
+`0535` (denied by a rule), `0531` (review), `0178` (reservation unavailable) or `0536` (seam
+credential rejected). Like fees, `/v1`
+shipped before the tracer existed, and the per-ledger `tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
 client integrated against.
 
 On every transaction path the version is the method name, not a runtime value:
@@ -214,25 +216,101 @@ reserve continues to the limits. A matched rule's `DENY` or `REVIEW` refuses the
 limit counter is touched. A rule the tracer cannot evaluate for the transaction is a refusal too,
 answered as `decision=REVIEW` with `reason=rule_evaluation_error`: that covers every rule-evaluation
 class — a syntax or compile error, a program build error, a cost-estimation failure and a runtime
-error such as a type mismatch against a string metadata value. The ledger maps the outcome as follows:
+error such as a type mismatch against a string metadata value. Evaluation continues past a rule
+that cannot be evaluated: a matched `DENY` from another rule still decides, and only without one
+does the failure answer `REVIEW`. The tracer's `POST /v1/validations` answers a rule it cannot
+evaluate the same way: HTTP 200 with `decision=REVIEW` and
+`reason=rule_evaluation_error`. The ledger maps the reserve outcome as follows:
 
 | Tracer outcome | `mode=enforce` | `mode=advisory` |
 |---|---|---|
 | `ALLOW` | proceeds; the reservation handle is kept for confirm/release | proceeds |
-| `DENY` (a matched rule or a limit) | rejects with `0177` (422) before the balance commit | proceeds, logs a warning |
+| `DENY` by a limit (`reason=limit_exceeded`) | rejects with `0177` (422) before the balance commit | proceeds, logs a warning |
+| `DENY` by a matched rule | rejects with `0535` (422) before the balance commit; the rule's reason is logged, never returned | proceeds, logs a warning |
 | `REVIEW` (a matched rule, or `reason=rule_evaluation_error`) | rejects with `0531` (422) before the balance commit | proceeds, logs a warning |
-| request refused (tracer HTTP 400/422, gRPC `InvalidArgument`/`FailedPrecondition`) | rejects with `0532` (422) whatever `failPosture` says: the tracer answered | proceeds, logs a warning |
-| unavailable (timeout, connection failure, open breaker, a tenant whose rule cache is not loaded yet, the tracer's per-tenant worker cap reached — REST 503 with `Retry-After`, gRPC `Unavailable` with code `0445` — any other tracer error) | `failPosture=open` proceeds with a SKIPPED audit; `failPosture=closed` rejects with `0178` (503) | proceeds, logs a warning |
+| request refused (gRPC `InvalidArgument`/`FailedPrecondition`, including a reserve replayed onto a transaction whose reservation is already released, expired or confirmed — tracer code `0533`) | rejects with `0532` (422) whatever `failPosture` says: the tracer answered | proceeds, logs a warning |
+| unavailable (timeout, connection failure, open breaker, a tenant whose rule cache is not loaded yet, the tracer's per-tenant worker cap reached — gRPC `Unavailable` with code `0445` —, a tenant the tracer holds as not provisioned or not active — gRPC `Unavailable` with code `0534` —, a client certificate outside the tracer's `TRACER_TLS_CLIENT_ALLOWED_NAMES`, an Access Manager the tracer cannot reach, a seam credential the ledger cannot obtain — counted as `tracer_reservation_credential_rejected_total{operation,reason="not_sent"}` and logged once at Error —, any other tracer error) | `failPosture=open` proceeds with a SKIPPED audit; `failPosture=closed` rejects with `0178` (503) | proceeds, logs a warning |
+| credential rejected (gRPC `Unauthenticated`: missing or invalid token, missing or wrong API key; gRPC `PermissionDenied`: the Access Manager denies `tracer/reservations`, or the tracer's guard refuses the token) | `failPosture=open` proceeds with the reservation skipped; `failPosture=closed` rejects with `0536` (503). Either way the ledger logs at Error and counts `tracer_reservation_credential_rejected_total{operation,reason="rejected"}` | proceeds, logs at Error |
 
 `mode=off`, an unset `TRACER_BASE_URL` and an honored `skip.tracer` build no request at all. A
-denied or refused result holds no capacity, so none of the rejections leaves a reservation to
-release. The same holds under `mode=advisory`: a transaction the tracer denied, flagged or refused
-still commits, but nothing was reserved for it, so its spend is never counted against any limit.
+denied or refused result holds no capacity, so none of those rejections leaves a reservation to
+release. An unanswered reserve is different: it was sent and then timed out or was cancelled before
+the tracer answered (gRPC `DeadlineExceeded`/`Canceled`), and the tracer may still have reserved
+capacity for the transaction. The ledger then settles by transaction, in every mode and posture,
+once the accounting outcome is known — it confirms by transaction when the movement applied and the
+transaction is not PENDING (a PENDING transaction is settled by its commit or cancel), and releases
+by transaction on a `0178` rejection or when the engine aborted. A reserve the tracer answered with
+an error (including `Unavailable`, such as `0534`) or one that was never sent (connection failure)
+held nothing and is not settled. The settle never runs on the request path and never shares the
+retrier that redelivers by-id confirms: a dedicated queue of 64 waits `3s` (the tracer's reserve lock
+wait) plus `TRACER_TIMEOUT_MS` before each attempt, so the unanswered reserve has finished before the
+settle lands. A confirm that fails or settles nothing is offered once more, a release that fails is
+offered once more, and what is still unsettled is logged as a warning with the transaction id only.
+A full queue drops the settle with the same warning.
+An atomic batch or a cross-ledger v2 commit whose execution hand-off fails releases the
+reservations held for its items (for the commit, its destinations), because no movement follows.
+These settles are best-effort: they never block or change the response.
+
+Under `mode=advisory` a transaction the tracer denied, flagged or refused still commits, but nothing was reserved for it, so its spend is never counted against any limit.
 Infrastructure failures inside the tracer (its database or cache) stay errors and follow the
 unavailable row; only a rule evaluation error is a refusal. The ledger records a refusal as a
 business event on a span that is not marked as an error, and never forwards the tracer's response
 body to the client. A tracer that predates `decision` answers a `REVIEW` as a plain `denied=true`,
 which the ledger reads as `0177`.
+
+The ledger reaches the tracer only over the gRPC reservation seam (`TRACER_BASE_URL` is its
+`host:port`, default tracer port `:4021`); the tracer's HTTP API has no reservation route. A confirm
+reports `already_released`, the rows of the transaction an explicit release (a cancel) had already
+moved to RELEASED before the confirm arrived, and whose spend the tracer therefore never counts. Its
+TTL reaper does not produce `already_released`: it marks an unsettled row EXPIRED and returns its
+capacity, and a later confirm still settles that EXPIRED row and counts its spend. The ledger does not fail the commit on
+them: it logs a Warn, adds the span event `tracer.reservation.confirm_already_released` and increments
+`tracer_reservation_confirm_already_released_total{operation}`.
+
+#### Seam identity
+
+The ledger presents at most one credential on every seam call. With `PLUGIN_AUTH_ENABLED=true` it
+is an Access Manager application token in gRPC metadata `authorization: Bearer <token>`, minted with
+a credential dedicated to the tracer: the static `TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET`
+pair in single-tenant mode, and in multi-tenant mode the calling tenant's own credential, read from
+`tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/tracer/credentials` on the backend
+`M2M_SECRETS_BACKEND` selects (`aws`, the default: AWS Secrets Manager; `vault`: HashiCorp Vault KV v2 under `M2M_VAULT_MOUNT`, connected through `VAULT_ADDR`/`VAULT_TOKEN`/`VAULT_CACERT`/`VAULT_NAMESPACE`), so the token carries the tenant's `tenantId` claim. Without plugin auth it is `TRACER_API_KEY` as `x-api-key`; with
+neither, nothing is sent and identity is left to the transport (`mtls` or a mesh). Setting both
+refuses boot.
+
+The tracer enforces the first identity its configuration enables: the token
+(`PLUGIN_AUTH_ENABLED=true`, authorized as `tracer/reservations:post`, only for application tokens,
+whose `azp` (client id) or `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and whose `name` claim must be
+the ledger→tracer client of the tenant its own `tenantId` claim names (`ledger-m2m-tracer-{tenant}`,
+tenants compared canonically) in multi-tenant mode; `AUTH_M2M_INVERSION_ENABLED=true` is
+recommended — without it the tracer boots with a Warn and the Access Manager authorizes application
+tokens under a shared editor role, so only the allowlist or the ledger client name binding restricts
+who may reserve — and it refuses to boot under `DEPLOYMENT_MODE=saas` — Warns
+elsewhere — unless `AUTH_CACHE_TTL` is greater than zero), the API key (`API_KEY_ENABLED=true`), the transport, or none.
+Under the token the tenant is the token's `tenantId` claim and `x-tenant-id` is only cross-checked;
+under every other identity, all single-tenant, `x-tenant-id` carries it. A seam without identity
+boots with one Warn in BYOC and `local`, and refuses to boot under `DEPLOYMENT_MODE=saas` and in
+multi-tenant mode. The ledger caches each token and refreshes it ahead of expiry, serving the still-valid
+token while one background mint runs, and schedules each token's refresh, retried with backoff while
+the token is valid, so an idle tenant normally finds a valid token. Consecutive failed mints widen a
+per-tenant failure window (1s, doubling, capped at 15s, jittered) that every caller and the scheduled
+refresh honour; past 30 idle minutes the token is
+no longer refreshed but stays served until it expires. On `Unauthenticated` it invalidates only the rejected token and retries the call once
+with a fresh one, unless that token is younger than 5 seconds, never on `PermissionDenied` and never for
+an API key. A missing tenant secret is cached for 5 seconds and a malformed one for 30. A caller whose
+deadline strikes while it waits for a token sent nothing and takes the ordinary unavailable path. A credential the ledger cannot obtain is never sent:
+the call fails as unavailable (the `0178` row above), logged once at Error and counted in
+`tracer_reservation_credential_rejected_total{operation,reason="not_sent"}`.
+
+**Upgrade order.** Provision the ledger's credential first (`TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET`
+in single-tenant mode; the tenant-manager's ledger→tracer credential for every tenant in multi-tenant
+mode) and deploy the ledger, then enable the tracer's token identity (`PLUGIN_AUTH_ENABLED=true`,
+`AUTH_M2M_INVERSION_ENABLED=true` (recommended), `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant
+mode, and `AUTH_CACHE_TTL`). A tracer that enables token identity before the ledger sends tokens answers
+`Unauthenticated`: the ledger rejects with `0536` under `enforce` + `closed` and proceeds without a
+reservation under `open` or `advisory`. The full posture matrix, the transport modes
+(`mtls`, `server`, `mesh`) and the operator checklist are in
+[Ledger / Tracer topology §5](../architecture/ledger-tracer-topology.md#5-seam-identity-and-transport-security).
 
 ### Cross-ledger enablement is a `/v2` contract
 
@@ -270,8 +348,9 @@ account body.
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
 confirm/release cannot tell whether the transaction holds reservations, so a PENDING created on
 `/v2` and committed through `/v1` never receives its confirm — `transitionPendingV1` names no
-reservation seam: the reservation stays RESERVED until the TTL reaper releases it, and the
-committed amount is never counted against the usage limit. Commit and cancel a transaction on the
+reservation seam: the reservation stays RESERVED until the TTL reaper marks it EXPIRED and
+returns its capacity, and because no confirm ever arrives the committed amount is never counted
+against the usage limit. Commit and cancel a transaction on the
 same contract that created it. Closing this needs create-time reservation state persisted on the
 transaction row for the `/v1` pipeline to read.
 
@@ -301,6 +380,48 @@ created by another kind of request with the same serialized reversal, such as a 
 The atomic batch and the cross-ledger request keep their own fingerprint rules; see
 [Atomic transaction batch](atomic-transaction-batch.md) and
 [Cross-ledger transactions](cross-ledger-transactions.md).
+
+### Account delete cascades to CRM and fees on both contracts
+
+An account `DELETE` is the same use case (`DeleteAccountByID`) on `/v1` and `/v2`, and no version
+policy is threaded into it. The effects on the CRM and on fees are referential integrity, like the
+`0012` guard that refuses an account with funds, so both contracts apply them alike.
+
+**Order.** The account is found, its balances are deleted (with the `0012`, `0527`, and `0528`
+guards), the live CRM instrument linked to the account is soft-deleted, the account alias is
+detached from the fee and billing packages of the ledger, and only then is the account row deleted
+and `account.deleted` emitted. The detach removes a fee whose `creditAccount` is the alias, pulls
+the alias from `waivedAccounts` and `accountTarget.aliases`, clears a billing leg equal to it, and
+disables a package that cannot charge anymore; the endpoint description lists the exact rules.
+
+**Fail-closed with idempotent steps.** A technical failure in any step answers with an error before
+the row is deleted, so the account stays in place and the client repeats the `DELETE`. Every step
+converges on a repeat: an instrument already soft-deleted keeps its `deletedAt`, and a package
+already cleaned of the alias is not written again. A failure after the instruments were cascaded
+leaves them soft-deleted while the account still exists, until the retry completes.
+
+**Cache.** The per-(organization, ledger) fee package cache is invalidated after the package writes,
+also when a later package fails, so a warmed cache does not keep serving the deleted alias. A
+transaction already in flight that loaded the package before the invalidation may still try to
+credit the alias once and answer `0019`; the engine refuses it before any movement.
+
+**Events.** `instrument.deleted`, `fee_packages.updated`, and `fee_billing_packages.updated` are emitted
+by the CRM and fees use cases inside the cascade, so they precede `account.deleted`. No field on the
+package records why it changed; the `updated` event and the delete log are the trail.
+
+**Tenant isolation.** The CRM and fees stores are resolved per call from the tenant context of the
+request, each through its own tenant manager, the same way the holder reader on account create is.
+
+Accepted residuals:
+
+- The concurrency window between the holder-delete check and the holder delete is unchanged.
+- An instrument whose create verified the account before the row was deleted and was written after
+  the cascade read its live instruments is not cascaded; once the row is gone, an instrument create
+  refuses the account.
+- References that were already dangling before this behavior existed are not backfilled.
+- Billing packages have no PATCH for an alias, so a billing package disabled by a cleared leg must
+  be recreated.
+- Lookups match the stored alias and IDs exactly.
 
 ## The holder seam is `/v2`-only
 
@@ -368,7 +489,7 @@ shape carries no holder field, so both contracts publish one schema and differ o
 operation IDs they publish.
 
 The **CRM holder surface itself** (`/v2/organizations/{organization_id}/holders...`) and the
-holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{id}/accounts`) are
+holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{holder_id}/accounts`) are
 served on `/v2` only and are unaffected: composition exists to link a holder, so it contracts the
 seam in full.
 
@@ -390,8 +511,8 @@ Two path scopes serve the same routes:
 
 | Scope | Paths | Contracts | `ledgerId` on create |
 | --- | --- | --- | --- |
-| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{id}]` | `/v2` only | absent — the route has no ledger |
-| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
+| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{operation_route_id\|transaction_route_id}]` | `/v2` only | absent — the route has no ledger |
+| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{operation_route_id\|transaction_route_id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
 
 On the ledger paths the ledger is **provenance, not a filter**: list, get, patch and delete reach
 every route of the organization, whichever ledger it was created under and including routes created
@@ -412,6 +533,25 @@ older per-ledger key on every route write, so older pods reload fresh rules. An 
 by an older pod clears only the per-ledger key and leaves the newer pods' entry stale. Hold route updates
 and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
 afterwards.
+
+## Metadata on a PATCH: `null` is a `/v2` no-op
+
+Every PATCH whose body carries `metadata` applies it as an RFC 7396 merge patch: organization,
+ledger, portfolio, segment, account, account type, asset, transaction, operation, operation route,
+transaction route, holder and instrument. The contracts differ on one body only, an explicit
+`"metadata": null`:
+
+| Body | `/v1` | `/v2` |
+| --- | --- | --- |
+| no `metadata` key, or `"metadata": {}` | stored metadata left as it is | stored metadata left as it is |
+| `"metadata": {"k": "v"}` | `k` added or replaced, every other key kept | same |
+| `"metadata": {"k": null}` | `k` deleted, every other key kept | same |
+| `"metadata": null` | every key the client wrote deleted; the ledger's reserved fee keys on a transaction or operation stay | stored metadata left as it is |
+
+The other patched fields apply in every row. `/v2` clears metadata one key at a time, so a client
+whose serializer writes an unset map as `null` cannot erase it by accident; `/v1` keeps the reading
+it shipped with. Fee packages, billing packages and balances carry no `metadata` on their PATCH, and
+the asset rate is a `/v1` `PUT`.
 
 ## Summary
 

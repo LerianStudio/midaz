@@ -141,7 +141,7 @@ func TestOrganizationAccountingRoutes_V1PathIsNotServed(t *testing.T) {
 
 		_ = resp.Body.Close()
 
-		assert.Equalf(t, http.StatusNotFound, resp.StatusCode, "POST /v1/organizations/{id}/%s must not be routed", resource)
+		assert.Equalf(t, http.StatusNotFound, resp.StatusCode, "POST /v1/organizations/{organization_id}/%s must not be routed", resource)
 	}
 }
 

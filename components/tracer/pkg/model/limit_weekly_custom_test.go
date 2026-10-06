@@ -59,8 +59,8 @@ func TestLimitType_IsValid_Extended(t *testing.T) {
 	}
 }
 
-// TestCalculateResetAt_Weekly tests WEEKLY limit reset calculation.
-func TestCalculateResetAt_Weekly(t *testing.T) {
+// TestLimitNextResetAt_Weekly tests WEEKLY limit reset calculation.
+func TestLimitNextResetAt_Weekly(t *testing.T) {
 	tests := []struct {
 		name     string
 		now      time.Time
@@ -100,7 +100,7 @@ func TestCalculateResetAt_Weekly(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := CalculateResetAt(LimitTypeWeekly, tc.now)
+			result := (&Limit{LimitType: LimitTypeWeekly}).NextResetAt(tc.now)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.expected, *result)
 		})
@@ -631,16 +631,16 @@ func TestNewUsageSnapshot_WeeklyLimit(t *testing.T) {
 	}
 
 	counters := []UsageCounter{
-		{CurrentUsage: decimal.RequireFromString("3000")},
-		{CurrentUsage: decimal.RequireFromString("2000")},
+		{ScopeKey: "acct:a", PeriodKey: "2025-W03", CurrentUsage: decimal.RequireFromString("3000")},
+		{ScopeKey: "acct:b", PeriodKey: "2025-W03", CurrentUsage: decimal.RequireFromString("2000")},
 	}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
 	assert.Equal(t, limit.ID, snapshot.LimitID)
-	assert.True(t, decimal.RequireFromString("5000").Equal(snapshot.CurrentUsage))
+	assert.True(t, decimal.RequireFromString("3000").Equal(snapshot.CurrentUsage), "should report the most consumed scope")
 	assert.True(t, decimal.RequireFromString("10000").Equal(snapshot.LimitAmount))
-	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
+	assert.Equal(t, 30.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
 	require.NotNil(t, snapshot.ResetAt)
 	assert.Equal(t, resetAt, *snapshot.ResetAt)
@@ -1139,6 +1139,39 @@ func TestLimit_IsWithinCustomPeriod(t *testing.T) {
 
 			result := tc.limit.IsWithinCustomPeriod(tc.timestamp)
 			assert.Equal(t, tc.expected, result, "Expected %v for timestamp %s", tc.expected, tc.timestamp.Format(time.RFC3339))
+		})
+	}
+}
+
+func TestLimitPeriod_WeeklyResetTimeMovesISOWeekBoundary(t *testing.T) {
+	limit := &Limit{LimitType: LimitTypeWeekly, ResetTime: resetTimePtr("09:00")}
+
+	tests := []struct {
+		name    string
+		at      string
+		key     string
+		resetAt string
+	}{
+		{"Monday before the boundary stays in the previous week", "2026-10-05T08:59:00Z", "2026-W40", "2026-10-05T09:00:00Z"},
+		{"Monday at the boundary opens the new week", "2026-10-05T09:00:00Z", "2026-W41", "2026-10-12T09:00:00Z"},
+		{"Sunday night belongs to the current week", "2026-10-11T23:59:00Z", "2026-W41", "2026-10-12T09:00:00Z"},
+		{"last Monday of a 53-week year before the boundary", "2026-12-28T08:59:00Z", "2026-W52", "2026-12-28T09:00:00Z"},
+		{"last Monday of a 53-week year at the boundary", "2026-12-28T09:00:00Z", "2026-W53", "2027-01-04T09:00:00Z"},
+		{"first Monday of the next ISO year before the boundary", "2027-01-04T08:59:00Z", "2026-W53", "2027-01-04T09:00:00Z"},
+		{"first Monday of the next ISO year at the boundary", "2027-01-04T09:00:00Z", "2027-W01", "2027-01-11T09:00:00Z"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			at := mustRFC3339(t, tc.at)
+
+			key, err := limit.PeriodKey(at)
+			require.NoError(t, err)
+			assert.Equal(t, tc.key, key)
+
+			resetAt := limit.NextResetAt(at)
+			require.NotNil(t, resetAt)
+			assert.Equal(t, mustRFC3339(t, tc.resetAt), *resetAt)
 		})
 	}
 }

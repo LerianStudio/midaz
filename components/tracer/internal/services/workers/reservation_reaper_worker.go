@@ -211,7 +211,7 @@ func (w *ReservationReaperWorker) runLoop(ctx context.Context) error {
 // runReapCycle resolves the tenant pool (MT), runs a single sweep, and logs the
 // result. Errors are logged but not returned — the worker continues running.
 func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "worker.reservation_reaper.run_cycle")
 	defer span.End()
@@ -269,7 +269,7 @@ func (w *ReservationReaperWorker) runReapCycle(ctx context.Context) {
 // The batch audit is only written when at least one reservation expired — an
 // empty sweep produces no audit row.
 func (w *ReservationReaperWorker) RunOnce(ctx context.Context) (int, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "worker.reservation_reaper.run_once")
 	defer span.End()

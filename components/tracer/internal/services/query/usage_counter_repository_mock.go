@@ -16,7 +16,6 @@ import (
 
 	db "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	model "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-
 	uuid "github.com/google/uuid"
 	decimal "github.com/shopspring/decimal"
 	gomock "go.uber.org/mock/gomock"
@@ -61,19 +60,19 @@ func (mr *MockUsageCounterRepositoryMockRecorder) DeleteExpiredCounters(ctx, now
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredCounters", reflect.TypeOf((*MockUsageCounterRepository)(nil).DeleteExpiredCounters), ctx, now)
 }
 
-// GetByLimitID mocks base method.
-func (m *MockUsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error) {
+// GetByLimitIDAndPeriod mocks base method.
+func (m *MockUsageCounterRepository) GetByLimitIDAndPeriod(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetByLimitID", ctx, limitID)
+	ret := m.ctrl.Call(m, "GetByLimitIDAndPeriod", ctx, limitID, periodKey)
 	ret0, _ := ret[0].([]model.UsageCounter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetByLimitID indicates an expected call of GetByLimitID.
-func (mr *MockUsageCounterRepositoryMockRecorder) GetByLimitID(ctx, limitID any) *gomock.Call {
+// GetByLimitIDAndPeriod indicates an expected call of GetByLimitIDAndPeriod.
+func (mr *MockUsageCounterRepositoryMockRecorder) GetByLimitIDAndPeriod(ctx, limitID, periodKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByLimitID", reflect.TypeOf((*MockUsageCounterRepository)(nil).GetByLimitID), ctx, limitID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByLimitIDAndPeriod", reflect.TypeOf((*MockUsageCounterRepository)(nil).GetByLimitIDAndPeriod), ctx, limitID, periodKey)
 }
 
 // GetOrCreateForUpdate mocks base method.

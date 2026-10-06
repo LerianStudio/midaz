@@ -31,7 +31,7 @@ k6 run -e RATE=100 -e DURATION=20s -e WITH_TRACER=1 scripts/k6/bench-transaction
 | Leg | p50 | p95 | p99 | max | n |
 |-----|-----|-----|-----|-----|---|
 | account, **no CRM** (`POST .../accounts`) | 4.3ms | 5.9ms | 6.8ms | 13.3ms | 2001 |
-| account, **with CRM** (`POST .../holders/{id}/accounts`) | 4.3ms | 6.0ms | 7.1ms | 16.8ms | 2001 |
+| account, **with CRM** (`POST .../holders/{holder_id}/accounts`) | 4.3ms | 6.0ms | 7.1ms | 16.8ms | 2001 |
 
 **CRM involvement is effectively free for account creation** — identical p50,
 +0.3ms at p99. The holder-owned (CRM-composed) path is a cheap indexed holder
@@ -72,10 +72,11 @@ running tracer (enforce mode alone is a no-op when `TRACER_BASE_URL` is unset):
 # 1. bring the tracer up (shares the stack's postgres, DB "tracer")
 docker compose -f components/tracer/docker-compose.yml --project-directory components/tracer up -d --build tracer
 
-# 2. point the ledger at it over REST (cert-free; default transport is gRPC+mTLS)
+# 2. point the ledger at the tracer's gRPC seam (cert-free: an empty
+#    TRACER_TLS_MODE speaks plaintext gRPC; "mtls" needs the cert material)
 #    append to components/ledger/.env (gitignored), then force-recreate:
-#      TRACER_BASE_URL=http://midaz-tracer:4020
-#      TRACER_TRANSPORT=rest
+#      TRACER_BASE_URL=midaz-tracer:4021
+#      TRACER_TLS_MODE=
 docker compose -f components/ledger/docker-compose.yml --project-directory components/ledger up -d --force-recreate ledger
 
 # 3. run with the tracer legs enabled

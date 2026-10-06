@@ -26,7 +26,7 @@ import (
 func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{portfolio_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Portfolios"
 	)
@@ -61,15 +61,18 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string)
 		Security:    secPortfolioBearer,
 	}, h.GetPortfolioByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updatePortfolio" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a portfolio",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secPortfolioBearer,
 		SkipValidateBody: true, // body validated imperatively.
-	}, h.UpdatePortfolio)
+	}, withMetadataNull(metadataNull, h.UpdatePortfolio))
 	attachTypedRequestBody[mmodel.UpdatePortfolioInput](api, "updatePortfolio"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -123,7 +126,7 @@ func RegisterPortfolioV2RoutesToApp(group fiber.Router, api huma.API, auth *midd
 func registerPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/portfolios"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:portfolio_id"
 		countPath = listPath + "/metrics/count"
 	)
 

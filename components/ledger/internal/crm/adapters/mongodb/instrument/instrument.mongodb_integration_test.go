@@ -950,3 +950,106 @@ func TestIntegration_AliasRepo_ManagedFieldRemoval_AccountLinkPersists(t *testin
 	require.ErrorAs(t, err, &conflictErr, "a second instrument for the same account must still be refused")
 	assert.Equal(t, "CRM-0013", conflictErr.Code)
 }
+
+// ============================================================================
+// FindLiveRefsByAccount Tests
+// ============================================================================
+
+// createInstrumentForAccount persists an instrument linked to the given ledger and account.
+func createInstrumentForAccount(t *testing.T, repo *MongoDBRepository, organizationID string, holderID, ledgerID, accountID uuid.UUID, document string) *mmodel.Instrument {
+	t.Helper()
+
+	params := mongotestutil.DefaultInstrumentParams()
+	params.LedgerID = ledgerID.String()
+	params.AccountID = accountID.String()
+	params.Document = document
+
+	instrument := mongotestutil.CreateTestInstrument(t, holderID, params)
+
+	_, err := repo.Create(context.Background(), organizationID, instrument)
+	require.NoError(t, err)
+
+	return instrument
+}
+
+func TestIntegration_InstrumentRepo_FindLiveRefsByAccount(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+
+	t.Run("live instrument returns one ref with its holder", func(t *testing.T) {
+		organizationID := "org-liverefs-" + uuid.New().String()[:8]
+		repo := createRepository(t, container, organizationID)
+		ctx := context.Background()
+		holderID, ledgerID, accountID := uuid.New(), uuid.New(), uuid.New()
+
+		instrument := createInstrumentForAccount(t, repo, organizationID, holderID, ledgerID, accountID, "11122233344")
+
+		refs, err := repo.FindLiveRefsByAccount(ctx, organizationID, ledgerID, accountID)
+
+		require.NoError(t, err)
+		require.Len(t, refs, 1)
+		assert.Equal(t, InstrumentRef{ID: *instrument.ID, HolderID: holderID}, refs[0])
+	})
+
+	t.Run("soft-deleted instrument returns empty", func(t *testing.T) {
+		organizationID := "org-liverefs-del-" + uuid.New().String()[:8]
+		repo := createRepository(t, container, organizationID)
+		ctx := context.Background()
+		holderID, ledgerID, accountID := uuid.New(), uuid.New(), uuid.New()
+
+		instrument := createInstrumentForAccount(t, repo, organizationID, holderID, ledgerID, accountID, "22233344455")
+		require.NoError(t, repo.Delete(ctx, organizationID, holderID, *instrument.ID, false))
+
+		refs, err := repo.FindLiveRefsByAccount(ctx, organizationID, ledgerID, accountID)
+
+		require.NoError(t, err)
+		assert.Empty(t, refs)
+	})
+
+	t.Run("same account in another ledger returns empty", func(t *testing.T) {
+		organizationID := "org-liverefs-ledger-" + uuid.New().String()[:8]
+		repo := createRepository(t, container, organizationID)
+		ctx := context.Background()
+		holderID, ledgerID, accountID := uuid.New(), uuid.New(), uuid.New()
+
+		createInstrumentForAccount(t, repo, organizationID, holderID, ledgerID, accountID, "33344455566")
+
+		refs, err := repo.FindLiveRefsByAccount(ctx, organizationID, uuid.New(), accountID)
+
+		require.NoError(t, err)
+		assert.Empty(t, refs)
+	})
+
+	t.Run("another account in the same ledger returns empty", func(t *testing.T) {
+		organizationID := "org-liverefs-acct-" + uuid.New().String()[:8]
+		repo := createRepository(t, container, organizationID)
+		ctx := context.Background()
+		holderID, ledgerID, accountID := uuid.New(), uuid.New(), uuid.New()
+
+		createInstrumentForAccount(t, repo, organizationID, holderID, ledgerID, accountID, "44455566677")
+
+		refs, err := repo.FindLiveRefsByAccount(ctx, organizationID, ledgerID, uuid.New())
+
+		require.NoError(t, err)
+		assert.Empty(t, refs)
+	})
+
+	t.Run("soft delete after the lookup empties it", func(t *testing.T) {
+		organizationID := "org-liverefs-after-" + uuid.New().String()[:8]
+		repo := createRepository(t, container, organizationID)
+		ctx := context.Background()
+		holderID, ledgerID, accountID := uuid.New(), uuid.New(), uuid.New()
+
+		createInstrumentForAccount(t, repo, organizationID, holderID, ledgerID, accountID, "55566677788")
+
+		refs, err := repo.FindLiveRefsByAccount(ctx, organizationID, ledgerID, accountID)
+		require.NoError(t, err)
+		require.Len(t, refs, 1)
+
+		require.NoError(t, repo.Delete(ctx, organizationID, refs[0].HolderID, refs[0].ID, false))
+
+		refs, err = repo.FindLiveRefsByAccount(ctx, organizationID, ledgerID, accountID)
+
+		require.NoError(t, err)
+		assert.Empty(t, refs)
+	})
+}

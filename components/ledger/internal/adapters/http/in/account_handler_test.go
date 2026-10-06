@@ -89,12 +89,12 @@ func buildHumaAccountApp(t *testing.T, handler *AccountHandler, authOK bool) *fi
 	parse := pkgHTTP.ParseUUIDPathParameters("account")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/accounts"
 	apiV1.Post(base, parse)
-	apiV1.Patch(base+"/:id", parse)
+	apiV1.Patch(base+"/:account_id", parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
+	apiV1.Get(base+"/:account_id", parse)
 	apiV1.Get(base+"/alias/:alias", parse)
 	apiV1.Get(base+"/external/:code", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Delete(base+"/:account_id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
 	RegisterAccountRoutes(hAPI, handler, v1OpSuffix)
@@ -329,7 +329,7 @@ func TestGetAccountByAlias_Success(t *testing.T) {
 			Alias:          testutils.Ptr("@person1"),
 			Status:         mmodel.Status{Code: "ACTIVE"},
 		}, nil).Times(1)
-	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, "@person1").Return(nil, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID).Return(nil, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -374,7 +374,7 @@ func TestGetAccountExternalByCode_Success(t *testing.T) {
 			Alias:          testutils.Ptr(externalAlias),
 			Status:         mmodel.Status{Code: "ACTIVE"},
 		}, nil).Times(1)
-	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, externalAlias).Return(nil, nil).Times(1)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID).Return(nil, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 

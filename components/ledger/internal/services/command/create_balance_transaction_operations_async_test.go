@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -1045,6 +1047,159 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create operation metadata")
+	})
+}
+
+func TestCreateBalanceTransactionOperationsAsync_BackupCleanupSurvivesCancelledContext(t *testing.T) {
+	const cleanupWait = 5 * time.Second
+
+	newCleanupFixture := func(t *testing.T) (*UseCase, *redis.MockRedisRepository, mmodel.Queue) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           operation.NewMockRepository(ctrl),
+			TransactionMetadataRepo: mockMetadataRepo,
+			BalanceRepo:             balance.NewMockRepository(ctrl),
+			RabbitMQRepo:            mockRabbitMQRepo,
+			TransactionRedisRepo:    mockRedisRepo,
+		}
+
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+
+		tran := &transaction.Transaction{
+			ID:             uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.CREATED},
+			Operations:     []*operation.Operation{},
+			Metadata:       map[string]any{},
+		}
+
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: tran,
+			Validate:    &mtransaction.Responses{Aliases: []string{"alias1"}},
+			Input:       &mtransaction.Transaction{},
+			Version:     "v2",
+		}
+
+		payloadBytes, err := msgpack.Marshal(payload)
+		require.NoError(t, err)
+
+		mockTransactionRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(tran, nil).Times(1)
+		mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+		mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		queue := mmodel.Queue{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: payloadBytes}},
+		}
+
+		return uc, mockRedisRepo, queue
+	}
+
+	cancelledContext := func() context.Context {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		return ctx
+	}
+
+	// The cleanup goroutine cancels its own ctx once it returns, so the ctx
+	// state is captured inside the mock hook, while the call is in flight.
+	type cleanupCtxState struct {
+		err         error
+		hasDeadline bool
+	}
+
+	captureState := func(ctx context.Context) cleanupCtxState {
+		_, hasDeadline := ctx.Deadline()
+
+		return cleanupCtxState{err: ctx.Err(), hasDeadline: hasDeadline}
+	}
+
+	assertDetached := func(t *testing.T, state cleanupCtxState) {
+		t.Helper()
+
+		assert.NoError(t, state.err, "cleanup ctx must not inherit the caller's cancellation")
+		assert.True(t, state.hasDeadline, "cleanup ctx must be bounded by a timeout")
+	}
+
+	t.Run("unconditional_cleanup_when_async_disabled", func(t *testing.T) {
+		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+		uc, mockRedisRepo, queue := newCleanupFixture(t)
+
+		removed := make(chan cleanupCtxState, 1)
+
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string) error {
+				removed <- captureState(ctx)
+				return nil
+			}).
+			Times(1)
+
+		err := uc.CreateBalanceTransactionOperationsAsync(cancelledContext(), queue)
+		require.NoError(t, err)
+
+		select {
+		case state := <-removed:
+			assertDetached(t, state)
+		case <-time.After(cleanupWait):
+			t.Fatal("backup cleanup did not reach RemoveMessageFromQueue")
+		}
+	})
+
+	t.Run("conditional_cleanup_when_async_enabled", func(t *testing.T) {
+		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+		uc, mockRedisRepo, queue := newCleanupFixture(t)
+
+		rawBackup, err := json.Marshal(mmodel.TransactionRedisQueue{TransactionStatus: constant.CREATED})
+		require.NoError(t, err)
+
+		read := make(chan cleanupCtxState, 1)
+		removed := make(chan cleanupCtxState, 1)
+
+		gomock.InOrder(
+			mockRedisRepo.EXPECT().
+				ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, _ string) ([]byte, error) {
+					read <- captureState(ctx)
+					return rawBackup, nil
+				}).
+				Times(1),
+			mockRedisRepo.EXPECT().
+				RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, _ string) error {
+					removed <- captureState(ctx)
+					return nil
+				}).
+				Times(1),
+		)
+
+		err = uc.CreateBalanceTransactionOperationsAsync(cancelledContext(), queue)
+		require.NoError(t, err)
+
+		for name, ch := range map[string]chan cleanupCtxState{"ReadMessageFromQueue": read, "RemoveMessageFromQueue": removed} {
+			select {
+			case state := <-ch:
+				assertDetached(t, state)
+			case <-time.After(cleanupWait):
+				t.Fatalf("backup cleanup did not reach %s", name)
+			}
+		}
 	})
 }
 

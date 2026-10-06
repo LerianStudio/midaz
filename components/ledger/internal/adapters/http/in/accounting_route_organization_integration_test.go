@@ -118,7 +118,6 @@ func listedIDs(t *testing.T, page map[string]any) []string {
 // ledger accepts a transaction naming it.
 func TestOrganizationTransactionRoute_LinksOperationRoutesOfDifferentLedgers(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	app := h.newAccountingRouteApp()
 
 	ledgerA := postgrestestutil.CreateTestLedger(t, h.db, h.orgID)

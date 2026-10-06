@@ -78,11 +78,12 @@ func setupUsageCounterRepositoryCallerDB(t *testing.T) (*UsageCounterRepository,
 
 // usageCounterColumns returns the column names for usage counter queries.
 func usageCounterColumns() []string {
-	return []string{"id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at"}
+	return []string{"id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at"}
 }
 
 // upsertAtomicSQL is the expected SQL for UpsertAndIncrementAtomic using CTE.
-// The CTE (WITH attempt) tries the upsert and returns (current_usage, succeeded) flag.
+// The CTE (WITH attempt) tries the upsert and returns (consumed, succeeded), where
+// consumed is the bucket's current_usage + reserved_usage.
 // COALESCE falls back to SELECT + false when WHERE guard fails.
 // This eliminates the need for a second query when limit is exceeded.
 // Includes expires_at column for automatic cleanup.
@@ -96,15 +97,15 @@ const upsertAtomicSQL = `
 				last_updated_at = $8,
 				expires_at = $11
 			WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10
-			RETURNING current_usage, true as succeeded
+			RETURNING current_usage + reserved_usage AS consumed, true as succeeded
 		)
 		SELECT 
 			COALESCE(
-				(SELECT current_usage FROM attempt),
-				(SELECT current_usage FROM usage_counters 
+				(SELECT consumed FROM attempt),
+				(SELECT current_usage + reserved_usage FROM usage_counters 
 				 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
 				$5
-			) as current_usage,
+			) as consumed,
 			COALESCE(
 				(SELECT succeeded FROM attempt),
 				false
@@ -165,9 +166,9 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				counter := testUsageCounter(limitID)
 				rows := sqlmock.NewRows(usageCounterColumns()).
-					AddRow(counter.ID, counter.LimitID, counter.ScopeKey, counter.PeriodKey, counter.CurrentUsage, counter.LastUpdatedAt)
+					AddRow(counter.ID, counter.LimitID, counter.ScopeKey, counter.PeriodKey, counter.CurrentUsage, counter.ReservedUsage, counter.LastUpdatedAt)
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
 					WithArgs(limitID, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
@@ -185,7 +186,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 			periodKey: "2025-02",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// First query returns no rows
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
 					WithArgs(limitID, "2025-02", "acct:456").
 					WillReturnError(sql.ErrNoRows)
 
@@ -196,8 +197,8 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 
 				// Post-insert SELECT to acquire FOR UPDATE lock and return the inserted row
 				rows := sqlmock.NewRows(usageCounterColumns()).
-					AddRow(testutil.MustDeterministicUUID(10), limitID, "acct:456", "2025-02", decimal.RequireFromString("0"), testutil.DefaultTestTime)
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE id = $1 FOR UPDATE`)).
+					AddRow(testutil.MustDeterministicUUID(10), limitID, "acct:456", "2025-02", decimal.RequireFromString("0"), decimal.RequireFromString("0"), testutil.DefaultTestTime)
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE id = $1 FOR UPDATE`)).
 					WithArgs(sqlmock.AnyArg()).
 					WillReturnRows(rows)
 			},
@@ -215,7 +216,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 			periodKey: "2025-03",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// First query returns no rows
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
 					WithArgs(limitID, "2025-03", "acct:789").
 					WillReturnError(sql.ErrNoRows)
 
@@ -234,9 +235,9 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 					LastUpdatedAt: testutil.DefaultTestTime,
 				}
 				rows := sqlmock.NewRows(usageCounterColumns()).
-					AddRow(counter.ID, counter.LimitID, counter.ScopeKey, counter.PeriodKey, counter.CurrentUsage, counter.LastUpdatedAt)
+					AddRow(counter.ID, counter.LimitID, counter.ScopeKey, counter.PeriodKey, counter.CurrentUsage, counter.ReservedUsage, counter.LastUpdatedAt)
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
 					WithArgs(limitID, "2025-03", "acct:789").
 					WillReturnRows(rows)
 			},
@@ -254,7 +255,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 			periodKey: "2025-04",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// First query returns no rows
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 AND scope_key = $3 FOR UPDATE`)).
 					WithArgs(limitID, "2025-04", "acct:fail").
 					WillReturnError(sql.ErrNoRows)
 
@@ -272,7 +273,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 			scopeKey:  "acct:123",
 			periodKey: "2025-01",
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters`)).
 					WithArgs(limitID, "2025-01", "acct:123").
 					WillReturnError(errors.New("database error"))
 			},
@@ -408,7 +409,7 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 	}
 }
 
-func TestUsageCounterRepository_GetByLimitID_ConnectionError(t *testing.T) {
+func TestUsageCounterRepository_GetByLimitIDAndPeriod_ConnectionError(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -419,16 +420,17 @@ func TestUsageCounterRepository_GetByLimitID_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.GetByLimitID(ctx, testutil.MustDeterministicUUID(996))
+	_, err := repo.GetByLimitIDAndPeriod(ctx, testutil.MustDeterministicUUID(996), "2025-01")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
 }
 
-func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
+func TestUsageCounterRepository_GetByLimitIDAndPeriod(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	limitID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	periodKey := "2025-01"
 
 	tests := []struct {
 		name      string
@@ -437,6 +439,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 		wantErr   bool
 		errMsg    string
 		wantCount int
+		validate  func(t *testing.T, counters []model.UsageCounter)
 	}{
 		{
 			name:    "Success - returns multiple counters",
@@ -449,18 +452,31 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 					ScopeKey:      "acct:456",
 					PeriodKey:     "2025-01",
 					CurrentUsage:  decimal.RequireFromString("25"),
+					ReservedUsage: decimal.RequireFromString("75"),
 					LastUpdatedAt: testutil.DefaultTestTime,
 				}
 
 				rows := sqlmock.NewRows(usageCounterColumns()).
-					AddRow(counter1.ID, counter1.LimitID, counter1.ScopeKey, counter1.PeriodKey, counter1.CurrentUsage, counter1.LastUpdatedAt).
-					AddRow(counter2.ID, counter2.LimitID, counter2.ScopeKey, counter2.PeriodKey, counter2.CurrentUsage, counter2.LastUpdatedAt)
+					AddRow(counter1.ID, counter1.LimitID, counter1.ScopeKey, counter1.PeriodKey, counter1.CurrentUsage, counter1.ReservedUsage, counter1.LastUpdatedAt).
+					AddRow(counter2.ID, counter2.LimitID, counter2.ScopeKey, counter2.PeriodKey, counter2.CurrentUsage, counter2.ReservedUsage, counter2.LastUpdatedAt)
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 ORDER BY period_key DESC, scope_key ASC`)).
-					WithArgs(limitID).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 ORDER BY scope_key ASC`)).
+					WithArgs(limitID, periodKey).
 					WillReturnRows(rows)
 			},
 			wantCount: 2,
+			validate: func(t *testing.T, counters []model.UsageCounter) {
+				t.Helper()
+
+				assert.True(t, counters[0].CurrentUsage.Equal(testUsageCounter(limitID).CurrentUsage),
+					"CurrentUsage mismatch: want %s, got %s", testUsageCounter(limitID).CurrentUsage, counters[0].CurrentUsage)
+				assert.True(t, decimal.RequireFromString("25").Equal(counters[1].CurrentUsage),
+					"CurrentUsage mismatch: want 25, got %s", counters[1].CurrentUsage)
+				assert.True(t, decimal.Zero.Equal(counters[0].ReservedUsage),
+					"ReservedUsage mismatch: want 0, got %s", counters[0].ReservedUsage)
+				assert.True(t, decimal.RequireFromString("75").Equal(counters[1].ReservedUsage),
+					"ReservedUsage mismatch: want 75, got %s", counters[1].ReservedUsage)
+			},
 		},
 		{
 			name:    "Success - returns empty slice when no counters",
@@ -468,8 +484,8 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(usageCounterColumns())
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 ORDER BY period_key DESC, scope_key ASC`)).
-					WithArgs(limitID).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 ORDER BY scope_key ASC`)).
+					WithArgs(limitID, periodKey).
 					WillReturnRows(rows)
 			},
 			wantCount: 0,
@@ -478,8 +494,8 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			name:    "Error - query fails",
 			limitID: limitID,
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters`)).
-					WithArgs(limitID).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at FROM usage_counters`)).
+					WithArgs(limitID, periodKey).
 					WillReturnError(errors.New("database error"))
 			},
 			wantErr: true,
@@ -495,7 +511,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			counters, err := repo.GetByLimitID(ctx, tt.limitID)
+			counters, err := repo.GetByLimitIDAndPeriod(ctx, tt.limitID, periodKey)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -504,7 +520,11 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Len(t, counters, tt.wantCount)
+			require.Len(t, counters, tt.wantCount)
+
+			if tt.validate != nil {
+				tt.validate(t, counters)
+			}
 		})
 	}
 }
@@ -551,7 +571,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 					AddRow(limitID1, decimal.RequireFromString("50")).
 					AddRow(limitID2, decimal.RequireFromString("25"))
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage + reserved_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
 					WithArgs(limitID1, limitID2, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
@@ -582,7 +602,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"limit_id", "current_usage"}).
 					AddRow(limitID1, decimal.RequireFromString("50"))
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage + reserved_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
 					WithArgs(limitID1, limitID2, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
@@ -599,7 +619,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 			scopeKey:  "acct:123",
 			periodKey: "2025-01",
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage + reserved_usage FROM usage_counters`)).
 					WithArgs(limitID1, "2025-01", "acct:123").
 					WillReturnError(errors.New("database error"))
 			},

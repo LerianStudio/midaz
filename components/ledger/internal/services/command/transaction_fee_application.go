@@ -42,6 +42,9 @@ import (
 // it only keeps the seam inert for tests that construct a handler without a fee
 // use case.
 //
+// nonPayerLegs are positions in transactionInput.Send of legs the ledger
+// appended itself, such as a cross-ledger bridge; the engine never charges them.
+//
 // An honored per-call fee skip (honoredFeeSkip=true, the two keys having already
 // agreed at the resolution point upstream) bypasses the entire engine: no package
 // lookup, no tenant resolution, no send mutation. The transaction posts as
@@ -50,6 +53,7 @@ func (uc *UseCase) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
+	nonPayerLegs []model.NonPayerLeg,
 	isAnnotation, honoredFeeSkip bool,
 ) error {
 	if honoredFeeSkip {
@@ -70,8 +74,9 @@ func (uc *UseCase) applyFees(
 	}
 
 	cf := &model.FeeCalculate{
-		LedgerID:    ledgerID,
-		Transaction: *transactionInput,
+		LedgerID:     ledgerID,
+		Transaction:  *transactionInput,
+		NonPayerLegs: nonPayerLegs,
 	}
 
 	// The error is logged once by the seam caller (CreateTransactionV2);
@@ -93,8 +98,7 @@ func (uc *UseCase) applyFees(
 // repos read GetMBContext(ctx) on the generic key, but the route-scoped
 // feesTenantMiddleware that writes it is mounted on FEE routes only — never on
 // the transaction route — so without this the fee lookup on an MT transaction
-// would fall through to the static single-tenant fee DB shared across all
-// tenants (a client-data-isolation breach). The resolution mirrors that
+// would find no fee database and fail. The resolution mirrors that
 // middleware's single-manager path: GetDatabaseForTenant(tenantID) +
 // ContextWithMB(ctx, db) with NO module.
 //
@@ -103,8 +107,8 @@ func (uc *UseCase) applyFees(
 // fee DB onto the module-keyed onboarding/transaction injection the rest of the
 // request relies on (the exact cross-route leak route-scoping prevents).
 //
-// In single-tenant mode (or when no manager is wired) the static fee connection
-// is correct, so this is a no-op returning ctx unchanged.
+// In single-tenant mode, or with no manager wired, ctx is returned unchanged; in
+// multi-tenant mode the fee repos then fail for want of a tenant database.
 func (uc *UseCase) resolveFeesTenantContext(ctx context.Context) (context.Context, error) {
 	if !uc.MultiTenantEnabled || uc.FeesMongoManager == nil {
 		return ctx, nil

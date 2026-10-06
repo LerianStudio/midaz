@@ -44,10 +44,8 @@ func newFeeDebtRoutes(t *testing.T, validated bool) *feeDebtRoutes {
 	t.Helper()
 
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
-	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 
-	debts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: h.mongoContainer.Client}, nil)
+	debts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: h.mongoContainer.DBName, DB: h.mongoContainer.Client}, nil)
 	require.NoError(t, err)
 
 	h.commandUC.FeeDebts = debts
@@ -74,7 +72,7 @@ func newFeeDebtRoutes(t *testing.T, validated bool) *feeDebtRoutes {
 	// only through the package's own JSON, Mongo document and read path.
 	var input feemodel.CreatePackageInput
 	require.NoError(t, json.Unmarshal(fmt.Appendf(nil, `{"feeGroupLabel":"fee_debt_routes","minimumAmount":"50","maximumAmount":"1000000000","enable":true,
-		"fees":{"deferrable_fee":{"feeLabel":"deferrable_fee","priority":1,"referenceAmount":"originalAmount","isDeductibleFrom":false,"deferrable":true,
+		"fees":{"deferrableFee":{"feeLabel":"deferrable_fee","priority":1,"referenceAmount":"originalAmount","isDeductibleFrom":false,"deferrable":true,
 		"creditAccount":"@debt-fee","routeFrom":%q,"routeTo":%q,"calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50"}]}}}}`,
 		s.from, s.to), &input))
 	require.NoError(t, input.ValidateFees())

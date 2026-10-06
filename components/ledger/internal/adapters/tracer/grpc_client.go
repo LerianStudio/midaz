@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -28,38 +29,44 @@ import (
 )
 
 // TracerGRPCClient is the ledger-side gRPC client for the tracer reservation
-// service. It implements the same TracerReserver port the REST client does, so
-// the reserve anchor stays transport-agnostic; buildTracerReserver selects which
-// concrete implementation to wire from cfg.TracerTransport. The connection is
-// persistent (one grpc.ClientConn for the client's lifetime) and instrumented
-// with the otelgrpc client stats handler so the ledger transaction-create trace
-// continues across the seam.
+// service. It implements the TracerReserver port the reserve anchor depends
+// on. The connection is persistent (one grpc.ClientConn for the client's
+// lifetime) and instrumented with the otelgrpc client stats handler so the
+// ledger transaction-create trace continues across the seam.
 //
 // Transport / availability failures (a dial error, an Unavailable / DeadlineExceeded
 // status, a cancelled context) are mapped to ErrTracerUnavailable so the reserve
-// anchor can apply tracer.failPosture, identically to the REST client. A business
-// DENIED decision is a successful Reserve return (ReserveResult.Denied=true), not
-// an error.
+// anchor can apply tracer.failPosture. A deadline or cancellation that struck a
+// call already sent is additionally marked ErrTracerNoAnswer. A business DENIED
+// decision is a successful Reserve return (ReserveResult.Denied=true), not an
+// error.
+//
+// Every RPC attempt is bounded by the operation timeout, tightened by a call
+// timeout the caller set with ContextWithCallTimeout. The bound starts once the
+// call's credential is in hand, so the wait for a token that is not cached yet
+// is bounded by the token source and the caller's context, never by it.
 type TracerGRPCClient struct {
-	conn             *grpc.ClientConn
-	client           reservationv1.ReservationServiceClient
-	operationTimeout time.Duration
+	conn        *grpc.ClientConn
+	client      reservationv1.ReservationServiceClient
+	tokenSource TokenSource
 }
 
 // TracerGRPCClientOption configures a TracerGRPCClient.
 type TracerGRPCClientOption func(*tracerGRPCClientConfig)
 
 // tracerGRPCClientConfig collects optional construction inputs before they are
-// resolved into the persistent client. dialOptions injects mTLS
-// transport credentials; today the client defaults to insecure transport.
+// resolved into the persistent client. dialOptions injects transport
+// credentials (the client defaults to insecure transport); tokenSource and
+// apiKey are the two mutually exclusive per-call identities.
 type tracerGRPCClientConfig struct {
 	operationTimeout time.Duration
 	dialOptions      []grpc.DialOption
+	tokenSource      TokenSource
+	apiKey           string
 }
 
-// WithGRPCOperationTimeout sets the per-operation context timeout from the
-// ledger's tracer.timeoutMs setting. A non-positive value leaves the default in
-// place. It mirrors WithOperationTimeout on the REST client.
+// WithGRPCOperationTimeout sets the timeout of every RPC attempt
+// (TRACER_TIMEOUT_MS). A non-positive value leaves the default in place.
 func WithGRPCOperationTimeout(d time.Duration) TracerGRPCClientOption {
 	return func(c *tracerGRPCClientConfig) {
 		if d > 0 {
@@ -77,6 +84,26 @@ func WithGRPCDialOptions(opts ...grpc.DialOption) TracerGRPCClientOption {
 	}
 }
 
+// WithM2MCredentials makes every seam call carry the Access Manager application
+// token src yields as "authorization: Bearer <token>". A call whose token cannot
+// be obtained is never sent, and the wait for a token that is not cached yet is
+// bounded by src, not by the operation timeout. A call the tracer answers with
+// Unauthenticated is retried once with another token when src has one to
+// offer; PermissionDenied is not retried. When src implements io.Closer, Close closes it.
+func WithM2MCredentials(src TokenSource) TracerGRPCClientOption {
+	return func(c *tracerGRPCClientConfig) {
+		c.tokenSource = src
+	}
+}
+
+// WithAPIKey makes every seam call carry key as x-api-key metadata. An empty
+// key leaves the option unset.
+func WithAPIKey(key string) TracerGRPCClientOption {
+	return func(c *tracerGRPCClientConfig) {
+		c.apiKey = key
+	}
+}
+
 // NewTracerGRPCClient builds a gRPC client for the tracer reservation service
 // over a persistent connection to target. It returns an error when target is
 // empty so a misconfigured composition root fails at boot rather than at the
@@ -87,16 +114,33 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 		return nil, errors.New("empty target passed to NewTracerGRPCClient")
 	}
 
-	conf := &tracerGRPCClientConfig{operationTimeout: defaultOperationTimeout}
+	conf := &tracerGRPCClientConfig{operationTimeout: DefaultOperationTimeout}
 	for _, opt := range opts {
 		opt(conf)
 	}
+
+	if conf.tokenSource != nil && conf.apiKey != "" {
+		return nil, errors.New("tracer gRPC client accepts one seam identity: an M2M token source or an API key, not both")
+	}
+
+	interceptors := []grpc.UnaryClientInterceptor{tenantUnaryInterceptor}
+
+	switch {
+	case conf.tokenSource != nil:
+		interceptors = append(interceptors, bearerUnaryInterceptor(conf.tokenSource))
+	case conf.apiKey != "":
+		interceptors = append(interceptors, apiKeyUnaryInterceptor(conf.apiKey))
+	}
+
+	// Innermost, so the timeout wraps each attempt the identity interceptor
+	// sends and never the token wait before it.
+	interceptors = append(interceptors, operationTimeoutUnaryInterceptor(conf.operationTimeout))
 
 	dialOptions := make([]grpc.DialOption, 0, len(conf.dialOptions)+3)
 	dialOptions = append(
 		dialOptions,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
-		grpc.WithChainUnaryInterceptor(tenantUnaryInterceptor),
+		grpc.WithChainUnaryInterceptor(interceptors...),
 	)
 
 	// Default to insecure transport ONLY when no dial options are injected
@@ -118,22 +162,30 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 	}
 
 	return &TracerGRPCClient{
-		conn:             conn,
-		client:           reservationv1.NewReservationServiceClient(conn),
-		operationTimeout: conf.operationTimeout,
+		conn:        conn,
+		client:      reservationv1.NewReservationServiceClient(conn),
+		tokenSource: conf.tokenSource,
 	}, nil
 }
 
-// Close releases the persistent connection. Register it with the composition
-// root so the connection drains on SIGTERM.
+// Close releases the persistent connection and stops the token source's
+// scheduled refreshes when it has any. Register it with the composition root so
+// the connection drains on SIGTERM.
 func (c *TracerGRPCClient) Close() error {
-	return c.conn.Close()
+	var sourceErr error
+
+	if closer, ok := c.tokenSource.(io.Closer); ok {
+		sourceErr = closer.Close()
+	}
+
+	return errors.Join(c.conn.Close(), sourceErr)
 }
 
 // Reserve holds limit capacity for a transaction (phase one). A DENIED decision
 // comes back as a successful ReserveResult with Denied=true (not an error).
 // Transport / availability failures return ErrTracerUnavailable; a tracer
-// refusal of the request itself returns ErrTracerRejected.
+// refusal of the request itself returns ErrTracerRejected. A request context
+// already done is refused before send, so it is never marked ErrTracerNoAnswer.
 func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -142,8 +194,12 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", req.TransactionID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		notSent := fmt.Errorf("%w: reserve not sent: %w", ErrTracerUnavailable, ctxErr)
+		recordRPCFailure(span, "Reserve not sent", notSent)
+
+		return nil, notSent
+	}
 
 	resp, err := c.client.Reserve(ctx, toProtoReserveRequest(req))
 	if err != nil {
@@ -171,7 +227,7 @@ func (c *TracerGRPCClient) Reserve(ctx context.Context, req ReserveRequest) (*Re
 }
 
 // Confirm commits a held reservation by id (phase two — commit).
-func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID) error {
+func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID) (ConfirmOutcome, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "tracer.grpc_client.confirm")
@@ -179,18 +235,19 @@ func (c *TracerGRPCClient) Confirm(ctx context.Context, reservationID uuid.UUID)
 
 	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	_, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
+	resp, err := c.client.ConfirmById(ctx, &reservationv1.ConfirmByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
 		recordRPCFailure(span, "Reservation confirm failed", mapped)
 
-		return mapped
+		return ConfirmOutcome{}, mapped
 	}
 
-	return nil
+	if resp.GetAlreadyReleased() {
+		return ConfirmOutcome{Confirmed: 0, AlreadyReleased: 1}, nil
+	}
+
+	return ConfirmOutcome{Confirmed: 1, AlreadyReleased: 0}, nil
 }
 
 // Release returns a held reservation's capacity by id (phase two — abort).
@@ -201,9 +258,6 @@ func (c *TracerGRPCClient) Release(ctx context.Context, reservationID uuid.UUID)
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
-
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
 
 	_, err := c.client.ReleaseById(ctx, &reservationv1.ReleaseByIdRequest{ReservationId: reservationID.String()})
 	if err != nil {
@@ -218,7 +272,7 @@ func (c *TracerGRPCClient) Release(ctx context.Context, reservationID uuid.UUID)
 
 // ConfirmByTransaction commits every reservation a transaction holds (phase two
 // — commit by transaction).
-func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) error {
+func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transactionID uuid.UUID) (ConfirmOutcome, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "tracer.grpc_client.confirm_by_transaction")
@@ -226,18 +280,18 @@ func (c *TracerGRPCClient) ConfirmByTransaction(ctx context.Context, transaction
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
-	_, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
+	resp, err := c.client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
 		recordRPCFailure(span, "Reservation confirm-by-transaction failed", mapped)
 
-		return mapped
+		return ConfirmOutcome{}, mapped
 	}
 
-	return nil
+	return ConfirmOutcome{
+		Confirmed:       int(resp.GetConfirmed()),
+		AlreadyReleased: int(resp.GetAlreadyReleased()),
+	}, nil
 }
 
 // ReleaseByTransaction returns every reservation a transaction holds (phase two
@@ -250,9 +304,6 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
 
-	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
-
 	_, err := c.client.ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
 	if err != nil {
 		mapped := mapGRPCError(err)
@@ -262,6 +313,50 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 	}
 
 	return nil
+}
+
+// ContextWithCallTimeout returns ctx carrying d as the timeout of the seam RPC
+// made with it. It only tightens the client's operation timeout, and unlike a
+// context deadline it does not bound the wait for the call's token. A
+// non-positive d sets none.
+func ContextWithCallTimeout(ctx context.Context, d time.Duration) context.Context {
+	if d <= 0 {
+		return ctx
+	}
+
+	return context.WithValue(ctx, callTimeoutKey{}, d)
+}
+
+// CallTimeout returns the call timeout ctx carries, if any.
+func CallTimeout(ctx context.Context) (time.Duration, bool) {
+	d, ok := ctx.Value(callTimeoutKey{}).(time.Duration)
+
+	return d, ok && d > 0
+}
+
+type callTimeoutKey struct{}
+
+// operationTimeoutUnaryInterceptor bounds one RPC attempt by d, or by the call
+// timeout ctx carries when that is shorter.
+func operationTimeoutUnaryInterceptor(d time.Duration) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		timeout := d
+		if callTimeout, ok := CallTimeout(ctx); ok && callTimeout < timeout {
+			timeout = callTimeout
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
 }
 
 // recordRPCFailure records a failed RPC onto its span by failure class: a
@@ -276,13 +371,11 @@ func recordRPCFailure(span trace.Span, msg string, err error) {
 	libOpentelemetry.HandleSpanError(span, msg, err)
 }
 
-// tenantUnaryInterceptor propagates the request's tenant to the tracer as the
-// trusted x-tenant-id outgoing metadata on every RPC, mirroring the REST
-// client's TenantHeader injection. The value is resolved from context via
-// tmcore.GetTenantIDContext; in single-tenant mode it is empty and nothing is
-// appended (the tracer then runs its single-tenant pass-through). The tenant
-// metadata key is the lower-cased TenantHeader (tenantMetadataKey) so the two
-// transports cannot drift. The tenant value is never logged.
+// tenantUnaryInterceptor propagates the request's tenant to the tracer as
+// x-tenant-id outgoing metadata on every RPC. The value is resolved
+// from context via tmcore.GetTenantIDContext; in single-tenant mode it is empty
+// and nothing is appended (the tracer then runs its single-tenant
+// pass-through). The tenant value is never logged.
 func tenantUnaryInterceptor(
 	ctx context.Context,
 	method string,
@@ -298,10 +391,91 @@ func tenantUnaryInterceptor(
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
-// toProtoReserveRequest mirrors the REST ReserveRequest onto the proto message
+// bearerUnaryInterceptor attaches the application token src yields to every
+// call. A call is never sent without a token, and never with an empty one. When
+// the tracer answers Unauthenticated the rejected token is invalidated and, when
+// src has another token to offer, the call is retried once with it: the tracer
+// authenticates before any handler runs, so the rejected attempt held nothing.
+// When src has none, or the retry's token cannot be obtained, nothing more is
+// sent and the original rejection is returned, so the caller sees what the
+// tracer answered. The token is never logged.
+func bearerUnaryInterceptor(src TokenSource) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		token, err := bearerToken(ctx, src)
+		if err != nil {
+			return err
+		}
+
+		err = invoker(withBearer(ctx, token), method, req, reply, cc, opts...)
+		if status.Code(err) != codes.Unauthenticated {
+			return err
+		}
+
+		if !src.Invalidate(ctx, token) {
+			return err
+		}
+
+		retryToken, tokenErr := bearerToken(ctx, src)
+		if tokenErr != nil {
+			return err
+		}
+
+		return invoker(withBearer(ctx, retryToken), method, req, reply, cc, opts...)
+	}
+}
+
+// bearerToken obtains a non-empty token from src or a never-sent error. An
+// error src already classified as never sent passes through unchanged.
+func bearerToken(ctx context.Context, src TokenSource) (string, error) {
+	token, err := src.Token(ctx)
+	if err != nil {
+		if errors.Is(err, ErrTracerCredentialUnavailable) || errors.Is(err, errTokenWaitAbandoned) {
+			return "", err
+		}
+
+		return "", credentialNotSent(err)
+	}
+
+	if token == "" {
+		return "", credentialNotSent(errEmptyToken)
+	}
+
+	return token, nil
+}
+
+func withBearer(ctx context.Context, token string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, authorizationMetadataKey, "Bearer "+token)
+}
+
+// apiKeyUnaryInterceptor attaches the tracer API key to every call. There is no
+// token to refresh, so an Unauthenticated answer is returned as it is. The key
+// is never logged.
+func apiKeyUnaryInterceptor(key string) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		ctx = metadata.AppendToOutgoingContext(ctx, apiKeyMetadataKey, key)
+
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+// toProtoReserveRequest maps the ReserveRequest onto the proto message
 // field-for-field. The account is always sent as a populated message; an empty
 // AccountID serializes to an empty account_id, which the tracer's relaxed reserve
-// validation treats the same way the REST {} body is treated.
+// validation treats as an absent account.
 func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 	return &reservationv1.ReserveRequest{
 		TransactionId:        req.TransactionID.String(),
@@ -320,8 +494,8 @@ func toProtoReserveRequest(req ReserveRequest) *reservationv1.ReserveRequest {
 	}
 }
 
-// fromProtoReserveResult maps the proto reserve response back onto the REST
-// result type the TracerReserver port speaks. Reservation and matched rule ids
+// fromProtoReserveResult maps the proto reserve response back onto the
+// ReserveResult the TracerReserver port speaks. Reservation and matched rule ids
 // are parsed back to uuid.UUID; a malformed id from the tracer is a contract
 // violation, surfaced as an error rather than silently dropped.
 func fromProtoReserveResult(resp *reservationv1.ReserveResult) (*ReserveResult, error) {
@@ -374,25 +548,40 @@ func parseProtoIDs(raw []string) ([]uuid.UUID, error) {
 // mapGRPCError normalises a gRPC RPC error to the seam's error vocabulary.
 // Availability-class status codes (Unavailable, DeadlineExceeded, Canceled) and
 // a context deadline / cancellation are folded into ErrTracerUnavailable so the
-// reserve anchor's fail-posture branch handles them, matching the REST client's
-// transport-failure normalisation. InvalidArgument and FailedPrecondition mean the
-// tracer refused the request itself and are wrapped in ErrTracerRejected. Other
-// status codes (e.g. NotFound, Internal) are returned verbatim. Every wrap keeps
-// the original status reachable through errors.As.
+// reserve anchor's fail-posture branch handles them. A deadline or cancellation
+// is also marked ErrTracerNoAnswer: the call may have reached the tracer and
+// committed. Unavailable is not, because it is either the transport refusing to
+// send or the tracer's own answer. InvalidArgument and FailedPrecondition mean
+// the tracer refused the request itself and are wrapped in ErrTracerRejected.
+// Unauthenticated and PermissionDenied mean the tracer refused the ledger's
+// credential and are wrapped in ErrTracerUnauthorized. A call that never left
+// the ledger, because its credential could not be resolved or its caller
+// stopped waiting for a token, is already classified and passes through
+// unchanged, so a context error behind it is never read as an unanswered call.
+// Other status codes (e.g. NotFound, Internal) are returned verbatim. Every
+// wrap keeps the original status reachable through errors.As.
 func mapGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
 
+	if errors.Is(err, ErrTracerCredentialUnavailable) || errors.Is(err, errTokenWaitAbandoned) {
+		return err
+	}
+
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
+		return fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, ErrTracerNoAnswer, err)
 	}
 
 	switch status.Code(err) {
-	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled:
+	case codes.DeadlineExceeded, codes.Canceled:
+		return fmt.Errorf("%w: %w: %w", ErrTracerUnavailable, ErrTracerNoAnswer, err)
+	case codes.Unavailable:
 		return fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	case codes.InvalidArgument, codes.FailedPrecondition:
 		return fmt.Errorf("%w: %w", ErrTracerRejected, err)
+	case codes.Unauthenticated, codes.PermissionDenied:
+		return fmt.Errorf("%w: %w", ErrTracerUnauthorized, err)
 	default:
 		return err
 	}

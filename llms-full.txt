@@ -1,6 +1,6 @@
 # Lerian Midaz — Full Reference
 
-> Source-available (Elastic License 2.0) core banking platform in a single Go 1.27.0 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v6` v6.9.0-beta.2 + `lib-observability/v4` v4.0.0-beta.1. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v6 tenant-manager.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.27.0 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v7` v7.14.0 + `lib-observability/v4` v4.6.1. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v7 tenant-manager.
 
 ---
 
@@ -28,7 +28,7 @@ Key capabilities:
 - **Transaction lifecycle**: Create → Commit/Cancel/Revert (pending transactions support)
 - **Async processing**: RabbitMQ-based balance updates with bulk recorder (10x throughput)
 - **Multi-asset**: Currency (ISO-4217), crypto, commodities, custom asset types
-- **Multi-tenant**: Database-per-tenant isolation via the lib-commons v6 tenant-manager
+- **Multi-tenant**: Database-per-tenant isolation via the lib-commons v7 tenant-manager
 - **Accounting routes**: Configurable operation routes and transaction routes for validation
 - **Real-time validation / fraud prevention (Tracer)**: CEL rule engine, multi-scope spending limits, two-phase reservations, and a hash-chained audit log, configurable per-ledger
 - **Fees (embedded)**: fee engine + billing packages embedded in the ledger binary; fees applied on transaction create
@@ -260,49 +260,49 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 |--------|------|-------------|
 | POST | /organizations | Create organization |
 | GET | /organizations | List organizations |
-| GET | /organizations/:id | Get organization |
-| PATCH | /organizations/:id | Update organization |
-| DELETE | /organizations/:id | Delete organization |
+| GET | /organizations/:organization_id | Get organization |
+| PATCH | /organizations/:organization_id | Update organization |
+| DELETE | /organizations/:organization_id | Delete organization |
 | HEAD | /organizations/metrics/count | Count organizations |
-| POST | /organizations/:org_id/ledgers | Create ledger |
-| GET | /organizations/:org_id/ledgers | List ledgers |
-| GET | /organizations/:org_id/ledgers/:id | Get ledger |
-| PATCH | /organizations/:org_id/ledgers/:id | Update ledger |
-| DELETE | /organizations/:org_id/ledgers/:id | Delete ledger |
-| HEAD | /organizations/:org_id/ledgers/metrics/count | Count ledgers |
-| GET | /organizations/:org_id/ledgers/:id/settings | Get ledger settings |
-| PATCH | /organizations/:org_id/ledgers/:id/settings | Update ledger settings |
-| POST | /organizations/:org_id/ledgers/:lid/assets | Create asset |
-| GET | /organizations/:org_id/ledgers/:lid/assets | List assets |
-| GET | /organizations/:org_id/ledgers/:lid/assets/:id | Get asset |
-| PATCH | /organizations/:org_id/ledgers/:lid/assets/:id | Update asset |
-| DELETE | /organizations/:org_id/ledgers/:lid/assets/:id | Delete asset |
-| HEAD | /organizations/:org_id/ledgers/:lid/assets/metrics/count | Count assets |
-| POST | /organizations/:org_id/ledgers/:lid/portfolios | Create portfolio |
-| GET | /organizations/:org_id/ledgers/:lid/portfolios | List portfolios |
-| GET | /organizations/:org_id/ledgers/:lid/portfolios/:id | Get portfolio |
-| PATCH | /organizations/:org_id/ledgers/:lid/portfolios/:id | Update portfolio |
-| DELETE | /organizations/:org_id/ledgers/:lid/portfolios/:id | Delete portfolio |
-| HEAD | /organizations/:org_id/ledgers/:lid/portfolios/metrics/count | Count portfolios |
-| POST | /organizations/:org_id/ledgers/:lid/segments | Create segment |
-| GET | /organizations/:org_id/ledgers/:lid/segments | List segments |
-| GET | /organizations/:org_id/ledgers/:lid/segments/:id | Get segment |
-| PATCH | /organizations/:org_id/ledgers/:lid/segments/:id | Update segment |
-| DELETE | /organizations/:org_id/ledgers/:lid/segments/:id | Delete segment |
-| HEAD | /organizations/:org_id/ledgers/:lid/segments/metrics/count | Count segments |
-| POST | /organizations/:org_id/ledgers/:lid/accounts | Create account |
-| GET | /organizations/:org_id/ledgers/:lid/accounts | List accounts |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/:id | Get account |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/alias/:alias | Get account by alias |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/external/:code | Get external account |
-| PATCH | /organizations/:org_id/ledgers/:lid/accounts/:id | Update account |
-| DELETE | /organizations/:org_id/ledgers/:lid/accounts/:id | Delete account |
-| HEAD | /organizations/:org_id/ledgers/:lid/accounts/metrics/count | Count accounts |
-| POST | /organizations/:org_id/ledgers/:lid/account-types | Create account type |
-| GET | /organizations/:org_id/ledgers/:lid/account-types | List account types |
-| GET | /organizations/:org_id/ledgers/:lid/account-types/:id | Get account type |
-| PATCH | /organizations/:org_id/ledgers/:lid/account-types/:id | Update account type |
-| DELETE | /organizations/:org_id/ledgers/:lid/account-types/:id | Delete account type |
+| POST | /organizations/:organization_id/ledgers | Create ledger |
+| GET | /organizations/:organization_id/ledgers | List ledgers |
+| GET | /organizations/:organization_id/ledgers/:ledger_id | Get ledger |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id | Update ledger |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id | Delete ledger |
+| HEAD | /organizations/:organization_id/ledgers/metrics/count | Count ledgers |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/settings | Get ledger settings |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/settings | Update ledger settings |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/assets | Create asset |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/assets | List assets |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Get asset |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Update asset |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Delete asset |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count | Count assets |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/portfolios | Create portfolio |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/portfolios | List portfolios |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Get portfolio |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Update portfolio |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Delete portfolio |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count | Count portfolios |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/segments | Create segment |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/segments | List segments |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Get segment |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Update segment |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Delete segment |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count | Count segments |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/accounts | Create account |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts | List accounts |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Get account |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias | Get account by alias |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code | Get external account |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Update account |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Delete account |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count | Count accounts |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/account-types | Create account type |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/account-types | List account types |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Get account type |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Update account type |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Delete account type |
 
 #### Transaction Resources
 
@@ -313,49 +313,57 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
 | POST | /v2/transactions/batch | Create an ordered atomic batch of direct and hold transactions |
-| POST | .../transactions/:tid/commit | Commit pending transaction |
-| POST | .../transactions/:tid/cancel | Cancel pending transaction |
-| POST | .../transactions/:tid/revert | Revert transaction |
-| PATCH | .../transactions/:tid | Update transaction metadata |
+| POST | .../transactions/:transaction_id/commit | Commit pending transaction |
+| POST | .../transactions/:transaction_id/cancel | Cancel pending transaction |
+| POST | .../transactions/:transaction_id/revert | Revert transaction |
+| PATCH | .../transactions/:transaction_id | Update transaction metadata |
 | GET | .../transactions | List transactions |
-| GET | .../transactions/:tid | Get transaction |
+| GET | .../transactions/:transaction_id | Get transaction |
 | HEAD | .../transactions/metrics/count | Count transactions |
-| GET | .../accounts/:aid/operations | List operations by account |
-| GET | .../accounts/:aid/operations/:oid | Get operation |
-| PATCH | .../transactions/:tid/operations/:oid | Update operation |
+| GET | .../accounts/:account_id/operations | List operations by account |
+| GET | .../accounts/:account_id/operations/:operation_id | Get operation |
+| PATCH | .../transactions/:transaction_id/operations/:operation_id | Update operation |
 | PUT | .../asset-rates | Create/update asset rate |
 | GET | .../asset-rates/:external_id | Get asset rate |
 | GET | .../asset-rates/from/:asset_code | List asset rates by code |
 | GET | .../balances | List balances |
-| GET | .../balances/:bid | Get balance |
-| GET | .../balances/:bid/history | Get balance as recorded by the ledger at timestamp |
-| PATCH | .../balances/:bid | Update balance |
-| DELETE | .../balances/:bid | Delete balance |
-| GET | .../accounts/:aid/balances | List balances by account |
-| GET | .../accounts/:aid/balances/history | Account balances as recorded by the ledger at timestamp |
+| GET | .../balances/:balance_id | Get balance |
+| GET | .../balances/:balance_id/history | Get balance as recorded by the ledger at timestamp |
+| PATCH | .../balances/:balance_id | Update balance |
+| DELETE | .../balances/:balance_id | Delete balance |
+| GET | .../accounts/:account_id/balances | List balances by account |
+| GET | .../accounts/:account_id/balances/history | Account balances as recorded by the ledger at timestamp |
 | GET | .../accounts/alias/:alias/balances | Balances by alias |
 | GET | .../accounts/external/:code/balances | Balances by external code |
-| POST | .../accounts/:aid/balances | Create additional balance |
+| POST | .../accounts/:account_id/balances | Create additional balance |
 | POST | .../operation-routes | Create operation route |
 | GET | .../operation-routes | List operation routes |
-| GET | .../operation-routes/:orid | Get operation route |
-| PATCH | .../operation-routes/:orid | Update operation route |
-| DELETE | .../operation-routes/:orid | Delete operation route |
+| GET | .../operation-routes/:operation_route_id | Get operation route |
+| PATCH | .../operation-routes/:operation_route_id | Update operation route |
+| DELETE | .../operation-routes/:operation_route_id | Delete operation route |
 | POST | .../transaction-routes | Create transaction route |
 | GET | .../transaction-routes | List transaction routes |
-| GET | .../transaction-routes/:trid | Get transaction route |
-| PATCH | .../transaction-routes/:trid | Update transaction route |
-| DELETE | .../transaction-routes/:trid | Delete transaction route |
-| POST | /v2/organizations/:org_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
-| GET | /v2/organizations/:org_id/operation-routes | List every operation route of the organization |
-| GET | /v2/organizations/:org_id/operation-routes/:orid | Get operation route |
-| PATCH | /v2/organizations/:org_id/operation-routes/:orid | Update operation route |
-| DELETE | /v2/organizations/:org_id/operation-routes/:orid | Delete operation route |
-| POST | /v2/organizations/:org_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
-| GET | /v2/organizations/:org_id/transaction-routes | List every transaction route of the organization |
-| GET | /v2/organizations/:org_id/transaction-routes/:trid | Get transaction route |
-| PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
-| DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
+| GET | .../transaction-routes/:transaction_route_id | Get transaction route |
+| PATCH | .../transaction-routes/:transaction_route_id | Update transaction route |
+| DELETE | .../transaction-routes/:transaction_route_id | Delete transaction route |
+| POST | /v2/organizations/:organization_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:organization_id/operation-routes | List every operation route of the organization |
+| GET | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Get operation route |
+| PATCH | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Update operation route |
+| DELETE | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Delete operation route |
+| POST | /v2/organizations/:organization_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:organization_id/transaction-routes | List every transaction route of the organization |
+| GET | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Get transaction route |
+| PATCH | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Update transaction route |
+| DELETE | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Delete transaction route |
+
+**PATCH metadata.** Every PATCH whose body carries `metadata` (organization, ledger, portfolio,
+segment, account, account type, asset, transaction, operation, operation and transaction routes,
+holder, instrument) applies it as an RFC 7396 merge patch: no `metadata` key or `{}` leaves the
+stored metadata untouched, `{"k": null}` deletes `k`, any other key is added or replaced.
+`"metadata": null` deletes every client key on `/v1` (the ledger's reserved fee keys stay) and
+leaves the stored metadata untouched on `/v2`, which deletes keys one at a time. See
+`docs/api/SCOPING.md`.
 
 #### Settings / Metadata
 
@@ -400,10 +408,10 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 |--------|------|-------------|
 | POST | /v2/organizations/{organization_id}/holders | Create a holder (authz `midaz`/`holders`) |
 | GET | /v2/organizations/{organization_id}/holders | List holders (authz `midaz`/`holders`) |
-| GET | /v2/organizations/{organization_id}/holders/{id} | Get a holder (authz `midaz`/`holders`) |
-| PATCH | /v2/organizations/{organization_id}/holders/{id} | Update a holder (authz `midaz`/`holders`) |
-| DELETE | /v2/organizations/{organization_id}/holders/{id} | Delete a holder (authz `midaz`/`holders`) |
-| GET | /v2/organizations/{organization_id}/holders/{id}/accounts | List a holder's accounts org-wide across every ledger, with an optional `?ledger_id=` narrowing filter (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
+| GET | /v2/organizations/{organization_id}/holders/{holder_id} | Get a holder (authz `midaz`/`holders`) |
+| PATCH | /v2/organizations/{organization_id}/holders/{holder_id} | Update a holder (authz `midaz`/`holders`) |
+| DELETE | /v2/organizations/{organization_id}/holders/{holder_id} | Delete a holder (authz `midaz`/`holders`) |
+| GET | /v2/organizations/{organization_id}/holders/{holder_id}/accounts | List a holder's accounts org-wide across every ledger, with an optional `?ledger_id=` narrowing filter (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
 | GET | /v2/organizations/{organization_id}/instruments | List instruments (authz `midaz`/`instruments`) |
 | POST | /v2/organizations/{organization_id}/holders/{holder_id}/instruments | Create an instrument for a holder (authz `midaz`/`instruments`) |
 | GET | /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} | Get an instrument (authz `midaz`/`instruments`) |
@@ -413,7 +421,7 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 | POST | /v2/organizations/{organization_id}/encryption/provision | Provision org encryption keys (authz `midaz`/`encryption`; envelope mode only) |
 | GET | /v2/organizations/{organization_id}/encryption/status | Encryption provisioning status (authz `midaz`/`encryption`; envelope mode only) |
 | GET | /v2/organizations/{organization_id}/protection/audit | PII protection audit (authz `midaz`/`protection`; envelope mode only) |
-| POST | /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
+| POST | /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/:holder_id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
 
 The three encryption/protection routes are registered **only in envelope mode** (`KMS_VENDOR=hashicorp-vault`);
 in legacy mode their handlers are nil and the routes are never mounted.
@@ -453,18 +461,18 @@ reaches only what that ledger owns.
 |--------|------|-------------|
 | POST | {base}/packages | Create fee package |
 | GET | {base}/packages | List the ledger's fee packages |
-| GET | {base}/packages/:id | Get fee package |
-| PATCH | {base}/packages/:id | Update fee package |
-| DELETE | {base}/packages/:id | Delete fee package |
+| GET | {base}/packages/:package_id | Get fee package |
+| PATCH | {base}/packages/:package_id | Update fee package |
+| DELETE | {base}/packages/:package_id | Delete fee package |
 | POST | {base}/estimates | Estimate fee calculation (dry run) |
 | POST | {base}/billing-packages | Create billing package |
 | GET | {base}/billing-packages | List the ledger's billing packages |
-| GET | {base}/billing-packages/:id | Get billing package |
-| PATCH | {base}/billing-packages/:id | Update billing package |
-| DELETE | {base}/billing-packages/:id | Delete billing package |
+| GET | {base}/billing-packages/:billing_package_id | Get billing package |
+| PATCH | {base}/billing-packages/:billing_package_id | Update billing package |
+| DELETE | {base}/billing-packages/:billing_package_id | Delete billing package |
 | POST | {base}/billing/calculate | Calculate billing |
 | GET | {base}/fee-debts | List the ledger's fee debts, oldest first; `?status=open\|settled` filters, `?account_alias=` narrows to one debtor and adds `openTotal`, what it owes over all its open debts |
-| GET | {base}/fee-debts/:debt_id | Get fee debt |
+| GET | {base}/fee-debts/:fee_debt_id | Get fee debt |
 | POST | {base}/fee-debts/collect | Collect a debtor's open fee debt now (see below) |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
@@ -482,6 +490,13 @@ several apply, the one carrying the most selectors wins, each metadata pair coun
 is refused (`0198`). Two packages on overlapping bands collide (`0184`/`0199`) only when their
 selectors are identical.
 
+A fee key inside a package's `fees` map must match `^[a-z][a-zA-Z0-9]*$` and is stored and returned
+verbatim: create refuses any other key with `400` naming `fees.<key>`, and update applies the rule
+only to a key that adds a fee, so a stored key of any shape stays editable and removable; an added
+key equal to a stored key except for letter case is refused with `400`, and the stored key must be used,
+unless the same update removes that stored key, which renames the fee (the new key must still match
+the grammar).
+
 A fee may set `deferrable` (optional, default `false`, returned on every read). When the payer
 cannot fund a deferrable fee, the unfunded share opens a fee debt that the payer's later credits
 settle, oldest first, instead of refusing the transaction with `0018`; the debt is listed on
@@ -491,6 +506,14 @@ create or update leaving a fee both deductible and deferrable is refused with `0
 transaction then records the send plus the fee, less the debt it opened (send 100, fee 10, payer
 holds 105: amount 105, debt 5). Enable it only once every ledger pod
 runs a release that knows fee debt (see `docs/architecture/engine.md`).
+
+A package switched off (`enable: false`) or deleted may keep applying, and a fee whose
+`deferrable` changed to `false` may still open fee debt when unfunded, for up to 60 seconds when a
+transaction read the packages concurrently with the change.
+
+Closing an account is permanent. To retire a fee account, point the fee package at the new fee
+account and leave the old account open: reverts of earlier transactions and collections of fee
+debt already owed to it still post there.
 
 `POST {base}/fee-debts/collect` takes `{accountAlias, balanceKey?, maxAmount?}` and settles the
 debtor balance's open fee debt from its available balance, oldest debt first, in one transaction
@@ -514,16 +537,68 @@ Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL r
 hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`. This is
 an INDEPENDENT spec/port/deploy unit — it is not folded into `:3002`. Base path: `/v1`.
 
-The ledger reaches Tracer over a separate reservation seam (not the `:4020` REST API). The seam is
-opt-in on both ends: the ledger turns it on by setting `TRACER_BASE_URL` (empty injects a nil
-reserver, leaving the transaction-create path unchanged), and the tracer starts the seam only when
-`TRACER_GRPC_PORT` is set (distinct from the `:4020` REST/health port). Transport is toggled by
-`TRACER_TRANSPORT` — gRPC by default, with REST retained as a selectable fallback. Identity is mutual
-TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated with no shared
-secret (the ledger presents a client cert, the tracer verifies it against its client CA, and the
-ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates mTLS to a
-service-mesh sidecar. Over the verified connection the ledger forwards a trusted `x-tenant-id` that
-the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
+The ledger reaches Tracer over a separate reservation seam, not the `:4020` REST API. The seam is
+the gRPC service `lerian.midaz.reservation.v1.ReservationService` (`proto/reservation/v1`), which the
+tracer always serves on `TRACER_GRPC_PORT` (default `:4021`); it is the only surface that drives the
+reservation lifecycle (reserve, confirm, release), and the ledger is its only caller. The ledger turns
+the seam on by setting `TRACER_BASE_URL` to the seam address (an `http://`/`https://` scheme is
+tolerated and stripped; empty injects a nil reserver, leaving the transaction-create path unchanged).
+The ledger presents at most one credential on every seam call. With `PLUGIN_AUTH_ENABLED=true` it
+is an Access Manager application token (gRPC metadata `authorization: Bearer <token>`) minted from a
+credential dedicated to the tracer: `TRACER_M2M_CLIENT_ID`/`TRACER_M2M_CLIENT_SECRET` in
+single-tenant mode (both required), and in multi-tenant mode the calling tenant's own credential read
+at `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/tracer/credentials` on the backend
+`M2M_SECRETS_BACKEND` selects (`aws`, the default: AWS Secrets Manager; `vault`: HashiCorp Vault KV v2 under `M2M_VAULT_MOUNT`, connected through `VAULT_ADDR`/`VAULT_TOKEN`/`VAULT_CACERT`/`VAULT_NAMESPACE`); the static pair is never a fallback. Tokens are cached per credential and refreshed at 80% of their
+lifetime, served until `exp` − 30s (90% of the lifetime for a token too short for that margin): the
+still-valid token is served while one background mint runs (each failed one logs Warn), and each
+token schedules its own refresh so an idle tenant normally finds a valid token. A failed or deferred
+refresh is retried while the token is valid (backoff from 1s, doubling, capped at a quarter of the
+refresh-to-expiry span, never inside the failure window, never past expiry), so only an outage outlasting that span lets it expire.
+Past 30 idle minutes the token is no longer refreshed but stays served until it expires, and the
+tenant is then forgotten. A
+caller waits for a mint only when no valid token is cached, for at most `TRACER_M2M_WAIT_TIMEOUT_MS`
+(default 3000) and within its own deadline; `TRACER_TIMEOUT_MS` and `tracer.timeoutMs` bound only the
+RPC sent once the token is in hand. One that gives up sent nothing and fails as plain unavailable, not counted. The multi-tenant token is minted on
+the tenant's first call on each pod, an expected `failPosture` event when that mint outlasts `TRACER_M2M_WAIT_TIMEOUT_MS`.
+A failed mint opens a per-tenant failure window every caller and scheduled refresh honours (1s,
+doubling per consecutive failure, capped at 15s, plus up to 25% random jitter; reset by a successful
+mint). A token whose `exp` is not after its mint is a failed mint; a lifetime is capped at 24h. A call the tracer answers `Unauthenticated` invalidates only the
+rejected token and is retried once with a fresh one, unless that token is younger than 5s (then the
+rejection is returned, so a rejecting tracer costs at most one mint per tenant per 5s). A tenant
+credential stays cached until the Access Manager refuses it or mints an empty token (transient mint
+failures keep it); because lib-auth reports a 5xx or 429 as a refusal too, a refusal drops it at most
+once per tenant per 30s; a missing secret is cached 5s, a malformed one 30s, a transient read failure never. A credential the
+ledger cannot obtain is never sent: the call fails as unavailable (`failPosture`, `0178` when
+closed), logged once at Error and counted in
+`tracer_reservation_credential_rejected_total{operation,reason="not_sent"}`. Without plugin auth the credential is `TRACER_API_KEY` as `x-api-key` (never retried);
+with neither, nothing is sent. Plugin auth plus `TRACER_API_KEY` refuses boot. The tracer enforces
+the first identity its configuration enables — token (`PLUGIN_AUTH_ENABLED=true`), API key
+(`API_KEY_ENABLED=true`), transport (`TRACER_TLS_MODE=mtls|mesh`), none. Under the token every RPC is
+authorized against the Access Manager as `tracer/reservations:post`; only application tokens pass,
+their `azp` (client id) or `sub` must be in `TRACER_SEAM_ALLOWED_CLIENTS` in single-tenant mode, and in multi-tenant mode
+their `name` claim must be `ledger-m2m-tracer-{tenant}` for the token's own `tenantId` claim (tenants
+compared canonically),
+`AUTH_M2M_INVERSION_ENABLED=true` is recommended (without it the tracer boots with a Warn and the
+Access Manager authorizes application tokens under a shared editor role, so only the allowlist or the
+ledger client name binding restricts who may reserve), `AUTH_CACHE_TTL` must be greater than zero under
+`DEPLOYMENT_MODE=saas` (boot refusal; a boot Warn elsewhere), and the tenant is the token's `tenantId` claim
+(`x-tenant-id`, still sent by the ledger, is only cross-checked; UUID and dashless forms compare
+equal). Under every other identity, all single-tenant, `x-tenant-id` carries the tenant. A missing
+or invalid token or API key answers `Unauthenticated`, an Access Manager or guard refusal
+`PermissionDenied`, an unreachable Access Manager `Unavailable`. A seam with no identity boots with
+one Warn in BYOC and `local` and refuses to boot under `DEPLOYMENT_MODE=saas` or in multi-tenant
+mode; `DEPLOYMENT_MODE=saas` also refuses a token or API key on a plaintext seam. `TRACER_TLS_MODE`
+selects the transport: `mtls` (both sides present certificates; the tracer's gRPC listener also
+requires the client cert's DNS SAN or URI SAN, or CN on a cert without SANs, to match
+`TRACER_TLS_CLIENT_ALLOWED_NAMES`), `server` (the tracer's gRPC listener presents its certificate,
+the ledger verifies it against `TRACER_TLS_CA_FILE`, no client certificate), `mesh` (plaintext behind
+a sidecar that must enforce STRICT mTLS), or empty (plaintext). In multi-tenant mode a tenant that is
+not provisioned, suspended or purged answers `Unavailable` (`0534`). A reserve replayed onto a transaction whose reservation already settled (released,
+expired or confirmed) answers `FailedPrecondition` (`0533`), which an `enforce` ledger turns into
+`0532`. A confirm reports how many rows it confirmed and how many it found already released
+(`already_released`); the ledger does not fail the commit on such rows but logs a Warn, adds a span
+event and increments `tracer_reservation_confirm_already_released_total{operation}`, because that
+spend is never counted. See
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 A `/v2` reserve carries the fee-inclusive amount and asset (any Midaz asset code: 1 to 100
@@ -535,11 +610,27 @@ and `revert=true` for a `/v2` revert. The tracer evaluates its CEL rules before 
 `decision` (`ALLOW`/`DENY`/`REVIEW`) beside `denied`. On reserve only a matched rule refuses (the
 tracer's `DEFAULT_DECISION_WHEN_NO_MATCH` is ignored), a rule that cannot be evaluated refuses as
 `REVIEW` with `reason=rule_evaluation_error`, and a revert skips the rules but still reserves its
-limits. Under `tracer.mode=enforce` a `DENY` rejects with `0177`, a `REVIEW` with `0531`, a refused
-request with `0532`, and an unavailable tracer (including a tenant whose rule cache is not loaded yet or
-that reached the tracer's per-tenant worker cap: REST 503 + `Retry-After`, gRPC `Unavailable`/`0445`)
+limits. Under `tracer.mode=enforce` a limit `DENY` rejects with `0177`, a rule `DENY` with `0535`, a
+`REVIEW` with `0531`, a refused request with `0532`, a rejected seam credential (gRPC
+`Unauthenticated`/`PermissionDenied`) with `0536` when `failPosture` is closed (it proceeds when open
+and is logged at Error and counted in
+`tracer_reservation_credential_rejected_total{operation,reason="rejected"}` in every mode),
+and an unavailable tracer (including a tenant whose rule cache is not loaded yet or
+that reached the tracer's per-tenant worker cap: gRPC `Unavailable`/`0445`)
 branches on `failPosture` (`0178` when closed); `advisory` never blocks, and a transaction it lets
-through after a refusal holds no reservation, so its spend is never counted. `tracer.timeoutMs`
+through after a refusal holds no reservation, so its spend is never counted. A reserve that was
+sent and then timed out or was cancelled before the tracer answered may still have reserved
+capacity, so the ledger settles it by transaction, best-effort and without changing the response:
+it confirms when the movement applied and the transaction is not PENDING, and releases on a `0178`
+rejection or an engine abort. A tracer that answered with an error (including `Unavailable`) or a
+call that was never sent held nothing and is not settled. The settle never runs on the request
+path: a dedicated queue (64 in flight, a full queue drops with a warning) waits `3s` (the tracer's
+reserve lock wait) plus `TRACER_TIMEOUT_MS` before each of at most two attempts, the second only
+when the first failed or settled nothing, and then logs a warning with the transaction id. An atomic batch or
+a cross-ledger v2 commit whose execution hand-off fails releases the reservations held for its items.
+Evaluation continues past a rule that cannot be evaluated: a matched `DENY` still decides, otherwise
+the answer is `REVIEW`; the tracer's `POST /v1/validations` answers the same way, with HTTP 200
+`decision=REVIEW`, `reason=rule_evaluation_error`. `tracer.timeoutMs`
 (default `250`, applied to every ledger that never stored it) bounds each reserve call, with
 `TRACER_TIMEOUT_MS` only as the ceiling. Deploy the tracer before the ledger and do not roll the tracer
 back below this contract. See [docs/api/SCOPING.md](docs/api/SCOPING.md).
@@ -548,37 +639,32 @@ back below this contract. See [docs/api/SCOPING.md](docs/api/SCOPING.md).
 |--------|------|-------------|
 | POST | /v1/rules | Create rule |
 | GET | /v1/rules | List rules |
-| GET | /v1/rules/:id | Get rule |
-| PATCH | /v1/rules/:id | Update rule |
-| DELETE | /v1/rules/:id | Delete rule |
-| POST | /v1/rules/:id/draft | Move rule to draft |
-| POST | /v1/rules/:id/activate | Activate rule |
-| POST | /v1/rules/:id/deactivate | Deactivate rule |
+| GET | /v1/rules/:rule_id | Get rule |
+| PATCH | /v1/rules/:rule_id | Update rule |
+| DELETE | /v1/rules/:rule_id | Delete rule |
+| POST | /v1/rules/:rule_id/draft | Move rule to draft |
+| POST | /v1/rules/:rule_id/activate | Activate rule |
+| POST | /v1/rules/:rule_id/deactivate | Deactivate rule |
 | POST | /v1/limits | Create limit |
 | GET | /v1/limits | List limits |
-| GET | /v1/limits/:id | Get limit |
-| PATCH | /v1/limits/:id | Update limit |
-| DELETE | /v1/limits/:id | Delete limit |
-| POST | /v1/limits/:id/draft | Move limit to draft |
-| POST | /v1/limits/:id/activate | Activate limit |
-| POST | /v1/limits/:id/deactivate | Deactivate limit |
-| GET | /v1/limits/:id/usage | Get limit usage |
+| GET | /v1/limits/:limit_id | Get limit |
+| PATCH | /v1/limits/:limit_id | Update limit |
+| DELETE | /v1/limits/:limit_id | Delete limit |
+| POST | /v1/limits/:limit_id/draft | Move limit to draft |
+| POST | /v1/limits/:limit_id/activate | Activate limit |
+| POST | /v1/limits/:limit_id/deactivate | Deactivate limit |
+| GET | /v1/limits/:limit_id/usage | Get limit usage |
 | POST | /v1/validations | Run validation |
 | GET | /v1/validations | List validations |
-| GET | /v1/validations/:id | Get validation |
-| POST | /v1/reservations | Create reservation (two-phase: reserve) |
-| POST | /v1/reservations/:id/confirm | Confirm a reservation by ID |
-| POST | /v1/reservations/:id/release | Release a reservation by ID |
-| POST | /v1/reservations/transaction/:transaction_id/confirm | Confirm reservations for a transaction |
-| POST | /v1/reservations/transaction/:transaction_id/release | Release reservations for a transaction |
+| GET | /v1/validations/:validation_id | Get validation |
 | GET | /v1/audit-events | List audit events |
-| GET | /v1/audit-events/:id | Get audit event |
-| GET | /v1/audit-events/:id/verify | Verify the audit-event hash chain |
+| GET | /v1/audit-events/:audit_event_id | Get audit event |
+| GET | /v1/audit-events/:audit_event_id/verify | Verify the audit-event hash chain |
 
-The `/v1/reservations` two-phase surface backs the transaction reserve → confirm/release flow:
-a reservation holds projected limit usage, then is confirmed (commit) or released (rollback),
-either by reservation ID or by the originating transaction ID. The reservation routes are mounted
-only when the reservation service is wired (non-nil); they are live in the default/production wiring.
+The two-phase reservation flow (a reservation holds projected limit usage, then is confirmed on
+commit or released on rollback, by reservation ID or by the originating transaction ID) is served
+only by the gRPC seam above; the HTTP API has no reservation route. Every confirm and release that settles a row
+writes a `RESERVATION_CONFIRMED`/`RESERVATION_RELEASED` audit event that `GET /v1/audit-events` returns.
 
 #### System
 
@@ -637,12 +723,16 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0531–0532, 0249–0256)
-- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
-- `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit or a rule `DENY` under `tracer.mode=enforce` (HTTP 422)
+#### Settings / Reservation Error Codes (0176–0178, 0531–0536, 0249–0256)
+- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{ledger_id}/settings` reject identically
+- `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit (`reason=limit_exceeded`) under `tracer.mode=enforce` (HTTP 422)
 - `0178` ErrTransactionReservationUnavailable — tracer unreachable or failing under `tracer.mode=enforce` + `tracer.failPosture=closed` (HTTP 503)
 - `0531` ErrTransactionReservationReview — a tracer rule flagged the transaction for `REVIEW`, or a rule could not be evaluated for it (`reason=rule_evaluation_error`), under `tracer.mode=enforce`; rejected before the balance commit (HTTP 422)
-- `0532` ErrTransactionReservationRejected — the tracer refused the reserve request itself (REST 400/422, gRPC `InvalidArgument`/`FailedPrecondition`) under `tracer.mode=enforce`, whatever the `failPosture` (HTTP 422)
+- `0532` ErrTransactionReservationRejected — the tracer refused the reserve request itself (gRPC `InvalidArgument`/`FailedPrecondition`) under `tracer.mode=enforce`, whatever the `failPosture` (HTTP 422)
+- `0533` ErrReservationAlreadySettled — tracer seam: a reserve replayed onto a transaction whose reservation is already released, expired or confirmed; gRPC `FailedPrecondition`, surfaced by an `enforce` ledger as `0532`
+- `0534` ErrReservationTenantInactive — tracer seam: the call's tenant is not provisioned or not active; gRPC `Unavailable`, which the ledger routes through `failPosture`
+- `0535` ErrTransactionReservationRuleDenied — a tracer rule answered `DENY` under `tracer.mode=enforce`; rejected before the balance commit, the rule's reason is not returned (HTTP 422)
+- `0536` ErrTransactionReservationUnauthorized — the tracer reservation seam rejected the ledger's credential (gRPC `Unauthenticated`/`PermissionDenied`: missing or invalid token, wrong API key, client not granted or not allowlisted) under `tracer.mode=enforce` + `tracer.failPosture=closed`; check the ledger's Access Manager client and the tracer's allowed clients (HTTP 503)
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
 - `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
 - `0251` ErrCrossLedgerRouteValidationUnsupported — the cross-ledger group spans more than one organization and at least one participant validates accounting routes; routes belong to one organization (HTTP 422)
@@ -925,7 +1015,7 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
 | BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-#### Streaming (lib-streaming/v4 v4.0.0-beta.4 / Kafka)
+#### Streaming (lib-streaming/v4 v4.1.0 / Kafka)
 The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
 loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
 mode on Kafka.
@@ -979,13 +1069,18 @@ enabling discovery with an empty advertise address aborts boot
 #### Tracer Client (ledger → tracer)
 | Variable | Default | Description |
 |----------|---------|-------------|
-| TRACER_BASE_URL | — | Tracer service base URL (enables reservation calls) |
-| TRACER_TIMEOUT_MS | — | Client ceiling (ms) on every tracer call; the per-ledger `tracer.timeoutMs` (default 250) sets the reserve deadline beneath it |
-| TRACER_TRANSPORT | grpc | Seam transport: `grpc` (default) or `rest` fallback |
-| TRACER_TLS_MODE | — | Seam identity: `mtls` (mutual TLS) or `mesh`/empty (plaintext, sidecar mTLS) |
+| TRACER_BASE_URL | — | Tracer reservation seam address, gRPC `host:port` (enables reservation calls; an `http://`/`https://` scheme is stripped) |
+| TRACER_TIMEOUT_MS | — | Client ceiling (ms) on every tracer RPC; the per-ledger `tracer.timeoutMs` (default 250) bounds the reserve RPC beneath it; neither bounds the token wait |
+| TRACER_TLS_MODE | — | Seam transport: `mtls` (mutual TLS), `server` (verify the tracer's certificate, present none) or `mesh`/empty (plaintext, sidecar mTLS) |
 | TRACER_TLS_CERT_FILE | — | Ledger client cert presented under `mtls` |
 | TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
-| TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
+| TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` and `server` |
+| TRACER_M2M_CLIENT_ID | — | Single-tenant Access Manager client id the ledger mints its seam token with (required with `PLUGIN_AUTH_ENABLED=true`; multi-tenant reads each tenant's credential from the `M2M_SECRETS_BACKEND` backend instead) |
+| TRACER_M2M_CLIENT_SECRET | — | Secret of `TRACER_M2M_CLIENT_ID`; never logged |
+| TRACER_M2M_WAIT_TIMEOUT_MS | `3000` | How long (ms) a seam call waits for a token that is not cached yet, before its RPC timeout starts; `1..5000` (the mint timeout), else boot refuses; read only with `PLUGIN_AUTH_ENABLED=true` |
+| M2M_SECRETS_BACKEND | `aws` | Multi-tenant custody backend of the seam credentials: `aws` (AWS Secrets Manager, `AWS_REGION` + default credential chain) or `vault` (Vault KV v2 via `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_CACERT`, `VAULT_NAMESPACE`); any other value refuses boot; no fallback between backends |
+| M2M_VAULT_MOUNT | `secret` | Vault KV v2 mount of the seam credentials when `M2M_SECRETS_BACKEND=vault` |
+| TRACER_API_KEY | — | Tracer `API_KEY` sent as `x-api-key` when `PLUGIN_AUTH_ENABLED=false`; refuses boot together with plugin auth |
 
 Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
@@ -1058,10 +1153,26 @@ Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVE
 `DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
 `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` / `DB_SSL_MODE` (its own PostgreSQL),
 plus the standard OTEL exporter vars. The ledger→tracer reservation seam (separate from the `:4020`
-REST API) is governed server-side by `TRACER_GRPC_PORT` (starts the gRPC seam; distinct from
-`SERVER_PORT`) and the `TRACER_TLS_*` certs — `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the
-server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client cert under
-`TRACER_TLS_MODE=mtls`; see
+REST API) is governed server-side by `TRACER_GRPC_PORT` (the gRPC seam's listen address, always on;
+empty resolves to `:4021`, distinct from `SERVER_PORT`) and the `TRACER_TLS_*` settings —
+`TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the server identity, `TRACER_TLS_CLIENT_CA_FILE` to
+verify the ledger's client cert under `TRACER_TLS_MODE=mtls`, and `TRACER_TLS_CLIENT_ALLOWED_NAMES`
+(comma-separated DNS SAN / URI SAN identities, or CN on a cert without SANs, the gRPC listener
+accepts; empty accepts any CA-signed cert with a boot Warn, and refuses boot under
+`DEPLOYMENT_MODE=saas` when the transport is the seam identity). `TRACER_TLS_MODE=server` serves TLS
+on the gRPC listener only, without client certificates. The seam's caller identity is selected by
+`PLUGIN_AUTH_ENABLED` (Access Manager token; `AUTH_M2M_INVERSION_ENABLED=true` recommended, a boot Warn without it; in
+single-tenant mode it requires `TRACER_SEAM_ALLOWED_CLIENTS` outside `DEPLOYMENT_MODE=local`), then
+`API_KEY_ENABLED` (the same `API_KEY`, as gRPC metadata `x-api-key`), then the transport; recommended
+lib-auth knobs are `AUTH_CACHE_TTL=60s` (a value greater than zero is required under token identity
+with `DEPLOYMENT_MODE=saas` and Warned about elsewhere), `AUTH_BREAKER_ENABLED=true` and
+`AUTH_JWT_VERIFY_CERT`. Enable token identity on the tracer only after the ledger's credential is
+provisioned and the ledger that sends tokens is deployed; a tracer that demands tokens first answers
+`Unauthenticated`, which the ledger turns into `0536` under `enforce` + `closed` and proceeds past
+under `open` or `advisory`. With
+no identity the seam, like the HTTP listener without auth, refuses to boot only under
+`DEPLOYMENT_MODE=saas` (read raw; unset is not local) or `MULTI_TENANT_ENABLED=true`, and boots with
+one Warn elsewhere; see
 [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 ### 6.4 Infrastructure
@@ -1160,24 +1271,24 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| github.com/LerianStudio/lib-commons/v6 | v6.9.0-beta.2 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
-| github.com/LerianStudio/lib-observability/v4 | v4.0.0-beta.1 | Logging, metrics, tracing, assertions, panic recovery, redaction |
-| github.com/LerianStudio/lib-streaming/v4 | v4.0.0-beta.4 | CloudEvents/Kafka streaming producer (franz-go) |
-| github.com/LerianStudio/lib-auth/v4 | v4.0.0-beta.1 | Authentication middleware |
-| github.com/danielgtaylor/huma/v2 | v2.38.0 | OpenAPI 3.1 contract + request/response validation over Fiber |
-| github.com/gofiber/fiber/v3 | v3.4.0 | HTTP framework (runtime router / middleware) |
+| github.com/LerianStudio/lib-commons/v7 | v7.14.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
+| github.com/LerianStudio/lib-observability/v4 | v4.6.1 | Logging, metrics, tracing, assertions, panic recovery, redaction |
+| github.com/LerianStudio/lib-streaming/v4 | v4.1.0 | CloudEvents/Kafka streaming producer (franz-go) |
+| github.com/LerianStudio/lib-auth/v5 | v5.4.0 | Authentication middleware |
+| github.com/danielgtaylor/huma/v2 | v2.39.1 | OpenAPI 3.1 contract + request/response validation over Fiber |
+| github.com/gofiber/fiber/v3 | v3.5.0 | HTTP framework (runtime router / middleware) |
 | github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |
-| github.com/tink-crypto/tink-go/v2 | v2.7.0 | Tink AEAD/PRF keysets — per-org CRM DEKs (envelope mode) |
+| github.com/tink-crypto/tink-go/v2 | v2.8.0 | Tink AEAD/PRF keysets — per-org CRM DEKs (envelope mode) |
 | github.com/jackc/pgx/v5 | v5.11.0 | PostgreSQL driver |
-| go.mongodb.org/mongo-driver/v2 | v2.6.0 | MongoDB driver (v2 line) |
-| github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
-| github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
+| go.mongodb.org/mongo-driver/v2 | v2.9.1 | MongoDB driver (v2 line) |
+| github.com/rabbitmq/amqp091-go | v1.15.0 | RabbitMQ AMQP client |
+| github.com/redis/go-redis/v9 | v9.22.0 | Redis/Valkey client |
 | github.com/shopspring/decimal | v1.4.0 | Precise decimal arithmetic |
 | github.com/antlr4-go/antlr/v4 | v4.13.1 | ANTLR4 Go runtime — indirect; the tracer's CEL rule engine reaches it through cel-go |
 | github.com/Masterminds/squirrel | v1.5.4 | SQL query builder |
-| github.com/testcontainers/testcontainers-go | v0.42.0 | Integration test containers |
+| github.com/testcontainers/testcontainers-go | v0.44.0 | Integration test containers |
 | github.com/vmihailenco/msgpack/v5 | v5.4.1 | MessagePack serialization |
-| go.opentelemetry.io/otel | v1.44.0 | OpenTelemetry tracing |
+| go.opentelemetry.io/otel | v1.46.0 | OpenTelemetry tracing |
 | go.uber.org/mock | v0.6.0 | Mock generation |
 
 ## 9. Multi-Tenancy
@@ -1194,7 +1305,7 @@ When `MULTI_TENANT_ENABLED=true`:
 8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers; CRM
    (authz namespace `midaz`, `MONGO_CRM_*`) and fees (authz namespace `plugin-fees`,
    `MONGO_FEES_*`) add their own namespaced Mongo tenant clients within the ledger binary
-   (resolution via the lib-commons v6 tenant-manager)
+   (resolution via the lib-commons v7 tenant-manager)
 
 ## 10. Per-Call Control Skips
 
@@ -1258,7 +1369,7 @@ readable effect on that contract; `/v2` answers with the holder-bearing `Account
 component. `/v1` shipped before the seam existed, and a client integrated against it must
 not acquire a holder link — or a new rejection class — from a version upgrade.
 
-The holder-account composition route (`POST /v2/.../holders/{id}/accounts`) passes
+The holder-account composition route (`POST /v2/.../holders/{holder_id}/accounts`) passes
 `HolderOnV2`: it exists to link a holder, and is served on `/v2` only.
 
 ### Organization self-holder

@@ -55,7 +55,7 @@ func newPackRepository(t *testing.T, container *mongotestutil.ContainerResult) *
 	require.NoError(t, EnsureIndexes(context.Background(), conn),
 		"EnsureIndexes must succeed during repository setup")
 
-	return &PackageMongoDBRepository{connection: conn, Database: conn.Database}
+	return &PackageMongoDBRepository{connection: conn}
 }
 
 // packCollection returns the raw package collection so tests can assert
@@ -253,7 +253,7 @@ func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
 	require.NoError(t, err)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "Written Through Ledger B"}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, ledgerB, update)
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, ledgerB, pkgEntity.UpdatedAt, update)
 	require.Error(t, errUpdate, "a package on ledger A must not be writable through ledger B")
 	assert.Nil(t, returned)
 
@@ -268,7 +268,7 @@ func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
 
 	// Positive control: the same update through the owning ledger lands.
 	ownedUpdate := &bson.M{"$set": bson.M{"fee_group_label": "Written Through Ledger A"}}
-	owned, errOwned := repo.Update(ctx, pkgEntity.ID, orgID, ledgerA, ownedUpdate)
+	owned, errOwned := repo.Update(ctx, pkgEntity.ID, orgID, ledgerA, pkgEntity.UpdatedAt, ownedUpdate)
 	require.NoError(t, errOwned, "the owning ledger must still write its own package")
 	require.NotNil(t, owned)
 	assert.Equal(t, "Written Through Ledger A", owned.FeeGroupLabel)
@@ -326,7 +326,7 @@ func TestIntegration_PackRepo_ByID_OrganizationScopeUnchanged(t *testing.T) {
 	require.NotNil(t, found)
 	assert.Equal(t, pkgEntity.ID, found.ID)
 
-	updated, err := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil,
+	updated, err := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, pkgEntity.UpdatedAt,
 		&bson.M{"$set": bson.M{"fee_group_label": "Org Scoped Write"}})
 	require.NoError(t, err)
 	require.NotNil(t, updated)
@@ -618,8 +618,9 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label"}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
+	// A value starting with "$" is stored as written, never read as a field path.
+	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label", "description": "$fee_group_label"}}
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, pkgEntity.UpdatedAt, update)
 	require.NoError(t, errUpdate)
 	require.NotNil(t, returned, "Update must return the persisted entity")
 	assert.Equal(t, "Updated Package Label", returned.FeeGroupLabel, "returned entity must reflect the change")
@@ -627,30 +628,8 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Package Label", got.FeeGroupLabel, "label change must be persisted")
-}
-
-func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
-	container := mongotestutil.SetupContainer(t)
-	repo := newPackRepository(t, container)
-	ctx := context.Background()
-
-	orgID := uuid.New()
-	pkgEntity := newTestPackage(uuid.New())
-	_, err := repo.Create(ctx, pkgEntity, orgID)
-	require.NoError(t, err)
-
-	// Emptying the fees map must trigger the auto-disable side effect in Update.
-	update := &bson.M{"$set": bson.M{"fees": bson.M{}}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
-	require.NoError(t, errUpdate)
-	require.NotNil(t, returned, "Update must return the persisted entity")
-	require.NotNil(t, returned.Enable)
-	assert.False(t, *returned.Enable, "returned entity must reflect the auto-disable side effect")
-
-	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
-	require.NoError(t, err)
-	require.NotNil(t, got.Enable)
-	assert.False(t, *got.Enable, "package with no fees must be auto-disabled by Update")
+	require.NotNil(t, got.Description)
+	assert.Equal(t, "$fee_group_label", *got.Description)
 }
 
 func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
@@ -658,7 +637,7 @@ func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
 	repo := newPackRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "x"}}
-	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, update)
+	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, time.Time{}, update)
 
 	require.Error(t, err)
 	var notFound pkg.EntityNotFoundError
@@ -757,7 +736,7 @@ func TestIntegration_PackRepo_Deferrable(t *testing.T) {
 	_, err = (&model.Fee{Deferrable: boolPtr(false)}).SetAndValidateHasFieldsToUpdate(ctx, nil, decimal.Zero,
 		created.Fees, "adminFee", orgID, uuid.Nil, fields, nil)
 	require.NoError(t, err)
-	_, err = repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, &bson.M{"$set": fields})
+	_, err = repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, pkgEntity.UpdatedAt, &bson.M{"$set": fields})
 	require.NoError(t, err)
 	assert.False(t, deferrable(t, pkgEntity.ID), "the patch key names the stored field")
 
@@ -767,4 +746,128 @@ func TestIntegration_PackRepo_Deferrable(t *testing.T) {
 	_, err = packCollection(container).UpdateByID(ctx, old.ID, bson.M{"$unset": bson.M{"fees.adminFee.deferrable": ""}})
 	require.NoError(t, err)
 	assert.False(t, deferrable(t, old.ID), "a document stored before the field reads false")
+}
+
+// ============================================================================
+// FindNotDeletedByOrganizationIDAndLedgerID Tests
+// ============================================================================
+
+func TestIntegration_PackRepo_FindNotDeletedByOrganizationIDAndLedgerID(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	enabled := newTestPackage(ledgerID)
+	_, err := repo.Create(ctx, enabled, orgID)
+	require.NoError(t, err)
+
+	// Disabled -> included (no enable filter), created later so it sorts second.
+	disabled := newTestPackage(ledgerID)
+	disabled.Enable = boolPtr(false)
+	disabled.CreatedAt = enabled.CreatedAt.Add(time.Minute)
+	_, err = repo.Create(ctx, disabled, orgID)
+	require.NoError(t, err)
+
+	// Soft-deleted -> excluded.
+	deleted := newTestPackage(ledgerID)
+	_, err = repo.Create(ctx, deleted, orgID)
+	require.NoError(t, err)
+	require.NoError(t, repo.SoftDelete(ctx, deleted.ID, orgID, ledgerID))
+
+	// Different ledger of the same organization -> excluded.
+	_, err = repo.Create(ctx, newTestPackage(uuid.New()), orgID)
+	require.NoError(t, err)
+
+	// Same ledger id under another organization -> excluded.
+	_, err = repo.Create(ctx, newTestPackage(ledgerID), uuid.New())
+	require.NoError(t, err)
+
+	results, err := repo.FindNotDeletedByOrganizationIDAndLedgerID(ctx, orgID, ledgerID)
+	require.NoError(t, err)
+	require.Len(t, results, 2, "enabled and disabled live packages of the ledger are returned")
+
+	assert.Equal(t, enabled.ID, results[0].ID, "results are sorted by created_at")
+	assert.Equal(t, disabled.ID, results[1].ID)
+	require.NotNil(t, results[1].Enable)
+	assert.False(t, *results[1].Enable)
+
+	empty, err := repo.FindNotDeletedByOrganizationIDAndLedgerID(ctx, orgID, uuid.New())
+	require.NoError(t, err)
+	assert.Empty(t, empty, "a ledger without packages returns an empty slice")
+}
+
+// ============================================================================
+// Update: fee removal and optimistic concurrency
+// ============================================================================
+
+func TestIntegration_PackRepo_Update_UnsetFeeAndDisable(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	pkgEntity := newTestPackage(ledgerID)
+	pkgEntity.Fees["custodyFee"] = newTestFee("Taxa de Custodia", "conta_custodia", "0.50")
+	_, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+
+	newUpdatedAt := pkgEntity.UpdatedAt.Add(time.Hour).Truncate(time.Millisecond)
+	update := &bson.M{
+		"$unset": bson.M{"fees.adminFee": ""},
+		"$set":   bson.M{"enable": false, "updated_at": newUpdatedAt},
+	}
+
+	returned, err := repo.Update(ctx, pkgEntity.ID, orgID, ledgerID, pkgEntity.UpdatedAt, update)
+	require.NoError(t, err)
+	require.NotNil(t, returned)
+	assert.NotContains(t, returned.Fees, "adminFee", "the unset fee is removed")
+	assert.Contains(t, returned.Fees, "custodyFee", "the other fee is kept")
+	require.NotNil(t, returned.Enable)
+	assert.False(t, *returned.Enable)
+	assert.True(t, newUpdatedAt.Equal(returned.UpdatedAt), "updated_at carries the new version")
+
+	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, ledgerID)
+	require.NoError(t, err)
+	assert.NotContains(t, got.Fees, "adminFee")
+	assert.Contains(t, got.Fees, "custodyFee")
+	require.NotNil(t, got.Enable)
+	assert.False(t, *got.Enable)
+	assert.True(t, newUpdatedAt.Equal(got.UpdatedAt))
+}
+
+func TestIntegration_PackRepo_Update_StaleUpdatedAtConflicts(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	pkgEntity := newTestPackage(ledgerID)
+	_, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+
+	staleUpdatedAt := pkgEntity.UpdatedAt.Add(-time.Minute)
+	update := &bson.M{
+		"$unset": bson.M{"fees.adminFee": ""},
+		"$set":   bson.M{"enable": false, "updated_at": pkgEntity.UpdatedAt.Add(time.Hour)},
+	}
+
+	returned, err := repo.Update(ctx, pkgEntity.ID, orgID, ledgerID, staleUpdatedAt, update)
+	require.Error(t, err)
+	assert.Nil(t, returned)
+
+	var notFound pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &notFound, "an optimistic conflict reads as a business not found")
+	assert.Equal(t, "0007", notFound.Code)
+
+	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, ledgerID)
+	require.NoError(t, err)
+	assert.Contains(t, got.Fees, "adminFee", "a conflicting update leaves the fees untouched")
+	require.NotNil(t, got.Enable)
+	assert.True(t, *got.Enable, "a conflicting update leaves enable untouched")
+	assert.True(t, pkgEntity.UpdatedAt.Equal(got.UpdatedAt), "a conflicting update leaves updated_at untouched")
 }

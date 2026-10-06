@@ -623,6 +623,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Rejected Error",
 			Message:    "The usage-limit service rejected the reservation request for this transaction. Verify that the asset, account type and transaction date are accepted by the tracer configuration.",
 		},
+		constant.ErrTransactionReservationRuleDenied: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationRuleDenied.Error(),
+			Title:      "Transaction Reservation Rule Denied Error",
+			Message:    "The transaction was denied by a transaction validation rule and this ledger enforces tracer decisions. Review the tracer rules or the ledger tracer settings.",
+		},
+		constant.ErrTransactionReservationUnauthorized: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationUnauthorized.Error(),
+			Title:      "Transaction Reservation Unauthorized Error",
+			Message:    "The tracer reservation seam rejected this ledger's credential and the ledger enforces tracer decisions with a closed fail posture. Check the ledger's Access Manager client and the tracer's allowed clients.",
+		},
 		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
@@ -2104,12 +2116,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Deductible fee cannot be deferrable",
 			Message:    fmt.Sprintf("Fee %v is deducted from the payment (isDeductibleFrom true), so it cannot be deferrable. Set deferrable to false or isDeductibleFrom to false.", args...),
 		},
-		constant.ErrDuplicateFeeKey: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrDuplicateFeeKey.Error(),
-			Title:      "Duplicate fee key",
-			Message:    fmt.Sprintf("More than one fee in this request resolves to the key '%v', so the fee it applies to is ambiguous. Please send each fee once.", args...),
-		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrAccessMidaz.Error(),
@@ -2565,7 +2571,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitImmutableField.Error(),
 			Title:      "Limit Immutable Field",
-			Message:    "Cannot modify immutable field (limitType, asset).",
+			Message:    "Cannot modify immutable field (limitType, asset, resetTime).",
 		},
 		constant.ErrAuditEventNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -2951,6 +2957,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Limit Custom Dates Not Allowed",
 			Message:    "CustomStartDate/customEndDate only allowed for CUSTOM limitType.",
 		},
+		constant.ErrLimitResetTimeNotAllowed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitResetTimeNotAllowed.Error(),
+			Title:      "Limit Reset Time Not Allowed",
+			Message:    "ResetTime only allowed for DAILY, WEEKLY or MONTHLY limitType.",
+		},
+		constant.ErrLimitResetTimeInsideWindow: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitResetTimeInsideWindow.Error(),
+			Title:      "Limit Reset Time Inside Window",
+			Message:    "ResetTime must not fall inside the active time window (it may equal activeTimeStart or activeTimeEnd).",
+		},
 		constant.ErrLimitUnknownType: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLimitUnknownType.Error(),
@@ -3220,6 +3238,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrReservationAlreadyTerminal.Error(),
 			Title:      "Reservation Already Terminal",
 			Message:    "Reservation: reservation is already in a terminal state.",
+		},
+		constant.ErrReservationAlreadySettled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationAlreadySettled.Error(),
+			Title:      "Reservation Already Settled",
+			Message:    "The reservation for this transaction was already settled and cannot be reserved again.",
+		},
+		constant.ErrReservationTenantInactive: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTenantInactive.Error(),
+			Title:      "Reservation Tenant Inactive",
+			Message:    "The tenant is not provisioned or not active for reservations.",
 		},
 	}
 

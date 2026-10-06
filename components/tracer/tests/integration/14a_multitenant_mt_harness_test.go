@@ -12,14 +12,13 @@
 // Harness at a glance
 // -------------------
 //  1. We spin up a fake Tenant Manager via httptest that answers exactly the
-//     two endpoints lib-commons v4 calls: GET /v1/tenants/active?service=tracer
+//     two endpoints lib-commons v7 calls: GET /v1/tenants/active?service=tracer
 //     and GET /v1/tenants/{tenantID}/associations/{service}/connections.
 //  2. We spin up miniredis to back the lib-commons Redis Pub/Sub listener.
 //  3. We reboot the tracer service through RestartServerWithConfig with
 //     MULTI_TENANT_ENABLED=true and the fake endpoints pointed at us.
-//  4. We mint unsigned JWTs (lib-commons parses with ParseUnverified) that
-//     carry a tenantId claim, and exercise /v1/rules to stress the
-//     TenantMiddleware path.
+//  4. We mint Access Manager-shaped user JWTs that carry a tenantId claim,
+//     and exercise /v1/rules to stress the TenantMiddleware path.
 //
 // The read-only scope of the MT isolation test in
 // 15_multitenant_isolation_test.go is a deliberate scoping choice (read paths
@@ -52,21 +51,19 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	testutil_integration "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
 
 // mtHarness bundles the fake infrastructure a multi-tenant test needs. All
 // resources are cleaned up via t.Cleanup so callers never have to unwind
 // manually.
 type mtHarness struct {
-	tmServer       *httptest.Server
-	pluginAuthSrv  *httptest.Server // fake plugin-auth endpoint, always approves
-	miniRedis      *miniredis.Miniredis
-	tenantsMu      sync.RWMutex
-	tenants        map[string]tenantPGSpec // tenantID -> where its PostgreSQL lives
-	activeService  string                  // echoed back under /v1/tenants/active
-	tmHandler      http.HandlerFunc        // override knob for chaos tests
-	requestCount   int                     // observability for tests
-	requestCountMu sync.Mutex
+	tmServer      *httptest.Server
+	pluginAuthSrv *httptest.Server // fake plugin-auth endpoint, always approves
+	miniRedis     *miniredis.Miniredis
+	tenantsMu     sync.RWMutex
+	tenants       map[string]tenantPGSpec // tenantID -> where its PostgreSQL lives
+	tmHandler     http.HandlerFunc        // override knob for chaos tests
 }
 
 // tenantPGSpec describes the PostgreSQL connection details the fake Tenant
@@ -91,19 +88,14 @@ func newMTHarness(t *testing.T) *mtHarness {
 	mr := miniredis.RunT(t)
 
 	h := &mtHarness{
-		miniRedis:     mr,
-		tenants:       make(map[string]tenantPGSpec),
-		activeService: "tracer",
+		miniRedis: mr,
+		tenants:   make(map[string]tenantPGSpec),
 	}
 
 	// Default handler — unit tests can override via SetHandler for chaos.
 	h.tmHandler = h.defaultHandler
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.requestCountMu.Lock()
-		h.requestCount++
-		h.requestCountMu.Unlock()
-
 		h.tmHandler(w, r)
 	}))
 	h.tmServer = srv
@@ -181,9 +173,9 @@ func (h *mtHarness) writeActiveList(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// writeTenantConfig returns a flat TenantConfig with a single module named
-// after the service; the module name is irrelevant to the single-manager
-// path tracer wires in routes.go (which is what we exercise).
+// writeTenantConfig returns a flat TenantConfig whose databases are keyed by
+// the tracer's module name, the key its pool manager resolves the tenant's
+// PostgreSQL under.
 func (h *mtHarness) writeTenantConfig(w http.ResponseWriter, r *http.Request) {
 	// URL shape: /v1/tenants/{tenantID}/associations/{service}/connections
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/tenants/"), "/")
@@ -205,7 +197,7 @@ func (h *mtHarness) writeTenantConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The flat format lib-commons v4 expects: databases keyed by module.
+	// The flat format lib-commons v7 expects: databases keyed by module.
 	resp := map[string]any{
 		"id":            tenantID,
 		"tenantSlug":    tenantID,
@@ -213,7 +205,7 @@ func (h *mtHarness) writeTenantConfig(w http.ResponseWriter, r *http.Request) {
 		"status":        "active",
 		"isolationMode": "isolated",
 		"databases": map[string]any{
-			"tracer": map[string]any{
+			constant.ModuleName: map[string]any{
 				"postgresql": map[string]any{
 					"host":     spec.Host,
 					"port":     spec.Port,
@@ -267,12 +259,6 @@ func (h *mtHarness) URL() string {
 	return h.tmServer.URL
 }
 
-// CloseTM simulates a TM outage. Tests that need to reopen the server
-// later must stand up a new harness (httptest servers cannot be reopened).
-func (h *mtHarness) CloseTM() {
-	h.tmServer.Close()
-}
-
 // ShutdownRedis stops miniredis. Callers can later call StartRedis to bring
 // it back on the same port.
 func (h *mtHarness) ShutdownRedis() {
@@ -283,70 +269,41 @@ func (h *mtHarness) ShutdownRedis() {
 // JWT helpers
 // ------------------------------------------------------------------
 
-// mintJWTWithTenantID returns a JWT that encodes the given tenantId claim.
-// The token is unsigned (alg=none) because lib-commons v4 TenantMiddleware
-// uses jwt.ParseUnverified — it trusts the upstream auth layer to validate
-// signatures. Tests therefore do not need any shared secret.
-//
+// mintJWTWithTenantID returns a user token carrying the given tenantId claim.
 // `sub` is REQUIRED by the strict-sub policy in auth_guard.extractPrincipalFromBearer
-// (introduced as part of the Taura audit fix): any JWT that parses but lacks `sub`
-// is rejected with 401 TRC-0350 before reaching lib-auth. Tests mint a synthetic
-// sub derived from tenantID so each tenant produces a distinct (and attributable)
-// principal in the audit trail.
+// (any JWT that parses but lacks `sub` is rejected with 401 before reaching
+// lib-auth); deriving it from tenantID keeps each tenant's principal distinct
+// in the audit trail.
 func mintJWTWithTenantID(tenantID string) string {
-	base := testutil.FixedTime()
-	claims := jwt.MapClaims{
-		"sub":      "test-user-" + tenantID,
-		"tenantId": tenantID,
-		"iat":      base.Unix(),
-		"exp":      base.Add(1 * time.Hour).Unix(),
-	}
-
-	tok := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
-
-	signed, err := tok.SignedString(jwt.UnsafeAllowNoneSignatureType)
-	if err != nil {
-		panic(fmt.Sprintf("mint JWT: %v", err))
-	}
-
-	return signed
+	return signUserJWT(jwt.MapClaims{"sub": "test-user-" + tenantID, "tenantId": tenantID})
 }
 
-// mintJWTWithoutTenantID returns a JWT that has no tenantId claim. Used by
+// mintJWTWithoutTenantID returns a token that has no tenantId claim. Used by
 // Deliverable D to prove missing-claim rejection.
 func mintJWTWithoutTenantID() string {
-	base := testutil.FixedTime()
-	claims := jwt.MapClaims{
-		"sub": "test-user",
-		"iat": base.Unix(),
-		"exp": base.Add(1 * time.Hour).Unix(),
-	}
-
-	tok := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
-
-	signed, err := tok.SignedString(jwt.UnsafeAllowNoneSignatureType)
-	if err != nil {
-		panic(fmt.Sprintf("mint JWT: %v", err))
-	}
-
-	return signed
+	return signUserJWT(jwt.MapClaims{"sub": "test-user"})
 }
 
-// mintJWTWithEmptyTenantID returns a JWT with tenantId="" — distinct from the
+// mintJWTWithEmptyTenantID returns a token with tenantId="" — distinct from the
 // absent-claim case because lib-commons treats "" as a missing claim by
 // different code paths.
 func mintJWTWithEmptyTenantID() string {
+	return signUserJWT(jwt.MapClaims{"sub": "test-user", "tenantId": ""})
+}
+
+// signUserJWT signs claims as an Access Manager normal-user token. lib-auth
+// verifies no signature locally (AUTH_JWT_VERIFY_CERT is unset), so any HS256
+// key works; the fake Access Manager is the trust anchor. With
+// AUTH_M2M_INVERSION_ENABLED lib-auth refuses a token without `type` (401
+// 0042), and a normal-user token must name its `owner`.
+func signUserJWT(claims jwt.MapClaims) string {
 	base := testutil.FixedTime()
-	claims := jwt.MapClaims{
-		"tenantId": "",
-		"sub":      "test-user",
-		"iat":      base.Unix(),
-		"exp":      base.Add(1 * time.Hour).Unix(),
-	}
+	claims["type"] = "normal-user"
+	claims["owner"] = "mt-test-org"
+	claims["iat"] = base.Unix()
+	claims["exp"] = base.Add(1 * time.Hour).Unix()
 
-	tok := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
-
-	signed, err := tok.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("mt-test-signing-key"))
 	if err != nil {
 		panic(fmt.Sprintf("mint JWT: %v", err))
 	}
@@ -396,15 +353,16 @@ func bootServiceInMTMode(t *testing.T, h *mtHarness, extra map[string]string) fu
 		"MULTI_TENANT_IDLE_TIMEOUT_SEC":               "300",
 		"MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC": "30",
 		"MULTI_TENANT_CACHE_TTL_SEC":                  "120",
-		// MT requires plugin auth for JWT signature verification. The
-		// default integration suite runs with PLUGIN_AUTH_ENABLED=false
-		// (single-tenant canary), but the MT reboots MUST flip this on or
-		// ValidateMultiTenantConfig rejects the boot with a security error.
-		// PLUGIN_AUTH_ADDRESS is intentionally left unset — lib-auth's
-		// client treats that as "no upstream", which is compatible with
-		// the httptest-based TenantMiddleware exercised here.
-		"PLUGIN_AUTH_ENABLED":             "true",
-		"PLUGIN_AUTH_ADDRESS":             h.pluginAuthSrv.URL,
+		// ValidateMultiTenantConfig refuses an MT boot without plugin auth,
+		// so the MT reboots flip it on and point it at the always-approving
+		// fake Access Manager. No signature is verified (AUTH_JWT_VERIFY_CERT
+		// is unset); the fake's authorization answer is the trust anchor.
+		"PLUGIN_AUTH_ENABLED": "true",
+		"PLUGIN_AUTH_ADDRESS": h.pluginAuthSrv.URL,
+		// Plugin auth makes the Access Manager token the reservation seam's
+		// identity, and the seam posture gate refuses that identity unless
+		// application tokens authorize under their own subject.
+		"AUTH_M2M_INVERSION_ENABLED":      "true",
 		"API_KEY_ENABLED_ONLY_VALIDATION": "false",
 		// The harness exposes http:// URLs (local httptest servers); opt in to
 		// the cleartext-HTTP downgrade explicitly per H13. Production must keep
@@ -457,7 +415,8 @@ func ensureTenantDatabase(t *testing.T, dbName string) tenantPGSpec {
 
 	// Postgres does not support "CREATE DATABASE IF NOT EXISTS"; check first.
 	var exists bool
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, dbName,
 	).Scan(&exists)
 	require.NoError(t, err, "check database existence")

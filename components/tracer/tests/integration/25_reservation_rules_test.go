@@ -7,11 +7,8 @@
 package integration
 
 import (
-	"bytes"
+	"context"
 	"database/sql"
-	"encoding/json"
-	"io"
-	"net/http"
 	"testing"
 	"time"
 
@@ -22,69 +19,66 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	testutil_integration "github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil_integration"
+	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
-// reserveRulesResponse is the POST /v1/reservations body as a client reads it.
-type reserveRulesResponse struct {
-	TransactionID  string   `json:"transactionId"`
-	Denied         bool     `json:"denied"`
-	Decision       string   `json:"decision"`
-	Reason         string   `json:"reason"`
-	MatchedRuleIDs []string `json:"matchedRuleIds"`
-	ReservationIDs []string `json:"reservationIds"`
-}
+// reserveRulesTimeout bounds one Reserve call so a stalled seam fails the test
+// instead of hanging it.
+const reserveRulesTimeout = 10 * time.Second
 
-// postRulesReservation reserves for accountID with a ledger-shaped body: free-form
-// account type, flat metadata, no transactionType.
-func postRulesReservation(t *testing.T, accountID uuid.UUID, amount string) (reserveRulesResponse, []byte) {
+// reserveRules reserves for accountID over the gRPC seam with a ledger-shaped
+// request: free-form account type, flat metadata, no transactionType.
+func reserveRules(t *testing.T, accountID uuid.UUID, amount string) *reservationv1.ReserveResult {
 	t.Helper()
 
-	return postRulesReservationFor(t, uuid.New(), accountID, amount, false)
+	return reserveRulesFor(t, uuid.New(), accountID, amount, false)
 }
 
-// postRulesReservationFor is postRulesReservation with an explicit ledger
-// transaction id and revert flag.
-func postRulesReservationFor(t *testing.T, transactionID, accountID uuid.UUID, amount string, revert bool) (reserveRulesResponse, []byte) {
+// reserveRulesFor is reserveRules with an explicit ledger transaction id and
+// revert flag.
+func reserveRulesFor(t *testing.T, transactionID, accountID uuid.UUID, amount string, revert bool) *reservationv1.ReserveResult {
 	t.Helper()
 
-	payload := map[string]any{
-		"transactionId":        transactionID.String(),
-		"requestId":            uuid.New().String(),
-		"amount":               amount,
-		"asset":                "BRL",
-		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
-		"account": map[string]any{
-			"accountId": accountID.String(),
-			"type":      "deposit",
+	ctx, cancel := context.WithTimeout(context.Background(), reserveRulesTimeout)
+	defer cancel()
+
+	got, err := testutil.DialReservationClient(t).Reserve(ctx, &reservationv1.ReserveRequest{
+		TransactionId:        transactionID.String(),
+		RequestId:            uuid.New().String(),
+		Amount:               amount,
+		Asset:                "BRL",
+		TransactionTimestamp: testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
+		Account: &reservationv1.ReserveAccount{
+			AccountId: accountID.String(),
+			Type:      "deposit",
 		},
-		"metadata": map[string]any{"channel": "app"},
+		Metadata: map[string]string{"channel": "app"},
+		Revert:   revert,
+	})
+	require.NoError(t, err, "Reserve must succeed over the gRPC seam")
+	require.NotNil(t, got)
+
+	return got
+}
+
+// releaseRulesTransaction returns every reservation transactionID still holds.
+// The proofs whose admitted reserve is never confirmed or released register it
+// as cleanup: the tests share one database and the reaper's sweep is DB-wide,
+// so a RESERVED row left behind would surface in another test's released
+// count. A failure is logged, never asserted, so cleanup cannot mask the
+// proof's own result.
+func releaseRulesTransaction(t *testing.T, transactionID uuid.UUID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), reserveRulesTimeout)
+	defer cancel()
+
+	_, err := testutil.DialReservationClient(t).ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{
+		TransactionId: transactionID.String(),
+	})
+	if err != nil {
+		t.Logf("cleanup: failed to release reservations of transaction %s: %v", transactionID, err)
 	}
-
-	if revert {
-		payload["revert"] = true
-	}
-
-	body, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	req, err := http.NewRequest(http.MethodPost, testutil.GetBaseURL()+"/v1/reservations", bytes.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("X-API-Key", testutil.GetAPIKey())
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := testutil.HTTPClient.Do(req)
-	require.NoError(t, err)
-
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, resp.StatusCode, "reserve must answer 201, got body: %s", string(respBody))
-
-	var out reserveRulesResponse
-	require.NoError(t, json.Unmarshal(respBody, &out))
-
-	return out, respBody
 }
 
 // createScopedReserveRule creates and activates a rule scoped to one account so it
@@ -113,13 +107,12 @@ func TestIntegration_Reservation_RulesDecide(t *testing.T) {
 		ruleID := createScopedReserveRule(t, "Reserve rules DENY deposit via app",
 			`account.type == "deposit" && metadata["channel"] == "app"`, "DENY", accountID)
 
-		got, raw := postRulesReservation(t, accountID, "100.00")
+		got := reserveRules(t, accountID, "100.00")
 
-		assert.True(t, got.Denied)
-		assert.Equal(t, "DENY", got.Decision)
-		assert.Equal(t, []string{ruleID}, got.MatchedRuleIDs)
-		assert.Empty(t, got.ReservationIDs)
-		assert.Contains(t, string(raw), `"reservationIds":[]`)
+		assert.True(t, got.GetDenied())
+		assert.Equal(t, "DENY", got.GetDecision())
+		assert.Equal(t, []string{ruleID}, got.GetMatchedRuleIds())
+		assert.Empty(t, got.GetReservationIds())
 	})
 
 	t.Run("REVIEW rule refuses the reserve", func(t *testing.T) {
@@ -127,12 +120,12 @@ func TestIntegration_Reservation_RulesDecide(t *testing.T) {
 		ruleID := createScopedReserveRule(t, "Reserve rules REVIEW deposit",
 			`account.type == "deposit"`, "REVIEW", accountID)
 
-		got, _ := postRulesReservation(t, accountID, "100.00")
+		got := reserveRules(t, accountID, "100.00")
 
-		assert.True(t, got.Denied)
-		assert.Equal(t, "REVIEW", got.Decision)
-		assert.Equal(t, []string{ruleID}, got.MatchedRuleIDs)
-		assert.Empty(t, got.ReservationIDs)
+		assert.True(t, got.GetDenied())
+		assert.Equal(t, "REVIEW", got.GetDecision())
+		assert.Equal(t, []string{ruleID}, got.GetMatchedRuleIds())
+		assert.Empty(t, got.GetReservationIds())
 	})
 
 	t.Run("no refusing rule allows the reserve", func(t *testing.T) {
@@ -140,12 +133,11 @@ func TestIntegration_Reservation_RulesDecide(t *testing.T) {
 		createScopedReserveRule(t, "Reserve rules DENY other channel",
 			`metadata["channel"] == "branch"`, "DENY", accountID)
 
-		got, raw := postRulesReservation(t, accountID, "100.00")
+		got := reserveRules(t, accountID, "100.00")
 
-		assert.False(t, got.Denied)
-		assert.Equal(t, "ALLOW", got.Decision)
-		assert.Empty(t, got.MatchedRuleIDs)
-		assert.Contains(t, string(raw), `"matchedRuleIds":[]`)
+		assert.False(t, got.GetDenied())
+		assert.Equal(t, "ALLOW", got.GetDecision())
+		assert.Empty(t, got.GetMatchedRuleIds())
 	})
 }
 
@@ -205,12 +197,12 @@ func TestIntegration_Reservation_RulesGuardLimitCapacity(t *testing.T) {
 				`account.type == "deposit"`, action, accountID)
 
 			transactionID := uuid.New()
-			got, _ := postRulesReservationFor(t, transactionID, accountID, "100.00", false)
+			got := reserveRulesFor(t, transactionID, accountID, "100.00", false)
 
-			assert.True(t, got.Denied)
-			assert.Equal(t, action, got.Decision)
-			assert.Equal(t, []string{ruleID}, got.MatchedRuleIDs)
-			assert.Empty(t, got.ReservationIDs)
+			assert.True(t, got.GetDenied())
+			assert.Equal(t, action, got.GetDecision())
+			assert.Equal(t, []string{ruleID}, got.GetMatchedRuleIds())
+			assert.Empty(t, got.GetReservationIds())
 			assert.True(t, limitUsage(t, db, limitID).IsZero(), "a refused reserve must not move the counter")
 			assert.Zero(t, reservationRowCount(t, db, transactionID), "a refused reserve must not write a reservation row")
 		})
@@ -223,11 +215,13 @@ func TestIntegration_Reservation_RulesGuardLimitCapacity(t *testing.T) {
 			`metadata["channel"] == "branch"`, "DENY", accountID)
 
 		transactionID := uuid.New()
-		got, _ := postRulesReservationFor(t, transactionID, accountID, "100.00", false)
+		t.Cleanup(func() { releaseRulesTransaction(t, transactionID) })
 
-		assert.False(t, got.Denied)
-		assert.Equal(t, "ALLOW", got.Decision)
-		require.Len(t, got.ReservationIDs, 1)
+		got := reserveRulesFor(t, transactionID, accountID, "100.00", false)
+
+		assert.False(t, got.GetDenied())
+		assert.Equal(t, "ALLOW", got.GetDecision())
+		require.Len(t, got.GetReservationIds(), 1)
 		assert.Equal(t, 1, reservationRowCount(t, db, transactionID))
 		assert.True(t, limitUsage(t, db, limitID).IsPositive(), "the admitted reserve must hold its amount")
 	})
@@ -241,13 +235,13 @@ func TestIntegration_Reservation_RulesGuardLimitCapacity(t *testing.T) {
 			`metadata["channel"] + 1 > 0`, "DENY", accountID)
 
 		transactionID := uuid.New()
-		got, _ := postRulesReservationFor(t, transactionID, accountID, "100.00", false)
+		got := reserveRulesFor(t, transactionID, accountID, "100.00", false)
 
-		assert.True(t, got.Denied)
-		assert.Equal(t, "REVIEW", got.Decision)
-		assert.Equal(t, "rule_evaluation_error", got.Reason)
-		assert.Equal(t, []string{ruleID}, got.MatchedRuleIDs)
-		assert.Empty(t, got.ReservationIDs)
+		assert.True(t, got.GetDenied())
+		assert.Equal(t, "REVIEW", got.GetDecision())
+		assert.Equal(t, "rule_evaluation_error", got.GetReason())
+		assert.Equal(t, []string{ruleID}, got.GetMatchedRuleIds())
+		assert.Empty(t, got.GetReservationIds())
 		assert.True(t, limitUsage(t, db, limitID).IsZero())
 		assert.Zero(t, reservationRowCount(t, db, transactionID))
 	})
@@ -259,12 +253,14 @@ func TestIntegration_Reservation_RulesGuardLimitCapacity(t *testing.T) {
 			`account.type == "deposit"`, "DENY", accountID)
 
 		transactionID := uuid.New()
-		got, _ := postRulesReservationFor(t, transactionID, accountID, "100.00", true)
+		t.Cleanup(func() { releaseRulesTransaction(t, transactionID) })
 
-		assert.False(t, got.Denied)
-		assert.Equal(t, "ALLOW", got.Decision)
-		assert.Empty(t, got.MatchedRuleIDs)
-		require.Len(t, got.ReservationIDs, 1)
+		got := reserveRulesFor(t, transactionID, accountID, "100.00", true)
+
+		assert.False(t, got.GetDenied())
+		assert.Equal(t, "ALLOW", got.GetDecision())
+		assert.Empty(t, got.GetMatchedRuleIds())
+		require.Len(t, got.GetReservationIds(), 1)
 		assert.Equal(t, 1, reservationRowCount(t, db, transactionID))
 		assert.True(t, limitUsage(t, db, limitID).IsPositive())
 	})
@@ -297,12 +293,14 @@ func TestIntegration_Reservation_NoMatchDefaultDoesNotRefuse(t *testing.T) {
 		`metadata["channel"] == "branch"`, "DENY", accountID)
 
 	transactionID := uuid.New()
-	got, _ := postRulesReservationFor(t, transactionID, accountID, "100.00", false)
+	t.Cleanup(func() { releaseRulesTransaction(t, transactionID) })
 
-	assert.False(t, got.Denied)
-	assert.Equal(t, "ALLOW", got.Decision)
-	assert.Empty(t, got.MatchedRuleIDs)
-	require.Len(t, got.ReservationIDs, 1)
+	got := reserveRulesFor(t, transactionID, accountID, "100.00", false)
+
+	assert.False(t, got.GetDenied())
+	assert.Equal(t, "ALLOW", got.GetDecision())
+	assert.Empty(t, got.GetMatchedRuleIds())
+	require.Len(t, got.GetReservationIds(), 1)
 	assert.Equal(t, 1, reservationRowCount(t, db, transactionID))
 	assert.True(t, limitUsage(t, db, limitID).IsPositive())
 }

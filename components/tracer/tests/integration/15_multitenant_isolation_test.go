@@ -284,7 +284,7 @@ func seedIsolationRule(t *testing.T, spec tenantPGSpec, ruleName string) error {
 //
 // Cache readiness: ActivateRuleService.Execute now calls
 // RuleCacheWriter.MarkReady(ctx) after UpsertRule, so the priming step
-// (primeTenantCache → POST /v1/rules + /v1/rules/{id}/activate) is enough
+// (primeTenantCache → POST /v1/rules + /v1/rules/{rule_id}/activate) is enough
 // to open the per-tenant readiness gate for POST /v1/validations on a
 // freshly-spawned tenant. The test runs end-to-end without skips.
 func TestMultiTenant_ValidationWrites_IsolatedBetweenTenants(t *testing.T) {

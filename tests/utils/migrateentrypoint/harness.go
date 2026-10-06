@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -64,8 +65,7 @@ func RunEntrypoint(t *testing.T, entrypoint string, env map[string]string) []Inv
 	binDir := t.TempDir()
 
 	stubPath := filepath.Join(binDir, "migrate")
-	require.NoError(t, os.WriteFile(stubPath, []byte(StubMigrate), 0o755),
-		"failed to write stub migrate")
+	require.NoError(t, writeStub(stubPath), "failed to write stub migrate")
 
 	capturePath := filepath.Join(t.TempDir(), "capture.txt")
 
@@ -85,6 +85,15 @@ func RunEntrypoint(t *testing.T, entrypoint string, env map[string]string) []Inv
 	require.NotContains(t, string(out), "p@ss", "entrypoint output must not echo passwords")
 
 	return readCapture(t, capturePath)
+}
+
+// writeStub writes the stub under ForkLock so no child forked by a parallel test inherits
+// its write descriptor: exec of a file open for writing fails with ETXTBSY (golang/go#22315).
+func writeStub(path string) error {
+	syscall.ForkLock.RLock()
+	defer syscall.ForkLock.RUnlock()
+
+	return os.WriteFile(path, []byte(StubMigrate), 0o755)
 }
 
 // envSlice renders a map into KEY=VALUE entries for exec.Cmd.Env.

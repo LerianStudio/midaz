@@ -28,6 +28,9 @@ services:
       - .env
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
+      # Reservation gRPC seam. The container side is 4021, the TRACER_GRPC_PORT
+      # default; TRACER_GRPC_HOST_PORT picks the host side.
+      - ${TRACER_GRPC_HOST_PORT:-4021}:4021
     # Note: healthcheck uses wget which is included in the Alpine dev image.
     # Production (Kubernetes) uses liveness/readiness probes instead.
     # The path is /readyz (canonical Lerian readiness probe — not /health,

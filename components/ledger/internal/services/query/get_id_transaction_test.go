@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -36,6 +37,7 @@ func TestGetTransactionByID(t *testing.T) {
 	}
 
 	testMetadata := map[string]any{"key": "value", "env": "test"}
+	legacyMetadata := map[string]any{"feeExemption": bson.D{{Key: "exempt", Value: true}}}
 
 	tests := []struct {
 		name            string
@@ -71,6 +73,18 @@ func TestGetTransactionByID(t *testing.T) {
 			expectedErr:     nil,
 			expectNilResult: false,
 			expectedMeta:    testMetadata,
+		},
+		{
+			name: "legacy object feeExemption stays as stored, which /v1 renders",
+			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, transactionID).
+					Return(newBaseTran(), nil)
+				mockMetaRepo.EXPECT().
+					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
+					Return(&mongodb.Metadata{EntityID: transactionID.String(), Data: legacyMetadata}, nil)
+			},
+			expectedMeta: legacyMetadata,
 		},
 		{
 			name: "transaction not found",
