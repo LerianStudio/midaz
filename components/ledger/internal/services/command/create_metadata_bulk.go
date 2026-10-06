@@ -63,7 +63,10 @@ func (e MetadataEntry) Validate() error {
 // For single entries per collection, it uses Create directly (optimization).
 // On bulk failure, it falls back to individual Create calls with graceful degradation.
 //
-// Returns (nil, nil) if all entries were created successfully (or were empty).
+// An entry with nil or empty Data carries nothing to persist: no document is written
+// for it and it is never reported as not confirmed.
+//
+// Returns (nil, nil) if all entries were created successfully (or carried no data).
 // Otherwise returns the entries whose write was not confirmed together with an
 // aggregate error. An invalid entry aborts the batch before any write, so every
 // entry carrying data is returned as not confirmed.
@@ -77,8 +80,8 @@ func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEnt
 	validEntries := make([]MetadataEntry, 0, len(entries))
 
 	for i, entry := range entries {
-		// Skip entries with nil Data
-		if entry.Data == nil {
+		// Skip entries with nothing to persist
+		if len(entry.Data) == 0 {
 			continue
 		}
 
@@ -344,7 +347,8 @@ func (uc *UseCase) processMetadataAndEventsBulk(
 // or not the transaction was inserted by this batch, so a redelivery can repair
 // metadata that a previous attempt did not persist. The writes are insert-if-absent,
 // so metadata already present is left untouched. Each entry carries the ID of the
-// transaction that owns it.
+// transaction that owns it. Nil or empty metadata carries nothing to persist and yields
+// no entry, so a transaction without metadata is confirmed trivially.
 func collectMetadataFromPayloads(
 	payloads []transaction.TransactionProcessingPayload,
 ) []MetadataEntry {
@@ -361,7 +365,7 @@ func collectMetadataFromPayloads(
 
 		tx := payload.Transaction
 
-		if tx.Metadata != nil {
+		if len(tx.Metadata) > 0 {
 			entries = append(entries, MetadataEntry{
 				EntityID:      tx.ID,
 				Collection:    transactionTypeName,
@@ -371,7 +375,7 @@ func collectMetadataFromPayloads(
 		}
 
 		for _, op := range tx.Operations {
-			if op == nil || op.Metadata == nil {
+			if op == nil || len(op.Metadata) == 0 {
 				continue
 			}
 
@@ -387,12 +391,12 @@ func collectMetadataFromPayloads(
 	return entries
 }
 
-// entriesWithData returns the entries that carry metadata to persist.
+// entriesWithData returns the entries that carry metadata to persist (non-empty Data).
 func entriesWithData(entries []MetadataEntry) []MetadataEntry {
 	withData := make([]MetadataEntry, 0, len(entries))
 
 	for _, entry := range entries {
-		if entry.Data != nil {
+		if len(entry.Data) > 0 {
 			withData = append(withData, entry)
 		}
 	}

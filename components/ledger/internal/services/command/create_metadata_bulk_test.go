@@ -476,16 +476,39 @@ func TestCreateMetadataBulk_InvalidEntryInMixedBatch_ReturnsEveryDataEntry(t *te
 
 	validEntry := MetadataEntry{EntityID: uuid.New().String(), Collection: "Transaction", Data: map[string]any{"a": 1}}
 	nilDataEntry := MetadataEntry{EntityID: uuid.New().String(), Collection: "Transaction", Data: nil}
+	emptyDataEntry := MetadataEntry{EntityID: uuid.New().String(), Collection: "Operation", Data: map[string]any{}}
 	invalidEntry := MetadataEntry{EntityID: "not-a-valid-uuid", Collection: "Operation", Data: map[string]any{"b": 2}}
 
 	// Validation aborts before any write, so the repository is never called.
-	failed, err := uc.createMetadataBulk(ctx, []MetadataEntry{validEntry, nilDataEntry, invalidEntry})
+	failed, err := uc.createMetadataBulk(ctx, []MetadataEntry{validEntry, nilDataEntry, emptyDataEntry, invalidEntry})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid metadata entry at index 2")
+	assert.Contains(t, err.Error(), "invalid metadata entry at index 3")
 	assert.Contains(t, err.Error(), "invalid entity ID format")
 	assert.Equal(t, []MetadataEntry{validEntry, invalidEntry}, failed,
-		"every entry carrying data is unconfirmed, not only the invalid one")
+		"every entry carrying data is unconfirmed, not only the invalid one; nil and empty data carry nothing")
+}
+
+func TestCreateMetadataBulk_EmptyMapData_NothingToPersist(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// No expectation is set: any repository call fails the test.
+	uc := &UseCase{
+		TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}
+
+	entries := []MetadataEntry{
+		{EntityID: uuid.New().String(), Collection: "Transaction", Data: map[string]any{}},
+		{EntityID: uuid.New().String(), Collection: "Operation", Data: map[string]any{}},
+	}
+
+	failed, err := uc.createMetadataBulk(context.Background(), entries)
+
+	require.NoError(t, err)
+	assert.Nil(t, failed)
 }
 
 func TestCreateMetadataBulk_FallbackAllFail_ReturnsAllEntries(t *testing.T) {
@@ -983,6 +1006,77 @@ func TestCollectMetadataFromPayloads_SkipsNilMetadata(t *testing.T) {
 	assert.Equal(t, op1ID, entries[0].EntityID)
 }
 
+// TestCollectMetadataFromPayloads_EmptyMetadataYieldsNoEntries tests that empty and nil
+// metadata maps carry nothing to persist.
+func TestCollectMetadataFromPayloads_EmptyMetadataYieldsNoEntries(t *testing.T) {
+	t.Parallel()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       uuid.New().String(),
+				Metadata: map[string]any{},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), Metadata: map[string]any{}},
+					{ID: uuid.New().String(), Metadata: nil},
+				},
+			},
+		},
+	}
+
+	assert.Empty(t, collectMetadataFromPayloads(payloads))
+}
+
+// TestCollectMetadataFromPayloads_MixedEmptyAndRealMetadata tests that in a batch where one
+// transaction has an empty metadata map and another has real metadata, only the real one is
+// collected.
+func TestCollectMetadataFromPayloads_MixedEmptyAndRealMetadata(t *testing.T) {
+	t.Parallel()
+
+	emptyTxID := uuid.New().String()
+	realTxID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{Transaction: &transaction.Transaction{ID: emptyTxID, Metadata: map[string]any{}}},
+		{Transaction: &transaction.Transaction{ID: realTxID, Metadata: map[string]any{"k": "v"}}},
+	}
+
+	entries := collectMetadataFromPayloads(payloads)
+
+	require.Len(t, entries, 1)
+	assert.Equal(t, realTxID, entries[0].EntityID)
+	assert.Equal(t, realTxID, entries[0].TransactionID)
+}
+
+// TestCollectMetadataFromPayloads_EmptyTxMetadataKeepsOperationMetadata tests that an empty
+// transaction metadata map does not drop the metadata of that transaction's operations.
+func TestCollectMetadataFromPayloads_EmptyTxMetadataKeepsOperationMetadata(t *testing.T) {
+	t.Parallel()
+
+	txID := uuid.New().String()
+	opID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       txID,
+				Metadata: map[string]any{},
+				Operations: []*operation.Operation{
+					{ID: opID, Metadata: map[string]any{"leg": "debit"}},
+					{ID: uuid.New().String(), Metadata: map[string]any{}},
+				},
+			},
+		},
+	}
+
+	entries := collectMetadataFromPayloads(payloads)
+
+	require.Len(t, entries, 1)
+	assert.Equal(t, opID, entries[0].EntityID)
+	assert.Equal(t, constant.EntityOperation, entries[0].Collection)
+	assert.Equal(t, txID, entries[0].TransactionID)
+}
+
 // filterEntriesByCollection is a test helper to filter metadata entries by collection.
 func filterEntriesByCollection(entries []MetadataEntry, collection string) []MetadataEntry {
 	var result []MetadataEntry
@@ -1298,6 +1392,38 @@ func TestProcessMetadataAndEventsBulk_WarnsPerTransactionWithoutMetadataContent(
 	for _, secret := range []string{"secret_tx_key", "secret_tx_value", "secret_op_key", "secret_op_value", "secret_tx2_key", "secret_tx2_value"} {
 		assert.NotContains(t, all, secret)
 	}
+}
+
+// TestProcessMetadataAndEventsBulk_EmptyMetadataConfirmedWithoutWrites tests that a payload
+// whose transaction and operation metadata are empty or nil is confirmed without touching
+// the repository.
+func TestProcessMetadataAndEventsBulk_EmptyMetadataConfirmedWithoutWrites(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// No expectation is set: any repository call fails the test.
+	uc := &UseCase{
+		TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       uuid.New().String(),
+				Metadata: map[string]any{},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), Metadata: map[string]any{}},
+					{ID: uuid.New().String(), Metadata: nil},
+				},
+			},
+		},
+	}
+
+	failedTxIDs := uc.processMetadataAndEventsBulk(context.Background(), nil, payloads)
+
+	assert.Empty(t, failedTxIDs)
 }
 
 // TestProcessMetadataAndEventsBulk_EmptyPayloads tests that empty payloads
