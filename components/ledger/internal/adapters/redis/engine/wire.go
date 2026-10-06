@@ -182,6 +182,7 @@ type wirePosting struct {
 	Amount          string                   `json:"amount"`
 	DrawPolicy      accounting.DrawPolicy    `json:"drawPolicy"`
 	OverdraftAmount string                   `json:"overdraftAmount"`
+	RepayForbidden  bool                     `json:"repayForbidden,omitempty"`
 	DeferShortfall  bool                     `json:"deferShortfall,omitempty"`
 	FundedByRef     string                   `json:"fundedByRef,omitempty"`
 	DebtRoute       *accounting.FeeDebtRoute `json:"debtRoute,omitempty"`
@@ -618,6 +619,10 @@ func preparePostings(postings []accounting.Posting, balances map[string]accounti
 			return nil, fmt.Errorf("invalid accounting posting")
 		}
 
+		if posting.RepayForbidden && (posting.Type != accounting.PostingCredit || !posting.OverdraftAmount.IsZero()) {
+			return nil, fmt.Errorf("repay forbidden outside an uncapped credit")
+		}
+
 		amount, err := boundedDecimal(posting.Amount, maxBytes)
 		if err != nil {
 			return nil, err
@@ -629,7 +634,7 @@ func preparePostings(postings []accounting.Posting, balances map[string]accounti
 		}
 
 		refs[posting.Ref] = true
-		wire := wirePosting{Ref: posting.Ref, BalanceRef: posting.BalanceRef, Type: posting.Type, Amount: amount, DrawPolicy: posting.DrawPolicy, OverdraftAmount: overdraftAmount}
+		wire := wirePosting{Ref: posting.Ref, BalanceRef: posting.BalanceRef, Type: posting.Type, Amount: amount, DrawPolicy: posting.DrawPolicy, OverdraftAmount: overdraftAmount, RepayForbidden: posting.RepayForbidden}
 
 		if err := prepareFeeDebtPostingFields(posting, &wire, maxBytes); err != nil {
 			return nil, err
