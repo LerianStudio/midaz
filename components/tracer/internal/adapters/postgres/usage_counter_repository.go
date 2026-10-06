@@ -477,9 +477,6 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 			libLog.String("limit_id", limitID.String()),
 			libLog.String("scope_key", scopeKey),
 			libLog.String("period_key", periodKey),
-			libLog.String("consumed", consumed.String()),
-			libLog.String("amount", amount.String()),
-			libLog.String("max_amount", maxAmount.String()),
 		).Log(ctx, libLog.LevelDebug, "Limit exceeded (WHERE guard)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
@@ -492,7 +489,6 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 		libLog.String("limit_id", limitID.String()),
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
-		libLog.String("consumed", consumed.String()),
 	).Log(ctx, libLog.LevelDebug, "Upsert and increment completed")
 
 	return consumed, nil
