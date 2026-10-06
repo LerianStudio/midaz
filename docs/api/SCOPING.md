@@ -415,6 +415,9 @@ request, each through its own tenant manager, the same way the holder reader on 
 Accepted residuals:
 
 - The concurrency window between the holder-delete check and the holder delete is unchanged.
+- An instrument whose create verified the account before the row was deleted and was written after
+  the cascade read its live instruments is not cascaded; once the row is gone, an instrument create
+  refuses the account.
 - References that were already dangling before this behavior existed are not backfilled.
 - Billing packages have no PATCH for an alias, so a billing package disabled by a cleared leg must
   be recreated.
