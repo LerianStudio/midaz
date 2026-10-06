@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -757,7 +758,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0414",
 			expectedTitle:   "Validation Invalid Transaction Type",
 			expectedMessage: "",
-			expectedDetail:  "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
+			expectedDetail:  "scheme (or transactionType) is required and " + scheme.FormatHint,
 		},
 		{
 			name: "missing amount (zero value)",

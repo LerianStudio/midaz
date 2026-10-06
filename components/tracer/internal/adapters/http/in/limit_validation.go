@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // Validation constants define the limits for limit input fields.
@@ -178,7 +179,7 @@ func normalizeLimitScopes(scopes []model.Scope) error {
 		return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityLimit)
 	}
 
-	return limitFieldValidationErr("scope at index %d: %s %s", index, field, schemeFormatHint)
+	return limitFieldValidationErr("scope at index %d: %s %s", index, field, scheme.FormatHint)
 }
 
 // IsEmpty returns true if no fields are set for update.
@@ -594,7 +595,7 @@ func formatLimitScopeFieldError(fieldError validator.FieldError) error {
 	case "oneof":
 		msg = fmt.Sprintf("%s must be one of [%s]", fieldName, fieldError.Param())
 	case "transactiontype":
-		msg = fmt.Sprintf("%s %s", fieldName, schemeFormatHint)
+		msg = fmt.Sprintf("%s %s", fieldName, scheme.FormatHint)
 	case "max":
 		msg = fmt.Sprintf("%s must be a maximum of %s characters", fieldName, fieldError.Param())
 	default:

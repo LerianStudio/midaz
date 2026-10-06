@@ -61,8 +61,8 @@ func newRuleScopePayloads(scopes []model.Scope) []RuleScopePayload {
 			p.MerchantID = &s
 		}
 
-		if value := scopeScheme(scope); value != nil {
-			transactionType, scheme := *value, *value
+		if scope.TransactionType != nil {
+			transactionType, scheme := scope.TransactionType.String(), scope.TransactionType.String()
 			p.TransactionType = &transactionType
 			p.Scheme = &scheme
 		}
@@ -76,21 +76,4 @@ func newRuleScopePayloads(scopes []model.Scope) []RuleScopePayload {
 	}
 
 	return payloads
-}
-
-// scopeScheme returns the scope's payment scheme, read from TransactionType
-// and falling back to Scheme, so rows that hold only one of the two still put
-// the same value on both wire fields. It returns nil when neither is set.
-func scopeScheme(scope model.Scope) *string {
-	if scope.TransactionType != nil {
-		s := scope.TransactionType.String()
-		return &s
-	}
-
-	if scope.Scheme != nil {
-		s := *scope.Scheme
-		return &s
-	}
-
-	return nil
 }

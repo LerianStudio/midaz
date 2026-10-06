@@ -136,7 +136,7 @@ func (c *CreateRuleInput) Validate() error {
 		return formatValidationError(err)
 	}
 
-	return normalizeRuleScopes(c.Scopes)
+	return nil
 }
 
 // UpdateRuleInput represents the input for updating an existing rule.
@@ -161,27 +161,7 @@ func (u *UpdateRuleInput) Validate() error {
 		return formatValidationError(err)
 	}
 
-	if u.Scopes == nil {
-		return nil
-	}
-
-	return normalizeRuleScopes(*u.Scopes)
-}
-
-// normalizeRuleScopes canonicalizes the scheme of every rule scope in place.
-// A scheme that disagrees with its deprecated alias transactionType is
-// ErrValidationSchemeAliasConflict; an invalid one is ErrRuleInvalidScope.
-func normalizeRuleScopes(scopes []model.Scope) error {
-	_, _, err := normalizeScopeSchemes(scopes)
-	if err == nil {
-		return nil
-	}
-
-	if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
-		return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityRule)
-	}
-
-	return pkg.ValidateBusinessError(constant.ErrRuleInvalidScope, constant.EntityRule)
+	return nil
 }
 
 // IsEmpty returns true if no fields are set for update.

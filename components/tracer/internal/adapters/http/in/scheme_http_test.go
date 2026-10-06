@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // overlongScheme is one character past the scheme maximum.
@@ -91,74 +92,6 @@ func schemeScope(transactionType, scheme *string) model.Scope {
 	return scope
 }
 
-func TestCreateRuleInput_Validate_NormalizesScopeScheme(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		scope    model.Scope
-		want     string
-		wantCode string
-	}{
-		{name: "lowercase scheme", scope: schemeScope(nil, testutil.StringPtr("pix")), want: "PIX"},
-		{name: "padded transaction type", scope: schemeScope(testutil.StringPtr(" pix "), nil), want: "PIX"},
-		{name: "open scheme", scope: schemeScope(nil, testutil.StringPtr("BOLETO")), want: "BOLETO"},
-		{name: "matching alias", scope: schemeScope(testutil.StringPtr("pix"), testutil.StringPtr("PIX")), want: "PIX"},
-		{name: "conflicting alias", scope: schemeScope(testutil.StringPtr("PIX"), testutil.StringPtr("CARD")), wantCode: constant.ErrValidationSchemeAliasConflict.Error()},
-		{name: "invalid scheme", scope: schemeScope(nil, testutil.StringPtr("bad value!")), wantCode: constant.ErrRuleInvalidScope.Error()},
-		{name: "invalid transaction type", scope: schemeScope(testutil.StringPtr("bad value!"), nil), wantCode: constant.ErrRuleInvalidScope.Error()},
-		{name: "overlong scheme", scope: schemeScope(nil, &overlongScheme), wantCode: constant.ErrRuleInvalidScope.Error()},
-		{name: "empty scheme", scope: schemeScope(nil, testutil.StringPtr("")), wantCode: constant.ErrRuleInvalidScope.Error()},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			input := CreateRuleInput{
-				Name:       "Scheme Rule",
-				Expression: "amount > 0",
-				Action:     model.DecisionDeny,
-				Scopes:     []model.Scope{tt.scope},
-			}
-
-			err := input.Validate()
-			if tt.wantCode != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantCode)
-
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotNil(t, input.Scopes[0].TransactionType)
-			require.NotNil(t, input.Scopes[0].Scheme)
-			assert.Equal(t, model.TransactionType(tt.want), *input.Scopes[0].TransactionType)
-			assert.Equal(t, tt.want, *input.Scopes[0].Scheme)
-		})
-	}
-}
-
-func TestUpdateRuleInput_Validate_NormalizesScopeScheme(t *testing.T) {
-	t.Parallel()
-
-	scopes := []model.Scope{schemeScope(nil, testutil.StringPtr("pix"))}
-	input := UpdateRuleInput{Scopes: &scopes}
-
-	require.NoError(t, input.Validate())
-	require.NotNil(t, (*input.Scopes)[0].TransactionType)
-	assert.Equal(t, model.TransactionTypePix, *(*input.Scopes)[0].TransactionType)
-	require.NotNil(t, (*input.Scopes)[0].Scheme)
-	assert.Equal(t, "PIX", *(*input.Scopes)[0].Scheme)
-
-	conflicting := []model.Scope{schemeScope(testutil.StringPtr("PIX"), testutil.StringPtr("CARD"))}
-	conflictInput := UpdateRuleInput{Scopes: &conflicting}
-
-	err := conflictInput.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), constant.ErrValidationSchemeAliasConflict.Error())
-}
-
 func TestCreateLimitInput_Validate_NormalizesScopeScheme(t *testing.T) {
 	t.Parallel()
 
@@ -176,19 +109,19 @@ func TestCreateLimitInput_Validate_NormalizesScopeScheme(t *testing.T) {
 			name:        "invalid transaction type",
 			scope:       schemeScope(testutil.StringPtr("bad value!"), nil),
 			wantCode:    constant.ErrMissingFieldsInRequest.Error(),
-			wantMessage: "scope at index 0: transactionType " + schemeFormatHint,
+			wantMessage: "scope at index 0: transactionType " + scheme.FormatHint,
 		},
 		{
 			name:        "invalid scheme",
 			scope:       schemeScope(nil, testutil.StringPtr("bad value!")),
 			wantCode:    constant.ErrMissingFieldsInRequest.Error(),
-			wantMessage: "scope at index 0: scheme " + schemeFormatHint,
+			wantMessage: "scope at index 0: scheme " + scheme.FormatHint,
 		},
 		{
 			name:        "overlong scheme",
 			scope:       schemeScope(nil, &overlongScheme),
 			wantCode:    constant.ErrMissingFieldsInRequest.Error(),
-			wantMessage: "scope at index 0: scheme " + schemeFormatHint,
+			wantMessage: "scope at index 0: scheme " + scheme.FormatHint,
 		},
 	}
 
@@ -272,81 +205,68 @@ func doHumaRequest(t *testing.T, app *fiber.App, method, target string, body []b
 	return resp.StatusCode, got
 }
 
-// echoScopesRuleService returns the created rule with the scopes the handler
-// handed the service, standing in for the stored rule.
-type echoScopesRuleService struct {
+// domainRuleService records the input like tenantSpyService and builds the
+// rule with model.NewRule, standing in for the create command so the response
+// carries the scopes the domain would store.
+type domainRuleService struct {
 	*tenantSpyService
 }
 
-func (s *echoScopesRuleService) CreateRule(ctx context.Context, input *command.CreateRuleInput) (*model.Rule, error) {
-	rule, err := s.tenantSpyService.CreateRule(ctx, input)
-	if err != nil {
+func (s *domainRuleService) CreateRule(ctx context.Context, input *command.CreateRuleInput) (*model.Rule, error) {
+	if _, err := s.tenantSpyService.CreateRule(ctx, input); err != nil {
 		return nil, err
 	}
 
-	echoed := *rule
-	echoed.Scopes = input.Scopes
-
-	return &echoed, nil
+	return model.NewRule(input.Name, input.Expression, input.Action, input.Scopes, nil, testutil.FixedTime())
 }
 
-func TestHuma_CreateRule_SchemeScopeIsNormalized(t *testing.T) {
-	// NOT parallel: buildHumaRuleApp mutates process-global huma state.
-	svc := &tenantSpyService{createResult: &model.Rule{
-		ID:         testutil.MustDeterministicUUID(1),
-		Name:       "Pix Rule",
-		Expression: `scheme == "PIX"`,
-		Action:     model.DecisionDeny,
-		Status:     model.RuleStatusDraft,
-		CreatedAt:  testutil.FixedTime(),
-		UpdatedAt:  testutil.FixedTime(),
-	}}
-	app := buildHumaRuleApp(t, &echoScopesRuleService{tenantSpyService: svc}, "tenant-alpha")
+func TestHuma_CreateRule_SchemeScope(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		scope         map[string]any
+		wantStatus    int
+		wantCode      string
+		wantScheme    string
+		serviceCalled bool
+	}{
+		{name: "lowercase scheme is stored canonical in both fields", scope: map[string]any{"scheme": "pix"}, wantStatus: http.StatusCreated, wantScheme: "PIX", serviceCalled: true},
+		{name: "malformed scheme is a scope field error", scope: map[string]any{"scheme": "pi x"}, wantStatus: http.StatusBadRequest, wantCode: constant.ErrRuleInvalidScope.Error()},
+		{name: "malformed transactionType is the same scope field error", scope: map[string]any{"transactionType": "pi x"}, wantStatus: http.StatusBadRequest, wantCode: constant.ErrRuleInvalidScope.Error()},
+		{name: "empty scheme is an invalid scope", scope: map[string]any{"scheme": ""}, wantStatus: http.StatusBadRequest, wantCode: constant.ErrRuleInvalidScope.Error()},
+		{name: "conflicting alias", scope: map[string]any{"scheme": "CARD", "transactionType": "PIX"}, wantStatus: http.StatusBadRequest, wantCode: constant.ErrValidationSchemeAliasConflict.Error(), serviceCalled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// NOT parallel: buildHumaRuleApp mutates process-global huma state.
+			svc := &tenantSpyService{createResult: &model.Rule{ID: testutil.MustDeterministicUUID(1)}}
+			app := buildHumaRuleApp(t, &domainRuleService{tenantSpyService: svc}, "tenant-alpha")
 
-	body, err := json.Marshal(map[string]any{
-		"name":       "Pix Rule",
-		"expression": `scheme == "PIX"`,
-		"action":     "DENY",
-		"scopes":     []map[string]any{{"scheme": "pix"}},
-	})
-	require.NoError(t, err)
+			body, err := json.Marshal(map[string]any{
+				"name":       "Pix Rule",
+				"expression": `scheme == "PIX"`,
+				"action":     "DENY",
+				"scopes":     []map[string]any{tc.scope},
+			})
+			require.NoError(t, err)
 
-	status, got := doHumaRequest(t, app, http.MethodPost, "/v1/rules", body)
-	require.Equal(t, http.StatusCreated, status, "body: %v", got)
+			status, got := doHumaRequest(t, app, http.MethodPost, "/v1/rules", body)
+			require.Equal(t, tc.wantStatus, status, "body: %v", got)
+			assert.Equal(t, tc.serviceCalled, svc.createInput != nil, "service reached")
 
-	require.NotNil(t, svc.createInput)
-	require.Len(t, svc.createInput.Scopes, 1)
-	require.NotNil(t, svc.createInput.Scopes[0].TransactionType)
-	assert.Equal(t, model.TransactionTypePix, *svc.createInput.Scopes[0].TransactionType)
-	require.NotNil(t, svc.createInput.Scopes[0].Scheme)
-	assert.Equal(t, "PIX", *svc.createInput.Scopes[0].Scheme)
+			if tc.wantCode != "" {
+				assert.Equal(t, tc.wantCode, got["code"])
+				return
+			}
 
-	scopes, ok := got["scopes"].([]any)
-	require.True(t, ok, "scopes must be an array: %v", got["scopes"])
-	require.Len(t, scopes, 1)
+			scopes, ok := got["scopes"].([]any)
+			require.True(t, ok, "scopes must be an array: %v", got["scopes"])
+			require.Len(t, scopes, 1)
 
-	scope, ok := scopes[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "PIX", scope["scheme"])
-	assert.Equal(t, "PIX", scope["transactionType"])
-}
-
-func TestHuma_CreateRule_SchemeAliasConflict(t *testing.T) {
-	svc := &tenantSpyService{createResult: &model.Rule{ID: testutil.MustDeterministicUUID(1)}}
-	app := buildHumaRuleApp(t, svc, "tenant-alpha")
-
-	body, err := json.Marshal(map[string]any{
-		"name":       "Conflict Rule",
-		"expression": "amount > 0",
-		"action":     "DENY",
-		"scopes":     []map[string]any{{"scheme": "CARD", "transactionType": "PIX"}},
-	})
-	require.NoError(t, err)
-
-	status, got := doHumaRequest(t, app, http.MethodPost, "/v1/rules", body)
-	assert.Equal(t, http.StatusBadRequest, status)
-	assert.Equal(t, constant.ErrValidationSchemeAliasConflict.Error(), got["code"])
-	assert.Nil(t, svc.createInput, "service must not be reached")
+			scope, ok := scopes[0].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, tc.wantScheme, scope["scheme"])
+			assert.Equal(t, tc.wantScheme, scope["transactionType"])
+		})
+	}
 }
 
 func TestHuma_CreateLimit_SchemeScopeIsNormalized(t *testing.T) {

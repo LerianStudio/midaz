@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // Valid UUIDs for limit validation testing
@@ -367,7 +368,7 @@ func TestLimitScopeInput_TransactionTypeValidation(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "transactionType "+schemeFormatHint)
+		assert.Contains(t, err.Error(), "transactionType "+scheme.FormatHint)
 	})
 }
 

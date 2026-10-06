@@ -12,10 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
-// schemeFormatHint is the shape a scheme must take, worded as the invalid
-// transaction type error words it.
-const schemeFormatHint = "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing"
-
 // errInvalidSchemeFilter reports a scheme query filter that is not a valid
 // scheme; each list endpoint maps it to its own invalid-filter error.
 var errInvalidSchemeFilter = errors.New("invalid scheme filter")
@@ -58,9 +54,12 @@ func resolveSchemeFilter(alias, primary *string) (*model.TransactionType, error)
 // constant.ErrValidationSchemeAliasConflict or constant.ErrLimitInvalidScope.
 func normalizeScopeSchemes(scopes []model.Scope) (int, string, error) {
 	for i := range scopes {
-		if err := model.NormalizeScopes(scopes[i : i+1]); err != nil {
+		normalized, err := model.NormalizeScope(scopes[i])
+		if err != nil {
 			return i, invalidSchemeField(scopes[i]), err
 		}
+
+		scopes[i] = normalized
 	}
 
 	return -1, "", nil

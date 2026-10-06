@@ -5,7 +5,6 @@
 package in
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -178,12 +177,10 @@ func (l *ListAuditEventsInput) Validate() error {
 		return formatValidationError(err)
 	}
 
+	// The transactiontype tags above already rejected an invalid value, so the
+	// only failure left is the alias conflict.
 	if _, err := resolveSchemeFilter(l.TransactionType, l.Scheme); err != nil {
-		if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
-			return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityAuditEvent)
-		}
-
-		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityAuditEvent)
+		return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityAuditEvent)
 	}
 
 	// Validate date formats if provided (TRC-0020)

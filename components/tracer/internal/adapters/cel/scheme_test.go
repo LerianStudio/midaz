@@ -73,7 +73,6 @@ func TestBuildActivation_BindsSchemeToTransactionType(t *testing.T) {
 		want            string
 	}{
 		{name: "transaction type only", transactionType: model.TransactionTypePix, want: "PIX"},
-		{name: "scheme only", scheme: "BOLETO", want: "BOLETO"},
 		{name: "both", transactionType: model.TransactionTypeCard, scheme: "CARD", want: "CARD"},
 		{name: "neither", want: ""},
 	}

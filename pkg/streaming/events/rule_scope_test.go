@@ -197,16 +197,14 @@ func TestRuleScopePayload_JSONShape(t *testing.T) {
 	assert.Lenf(t, scope, 7, "expected 7 scope keys, got %d (drift?)", len(scope))
 }
 
-// TestNewRuleScopePayloads_SchemeMirrorsTransactionType proves scheme and
-// transactionType always carry the same value on the wire, whichever of the
-// two the stored scope holds (rows written before scheme existed hold only
-// transactionType), and that a scope with neither omits scheme.
+// TestNewRuleScopePayloads_SchemeMirrorsTransactionType proves scheme mirrors
+// the stored transactionType on the wire, and that a scope without one omits
+// scheme.
 func TestNewRuleScopePayloads_SchemeMirrorsTransactionType(t *testing.T) {
 	t.Parallel()
 
 	card := model.TransactionTypeCard
 	boleto := model.TransactionType("BOLETO")
-	schemeOnly := "CRYPTO"
 	pix := model.TransactionTypePix
 	pixScheme := "PIX"
 
@@ -217,7 +215,6 @@ func TestNewRuleScopePayloads_SchemeMirrorsTransactionType(t *testing.T) {
 	}{
 		{name: "transactionType only derives scheme", scope: model.Scope{TransactionType: &card}, wantValue: ptrTo("CARD")},
 		{name: "free-form transactionType derives scheme", scope: model.Scope{TransactionType: &boleto}, wantValue: ptrTo("BOLETO")},
-		{name: "scheme only derives transactionType", scope: model.Scope{Scheme: &schemeOnly}, wantValue: ptrTo("CRYPTO")},
 		{name: "both set carry the same value", scope: model.Scope{TransactionType: &pix, Scheme: &pixScheme}, wantValue: ptrTo("PIX")},
 		{name: "neither set leaves both unset", scope: model.Scope{SubType: ptrTo("purchase")}, wantValue: nil},
 	}

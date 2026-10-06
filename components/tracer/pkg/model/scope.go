@@ -164,28 +164,20 @@ func validateScopeScheme(s Scope, invalidErr error) error {
 	return nil
 }
 
-// NormalizeScopes resolves the scheme/transactionType alias of every scope:
-// both are trimmed and upper-cased, and on success both carry the same value
-// in fresh pointers (the caller's pointed-to values are never written).
-// Returns ErrValidationSchemeAliasConflict when the two differ and
-// ErrLimitInvalidScope when a present value is not a valid scheme. On error
-// scopes is left untouched. Emptiness of a scope is not checked here.
-func NormalizeScopes(scopes []Scope) error {
-	normalized := make([]Scope, len(scopes))
+// NormalizeScope returns a copy of scope with its scheme/transactionType alias
+// resolved: both are trimmed and upper-cased, and on success both carry the
+// same value in fresh pointers (the caller's pointed-to values are never
+// written). Returns ErrValidationSchemeAliasConflict when the two differ and
+// ErrLimitInvalidScope when a present value is not a valid scheme. Emptiness
+// of the scope is not checked here.
+func NormalizeScope(scope Scope) (Scope, error) {
+	canonicalizeScopeScheme(&scope)
 
-	for i, scope := range scopes {
-		canonicalizeScopeScheme(&scope)
-
-		if err := validateScopeScheme(scope, constant.ErrLimitInvalidScope); err != nil {
-			return err
-		}
-
-		normalized[i] = scope
+	if err := validateScopeScheme(scope, constant.ErrLimitInvalidScope); err != nil {
+		return Scope{}, err
 	}
 
-	copy(scopes, normalized)
-
-	return nil
+	return scope, nil
 }
 
 // Scope represents a hierarchical scope for rules and limits.
@@ -220,7 +212,7 @@ type Scope struct {
 	// of A-Z, 0-9, _ or - after trimming and upper-casing.
 	// example: PIX
 	// maxLength: 50
-	Scheme *string `json:"scheme,omitempty" maxLength:"50" example:"PIX"`
+	Scheme *string `json:"scheme,omitempty" validate:"omitempty,transactiontype" maxLength:"50" example:"PIX"`
 
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
 	// example: purchase

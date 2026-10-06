@@ -181,10 +181,6 @@ func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 
 	// scheme and its deprecated name transactionType see the same canonical value
 	scheme := string(req.TransactionType)
-	if scheme == "" {
-		scheme = req.Scheme
-	}
-
 	activation["scheme"] = scheme
 	activation["transactionType"] = scheme
 

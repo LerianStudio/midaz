@@ -16,7 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-func TestNormalizeScopes_SchemeAlias_TableCases(t *testing.T) {
+func TestNormalizeScope_SchemeAlias_TableCases(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -40,40 +40,43 @@ func TestNormalizeScopes_SchemeAlias_TableCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)), TransactionType: tt.transactionType, Scheme: tt.scheme}}
+			scope := Scope{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)), TransactionType: tt.transactionType, Scheme: tt.scheme}
 
-			err := NormalizeScopes(scopes)
+			got, err := NormalizeScope(scope)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 
 			require.NoError(t, err)
+			assert.Equal(t, scope.AccountID, got.AccountID)
 
 			if tt.want == nil {
-				assert.Nil(t, scopes[0].TransactionType)
-				assert.Nil(t, scopes[0].Scheme)
+				assert.Nil(t, got.TransactionType)
+				assert.Nil(t, got.Scheme)
 
 				return
 			}
 
-			require.NotNil(t, scopes[0].TransactionType)
-			require.NotNil(t, scopes[0].Scheme)
-			assert.Equal(t, *tt.want, *scopes[0].TransactionType)
-			assert.Equal(t, string(*tt.want), *scopes[0].Scheme)
+			require.NotNil(t, got.TransactionType)
+			require.NotNil(t, got.Scheme)
+			assert.Equal(t, *tt.want, *got.TransactionType)
+			assert.Equal(t, string(*tt.want), *got.Scheme)
 		})
 	}
 }
 
-func TestNormalizeScopes_DoesNotWriteThroughCallerPointers(t *testing.T) {
+func TestNormalizeScope_DoesNotWriteThroughCallerPointers(t *testing.T) {
 	t.Parallel()
 
 	raw := " boleto "
-	scopes := []Scope{{Scheme: &raw}}
+	scope := Scope{Scheme: &raw}
 
-	require.NoError(t, NormalizeScopes(scopes))
+	got, err := NormalizeScope(scope)
+	require.NoError(t, err)
 	assert.Equal(t, " boleto ", raw)
-	assert.Equal(t, "BOLETO", *scopes[0].Scheme)
+	assert.Equal(t, " boleto ", *scope.Scheme)
+	assert.Equal(t, "BOLETO", *got.Scheme)
 }
 
 func TestScope_SchemeOnly_IsNotEmpty(t *testing.T) {

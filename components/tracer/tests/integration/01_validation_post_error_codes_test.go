@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // =============================================================================
@@ -366,7 +367,7 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 
 			assert.Equal(t, "0414", errResp.Code, "Test case: %s - Expected 0414 for invalid transactionType", tc.description)
 			assert.Equal(t, "Validation Invalid Transaction Type", errResp.Title)
-			assert.Equal(t, "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing", errResp.Detail)
+			assert.Equal(t, "scheme (or transactionType) is required and "+scheme.FormatHint, errResp.Detail)
 		})
 	}
 }
