@@ -36,22 +36,21 @@ func readMigration(t *testing.T, name string) string {
 	return string(body)
 }
 
-// normalizeSQL lowercases the text and collapses every whitespace run to one
-// space so assertions do not depend on formatting.
-func normalizeSQL(sql string) string {
-	return strings.Join(strings.Fields(strings.ToLower(sql)), " ")
-}
-
 // statementCount counts top-level statements by terminating semicolons after
 // dropping `--` comments. It does not understand dollar quoting, so it is only
 // meaningful for files that carry no PL/pgSQL body.
 func statementCount(sql string) int {
-	count := 0
+	return strings.Count(stripLineComments(sql), ";")
+}
 
-	for _, line := range strings.Split(sql, "\n") {
-		code, _, _ := strings.Cut(line, "--")
-		count += strings.Count(code, ";")
+// stripLineComments drops every `--` comment so a word in prose is not taken
+// for SQL.
+func stripLineComments(sql string) string {
+	lines := strings.Split(sql, "\n")
+
+	for i, line := range lines {
+		lines[i], _, _ = strings.Cut(line, "--")
 	}
 
-	return count
+	return strings.Join(lines, "\n")
 }

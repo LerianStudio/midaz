@@ -69,7 +69,7 @@ func TestDashboardReadsNeverGetAGenericPlan_Integration(t *testing.T) {
 	for _, tc := range []struct{ name, fragment, query string }{
 		{"metrics", "GROUPING SETS", metricsQuery},
 		{"volume", "AT TIME ZONE", volumeQuery},
-		{"fraud-types", "GROUP BY transaction_validation_scheme", fraudTypesQuery},
+		{"fraud-types", "GROUP BY scheme, transaction_type", fraudTypesQuery},
 		{"top-rules", "CROSS JOIN LATERAL", topRulesQuery},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

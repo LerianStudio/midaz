@@ -83,24 +83,29 @@ and any window is one contiguous heap stretch. An earlier fixture scattered
 `created_at` (correlation -0.002) and measured a table this can never be —
 which is how `/top-rules` was first, wrongly, reported as over its budget.
 
-End-to-end **HTTP**, three runs, all inside the 200ms bound:
+At the **statement**, all inside the 200ms bound. PostgreSQL 17.11,
+`max_parallel_workers_per_gather=2`, `VACUUM (ANALYZE)` after seeding,
+migrations through `000032`; `EXPLAIN (ANALYZE, TIMING OFF)` execution time,
+median of seven warm runs. Every fixture row carries `transaction_type` alone,
+the shape of a row written before the `scheme` column. Over HTTP the handler,
+the round trip and the JSON encoding come on top:
 
 | Endpoint | 7d | 30d | 90d | Plan at 90d |
 |---|---|---|---|---|
-| `/metrics` | 7ms | 23ms | 67ms | Index Only Scan, `idx_transaction_validations_dashboard`* |
-| `/volume` | 5ms | 18ms | 53ms | Index Only Scan, `idx_transaction_validations_created` |
-| `/fraud-types` | 5ms | 15ms | 25ms | Parallel Index Only Scan, `idx_transaction_validations_dashboard`* |
-| `/top-rules` | 29ms | 46ms | **106ms** | Parallel Index Scan, `idx_transaction_validations_created`, + heap |
+| `/metrics` | 3ms | 11ms | 31ms | Index Only Scan, `idx_transaction_validations_dashboard_scheme` |
+| `/volume` | 2ms | 9ms | 32ms | Index Only Scan, `idx_transaction_validations_created` |
+| `/fraud-types` | 2ms | 8ms | 15ms | Parallel Index Only Scan, `idx_transaction_validations_dashboard_scheme` |
+| `/top-rules` | 14ms | 23ms | **54ms** | Parallel Index Scan, `idx_transaction_validations_created`, + heap |
 
-\* Measured on `idx_transaction_validations_dashboard`, the index
-`idx_transaction_validations_dashboard_scheme` replaces (see [Index](#index)).
-The replacement carries one more INCLUDE column (`scheme`) and was not
-re-measured.
+`/fraud-types` aggregates the window on the raw `(scheme, transaction_type)`
+pair first and evaluates `transaction_validation_scheme` once per pair, not
+once per row; evaluating it per row measured 11/21/51ms under the same
+conditions.
 
 `/top-rules` is the expensive one and always will be: `CROSS JOIN LATERAL
 unnest(evaluated_rule_ids)` turns each validation into one row per rule it
-evaluated (three in the fixture), and the arrays force a heap read — 11,823
-buffers at 90 days, ~92MB, against 1,775 for `/metrics`.
+evaluated (three in the fixture), and the arrays force a heap read — 11,818
+buffers at 90 days, ~92MB, against 2,052 for `/metrics`.
 
 ### The generic-plan trap
 
@@ -119,7 +124,8 @@ pgx.QueryExecModeExec:     104  95  94  93  95 |  94  95  96  ms
 What the generic plan discards is the **LATERAL fan-out plan** — the parallel
 scan and the Memoize over the unnested rule ids — not anything about the shared
 `created_at` predicate: `/metrics` and `/volume` do not regress at all over the
-same eight executions, and `/fraud-types` loses 1.7x. All four reads carry
+same eight executions, and `/fraud-types` loses 1.5x (21ms generic against
+14ms custom at the statement over 90 days). All four reads carry
 `windowPlanMode` (`pgx.QueryExecModeExec`) anyway, because its cost on the two
 that do not regress is zero within noise and one rule is easier to keep true
 than two exceptions.

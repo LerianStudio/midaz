@@ -435,6 +435,36 @@ func TestDashboardRepository_FraudTypes_NoOtherWithoutRemainder_Integration(t *t
 	assert.EqualValues(t, 9, result.TotalFlagged)
 }
 
+// Rows that reach the same effective scheme through different raw columns are
+// one slice: a row written with scheme alone, a row predating the scheme
+// column, and a row carrying both all report as PIX, and their counts add up.
+func TestDashboardRepository_FraudTypes_FoldsRawPairsOntoTheirEffectiveScheme_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	window := dashboardWindowAt(t, 15)
+
+	seedValidations(t, db, window, []seededValidation{
+		{dayOffset: 0, decision: "DENY", scheme: "PIX", asset: "BRL", amount: "1.00", processingMs: 1},
+		{dayOffset: 0, decision: "REVIEW", transactionType: "PIX", asset: "BRL", amount: "1.00", processingMs: 1},
+		{dayOffset: 1, decision: "ALLOW", transactionType: "PIX", scheme: "PIX", asset: "BRL", amount: "1.00", processingMs: 1},
+		{dayOffset: 1, decision: "DENY", scheme: "BOLETO", asset: "BRL", amount: "1.00", processingMs: 1},
+	})
+
+	result, err := newDashboardTestRepo(t, db).FraudTypes(context.Background(), window)
+	require.NoError(t, err)
+
+	require.Len(t, result.Types, 2, "three raw PIX pairs must fold into one slice")
+
+	assert.Equal(t, "PIX", result.Types[0].Type)
+	assert.EqualValues(t, 2, result.Types[0].Count, "one DENY written with scheme alone, one REVIEW with the enum alone")
+	assert.EqualValues(t, 3, result.Types[0].Total, "plus one ALLOW carrying both columns")
+
+	assert.Equal(t, "BOLETO", result.Types[1].Type)
+	assert.EqualValues(t, 1, result.Types[1].Count)
+	assert.EqualValues(t, 3, result.TotalFlagged)
+}
+
 // Active counts are point-in-time, not windowed: they describe the rules
 // guarding traffic NOW, and a window far in the past must not change them.
 func TestDashboardRepository_Metrics_ActiveCounts_Integration(t *testing.T) {

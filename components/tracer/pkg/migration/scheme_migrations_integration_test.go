@@ -17,7 +17,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
@@ -36,11 +35,20 @@ const (
 	// dropDashboardIndexMigrationVersion is
 	// 000031_drop_transaction_validations_dashboard_idx.
 	dropDashboardIndexMigrationVersion = 31
+	// dropTransactionTypeIndexMigrationVersion is
+	// 000032_drop_transaction_validations_transaction_type_idx.
+	dropTransactionTypeIndexMigrationVersion = 32
 
 	schemeIndexName          = "idx_transaction_validations_scheme"
 	schemeFunctionName       = "transaction_validation_scheme"
 	dashboardIndexName       = "idx_transaction_validations_dashboard"
 	dashboardSchemeIndexName = "idx_transaction_validations_dashboard_scheme"
+	transactionTypeIndexName = "idx_transaction_validations_transaction_type"
+
+	// schemeOnlyRequestID and schemeOnlyAccountID identify the one row
+	// insertSchemeOnlyValidation writes; fixed so the test is deterministic.
+	schemeOnlyRequestID = "6f1c2a4e-0b8d-4c39-9a52-3e7d1f0c8b21"
+	schemeOnlyAccountID = "2d9e4b71-5a3c-4f08-8e16-c47b90a3d5f2"
 )
 
 // TestTransactionValidationsSchemeMigrations is the behavioral contract for
@@ -77,6 +85,9 @@ func TestTransactionValidationsSchemeMigrations(t *testing.T) {
 		require.Equal(t, "character varying", columnDataType(ctx, t, db, "scheme"))
 		require.Equal(t, int64(50), columnMaxLength(ctx, t, db, "scheme"), "scheme must be VARCHAR(50)")
 		require.True(t, functionExists(ctx, t, db, schemeFunctionName), "000028 up must install %s", schemeFunctionName)
+		require.Equal(t, schemeFunctionAttributes{volatility: "i", parallel: "s", cost: 1},
+			functionAttributes(ctx, t, db, schemeFunctionName),
+			"%s must be IMMUTABLE PARALLEL SAFE COST 1", schemeFunctionName)
 		require.Equal(t, "BOLETO", effectiveScheme(ctx, t, db, "BOLETO", "PIX"), "scheme wins over the enum")
 		require.Equal(t, "PIX", effectiveScheme(ctx, t, db, "", "PIX"), "a row without scheme falls back to the enum")
 		require.Equal(t, "BOLETO", effectiveScheme(ctx, t, db, "BOLETO", ""), "a row without transaction_type reads scheme")
@@ -195,6 +206,53 @@ func TestDashboardSchemeCoveringIndexMigrations(t *testing.T) {
 	})
 }
 
+// TestDropTransactionTypeIndexMigration is the behavioral contract for
+// migration 000032.
+//
+// Post-conditions enforced, in order on one database:
+//  1. Before 000032 the 000004 index over the bare transaction_type exists.
+//  2. 000032 up drops it; applying it through the single-statement runner is
+//     the proof CONCURRENTLY is legal. The scheme expression index it leaves
+//     as the only scheme index stays valid.
+//  3. 000032 down rebuilds it valid and with exactly the 000004 definition.
+//  4. Replaying the up lands back in state 2 (Migration Renumbering
+//     Invariant), clean and at the expected version.
+func TestDropTransactionTypeIndexMigration(t *testing.T) {
+	ctx := context.Background()
+	mig, db := newSchemeMigrate(t)
+
+	require.NoError(t, migrateTo(mig, dropTransactionTypeIndexMigrationVersion-1), "migrate to the version before 000032")
+	require.True(t, indexIsValid(ctx, t, db, transactionTypeIndexName), "000004 must have built the transaction_type index")
+
+	assertDropped := func(t *testing.T) {
+		t.Helper()
+
+		require.False(t, indexExists(ctx, t, db, transactionTypeIndexName), "000032 up must drop the transaction_type index")
+		require.True(t, indexIsValid(ctx, t, db, schemeIndexName), "the scheme expression index must survive 000032")
+		assertVersion(ctx, t, db, dropTransactionTypeIndexMigrationVersion)
+	}
+
+	t.Run("up_000032_drops_the_transaction_type_index_concurrently", func(t *testing.T) {
+		require.NoError(t, mig.Steps(1), "apply 000032 up")
+		assertDropped(t)
+	})
+
+	t.Run("down_rebuilds_the_000004_index", func(t *testing.T) {
+		require.NoError(t, mig.Steps(-1), "apply 000032 down")
+		require.True(t, indexIsValid(ctx, t, db, transactionTypeIndexName), "a CONCURRENTLY build that failed would leave an INVALID index")
+		require.Equal(t,
+			"CREATE INDEX "+transactionTypeIndexName+" ON public.transaction_validations USING btree (transaction_type)",
+			indexDefinition(ctx, t, db, transactionTypeIndexName),
+			"000032 down must restore the index exactly as 000004 built it")
+		assertVersion(ctx, t, db, dropTransactionTypeIndexMigrationVersion-1)
+	})
+
+	t.Run("replay_is_idempotent", func(t *testing.T) {
+		require.NoError(t, migrateTo(mig, dropTransactionTypeIndexMigrationVersion), "re-apply 000032")
+		assertDropped(t)
+	})
+}
+
 // newSchemeMigrate builds a golang-migrate instance over the production
 // migrations tree and a dedicated *sql.DB on the suite container. golang-migrate
 // is driven directly because the lib-commons Migrator exposes only Up, and
@@ -254,10 +312,10 @@ func insertSchemeOnlyValidation(ctx context.Context, t *testing.T, db *sql.DB) {
 			request_id, transaction_type, scheme, amount, asset, transaction_timestamp,
 			account, decision, processing_time_ms
 		) VALUES (
-			$1, NULL, 'BOLETO', 10, 'BRL', NOW(),
-			'{"accountId": "`+uuid.NewString()+`", "type": "deposit", "status": "ACTIVE"}',
+			$1, NULL, 'BOLETO', 10, 'BRL', TIMESTAMPTZ '2026-01-15 12:00:00+00',
+			'{"accountId": "`+schemeOnlyAccountID+`", "type": "deposit", "status": "ACTIVE"}',
 			'ALLOW', 1
-		)`, uuid.New())
+		)`, schemeOnlyRequestID)
 	require.NoError(t, err, "insert a validation that stores scheme alone")
 }
 
@@ -292,6 +350,30 @@ func functionExists(ctx context.Context, t *testing.T, db *sql.DB, function stri
 	require.NoError(t, err, "probe function %s", function)
 
 	return exists
+}
+
+// schemeFunctionAttributes are the pg_proc planner attributes of a function:
+// provolatile, proparallel and procost.
+type schemeFunctionAttributes struct {
+	volatility string
+	parallel   string
+	cost       float64
+}
+
+func functionAttributes(ctx context.Context, t *testing.T, db *sql.DB, function string) schemeFunctionAttributes {
+	t.Helper()
+
+	var attrs schemeFunctionAttributes
+
+	err := db.QueryRowContext(ctx, `
+		SELECT p.provolatile::text, p.proparallel::text, p.procost
+		FROM pg_proc p
+		JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE n.nspname = 'public' AND p.proname = $1`, function).
+		Scan(&attrs.volatility, &attrs.parallel, &attrs.cost)
+	require.NoError(t, err, "read planner attributes of %s", function)
+
+	return attrs
 }
 
 func assertVersion(ctx context.Context, t *testing.T, db *sql.DB, want uint) {

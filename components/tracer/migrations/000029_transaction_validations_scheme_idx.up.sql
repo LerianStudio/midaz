@@ -17,8 +17,10 @@
 -- exactly one statement. IF NOT EXISTS keeps a replay a clean no-op (Migration
 -- Renumbering Invariant, docs/tracer/INVARIANTS.md).
 --
--- The index is a B-tree over a short text, so it costs one extra insert per
--- validation, the same shape as idx_transaction_validations_transaction_type.
+-- The index is a B-tree over a short text, the same shape as
+-- idx_transaction_validations_transaction_type, which 000032 drops once no
+-- read filters on the bare enum column, so a validation insert keeps paying
+-- for one scheme index, not two.
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transaction_validations_scheme
 ON transaction_validations ((transaction_validation_scheme(scheme, transaction_type)));

@@ -34,20 +34,24 @@ var _ query.DashboardRepository = (*DashboardRepository)(nil)
 // allowed — a tenant parameter.
 //
 // COST CONTRACT. Each method below is ONE statement bounded by created_at,
-// every one of them inside a 200ms budget at 1,000,000 rows. Measured
-// end-to-end over HTTP on the seeded trail
-// (scripts/seed_dashboard_benchmark.sql, 365 days, PostgreSQL 17, 256MB
-// shared_buffers), median of three warm runs:
+// every one of them inside a 200ms budget at 1,000,000 rows. Measured at the
+// statement, not over HTTP, on the seeded trail
+// (scripts/seed_dashboard_benchmark.sql: 365 days, every row written with
+// transaction_type alone), PostgreSQL 17.11, shared_buffers=256MB,
+// max_parallel_workers_per_gather=2, VACUUM ANALYZE after seeding, migrations
+// through 000032: EXPLAIN (ANALYZE, TIMING OFF) execution time, median of
+// seven warm runs. The handler, the round trip and the JSON encoding come on
+// top of these.
 //
-//	metrics      7d   7ms | 30d  23ms | 90d  67ms  index-only, idx_tv_dashboard_scheme
-//	volume       7d   5ms | 30d  18ms | 90d  53ms  index-only, idx_tv_created
-//	fraud-types  7d   5ms | 30d  15ms | 90d  25ms  index-only, idx_tv_dashboard_scheme
-//	top-rules    7d  29ms | 30d  46ms | 90d 106ms  index scan + HEAP
+//	metrics      7d   3ms | 30d  11ms | 90d  31ms  index-only, idx_tv_dashboard_scheme
+//	volume       7d   2ms | 30d   9ms | 90d  32ms  index-only, idx_tv_created
+//	fraud-types  7d   2ms | 30d   8ms | 90d  15ms  index-only, idx_tv_dashboard_scheme
+//	top-rules    7d  14ms | 30d  23ms | 90d  54ms  index scan + HEAP
 //
 // Three of the four never touch the heap. TopRules does, and cannot be made
 // not to: it reads matched_rule_ids and evaluated_rule_ids, whose unbounded
 // width keeps them out of any covering index (see topRulesQuery), so it pays
-// ~11,800 buffers at 90 days against ~1,800 for metrics. It is the endpoint
+// ~11,800 buffers at 90 days against ~2,100 for metrics. It is the endpoint
 // that binds the operating limit, and the one the cache protects most.
 //
 // Every windowed statement passes windowPlanMode; read that comment before
@@ -103,8 +107,10 @@ func NewDashboardRepository(conn pgdb.Connection, clk clock.Clock) *DashboardRep
 // regress at all (66/65/66/66/66 | 68/65/65 ms and 67/61/60/62/61 | 60/60/60
 // ms): their plans hold up without the window's selectivity. What the generic
 // plan discards is the LATERAL fan-out plan — the parallel scan and the Memoize
-// over the unnested rule ids — which is why /top-rules loses 3.4x and
-// /fraud-types, whose aggregate is also parameter-sensitive, loses 1.7x.
+// over the unnested rule ids — which is why /top-rules loses 3.4x. /fraud-types,
+// whose aggregate is also parameter-sensitive, loses 1.5x at the statement
+// over 90 days (14 ms custom against 21 ms generic, same conditions as the
+// table above).
 //
 // The mode is nevertheless applied to all four. Its cost on the two that do not
 // regress is zero within noise (measured: 66/65/65/66/65/65/65/65 ms under this
@@ -175,22 +181,32 @@ const volumeQuery = `
 // every other scheme is summed into one trailing OTHER row, present only when
 // there is such a remainder.
 //
-// transaction_validation_scheme(scheme, transaction_type) is evaluated over
-// the two columns idx_tv_dashboard_scheme carries, so the read stays
-// index-only; idx_transaction_validations_scheme indexes only the function
-// result and cannot serve the window filter or the decision count.
+// The window is aggregated on the raw (scheme, transaction_type) pair first,
+// both columns idx_tv_dashboard_scheme carries, so the scan stays index-only
+// and transaction_validation_scheme is evaluated once per pair rather than
+// once per row. Distinct pairs can share an effective scheme (a row written
+// with scheme alone and an older row with the same value in the enum column),
+// so the pairs are folded per effective scheme before they are ranked.
+// idx_transaction_validations_scheme indexes only the function result and
+// cannot serve the window filter or the decision count.
 const fraudTypesQuery = `
-	WITH ranked AS (
-		SELECT transaction_validation_scheme(scheme, transaction_type) AS scheme,
+	WITH pairs AS (
+		SELECT scheme, transaction_type,
 			COUNT(*) FILTER (WHERE decision IN ('DENY','REVIEW')) AS flagged,
-			COUNT(*) AS total,
-			ROW_NUMBER() OVER (
-				ORDER BY COUNT(*) FILTER (WHERE decision IN ('DENY','REVIEW')) DESC,
-					transaction_validation_scheme(scheme, transaction_type) ASC
-			) AS position
+			COUNT(*) AS total
 		FROM transaction_validations
 		WHERE created_at >= $1 AND created_at < $2
-		GROUP BY transaction_validation_scheme(scheme, transaction_type)
+		GROUP BY scheme, transaction_type
+	), schemes AS (
+		SELECT transaction_validation_scheme(scheme, transaction_type) AS scheme,
+			SUM(flagged)::bigint AS flagged,
+			SUM(total)::bigint AS total
+		FROM pairs
+		GROUP BY 1
+	), ranked AS (
+		SELECT scheme, flagged, total,
+			ROW_NUMBER() OVER (ORDER BY flagged DESC, scheme ASC) AS position
+		FROM schemes
 	)
 	SELECT scheme, flagged, total
 	FROM (

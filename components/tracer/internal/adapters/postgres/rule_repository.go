@@ -916,11 +916,11 @@ func buildSingleScopeCondition(scope model.Scope) (string, []any) {
 		args = append(args, scope.MerchantID.String())
 	}
 
-	// Scopes are stored and matched under the transactionType key; a filter
-	// naming only the scheme filters on that same key.
-	if scheme := scopeFilterScheme(scope); scheme != nil {
+	// Scopes are stored and matched under the transactionType key, and a
+	// canonical scope carries its scheme in TransactionType.
+	if scope.TransactionType != nil {
 		conditions = append(conditions, "(scope->>'transactionType' IS NULL OR scope->>'transactionType' = ?)")
-		args = append(args, *scheme)
+		args = append(args, string(*scope.TransactionType))
 	}
 
 	if scope.SubType != nil {
@@ -1108,16 +1108,4 @@ func escapeLikePattern(s string) string {
 	s = strings.ReplaceAll(s, `_`, `\_`)
 
 	return s
-}
-
-// scopeFilterScheme returns the scheme a scope filter restricts to, from
-// TransactionType or, when only the scheme is set, from Scheme.
-func scopeFilterScheme(scope model.Scope) *string {
-	if scope.TransactionType != nil {
-		scheme := string(*scope.TransactionType)
-
-		return &scheme
-	}
-
-	return scope.Scheme
 }

@@ -1119,19 +1119,6 @@ func TestTransactionValidationPostgreSQLModel_SchemeColumns(t *testing.T) {
 		assert.Equal(t, testutil.Ptr("BOLETO"), dbModel.Scheme)
 	})
 
-	t.Run("an entity carrying only Scheme still writes it", func(t *testing.T) {
-		t.Parallel()
-
-		entity := baseEntity("")
-		entity.Scheme = model.TransactionTypePix
-
-		var dbModel TransactionValidationPostgreSQLModel
-		require.NoError(t, dbModel.FromEntity(entity))
-
-		assert.Equal(t, testutil.Ptr("PIX"), dbModel.TransactionType)
-		assert.Equal(t, testutil.Ptr("PIX"), dbModel.Scheme)
-	})
-
 	readModel := func(transactionType, scheme *string) *TransactionValidationPostgreSQLModel {
 		return &TransactionValidationPostgreSQLModel{
 			ID:               testutil.MustDeterministicUUID(1).String(),

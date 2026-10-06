@@ -40,22 +40,14 @@ func TestBuildScopeFilter_SingleScopeWithTransactionType(t *testing.T) {
 	assert.Equal(t, string(txType), args[0])
 }
 
-func TestBuildScopeFilter_SchemeOnlyFiltersOnTheTransactionTypeKey(t *testing.T) {
-	scheme := "BOLETO"
-
-	filter, args := buildScopeFilter([]model.Scope{{Scheme: &scheme}})
-
-	assert.Contains(t, filter, "scope->>'transactionType' = ?")
-	assert.NotContains(t, filter, "'scheme'", "scopes are stored and matched under transactionType")
-	assert.Equal(t, []any{"BOLETO"}, args)
-}
-
-func TestBuildScopeFilter_TransactionTypeWinsOverScheme(t *testing.T) {
+func TestBuildScopeFilter_CanonicalSchemePairYieldsOneCondition(t *testing.T) {
 	txType := model.TransactionType("BOLETO")
 	scheme := "BOLETO"
 
-	_, args := buildScopeFilter([]model.Scope{{TransactionType: &txType, Scheme: &scheme}})
+	filter, args := buildScopeFilter([]model.Scope{{TransactionType: &txType, Scheme: &scheme}})
 
+	assert.Contains(t, filter, "scope->>'transactionType' = ?")
+	assert.NotContains(t, filter, "'scheme'", "scopes are stored and matched under transactionType")
 	assert.Equal(t, []any{"BOLETO"}, args, "one condition for the pair, never two")
 }
 

@@ -158,14 +158,9 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	m.ID = entity.ID.String()
 	m.RequestID = entity.RequestID.String()
 
-	scheme := entity.TransactionType
-	if scheme == "" {
-		scheme = entity.Scheme
-	}
-
-	schemeValue := string(scheme)
-	m.Scheme = &schemeValue
-	m.TransactionType = transactionTypeEnumValue(scheme)
+	scheme := string(entity.TransactionType)
+	m.Scheme = &scheme
+	m.TransactionType = transactionTypeEnumValue(entity.TransactionType)
 	m.SubType = entity.SubType
 	m.Amount = entity.Amount
 	m.Asset = entity.Asset

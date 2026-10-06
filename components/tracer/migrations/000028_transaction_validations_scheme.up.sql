@@ -38,6 +38,11 @@ END $$;
 -- filters that want that index must call it the same way. The declaration is
 -- honest for as long as the labels of transaction_type_enum are never renamed,
 -- which is the only thing that would change its output for a stored row.
+--
+-- COST 1 (the default for a SQL function is 100) tells the planner the call is
+-- as cheap as the COALESCE it wraps, so a plan that evaluates it once per row
+-- is not priced as a hundred operator calls. Cost is not part of an index
+-- expression, so it changes no index built over the function.
 CREATE OR REPLACE FUNCTION transaction_validation_scheme(
     scheme VARCHAR,
     transaction_type transaction_type_enum
@@ -45,6 +50,7 @@ CREATE OR REPLACE FUNCTION transaction_validation_scheme(
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
+COST 1
 AS $$
     SELECT COALESCE($1, $2::text)
 $$;
