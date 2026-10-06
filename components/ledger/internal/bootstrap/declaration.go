@@ -17,6 +17,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
+	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
 )
 
 // buildDeclarationPublishers wires the Responsibility-Inversion (RI) permission
@@ -57,11 +58,13 @@ import (
 //   - Server-side BOLA rejection, arriving as a *declaration.PublishError on the
 //     async publish path.
 //
-// DeclarationEnabled=false returns (nil, nil) immediately — no validation, no
-// publisher, no goroutine, no runnable. While that flag still exists it is the
-// switch that says whether this deployment is on RI at all, so a deployment that
-// has not adopted RI must boot untouched. When the flag is retired and RI is the
-// only path, the validation becomes unconditional (lmap #5163).
+// DeclarationEnabled=false publishes nothing — no validation, no publisher, no
+// goroutine, no runnable — but still wires the manifest's scope into the routes'
+// authorization client (see mbootstrap.WireScopeWithoutDeclaration). A multi-tenant
+// deployment runs with the flag off because publication is the tenant manager's
+// job there, and its partners must still be asked with their scope. When the
+// flag is retired and RI is the only path, the validation becomes unconditional
+// (lmap #5163).
 //
 // The secret VALUE is NEVER logged, span-attached, serialized, or included in any
 // returned error. Only the NAMES of empty env vars are reported (names are not
@@ -70,11 +73,11 @@ import (
 // [REDACTED].
 //
 // authClient is taken as the declaration.TokenMinter interface (satisfied by
-// *middleware.AuthClient) so it is stubbable in tests; the disabled path returns
-// before it is dereferenced, so callers may pass nil there.
+// *middleware.AuthClient) so it is stubbable in tests; the disabled path mints
+// nothing, so callers may pass nil there.
 func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) ([]func(), error) {
 	if !cfg.DeclarationEnabled {
-		return nil, nil
+		return nil, mbootstrap.WireScopeWithoutDeclaration(authClient, ledgerembed.MidazManifest)
 	}
 
 	if err := validateDeclarationConfig(cfg); err != nil {
