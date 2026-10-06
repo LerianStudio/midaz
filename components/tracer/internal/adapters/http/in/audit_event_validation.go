@@ -5,6 +5,7 @@
 package in
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -135,6 +136,7 @@ type ListAuditEventsInput struct {
 	SegmentID       *string `query:"segment_id,omitempty" validate:"omitempty,uuid"`
 	PortfolioID     *string `query:"portfolio_id,omitempty" validate:"omitempty,uuid"`
 	TransactionType *string `query:"transaction_type,omitempty" validate:"omitempty,transactiontype"`
+	Scheme          *string `query:"scheme,omitempty" validate:"omitempty,transactiontype"`
 	MatchedRuleID   *string `query:"matched_rule_id,omitempty" validate:"omitempty,uuid"`
 	// Pagination
 	Limit     *int   `query:"limit"`
@@ -174,6 +176,14 @@ func (l *ListAuditEventsInput) Validate() error {
 
 	if err := v.Struct(l); err != nil {
 		return formatValidationError(err)
+	}
+
+	if _, err := resolveSchemeFilter(l.TransactionType, l.Scheme); err != nil {
+		if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
+			return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityAuditEvent)
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityAuditEvent)
 	}
 
 	// Validate date formats if provided (TRC-0020)
@@ -286,10 +296,12 @@ func toAuditEventFilters(input *ListAuditEventsInput) (*model.AuditEventFilters,
 		filters.PortfolioID = &portfolioID
 	}
 
-	if input.TransactionType != nil {
-		txType := model.TransactionType(*input.TransactionType)
-		filters.TransactionType = &txType
+	transactionType, err := resolveSchemeFilter(input.TransactionType, input.Scheme)
+	if err != nil {
+		return nil, err
 	}
+
+	filters.TransactionType = transactionType
 
 	if input.MatchedRuleID != nil {
 		matchedRuleID := uuid.MustParse(*input.MatchedRuleID)

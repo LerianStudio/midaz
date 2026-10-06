@@ -101,7 +101,9 @@ func (e *Environment) CELEnv() *cel.Env {
 
 // NewEnvironment creates a CEL environment with all required transaction context variables.
 // Variables are aligned with model.ValidationRequest structure:
-//   - transactionType (string): CARD, WIRE, PIX, CRYPTO
+//   - scheme (string): payment scheme (e.g. PIX, CARD, BOLETO), always upper case;
+//     empty when the request carries none
+//   - transactionType (string): deprecated name of scheme, bound to the same value
 //   - subType (string): debit, credit, instant, etc. (optional, empty string if nil)
 //   - amount (dyn): Decimal amount as float64 — dyn enables cross-type == with int literals
 //   - asset (string): asset code, 1 to 100 uppercase letters
@@ -116,6 +118,7 @@ func NewEnvironment() (*Environment, error) {
 		cel.CrossTypeNumericComparisons(true),
 
 		// Transaction fields (from ValidationRequest)
+		cel.Variable("scheme", cel.StringType),
 		cel.Variable("transactionType", cel.StringType),
 		cel.Variable("subType", cel.StringType),
 		cel.Variable("amount", cel.DynType),
@@ -176,8 +179,14 @@ func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 
 	activation := make(map[string]any)
 
-	// Transaction type (enum converted to string)
-	activation["transactionType"] = string(req.TransactionType)
+	// scheme and its deprecated name transactionType see the same canonical value
+	scheme := string(req.TransactionType)
+	if scheme == "" {
+		scheme = req.Scheme
+	}
+
+	activation["scheme"] = scheme
+	activation["transactionType"] = scheme
 
 	// SubType (optional - empty string if nil)
 	if req.SubType != nil {
