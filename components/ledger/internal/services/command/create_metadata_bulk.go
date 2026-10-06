@@ -31,10 +31,14 @@ const (
 
 // MetadataEntry represents a single metadata entry for bulk operations.
 // It encapsulates the entity ID, collection name, and metadata data.
+// TransactionID is the transaction that owns the entry (the entity itself for
+// transaction metadata, the parent transaction for operation metadata); it is
+// used only to attribute a write failure and is not validated.
 type MetadataEntry struct {
-	EntityID   string
-	Collection string
-	Data       map[string]any
+	EntityID      string
+	Collection    string
+	Data          map[string]any
+	TransactionID string
 }
 
 // Validate checks that the MetadataEntry has valid fields.
@@ -59,9 +63,11 @@ func (e MetadataEntry) Validate() error {
 // For single entries per collection, it uses Create directly (optimization).
 // On bulk failure, it falls back to individual Create calls with graceful degradation.
 //
-// Returns nil if all entries were created successfully (or were empty).
-// Returns error if any entries failed to create after fallback.
-func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEntry) error {
+// Returns (nil, nil) if all entries were created successfully (or were empty).
+// Otherwise returns the entries whose write was not confirmed together with an
+// aggregate error. An invalid entry aborts the batch before any write, so every
+// entry carrying data is returned as not confirmed.
+func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEntry) ([]MetadataEntry, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_bulk")
@@ -80,20 +86,20 @@ func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEnt
 		if err := entry.Validate(); err != nil {
 			libOpentelemetry.HandleSpanError(span, fmt.Sprintf("Invalid entry at index %d", i), err)
 
-			return fmt.Errorf("invalid metadata entry at index %d: %w", i, err)
+			return entriesWithData(entries), fmt.Errorf("invalid metadata entry at index %d: %w", i, err)
 		}
 
 		validEntries = append(validEntries, entry)
 	}
 
 	if len(validEntries) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Process in chunks of maxBulkMetadataEntries to bound per-batch resource usage.
 	// Each chunk is grouped by collection and processed independently.
 	var (
-		totalFailures  int
+		failedEntries  []MetadataEntry
 		totalAttempted int
 	)
 
@@ -106,31 +112,31 @@ func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEnt
 		for collection, collectionEntries := range grouped {
 			totalAttempted += len(collectionEntries)
 
-			failures, err := uc.createMetadataForCollection(ctx, logger, collection, collectionEntries)
+			failed, err := uc.createMetadataForCollection(ctx, logger, collection, collectionEntries)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(span, fmt.Sprintf("Failed to create metadata for collection %s", collection), err)
 			}
 
-			totalFailures += failures
+			failedEntries = append(failedEntries, failed...)
 		}
 	}
 
-	if totalFailures > 0 {
-		return fmt.Errorf("failed to create %d of %d metadata entries", totalFailures, totalAttempted)
+	if len(failedEntries) > 0 {
+		return failedEntries, fmt.Errorf("failed to create %d of %d metadata entries", len(failedEntries), totalAttempted)
 	}
 
-	return nil
+	return nil, nil
 }
 
 // createMetadataForCollection creates metadata entries for a single collection.
 // Uses bulk insert for multiple entries, direct Create for single entry.
-// Returns (failureCount, error) where failureCount is the number of entries that failed.
+// Returns the entries whose write was not confirmed and the error that caused it.
 func (uc *UseCase) createMetadataForCollection(
 	ctx context.Context,
 	logger libLog.Logger,
 	collection string,
 	entries []MetadataEntry,
-) (int, error) {
+) ([]MetadataEntry, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_for_collection")
@@ -143,16 +149,16 @@ func (uc *UseCase) createMetadataForCollection(
 	)
 
 	if len(entries) == 0 {
-		return 0, nil
+		return nil, nil
 	}
 
 	// For single entry, use Create directly (optimization)
 	if len(entries) == 1 {
 		if err := uc.createSingleMetadata(ctx, logger, collection, entries[0]); err != nil {
-			return 1, err
+			return entries, err
 		}
 
-		return 0, nil
+		return nil, nil
 	}
 
 	// Convert to MongoDB metadata format
@@ -181,7 +187,7 @@ func (uc *UseCase) createMetadataForCollection(
 					libLog.String("collection", collection), libLog.Err(err))
 			}
 
-			return len(entries), fmt.Errorf("infrastructure error during bulk insert for %s: %w", collection, err)
+			return entries, fmt.Errorf("infrastructure error during bulk insert for %s: %w", collection, err)
 		}
 
 		// Document-level errors (duplicate key, validation) — fall back to individual creates.
@@ -203,7 +209,7 @@ func (uc *UseCase) createMetadataForCollection(
 			libLog.Int("matched", int(result.Matched)))
 	}
 
-	return 0, nil
+	return nil, nil
 }
 
 // createSingleMetadata creates a single metadata entry using the standard Create method.
@@ -234,21 +240,21 @@ func (uc *UseCase) createSingleMetadata(
 }
 
 // fallbackToIndividualMetadataCreate creates metadata entries one by one.
-// Returns (failureCount, error) where failureCount is the number of entries that failed.
+// Returns the entries whose write failed and an aggregate error when any did.
 func (uc *UseCase) fallbackToIndividualMetadataCreate(
 	ctx context.Context,
 	logger libLog.Logger,
 	collection string,
 	entries []MetadataEntry,
-) (int, error) {
+) ([]MetadataEntry, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.fallback_individual_metadata_create")
 	defer span.End()
 
 	var (
-		failureCount int
-		successCount int
+		failedEntries []MetadataEntry
+		successCount  int
 	)
 
 	for _, entry := range entries {
@@ -266,7 +272,7 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 					libLog.String("collection", collection), libLog.String("entity_id", entry.EntityID), libLog.Err(err))
 			}
 
-			failureCount++
+			failedEntries = append(failedEntries, entry)
 
 			continue
 		}
@@ -281,11 +287,11 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 			libLog.Int("total", len(entries)))
 	}
 
-	if failureCount > 0 {
-		return failureCount, fmt.Errorf("failed to create %d of %d metadata entries in fallback", failureCount, len(entries))
+	if len(failedEntries) > 0 {
+		return failedEntries, fmt.Errorf("failed to create %d of %d metadata entries in fallback", len(failedEntries), len(entries))
 	}
 
-	return 0, nil
+	return nil, nil
 }
 
 // groupMetadataByCollection groups metadata entries by their collection name.
@@ -301,31 +307,46 @@ func groupMetadataByCollection(entries []MetadataEntry) map[string][]MetadataEnt
 
 // processMetadataAndEventsBulk processes metadata for multiple transaction payloads using bulk operations.
 // It collects all metadata entries and creates them in a single batch per collection.
-// Skips duplicate transactions that were not actually inserted (based on insertedTxIDs).
-// Logs warnings on failure but does not return errors to maintain backward compatibility.
+// Returns the IDs of the transactions whose own metadata or whose operations'
+// metadata was not confirmed, logging one Warn per such transaction. The set is
+// empty when every entry was confirmed.
 func (uc *UseCase) processMetadataAndEventsBulk(
 	ctx context.Context,
 	logger libLog.Logger,
 	payloads []transaction.TransactionProcessingPayload,
-	insertedTxIDs map[string]struct{},
-) {
+) map[string]struct{} {
 	// Collect all metadata entries from payloads
-	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+	entries := collectMetadataFromPayloads(payloads)
 
 	// Create metadata in bulk (handles batching and fallback internally)
-	if err := uc.createMetadataBulk(ctx, entries); err != nil {
+	failedEntries, err := uc.createMetadataBulk(ctx, entries)
+
+	failedTxIDs := make(map[string]struct{}, len(failedEntries))
+
+	for _, entry := range failedEntries {
+		if _, seen := failedTxIDs[entry.TransactionID]; seen {
+			continue
+		}
+
+		failedTxIDs[entry.TransactionID] = struct{}{}
+
 		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to create bulk metadata", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Transaction metadata not confirmed",
+				libLog.String("transaction_id", entry.TransactionID), libLog.Err(err))
 		}
 	}
+
+	return failedTxIDs
 }
 
 // collectMetadataFromPayloads extracts metadata entries from transaction payloads.
-// It collects both transaction and operation metadata, skipping duplicates based on insertedTxIDs.
-// When insertedTxIDs is empty, all payloads are processed (fallback/status-update scenarios).
+// It collects both transaction and operation metadata for every payload, whether
+// or not the transaction was inserted by this batch, so a redelivery can repair
+// metadata that a previous attempt did not persist. The writes are insert-if-absent,
+// so metadata already present is left untouched. Each entry carries the ID of the
+// transaction that owns it.
 func collectMetadataFromPayloads(
 	payloads []transaction.TransactionProcessingPayload,
-	insertedTxIDs map[string]struct{},
 ) []MetadataEntry {
 	// Pre-allocate with estimated capacity (1 tx + avg 2 ops per payload)
 	entries := make([]MetadataEntry, 0, len(payloads)*3)
@@ -340,40 +361,43 @@ func collectMetadataFromPayloads(
 
 		tx := payload.Transaction
 
-		// Determine if this transaction was actually inserted (not a duplicate).
-		// If insertedTxIDs is empty, process all (fallback or status-update scenarios).
-		txWasInserted := len(insertedTxIDs) == 0
-		if !txWasInserted {
-			_, txWasInserted = insertedTxIDs[tx.ID]
-		}
-
-		// Collect transaction-level metadata only for newly inserted transactions.
-		// Status-transitioned (updated) transactions already have their metadata persisted.
-		if txWasInserted && tx.Metadata != nil {
+		if tx.Metadata != nil {
 			entries = append(entries, MetadataEntry{
-				EntityID:   tx.ID,
-				Collection: transactionTypeName,
-				Data:       tx.Metadata,
+				EntityID:      tx.ID,
+				Collection:    transactionTypeName,
+				Data:          tx.Metadata,
+				TransactionID: tx.ID,
 			})
 		}
 
-		// Always collect operation metadata regardless of transaction insert status.
-		// Operations may be newly created even when the parent transaction was a
-		// status-transition (update) rather than a fresh insert.
 		for _, op := range tx.Operations {
 			if op == nil || op.Metadata == nil {
 				continue
 			}
 
 			entries = append(entries, MetadataEntry{
-				EntityID:   op.ID,
-				Collection: operationTypeName,
-				Data:       op.Metadata,
+				EntityID:      op.ID,
+				Collection:    operationTypeName,
+				Data:          op.Metadata,
+				TransactionID: tx.ID,
 			})
 		}
 	}
 
 	return entries
+}
+
+// entriesWithData returns the entries that carry metadata to persist.
+func entriesWithData(entries []MetadataEntry) []MetadataEntry {
+	withData := make([]MetadataEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		if entry.Data != nil {
+			withData = append(withData, entry)
+		}
+	}
+
+	return withData
 }
 
 // isInfrastructureError returns true when the error indicates an infrastructure-level

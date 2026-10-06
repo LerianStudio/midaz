@@ -501,7 +501,7 @@ func (uc *UseCase) processMetadataAndEvents(
 	insertedTxIDs map[string]struct{},
 ) {
 	// Create all metadata in bulk (reduces N round-trips to 1 per collection)
-	uc.processMetadataAndEventsBulk(ctx, logger, payloads, insertedTxIDs)
+	uc.processMetadataAndEventsBulk(ctx, logger, payloads)
 
 	// Process events and cleanup for each inserted transaction
 	for _, payload := range payloads {
