@@ -1,6 +1,6 @@
 # Audit-hash-chain migration integrity manifest (P5-T03, SOX/GLBA gate)
 # Source: github.com/LerianStudio/tracer @ 7a0bf2030d5934914c9938d01c0d33386be4552a
-# SHA256 of every migration .sql (46 top-level: 23 up/down pairs) + 2 seeds.
+# SHA256 of every migration .sql (58 top-level: 29 up/down pairs) + 2 seeds.
 # Regenerated from the working-tree migration files. Recompute with:
 #   (cd components/tracer/migrations && shasum -a 256 *.sql seeds/*.sql)
 # A mismatch on 000001/000002/000017 (audit hash chain) is a SOX/GLBA integrity failure.
@@ -50,5 +50,17 @@ eebea75c30a1d5e4ec93f84afb616aa5ae48ecb5b81b0d2317d4241be80f630f  000020_add_res
 3be4c7c6191481c56265e866eafa3150ce1fb38665f87383fc995189dddfab87  000022_rename_currency_to_asset.up.sql
 d2562c9147eee7e8ac7dfed81d00f606d46e0f2e2a00cb43f7821d44513fc941  000023_audit_id_under_lock.down.sql
 0e2e77d78eaa10a9cf64d9941c3d4a35ee32599fdc3267a4183dc77038360c1b  000023_audit_id_under_lock.up.sql
+c730c4a475e45cde17ec6943a9aca94bec3ccf9d38452c10e1de1f18c9bc0e01  000024_add_dashboard_covering_index.down.sql
+07bab10f5ee5672da70553dbb3a2cf2426eb2daf914fee32f8c1a3fd10a89b63  000024_add_dashboard_covering_index.up.sql
+23c8022ec3d19de7f77bb094aac7eba3cc16882493fe588f1821e106c8d58c56  000025_widen_asset_columns.down.sql
+835722668c165b5ebb1162aba893953533fcdb235027f4d383edbef664c47de2  000025_widen_asset_columns.up.sql
+db51048d75f8741bccf5936ce91608c161b1fda04274c33a3aab9db8463a421e  000026_convert_tenant_money_columns_to_decimal.down.sql
+2cd1bc775c6ac8fa414407e3978b4211750ebce879729e52bc3077875fac234f  000026_convert_tenant_money_columns_to_decimal.up.sql
+9c273a821affc6443c719cf10718e7571c30b828ad1dde9361ac7f588074b426  000027_add_limit_reset_time.down.sql
+2c82d76cfc6a104fd8cfa4a59efe98530dea43e372c387ab8ebcd89a35d7b664  000027_add_limit_reset_time.up.sql
+046514de09fd62a26b12b2babe40b72b249ed35034cb55c38411dd8f08b6962a  000028_transaction_validations_scheme.down.sql
+ca968d10405b3ef31d1d911111b734c5d026d00de8cc098f37aeaddb09cab02a  000028_transaction_validations_scheme.up.sql
+a1654d51e8a3218a470073b7fb0bbc28791add7d3b21e14a54621cfec0b58838  000029_transaction_validations_scheme_idx.down.sql
+467209c10a6846d6adec126fac7f70ddda2ab4b8e5055ae58e9fcad7eb8386b3  000029_transaction_validations_scheme_idx.up.sql
 4b684b8154d0db0342aebb6e234043dfa3fa23d7c7ec0ec382eee2fd96e25bdd  seeds/001_dev_data.down.sql
 1440200d6777053772c3188bab244271c01b79d24e52523db6bcefeae95b3207  seeds/001_dev_data.sql
