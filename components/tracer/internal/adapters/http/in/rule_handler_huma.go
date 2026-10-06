@@ -83,7 +83,7 @@ type CreateRuleOutputHuma struct {
 	Body   *model.Rule
 }
 
-// GetRuleInputHuma is the Huma request envelope for GET /v1/rules/{id}. The path
+// GetRuleInputHuma is the Huma request envelope for GET /v1/rules/{rule_id}. The path
 // param carries NO `format:"uuid"`: path params can't be SkipValidate'd, so a
 // format tag would make Huma reject a malformed id with a native 422 BEFORE the
 // handler — diverging from the canonical 400 / code 0065 (ErrInvalidPathParameter)
@@ -91,26 +91,26 @@ type CreateRuleOutputHuma struct {
 // path validator is the same principle as RawBody+SkipValidateBody for the body.
 // The 2b fan-out must carry NO format/struct-tag validation on path/query params.
 type GetRuleInputHuma struct {
-	ID string `path:"id" doc:"Rule ID (UUID)"`
+	ID string `path:"rule_id" doc:"Rule ID (UUID)"`
 }
 
-// GetRuleOutputHuma is the Huma response envelope for GET /v1/rules/{id}.
+// GetRuleOutputHuma is the Huma response envelope for GET /v1/rules/{rule_id}.
 type GetRuleOutputHuma struct {
 	Status int
 	Body   *model.Rule
 }
 
-// UpdateRuleInputHuma is the Huma request envelope for PATCH /v1/rules/{id}.
+// UpdateRuleInputHuma is the Huma request envelope for PATCH /v1/rules/{rule_id}.
 // Like Create, the body is taken raw + SkipValidateBody so the imperative
 // UpdateRuleInput.Validate()/IsEmpty() in updateRule stay the sole validators;
 // the path param carries NO `format:"uuid"` (uuid.Parse is the sole path
 // validator, yielding the canonical 400/0065 rather than a native Huma 422).
 type UpdateRuleInputHuma struct {
-	ID      string `path:"id" doc:"Rule ID (UUID)"`
+	ID      string `path:"rule_id" doc:"Rule ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
-// UpdateRuleOutputHuma is the Huma response envelope for PATCH /v1/rules/{id}.
+// UpdateRuleOutputHuma is the Huma response envelope for PATCH /v1/rules/{rule_id}.
 type UpdateRuleOutputHuma struct {
 	Status int
 	Body   *model.Rule
@@ -282,7 +282,7 @@ type ListRulesOutputHuma struct {
 // SkipValidateBody. Path param carries no format tag (uuid.Parse is the sole
 // validator — canonical 400/0065, never a native 422).
 type RuleIDInputHuma struct {
-	ID string `path:"id" doc:"Rule ID (UUID)"`
+	ID string `path:"rule_id" doc:"Rule ID (UUID)"`
 }
 
 // RuleOutputHuma is the shared 200 response envelope for the lifecycle ops.
@@ -291,7 +291,7 @@ type RuleOutputHuma struct {
 	Body   *model.Rule
 }
 
-// DeleteRuleOutputHuma is the Huma response envelope for DELETE /v1/rules/{id}.
+// DeleteRuleOutputHuma is the Huma response envelope for DELETE /v1/rules/{rule_id}.
 // It has NO Body field: paired with huma.Operation{DefaultStatus: 204} it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path exactly.
 type DeleteRuleOutputHuma struct{}
@@ -307,7 +307,7 @@ func (h *Handler) CreateRuleHuma(ctx context.Context, in *CreateRuleInputHuma) (
 	return &CreateRuleOutputHuma{Status: http.StatusCreated, Body: result}, nil
 }
 
-// GetRuleHuma is the Huma handler for GET /v1/rules/{id}. It delegates to the
+// GetRuleHuma is the Huma handler for GET /v1/rules/{rule_id}. It delegates to the
 // shared core and, on success, returns 200 with the rule.
 func (h *Handler) GetRuleHuma(ctx context.Context, in *GetRuleInputHuma) (*GetRuleOutputHuma, error) {
 	result, err := h.getRule(ctx, in.ID)
@@ -318,7 +318,7 @@ func (h *Handler) GetRuleHuma(ctx context.Context, in *GetRuleInputHuma) (*GetRu
 	return &GetRuleOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// UpdateRuleHuma is the Huma handler for PATCH /v1/rules/{id}. It delegates to
+// UpdateRuleHuma is the Huma handler for PATCH /v1/rules/{rule_id}. It delegates to
 // the shared core and, on success, returns 200 with the updated rule.
 func (h *Handler) UpdateRuleHuma(ctx context.Context, in *UpdateRuleInputHuma) (*UpdateRuleOutputHuma, error) {
 	result, err := h.updateRule(ctx, in.ID, in.RawBody)
@@ -341,7 +341,7 @@ func (h *Handler) ListRulesHuma(ctx context.Context, in *ListRulesInputHuma) (*L
 	return &ListRulesOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// ActivateRuleHuma is the Huma handler for POST /v1/rules/{id}/activate.
+// ActivateRuleHuma is the Huma handler for POST /v1/rules/{rule_id}/activate.
 func (h *Handler) ActivateRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*RuleOutputHuma, error) {
 	result, err := h.activateRule(ctx, in.ID)
 	if err != nil {
@@ -351,7 +351,7 @@ func (h *Handler) ActivateRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*R
 	return &RuleOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// DeactivateRuleHuma is the Huma handler for POST /v1/rules/{id}/deactivate.
+// DeactivateRuleHuma is the Huma handler for POST /v1/rules/{rule_id}/deactivate.
 func (h *Handler) DeactivateRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*RuleOutputHuma, error) {
 	result, err := h.deactivateRule(ctx, in.ID)
 	if err != nil {
@@ -361,7 +361,7 @@ func (h *Handler) DeactivateRuleHuma(ctx context.Context, in *RuleIDInputHuma) (
 	return &RuleOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// DraftRuleHuma is the Huma handler for POST /v1/rules/{id}/draft.
+// DraftRuleHuma is the Huma handler for POST /v1/rules/{rule_id}/draft.
 func (h *Handler) DraftRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*RuleOutputHuma, error) {
 	result, err := h.draftRule(ctx, in.ID)
 	if err != nil {
@@ -371,7 +371,7 @@ func (h *Handler) DraftRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*Rule
 	return &RuleOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// DeleteRuleHuma is the Huma handler for DELETE /v1/rules/{id}. On success it
+// DeleteRuleHuma is the Huma handler for DELETE /v1/rules/{rule_id}. On success it
 // returns an empty DeleteRuleOutputHuma; paired with DefaultStatus:204 Huma
 // emits a bodiless 204, matching the Fiber http.NoContent path.
 func (h *Handler) DeleteRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*DeleteRuleOutputHuma, error) {
@@ -411,7 +411,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getRule",
 		Method:      http.MethodGet,
-		Path:        "/rules/{id}",
+		Path:        "/rules/{rule_id}",
 		Summary:     "Get a fraud rule by ID",
 		Tags:        []string{"Rules"},
 		Security:    secBearerOrAPIKey,
@@ -429,7 +429,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateRule",
 		Method:           http.MethodPatch,
-		Path:             "/rules/{id}",
+		Path:             "/rules/{rule_id}",
 		Summary:          "Partially update an existing fraud rule",
 		Tags:             []string{"Rules"},
 		Security:         secBearerOrAPIKey,
@@ -439,7 +439,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "activateRule",
 		Method:      http.MethodPost,
-		Path:        "/rules/{id}/activate",
+		Path:        "/rules/{rule_id}/activate",
 		Summary:     "Activate a fraud rule",
 		Tags:        []string{"Rules"},
 		Security:    secBearerOrAPIKey,
@@ -448,7 +448,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "deactivateRule",
 		Method:      http.MethodPost,
-		Path:        "/rules/{id}/deactivate",
+		Path:        "/rules/{rule_id}/deactivate",
 		Summary:     "Deactivate a fraud rule",
 		Tags:        []string{"Rules"},
 		Security:    secBearerOrAPIKey,
@@ -457,7 +457,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "draftRule",
 		Method:      http.MethodPost,
-		Path:        "/rules/{id}/draft",
+		Path:        "/rules/{rule_id}/draft",
 		Summary:     "Transition a rule back to draft",
 		Tags:        []string{"Rules"},
 		Security:    secBearerOrAPIKey,
@@ -466,7 +466,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteRule",
 		Method:      http.MethodDelete,
-		Path:        "/rules/{id}",
+		Path:        "/rules/{rule_id}",
 		Summary:     "Delete a fraud rule",
 		Tags:        []string{"Rules"},
 		Security:    secBearerOrAPIKey,

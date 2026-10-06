@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 )
 
 // This file is the /v2 transaction RESPONSE contract seam. Every v2 transaction op answers with
@@ -126,7 +127,7 @@ type TransactionV2 struct {
 	// transaction IS selected and writes no key at all, so a client treating an absent key as
 	// no package configured would read a configured route as an unconfigured one.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 may carry feeExemption as that object itself instead of the string, so a reader must accept both shapes; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."`
+	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger writes six fee keys on this field itself and reserves them: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is a string holding a JSON object with exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched; feeExemption is also present, with reason cross_ledger_bridge, when the only account on one side that would have paid a fee is the @external/<asset> bridge closing a part of a cross-ledger group, because that bridge never pays a fee; a transaction recorded before v4.1.1 stored feeExemption as that object itself, and a read returns it as the string too; feeDebtOpenings and feeDebtSettlements are strings holding a JSON array, in the order the ledger applied them, of the fee debts this transaction opened because its payer could not fund a deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it settled (debtId, debtorRef, creditRef, amount, opened, seq), each absent when there is none; feeDebtCollection is the string true on a standalone fee-debt collection, whose amount is what it settled and which cannot be reverted. A request body carrying feeApplied, packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements, feeDebtCollection or feeDeferPair is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. A metadata update, including one that clears the metadata, never changes them. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg and feeDeferPair, on operation metadata, are reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."`
 
 	// List of operations associated with this transaction
 	Operations []*OperationV2 `json:"operations"`
@@ -263,10 +264,10 @@ type OperationV2 struct {
 
 // newTransactionV2 converts the canonical transaction.Transaction into its /v2 wire shape,
 // renaming Source->Debit and Destination->Credit, dropping the deprecated chartOfAccountsGroupName
-// and route, mapping each operation to its OperationV2 shape, and copying every other field
-// unchanged. It is the single conversion point every v2 output (create, commit, cancel, revert,
-// read, update) builds through. Returns nil for a nil input so callers can convert the core's
-// result without an extra guard.
+// and route, mapping each operation to its OperationV2 shape, returning a feeExemption stored as an
+// object as its JSON string, and copying every other field unchanged. It is the single conversion
+// point every v2 output (create, commit, cancel, revert, read, update) builds through. Returns nil
+// for a nil input so callers can convert the core's result without an extra guard.
 func newTransactionV2(t *transaction.Transaction) *TransactionV2 {
 	if t == nil {
 		return nil
@@ -290,7 +291,7 @@ func newTransactionV2(t *transaction.Transaction) *TransactionV2 {
 		CreatedAt:           t.CreatedAt,
 		UpdatedAt:           t.UpdatedAt,
 		DeletedAt:           t.DeletedAt,
-		Metadata:            t.Metadata,
+		Metadata:            fee.FlattenLegacyFeeExemption(t.Metadata),
 		Operations:          newOperationsV2(t.Operations),
 	}
 }

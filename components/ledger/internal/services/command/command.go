@@ -139,6 +139,20 @@ type UseCase struct {
 	// settings (RequireHolder false), preserving permissive behaviour.
 	SettingsReader SettingsReader
 
+	// --- Account delete cascade (CRM and fees seams, wired at bootstrap) ---
+
+	// InstrumentCascader soft-deletes the CRM instruments linked to an account
+	// before the account row is deleted, so command never imports the CRM
+	// package. A nil value skips the step; it is a test/compatibility seam, and
+	// production bootstrap always wires it.
+	InstrumentCascader InstrumentCascader
+
+	// FeeAliasDetacher removes a deleted account's alias from the ledger's fee
+	// and billing packages before the account row is deleted. A nil value skips
+	// the step; it is a test/compatibility seam, and production bootstrap always
+	// wires it.
+	FeeAliasDetacher FeeAliasDetacher
+
 	// --- Transaction create seam (wired at bootstrap) ---
 
 	// TransactionReader serves the reads the transaction create path needs

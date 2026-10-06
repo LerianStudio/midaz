@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -540,7 +541,7 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 		return nil
 	}
 
-	if err := appendMetadata(constant.EntityTransaction, tran.ID, flattenLegacyFeeExemption(tran.Metadata)); err != nil {
+	if err := appendMetadata(constant.EntityTransaction, tran.ID, fee.FlattenLegacyFeeExemption(tran.Metadata)); err != nil {
 		return nil, err
 	}
 

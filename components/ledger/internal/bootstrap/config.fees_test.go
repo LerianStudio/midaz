@@ -123,3 +123,17 @@ func TestModuleFeesProvisioningName(t *testing.T) {
 	assert.Equal(t, "fees-api", constant.ModuleFees,
 		"ModuleFees MUST equal 'fees-api' to match tenant-manager provisioning")
 }
+
+// TestBuildFeesMongoConnection_RequireTenantFollowsTenantMode pins the fee tenant
+// boundary at construction: a multi-tenant connection never serves its static database.
+func TestBuildFeesMongoConnection_RequireTenantFollowsTenantMode(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{FeesPrefixedMongoURI: "mongodb://h"}
+
+	for _, multiTenant := range []bool{true, false} {
+		conn, err := buildFeesMongoConnection(cfg, multiTenant, libLog.NewNop())
+		require.NoError(t, err)
+		assert.Equal(t, multiTenant, conn.RequireTenant, "multiTenant=%v", multiTenant)
+	}
+}

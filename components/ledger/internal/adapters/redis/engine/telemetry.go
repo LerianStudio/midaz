@@ -13,6 +13,8 @@ import (
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 var executionDuration = metrics.Metric{
@@ -95,12 +97,12 @@ func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactor
 	logMetricError(ctx, logger, touchedErr)
 }
 
-func recordExecutionOutcome(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, duration time.Duration, err error) {
+func recordExecutionOutcome(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, duration time.Duration, request accounting.Execution, err error) {
 	if factory == nil {
 		return
 	}
 
-	outcome, code := executionOutcome(err)
+	outcome, code := executionOutcome(request, err)
 	emitCounter(ctx, factory, logger, "engine_requests_total", "Accounting adapter invocations by outcome, including replay and preflight rejection.", map[string]string{"outcome": outcome}, 1)
 
 	if code != "" {
@@ -148,7 +150,7 @@ func logMetricError(ctx context.Context, logger libLog.Logger, err error) {
 	}
 }
 
-func executionOutcome(err error) (string, string) {
+func executionOutcome(request accounting.Execution, err error) (string, string) {
 	if err == nil {
 		return "success", ""
 	}
@@ -159,12 +161,18 @@ func executionOutcome(err error) (string, string) {
 			return "technical_error", "unknown"
 		}
 
-		outcome := "technical_error"
+		// The code bounds the label: classifyAccountingError is a closed switch and
+		// every other technical() call passes a literal. A confirmed code the public
+		// mapping answers as a client error is a refusal.
 		if failure.Indeterminate {
-			outcome = "indeterminate"
+			return "indeterminate", failure.Code
 		}
 
-		return outcome, metricFailureCode(failure.Code)
+		if pkg.IsBusinessError(command.MapEngineError(request, err)) {
+			return "refused", failure.Code
+		}
+
+		return "technical_error", failure.Code
 	}
 
 	var refusal *accounting.Failure
@@ -182,24 +190,4 @@ func executionOutcome(err error) (string, string) {
 	}
 
 	return "technical_error", "unknown"
-}
-
-func metricFailureCode(code string) string {
-	switch code {
-	case "context_canceled", "invalid_scope", "invalid_request", "invalid_recovery",
-		"connection_unavailable", "unsupported_transport", "invalid_response", "transport",
-		"invalid_failure", "invalid_technical_failure", "invalid_json", "invalid_protocol",
-		"invalid_balance", "balance_identity_mismatch", "wrong_key_type",
-		"execution_fingerprint_conflict", "execution_guard_conflict", "transaction_already_reverted", "version_overflow",
-		"invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded",
-		"serialization_failed", "script_runtime_failed", "indeterminate",
-		"execution_outcome_unknown", "invalid_receipt", "unknown_technical_failure",
-		"invalid_normalization_failure", "normalization_required", "script_runtime",
-		"normalization_read_failed", "normalization_balance_missing",
-		"normalization_invalid_balance", "normalization_repair_failed", "fee_debt_record_pending",
-		"fee_debt_conflict":
-		return code
-	default:
-		return "unknown"
-	}
 }

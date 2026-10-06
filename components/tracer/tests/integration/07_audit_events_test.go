@@ -48,7 +48,7 @@ func resetAuditEvents(t *testing.T, db *sql.DB) {
 }
 
 // ============================================================================
-// 11.1 GET /v1/audit-events/{id} - Get Audit Event
+// 11.1 GET /v1/audit-events/{audit_event_id} - Get Audit Event
 // ============================================================================
 
 // TestAuditEvents_11_1_1_RetrievesAuditEventByID tests retrieving an audit event by its ID.
@@ -993,7 +993,7 @@ func TestAuditEvents_11_2_13_ReturnsEmptyArrayWhenNoMatches(t *testing.T) {
 }
 
 // ============================================================================
-// 11.3 GET /v1/audit-events/{id}/verify - Verify Hash Chain
+// 11.3 GET /v1/audit-events/{audit_event_id}/verify - Verify Hash Chain
 // ============================================================================
 
 // TestAuditEvents_11_3_1_VerifiesValidHashChain tests hash chain verification.

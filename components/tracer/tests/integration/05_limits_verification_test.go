@@ -1987,7 +1987,7 @@ func TestLimitsVerification_5_4_4_AuditTrailPreservation(t *testing.T) {
 	validationID := result.ValidationID
 	require.NotEmpty(t, validationID, "Should return validationId")
 
-	// Retrieve the validation via GET /v1/validations/{id}
+	// Retrieve the validation via GET /v1/validations/{validation_id}
 	getResp, getBody := testutil.GetValidation(t, validationID)
 	defer getResp.Body.Close()
 

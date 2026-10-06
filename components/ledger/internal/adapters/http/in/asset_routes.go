@@ -29,7 +29,7 @@ import (
 func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/assets"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{asset_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Assets"
 	)
@@ -65,15 +65,18 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler, opSuffix string) {
 		Security:    secAssetBearer,
 	}, h.GetAssetByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateAsset" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an asset",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secAssetBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAsset.
-	}, h.UpdateAsset)
+	}, withMetadataNull(metadataNull, h.UpdateAsset))
 	attachTypedRequestBody[mmodel.UpdateAssetInput](api, "updateAsset"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -129,7 +132,7 @@ func RegisterAssetV2RoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 func registerAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/assets"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:asset_id"
 		countPath = listPath + "/metrics/count"
 	)
 

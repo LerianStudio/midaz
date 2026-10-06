@@ -219,7 +219,7 @@ func CleanupRule(t *testing.T, ruleID string) {
 	// Ignore status - rule might already be deleted
 }
 
-// DeleteRuleViaAPI deletes a rule using the DELETE /v1/rules/:id endpoint.
+// DeleteRuleViaAPI deletes a rule using the DELETE /v1/rules/:rule_id endpoint.
 // State machine allows: DRAFT → DELETED and INACTIVE → DELETED.
 // If the rule is ACTIVE, it will be deactivated first.
 // Unlike CleanupRule, this function asserts on errors.
@@ -621,7 +621,7 @@ func DraftRule(t *testing.T, ruleID string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to draft rule: %s", string(respBody))
 }
 
-// ValidationDetailResponse represents the response from GET /v1/validations/{id}.
+// ValidationDetailResponse represents the response from GET /v1/validations/{validation_id}.
 // Fields match model.TransactionValidation for explicit traceability and queryability.
 type ValidationDetailResponse struct {
 	ID                   string             `json:"validationId"`

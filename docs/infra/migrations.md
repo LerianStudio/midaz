@@ -119,6 +119,24 @@ per tenant database, pointing the `DB_*` (or `*_DATABASE_URL`) variables at that
 tenant's databases. Keeping the loop out of the runner keeps the image simple
 and its behavior identical in local dev and production.
 
+### Tenant MongoDB metadata indexes
+
+The ledger creates the unique `entity_id_1` index on its 12 metadata collections at boot only in
+single-tenant mode. Tenant databases get it from the Tenant Manager's Mongo runner, which applies
+`components/ledger/migrations/{onboarding,transaction}/mongodb/*.json`: one `NNNNNN_<name>.up.json`
+(`collection` + `indexes`) and `.down.json` (`collection` + `indexNames`) pair per collection, from
+`000001` (a fresh tenant starts at version 0). The release uploads them to
+`{env}/ledger/{module}/mongodb/` in `lerian-migration-files`, and
+`TestMetadataMongoMigrationsMatchBootList` pins them to the single-tenant boot list.
+
+Rollout per tenant: on a tenant that already holds duplicate metadata documents, run the backfill
+runner first (it folds them so the unique build succeeds). Then `POST /v1/tenants/{id}/migrations`
+with `{"service":"ledger","module":"onboarding:mongodb"}` and again with
+`"module":"transaction:mongodb"`: one database type per call, so a Mongo failure comes back in the
+response instead of a Warn behind a 200 from the Postgres leg. A failed build leaves that tenant's
+Mongo version dirty (every later call answers 409): remove the duplicates with the backfill runner,
+then reset `dirty` to `false` in that tenant database's `schema_migrations` document by hand.
+
 ## Accepted trade-off: TLS via `sslmode`
 
 The shell entrypoint honors the `sslmode` value from the environment

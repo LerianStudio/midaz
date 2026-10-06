@@ -40,7 +40,7 @@ import (
 // =============================================================================
 
 // =============================================================================
-// GET /v1/audit-events/{id} - Get Audit Event Error Code Tests
+// GET /v1/audit-events/{audit_event_id} - Get Audit Event Error Code Tests
 // =============================================================================
 
 // TestGetAuditEvent_InvalidUUID_ReturnsTRC0007 verifies that an invalid UUID format returns 0065.
@@ -470,7 +470,7 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 }
 
 // =============================================================================
-// GET /v1/audit-events/{id}/verify - Verify Hash Chain Error Code Tests
+// GET /v1/audit-events/{audit_event_id}/verify - Verify Hash Chain Error Code Tests
 // =============================================================================
 
 // TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007 verifies that an invalid UUID format returns 0065.

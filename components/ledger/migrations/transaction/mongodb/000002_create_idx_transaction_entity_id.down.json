@@ -1,0 +1,4 @@
+{
+  "collection": "transaction",
+  "indexNames": ["entity_id_1"]
+}

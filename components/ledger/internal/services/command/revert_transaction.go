@@ -20,6 +20,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -216,6 +217,14 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
+	if isBlockOrUnblockTransaction(tran) {
+		err = pkg.ValidateBusinessError(constant.ErrBlockUnblockNotRevertible, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Block or unblock transaction cannot be reverted", err)
+
+		return mtransaction.Transaction{}, tran, err
+	}
+
 	if err := uc.completeRevertOriginOperations(readCtx, in, loaded); err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to complete the operations of the transaction to revert", err)
 
@@ -229,7 +238,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, tran, err
 	}
 
-	transactionReverted.Metadata = flattenLegacyFeeExemption(transactionReverted.Metadata)
+	transactionReverted.Metadata = fee.FlattenLegacyFeeExemption(transactionReverted.Metadata)
 
 	// Validate bidirectional routes: operations with a route_id require
 	// the referenced OperationRoute to have OperationType "bidirectional".
@@ -724,4 +733,17 @@ func prepareRevertV2Aliases(ctx context.Context, run *createTransactionRun) {
 	if run.ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
 	}
+}
+
+// isBlockOrUnblockTransaction reports whether the transaction was created as a block
+// or an unblock. A direct transaction keeps no body, so its operations are the only
+// record of that override.
+func isBlockOrUnblockTransaction(tran *transaction.Transaction) bool {
+	for _, op := range tran.Operations {
+		if op != nil && (op.Type == constant.BLOCK || op.Type == constant.UNBLOCK) {
+			return true
+		}
+	}
+
+	return false
 }

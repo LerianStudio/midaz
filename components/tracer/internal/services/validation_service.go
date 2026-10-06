@@ -322,21 +322,19 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	response.ProcessingTimeMs = float64(time.Since(startTime).Nanoseconds()) / 1e6
 
 	// The persist-validation/persist-audit/COMMIT sequence is extracted into
-	// commitAllowPath to keep Validate under the gocyclo budget. A non-nil dup
-	// signals a concurrent-duplicate short-circuit (tx must NOT be detached so
-	// the defer rolls back); committed=true means COMMIT succeeded and the
-	// caller must detach tx to prevent the defer from rolling it back.
-	dup, committed, err := s.commitAllowPath(ctx, txCtx, tx, req, response, span, logger)
+	// commitAllowPath to keep Validate under the gocyclo budget. ended=true
+	// means commitAllowPath committed or rolled back tx, so the defer must not.
+	dup, ended, err := s.commitAllowPath(ctx, txCtx, tx, req, response, span, logger)
+	if ended {
+		tx = nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	if dup != nil {
 		return dup, nil
-	}
-
-	if committed {
-		tx = nil // Prevent defer from rolling back after successful commit
 	}
 
 	return &ValidateResult{
@@ -409,15 +407,16 @@ func ruleEvaluationReview(
 }
 
 // commitAllowPath persists the transaction validation and audit event inside
-// tx and commits. Extracted from Validate to keep it under the gocyclo budget;
-// control flow and side effects are identical to the inlined version.
+// tx and commits. Extracted from Validate to keep it under the gocyclo budget.
 //
-// Return contract:
-//   - (dup, false, nil): a concurrent duplicate was detected during persist;
-//     the caller returns dup and leaves tx attached so the defer rolls it back.
-//   - (nil, true, nil): persist + COMMIT succeeded; the caller detaches tx.
+// Return contract (the bool reports whether tx has ended):
+//   - (dup, true, nil): a concurrent duplicate was detected during persist;
+//     tx was rolled back and the caller returns dup.
+//   - (nil, true, nil): persist + COMMIT succeeded.
+//   - (nil, true, err): a concurrent duplicate whose record could not be read;
+//     tx was rolled back.
 //   - (nil, false, err): a persist or commit error; tx stays attached so the
-//     defer rolls it back.
+//     caller's defer rolls it back.
 func (s *ValidationService) commitAllowPath(
 	ctx, txCtx context.Context,
 	tx pgdb.Tx,
@@ -428,14 +427,21 @@ func (s *ValidationService) commitAllowPath(
 ) (*ValidateResult, bool, error) {
 	// Persist transaction validation inside tx
 	if err := s.persistTransactionValidationWithTx(txCtx, tx, req, response, logger); err != nil {
-		if dup := s.handleConcurrentDuplicate(ctx, err, req, logger); dup != nil {
-			return dup, false, nil
+		// The unique violation aborted tx, and the duplicate lookup runs on the
+		// pool: end tx first so this validation never waits on the pool while
+		// holding a connection.
+		ended := errors.Is(err, command.ErrDuplicateValidation)
+		if ended {
+			s.rollbackTx(ctx, tx, req, logger, "concurrent duplicate")
+
+			if dup := s.handleConcurrentDuplicate(ctx, err, req, logger); dup != nil {
+				return dup, true, nil
+			}
 		}
 
-		// tx.Rollback() will be called by defer
 		libOpentelemetry.HandleSpanError(span, "failed to persist transaction validation", err)
 
-		return nil, false, fmt.Errorf("failed to persist transaction validation: %w", err)
+		return nil, ended, fmt.Errorf("failed to persist transaction validation: %w", err)
 	}
 
 	// Persist audit event inside tx
@@ -507,7 +513,7 @@ func (s *ValidationService) emitMessageProcessed(ctx context.Context, result *Va
 // Preserves the H2 idempotency contract: when persistTransactionValidation
 // surfaces command.ErrDuplicateValidation, the loser of a concurrent
 // persistence race must return the existing record rather than its locally
-// built response — otherwise GET /v1/validations/{id} would 404.
+// built response — otherwise GET /v1/validations/{validation_id} would 404.
 func (s *ValidationService) finalizeDenyByRule(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) *ValidateResult {
 	if persistErr := s.persistTransactionValidation(ctx, req, resp, logger); persistErr != nil {
 		if dup := s.handleConcurrentDuplicate(ctx, persistErr, req, logger); dup != nil {
@@ -552,15 +558,7 @@ func (s *ValidationService) finalizeNonAllow(ctx context.Context, tx pgdb.Tx, re
 // handleConcurrentDuplicate. nil means "no duplicate detected; the caller
 // should keep its locally-built response".
 func (s *ValidationService) rollbackAndPersist(ctx context.Context, tx pgdb.Tx, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger, reason string) *ValidateResult {
-	if tx != nil {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logger.With(
-				libLog.String("operation", "service.validation.orchestrate"),
-				libLog.Any("request.id", req.RequestID),
-				libLog.String("error", rollbackErr.Error()),
-			).Log(ctx, libLog.LevelWarn, "Failed to rollback transaction for "+reason)
-		}
-	}
+	s.rollbackTx(ctx, tx, req, logger, reason)
 
 	if persistErr := s.persistTransactionValidation(ctx, req, resp, logger); persistErr != nil {
 		// Only ErrDuplicateValidation propagates here — every other path
@@ -576,6 +574,21 @@ func (s *ValidationService) rollbackAndPersist(ctx context.Context, tx pgdb.Tx, 
 	s.persistAuditEvent(ctx, req, resp, logger)
 
 	return nil
+}
+
+// rollbackTx rolls back tx, logging a failure at Warn; a nil tx is a no-op.
+func (s *ValidationService) rollbackTx(ctx context.Context, tx pgdb.Tx, req *model.ValidationRequest, logger libLog.Logger, reason string) {
+	if tx == nil {
+		return
+	}
+
+	if rollbackErr := tx.Rollback(); rollbackErr != nil {
+		logger.With(
+			libLog.String("operation", "service.validation.orchestrate"),
+			libLog.Any("request.id", req.RequestID),
+			libLog.String("error", rollbackErr.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to rollback transaction for "+reason)
+	}
 }
 
 // handleConcurrentDuplicate checks if a persist error is a concurrent duplicate (TOCTOU race)
@@ -624,7 +637,7 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 //     so a unique-constraint violation here means a concurrent request with the
 //     same RequestID won the persistence race. Without this signal the loser
 //     would return a ValidateResult whose validationID has no DB record, and
-//     GET /v1/validations/{id} would 404 — a broken idempotency contract (H2).
+//     GET /v1/validations/{validation_id} would 404 — a broken idempotency contract (H2).
 //     Callers swap the response with handleConcurrentDuplicate.
 //
 //  2. All other errors are logged but suppressed (returns nil) so the rest of
@@ -638,7 +651,7 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 // # Design Decision: Synchronous Persistence
 //
 // Persistence is synchronous to ensure that validation records are immediately
-// available for retrieval via GET /v1/validations/{id}. This design prioritizes:
+// available for retrieval via GET /v1/validations/{validation_id}. This design prioritizes:
 //
 //  1. Consistency: Validation records are available immediately after POST returns
 //  2. Compliance: SOX/GLBA audit trail is guaranteed before response is sent

@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -225,7 +226,7 @@ func (uc *UseCase) preparePendingEngineIntent(ctx context.Context, run *pendingT
 		return pendingEngineTransition{}, err
 	}
 
-	input.Metadata = flattenLegacyFeeExemption(input.Metadata)
+	input.Metadata = fee.FlattenLegacyFeeExemption(input.Metadata)
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Distribute.To)
 	mtransaction.MutateConcatAliases(input.Send.Source.From)

@@ -1301,6 +1301,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction can't be reverted",
 			Message:    "Transaction can't be reverted. Please try again",
 		},
+		constant.ErrBlockUnblockNotRevertible: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrBlockUnblockNotRevertible.Error(),
+			Title:      "Block And Unblock Cannot Be Reverted",
+			Message:    "Block and unblock transactions cannot be reverted. Use an unblock to undo a block, or a block to undo an unblock.",
+		},
 		constant.ErrTransactionAmbiguous: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),
@@ -2115,12 +2121,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrDeferrableDeductibleFee.Error(),
 			Title:      "Deductible fee cannot be deferrable",
 			Message:    fmt.Sprintf("Fee %v is deducted from the payment (isDeductibleFrom true), so it cannot be deferrable. Set deferrable to false or isDeductibleFrom to false.", args...),
-		},
-		constant.ErrDuplicateFeeKey: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrDuplicateFeeKey.Error(),
-			Title:      "Duplicate fee key",
-			Message:    fmt.Sprintf("More than one fee in this request resolves to the key '%v', so the fee it applies to is ambiguous. Please send each fee once.", args...),
 		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,

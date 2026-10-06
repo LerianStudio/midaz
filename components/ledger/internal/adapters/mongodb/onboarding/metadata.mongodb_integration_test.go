@@ -745,21 +745,10 @@ func TestIntegration_MetadataRepository_DeleteIndex_NotFound(t *testing.T) {
 	ctx := context.Background()
 	collection := "account"
 
-	// First, ensure collection exists by creating a document (MongoDB returns NamespaceNotFound
-	// if collection doesn't exist, but we want to test IndexNotFound specifically)
-	meta := &Metadata{
-		EntityID:   "setup-doc",
-		EntityName: "Account",
-		Data:       map[string]any{"setup": true},
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-	require.NoError(t, repo.Create(ctx, collection, meta))
-
-	// Act - Delete non-existent index on existing collection
+	// Act - a missing collection lists no indexes, like one without the index
 	err := repo.DeleteIndex(ctx, collection, "metadata.nonexistent_1")
 
-	// Assert - Should return EntityNotFoundError mapped from IndexNotFound
+	// Assert - the index list has no such name, so the delete answers not found
 	require.Error(t, err, "DeleteIndex should error for non-existent index")
 	assert.Contains(t, err.Error(), "metadata index does not exist", "error should indicate index not found")
 }

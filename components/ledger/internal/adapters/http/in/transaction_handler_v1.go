@@ -404,7 +404,7 @@ func (handler *TransactionHandler) UpdateTransaction(ctx context.Context, in *Up
 	}
 
 	payload := new(transaction.UpdateTransactionInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullClearsV1); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

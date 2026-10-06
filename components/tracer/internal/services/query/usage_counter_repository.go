@@ -34,22 +34,25 @@ type UsageCounterRepository interface {
 	// using the provided database connection (which may be a transaction).
 	// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
 	// enabling atomic operations with other database changes.
-	// Returns ErrUsageCounterExceedsLimit if the increment would exceed maxAmount.
+	// Returns the bucket's consumed capacity (current_usage + reserved_usage) after
+	// the increment, or ErrUsageCounterExceedsLimit with the unchanged consumed
+	// capacity if the increment would exceed maxAmount.
 	// IMPORTANT: Caller MUST pre-check amount > maxAmount before calling (INSERT path has no WHERE guard).
 	// The expiresAt parameter specifies when the counter should be eligible for cleanup.
 	// If expiresAt is nil, the counter will never be automatically deleted (fail-safe behavior).
 	UpsertAndIncrementAtomic(ctx context.Context, db pgdb.DB, limitID uuid.UUID, scopeKey string, periodKey string, amount decimal.Decimal, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error)
 
-	// GetByLimitID retrieves all usage counters for a specific limit.
-	// Used for the GET /limits/{id}/usage endpoint.
+	// GetByLimitIDAndPeriod retrieves the usage counters of a limit in one
+	// period, one per scope key. Used for the GET /limits/{limit_id}/usage endpoint.
 	// Returns empty slice if no counters exist.
-	GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error)
+	GetByLimitIDAndPeriod(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error)
 
 	// GetUsageForLimits retrieves current usage for multiple limits using the provided database connection.
 	// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
 	// enabling atomic operations with other database changes.
 	// scopeKey and periodKey are used to filter relevant counters.
-	// Returns a map of limitID -> currentUsage. Missing entries mean usage is 0.
+	// Returns a map of limitID -> consumed capacity (current_usage + reserved_usage).
+	// Missing entries mean usage is 0.
 	GetUsageForLimits(ctx context.Context, db pgdb.DB, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error)
 
 	// DeleteExpiredCounters removes usage counters where expires_at < now.

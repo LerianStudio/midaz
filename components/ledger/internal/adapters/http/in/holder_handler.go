@@ -121,13 +121,13 @@ func (handler *HolderHandler) CreateHolder(ctx context.Context, in *CreateHolder
 	return &CreateHolderResponse{Status: http.StatusCreated, IdempotencyReplayed: replayedHeader, Body: holder}, nil
 }
 
-// --- GET /holders/{id} --------------------------------------------------------
+// --- GET /holders/{holder_id} ------------------------------------------------
 
 // GetHolderRequest is the by-id request envelope. The path params carry no format
 // tag — ParseUUIDPathParameters is the sole validator.
 type GetHolderRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
-	ID             string `path:"id" doc:"Holder ID (UUID)"`
+	ID             string `path:"holder_id" doc:"Holder ID (UUID)"`
 	IncludeDeleted string `query:"include_deleted" doc:"Returns the holder even if it was logically deleted (true,false)"`
 }
 
@@ -148,7 +148,7 @@ func (handler *HolderHandler) GetHolderByID(ctx context.Context, in *GetHolderRe
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "holder_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -161,13 +161,13 @@ func (handler *HolderHandler) GetHolderByID(ctx context.Context, in *GetHolderRe
 	return &GetHolderResponse{Status: http.StatusOK, Body: holder}, nil
 }
 
-// --- PATCH /holders/{id} ------------------------------------------------------
+// --- PATCH /holders/{holder_id} ----------------------------------------------
 
 // UpdateHolderRequest is the update request envelope (RawBody, see Create). The
 // raw body is the sole source of the RFC 7396 null-field paths derived below.
 type UpdateHolderRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
-	ID             string `path:"id" doc:"Holder ID (UUID)"`
+	ID             string `path:"holder_id" doc:"Holder ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -190,14 +190,14 @@ func (handler *HolderHandler) UpdateHolder(ctx context.Context, in *UpdateHolder
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "holder_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
 	payload := new(mmodel.UpdateHolderInput)
 
-	originalMap, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload)
+	originalMap, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullKeepsV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -210,13 +210,13 @@ func (handler *HolderHandler) UpdateHolder(ctx context.Context, in *UpdateHolder
 	return &UpdateHolderResponse{Status: http.StatusOK, Body: holder}, nil
 }
 
-// --- DELETE /holders/{id} -----------------------------------------------------
+// --- DELETE /holders/{holder_id} ---------------------------------------------
 
 // DeleteHolderRequest is the delete request envelope; hard_delete is read from the
 // query.
 type DeleteHolderRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
-	ID             string `path:"id" doc:"Holder ID (UUID)"`
+	ID             string `path:"holder_id" doc:"Holder ID (UUID)"`
 	HardDelete     string `query:"hard_delete" doc:"Use only to perform a physical deletion of the data. This action is irreversible. (true,false)"`
 }
 
@@ -235,7 +235,7 @@ func (handler *HolderHandler) DeleteHolderByID(ctx context.Context, in *DeleteHo
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "holder_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -301,13 +301,13 @@ func (handler *HolderHandler) GetAllHolders(ctx context.Context, in *ListHolders
 	return &ListHoldersResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /holders/{id}/accounts -----------------------------------------------
+// --- GET /holders/{holder_id}/accounts ---------------------------------------
 
 // ListHolderAccountsRequest advertises the account-list query params (doc-only)
 // and captures the raw query via Resolve for the imperative binder.
 type ListHolderAccountsRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
-	ID             string `path:"id" doc:"Holder ID (UUID)"`
+	ID             string `path:"holder_id" doc:"Holder ID (UUID)"`
 	Limit          string `query:"limit" doc:"Max items per page (1-100, default 10)"`
 	Page           string `query:"page" doc:"Page number (default 1)"`
 	SortOrder      string `query:"sort_order" doc:"Sort direction (asc, desc)"`
@@ -339,7 +339,7 @@ func (handler *HolderAccountsHandler) GetAccountsByHolder(ctx context.Context, i
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	holderID, err := parsePathUUID(in.ID, "id")
+	holderID, err := parsePathUUID(in.ID, "holder_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

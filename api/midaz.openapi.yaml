@@ -263,14 +263,14 @@ paths:
       summary: Count total organizations
       tags:
         - Midaz_Ledger_API_Organizations (v1)
-  /v1/organizations/{id}:
+  /v1/organizations/{organization_id}:
     delete:
       deprecated: true
       operationId: deleteOrganization
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -307,7 +307,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -344,11 +344,16 @@ paths:
         - Midaz_Ledger_API_Organizations (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOrganization
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -662,6 +667,11 @@ paths:
         - Midaz_Ledger_API_Ledgers (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateLedger
       parameters:
         - description: Organization ID (UUID)
@@ -873,7 +883,7 @@ paths:
       summary: Create a new account type
       tags:
         - Midaz_Ledger_API_Account Types (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}:
     delete:
       deprecated: true
       operationId: deleteAccountType
@@ -894,7 +904,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -945,7 +955,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -982,6 +992,11 @@ paths:
         - Midaz_Ledger_API_Account Types (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateAccountType
       parameters:
         - description: Organization ID (UUID)
@@ -1000,7 +1015,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -1530,6 +1545,202 @@ paths:
       summary: Count accounts
       tags:
         - Midaz_Ledger_API_Accounts (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}:
+    delete:
+      deprecated: true
+      description: >-
+        Deletes an account together with its balances. A balance that still owes
+        pending fees (0527) or that other balances still owe pending fees to
+        (0528) is refused with 422. A state that cannot be established answers
+        503 (0520) and may be retried. The CRM instrument linked to the account
+        is soft-deleted. In every fee package of the ledger, a fee whose
+        creditAccount is the account's alias is removed and the alias leaves
+        waivedAccounts; a package left without fees is disabled. In billing
+        packages, a debitAccountAlias, creditAccountAlias or
+        maintenanceCreditAccount equal to the alias is cleared and the package
+        is disabled; the alias leaves accountTarget.aliases, and the package is
+        disabled only when that list empties. These effects happen before the
+        account is deleted. If one of them fails, the account stays in place and
+        the request may be retried.
+      operationId: deleteAccount
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account
+      tags:
+        - Midaz_Ledger_API_Accounts (v1)
+    get:
+      deprecated: true
+      operationId: getAccountByID
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+          description: OK
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Midaz_Ledger_API_Accounts (v1)
+    patch:
+      deprecated: true
+      description: >-
+        The closing instant is output only: a body naming closedAt or closed_at
+        at its root is refused with 400 whatever the value it carries, and the
+        stored instant is only ever written by the close command. Metadata is
+        applied as an RFC 7396 merge patch: a body without metadata, or with an
+        empty metadata object, leaves the stored metadata as it is; a key sent
+        as null is deleted; any other key is added or replaced; metadata sent as
+        null deletes every key the client wrote.
+      operationId: updateAccount
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountInput'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+          description: OK
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account
+      tags:
+        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       deprecated: true
@@ -1942,189 +2153,6 @@ paths:
       summary: Get Operation
       tags:
         - Midaz_Ledger_API_Operations (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
-    delete:
-      deprecated: true
-      description: >-
-        Deletes an account together with its balances. A balance that still owes
-        pending fees (0527) or that other balances still owe pending fees to
-        (0528) is refused with 422. A state that cannot be established answers
-        503 (0520) and may be retried.
-      operationId: deleteAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
-      responses:
-        '204':
-          description: No Content
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete an account
-      tags:
-        - Midaz_Ledger_API_Accounts (v1)
-    get:
-      deprecated: true
-      operationId: getAccountByID
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
-          description: OK
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve a specific account
-      tags:
-        - Midaz_Ledger_API_Accounts (v1)
-    patch:
-      deprecated: true
-      description: >-
-        The closing instant is output only: a body naming closedAt or closed_at
-        at its root is refused with 400 whatever the value it carries, and the
-        stored instant is only ever written by the close command.
-      operationId: updateAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateAccountInput'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
-          description: OK
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyError'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update an account
-      tags:
-        - Midaz_Ledger_API_Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       deprecated: true
@@ -2535,7 +2563,7 @@ paths:
       summary: Count total assets
       tags:
         - Midaz_Ledger_API_Assets (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}:
     delete:
       deprecated: true
       operationId: deleteAsset
@@ -2556,7 +2584,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -2607,7 +2635,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -2644,6 +2672,11 @@ paths:
         - Midaz_Ledger_API_Assets (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateAsset
       parameters:
         - description: Organization ID (UUID)
@@ -2662,7 +2695,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -3527,6 +3560,11 @@ paths:
         - Midaz_Ledger_API_Operation Routes (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOperationRoute
       parameters:
         - description: Organization ID (UUID)
@@ -3785,7 +3823,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Midaz_Ledger_API_Portfolios (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}:
     delete:
       deprecated: true
       operationId: deletePortfolio
@@ -3806,7 +3844,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -3857,7 +3895,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -3894,6 +3932,11 @@ paths:
         - Midaz_Ledger_API_Portfolios (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updatePortfolio
       parameters:
         - description: Organization ID (UUID)
@@ -3912,7 +3955,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -4138,7 +4181,7 @@ paths:
       summary: Count total segments
       tags:
         - Midaz_Ledger_API_Segments (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}:
     delete:
       deprecated: true
       operationId: deleteSegment
@@ -4159,7 +4202,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -4210,7 +4253,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -4247,6 +4290,11 @@ paths:
         - Midaz_Ledger_API_Segments (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateSegment
       parameters:
         - description: Organization ID (UUID)
@@ -4265,7 +4313,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -4657,6 +4705,11 @@ paths:
         - Midaz_Ledger_API_Transaction Routes (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateTransactionRoute
       parameters:
         - description: Organization ID (UUID)
@@ -5410,6 +5463,11 @@ paths:
         - Midaz_Ledger_API_Transactions (v1)
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateTransaction
       parameters:
         - description: Organization ID (UUID)
@@ -5584,6 +5642,11 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       deprecated: true
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null deletes every key the client wrote.
       operationId: updateOperation
       parameters:
         - description: Organization ID (UUID)
@@ -6025,13 +6088,13 @@ paths:
       summary: Count total organizations
       tags:
         - Midaz_Ledger_API_Organizations (v2)
-  /v2/organizations/{id}:
+  /v2/organizations/{organization_id}:
     delete:
       operationId: deleteOrganizationV2
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6067,7 +6130,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6103,11 +6166,17 @@ paths:
       tags:
         - Midaz_Ledger_API_Organizations (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOrganizationV2
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6404,6 +6473,254 @@ paths:
       summary: Create a Holder
       tags:
         - Midaz_Ledger_API_Holders (v2)
+  /v2/organizations/{organization_id}/holders/{holder_id}:
+    delete:
+      operationId: deleteHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: >-
+            Use only to perform a physical deletion of the data. This action is
+            irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: >-
+              Use only to perform a physical deletion of the data. This action
+              is irreversible. (true,false)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Holder
+      tags:
+        - Midaz_Ledger_API_Holders (v2)
+    get:
+      operationId: getHolderByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Returns the holder even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Returns the holder even if it was logically deleted (true,false)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holder'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Holder details
+      tags:
+        - Midaz_Ledger_API_Holders (v2)
+    patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
+      operationId: updateHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHolderInput'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holder'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Holder
+      tags:
+        - Midaz_Ledger_API_Holders (v2)
+  /v2/organizations/{organization_id}/holders/{holder_id}/accounts:
+    get:
+      operationId: listAccountsByHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: >-
+            Optional ledger ID (UUID). Narrows the org-wide listing to one
+            ledger.
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: >-
+              Optional ledger ID (UUID). Narrows the org-wide listing to one
+              ledger.
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Accounts by Holder
+      tags:
+        - Midaz_Ledger_API_Holders (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       description: >-
@@ -6616,7 +6933,11 @@ paths:
         Updates an instrument as an RFC 7396 merge patch. A change to bankId,
         branch or account that leaves the instrument holding a bank account
         already registered to another live instrument of the organization is
-        refused with 409 (CRM-0043).
+        refused with 409 (CRM-0043). Metadata is applied as an RFC 7396 merge
+        patch: a body without metadata, or with an empty metadata object, leaves
+        the stored metadata as it is; a key sent as null is deleted; any other
+        key is added or replaced; metadata sent as null also leaves the stored
+        metadata as it is, so keys are deleted one at a time.
       operationId: updateInstrumentV2
       parameters:
         - description: Organization ID (UUID)
@@ -6734,248 +7055,6 @@ paths:
       summary: Delete a Related Party
       tags:
         - Midaz_Ledger_API_Instruments (v2)
-  /v2/organizations/{organization_id}/holders/{id}:
-    delete:
-      operationId: deleteHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: >-
-            Use only to perform a physical deletion of the data. This action is
-            irreversible. (true,false)
-          explode: false
-          in: query
-          name: hard_delete
-          schema:
-            description: >-
-              Use only to perform a physical deletion of the data. This action
-              is irreversible. (true,false)
-            type: string
-      responses:
-        '204':
-          description: No Content
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete a Holder
-      tags:
-        - Midaz_Ledger_API_Holders (v2)
-    get:
-      operationId: getHolderByIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Returns the holder even if it was logically deleted (true,false)
-          explode: false
-          in: query
-          name: include_deleted
-          schema:
-            description: Returns the holder even if it was logically deleted (true,false)
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Holder'
-          description: OK
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve Holder details
-      tags:
-        - Midaz_Ledger_API_Holders (v2)
-    patch:
-      operationId: updateHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateHolderInput'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Holder'
-          description: OK
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update a Holder
-      tags:
-        - Midaz_Ledger_API_Holders (v2)
-  /v2/organizations/{organization_id}/holders/{id}/accounts:
-    get:
-      operationId: listAccountsByHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Max items per page (1-100, default 10)
-          explode: false
-          in: query
-          name: limit
-          schema:
-            description: Max items per page (1-100, default 10)
-            type: string
-        - description: Page number (default 1)
-          explode: false
-          in: query
-          name: page
-          schema:
-            description: Page number (default 1)
-            type: string
-        - description: Sort direction (asc, desc)
-          explode: false
-          in: query
-          name: sort_order
-          schema:
-            description: Sort direction (asc, desc)
-            type: string
-        - description: >-
-            Optional ledger ID (UUID). Narrows the org-wide listing to one
-            ledger.
-          explode: false
-          in: query
-          name: ledger_id
-          schema:
-            description: >-
-              Optional ledger ID (UUID). Narrows the org-wide listing to one
-              ledger.
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pagination'
-          description: OK
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: List Accounts by Holder
-      tags:
-        - Midaz_Ledger_API_Holders (v2)
   /v2/organizations/{organization_id}/instruments:
     get:
       operationId: listInstrumentsV2
@@ -7347,6 +7426,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Ledgers (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateLedgerV2
       parameters:
         - description: Organization ID (UUID)
@@ -7556,7 +7641,7 @@ paths:
       summary: Create a new account type
       tags:
         - Midaz_Ledger_API_Account Types (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}:
     delete:
       operationId: deleteAccountTypeV2
       parameters:
@@ -7576,7 +7661,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -7626,7 +7711,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -7662,6 +7747,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Account Types (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateAccountTypeV2
       parameters:
         - description: Organization ID (UUID)
@@ -7680,7 +7771,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -8262,6 +8353,200 @@ paths:
       summary: Count accounts
       tags:
         - Midaz_Ledger_API_Accounts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}:
+    delete:
+      description: >-
+        Deletes an account together with its balances. A balance that still owes
+        pending fees (0527) or that other balances still owe pending fees to
+        (0528) is refused with 422. A state that cannot be established answers
+        503 (0520) and may be retried. The CRM instrument linked to the account
+        is soft-deleted. In every fee package of the ledger, a fee whose
+        creditAccount is the account's alias is removed and the alias leaves
+        waivedAccounts; a package left without fees is disabled. In billing
+        packages, a debitAccountAlias, creditAccountAlias or
+        maintenanceCreditAccount equal to the alias is cleared and the package
+        is disabled; the alias leaves accountTarget.aliases, and the package is
+        disabled only when that list empties. These effects happen before the
+        account is deleted. If one of them fails, the account stays in place and
+        the request may be retried.
+      operationId: deleteAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account
+      tags:
+        - Midaz_Ledger_API_Accounts (v2)
+    get:
+      operationId: getAccountByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountV2'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Midaz_Ledger_API_Accounts (v2)
+    patch:
+      description: >-
+        The closing instant is output only: a body naming closedAt or closed_at
+        at its root is refused with 400 whatever the value it carries, and the
+        stored instant is only ever written by the close command. Metadata is
+        applied as an RFC 7396 merge patch: a body without metadata, or with an
+        empty metadata object, leaves the stored metadata as it is; a key sent
+        as null is deleted; any other key is added or replaced; metadata sent as
+        null also leaves the stored metadata as it is, so keys are deleted one
+        at a time.
+      operationId: updateAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountInput'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountV2'
+          description: OK
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account
+      tags:
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountIDV2
@@ -8501,7 +8786,11 @@ paths:
         be retried later. An indeterminate protection or an unavailable
         dependency answers 503 (0520). Once the account is closed, any movement
         that would touch it is refused with 0519, including the commit of a
-        pending transaction that names it as destination.
+        pending transaction that names it as destination, and the revert of a
+        transaction whose fee legs credited it. Closing is permanent. To retire
+        a fee account, point the fee package at the new fee account and leave
+        the old account open: reverts of earlier transactions and collections of
+        fee debt already owed to it still post there.
       operationId: closeAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -8738,186 +9027,6 @@ paths:
       summary: Get Operation
       tags:
         - Midaz_Ledger_API_Operations (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
-    delete:
-      description: >-
-        Deletes an account together with its balances. A balance that still owes
-        pending fees (0527) or that other balances still owe pending fees to
-        (0528) is refused with 422. A state that cannot be established answers
-        503 (0520) and may be retried.
-      operationId: deleteAccountV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
-      responses:
-        '204':
-          description: No Content
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete an account
-      tags:
-        - Midaz_Ledger_API_Accounts (v2)
-    get:
-      operationId: getAccountByIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AccountV2'
-          description: OK
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve a specific account
-      tags:
-        - Midaz_Ledger_API_Accounts (v2)
-    patch:
-      description: >-
-        The closing instant is output only: a body naming closedAt or closed_at
-        at its root is refused with 400 whatever the value it carries, and the
-        stored instant is only ever written by the close command.
-      operationId: updateAccountV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateAccountInput'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AccountV2'
-          description: OK
-        '422':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unprocessable Entity
-        '500':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update an account
-      tags:
-        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssetsV2
@@ -9106,7 +9215,7 @@ paths:
       summary: Count total assets
       tags:
         - Midaz_Ledger_API_Assets (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}:
     delete:
       operationId: deleteAssetV2
       parameters:
@@ -9126,7 +9235,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -9176,7 +9285,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -9212,6 +9321,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Assets (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateAssetV2
       parameters:
         - description: Organization ID (UUID)
@@ -9230,7 +9345,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -9711,7 +9826,7 @@ paths:
       summary: Create a BillingPackage
       tags:
         - Midaz_Ledger_API_Billing Packages (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}:
     delete:
       operationId: deleteBillingPackageV2
       parameters:
@@ -9731,7 +9846,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -9781,7 +9896,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -9835,7 +9950,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -10409,7 +10524,7 @@ paths:
       summary: Collect a balance's open fee debts
       tags:
         - Midaz_Ledger_API_Fee Debts (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}:
     get:
       operationId: getFeeDebtV2
       parameters:
@@ -10429,7 +10544,7 @@ paths:
             type: string
         - description: Fee debt ID
           in: path
-          name: debt_id
+          name: fee_debt_id
           required: true
           schema:
             description: Fee debt ID
@@ -10464,7 +10579,7 @@ paths:
       summary: Get a fee debt
       tags:
         - Midaz_Ledger_API_Fee Debts (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts:
     post:
       operationId: createHolderAccountV2
       parameters:
@@ -10484,7 +10599,7 @@ paths:
             type: string
         - description: Holder ID (UUID)
           in: path
-          name: id
+          name: holder_id
           required: true
           schema:
             description: Holder ID (UUID)
@@ -10773,6 +10888,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -10968,8 +11089,11 @@ paths:
       summary: Create a Package
       tags:
         - Midaz_Ledger_API_Packages (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}:
     delete:
+      description: >-
+        A deleted package may keep applying for up to 60 seconds when a
+        transaction read the packages concurrently with the delete.
       operationId: deletePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -10988,7 +11112,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -11038,7 +11162,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -11074,6 +11198,14 @@ paths:
       tags:
         - Midaz_Ledger_API_Packages (v2)
     patch:
+      description: >-
+        A package switched off (enable: false) may keep applying, and a fee
+        whose deferrable changed to false may still open fee debt when unfunded,
+        for up to 60 seconds when a transaction read the packages concurrently
+        with the update. Closing an account is permanent. To retire a fee
+        account, point the fee package at the new fee account and leave the old
+        account open: reverts of earlier transactions and collections of fee
+        debt already owed to it still post there.
       operationId: updatePackageV2
       parameters:
         - description: Organization ID (UUID)
@@ -11092,7 +11224,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -11329,7 +11461,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}:
     delete:
       operationId: deletePortfolioV2
       parameters:
@@ -11349,7 +11481,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -11399,7 +11531,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -11435,6 +11567,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Portfolios (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updatePortfolioV2
       parameters:
         - description: Organization ID (UUID)
@@ -11453,7 +11591,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -11676,7 +11814,7 @@ paths:
       summary: Count total segments
       tags:
         - Midaz_Ledger_API_Segments (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}:
     delete:
       operationId: deleteSegmentV2
       parameters:
@@ -11696,7 +11834,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -11746,7 +11884,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -11782,6 +11920,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Segments (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateSegmentV2
       parameters:
         - description: Organization ID (UUID)
@@ -11800,7 +11944,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -12185,6 +12329,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -12472,6 +12622,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Transactions (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateTransactionV2
       parameters:
         - description: Organization ID (UUID)
@@ -12652,6 +12808,12 @@ paths:
         - Midaz_Ledger_API_Transactions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOperationV2
       parameters:
         - description: Organization ID (UUID)
@@ -13007,6 +13169,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Operation Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOrganizationOperationRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -13382,6 +13550,12 @@ paths:
       tags:
         - Midaz_Ledger_API_Transaction Routes (v2)
     patch:
+      description: >-
+        Metadata is applied as an RFC 7396 merge patch: a body without metadata,
+        or with an empty metadata object, leaves the stored metadata as it is; a
+        key sent as null is deleted; any other key is added or replaced;
+        metadata sent as null also leaves the stored metadata as it is, so keys
+        are deleted one at a time.
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -14079,13 +14253,13 @@ paths:
       summary: List audit events
       tags:
         - Midaz_Tracer_API_Audit
-  /v1/audit-events/{id}:
+  /v1/audit-events/{audit_event_id}:
     get:
       operationId: getAuditEvent
       parameters:
         - description: Audit event ID (UUID)
           in: path
-          name: id
+          name: audit_event_id
           required: true
           schema:
             description: Audit event ID (UUID)
@@ -14121,13 +14295,13 @@ paths:
       summary: Get an audit event by ID
       tags:
         - Midaz_Tracer_API_Audit
-  /v1/audit-events/{id}/verify:
+  /v1/audit-events/{audit_event_id}/verify:
     get:
       operationId: verifyAuditEvent
       parameters:
         - description: Audit event ID (UUID)
           in: path
-          name: id
+          name: audit_event_id
           required: true
           schema:
             description: Audit event ID (UUID)
@@ -14634,13 +14808,13 @@ paths:
       summary: Create a new spending limit
       tags:
         - Midaz_Tracer_API_Limits
-  /v1/limits/{id}:
+  /v1/limits/{limit_id}:
     delete:
       operationId: deleteLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -14677,7 +14851,7 @@ paths:
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -14718,7 +14892,7 @@ paths:
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -14762,13 +14936,13 @@ paths:
       summary: Partially update an existing spending limit
       tags:
         - Midaz_Tracer_API_Limits
-  /v1/limits/{id}/activate:
+  /v1/limits/{limit_id}/activate:
     post:
       operationId: activateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -14804,13 +14978,13 @@ paths:
       summary: Activate a spending limit
       tags:
         - Midaz_Tracer_API_Limits
-  /v1/limits/{id}/deactivate:
+  /v1/limits/{limit_id}/deactivate:
     post:
       operationId: deactivateLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -14846,13 +15020,13 @@ paths:
       summary: Deactivate a spending limit
       tags:
         - Midaz_Tracer_API_Limits
-  /v1/limits/{id}/draft:
+  /v1/limits/{limit_id}/draft:
     post:
       operationId: draftLimit
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -14888,13 +15062,13 @@ paths:
       summary: Transition a limit back to draft
       tags:
         - Midaz_Tracer_API_Limits
-  /v1/limits/{id}/usage:
+  /v1/limits/{limit_id}/usage:
     get:
       operationId: getLimitUsage
       parameters:
         - description: Limit ID (UUID)
           in: path
-          name: id
+          name: limit_id
           required: true
           schema:
             description: Limit ID (UUID)
@@ -15097,13 +15271,13 @@ paths:
       summary: Create a new fraud rule
       tags:
         - Midaz_Tracer_API_Rules
-  /v1/rules/{id}:
+  /v1/rules/{rule_id}:
     delete:
       operationId: deleteRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -15140,7 +15314,7 @@ paths:
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -15181,7 +15355,7 @@ paths:
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -15225,13 +15399,13 @@ paths:
       summary: Partially update an existing fraud rule
       tags:
         - Midaz_Tracer_API_Rules
-  /v1/rules/{id}/activate:
+  /v1/rules/{rule_id}/activate:
     post:
       operationId: activateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -15267,13 +15441,13 @@ paths:
       summary: Activate a fraud rule
       tags:
         - Midaz_Tracer_API_Rules
-  /v1/rules/{id}/deactivate:
+  /v1/rules/{rule_id}/deactivate:
     post:
       operationId: deactivateRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -15309,13 +15483,13 @@ paths:
       summary: Deactivate a fraud rule
       tags:
         - Midaz_Tracer_API_Rules
-  /v1/rules/{id}/draft:
+  /v1/rules/{rule_id}/draft:
     post:
       operationId: draftRule
       parameters:
         - description: Rule ID (UUID)
           in: path
-          name: id
+          name: rule_id
           required: true
           schema:
             description: Rule ID (UUID)
@@ -15518,13 +15692,13 @@ paths:
       summary: Validate a transaction
       tags:
         - Midaz_Tracer_API_Validations
-  /v1/validations/{id}:
+  /v1/validations/{validation_id}:
     get:
       operationId: getValidation
       parameters:
         - description: Transaction Validation ID (UUID)
           in: path
-          name: id
+          name: validation_id
           required: true
           schema:
             description: Transaction Validation ID (UUID)
@@ -16332,26 +16506,26 @@ components:
             cross_ledger_bridge, when the only account on one side that would
             have paid a fee is the @external/<asset> bridge closing a part of a
             cross-ledger group, because that bridge never pays a fee; a
-            transaction recorded before v4.1.1 may carry feeExemption as that
-            object itself instead of the string, so a reader must accept both
-            shapes; feeDebtOpenings and feeDebtSettlements are strings holding a
-            JSON array, in the order the ledger applied them, of the fee debts
-            this transaction opened because its payer could not fund a
-            deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of
-            the fee debts it settled (debtId, debtorRef, creditRef, amount,
-            opened, seq), each absent when there is none; feeDebtCollection is
-            the string true on a standalone fee-debt collection, whose amount is
-            what it settled and which cannot be reverted. A request body
-            carrying feeApplied, packageAppliedID, feeExemption,
-            feeDebtOpenings, feeDebtSettlements, feeDebtCollection or
-            feeDeferPair is refused with 400 naming the offending key, on every
-            body that carries transaction metadata: a create, a metadata update
-            and a fee estimate. A metadata update, including one that clears the
-            metadata, never changes them. So a value present here is always the
-            ledger's own word about the charge and never one a caller supplied.
-            feeLeg and feeDeferPair, on operation metadata, are reserved the
-            same way. Transaction-level metadata is additive, so caller-supplied
-            keys on this field are preserved alongside the ledger keys.
+            transaction recorded before v4.1.1 stored feeExemption as that
+            object itself, and a read returns it as the string too;
+            feeDebtOpenings and feeDebtSettlements are strings holding a JSON
+            array, in the order the ledger applied them, of the fee debts this
+            transaction opened because its payer could not fund a deferrable fee
+            (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it
+            settled (debtId, debtorRef, creditRef, amount, opened, seq), each
+            absent when there is none; feeDebtCollection is the string true on a
+            standalone fee-debt collection, whose amount is what it settled and
+            which cannot be reverted. A request body carrying feeApplied,
+            packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements,
+            feeDebtCollection or feeDeferPair is refused with 400 naming the
+            offending key, on every body that carries transaction metadata: a
+            create, a metadata update and a fee estimate. A metadata update,
+            including one that clears the metadata, never changes them. So a
+            value present here is always the ledger's own word about the charge
+            and never one a caller supplied. feeLeg and feeDeferPair, on
+            operation metadata, are reserved the same way. Transaction-level
+            metadata is additive, so caller-supplied keys on this field are
+            preserved alongside the ledger keys.
           type: object
         operations:
           items:
@@ -18217,6 +18391,10 @@ components:
         fees:
           additionalProperties:
             $ref: '#/components/schemas/Fee'
+          description: >-
+            Fees keyed by fee key. A key must match ^[a-z][a-zA-Z0-9]*$ (a
+            lowercase ASCII letter, then ASCII letters and digits) and is stored
+            and returned verbatim; any other key is refused with 400.
           type: object
         maximumAmount:
           examples:
@@ -18680,6 +18858,15 @@ components:
         fees:
           additionalProperties:
             $ref: '#/components/schemas/Fee'
+          description: >-
+            Fee patches keyed by fee key. An entry naming a stored key verbatim
+            edits that fee, or removes it when the entry sets no field. Any
+            other key adds a fee and must match ^[a-z][a-zA-Z0-9]*$ (a lowercase
+            ASCII letter, then ASCII letters and digits), or the update is
+            refused with 400; a key equal to a stored key except for letter case
+            is also refused with 400, and the stored key must be used, unless
+            the same patch removes that stored key, which renames the fee (the
+            new key must still match the grammar).
           type: object
         maximumAmount:
           examples:
@@ -20724,26 +20911,26 @@ components:
             cross_ledger_bridge, when the only account on one side that would
             have paid a fee is the @external/<asset> bridge closing a part of a
             cross-ledger group, because that bridge never pays a fee; a
-            transaction recorded before v4.1.1 may carry feeExemption as that
-            object itself instead of the string, so a reader must accept both
-            shapes; feeDebtOpenings and feeDebtSettlements are strings holding a
-            JSON array, in the order the ledger applied them, of the fee debts
-            this transaction opened because its payer could not fund a
-            deferrable fee (debtId, debtorRef, creditRef, opened, seq) and of
-            the fee debts it settled (debtId, debtorRef, creditRef, amount,
-            opened, seq), each absent when there is none; feeDebtCollection is
-            the string true on a standalone fee-debt collection, whose amount is
-            what it settled and which cannot be reverted. A request body
-            carrying feeApplied, packageAppliedID, feeExemption,
-            feeDebtOpenings, feeDebtSettlements, feeDebtCollection or
-            feeDeferPair is refused with 400 naming the offending key, on every
-            body that carries transaction metadata: a create, a metadata update
-            and a fee estimate. A metadata update, including one that clears the
-            metadata, never changes them. So a value present here is always the
-            ledger's own word about the charge and never one a caller supplied.
-            feeLeg and feeDeferPair, on operation metadata, are reserved the
-            same way. Transaction-level metadata is additive, so caller-supplied
-            keys on this field are preserved alongside the ledger keys.
+            transaction recorded before v4.1.1 stored feeExemption as that
+            object itself, and a read returns it as the string too;
+            feeDebtOpenings and feeDebtSettlements are strings holding a JSON
+            array, in the order the ledger applied them, of the fee debts this
+            transaction opened because its payer could not fund a deferrable fee
+            (debtId, debtorRef, creditRef, opened, seq) and of the fee debts it
+            settled (debtId, debtorRef, creditRef, amount, opened, seq), each
+            absent when there is none; feeDebtCollection is the string true on a
+            standalone fee-debt collection, whose amount is what it settled and
+            which cannot be reverted. A request body carrying feeApplied,
+            packageAppliedID, feeExemption, feeDebtOpenings, feeDebtSettlements,
+            feeDebtCollection or feeDeferPair is refused with 400 naming the
+            offending key, on every body that carries transaction metadata: a
+            create, a metadata update and a fee estimate. A metadata update,
+            including one that clears the metadata, never changes them. So a
+            value present here is always the ledger's own word about the charge
+            and never one a caller supplied. feeLeg and feeDeferPair, on
+            operation metadata, are reserved the same way. Transaction-level
+            metadata is additive, so caller-supplied keys on this field are
+            preserved alongside the ledger keys.
           type: object
         operations:
           items:

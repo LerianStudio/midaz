@@ -121,13 +121,13 @@ func (handler *PortfolioHandler) ListPortfolios(ctx context.Context, in *ListPor
 	return &ListPortfoliosResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /portfolios/{id} -----------------------------------------------------
+// --- GET /portfolios/{portfolio_id} ------------------------------------------
 
 // GetPortfolioRequest is the by-id request envelope.
 type GetPortfolioRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Portfolio ID (UUID)"`
+	ID             string `path:"portfolio_id" doc:"Portfolio ID (UUID)"`
 }
 
 // GetPortfolioResponse carries the portfolio verbatim.
@@ -143,7 +143,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(ctx context.Context, in *GetPo
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "portfolio_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -156,13 +156,13 @@ func (handler *PortfolioHandler) GetPortfolioByID(ctx context.Context, in *GetPo
 	return &GetPortfolioResponse{Status: http.StatusOK, Body: portfolio}, nil
 }
 
-// --- PATCH /portfolios/{id} ---------------------------------------------------
+// --- PATCH /portfolios/{portfolio_id} ----------------------------------------
 
 // UpdatePortfolioRequest is the update request envelope (RawBody, see Create).
 type UpdatePortfolioRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Portfolio ID (UUID)"`
+	ID             string `path:"portfolio_id" doc:"Portfolio ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -174,19 +174,19 @@ type UpdatePortfolioResponse struct {
 
 // UpdatePortfolio decodes+validates the raw body imperatively then delegates to
 // the shared updatePortfolio core.
-func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *UpdatePortfolioRequest) (*UpdatePortfolioResponse, error) {
+func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *UpdatePortfolioRequest, metadataNull metadataNullPolicy) (*UpdatePortfolioResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "portfolio_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
 	payload := new(mmodel.UpdatePortfolioInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
@@ -198,7 +198,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(ctx context.Context, in *Update
 	return &UpdatePortfolioResponse{Status: http.StatusOK, Body: portfolio}, nil
 }
 
-// --- DELETE /portfolios/{id} --------------------------------------------------
+// --- DELETE /portfolios/{portfolio_id} ---------------------------------------
 
 // DeletePortfolioResponse has NO Body field: paired with DefaultStatus 204 it
 // makes Huma emit a bodiless 204, matching the Fiber http.NoContent path.
@@ -211,7 +211,7 @@ func (handler *PortfolioHandler) DeletePortfolioByID(ctx context.Context, in *Ge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "portfolio_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

@@ -330,6 +330,14 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 		{"unknown policy", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Execution.Transactions[0].Postings[0].DrawPolicy = "unknown"
 		}},
+		{"repay forbidden outside a credit", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			x.Execution.Transactions[0].Postings[0].RepayForbidden = true
+		}},
+		{"repay forbidden with overdraft cap", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			posting := &x.Execution.Transactions[0].Postings[0]
+			posting.Type, posting.DrawPolicy = accounting.PostingCredit, accounting.DrawForbidden
+			posting.RepayForbidden, posting.OverdraftAmount = true, decimal.NewFromInt(10)
+		}},
 		{"empty posting reference", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Execution.Transactions[0].Postings[0].Ref = ""
 		}},
@@ -416,6 +424,26 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 			require.NotErrorAs(t, err, &failure, "invalid input is not a financial refusal")
 		})
 	}
+}
+
+func TestPrepareExecutionCarriesRepayForbiddenOnlyWhenSet(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	posting := &input.Execution.Transactions[0].Postings[0]
+	posting.Type, posting.DrawPolicy = accounting.PostingCredit, accounting.DrawForbidden
+
+	plain, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+	require.NotContains(t, string(plain.Payload), `"repayForbidden"`, "an ordinary credit must keep its existing wire bytes")
+
+	posting.RepayForbidden = true
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.True(t, wire.Transactions[0].Postings[0].RepayForbidden)
 }
 
 func TestPrepareExecutionCarriesBalanceRequirements(t *testing.T) {
@@ -832,7 +860,7 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 	fees := make(map[string]feemodel.Fee, feeCount)
 	notDeductible := false
 	for i := range feeCount {
-		key := fmt.Sprintf("fee-%06d", i)
+		key := fmt.Sprintf("fee%06d", i)
 		fees[key] = feemodel.Fee{
 			FeeLabel: key,
 			CalculationModel: &feemodel.CalculationModel{

@@ -274,6 +274,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 	tests := []struct {
 		name, direction, accountType, available, onHold, debt, amount, override, companion string
 		posting                                                                            accounting.PostingType
+		repayForbidden                                                                     bool
 		want                                                                               integrationState
 		wantCompanion, wantAmount, wantDelta, failure                                      string
 	}{
@@ -296,6 +297,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 		{name: "partial repay", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "20", companion: "50", want: s("0", "0", "30", "1"), wantCompanion: "30", wantAmount: "0", wantDelta: "-20"},
 		{name: "full repay zero primary amount", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "50", companion: "50", want: s("0", "0", "0", "1"), wantCompanion: "0", wantAmount: "0", wantDelta: "-50"},
 		{name: "repay remainder", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "70", companion: "50", want: s("20", "0", "0", "1"), wantCompanion: "0", wantAmount: "20", wantDelta: "-50"},
+		{name: "credit with repayment forbidden keeps debt", posting: accounting.PostingCredit, repayForbidden: true, available: "0", debt: "50", amount: "20", want: s("20", "0", "50", "1"), wantAmount: "20"},
 		{name: "credit legacy cap", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "30", override: "10", companion: "50", want: s("20", "0", "40", "1"), wantCompanion: "40", wantAmount: "20", wantDelta: "-10"},
 		{name: "hold refuses debt", posting: accounting.PostingHold, available: "100", amount: "101", failure: "insufficient_funds"},
 		{name: "missing companion", posting: accounting.PostingDebit, available: "0", amount: "50", failure: "overdraft_companion_missing"},
@@ -327,6 +329,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 			if tt.override != "" {
 				posting.OverdraftAmount = decimal.RequireFromString(tt.override)
 			}
+			posting.RepayForbidden = tt.repayForbidden
 			if tt.companion != "" {
 				f.addCompanion(tt.companion)
 			}
@@ -484,6 +487,13 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 		{
 			name: "live account block", permission: accounting.BalancePermissionSend, rejectBlocked: true, failure: accounting.FailureAccountBlocked,
 			live: func(balance *accounting.BalanceSnapshot) { balance.Blocked = true },
+		},
+		{
+			name: "live account block precedes sending permission", permission: accounting.BalancePermissionSend, rejectBlocked: true, failure: accounting.FailureAccountBlocked,
+			live: func(balance *accounting.BalanceSnapshot) {
+				balance.Blocked = true
+				balance.AllowSending = false
+			},
 		},
 		{
 			name: "transaction asset", permission: accounting.BalancePermissionSend, failure: accounting.FailureAssetMismatch,
@@ -1238,7 +1248,7 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 		transaction.ID = uuid.MustParse(id)
 		f.input.Execution.Transactions = append(f.input.Execution.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
-		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"action":"direct","opaque":true}`)})
 	}
 	raw, err := f.run(t)
 	require.NoError(t, err)
@@ -1250,11 +1260,14 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 		field := f.input.Execution.Transactions[i].ID.String() + ":" + f.input.Execution.ExecutionID.String()
 		recoverRecord, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Bytes()
 		require.NoError(t, err)
-		var envelope struct {
-			TransactionID string                     `json:"transactionId"`
-			Result        accounting.ExecutionResult `json:"result"`
+		var evidence struct {
+			Record struct {
+				TransactionID string                     `json:"transactionId"`
+				Result        accounting.ExecutionResult `json:"result"`
+			} `json:"record"`
 		}
-		require.NoError(t, json.Unmarshal(recoverRecord, &envelope))
+		require.NoError(t, json.Unmarshal(recoverRecord, &evidence))
+		envelope := evidence.Record
 		require.Equal(t, f.input.Execution.Transactions[i].ID.String(), envelope.TransactionID)
 		require.Len(t, envelope.Result.Final, 1)
 		require.Len(t, envelope.Result.Movements, 1)
@@ -1284,7 +1297,7 @@ func TestIntegrationEngineThirdTransactionRefusalPreservesAllState(t *testing.T)
 		}
 		f.input.Execution.Transactions = append(f.input.Execution.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
-		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"action":"direct","opaque":true}`)})
 	}
 	require.Equal(t, originalPostingRef, f.input.Execution.Transactions[0].Postings[0].Ref)
 	require.Equal(t, "posting-2", f.input.Execution.Transactions[1].Postings[0].Ref)
@@ -1410,13 +1423,14 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 		t.Skip("requires Valkey")
 	}
 	container := redistestutil.SetupReusableContainer(t)
-	for _, kind := range []string{"duplicate key", "trailing JSON", "array as object", "postings as object", "unknown posting", "unknown balance", "noncanonical amount", "malformed cache", "duplicate cached version"} {
+	for _, kind := range []string{"duplicate key", "trailing JSON", "array as object", "postings as object", "unknown posting", "unknown balance", "noncanonical amount", "repay forbidden on debit", "repay forbidden with cap", "repay forbidden not boolean", "malformed cache", "duplicate cached version"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			raw := string(f.prepared(t).Payload)
 			switch kind {
 			case "duplicate key":
-				raw = strings.Replace(raw, `"protocolVersion":1`, `"protocolVersion":1,"protocolVersion":1`, 1)
+				require.Contains(t, raw, `"protocolVersion":3`)
+				raw = strings.Replace(raw, `"protocolVersion":3`, `"protocolVersion":3,"protocolVersion":3`, 1)
 			case "trailing JSON":
 				raw += `{}`
 			case "array as object", "postings as object":
@@ -1436,6 +1450,15 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 				raw = strings.Replace(raw, `"balanceRef":"@source#default"`, `"balanceRef":"@missing#default"`, 1)
 			case "noncanonical amount":
 				raw = strings.Replace(raw, `"amount":"30"`, `"amount":"3e1"`, 1)
+			case "repay forbidden on debit":
+				require.Contains(t, raw, `"drawPolicy":"allowed"`)
+				raw = strings.Replace(raw, `"drawPolicy":"allowed"`, `"drawPolicy":"allowed","repayForbidden":true`, 1)
+			case "repay forbidden with cap":
+				raw = strings.Replace(raw, `"type":"debit"`, `"type":"credit"`, 1)
+				raw = strings.Replace(raw, `"overdraftAmount":"0"`, `"overdraftAmount":"10","repayForbidden":true`, 1)
+			case "repay forbidden not boolean":
+				raw = strings.Replace(raw, `"type":"debit"`, `"type":"credit"`, 1)
+				raw = strings.Replace(raw, `"overdraftAmount":"0"`, `"overdraftAmount":"0","repayForbidden":"true"`, 1)
 			case "malformed cache", "duplicate cached version":
 				cache := `{"Version":01}`
 				if kind == "duplicate cached version" {

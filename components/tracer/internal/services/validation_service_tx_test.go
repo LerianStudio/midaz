@@ -485,8 +485,9 @@ func TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse(t 
 		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(fmt.Errorf("%w: request_id %s", command.ErrDuplicateValidation, requestID))
 
-	// 6. tx.Rollback() called by defer (tx is poisoned after unique violation)
-	mockTx.EXPECT().
+	// 6. tx (poisoned by the unique violation) is rolled back before the
+	// duplicate lookup asks the pool for a connection
+	rollback := mockTx.EXPECT().
 		Rollback().
 		Return(nil)
 
@@ -500,7 +501,8 @@ func TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse(t 
 	transactionValidationQueryRepo.EXPECT().
 		FindByRequestID(gomock.Any(), requestID).
 		Return(existingValidation, nil).
-		Times(1)
+		Times(1).
+		After(rollback)
 
 	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
@@ -577,7 +579,7 @@ func TestValidationService_Validate_ConcurrentDuplicate_FindByRequestIDFails(t *
 		Return(nil, errors.New("database unavailable")).
 		Times(1)
 
-	// 7. Defer calls Rollback
+	// 7. tx is rolled back once, before the retry lookup
 	mockTx.EXPECT().Rollback().Return(nil)
 
 	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
@@ -954,7 +956,7 @@ func TestValidationService_Validate_TxContextTimeout(t *testing.T) {
 // rollbackAndPersist, and the loser's Insert hits the unique-constraint on
 // request_id. The previous implementation swallowed that error and returned
 // a fresh validationID with no DB row — a 404 on subsequent
-// GET /v1/validations/{id} and a broken idempotency contract.
+// GET /v1/validations/{validation_id} and a broken idempotency contract.
 //
 // Expected behavior: rollbackAndPersist surfaces the duplicate up the stack,
 // the service refetches the canonical existing record by RequestID, and the

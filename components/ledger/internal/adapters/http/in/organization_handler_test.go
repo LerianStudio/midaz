@@ -6,6 +6,7 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,7 +45,7 @@ import (
 // http.ParseUUIDPathParameters("organization") attaches the id-parse chain before the
 // Huma terminals registered by RegisterOrganizationRoutes.
 //
-// Organization is a FIRST-LEVEL resource: the only UUID path param is {id}, and the
+// Organization is a FIRST-LEVEL resource: the only UUID path param is {organization_id}, and the
 // list/create collection sits at /organizations directly (no org/ledger prefix).
 //
 // MUST-NOT-PARALLELIZE (same rationale as the asset exemplar's buildHumaAssetApp):
@@ -57,6 +58,14 @@ import (
 // (mirroring auth.Authorize failure) so the auth-preserved contract is testable
 // without a live lib-auth server.
 func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK bool) *fiber.App {
+	t.Helper()
+
+	return buildHumaOrganizationAppOn(t, handler, authOK, "/v1", v1OpSuffix)
+}
+
+// buildHumaOrganizationAppOn mounts the organization surface on the contract that prefix and
+// opSuffix name.
+func buildHumaOrganizationAppOn(t *testing.T, handler *OrganizationHandler, authOK bool, prefix, opSuffix string) *fiber.App {
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
@@ -72,7 +81,7 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 	// deployed ledger returns.
 	f.Use(ledgerMiddleware.ErrorEnvelope())
 
-	apiV1 := f.Group("/v1")
+	apiV1 := f.Group(prefix)
 
 	// Auth shim: stands in for auth.Authorize("midaz","organizations",verb). A
 	// rejected request (authOK=false) must never reach Huma — it returns the ledger 401.
@@ -84,23 +93,23 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{prefix}})
 
 	// Mirror the production chain: ParseUUIDPathParameters runs as a Fiber middleware
-	// (no terminal handler) before the Huma terminal on the {id} routes. Registered
+	// (no terminal handler) before the Huma terminal on the {organization_id} routes. Registered
 	// group-relative on apiV1 so Fiber prepends /v1 — matching the group-relative paths
 	// RegisterOrganizationRoutes registers on the Huma API. The static metrics/count
-	// route is registered BEFORE the :id route so it is not shadowed by the param.
+	// route is registered BEFORE the :organization_id route so it is not shadowed by the param.
 	parse := pkgHTTP.ParseUUIDPathParameters("organization")
 	passthrough := func(c fiber.Ctx) error { return c.Next() }
 	apiV1.Post("/organizations", passthrough)
 	apiV1.Get("/organizations", passthrough)
 	apiV1.Head("/organizations/metrics/count", passthrough)
-	apiV1.Get("/organizations/:id", parse)
-	apiV1.Patch("/organizations/:id", parse)
-	apiV1.Delete("/organizations/:id", parse)
+	apiV1.Get("/organizations/:organization_id", parse)
+	apiV1.Patch("/organizations/:organization_id", parse)
+	apiV1.Delete("/organizations/:organization_id", parse)
 
-	RegisterOrganizationRoutes(hAPI, handler, v1OpSuffix)
+	RegisterOrganizationRoutes(hAPI, handler, opSuffix)
 
 	return f
 }
@@ -591,6 +600,54 @@ func TestUpdateOrganization_Success(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, orgID.String(), got["id"])
 	assert.Equal(t, "Updated Organization Name", got["legalName"])
+}
+
+func TestUpdateOrganization_NullMetadataByContract(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for _, tt := range []struct {
+		name, prefix, opSuffix string
+		wantWrite              map[string]any // nil: the stored metadata is not written
+		wantMetadata           map[string]any // nil: the response carries no metadata
+	}{
+		{name: "v1 null clears the metadata", prefix: "/v1", opSuffix: v1OpSuffix, wantWrite: map[string]any{}},
+		{name: "v2 null leaves the metadata untouched", prefix: "/v2", opSuffix: v2OpSuffix, wantMetadata: map[string]any{"k": "v"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			orgRepo := organization.NewMockRepository(ctrl)
+			orgRepo.EXPECT().Update(gomock.Any(), orgID, gomock.Any()).DoAndReturn(
+				func(_ context.Context, _ uuid.UUID, org *mmodel.Organization) (*mmodel.Organization, error) {
+					return &mmodel.Organization{ID: orgID.String(), LegalName: org.LegalName}, nil
+				})
+
+			metadataRepo := mongodb.NewMockRepository(ctrl)
+			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOrganization, orgID.String()).
+				Return(&mongodb.Metadata{Data: map[string]any{"k": "v"}}, nil).AnyTimes()
+
+			if tt.wantWrite != nil {
+				metadataRepo.EXPECT().Update(gomock.Any(), constant.EntityOrganization, orgID.String(), tt.wantWrite).Return(nil)
+			}
+
+			handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: orgRepo, OnboardingMetadataRepo: metadataRepo}}
+			app := buildHumaOrganizationAppOn(t, handler, true, tt.prefix, tt.opSuffix)
+
+			req := httptest.NewRequest(http.MethodPatch, tt.prefix+"/organizations/"+orgID.String(), strings.NewReader(`{"legalName":"N","metadata":null}`))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			var got mmodel.Organization
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+			assert.Equal(t, "N", got.LegalName)
+			assert.Equal(t, tt.wantMetadata, got.Metadata)
+		})
+	}
 }
 
 func TestUpdateOrganization_NotFound_Canonical404(t *testing.T) {

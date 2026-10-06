@@ -341,7 +341,10 @@ already-qualified alias. Do not recursively generate companions of companions.
 For non-external credit/empty-direction `credit`, repayment is `min(x, U)`.
 When `OverdraftAmount > 0`, additionally cap repayment at that value. Add only the
 remainder to A and generate a companion credit for the real repayment. Existing
-debt can be repaid even when future draws have been disabled.
+debt can be repaid even when future draws have been disabled. A `credit` posting
+marked `RepayForbidden` never repays: it adds the whole x to A, leaves U
+unchanged, and generates no companion movement. It is valid only on a `credit`
+with a zero `OverdraftAmount`.
 
 `release` is not a general credit operation. With a zero override, it restores A
 and decreases H without repaying debt. Only a positive override on a non-external
@@ -356,6 +359,13 @@ policy eligibility, and any overdraft cap recovered from historical operations.
 Its inputs are intentionally limited to lifecycle action and status, leg side,
 the per-leg route-validation decision, and the historical cap. It cannot inspect
 the balance pool or derive monetary results.
+
+A block (`OperationTypeOverride` `BLOCK`) is kept away from overdraft: its plan
+forbids every draw, marks every credit `RepayForbidden`, drops the historical cap
+and builds no companion spec, so the amount it sets aside returns whole on the
+unblock. An unblock keeps the ordinary plan, so its credit repays outstanding
+debt first. Both label their primary rows with the override, while an overdraft
+companion row always keeps the `OVERDRAFT` type.
 
 There is one Lua accounting engine for every executable path. API version,
 lifecycle, and route-validation differences are expressed by the ordered
@@ -1366,9 +1376,14 @@ accounting result or error. No monetary state or identifiers are emitted.
 | `engine_pool_balance_count` | Full snapshot pool carried into preflight | None |
 | `engine_touched_balance_count` | Distinct balance references targeted by postings | None |
 
-`refused` means a recognized pre-write protocol refusal, not necessarily an HTTP
-business error: missing companions and on-hold underflow remain integrity
-failures. The metrics do not perform public error mapping.
+`refused` means a recognized pre-write protocol refusal, or a confirmed technical
+code that the public error mapping answers as a client error:
+`transaction_already_reverted`, `execution_guard_conflict`, `account_closed`,
+`account_closing_in_progress`, and `fee_debt_record_pending`. It follows
+`command.MapEngineError` only, so a code a caller remaps on its own path, such as
+a pending-transition race answered 409, still counts as technical. A protocol
+refusal is not necessarily an HTTP business error: missing companions and on-hold
+underflow remain integrity failures.
 
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, and 5000 ms.
 Payload buckets are 1, 4, 16, 64, 256 KiB and 1, 4, 16 MiB; these are observation

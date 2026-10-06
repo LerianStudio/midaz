@@ -34,14 +34,14 @@ import (
 // so there is no RawBody/SkipValidateBody envelope here.
 
 // GetTransactionValidationInputHuma is the Huma request envelope for
-// GET /v1/validations/{id}. The path param carries NO format:"uuid": uuid.Parse
+// GET /v1/validations/{validation_id}. The path param carries NO format:"uuid": uuid.Parse
 // in the core is the sole validator (canonical 400/0065, never a native 422).
 type GetTransactionValidationInputHuma struct {
-	ID string `path:"id" doc:"Transaction Validation ID (UUID)"`
+	ID string `path:"validation_id" doc:"Transaction Validation ID (UUID)"`
 }
 
 // GetTransactionValidationOutputHuma is the Huma response envelope for
-// GET /v1/validations/{id}.
+// GET /v1/validations/{validation_id}.
 type GetTransactionValidationOutputHuma struct {
 	Status int
 	Body   *model.TransactionValidation
@@ -168,7 +168,7 @@ type ListTransactionValidationsOutputHuma struct {
 	Body   *ListTransactionValidationsResponse
 }
 
-// GetTransactionValidationHuma is the Huma handler for GET /v1/validations/{id}.
+// GetTransactionValidationHuma is the Huma handler for GET /v1/validations/{validation_id}.
 // It delegates to the shared core and, on success, returns 200 with the record.
 func (h *TransactionValidationHandler) GetTransactionValidationHuma(ctx context.Context, in *GetTransactionValidationInputHuma) (*GetTransactionValidationOutputHuma, error) {
 	result, err := h.getTransactionValidation(ctx, in.ID)
@@ -200,7 +200,7 @@ func RegisterTransactionValidationRoutes(api huma.API, h *TransactionValidationH
 	huma.Register(api, huma.Operation{
 		OperationID: "getValidation",
 		Method:      http.MethodGet,
-		Path:        "/validations/{id}",
+		Path:        "/validations/{validation_id}",
 		Summary:     "Get a transaction validation record by ID",
 		Tags:        []string{"Validations"},
 		Security:    secBearerOrAPIKey,
