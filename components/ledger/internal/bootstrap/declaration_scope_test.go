@@ -34,6 +34,16 @@ func newAuthorizeRecorder(t *testing.T) *authorizeRecorder {
 
 	rec := &authorizeRecorder{}
 	rec.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
+
+		// Only authorization questions are recorded; anything else — the
+		// publisher's token mint, with the flag on — is refused.
+		if r.URL.Path != "/v1/authorize" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+
+			return
+		}
+
 		var body struct {
 			Attributes map[string]string `json:"attributes"`
 		}
@@ -45,7 +55,6 @@ func newAuthorizeRecorder(t *testing.T) *authorizeRecorder {
 		rec.asked = append(rec.asked, body.Attributes)
 		rec.mu.Unlock()
 
-		w.Header().Set("Connection", "close")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]bool{"authorized": true})
 	}))
@@ -74,28 +83,10 @@ func partnerToken(t *testing.T) string {
 	return signed
 }
 
-// TestBuildDeclarationPublishers_DisabledStillWiresScope proves that a ledger
-// whose RI declaration is off — a multi-tenant deployment, where publication is
-// the tenant manager's job — still teaches its routes' authorization client the
-// manifest's scope, so a partner's question names the ledger it targets.
-// Without it the Access Manager is asked with no attributes and a partner
-// restricted to one ledger is refused on that very ledger.
-func TestBuildDeclarationPublishers_DisabledStillWiresScope(t *testing.T) {
-	// Nothing registered process-wide for "midaz" by an earlier test may stand
-	// in for the client's own catalog.
-	require.NoError(t, middleware.SetProductManifestScope("midaz"))
-
-	rec := newAuthorizeRecorder(t)
-	auth := &middleware.AuthClient{Address: rec.URL, Enabled: true, Logger: obs.Nop(), M2MInversionEnabled: true}
-
-	app := fiber.New()
-	app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id",
-		auth.Authorize("midaz", "ledgers", "get"),
-		func(c fiber.Ctx) error { return c.SendString("ok") })
-
-	stops, err := buildDeclarationPublishers(&Config{DeclarationEnabled: false}, auth, libLog.NewNop())
-	require.NoError(t, err)
-	assert.Empty(t, stops, "with the declaration off nothing is published")
+// askAsPartner sends one request on the ledger route as an application
+// credential bound to a partner, and returns what the Access Manager was asked.
+func askAsPartner(t *testing.T, app *fiber.App, rec *authorizeRecorder) []map[string]string {
+	t.Helper()
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/org-1/ledgers/led-1", nil)
 	req.Header.Set("Authorization", "Bearer "+partnerToken(t))
@@ -103,8 +94,76 @@ func TestBuildDeclarationPublishers_DisabledStillWiresScope(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
-
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, []map[string]string{{"organizationId": "org-1", "ledgerId": "led-1"}}, rec.questions(),
+
+	return rec.questions()
+}
+
+// newScopedLedgerApp builds the ledger route over a fresh routes client, with
+// nothing registered process-wide for "midaz" by an earlier test standing in
+// for the client's own catalog.
+func newScopedLedgerApp(t *testing.T, rec *authorizeRecorder) (*fiber.App, *middleware.AuthClient) {
+	t.Helper()
+
+	require.NoError(t, middleware.SetProductManifestScope("midaz"))
+
+	auth := &middleware.AuthClient{Address: rec.URL, Enabled: true, Logger: obs.Nop(), M2MInversionEnabled: true}
+
+	app := fiber.New()
+	app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id",
+		auth.Authorize("midaz", "ledgers", "get"),
+		func(c fiber.Ctx) error { return c.SendString("ok") })
+
+	return app, auth
+}
+
+// TestBuildDeclarationPublishers_FlagOffAndNoIdPStillWiresScope proves partner
+// scope does not depend on RI declaration: with the flag off and every IdP
+// setting unset — a multi-tenant deployment, where publication is the tenant
+// manager's job — the boot succeeds and the routes' client still learns the
+// manifest's scope, so a partner's question names the ledger it targets.
+// Without it the Access Manager is asked with no attributes and a partner
+// restricted to one ledger is refused on that very ledger.
+func TestBuildDeclarationPublishers_FlagOffAndNoIdPStillWiresScope(t *testing.T) {
+	for _, name := range []string{"IDP_DECLARATION_ENABLED", "IDP_HOST", "IDP_M2M_CLIENT_ID", "IDP_M2M_CLIENT_SECRET"} {
+		t.Setenv(name, "")
+	}
+
+	rec := newAuthorizeRecorder(t)
+	app, auth := newScopedLedgerApp(t, rec)
+
+	stops, err := buildDeclarationPublishers(&Config{DeclarationEnabled: false}, auth, libLog.NewNop())
+	require.NoError(t, err, "partner scope needs no IdP setting, so the boot must succeed")
+	assert.Empty(t, stops, "with the declaration off nothing is published")
+
+	assert.Equal(t, []map[string]string{{"organizationId": "org-1", "ledgerId": "led-1"}}, askAsPartner(t, app, rec),
 		"the partner's question must carry the route's scope attributes")
+}
+
+// TestBuildDeclarationPublishers_FlagOnWiresScopeOnce proves the flag-on path
+// keeps the routes' scope intact: wired at boot and again by the publisher from
+// the same manifest, the client asks exactly one question with the same
+// attributes.
+func TestBuildDeclarationPublishers_FlagOnWiresScopeOnce(t *testing.T) {
+	rec := newAuthorizeRecorder(t)
+	app, auth := newScopedLedgerApp(t, rec)
+
+	cfg := &Config{
+		DeclarationEnabled: true,
+		IDPHost:            "http://identity.invalid",
+		IDPM2MClientID:     "dummy-client-id",
+		IDPM2MClientSecret: "dummy-client-secret",
+	}
+
+	stops, err := buildDeclarationPublishers(cfg, auth, libLog.NewNop())
+	require.NoError(t, err)
+	require.Len(t, stops, 1)
+
+	t.Cleanup(func() {
+		for _, stop := range stops {
+			stop()
+		}
+	})
+
+	assert.Equal(t, []map[string]string{{"organizationId": "org-1", "ledgerId": "led-1"}}, askAsPartner(t, app, rec))
 }

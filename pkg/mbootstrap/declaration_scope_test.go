@@ -21,7 +21,7 @@ func (stubTokenMinter) GetApplicationToken(_ context.Context, _, _ string) (stri
 	return "", nil
 }
 
-func TestWireScopeWithoutDeclaration_NoRoutesClientWiresNothing(t *testing.T) {
+func TestWireManifestScope_NoRoutesClientWiresNothing(t *testing.T) {
 	var typedNil *middleware.AuthClient
 
 	for name, minter := range map[string]declaration.TokenMinter{
@@ -30,16 +30,16 @@ func TestWireScopeWithoutDeclaration_NoRoutesClientWiresNothing(t *testing.T) {
 		"not an auth client": stubTokenMinter{},
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.NoError(t, WireScopeWithoutDeclaration(minter, []byte("service: [unterminated")),
+			assert.NoError(t, WireManifestScope(minter, []byte("service: [unterminated")),
 				"without a routes client there is no scope to wire, so the manifest is never read")
 		})
 	}
 }
 
-func TestWireScopeWithoutDeclaration_InvalidManifestFailsTheBoot(t *testing.T) {
+func TestWireManifestScope_InvalidManifestFailsTheBoot(t *testing.T) {
 	auth := &middleware.AuthClient{Address: "http://auth.invalid", Enabled: true, Logger: obs.Nop()}
 
-	err := WireScopeWithoutDeclaration(auth, []byte("service: [unterminated"))
+	err := WireManifestScope(auth, []byte("service: [unterminated"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "wire manifest scope without RI declaration")
+	assert.Contains(t, err.Error(), "wire manifest scope")
 }

@@ -29,14 +29,21 @@ import (
 // and the address is non-empty it performs a synchronous GET {address}/health at
 // construction, so the publisher's client is built ONLY when RI is enabled —
 // otherwise the default-off path would fire a redundant second health probe
-// (the first is in initHTTPServer) and then discard the client. With RI off,
-// routesAuth — the client the HTTP routes authorize with — goes to the disabled
-// path instead, which mints nothing and only teaches it the manifest's scope.
+// (the first is in initHTTPServer) and then discard the client.
+//
+// Before any of that, routesAuth — the client the HTTP routes authorize with —
+// learns the manifest's partner scope, on every boot and whatever the flag or
+// the IdP settings (see mbootstrap.WireManifestScope). The flag gates
+// publication only.
 //
 // The error is the fail-closed configuration error described on
 // buildDeclarationPublisher; the caller must abort boot on it.
 func wireDeclarationPublisher(cfg *Config, authHost string, routesAuth *authMiddleware.AuthClient, logger libLog.Logger) ([]func(), error) {
-	var declarationAuth declaration.TokenMinter = routesAuth
+	if err := mbootstrap.WireManifestScope(routesAuth, tracerembed.TracerManifest); err != nil {
+		return nil, err
+	}
+
+	var declarationAuth declaration.TokenMinter
 	if cfg.DeclarationEnabled {
 		declarationAuth = authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, logger)
 	}
@@ -73,13 +80,11 @@ func wireDeclarationPublisher(cfg *Config, authHost string, routesAuth *authMidd
 //   - Server-side BOLA rejection, arriving as a *declaration.PublishError on the
 //     async publish path.
 //
-// DeclarationEnabled=false publishes nothing — no validation, no publisher, no
-// goroutine — but still wires the manifest's scope into authClient, the routes'
-// client on that path (see mbootstrap.WireScopeWithoutDeclaration). A
-// multi-tenant deployment runs with the flag off because publication is the
-// tenant manager's job there, and its partners must still be asked with their
-// scope. When the flag is retired the validation becomes unconditional
-// (lmap #5163).
+// DeclarationEnabled=false returns (nil, nil) immediately — no validation, no
+// publisher, no goroutine. While that flag exists it is the switch that says
+// whether this deployment publishes its manifest; partner scope does not depend
+// on it (wireDeclarationPublisher wires it first). When it is retired the
+// validation becomes unconditional (lmap #5163).
 //
 // The secret VALUE is NEVER logged, span-attached, or serialized. The pre-flight
 // Warn reports only the NAMES of empty env vars (names are not secrets). Field
@@ -87,11 +92,11 @@ func wireDeclarationPublisher(cfg *Config, authHost string, routesAuth *authMidd
 // client_id, key), which would otherwise blank the field value to [REDACTED].
 //
 // authClient is taken as the declaration.TokenMinter interface (satisfied by
-// *middleware.AuthClient) so it is stubbable in tests; the disabled path mints
-// nothing, so callers may pass nil there.
+// *middleware.AuthClient) so it is stubbable in tests; the disabled path returns
+// before it is dereferenced, so callers may pass nil there.
 func buildDeclarationPublisher(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) ([]func(), error) {
 	if !cfg.DeclarationEnabled {
-		return nil, mbootstrap.WireScopeWithoutDeclaration(authClient, tracerembed.TracerManifest)
+		return nil, nil
 	}
 
 	if err := validateDeclarationConfig(cfg); err != nil {

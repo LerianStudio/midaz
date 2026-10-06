@@ -34,6 +34,15 @@ func newAuthorizeRecorder(t *testing.T) *authorizeRecorder {
 
 	rec := &authorizeRecorder{}
 	rec.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Connection", "close")
+
+		// Only authorization questions are recorded; anything else is refused.
+		if r.URL.Path != "/v1/authorize" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+
+			return
+		}
+
 		var body struct {
 			Attributes map[string]string `json:"attributes"`
 		}
@@ -45,7 +54,6 @@ func newAuthorizeRecorder(t *testing.T) *authorizeRecorder {
 		rec.asked = append(rec.asked, body.Attributes)
 		rec.mu.Unlock()
 
-		w.Header().Set("Connection", "close")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]bool{"authorized": true})
 	}))
@@ -96,32 +104,51 @@ func newRoutesAuthClient(t *testing.T, rec *authorizeRecorder) *middleware.AuthC
 	return &middleware.AuthClient{Address: rec.URL, Enabled: true, Logger: obs.Nop(), M2MInversionEnabled: true}
 }
 
-// TestBuildDeclarationPublisher_DisabledStillWiresScope proves that a tracer
-// whose RI declaration is off — a multi-tenant deployment, where publication is
-// the tenant manager's job — still teaches its routes' authorization client the
+// TestWireDeclarationPublisher_FlagOffAndNoIdPStillWiresScope proves partner
+// scope does not depend on RI declaration: with the flag off and every IdP
+// setting unset — a multi-tenant deployment, where publication is the tenant
+// manager's job — the boot succeeds and the routes' own client learns the
 // manifest's scope, so a partner's question names the rule it targets.
-func TestBuildDeclarationPublisher_DisabledStillWiresScope(t *testing.T) {
+func TestWireDeclarationPublisher_FlagOffAndNoIdPStillWiresScope(t *testing.T) {
+	for _, name := range []string{"IDP_DECLARATION_ENABLED", "IDP_HOST", "IDP_M2M_CLIENT_ID", "IDP_M2M_CLIENT_SECRET"} {
+		t.Setenv(name, "")
+	}
+
 	rec := newAuthorizeRecorder(t)
 	auth := newRoutesAuthClient(t, rec)
 
-	stops, err := buildDeclarationPublisher(&Config{DeclarationEnabled: false}, auth, libLog.NewNop())
-	require.NoError(t, err)
+	stops, err := wireDeclarationPublisher(&Config{DeclarationEnabled: false}, "", auth, libLog.NewNop())
+	require.NoError(t, err, "partner scope needs no IdP setting, so the boot must succeed")
 	assert.Empty(t, stops, "with the declaration off nothing is published")
 
 	assert.Equal(t, []map[string]string{{"ruleId": "rule-1"}}, askAsPartner(t, auth, rec),
 		"the partner's question must carry the route's scope attributes")
 }
 
-// TestWireDeclarationPublisher_DisabledWiresTheRoutesClient proves the boot
-// hands the routes' own client to the flag-off path: the publisher's client is
-// built only with the flag on, so it cannot be the one that learns the scope.
-func TestWireDeclarationPublisher_DisabledWiresTheRoutesClient(t *testing.T) {
+// TestWireDeclarationPublisher_FlagOnWiresScopeOnce proves the flag-on path
+// keeps the routes' scope intact: the routes' client and the publisher's are
+// both taught the same manifest, and a partner is asked exactly one question
+// with the same attributes.
+func TestWireDeclarationPublisher_FlagOnWiresScopeOnce(t *testing.T) {
 	rec := newAuthorizeRecorder(t)
 	auth := newRoutesAuthClient(t, rec)
 
-	stops, err := wireDeclarationPublisher(&Config{DeclarationEnabled: false}, "", auth, libLog.NewNop())
+	cfg := &Config{
+		DeclarationEnabled: true,
+		IDPHost:            "http://identity.invalid",
+		IDPM2MClientID:     "dummy-client-id",
+		IDPM2MClientSecret: "dummy-client-secret",
+	}
+
+	stops, err := wireDeclarationPublisher(cfg, "", auth, libLog.NewNop())
 	require.NoError(t, err)
-	assert.Empty(t, stops)
+	require.Len(t, stops, 1)
+
+	t.Cleanup(func() {
+		for _, stop := range stops {
+			stop()
+		}
+	})
 
 	assert.Equal(t, []map[string]string{{"ruleId": "rule-1"}}, askAsPartner(t, auth, rec))
 }

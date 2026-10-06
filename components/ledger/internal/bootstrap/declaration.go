@@ -58,12 +58,14 @@ import (
 //   - Server-side BOLA rejection, arriving as a *declaration.PublishError on the
 //     async publish path.
 //
-// DeclarationEnabled=false publishes nothing — no validation, no publisher, no
-// goroutine, no runnable — but still wires the manifest's scope into the routes'
-// authorization client (see mbootstrap.WireScopeWithoutDeclaration). A multi-tenant
-// deployment runs with the flag off because publication is the tenant manager's
-// job there, and its partners must still be asked with their scope. When the
-// flag is retired and RI is the only path, the validation becomes unconditional
+// PARTNER SCOPE is wired first, on every boot, whatever the flag and whatever
+// the IdP settings: it is a feature of its own, not part of RI declaration (see
+// mbootstrap.WireManifestScope). The flag gates publication only.
+//
+// DeclarationEnabled=false then publishes nothing — no validation, no
+// publisher, no goroutine, no runnable. A multi-tenant deployment runs with the
+// flag off because publication is the tenant manager's job there. When the flag
+// is retired and RI is the only path, the validation becomes unconditional
 // (lmap #5163).
 //
 // The secret VALUE is NEVER logged, span-attached, serialized, or included in any
@@ -73,11 +75,16 @@ import (
 // [REDACTED].
 //
 // authClient is taken as the declaration.TokenMinter interface (satisfied by
-// *middleware.AuthClient) so it is stubbable in tests; the disabled path mints
-// nothing, so callers may pass nil there.
+// *middleware.AuthClient) so it is stubbable in tests; it is also the client the
+// routes authorize with, so it is the one that learns the scope. The disabled
+// path mints nothing, so callers may pass nil there.
 func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) ([]func(), error) {
+	if err := mbootstrap.WireManifestScope(authClient, ledgerembed.MidazManifest); err != nil {
+		return nil, err
+	}
+
 	if !cfg.DeclarationEnabled {
-		return nil, mbootstrap.WireScopeWithoutDeclaration(authClient, ledgerembed.MidazManifest)
+		return nil, nil
 	}
 
 	if err := validateDeclarationConfig(cfg); err != nil {

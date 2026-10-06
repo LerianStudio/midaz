@@ -11,26 +11,27 @@ import (
 	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 )
 
-// WireScopeWithoutDeclaration teaches a component's route authorization client
-// the scope section of its embedded manifest when RI declaration is off and no
-// publisher is built, so a partner's authorization question carries the
-// dimensions its route names. With the flag on, declaration.New does the same.
-// A deployment runs with the flag off when publication is someone else's job —
-// the tenant manager's, multi-tenant — and its partners must still be asked
-// with their scope, or one restricted to a ledger is refused on that ledger.
+// WireManifestScope teaches a component's route authorization client the scope
+// section of its embedded manifest, so a partner's authorization question
+// carries the dimensions its route names. Partner scope is its own feature, not
+// part of RI declaration: it is wired at every boot — single- or multi-tenant,
+// IDP_DECLARATION_ENABLED on or off — and depends on no IdP setting and on no
+// publication. Without it a partner restricted to a ledger is refused on that
+// ledger. Wiring it again from the same manifest, as declaration.New does with
+// the flag on, replaces the catalog with an identical one.
 //
 // authClient is anything the bootstrap holds as a token minter; only an
 // *middleware.AuthClient authorizes routes, so anything else, nil included, has
 // no scope to learn. A manifest the scope cannot be wired from is a build
 // defect, so the error is meant to fail the boot.
-func WireScopeWithoutDeclaration(authClient declaration.TokenMinter, manifest []byte) error {
+func WireManifestScope(authClient declaration.TokenMinter, manifest []byte) error {
 	auth, ok := authClient.(*middleware.AuthClient)
 	if !ok || auth == nil {
 		return nil
 	}
 
 	if err := declaration.WireScope(auth, manifest); err != nil {
-		return fmt.Errorf("wire manifest scope without RI declaration: %w", err)
+		return fmt.Errorf("wire manifest scope: %w", err)
 	}
 
 	return nil
