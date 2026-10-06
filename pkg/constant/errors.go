@@ -528,6 +528,11 @@ var (
 	// strictly inside its active time window, which would split one window
 	// across two periods.
 	ErrLimitResetTimeInsideWindow = errors.New("0538")
+	// ErrBlockUnblockNotRevertible is returned when a revert targets a block or an
+	// unblock. Neither is ever reverted: a block is undone by an unblock and an
+	// unblock by a new block, so the amount a block set aside never moves through
+	// a reversal.
+	ErrBlockUnblockNotRevertible = errors.New("0539")
 	// ErrReservationAlreadySettled is returned when a reserve replays onto a
 	// row that already left RESERVED (confirmed, released or expired).
 	ErrReservationAlreadySettled = errors.New("0533")

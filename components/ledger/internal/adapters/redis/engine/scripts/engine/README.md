@@ -249,7 +249,9 @@ Per transaction, omitted when empty:
   "debitRoute":{...},"creditRoute":{...}}]
 ```
 
-Per posting, each omitted when false or empty: `deferShortfall` (bool, debit
+Per posting, each omitted when false or empty: `repayForbidden` (bool, credit
+only, with `overdraftAmount` `"0"`: the whole credit goes to available and any
+outstanding overdraft stays), `deferShortfall` (bool, debit
 only), `fundedByRef` (string, credit only), `debtRoute` (route object, on a
 `deferShortfall` debit or its `fundedByRef` credit: the route that leg books
 under), `items` (array of debt ids, collect only) and `refunds` (array, refund
@@ -289,6 +291,8 @@ Collect and refund postings count toward the existing posting limit.
 `request.lua` is the only owner of the deferral pairing (Go does not check it)
 and refuses with `invalid_protocol` when:
 
+- `repayForbidden` is not a boolean, is on a non-credit, or comes with a nonzero
+  `overdraftAmount`;
 - `deferShortfall` is on a non-debit or in a transaction whose `action` is not
   `direct`, or its payer `(scope, balanceRef)` is not declared in `feeDebts`;
 - `fundedByRef` is on a non-credit or does not name an earlier `deferShortfall`

@@ -152,6 +152,7 @@ All models live in `pkg/mmodel/`. Key entities:
 - Persisted fields: ID, ParentTransactionID, Description, Status, Amount (single decimal), AssetCode, ChartOfAccountsGroupName, Source ([]string aliases), Destination ([]string aliases), LedgerID, OrganizationID, Route (deprecated), RouteID, Metadata, CreatedAt, UpdatedAt, DeletedAt
 - Status lifecycle: ACTIVE → (revert) | PENDING → COMMIT/CANCEL
 - Source/Destination are arrays of account aliases; per-operation amount/share/remaining distribution is expressed in the transaction INPUT (Send) shape, not the persisted record
+- Block and unblock (`/v1` `.../transactions/{block,unblock}`, `/v2` `/v2/transactions/{block,unblock}`) are direct transfers whose primary operations are typed `BLOCK`/`UNBLOCK`. A block never touches overdraft on any leg: a debit beyond available is refused with `0018` even when the balance allows overdraft, and a credit into a balance with outstanding overdraft adds the whole amount to available without repaying it, so the blocked amount returns whole. An unblock settles outstanding overdraft first, like any credit (available 0, 100 blocked, 10 of overdraft: unblocking 100 leaves available 90), and records the repayment as an `OVERDRAFT` operation on the `overdraft` balance. Neither is ever reverted: the revert answers `0539`; a block is undone by an unblock and an unblock by a new block
 
 ### 3.6 Balance
 - Fields: ID, OrganizationID, LedgerID, AccountID, Alias, Key, AssetCode, Available, OnHold, AccountType, Direction, OverdraftUsed, AllowSending, AllowReceiving, Version, Settings (*BalanceSettings), Metadata, CreatedAt, UpdatedAt, DeletedAt
@@ -312,10 +313,12 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | POST | .../transactions/inflow | Create inflow transaction |
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
+| POST | .../transactions/block | Create block transaction (never draws or repays overdraft) |
+| POST | .../transactions/unblock | Create unblock transaction (repays outstanding overdraft first) |
 | POST | /v2/transactions/batch | Create an ordered atomic batch of direct and hold transactions |
 | POST | .../transactions/:transaction_id/commit | Commit pending transaction |
 | POST | .../transactions/:transaction_id/cancel | Cancel pending transaction |
-| POST | .../transactions/:transaction_id/revert | Revert transaction |
+| POST | .../transactions/:transaction_id/revert | Revert transaction (a block or unblock answers `0539`) |
 | PATCH | .../transactions/:transaction_id | Update transaction metadata |
 | GET | .../transactions | List transactions |
 | GET | .../transactions/:transaction_id | Get transaction |
@@ -690,7 +693,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
 - `0009` ErrMissingFieldsInRequest — required fields missing
-- `0018` ErrInsufficientFunds — insufficient funds
+- `0018` ErrInsufficientFunds — insufficient funds; also a block debit beyond available, even with overdraft allowed
 - `0020` ErrAliasUnavailability — alias already in use
 - `0041` ErrTokenMissing — no auth token
 - `0042` ErrInvalidToken — expired/invalid token
@@ -710,6 +713,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0515` ErrTransactionBatchInputLegsLimitExceeded — aggregate debit/credit legs exceed 1,000 (HTTP 400)
 - `0516` ErrTransactionBatchBudgetExceeded — derived post-fee work or serialized state exceeds a fixed batch budget (HTTP 422)
 - `0517` ErrTransactionBatchStructuralValidation — one or more batch items fail structural validation (HTTP 400)
+- `0539` ErrBlockUnblockNotRevertible — a revert targets a block or an unblock; undo a block with an unblock and an unblock with a new block (HTTP 422)
 
 #### Overdraft Feature Error Codes (0167–0175, 0492)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
