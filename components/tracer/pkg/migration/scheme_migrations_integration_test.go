@@ -30,8 +30,17 @@ const (
 	// schemeIndexMigrationVersion is 000029_transaction_validations_scheme_idx.
 	schemeIndexMigrationVersion = 29
 
-	schemeIndexName    = "idx_transaction_validations_scheme"
-	schemeFunctionName = "transaction_validation_scheme"
+	// dashboardSchemeIndexMigrationVersion is
+	// 000030_transaction_validations_dashboard_scheme_idx.
+	dashboardSchemeIndexMigrationVersion = 30
+	// dropDashboardIndexMigrationVersion is
+	// 000031_drop_transaction_validations_dashboard_idx.
+	dropDashboardIndexMigrationVersion = 31
+
+	schemeIndexName          = "idx_transaction_validations_scheme"
+	schemeFunctionName       = "transaction_validation_scheme"
+	dashboardIndexName       = "idx_transaction_validations_dashboard"
+	dashboardSchemeIndexName = "idx_transaction_validations_dashboard_scheme"
 )
 
 // TestTransactionValidationsSchemeMigrations is the behavioral contract for
@@ -119,6 +128,70 @@ func TestTransactionValidationsSchemeMigrations(t *testing.T) {
 		require.NoError(t, mig.Steps(-2), "apply 000029 and 000028 down over a scheme-only row")
 		assertSchemeContracted(t, "YES")
 		assertVersion(ctx, t, db, schemeMigrationVersion-1)
+	})
+}
+
+// TestDashboardSchemeCoveringIndexMigrations is the behavioral contract for
+// migrations 000030 and 000031.
+//
+// Post-conditions enforced, in order on one database:
+//  1. 000030 up builds a valid idx_transaction_validations_dashboard_scheme
+//     beside the 000024 index, keyed on created_at and including scheme.
+//  2. 000031 up drops idx_transaction_validations_dashboard, leaving the
+//     scheme-aware index as the only dashboard covering index.
+//  3. 000031 down recreates the 000024 index valid and with its original
+//     INCLUDE list, and 000030 down then drops the scheme-aware index.
+//  4. Replaying both ups lands back in state 2 (Migration Renumbering
+//     Invariant), clean and at the expected version.
+func TestDashboardSchemeCoveringIndexMigrations(t *testing.T) {
+	ctx := context.Background()
+	mig, db := newSchemeMigrate(t)
+
+	require.NoError(t, migrateTo(mig, dashboardSchemeIndexMigrationVersion-1), "migrate to the version before 000030")
+	require.True(t, indexIsValid(ctx, t, db, dashboardIndexName), "000024 must have built the dashboard index")
+	require.False(t, indexExists(ctx, t, db, dashboardSchemeIndexName), "the scheme-aware index belongs to 000030")
+
+	assertOnlySchemeAwareIndex := func(t *testing.T) {
+		t.Helper()
+
+		require.False(t, indexExists(ctx, t, db, dashboardIndexName), "000031 up must drop the superseded index")
+		require.True(t, indexIsValid(ctx, t, db, dashboardSchemeIndexName), "a CONCURRENTLY build that failed would leave an INVALID index")
+		require.Contains(t, indexDefinition(ctx, t, db, dashboardSchemeIndexName),
+			"(created_at) INCLUDE (decision, transaction_type, asset, amount, processing_time_ms, scheme)")
+	}
+
+	t.Run("up_000030_builds_scheme_aware_covering_index_concurrently", func(t *testing.T) {
+		require.NoError(t, mig.Steps(1), "apply 000030 up")
+		require.True(t, indexIsValid(ctx, t, db, dashboardSchemeIndexName), "a CONCURRENTLY build that failed would leave an INVALID index")
+		require.True(t, indexExists(ctx, t, db, dashboardIndexName), "the old index is dropped only by 000031")
+		assertVersion(ctx, t, db, dashboardSchemeIndexMigrationVersion)
+	})
+
+	t.Run("up_000031_drops_superseded_covering_index_concurrently", func(t *testing.T) {
+		require.NoError(t, mig.Steps(1), "apply 000031 up")
+		assertOnlySchemeAwareIndex(t)
+		assertVersion(ctx, t, db, dropDashboardIndexMigrationVersion)
+	})
+
+	t.Run("down_restores_the_000024_index_before_dropping_its_replacement", func(t *testing.T) {
+		require.NoError(t, mig.Steps(-1), "apply 000031 down")
+		require.True(t, indexIsValid(ctx, t, db, dashboardIndexName), "000031 down must rebuild the 000024 index valid")
+		require.Contains(t, indexDefinition(ctx, t, db, dashboardIndexName),
+			"(created_at) INCLUDE (decision, transaction_type, asset, amount, processing_time_ms)")
+		require.NotContains(t, indexDefinition(ctx, t, db, dashboardIndexName), "scheme",
+			"000031 down must restore the 000024 definition, not the scheme-aware one")
+		require.True(t, indexExists(ctx, t, db, dashboardSchemeIndexName))
+
+		require.NoError(t, mig.Steps(-1), "apply 000030 down")
+		require.False(t, indexExists(ctx, t, db, dashboardSchemeIndexName), "000030 down must drop the scheme-aware index")
+		require.True(t, indexIsValid(ctx, t, db, dashboardIndexName))
+		assertVersion(ctx, t, db, dashboardSchemeIndexMigrationVersion-1)
+	})
+
+	t.Run("replay_is_idempotent", func(t *testing.T) {
+		require.NoError(t, migrateTo(mig, dropDashboardIndexMigrationVersion), "re-apply 000030 and 000031")
+		assertOnlySchemeAwareIndex(t)
+		assertVersion(ctx, t, db, dropDashboardIndexMigrationVersion)
 	})
 }
 
