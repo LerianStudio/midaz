@@ -681,7 +681,7 @@ status discriminator selects the Definition:
 | `destination` | []string | `omitempty`. |
 | `route` | string | `omitempty`. Legacy field (`//nolint:staticcheck`; `routeId` is canonical). |
 | `routeId` | string \| null | `omitempty`. |
-| `scheme` | string | `omitempty`. `CARD`, `WIRE`, `PIX` or `CRYPTO` as declared on the `/v2` create; a revert carries the original transaction's value. |
+| `scheme` | string | `omitempty`. Free-form payment scheme declared on the `/v2` create, normalized (trimmed, upper-cased, `^[A-Z0-9_-]{1,50}$`); `CARD`, `WIRE`, `PIX`, `CRYPTO` are examples, not a closed set. A revert carries the original transaction's value. |
 | `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type, plus `accountType` (see below). Always present (no omitempty). |
 | `metadata` | object | `omitempty`. |
 | `createdAt` | string | RFC3339. |

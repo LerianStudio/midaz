@@ -8,20 +8,24 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
-// RuleScopePayload is the nested scope object shared by every rule event
-// that carries scopes (rule.created, rule.updated). It mirrors the six
-// structural fields of model.Scope, typed independently so domain evolution
-// does not silently shift the wire contract.
+// RuleScopePayload is the nested scope object shared by every rule and limit
+// event that carries scopes (rule.created, rule.updated, limit.created,
+// limit.updated). It mirrors the structural fields of model.Scope, typed
+// independently so domain evolution does not silently shift the wire contract.
 //
 // Every field is a *string so JSON null distinguishes "unset" from an empty
-// value. The fence keeps this shape to structural identifiers and enums only:
-// no free text beyond subType, which is a structural sub-classifier.
+// value. Scheme is the payment scheme and TransactionType its deprecated
+// alias: both carry the same normalized value, and scheme is omitted when the
+// scope names none. The fence keeps this shape to structural identifiers and
+// classifiers only: no free text beyond subType, which is a structural
+// sub-classifier.
 type RuleScopePayload struct {
 	SegmentID       *string `json:"segmentId"`
 	PortfolioID     *string `json:"portfolioId"`
 	AccountID       *string `json:"accountId"`
 	MerchantID      *string `json:"merchantId"`
 	TransactionType *string `json:"transactionType"`
+	Scheme          *string `json:"scheme,omitempty"`
 	SubType         *string `json:"subType"`
 }
 
@@ -57,9 +61,10 @@ func newRuleScopePayloads(scopes []model.Scope) []RuleScopePayload {
 			p.MerchantID = &s
 		}
 
-		if scope.TransactionType != nil {
-			s := scope.TransactionType.String()
-			p.TransactionType = &s
+		if value := scopeScheme(scope); value != nil {
+			transactionType, scheme := *value, *value
+			p.TransactionType = &transactionType
+			p.Scheme = &scheme
 		}
 
 		if scope.SubType != nil {
@@ -71,4 +76,21 @@ func newRuleScopePayloads(scopes []model.Scope) []RuleScopePayload {
 	}
 
 	return payloads
+}
+
+// scopeScheme returns the scope's payment scheme, read from TransactionType
+// and falling back to Scheme, so rows that hold only one of the two still put
+// the same value on both wire fields. It returns nil when neither is set.
+func scopeScheme(scope model.Scope) *string {
+	if scope.TransactionType != nil {
+		s := scope.TransactionType.String()
+		return &s
+	}
+
+	if scope.Scheme != nil {
+		s := *scope.Scheme
+		return &s
+	}
+
+	return nil
 }

@@ -50,7 +50,8 @@ core differentiator and carries rules that exist nowhere else in the monorepo.
 Rules evaluate against the complete transaction context. Available variables:
 
 ```cel
-transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
+scheme                // String: normalized payment scheme, free-form (e.g. "CARD", "WIRE", "PIX", "CRYPTO")
+transactionType       // String: deprecated alias of scheme, always the same value
 subType               // String: "debit", "credit", "instant", etc.
 amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
 asset                 // String: asset code, 1 to 100 uppercase Unicode letters ("USD", "BTC", a points code)
@@ -103,8 +104,8 @@ be written against these variables:
 - `metadata` — the transaction metadata the ledger forwards: keys matching `^[a-zA-Z0-9_]+$` of
   at most 64 characters, at most 50 entries, and every value a STRING (the ledger renders numbers
   and booleans as strings, so compare `metadata["tier"] == "1"`, not `== 1`).
-- `transactionType` is the scheme the ledger transaction declared (`CARD`, `WIRE`, `PIX`,
-  `CRYPTO`) or an empty string when none was declared; `subType` is an empty string,
+- `scheme` and `transactionType` both hold the normalized scheme the ledger transaction declared
+  (free-form, e.g. `CARD`, `PIX`) or an empty string when none was declared; `subType` is an empty string,
   `account["status"]` is empty, and
   `account["metadata"]`, `segment`, `portfolio` and `merchant` are empty maps.
 

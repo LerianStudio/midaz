@@ -84,6 +84,8 @@ func TestNewRuleScopePayloads_PopulatedScope(t *testing.T) {
 
 	require.NotNil(t, sc.TransactionType)
 	assert.Equal(t, "CARD", *sc.TransactionType)
+	require.NotNil(t, sc.Scheme)
+	assert.Equal(t, "CARD", *sc.Scheme)
 
 	require.NotNil(t, sc.SubType)
 	assert.Equal(t, "purchase", *sc.SubType)
@@ -131,11 +133,13 @@ func TestNewRuleScopePayloads_AllFieldsSet(t *testing.T) {
 	assert.Equal(t, scopeMerchantID.String(), *sc.MerchantID)
 	require.NotNil(t, sc.TransactionType)
 	assert.Equal(t, "PIX", *sc.TransactionType)
+	require.NotNil(t, sc.Scheme)
+	assert.Equal(t, "PIX", *sc.Scheme)
 	require.NotNil(t, sc.SubType)
 	assert.Equal(t, "transfer", *sc.SubType)
 }
 
-// TestRuleScopePayload_JSONShape locks the nested scope object to exactly six
+// TestRuleScopePayload_JSONShape locks the nested scope object to exactly seven
 // keys and asserts no rule free-text leaks into a scope.
 func TestRuleScopePayload_JSONShape(t *testing.T) {
 	txType := model.TransactionTypeWire
@@ -176,6 +180,7 @@ func TestRuleScopePayload_JSONShape(t *testing.T) {
 		"accountId":       {},
 		"merchantId":      {},
 		"transactionType": {},
+		"scheme":          {},
 		"subType":         {},
 	}
 
@@ -189,5 +194,62 @@ func TestRuleScopePayload_JSONShape(t *testing.T) {
 		assert.Truef(t, present, "scope must include %q", key)
 	}
 
-	assert.Lenf(t, scope, 6, "expected 6 scope keys, got %d (drift?)", len(scope))
+	assert.Lenf(t, scope, 7, "expected 7 scope keys, got %d (drift?)", len(scope))
 }
+
+// TestNewRuleScopePayloads_SchemeMirrorsTransactionType proves scheme and
+// transactionType always carry the same value on the wire, whichever of the
+// two the stored scope holds (rows written before scheme existed hold only
+// transactionType), and that a scope with neither omits scheme.
+func TestNewRuleScopePayloads_SchemeMirrorsTransactionType(t *testing.T) {
+	t.Parallel()
+
+	card := model.TransactionTypeCard
+	boleto := model.TransactionType("BOLETO")
+	schemeOnly := "CRYPTO"
+	pix := model.TransactionTypePix
+	pixScheme := "PIX"
+
+	tests := []struct {
+		name      string
+		scope     model.Scope
+		wantValue *string
+	}{
+		{name: "transactionType only derives scheme", scope: model.Scope{TransactionType: &card}, wantValue: ptrTo("CARD")},
+		{name: "free-form transactionType derives scheme", scope: model.Scope{TransactionType: &boleto}, wantValue: ptrTo("BOLETO")},
+		{name: "scheme only derives transactionType", scope: model.Scope{Scheme: &schemeOnly}, wantValue: ptrTo("CRYPTO")},
+		{name: "both set carry the same value", scope: model.Scope{TransactionType: &pix, Scheme: &pixScheme}, wantValue: ptrTo("PIX")},
+		{name: "neither set leaves both unset", scope: model.Scope{SubType: ptrTo("purchase")}, wantValue: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rule := &model.Rule{
+				ID:     fixedRuleUUID,
+				Status: model.RuleStatusActive,
+				Action: model.DecisionAllow,
+				Scopes: []model.Scope{tt.scope},
+			}
+
+			payload := events.NewRuleCreated(rule)
+			require.Len(t, payload.Scopes, 1)
+			sc := payload.Scopes[0]
+
+			assert.Equal(t, tt.wantValue, sc.TransactionType)
+			assert.Equal(t, tt.wantValue, sc.Scheme)
+
+			data, err := json.Marshal(sc)
+			require.NoError(t, err)
+
+			var generic map[string]any
+			require.NoError(t, json.Unmarshal(data, &generic))
+
+			_, hasScheme := generic["scheme"]
+			assert.Equal(t, tt.wantValue != nil, hasScheme, "scheme is present exactly when it carries a value")
+		})
+	}
+}
+
+func ptrTo(s string) *string { return &s }

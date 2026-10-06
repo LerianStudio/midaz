@@ -198,9 +198,10 @@ The reserve request carries the fee-inclusive `amount` and `asset`, the transact
   whose action is `revert`), omitted otherwise. The tracer skips its CEL rules for a revert and
   still reserves its limits: limits measure gross activity, and a rule that could refuse a revert
   would leave an applied movement impossible to correct.
-- `transactionType` — the `scheme` the `/v2` create body declared, exactly one of `CARD`, `WIRE`,
-  `PIX`, `CRYPTO` (for a card payment the value is `CARD`, never the card brand), omitted when
-  the body declared none. A `/v2` revert sends the ORIGINAL transaction's scheme: the reversal is
+- `transactionType` — the `scheme` the `/v2` create body declared, normalized (trimmed,
+  upper-cased, `^[A-Z0-9_-]{1,50}$`) and free-form: `CARD`, `WIRE`, `PIX`, `CRYPTO` are
+  examples, not a closed set (for a card payment the value is `CARD`, never the card brand),
+  omitted when the body declared none. A `/v2` revert sends the ORIGINAL transaction's scheme: the reversal is
   measured against the same limits as the movement it undoes. The ledger calls the field `scheme`
   on the body, the row and the response; the tracer calls it `transactionType`, and
   `reserveTransaction` is the only point that translates one into the other. With an empty
@@ -346,9 +347,10 @@ body naming `skip` is rejected by the decoder as an unknown field: **HTTP 400**
 (`ErrUnexpectedFieldsInTheRequest`), the same answer any other unknown field gets — not the
 422 an unpermitted skip earns on `/v2`.
 
-`scheme` is the other `/v2`-only create field: the transaction's payment scheme, exactly one of
-`CARD`, `WIRE`, `PIX`, `CRYPTO` in uppercase (any other value is **HTTP 400**), persisted on the
-row, returned as `scheme` on `/v2` responses (omitted when absent), withheld on `/v1` responses,
+`scheme` is the other `/v2`-only create field: the transaction's free-form payment scheme. The
+value is trimmed and upper-cased, and must then match `^[A-Z0-9_-]{1,50}$` (anything else is
+**HTTP 400**); `CARD`, `WIRE`, `PIX`, `CRYPTO` are examples, not a closed set. It is persisted
+normalized on the row, returned as `scheme` on `/v2` responses (omitted when absent), withheld on `/v1` responses,
 carried as `scheme` on the `transaction.*` streaming payload, and forwarded to the tracer as the
 reserve's `transactionType`. A `/v1` body naming `scheme` gets the same unknown-field 400.
 
