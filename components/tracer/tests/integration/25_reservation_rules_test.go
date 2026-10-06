@@ -61,6 +61,26 @@ func reserveRulesFor(t *testing.T, transactionID, accountID uuid.UUID, amount st
 	return got
 }
 
+// releaseRulesTransaction returns every reservation transactionID still holds.
+// The proofs whose admitted reserve is never confirmed or released register it
+// as cleanup: the tests share one database and the reaper's sweep is DB-wide,
+// so a RESERVED row left behind would surface in another test's released
+// count. A failure is logged, never asserted, so cleanup cannot mask the
+// proof's own result.
+func releaseRulesTransaction(t *testing.T, transactionID uuid.UUID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), reserveRulesTimeout)
+	defer cancel()
+
+	_, err := testutil.DialReservationClient(t).ReleaseByTransaction(ctx, &reservationv1.ReleaseByTransactionRequest{
+		TransactionId: transactionID.String(),
+	})
+	if err != nil {
+		t.Logf("cleanup: failed to release reservations of transaction %s: %v", transactionID, err)
+	}
+}
+
 // createScopedReserveRule creates and activates a rule scoped to one account so it
 // cannot leak into any other test's requests.
 func createScopedReserveRule(t *testing.T, name, expression, action string, accountID uuid.UUID) string {
@@ -195,6 +215,8 @@ func TestIntegration_Reservation_RulesGuardLimitCapacity(t *testing.T) {
 			`metadata["channel"] == "branch"`, "DENY", accountID)
 
 		transactionID := uuid.New()
+		t.Cleanup(func() { releaseRulesTransaction(t, transactionID) })
+
 		got := reserveRulesFor(t, transactionID, accountID, "100.00", false)
 
 		assert.False(t, got.GetDenied())
@@ -231,6 +253,8 @@ func TestIntegration_Reservation_RulesGuardLimitCapacity(t *testing.T) {
 			`account.type == "deposit"`, "DENY", accountID)
 
 		transactionID := uuid.New()
+		t.Cleanup(func() { releaseRulesTransaction(t, transactionID) })
+
 		got := reserveRulesFor(t, transactionID, accountID, "100.00", true)
 
 		assert.False(t, got.GetDenied())
@@ -269,6 +293,8 @@ func TestIntegration_Reservation_NoMatchDefaultDoesNotRefuse(t *testing.T) {
 		`metadata["channel"] == "branch"`, "DENY", accountID)
 
 	transactionID := uuid.New()
+	t.Cleanup(func() { releaseRulesTransaction(t, transactionID) })
+
 	got := reserveRulesFor(t, transactionID, accountID, "100.00", false)
 
 	assert.False(t, got.GetDenied())
