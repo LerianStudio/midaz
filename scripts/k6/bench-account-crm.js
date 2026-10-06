@@ -1,9 +1,13 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+//
 // Deliverable #1 — account creation latency WITH vs WITHOUT CRM.
 //
 // Two legs run sequentially (startTime offsets, so the box carries one profile
 // at a time) at a constant arrival rate:
 //   A_plain — POST .../accounts                 (no CRM: a bare ledger account)
-//   B_crm   — POST .../holders/{id}/accounts    (CRM-composed: holder-owned,
+//   B_crm   — POST .../holders/{holder_id}/accounts    (CRM-composed: holder-owned,
 //             which resolves the holder and binds ownership)
 //
 // Run:

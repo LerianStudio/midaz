@@ -43,7 +43,7 @@ import (
 //     future edits that widen the filter to other LIMIT_* event types.
 //  3. Install a BEFORE INSERT trigger that fails audit inserts for this
 //     limit's LIMIT_ACTIVATED event.
-//  4. Call POST /v1/limits/{id}/activate. Expect a 5xx response.
+//  4. Call POST /v1/limits/{limit_id}/activate. Expect a 5xx response.
 //  5. Assert directly against the DB that the limit status is still DRAFT
 //     and that no LIMIT_ACTIVATED audit event was persisted.
 func TestAuditRollback_ActivateLimit_Integration(t *testing.T) {

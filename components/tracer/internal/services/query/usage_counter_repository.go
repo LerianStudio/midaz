@@ -43,7 +43,7 @@ type UsageCounterRepository interface {
 	UpsertAndIncrementAtomic(ctx context.Context, db pgdb.DB, limitID uuid.UUID, scopeKey string, periodKey string, amount decimal.Decimal, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error)
 
 	// GetByLimitIDAndPeriod retrieves the usage counters of a limit in one
-	// period, one per scope key. Used for the GET /limits/{id}/usage endpoint.
+	// period, one per scope key. Used for the GET /limits/{limit_id}/usage endpoint.
 	// Returns empty slice if no counters exist.
 	GetByLimitIDAndPeriod(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error)
 

@@ -186,7 +186,7 @@ func TestAuditRollback_UpdateRule_Integration(t *testing.T) {
 	dropTrigger := installFailOnAuditEvent(t, db, ruleID, "RULE_UPDATED")
 	t.Cleanup(dropTrigger)
 
-	// ----- Step 3: PATCH /v1/rules/:id with new fields, expect 5xx --------
+	// ----- Step 3: PATCH /v1/rules/:rule_id with new fields, expect 5xx --------
 	updatedExpression := "amount > 999"
 	updatedDescription := "this update must roll back"
 	patchBody, err := json.Marshal(map[string]any{
@@ -480,7 +480,7 @@ func TestAuditRollback_UpdateRule_HappyPath_AuditEventPresent(t *testing.T) {
 		testutil.CleanupRule(t, ruleID)
 	})
 
-	// ----- Step 2: PATCH /v1/rules/:id with new fields, expect 200 --------
+	// ----- Step 2: PATCH /v1/rules/:rule_id with new fields, expect 200 --------
 	updatedExpression := "amount > 999"
 	updatedDescription := "happy-path update must commit"
 	patchBody, err := json.Marshal(map[string]any{

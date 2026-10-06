@@ -146,14 +146,14 @@ func (handler *AssetHandler) ListAssets(ctx context.Context, in *ListAssetsReque
 	return &ListAssetsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /assets/{id} ---------------------------------------------------------
+// --- GET /assets/{asset_id} --------------------------------------------------
 
 // GetAssetRequest is the by-id request envelope. The id path param carries no
 // format tag (ParseUUIDPathParameters is the sole validator).
 type GetAssetRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Asset ID (UUID)"`
+	ID             string `path:"asset_id" doc:"Asset ID (UUID)"`
 }
 
 // GetAssetResponse carries the asset verbatim.
@@ -169,7 +169,7 @@ func (handler *AssetHandler) GetAssetByID(ctx context.Context, in *GetAssetReque
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "asset_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -182,13 +182,13 @@ func (handler *AssetHandler) GetAssetByID(ctx context.Context, in *GetAssetReque
 	return &GetAssetResponse{Status: http.StatusOK, Body: asset}, nil
 }
 
-// --- PATCH /assets/{id} -------------------------------------------------------
+// --- PATCH /assets/{asset_id} ------------------------------------------------
 
 // UpdateAssetRequest is the update request envelope (RawBody, see Create).
 type UpdateAssetRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Asset ID (UUID)"`
+	ID             string `path:"asset_id" doc:"Asset ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -206,7 +206,7 @@ func (handler *AssetHandler) UpdateAsset(ctx context.Context, in *UpdateAssetReq
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "asset_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -224,7 +224,7 @@ func (handler *AssetHandler) UpdateAsset(ctx context.Context, in *UpdateAssetReq
 	return &UpdateAssetResponse{Status: http.StatusOK, Body: asset}, nil
 }
 
-// --- DELETE /assets/{id} ------------------------------------------------------
+// --- DELETE /assets/{asset_id} -----------------------------------------------
 
 // DeleteAssetResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
@@ -237,7 +237,7 @@ func (handler *AssetHandler) DeleteAssetByID(ctx context.Context, in *GetAssetRe
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "asset_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

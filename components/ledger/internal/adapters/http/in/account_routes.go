@@ -19,7 +19,7 @@ import (
 // every versioned contract that serves it.
 const (
 	accountListPath     = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts"
-	accountIDPath       = accountListPath + "/{id}"
+	accountIDPath       = accountListPath + "/{account_id}"
 	accountAliasPath    = accountListPath + "/alias/{alias}"
 	accountExternalPath = accountListPath + "/external/{code}"
 	accountCountPath    = accountListPath + "/metrics/count"
@@ -296,7 +296,7 @@ func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 func attachAccountRouteChain(group fiber.Router, auth *middleware.AuthClient, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	const (
 		listPath     = "/organizations/:organization_id/ledgers/:ledger_id/accounts"
-		idPath       = listPath + "/:id"
+		idPath       = listPath + "/:account_id"
 		aliasPath    = listPath + "/alias/:alias"
 		externalPath = listPath + "/external/:code"
 		countPath    = listPath + "/metrics/count"

@@ -88,9 +88,9 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 	base := "/organizations/:organization_id/ledgers/:ledger_id/account-types"
 	apiV1.Post(base, parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
-	apiV1.Patch(base+"/:id", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Get(base+"/:account_type_id", parse)
+	apiV1.Patch(base+"/:account_type_id", parse)
+	apiV1.Delete(base+"/:account_type_id", parse)
 
 	RegisterAccountTypeRoutes(hAPI, handler, v1OpSuffix)
 

@@ -345,7 +345,7 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 			handler := NewLimitHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/limits/:id", handler.GetLimit)
+			app.Get("/limits/:limit_id", handler.GetLimit)
 
 			req := httptest.NewRequest(http.MethodGet, "/limits/"+tt.limitID, nil)
 
@@ -847,7 +847,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			handler := NewLimitHandler(mockService)
 
 			app := fiber.New()
-			app.Patch("/limits/:id", handler.UpdateLimit)
+			app.Patch("/limits/:limit_id", handler.UpdateLimit)
 
 			var bodyBytes []byte
 			switch v := tt.requestBody.(type) {
@@ -945,7 +945,7 @@ func TestLimitHandler_ActivateLimit(t *testing.T) {
 			handler := NewLimitHandler(mockService)
 
 			app := fiber.New()
-			app.Post("/limits/:id/activate", handler.ActivateLimit)
+			app.Post("/limits/:limit_id/activate", handler.ActivateLimit)
 
 			req := httptest.NewRequest(http.MethodPost, "/limits/"+tt.limitID+"/activate", nil)
 
@@ -1015,7 +1015,7 @@ func TestLimitHandler_DeactivateLimit(t *testing.T) {
 			handler := NewLimitHandler(mockService)
 
 			app := fiber.New()
-			app.Post("/limits/:id/deactivate", handler.DeactivateLimit)
+			app.Post("/limits/:limit_id/deactivate", handler.DeactivateLimit)
 
 			req := httptest.NewRequest(http.MethodPost, "/limits/"+tt.limitID+"/deactivate", nil)
 
@@ -1081,7 +1081,7 @@ func TestLimitHandler_DeleteLimit(t *testing.T) {
 			handler := NewLimitHandler(mockService)
 
 			app := fiber.New()
-			app.Delete("/limits/:id", handler.DeleteLimit)
+			app.Delete("/limits/:limit_id", handler.DeleteLimit)
 
 			req := httptest.NewRequest(http.MethodDelete, "/limits/"+tt.limitID, nil)
 
@@ -1186,7 +1186,7 @@ func TestLimitHandler_DraftLimit(t *testing.T) {
 			handler := NewLimitHandler(mockService)
 
 			app := fiber.New()
-			app.Post("/limits/:id/draft", handler.DraftLimit)
+			app.Post("/limits/:limit_id/draft", handler.DraftLimit)
 
 			req := httptest.NewRequest(http.MethodPost, "/limits/"+tt.limitID+"/draft", nil)
 
@@ -1927,7 +1927,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 
 		app := fiber.New()
 		handler := NewLimitHandler(mockService)
-		app.Post("/limits/:id/deactivate", handler.DeactivateLimit)
+		app.Post("/limits/:limit_id/deactivate", handler.DeactivateLimit)
 
 		req := httptest.NewRequest(http.MethodPost, "/limits/"+validID.String()+"/deactivate", nil)
 
@@ -2090,7 +2090,7 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 
 			app := fiber.New()
 			handler := NewLimitHandler(mockService)
-			app.Get("/limits/:id/usage", handler.GetLimitUsage)
+			app.Get("/limits/:limit_id/usage", handler.GetLimitUsage)
 
 			req := httptest.NewRequest(http.MethodGet, "/limits/"+tt.limitID+"/usage", nil)
 

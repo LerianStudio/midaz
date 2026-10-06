@@ -215,18 +215,18 @@ type ListAuditEventsOutputHuma struct {
 // audit-event ops (get + verify). Path param carries no format tag (uuid.Parse is
 // the sole validator — canonical 400/0065, never a native 422).
 type AuditEventIDInputHuma struct {
-	ID string `path:"id" doc:"Audit event ID (UUID)"`
+	ID string `path:"audit_event_id" doc:"Audit event ID (UUID)"`
 }
 
 // GetAuditEventOutputHuma is the Huma response envelope for GET
-// /v1/audit-events/{id}.
+// /v1/audit-events/{audit_event_id}.
 type GetAuditEventOutputHuma struct {
 	Status int
 	Body   *model.AuditEvent
 }
 
 // VerifyHashChainOutputHuma is the Huma response envelope for GET
-// /v1/audit-events/{id}/verify.
+// /v1/audit-events/{audit_event_id}/verify.
 type VerifyHashChainOutputHuma struct {
 	Status int
 	Body   *model.HashChainVerificationResult
@@ -245,7 +245,7 @@ func (h *AuditEventHandler) ListAuditEventsHuma(ctx context.Context, in *ListAud
 	return &ListAuditEventsOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// GetAuditEventHuma is the Huma handler for GET /v1/audit-events/{id}.
+// GetAuditEventHuma is the Huma handler for GET /v1/audit-events/{audit_event_id}.
 func (h *AuditEventHandler) GetAuditEventHuma(ctx context.Context, in *AuditEventIDInputHuma) (*GetAuditEventOutputHuma, error) {
 	result, err := h.getAuditEvent(ctx, in.ID)
 	if err != nil {
@@ -255,7 +255,7 @@ func (h *AuditEventHandler) GetAuditEventHuma(ctx context.Context, in *AuditEven
 	return &GetAuditEventOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
-// VerifyHashChainHuma is the Huma handler for GET /v1/audit-events/{id}/verify.
+// VerifyHashChainHuma is the Huma handler for GET /v1/audit-events/{audit_event_id}/verify.
 func (h *AuditEventHandler) VerifyHashChainHuma(ctx context.Context, in *AuditEventIDInputHuma) (*VerifyHashChainOutputHuma, error) {
 	result, err := h.verifyHashChain(ctx, in.ID)
 	if err != nil {
@@ -281,7 +281,7 @@ func RegisterAuditEventRoutes(api huma.API, h *AuditEventHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "getAuditEvent",
 		Method:      http.MethodGet,
-		Path:        "/audit-events/{id}",
+		Path:        "/audit-events/{audit_event_id}",
 		Summary:     "Get an audit event by ID",
 		Tags:        []string{"Audit"},
 		Security:    secBearerOrAPIKey,
@@ -290,7 +290,7 @@ func RegisterAuditEventRoutes(api huma.API, h *AuditEventHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "verifyAuditEvent",
 		Method:      http.MethodGet,
-		Path:        "/audit-events/{id}/verify",
+		Path:        "/audit-events/{audit_event_id}/verify",
 		Summary:     "Verify audit event hash chain integrity",
 		Tags:        []string{"Audit"},
 		Security:    secBearerOrAPIKey,

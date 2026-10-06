@@ -26,7 +26,7 @@ import (
 func RegisterPackageRoutes(api huma.API, h *PackageHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/packages"
-		idPath   = listPath + "/{id}"
+		idPath   = listPath + "/{package_id}"
 		tag      = "Packages"
 	)
 
@@ -110,7 +110,7 @@ func RegisterPackageV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 func registerPackageRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *PackageHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		packagesPath  = "/organizations/:organization_id/ledgers/:ledger_id/packages"
-		packageIDPath = packagesPath + "/:id"
+		packageIDPath = packagesPath + "/:package_id"
 	)
 
 	packageParse := pkgHTTP.ParseUUIDPathParameters("packages")

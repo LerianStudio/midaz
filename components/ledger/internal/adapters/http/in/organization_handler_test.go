@@ -45,7 +45,7 @@ import (
 // http.ParseUUIDPathParameters("organization") attaches the id-parse chain before the
 // Huma terminals registered by RegisterOrganizationRoutes.
 //
-// Organization is a FIRST-LEVEL resource: the only UUID path param is {id}, and the
+// Organization is a FIRST-LEVEL resource: the only UUID path param is {organization_id}, and the
 // list/create collection sits at /organizations directly (no org/ledger prefix).
 //
 // MUST-NOT-PARALLELIZE (same rationale as the asset exemplar's buildHumaAssetApp):
@@ -96,18 +96,18 @@ func buildHumaOrganizationAppOn(t *testing.T, handler *OrganizationHandler, auth
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{prefix}})
 
 	// Mirror the production chain: ParseUUIDPathParameters runs as a Fiber middleware
-	// (no terminal handler) before the Huma terminal on the {id} routes. Registered
+	// (no terminal handler) before the Huma terminal on the {organization_id} routes. Registered
 	// group-relative on apiV1 so Fiber prepends /v1 — matching the group-relative paths
 	// RegisterOrganizationRoutes registers on the Huma API. The static metrics/count
-	// route is registered BEFORE the :id route so it is not shadowed by the param.
+	// route is registered BEFORE the :organization_id route so it is not shadowed by the param.
 	parse := pkgHTTP.ParseUUIDPathParameters("organization")
 	passthrough := func(c fiber.Ctx) error { return c.Next() }
 	apiV1.Post("/organizations", passthrough)
 	apiV1.Get("/organizations", passthrough)
 	apiV1.Head("/organizations/metrics/count", passthrough)
-	apiV1.Get("/organizations/:id", parse)
-	apiV1.Patch("/organizations/:id", parse)
-	apiV1.Delete("/organizations/:id", parse)
+	apiV1.Get("/organizations/:organization_id", parse)
+	apiV1.Patch("/organizations/:organization_id", parse)
+	apiV1.Delete("/organizations/:organization_id", parse)
 
 	RegisterOrganizationRoutes(hAPI, handler, opSuffix)
 
