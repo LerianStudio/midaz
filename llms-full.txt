@@ -260,49 +260,49 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 |--------|------|-------------|
 | POST | /organizations | Create organization |
 | GET | /organizations | List organizations |
-| GET | /organizations/:id | Get organization |
-| PATCH | /organizations/:id | Update organization |
-| DELETE | /organizations/:id | Delete organization |
+| GET | /organizations/:organization_id | Get organization |
+| PATCH | /organizations/:organization_id | Update organization |
+| DELETE | /organizations/:organization_id | Delete organization |
 | HEAD | /organizations/metrics/count | Count organizations |
-| POST | /organizations/:org_id/ledgers | Create ledger |
-| GET | /organizations/:org_id/ledgers | List ledgers |
-| GET | /organizations/:org_id/ledgers/:id | Get ledger |
-| PATCH | /organizations/:org_id/ledgers/:id | Update ledger |
-| DELETE | /organizations/:org_id/ledgers/:id | Delete ledger |
-| HEAD | /organizations/:org_id/ledgers/metrics/count | Count ledgers |
-| GET | /organizations/:org_id/ledgers/:id/settings | Get ledger settings |
-| PATCH | /organizations/:org_id/ledgers/:id/settings | Update ledger settings |
-| POST | /organizations/:org_id/ledgers/:lid/assets | Create asset |
-| GET | /organizations/:org_id/ledgers/:lid/assets | List assets |
-| GET | /organizations/:org_id/ledgers/:lid/assets/:id | Get asset |
-| PATCH | /organizations/:org_id/ledgers/:lid/assets/:id | Update asset |
-| DELETE | /organizations/:org_id/ledgers/:lid/assets/:id | Delete asset |
-| HEAD | /organizations/:org_id/ledgers/:lid/assets/metrics/count | Count assets |
-| POST | /organizations/:org_id/ledgers/:lid/portfolios | Create portfolio |
-| GET | /organizations/:org_id/ledgers/:lid/portfolios | List portfolios |
-| GET | /organizations/:org_id/ledgers/:lid/portfolios/:id | Get portfolio |
-| PATCH | /organizations/:org_id/ledgers/:lid/portfolios/:id | Update portfolio |
-| DELETE | /organizations/:org_id/ledgers/:lid/portfolios/:id | Delete portfolio |
-| HEAD | /organizations/:org_id/ledgers/:lid/portfolios/metrics/count | Count portfolios |
-| POST | /organizations/:org_id/ledgers/:lid/segments | Create segment |
-| GET | /organizations/:org_id/ledgers/:lid/segments | List segments |
-| GET | /organizations/:org_id/ledgers/:lid/segments/:id | Get segment |
-| PATCH | /organizations/:org_id/ledgers/:lid/segments/:id | Update segment |
-| DELETE | /organizations/:org_id/ledgers/:lid/segments/:id | Delete segment |
-| HEAD | /organizations/:org_id/ledgers/:lid/segments/metrics/count | Count segments |
-| POST | /organizations/:org_id/ledgers/:lid/accounts | Create account |
-| GET | /organizations/:org_id/ledgers/:lid/accounts | List accounts |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/:id | Get account |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/alias/:alias | Get account by alias |
-| GET | /organizations/:org_id/ledgers/:lid/accounts/external/:code | Get external account |
-| PATCH | /organizations/:org_id/ledgers/:lid/accounts/:id | Update account |
-| DELETE | /organizations/:org_id/ledgers/:lid/accounts/:id | Delete account |
-| HEAD | /organizations/:org_id/ledgers/:lid/accounts/metrics/count | Count accounts |
-| POST | /organizations/:org_id/ledgers/:lid/account-types | Create account type |
-| GET | /organizations/:org_id/ledgers/:lid/account-types | List account types |
-| GET | /organizations/:org_id/ledgers/:lid/account-types/:id | Get account type |
-| PATCH | /organizations/:org_id/ledgers/:lid/account-types/:id | Update account type |
-| DELETE | /organizations/:org_id/ledgers/:lid/account-types/:id | Delete account type |
+| POST | /organizations/:organization_id/ledgers | Create ledger |
+| GET | /organizations/:organization_id/ledgers | List ledgers |
+| GET | /organizations/:organization_id/ledgers/:ledger_id | Get ledger |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id | Update ledger |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id | Delete ledger |
+| HEAD | /organizations/:organization_id/ledgers/metrics/count | Count ledgers |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/settings | Get ledger settings |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/settings | Update ledger settings |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/assets | Create asset |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/assets | List assets |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Get asset |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Update asset |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/assets/:asset_id | Delete asset |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count | Count assets |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/portfolios | Create portfolio |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/portfolios | List portfolios |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Get portfolio |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Update portfolio |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id | Delete portfolio |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count | Count portfolios |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/segments | Create segment |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/segments | List segments |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Get segment |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Update segment |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/segments/:segment_id | Delete segment |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count | Count segments |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/accounts | Create account |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts | List accounts |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Get account |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias | Get account by alias |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code | Get external account |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Update account |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id | Delete account |
+| HEAD | /organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count | Count accounts |
+| POST | /organizations/:organization_id/ledgers/:ledger_id/account-types | Create account type |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/account-types | List account types |
+| GET | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Get account type |
+| PATCH | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Update account type |
+| DELETE | /organizations/:organization_id/ledgers/:ledger_id/account-types/:account_type_id | Delete account type |
 
 #### Transaction Resources
 
@@ -313,49 +313,49 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
 | POST | /v2/transactions/batch | Create an ordered atomic batch of direct and hold transactions |
-| POST | .../transactions/:tid/commit | Commit pending transaction |
-| POST | .../transactions/:tid/cancel | Cancel pending transaction |
-| POST | .../transactions/:tid/revert | Revert transaction |
-| PATCH | .../transactions/:tid | Update transaction metadata |
+| POST | .../transactions/:transaction_id/commit | Commit pending transaction |
+| POST | .../transactions/:transaction_id/cancel | Cancel pending transaction |
+| POST | .../transactions/:transaction_id/revert | Revert transaction |
+| PATCH | .../transactions/:transaction_id | Update transaction metadata |
 | GET | .../transactions | List transactions |
-| GET | .../transactions/:tid | Get transaction |
+| GET | .../transactions/:transaction_id | Get transaction |
 | HEAD | .../transactions/metrics/count | Count transactions |
-| GET | .../accounts/:aid/operations | List operations by account |
-| GET | .../accounts/:aid/operations/:oid | Get operation |
-| PATCH | .../transactions/:tid/operations/:oid | Update operation |
+| GET | .../accounts/:account_id/operations | List operations by account |
+| GET | .../accounts/:account_id/operations/:operation_id | Get operation |
+| PATCH | .../transactions/:transaction_id/operations/:operation_id | Update operation |
 | PUT | .../asset-rates | Create/update asset rate |
 | GET | .../asset-rates/:external_id | Get asset rate |
 | GET | .../asset-rates/from/:asset_code | List asset rates by code |
 | GET | .../balances | List balances |
-| GET | .../balances/:bid | Get balance |
-| GET | .../balances/:bid/history | Get balance as recorded by the ledger at timestamp |
-| PATCH | .../balances/:bid | Update balance |
-| DELETE | .../balances/:bid | Delete balance |
-| GET | .../accounts/:aid/balances | List balances by account |
-| GET | .../accounts/:aid/balances/history | Account balances as recorded by the ledger at timestamp |
+| GET | .../balances/:balance_id | Get balance |
+| GET | .../balances/:balance_id/history | Get balance as recorded by the ledger at timestamp |
+| PATCH | .../balances/:balance_id | Update balance |
+| DELETE | .../balances/:balance_id | Delete balance |
+| GET | .../accounts/:account_id/balances | List balances by account |
+| GET | .../accounts/:account_id/balances/history | Account balances as recorded by the ledger at timestamp |
 | GET | .../accounts/alias/:alias/balances | Balances by alias |
 | GET | .../accounts/external/:code/balances | Balances by external code |
-| POST | .../accounts/:aid/balances | Create additional balance |
+| POST | .../accounts/:account_id/balances | Create additional balance |
 | POST | .../operation-routes | Create operation route |
 | GET | .../operation-routes | List operation routes |
-| GET | .../operation-routes/:orid | Get operation route |
-| PATCH | .../operation-routes/:orid | Update operation route |
-| DELETE | .../operation-routes/:orid | Delete operation route |
+| GET | .../operation-routes/:operation_route_id | Get operation route |
+| PATCH | .../operation-routes/:operation_route_id | Update operation route |
+| DELETE | .../operation-routes/:operation_route_id | Delete operation route |
 | POST | .../transaction-routes | Create transaction route |
 | GET | .../transaction-routes | List transaction routes |
-| GET | .../transaction-routes/:trid | Get transaction route |
-| PATCH | .../transaction-routes/:trid | Update transaction route |
-| DELETE | .../transaction-routes/:trid | Delete transaction route |
-| POST | /v2/organizations/:org_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
-| GET | /v2/organizations/:org_id/operation-routes | List every operation route of the organization |
-| GET | /v2/organizations/:org_id/operation-routes/:orid | Get operation route |
-| PATCH | /v2/organizations/:org_id/operation-routes/:orid | Update operation route |
-| DELETE | /v2/organizations/:org_id/operation-routes/:orid | Delete operation route |
-| POST | /v2/organizations/:org_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
-| GET | /v2/organizations/:org_id/transaction-routes | List every transaction route of the organization |
-| GET | /v2/organizations/:org_id/transaction-routes/:trid | Get transaction route |
-| PATCH | /v2/organizations/:org_id/transaction-routes/:trid | Update transaction route |
-| DELETE | /v2/organizations/:org_id/transaction-routes/:trid | Delete transaction route |
+| GET | .../transaction-routes/:transaction_route_id | Get transaction route |
+| PATCH | .../transaction-routes/:transaction_route_id | Update transaction route |
+| DELETE | .../transaction-routes/:transaction_route_id | Delete transaction route |
+| POST | /v2/organizations/:organization_id/operation-routes | Create operation route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:organization_id/operation-routes | List every operation route of the organization |
+| GET | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Get operation route |
+| PATCH | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Update operation route |
+| DELETE | /v2/organizations/:organization_id/operation-routes/:operation_route_id | Delete operation route |
+| POST | /v2/organizations/:organization_id/transaction-routes | Create transaction route at organization level (no `ledgerId`) |
+| GET | /v2/organizations/:organization_id/transaction-routes | List every transaction route of the organization |
+| GET | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Get transaction route |
+| PATCH | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Update transaction route |
+| DELETE | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Delete transaction route |
 
 **PATCH metadata.** Every PATCH whose body carries `metadata` (organization, ledger, portfolio,
 segment, account, account type, asset, transaction, operation, operation and transaction routes,
@@ -408,10 +408,10 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 |--------|------|-------------|
 | POST | /v2/organizations/{organization_id}/holders | Create a holder (authz `midaz`/`holders`) |
 | GET | /v2/organizations/{organization_id}/holders | List holders (authz `midaz`/`holders`) |
-| GET | /v2/organizations/{organization_id}/holders/{id} | Get a holder (authz `midaz`/`holders`) |
-| PATCH | /v2/organizations/{organization_id}/holders/{id} | Update a holder (authz `midaz`/`holders`) |
-| DELETE | /v2/organizations/{organization_id}/holders/{id} | Delete a holder (authz `midaz`/`holders`) |
-| GET | /v2/organizations/{organization_id}/holders/{id}/accounts | List a holder's accounts org-wide across every ledger, with an optional `?ledger_id=` narrowing filter (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
+| GET | /v2/organizations/{organization_id}/holders/{holder_id} | Get a holder (authz `midaz`/`holders`) |
+| PATCH | /v2/organizations/{organization_id}/holders/{holder_id} | Update a holder (authz `midaz`/`holders`) |
+| DELETE | /v2/organizations/{organization_id}/holders/{holder_id} | Delete a holder (authz `midaz`/`holders`) |
+| GET | /v2/organizations/{organization_id}/holders/{holder_id}/accounts | List a holder's accounts org-wide across every ledger, with an optional `?ledger_id=` narrowing filter (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
 | GET | /v2/organizations/{organization_id}/instruments | List instruments (authz `midaz`/`instruments`) |
 | POST | /v2/organizations/{organization_id}/holders/{holder_id}/instruments | Create an instrument for a holder (authz `midaz`/`instruments`) |
 | GET | /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} | Get an instrument (authz `midaz`/`instruments`) |
@@ -421,7 +421,7 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 | POST | /v2/organizations/{organization_id}/encryption/provision | Provision org encryption keys (authz `midaz`/`encryption`; envelope mode only) |
 | GET | /v2/organizations/{organization_id}/encryption/status | Encryption provisioning status (authz `midaz`/`encryption`; envelope mode only) |
 | GET | /v2/organizations/{organization_id}/protection/audit | PII protection audit (authz `midaz`/`protection`; envelope mode only) |
-| POST | /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
+| POST | /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/:holder_id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
 
 The three encryption/protection routes are registered **only in envelope mode** (`KMS_VENDOR=hashicorp-vault`);
 in legacy mode their handlers are nil and the routes are never mounted.
@@ -461,18 +461,18 @@ reaches only what that ledger owns.
 |--------|------|-------------|
 | POST | {base}/packages | Create fee package |
 | GET | {base}/packages | List the ledger's fee packages |
-| GET | {base}/packages/:id | Get fee package |
-| PATCH | {base}/packages/:id | Update fee package |
-| DELETE | {base}/packages/:id | Delete fee package |
+| GET | {base}/packages/:package_id | Get fee package |
+| PATCH | {base}/packages/:package_id | Update fee package |
+| DELETE | {base}/packages/:package_id | Delete fee package |
 | POST | {base}/estimates | Estimate fee calculation (dry run) |
 | POST | {base}/billing-packages | Create billing package |
 | GET | {base}/billing-packages | List the ledger's billing packages |
-| GET | {base}/billing-packages/:id | Get billing package |
-| PATCH | {base}/billing-packages/:id | Update billing package |
-| DELETE | {base}/billing-packages/:id | Delete billing package |
+| GET | {base}/billing-packages/:billing_package_id | Get billing package |
+| PATCH | {base}/billing-packages/:billing_package_id | Update billing package |
+| DELETE | {base}/billing-packages/:billing_package_id | Delete billing package |
 | POST | {base}/billing/calculate | Calculate billing |
 | GET | {base}/fee-debts | List the ledger's fee debts, oldest first; `?status=open\|settled` filters, `?account_alias=` narrows to one debtor and adds `openTotal`, what it owes over all its open debts |
-| GET | {base}/fee-debts/:debt_id | Get fee debt |
+| GET | {base}/fee-debts/:fee_debt_id | Get fee debt |
 | POST | {base}/fee-debts/collect | Collect a debtor's open fee debt now (see below) |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
@@ -639,27 +639,27 @@ back below this contract. See [docs/api/SCOPING.md](docs/api/SCOPING.md).
 |--------|------|-------------|
 | POST | /v1/rules | Create rule |
 | GET | /v1/rules | List rules |
-| GET | /v1/rules/:id | Get rule |
-| PATCH | /v1/rules/:id | Update rule |
-| DELETE | /v1/rules/:id | Delete rule |
-| POST | /v1/rules/:id/draft | Move rule to draft |
-| POST | /v1/rules/:id/activate | Activate rule |
-| POST | /v1/rules/:id/deactivate | Deactivate rule |
+| GET | /v1/rules/:rule_id | Get rule |
+| PATCH | /v1/rules/:rule_id | Update rule |
+| DELETE | /v1/rules/:rule_id | Delete rule |
+| POST | /v1/rules/:rule_id/draft | Move rule to draft |
+| POST | /v1/rules/:rule_id/activate | Activate rule |
+| POST | /v1/rules/:rule_id/deactivate | Deactivate rule |
 | POST | /v1/limits | Create limit |
 | GET | /v1/limits | List limits |
-| GET | /v1/limits/:id | Get limit |
-| PATCH | /v1/limits/:id | Update limit |
-| DELETE | /v1/limits/:id | Delete limit |
-| POST | /v1/limits/:id/draft | Move limit to draft |
-| POST | /v1/limits/:id/activate | Activate limit |
-| POST | /v1/limits/:id/deactivate | Deactivate limit |
-| GET | /v1/limits/:id/usage | Get limit usage |
+| GET | /v1/limits/:limit_id | Get limit |
+| PATCH | /v1/limits/:limit_id | Update limit |
+| DELETE | /v1/limits/:limit_id | Delete limit |
+| POST | /v1/limits/:limit_id/draft | Move limit to draft |
+| POST | /v1/limits/:limit_id/activate | Activate limit |
+| POST | /v1/limits/:limit_id/deactivate | Deactivate limit |
+| GET | /v1/limits/:limit_id/usage | Get limit usage |
 | POST | /v1/validations | Run validation |
 | GET | /v1/validations | List validations |
-| GET | /v1/validations/:id | Get validation |
+| GET | /v1/validations/:validation_id | Get validation |
 | GET | /v1/audit-events | List audit events |
-| GET | /v1/audit-events/:id | Get audit event |
-| GET | /v1/audit-events/:id/verify | Verify the audit-event hash chain |
+| GET | /v1/audit-events/:audit_event_id | Get audit event |
+| GET | /v1/audit-events/:audit_event_id/verify | Verify the audit-event hash chain |
 
 The two-phase reservation flow (a reservation holds projected limit usage, then is confirmed on
 commit or released on rollback, by reservation ID or by the originating transaction ID) is served
@@ -724,7 +724,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
 #### Settings / Reservation Error Codes (0176–0178, 0531–0536, 0249–0256)
-- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
+- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{ledger_id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied by a limit (`reason=limit_exceeded`) under `tracer.mode=enforce` (HTTP 422)
 - `0178` ErrTransactionReservationUnavailable — tracer unreachable or failing under `tracer.mode=enforce` + `tracer.failPosture=closed` (HTTP 503)
 - `0531` ErrTransactionReservationReview — a tracer rule flagged the transaction for `REVIEW`, or a rule could not be evaluated for it (`reason=rule_evaluation_error`), under `tracer.mode=enforce`; rejected before the balance commit (HTTP 422)
@@ -1369,7 +1369,7 @@ readable effect on that contract; `/v2` answers with the holder-bearing `Account
 component. `/v1` shipped before the seam existed, and a client integrated against it must
 not acquire a holder link — or a new rejection class — from a version upgrade.
 
-The holder-account composition route (`POST /v2/.../holders/{id}/accounts`) passes
+The holder-account composition route (`POST /v2/.../holders/{holder_id}/accounts`) passes
 `HolderOnV2`: it exists to link a holder, and is served on `/v2` only.
 
 ### Organization self-holder

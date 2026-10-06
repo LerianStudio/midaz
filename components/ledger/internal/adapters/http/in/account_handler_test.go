@@ -89,12 +89,12 @@ func buildHumaAccountApp(t *testing.T, handler *AccountHandler, authOK bool) *fi
 	parse := pkgHTTP.ParseUUIDPathParameters("account")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/accounts"
 	apiV1.Post(base, parse)
-	apiV1.Patch(base+"/:id", parse)
+	apiV1.Patch(base+"/:account_id", parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
+	apiV1.Get(base+"/:account_id", parse)
 	apiV1.Get(base+"/alias/:alias", parse)
 	apiV1.Get(base+"/external/:code", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Delete(base+"/:account_id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
 	RegisterAccountRoutes(hAPI, handler, v1OpSuffix)

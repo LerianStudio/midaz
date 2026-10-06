@@ -5637,14 +5637,14 @@ paths:
       summary: Count total organizations
       tags:
         - Organizations (v1)
-  /v1/organizations/{id}:
+  /v1/organizations/{organization_id}:
     delete:
       deprecated: true
       operationId: deleteOrganization
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -5681,7 +5681,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -5723,7 +5723,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -6249,7 +6249,7 @@ paths:
       summary: Create a new account type
       tags:
         - Account Types (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}:
     delete:
       deprecated: true
       operationId: deleteAccountType
@@ -6270,7 +6270,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -6321,7 +6321,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -6377,7 +6377,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -6904,6 +6904,182 @@ paths:
       summary: Count accounts
       tags:
         - Accounts (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}:
+    delete:
+      deprecated: true
+      description: Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
+      operationId: deleteAccount
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account
+      tags:
+        - Accounts (v1)
+    get:
+      deprecated: true
+      operationId: getAccountByID
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Accounts (v1)
+    patch:
+      deprecated: true
+      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
+      operationId: updateAccount
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+          description: OK
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account
+      tags:
+        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       deprecated: true
@@ -7312,182 +7488,6 @@ paths:
       summary: Get Operation
       tags:
         - Operations (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
-    delete:
-      deprecated: true
-      description: Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
-      operationId: deleteAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
-      responses:
-        "204":
-          description: No Content
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete an account
-      tags:
-        - Accounts (v1)
-    get:
-      deprecated: true
-      operationId: getAccountByID
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Account"
-          description: OK
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve a specific account
-      tags:
-        - Accounts (v1)
-    patch:
-      deprecated: true
-      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null deletes every key the client wrote."
-      operationId: updateAccount
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAccountInput"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Account"
-          description: OK
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Internal Server Error
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update an account
-      tags:
-        - Accounts (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       deprecated: true
@@ -7892,7 +7892,7 @@ paths:
       summary: Count total assets
       tags:
         - Assets (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}:
     delete:
       deprecated: true
       operationId: deleteAsset
@@ -7913,7 +7913,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -7964,7 +7964,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -8020,7 +8020,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -9087,7 +9087,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Portfolios (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}:
     delete:
       deprecated: true
       operationId: deletePortfolio
@@ -9108,7 +9108,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -9159,7 +9159,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -9215,7 +9215,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -9441,7 +9441,7 @@ paths:
       summary: Count total segments
       tags:
         - Segments (v1)
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}:
     delete:
       deprecated: true
       operationId: deleteSegment
@@ -9462,7 +9462,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -9513,7 +9513,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -9569,7 +9569,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -11280,13 +11280,13 @@ paths:
       summary: Count total organizations
       tags:
         - Organizations (v2)
-  /v2/organizations/{id}:
+  /v2/organizations/{organization_id}:
     delete:
       operationId: deleteOrganizationV2
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -11322,7 +11322,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -11363,7 +11363,7 @@ paths:
       parameters:
         - description: Organization ID (UUID)
           in: path
-          name: id
+          name: organization_id
           required: true
           schema:
             description: Organization ID (UUID)
@@ -11654,6 +11654,241 @@ paths:
       security:
         - BearerAuth: []
       summary: Create a Holder
+      tags:
+        - Holders (v2)
+  /v2/organizations/{organization_id}/holders/{holder_id}:
+    delete:
+      operationId: deleteHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Holder
+      tags:
+        - Holders (v2)
+    get:
+      operationId: getHolderByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Returns the holder even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Returns the holder even if it was logically deleted (true,false)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Holder details
+      tags:
+        - Holders (v2)
+    patch:
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
+      operationId: updateHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHolderInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holder"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Holder
+      tags:
+        - Holders (v2)
+  /v2/organizations/{organization_id}/holders/{holder_id}/accounts:
+    get:
+      operationId: listAccountsByHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Accounts by Holder
       tags:
         - Holders (v2)
   /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
@@ -11965,241 +12200,6 @@ paths:
       summary: Delete a Related Party
       tags:
         - Instruments (v2)
-  /v2/organizations/{organization_id}/holders/{id}:
-    delete:
-      operationId: deleteHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
-          explode: false
-          in: query
-          name: hard_delete
-          schema:
-            description: Use only to perform a physical deletion of the data. This action is irreversible. (true,false)
-            type: string
-      responses:
-        "204":
-          description: No Content
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete a Holder
-      tags:
-        - Holders (v2)
-    get:
-      operationId: getHolderByIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Returns the holder even if it was logically deleted (true,false)
-          explode: false
-          in: query
-          name: include_deleted
-          schema:
-            description: Returns the holder even if it was logically deleted (true,false)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Holder"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve Holder details
-      tags:
-        - Holders (v2)
-    patch:
-      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
-      operationId: updateHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateHolderInput"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Holder"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update a Holder
-      tags:
-        - Holders (v2)
-  /v2/organizations/{organization_id}/holders/{id}/accounts:
-    get:
-      operationId: listAccountsByHolderV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Holder ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Holder ID (UUID)
-            type: string
-        - description: Max items per page (1-100, default 10)
-          explode: false
-          in: query
-          name: limit
-          schema:
-            description: Max items per page (1-100, default 10)
-            type: string
-        - description: Page number (default 1)
-          explode: false
-          in: query
-          name: page
-          schema:
-            description: Page number (default 1)
-            type: string
-        - description: Sort direction (asc, desc)
-          explode: false
-          in: query
-          name: sort_order
-          schema:
-            description: Sort direction (asc, desc)
-            type: string
-        - description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
-          explode: false
-          in: query
-          name: ledger_id
-          schema:
-            description: Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Pagination"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: List Accounts by Holder
-      tags:
-        - Holders (v2)
   /v2/organizations/{organization_id}/instruments:
     get:
       operationId: listInstrumentsV2
@@ -12781,7 +12781,7 @@ paths:
       summary: Create a new account type
       tags:
         - Account Types (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}:
     delete:
       operationId: deleteAccountTypeV2
       parameters:
@@ -12801,7 +12801,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -12851,7 +12851,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -12906,7 +12906,7 @@ paths:
             type: string
         - description: Account Type ID (UUID)
           in: path
-          name: id
+          name: account_type_id
           required: true
           schema:
             description: Account Type ID (UUID)
@@ -13481,6 +13481,179 @@ paths:
       summary: Count accounts
       tags:
         - Accounts (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}:
+    delete:
+      description: Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
+      operationId: deleteAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Bearer token (forwarded to the service)
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token (forwarded to the service)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account
+      tags:
+        - Accounts (v2)
+    get:
+      operationId: getAccountByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountV2"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account
+      tags:
+        - Accounts (v2)
+    patch:
+      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
+      operationId: updateAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountV2"
+          description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account
+      tags:
+        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountIDV2
@@ -13936,179 +14109,6 @@ paths:
       summary: Get Operation
       tags:
         - Operations (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
-    delete:
-      description: Deletes an account together with its balances. A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. A state that cannot be established answers 503 (0520) and may be retried.
-      operationId: deleteAccountV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-        - description: Bearer token (forwarded to the service)
-          in: header
-          name: Authorization
-          schema:
-            description: Bearer token (forwarded to the service)
-            type: string
-      responses:
-        "204":
-          description: No Content
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Delete an account
-      tags:
-        - Accounts (v2)
-    get:
-      operationId: getAccountByIDV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccountV2"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Retrieve a specific account
-      tags:
-        - Accounts (v2)
-    patch:
-      description: "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, and the stored instant is only ever written by the close command. Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
-      operationId: updateAccountV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: Account ID (UUID)
-          in: path
-          name: id
-          required: true
-          schema:
-            description: Account ID (UUID)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAccountInput"
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccountV2"
-          description: OK
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Unprocessable Entity
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Internal Server Error
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Update an account
-      tags:
-        - Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssetsV2
@@ -14297,7 +14297,7 @@ paths:
       summary: Count total assets
       tags:
         - Assets (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}:
     delete:
       operationId: deleteAssetV2
       parameters:
@@ -14317,7 +14317,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -14367,7 +14367,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -14422,7 +14422,7 @@ paths:
             type: string
         - description: Asset ID (UUID)
           in: path
-          name: id
+          name: asset_id
           required: true
           schema:
             description: Asset ID (UUID)
@@ -14896,7 +14896,7 @@ paths:
       summary: Create a BillingPackage
       tags:
         - Billing Packages (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages/{billing_package_id}:
     delete:
       operationId: deleteBillingPackageV2
       parameters:
@@ -14916,7 +14916,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -14966,7 +14966,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -15020,7 +15020,7 @@ paths:
             type: string
         - description: BillingPackage ID (UUID)
           in: path
-          name: id
+          name: billing_package_id
           required: true
           schema:
             description: BillingPackage ID (UUID)
@@ -15525,7 +15525,7 @@ paths:
       summary: Collect a balance's open fee debts
       tags:
         - Fee Debts (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{debt_id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/fee-debts/{fee_debt_id}:
     get:
       operationId: getFeeDebtV2
       parameters:
@@ -15545,7 +15545,7 @@ paths:
             type: string
         - description: Fee debt ID
           in: path
-          name: debt_id
+          name: fee_debt_id
           required: true
           schema:
             description: Fee debt ID
@@ -15580,7 +15580,7 @@ paths:
       summary: Get a fee debt
       tags:
         - Fee Debts (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts:
     post:
       operationId: createHolderAccountV2
       parameters:
@@ -15600,7 +15600,7 @@ paths:
             type: string
         - description: Holder ID (UUID)
           in: path
-          name: id
+          name: holder_id
           required: true
           schema:
             description: Holder ID (UUID)
@@ -16085,7 +16085,7 @@ paths:
       summary: Create a Package
       tags:
         - Packages (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages/{package_id}:
     delete:
       description: A deleted package may keep applying for up to 60 seconds when a transaction read the packages concurrently with the delete.
       operationId: deletePackageV2
@@ -16106,7 +16106,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -16156,7 +16156,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -16211,7 +16211,7 @@ paths:
             type: string
         - description: Package ID (UUID)
           in: path
-          name: id
+          name: package_id
           required: true
           schema:
             description: Package ID (UUID)
@@ -16448,7 +16448,7 @@ paths:
       summary: Count total portfolios
       tags:
         - Portfolios (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}:
     delete:
       operationId: deletePortfolioV2
       parameters:
@@ -16468,7 +16468,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -16518,7 +16518,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -16573,7 +16573,7 @@ paths:
             type: string
         - description: Portfolio ID (UUID)
           in: path
-          name: id
+          name: portfolio_id
           required: true
           schema:
             description: Portfolio ID (UUID)
@@ -16796,7 +16796,7 @@ paths:
       summary: Count total segments
       tags:
         - Segments (v2)
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}:
     delete:
       operationId: deleteSegmentV2
       parameters:
@@ -16816,7 +16816,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -16866,7 +16866,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)
@@ -16921,7 +16921,7 @@ paths:
             type: string
         - description: Segment ID (UUID)
           in: path
-          name: id
+          name: segment_id
           required: true
           schema:
             description: Segment ID (UUID)

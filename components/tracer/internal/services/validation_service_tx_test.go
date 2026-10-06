@@ -956,7 +956,7 @@ func TestValidationService_Validate_TxContextTimeout(t *testing.T) {
 // rollbackAndPersist, and the loser's Insert hits the unique-constraint on
 // request_id. The previous implementation swallowed that error and returned
 // a fresh validationID with no DB row — a 404 on subsequent
-// GET /v1/validations/{id} and a broken idempotency contract.
+// GET /v1/validations/{validation_id} and a broken idempotency contract.
 //
 // Expected behavior: rollbackAndPersist surfaces the duplicate up the stack,
 // the service refetches the canonical existing record by RequestID, and the

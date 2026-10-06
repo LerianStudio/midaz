@@ -31,7 +31,7 @@ k6 run -e RATE=100 -e DURATION=20s -e WITH_TRACER=1 scripts/k6/bench-transaction
 | Leg | p50 | p95 | p99 | max | n |
 |-----|-----|-----|-----|-----|---|
 | account, **no CRM** (`POST .../accounts`) | 4.3ms | 5.9ms | 6.8ms | 13.3ms | 2001 |
-| account, **with CRM** (`POST .../holders/{id}/accounts`) | 4.3ms | 6.0ms | 7.1ms | 16.8ms | 2001 |
+| account, **with CRM** (`POST .../holders/{holder_id}/accounts`) | 4.3ms | 6.0ms | 7.1ms | 16.8ms | 2001 |
 
 **CRM involvement is effectively free for account creation** — identical p50,
 +0.3ms at p99. The holder-owned (CRM-composed) path is a cheap indexed holder

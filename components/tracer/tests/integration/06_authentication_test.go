@@ -345,32 +345,32 @@ func TestAuth_6_1_9_ProtectedEndpointsRequireAuth(t *testing.T) {
 	}{
 		// Validations endpoints
 		{"GET /v1/validations", http.MethodGet, "/v1/validations", ""},
-		{"GET /v1/validations/{id}", http.MethodGet, "/v1/validations/" + testUUID, ""},
+		{"GET /v1/validations/{validation_id}", http.MethodGet, "/v1/validations/" + testUUID, ""},
 		{"POST /v1/validations", http.MethodPost, "/v1/validations", validationBody},
 
 		// Rules endpoints
 		{"GET /v1/rules", http.MethodGet, "/v1/rules", ""},
-		{"GET /v1/rules/{id}", http.MethodGet, "/v1/rules/" + testUUID, ""},
+		{"GET /v1/rules/{rule_id}", http.MethodGet, "/v1/rules/" + testUUID, ""},
 		{"POST /v1/rules", http.MethodPost, "/v1/rules", ruleBody},
-		{"PATCH /v1/rules/{id}", http.MethodPatch, "/v1/rules/" + testUUID, `{"name":"Updated"}`},
-		{"DELETE /v1/rules/{id}", http.MethodDelete, "/v1/rules/" + testUUID, ""},
-		{"POST /v1/rules/{id}/activate", http.MethodPost, "/v1/rules/" + testUUID + "/activate", ""},
-		{"POST /v1/rules/{id}/deactivate", http.MethodPost, "/v1/rules/" + testUUID + "/deactivate", ""},
+		{"PATCH /v1/rules/{rule_id}", http.MethodPatch, "/v1/rules/" + testUUID, `{"name":"Updated"}`},
+		{"DELETE /v1/rules/{rule_id}", http.MethodDelete, "/v1/rules/" + testUUID, ""},
+		{"POST /v1/rules/{rule_id}/activate", http.MethodPost, "/v1/rules/" + testUUID + "/activate", ""},
+		{"POST /v1/rules/{rule_id}/deactivate", http.MethodPost, "/v1/rules/" + testUUID + "/deactivate", ""},
 
 		// Limits endpoints
 		{"GET /v1/limits", http.MethodGet, "/v1/limits", ""},
-		{"GET /v1/limits/{id}", http.MethodGet, "/v1/limits/" + testUUID, ""},
-		{"GET /v1/limits/{id}/usage", http.MethodGet, "/v1/limits/" + testUUID + "/usage", ""},
+		{"GET /v1/limits/{limit_id}", http.MethodGet, "/v1/limits/" + testUUID, ""},
+		{"GET /v1/limits/{limit_id}/usage", http.MethodGet, "/v1/limits/" + testUUID + "/usage", ""},
 		{"POST /v1/limits", http.MethodPost, "/v1/limits", limitBody},
-		{"PATCH /v1/limits/{id}", http.MethodPatch, "/v1/limits/" + testUUID, `{"name":"Updated"}`},
-		{"DELETE /v1/limits/{id}", http.MethodDelete, "/v1/limits/" + testUUID, ""},
-		{"POST /v1/limits/{id}/activate", http.MethodPost, "/v1/limits/" + testUUID + "/activate", ""},
-		{"POST /v1/limits/{id}/deactivate", http.MethodPost, "/v1/limits/" + testUUID + "/deactivate", ""},
+		{"PATCH /v1/limits/{limit_id}", http.MethodPatch, "/v1/limits/" + testUUID, `{"name":"Updated"}`},
+		{"DELETE /v1/limits/{limit_id}", http.MethodDelete, "/v1/limits/" + testUUID, ""},
+		{"POST /v1/limits/{limit_id}/activate", http.MethodPost, "/v1/limits/" + testUUID + "/activate", ""},
+		{"POST /v1/limits/{limit_id}/deactivate", http.MethodPost, "/v1/limits/" + testUUID + "/deactivate", ""},
 
 		// Audit events endpoints
 		{"GET /v1/audit-events", http.MethodGet, "/v1/audit-events", ""},
-		{"GET /v1/audit-events/{id}", http.MethodGet, "/v1/audit-events/" + testUUID, ""},
-		{"GET /v1/audit-events/{id}/verify", http.MethodGet, "/v1/audit-events/" + testUUID + "/verify", ""},
+		{"GET /v1/audit-events/{audit_event_id}", http.MethodGet, "/v1/audit-events/" + testUUID, ""},
+		{"GET /v1/audit-events/{audit_event_id}/verify", http.MethodGet, "/v1/audit-events/" + testUUID + "/verify", ""},
 	}
 
 	for _, tc := range tests {

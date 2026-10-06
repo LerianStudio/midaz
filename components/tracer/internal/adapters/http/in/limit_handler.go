@@ -114,7 +114,7 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 }
 
 func (h *LimitHandler) GetLimit(c fiber.Ctx) error {
-	result, err := h.getLimit(c.Context(), c.Params("id"))
+	result, err := h.getLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -136,7 +136,7 @@ func (h *LimitHandler) getLimit(ctx context.Context, idParam string) (*model.Lim
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	result, err := h.service.GetLimit(ctx, id)
@@ -216,7 +216,7 @@ func (h *LimitHandler) listLimits(ctx context.Context, bind func(any) error) (*L
 }
 
 func (h *LimitHandler) UpdateLimit(c fiber.Ctx) error {
-	result, err := h.updateLimit(c.Context(), c.Params("id"), c.Body())
+	result, err := h.updateLimit(c.Context(), c.Params("limit_id"), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -241,7 +241,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	if _, err := http.RefuseOutOfBoundTokens(rawBody, (*UpdateLimitInput)(nil)); err != nil {
@@ -302,7 +302,7 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 }
 
 func (h *LimitHandler) ActivateLimit(c fiber.Ctx) error {
-	limit, err := h.activateLimit(c.Context(), c.Params("id"))
+	limit, err := h.activateLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -324,7 +324,7 @@ func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*mode
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	limit, err := h.service.ActivateLimit(ctx, id)
@@ -341,7 +341,7 @@ func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*mode
 }
 
 func (h *LimitHandler) DeactivateLimit(c fiber.Ctx) error {
-	limit, err := h.deactivateLimit(c.Context(), c.Params("id"))
+	limit, err := h.deactivateLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -363,7 +363,7 @@ func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*mo
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	limit, err := h.service.DeactivateLimit(ctx, id)
@@ -380,7 +380,7 @@ func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*mo
 }
 
 func (h *LimitHandler) DraftLimit(c fiber.Ctx) error {
-	limit, err := h.draftLimit(c.Context(), c.Params("id"))
+	limit, err := h.draftLimit(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -402,7 +402,7 @@ func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.L
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	limit, err := h.service.DraftLimit(ctx, id)
@@ -419,7 +419,7 @@ func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.L
 }
 
 func (h *LimitHandler) DeleteLimit(c fiber.Ctx) error {
-	if err := h.deleteLimit(c.Context(), c.Params("id")); err != nil {
+	if err := h.deleteLimit(c.Context(), c.Params("limit_id")); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -440,7 +440,7 @@ func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	if err := h.service.DeleteLimit(ctx, id); err != nil {
@@ -456,7 +456,7 @@ func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 }
 
 func (h *LimitHandler) GetLimitUsage(c fiber.Ctx) error {
-	snapshot, err := h.getLimitUsage(c.Context(), c.Params("id"))
+	snapshot, err := h.getLimitUsage(c.Context(), c.Params("limit_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -478,7 +478,7 @@ func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*mode
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "limit_id")
 	}
 
 	snapshot, err := h.service.GetLimitUsage(ctx, id)

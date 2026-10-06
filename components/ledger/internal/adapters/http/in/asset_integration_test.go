@@ -178,7 +178,7 @@ func (infra *assetTestInfra) setupRoutes() {
 
 	const (
 		orgPath     = "/organizations"
-		orgIDPath   = orgPath + "/:id"
+		orgIDPath   = orgPath + "/:organization_id"
 		ledgersPath = orgPath + "/:organization_id/ledgers"
 		assetsPath  = ledgersPath + "/:ledger_id/assets"
 		accountPath = ledgersPath + "/:ledger_id/accounts"
@@ -194,8 +194,8 @@ func (infra *assetTestInfra) setupRoutes() {
 	apiV1.Post(ledgersPath, ledgerParse)
 	apiV1.Post(assetsPath, assetParse)
 	apiV1.Get(assetsPath, assetParse)
-	apiV1.Get(assetsPath+"/:id", assetParse)
-	apiV1.Delete(assetsPath+"/:id", assetParse)
+	apiV1.Get(assetsPath+"/:asset_id", assetParse)
+	apiV1.Delete(assetsPath+"/:asset_id", assetParse)
 	apiV1.Post(accountPath, accountParse)
 
 	RegisterOrganizationRoutes(hAPI, infra.orgHandler, v1OpSuffix)

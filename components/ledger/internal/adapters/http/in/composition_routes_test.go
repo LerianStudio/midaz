@@ -26,7 +26,7 @@ var compositionV2Ops = []struct {
 	opPath          string
 	baseOperationID string
 }{
-	{action: "createHolderAccount", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts", baseOperationID: "createHolderAccount"},
+	{action: "createHolderAccount", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts", baseOperationID: "createHolderAccount"},
 }
 
 // compositionV2OperationSuffix is the version suffix the v2 op appends to its base operationId.

@@ -109,7 +109,7 @@ func (h *Handler) createRule(ctx context.Context, rawBody []byte) (*model.Rule, 
 }
 
 func (h *Handler) UpdateRule(c fiber.Ctx) error {
-	result, err := h.updateRule(c.Context(), c.Params("id"), c.Body())
+	result, err := h.updateRule(c.Context(), c.Params("rule_id"), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -133,7 +133,7 @@ func (h *Handler) updateRule(ctx context.Context, idParam string, rawBody []byte
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id")
 	}
 
 	var input UpdateRuleInput
@@ -169,7 +169,7 @@ func (h *Handler) updateRule(ctx context.Context, idParam string, rawBody []byte
 }
 
 func (h *Handler) GetRule(c fiber.Ctx) error {
-	result, err := h.getRule(c.Context(), c.Params("id"))
+	result, err := h.getRule(c.Context(), c.Params("rule_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -193,7 +193,7 @@ func (h *Handler) getRule(ctx context.Context, idParam string) (*model.Rule, err
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id")
 	}
 
 	result, err := h.service.GetRule(ctx, id)
@@ -275,7 +275,7 @@ func (h *Handler) listRules(ctx context.Context, bind func(any) error) (*ListRul
 }
 
 func (h *Handler) ActivateRule(c fiber.Ctx) error {
-	rule, err := h.activateRule(c.Context(), c.Params("id"))
+	rule, err := h.activateRule(c.Context(), c.Params("rule_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -298,7 +298,7 @@ func (h *Handler) activateRule(ctx context.Context, idParam string) (*model.Rule
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id")
 	}
 
 	rule, err := h.service.ActivateRule(ctx, id)
@@ -315,7 +315,7 @@ func (h *Handler) activateRule(ctx context.Context, idParam string) (*model.Rule
 }
 
 func (h *Handler) DeactivateRule(c fiber.Ctx) error {
-	rule, err := h.deactivateRule(c.Context(), c.Params("id"))
+	rule, err := h.deactivateRule(c.Context(), c.Params("rule_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -337,7 +337,7 @@ func (h *Handler) deactivateRule(ctx context.Context, idParam string) (*model.Ru
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id")
 	}
 
 	rule, err := h.service.DeactivateRule(ctx, id)
@@ -354,7 +354,7 @@ func (h *Handler) deactivateRule(ctx context.Context, idParam string) (*model.Ru
 }
 
 func (h *Handler) DraftRule(c fiber.Ctx) error {
-	rule, err := h.draftRule(c.Context(), c.Params("id"))
+	rule, err := h.draftRule(c.Context(), c.Params("rule_id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -376,7 +376,7 @@ func (h *Handler) draftRule(ctx context.Context, idParam string) (*model.Rule, e
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id")
 	}
 
 	rule, err := h.service.DraftRule(ctx, id)
@@ -393,7 +393,7 @@ func (h *Handler) draftRule(ctx context.Context, idParam string) (*model.Rule, e
 }
 
 func (h *Handler) DeleteRule(c fiber.Ctx) error {
-	if err := h.deleteRule(c.Context(), c.Params("id")); err != nil {
+	if err := h.deleteRule(c.Context(), c.Params("rule_id")); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -415,7 +415,7 @@ func (h *Handler) deleteRule(ctx context.Context, idParam string) error {
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
+		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id")
 	}
 
 	if err := h.service.DeleteRule(ctx, id); err != nil {
