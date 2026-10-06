@@ -30,6 +30,9 @@ type Repository interface {
 	Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updatedAt time.Time, updateFields *bson.M) (*Package, error)
 	SoftDelete(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error
 	FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error)
+	// FindNotDeletedByOrganizationIDAndLedgerID returns every non-deleted package of the
+	// ledger, enabled or not.
+	FindNotDeletedByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error)
 	FindFeesAndAmountDataByPackageID(ctx context.Context, organizationID, packageID uuid.UUID) (*model.AmountData, error)
 }
 

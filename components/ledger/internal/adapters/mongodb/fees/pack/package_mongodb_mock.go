@@ -124,6 +124,21 @@ func (mr *MockRepositoryMockRecorder) FindList(ctx, filters any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, filters)
 }
 
+// FindNotDeletedByOrganizationIDAndLedgerID mocks base method.
+func (m *MockRepository) FindNotDeletedByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindNotDeletedByOrganizationIDAndLedgerID", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].([]*Package)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindNotDeletedByOrganizationIDAndLedgerID indicates an expected call of FindNotDeletedByOrganizationIDAndLedgerID.
+func (mr *MockRepositoryMockRecorder) FindNotDeletedByOrganizationIDAndLedgerID(ctx, organizationID, ledgerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindNotDeletedByOrganizationIDAndLedgerID", reflect.TypeOf((*MockRepository)(nil).FindNotDeletedByOrganizationIDAndLedgerID), ctx, organizationID, ledgerID)
+}
+
 // SoftDelete mocks base method.
 func (m *MockRepository) SoftDelete(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error {
 	m.ctrl.T.Helper()

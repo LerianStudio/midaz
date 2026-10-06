@@ -42,6 +42,15 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error
 	DeleteRelatedParty(ctx context.Context, organizationID string, holderID, instrumentID, relatedPartyID uuid.UUID) error
 	Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error)
+	// FindLiveRefsByAccount returns the id and holder id of every non-deleted instrument linked
+	// to the account within the ledger, without decrypting any field.
+	FindLiveRefsByAccount(ctx context.Context, organizationID string, ledgerID, accountID uuid.UUID) ([]InstrumentRef, error)
+}
+
+// InstrumentRef identifies an instrument by its id and the holder that owns it.
+type InstrumentRef struct {
+	ID       uuid.UUID
+	HolderID uuid.UUID
 }
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository

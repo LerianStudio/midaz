@@ -27,8 +27,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// DeleteAccountByID deletes an account from the repository by IDs.
-// It first deletes all balances associated with the account via the BalancePort interface.
+// DeleteAccountByID soft-deletes an account and the references other stores hold to it.
+// The order is: balances, then the CRM instruments linked to the account, then the
+// account alias in the ledger's fee and billing packages, then the account row, and
+// only then the account.deleted event. Every step before the row is fail-closed: an
+// error leaves the row in place and is returned, so the client repeats the DELETE and
+// the idempotent steps converge. A nil cascade port skips its step.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) (err error) {
 	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -92,6 +96,10 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, constant.EntityAccount)
 	}
 
+	if err := uc.cascadeAccountDelete(ctx, span, logger, organizationID, ledgerID, accountID, accFound.Alias); err != nil {
+		return err
+	}
+
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
@@ -109,6 +117,43 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	}
 
 	uc.emitAccountDeletedEvent(ctx, span, logger, accFound, time.Now())
+
+	return nil
+}
+
+// cascadeAccountDelete soft-deletes the account's CRM instruments and then detaches
+// its alias from the fee and billing packages. Port errors are technical by contract,
+// so they are recorded as span errors and returned unchanged. An account without an
+// alias has nothing to detach in fees.
+func (uc *UseCase) cascadeAccountDelete(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, alias *string) error {
+	if uc.InstrumentCascader != nil {
+		cascaded, err := uc.InstrumentCascader.SoftDeleteInstrumentsByAccount(ctx, organizationID, ledgerID, accountID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to cascade account delete to instruments", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to cascade account delete to instruments", libLog.Err(err))
+
+			return err
+		}
+
+		span.SetAttributes(attribute.Int("app.account_delete.instruments_cascaded", cascaded))
+	}
+
+	if uc.FeeAliasDetacher == nil || alias == nil || *alias == "" {
+		return nil
+	}
+
+	result, err := uc.FeeAliasDetacher.DetachAccountAlias(ctx, organizationID, ledgerID, *alias)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to detach account alias from fee packages", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to detach account alias from fee packages", libLog.Err(err))
+
+		return err
+	}
+
+	span.SetAttributes(
+		attribute.Int("app.account_delete.fee_packages_updated", result.PackagesUpdated),
+		attribute.Int("app.account_delete.fee_packages_disabled", result.PackagesDisabled),
+	)
 
 	return nil
 }
