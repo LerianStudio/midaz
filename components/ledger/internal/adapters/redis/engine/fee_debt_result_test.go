@@ -113,34 +113,34 @@ func TestDecodeResult_PairsFeeDebtMovementsWithChanges(t *testing.T) {
 
 	settle := func() ([]feeDebtStep, []resultFeeDebtChange) {
 		return []feeDebtStep{
-				{"c", core.RoleFeeDebtDebit, 0, "@source#default", core.PostingDebit, 50},
-				{"c", core.RoleFeeDebtCredit, 0, "@fees#default", core.PostingCredit, 50},
-				{"c", core.RoleFeeDebtDebit, 1, "@source#default", core.PostingDebit, 10},
-				{"c", core.RoleFeeDebtCredit, 1, "@fees#default", core.PostingCredit, 10},
-			}, []resultFeeDebtChange{
-				feeDebtChange(core.FeeDebtSettled, "c", "a", "50", "50", 1),
-				feeDebtChange(core.FeeDebtSettled, "c", "b", "10", "70", 2),
-			}
+			{"c", core.RoleFeeDebtDebit, 0, "@source#default", core.PostingDebit, 50},
+			{"c", core.RoleFeeDebtCredit, 0, "@fees#default", core.PostingCredit, 50},
+			{"c", core.RoleFeeDebtDebit, 1, "@source#default", core.PostingDebit, 10},
+			{"c", core.RoleFeeDebtCredit, 1, "@fees#default", core.PostingCredit, 10},
+		}, []resultFeeDebtChange{
+			feeDebtChange(core.FeeDebtSettled, "c", "a", "50", "50", 1),
+			feeDebtChange(core.FeeDebtSettled, "c", "b", "10", "70", 2),
+		}
 	}
 	defer1 := func() ([]feeDebtStep, []resultFeeDebtChange) {
 		return []feeDebtStep{
-				{"fd", core.RolePrimary, 0, "@source#default", core.PostingDebit, 30},
-				{"fc", core.RolePrimary, 0, "@fees#default", core.PostingCredit, 30},
-			}, []resultFeeDebtChange{
-				feeDebtChange(core.FeeDebtOpened, "fd", "fd", "70", "70", 1),
-			}
+			{"fd", core.RolePrimary, 0, "@source#default", core.PostingDebit, 30},
+			{"fc", core.RolePrimary, 0, "@fees#default", core.PostingCredit, 30},
+		}, []resultFeeDebtChange{
+			feeDebtChange(core.FeeDebtOpened, "fd", "fd", "70", "70", 1),
+		}
 	}
 	reimburse := func() ([]feeDebtStep, []resultFeeDebtChange) {
 		return []feeDebtStep{
-				{"r", core.RoleFeeDebtRefundCredit, 0, "@source#default", core.PostingCredit, 30},
-				{"r", core.RoleFeeDebtRefundDebit, 0, "@fees#default", core.PostingDebit, 30},
-				{"r", core.RoleFeeDebtRefundCredit, 1, "@source#default", core.PostingCredit, 20},
-				{"r", core.RoleFeeDebtRefundDebit, 1, "@fees#default", core.PostingDebit, 20},
-			}, []resultFeeDebtChange{
-				feeDebtChange(core.FeeDebtCanceled, "", "a", "40", "70", 1),
-				feeDebtChange(core.FeeDebtRefunded, "r", "a", "30", "70", 1),
-				feeDebtChange(core.FeeDebtRefunded, "r", "b", "20", "20", 3),
-			}
+			{"r", core.RoleFeeDebtRefundCredit, 0, "@source#default", core.PostingCredit, 30},
+			{"r", core.RoleFeeDebtRefundDebit, 0, "@fees#default", core.PostingDebit, 30},
+			{"r", core.RoleFeeDebtRefundCredit, 1, "@source#default", core.PostingCredit, 20},
+			{"r", core.RoleFeeDebtRefundDebit, 1, "@fees#default", core.PostingDebit, 20},
+		}, []resultFeeDebtChange{
+			feeDebtChange(core.FeeDebtCanceled, "", "a", "40", "70", 1),
+			feeDebtChange(core.FeeDebtRefunded, "r", "a", "30", "70", 1),
+			feeDebtChange(core.FeeDebtRefunded, "r", "b", "20", "20", 3),
+		}
 	}
 
 	tests := []struct {
