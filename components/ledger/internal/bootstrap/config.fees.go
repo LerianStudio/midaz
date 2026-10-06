@@ -62,6 +62,8 @@ func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, logger libL
 		return nil, fmt.Errorf("failed to build billing package service: %w", err)
 	}
 
+	useCase.BillingPackages = billingPackageService
+
 	// Share the ledger emitter so fee services emit past-tense events.
 	useCase.Streaming = streamingEmitter
 	billingPackageService.Streaming = streamingEmitter

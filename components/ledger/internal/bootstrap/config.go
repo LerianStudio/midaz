@@ -981,6 +981,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.HolderReader = newHolderReaderAdapter(crmMgo.holderHandler.Service, crmMgo.mongoManager)
 	commandUseCase.SettingsReader = queryUseCase
 
+	// Account delete soft-deletes the account's CRM instruments through the
+	// shared CRM service, resolving the tenant CRM database per call.
+	commandUseCase.InstrumentCascader = newInstrumentCascadeAdapter(crmMgo.holderHandler.Service, crmMgo.mongoManager)
+
 	// === Transaction create seam reads (F1) ===
 	// The transaction create path reads settings, balances and accounting rules
 	// through the narrow TransactionReader port, satisfied directly by the query
@@ -1063,6 +1067,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.FeeApplier = fees.useCase
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
+
+	// Account delete removes the account alias from fee and billing packages,
+	// resolving the tenant fees database per call.
+	commandUseCase.FeeAliasDetacher = newFeeAliasDetachAdapter(fees.useCase, feeMgo.mongoManager)
 
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{

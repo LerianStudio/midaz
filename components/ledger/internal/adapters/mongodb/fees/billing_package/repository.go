@@ -32,6 +32,10 @@ type Repository interface {
 	SoftDelete(ctx context.Context, id, organizationID, ledgerID string) error
 	FindMatchingPackages(ctx context.Context, orgID, ledgerID, transactionRouteID string) ([]*model.BillingPackage, error)
 	FindActiveByType(ctx context.Context, orgID, ledgerID string, billingType string) ([]*model.BillingPackage, error)
+	// FindNotDeletedByLedger returns every non-deleted billing package of the ledger,
+	// enabled or not, without pagination. It is ledger-scoped only: AnyLedger
+	// matches no package.
+	FindNotDeletedByLedger(ctx context.Context, organizationID, ledgerID string) ([]*model.BillingPackage, error)
 }
 
 // BillingPackageMongoDBRepository is a MongoDB-specific implementation of the Repository.
