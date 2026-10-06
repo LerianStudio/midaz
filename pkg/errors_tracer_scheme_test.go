@@ -42,7 +42,7 @@ func TestValidateBusinessError_TracerSchemeContract(t *testing.T) {
 		{
 			name:        "scheme alias conflict",
 			sentinel:    constant.ErrValidationSchemeAliasConflict,
-			wantCode:    "0539",
+			wantCode:    "0540",
 			wantTitle:   "Scheme Alias Conflict",
 			wantMessage: "scheme and transactionType must carry the same value",
 		},

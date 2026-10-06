@@ -7,7 +7,7 @@ Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/Ler
 ## Core Domain Concepts
 
 ### Validation Request
-Every transaction submitted contains: requestId (UUID, idempotency key), scheme (the payment scheme, free-form: trimmed and upper-cased, then 1 to 50 characters of A-Z, 0-9, _ or -; transactionType is its deprecated alias, and sending both with different values is refused with 400 code 0539), amount (decimal string via shopspring/decimal), asset (1 to 100 uppercase Unicode letters, the Midaz ledger asset-code grammar), transactionTimestamp (RFC3339), account context (required), and optional segment/portfolio/merchant contexts with metadata key-value pairs.
+Every transaction submitted contains: requestId (UUID, idempotency key), scheme (the payment scheme, free-form: trimmed and upper-cased, then 1 to 50 characters of A-Z, 0-9, _ or -; transactionType is its deprecated alias, and sending both with different values is refused with 400 code 0540), amount (decimal string via shopspring/decimal), asset (1 to 100 uppercase Unicode letters, the Midaz ledger asset-code grammar), transactionTimestamp (RFC3339), account context (required), and optional segment/portfolio/merchant contexts with metadata key-value pairs.
 
 ### Decision Flow
 Transaction → Rules Evaluation (CEL) → Limit Check → Final Decision (ALLOW/DENY/REVIEW). DENY takes precedence: any rule match with DENY action or any exceeded limit produces DENY. REVIEW only if no DENY. ALLOW when all checks pass. Configurable default decision when no rules match (ALLOW or DENY, not REVIEW).

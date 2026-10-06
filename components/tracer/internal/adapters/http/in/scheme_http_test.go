@@ -300,7 +300,7 @@ func TestHuma_ListRules_SchemeFilter(t *testing.T) {
 		{name: "scheme is normalized", query: "scheme=boleto", want: "BOLETO"},
 		{name: "deprecated alias is normalized", query: "transaction_type=pix", want: "PIX"},
 		{name: "matching alias", query: "transaction_type=PIX&scheme=pix", want: "PIX"},
-		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0539"},
+		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0540"},
 		{name: "invalid scheme", query: "scheme=bad%20value!", code: "0082"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -331,7 +331,7 @@ func TestHuma_ListLimits_SchemeFilter(t *testing.T) {
 	}{
 		{name: "scheme is normalized", query: "scheme=boleto", want: "BOLETO"},
 		{name: "deprecated alias is normalized", query: "transaction_type=pix", want: "PIX"},
-		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0539"},
+		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0540"},
 		{name: "invalid scheme", query: "scheme=bad%20value!", code: "0082"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -362,7 +362,7 @@ func TestHuma_ListTransactionValidations_SchemeFilter(t *testing.T) {
 	}{
 		{name: "scheme is normalized", query: "scheme=boleto", want: "BOLETO"},
 		{name: "deprecated alias is normalized", query: "transaction_type=pix", want: "PIX"},
-		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0539"},
+		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0540"},
 		{name: "invalid scheme", query: "scheme=bad%20value!", code: "0431"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -393,7 +393,7 @@ func TestHuma_ListAuditEvents_SchemeFilter(t *testing.T) {
 	}{
 		{name: "scheme is normalized", query: "scheme=boleto", want: "BOLETO"},
 		{name: "deprecated alias is normalized", query: "transaction_type=pix", want: "PIX"},
-		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0539"},
+		{name: "conflicting alias", query: "transaction_type=PIX&scheme=CARD", code: "0540"},
 		{name: "invalid scheme", query: "scheme=bad%20value!", code: "0009"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

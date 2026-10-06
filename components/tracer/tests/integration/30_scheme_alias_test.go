@@ -27,7 +27,7 @@ const schemeAliasLimitCap = "1000"
 
 // schemeAliasConflictCode is the error code of a request whose scheme and its
 // deprecated alias transactionType carry different values.
-const schemeAliasConflictCode = "0539"
+const schemeAliasConflictCode = "0540"
 
 // schemeAliasLimit is the slice of a limit response the scenarios read back.
 type schemeAliasLimit struct {
@@ -210,7 +210,7 @@ func TestIntegration_SchemeAlias_ValidationWithSchemeOnly(t *testing.T) {
 }
 
 // TestIntegration_SchemeAlias_ValidationConflictRejected proves /v1/validations
-// refuses a request whose scheme and transactionType differ with 400 0539.
+// refuses a request whose scheme and transactionType differ with 400 0540.
 func TestIntegration_SchemeAlias_ValidationConflictRejected(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(97004)
 	requestID := testutil.MustDeterministicUUID(97302)
@@ -226,7 +226,7 @@ func TestIntegration_SchemeAlias_ValidationConflictRejected(t *testing.T) {
 // TestIntegration_SchemeAlias_ListFilters proves the limit and validation lists
 // filter by a lower-case scheme, accept the deprecated transaction_type alias
 // for the same filter, and refuse the two carrying different values with 400
-// 0539.
+// 0540.
 func TestIntegration_SchemeAlias_ListFilters(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(97005)
 
