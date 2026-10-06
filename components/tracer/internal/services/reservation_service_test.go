@@ -234,11 +234,11 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000))).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000)), gomock.Any()).
 			Return(false, nil).
 			Times(1)
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000))).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000)), gomock.Any()).
 			Return(false, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -274,8 +274,8 @@ func TestReservationService_Reserve(t *testing.T) {
 		deps.expectScopeLock()
 
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (bool, error) {
 				r.ID = owningID
 
 				return true, nil
@@ -312,7 +312,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		deps.expectScopeLock()
 
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
 			Return(false, constant.ErrReservationAlreadySettled).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -357,8 +357,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured decimal.Decimal
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (bool, error) {
 				captured = r.Amount
 
 				return false, nil
@@ -411,7 +411,7 @@ func TestReservationService_Reserve(t *testing.T) {
 		// First reserve trips the over-limit guard; the whole tx rolls back and no
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
 			Return(false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
@@ -487,8 +487,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (bool, error) {
 				captured = r.ReservationExpiresAt
 
 				return false, nil
@@ -539,8 +539,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		repo.EXPECT().
-			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
+			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (bool, error) {
 				captured = r.ReservationExpiresAt
 
 				return false, nil
@@ -576,8 +576,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) (bool, error) {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, _ *time.Time) (bool, error) {
 				captured = r.ReservationExpiresAt
 
 				return false, nil
@@ -643,8 +643,8 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 
 	tx1ReserveCalls := 0
 	deps.repo.EXPECT().
-		ReserveWithTx(gomock.Any(), tx1, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) (bool, error) {
+		ReserveWithTx(gomock.Any(), tx1, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal, _ *time.Time) (bool, error) {
 			tx1ReserveCalls++
 			if tx1ReserveCalls == 2 {
 				return false, &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
@@ -665,7 +665,7 @@ func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing
 		Return(nil).
 		Times(1)
 	deps.repo.EXPECT().
-		ReserveWithTx(gomock.Any(), tx2, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
+		ReserveWithTx(gomock.Any(), tx2, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any(), gomock.Any()).
 		Return(false, nil).
 		Times(2)
 	deps.auditWriter.EXPECT().
@@ -721,6 +721,73 @@ func oneSpec() []query.ReservationSpec {
 			Amount:    decimal.NewFromInt(400),
 			MaxAmount: decimal.NewFromInt(10000),
 		},
+	}
+}
+
+// TestReservationService_Reserve_ForwardsCounterExpiresAt checks that the
+// repository receives the resolved spec's counter expiry verbatim: the counter's
+// cleanup deadline comes from the limit's period, never from the reservation's
+// own lifetime, and the service substitutes nothing when the spec has none.
+func TestReservationService_Reserve_ForwardsCounterExpiresAt(t *testing.T) {
+	txID := testutil.MustDeterministicUUID(7150)
+	counterExpiresAt := testutil.FixedTime().UTC().AddDate(0, 0, 100)
+
+	tests := []struct {
+		name string
+		want *time.Time
+	}{
+		{name: "period-retention expiry reaches the repository", want: &counterExpiresAt},
+		{name: "nil expiry reaches the repository as nil", want: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, deps := newReservationServiceDeps(t)
+
+			req := testReserveRequest(t)
+			spec := oneSpec()
+			spec[0].CounterExpiresAt = tt.want
+
+			deps.resolver.EXPECT().
+				ResolveReservations(gomock.Any(), req.ToCheckLimitsInput()).
+				Return(spec, false, nil).
+				Times(1)
+
+			deps.expectTxCommit()
+			deps.expectScopeLock()
+
+			var (
+				captured            *time.Time
+				reservationLifetime time.Time
+			)
+
+			deps.repo.EXPECT().
+				ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
+				DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal, expiresAt *time.Time) (bool, error) {
+					captured = expiresAt
+					reservationLifetime = r.ReservationExpiresAt
+
+					return false, nil
+				}).
+				Times(1)
+			deps.auditWriter.EXPECT().
+				RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+				Return(nil).
+				Times(1)
+
+			_, err := svc.Reserve(context.Background(), txID, req, ReserveOptions{})
+			require.NoError(t, err)
+
+			if tt.want == nil {
+				assert.Nil(t, captured, "the service must not invent a counter expiry")
+				return
+			}
+
+			require.NotNil(t, captured)
+			assert.True(t, tt.want.Equal(*captured), "want %s, got %s", tt.want, captured)
+			assert.False(t, reservationLifetime.Equal(*captured),
+				"the counter expiry must not be the reservation's lifetime")
+		})
 	}
 }
 
