@@ -59,8 +59,13 @@ type BulkResult struct {
 	FallbackCount int64
 
 	// InsertedTransactionIDs tracks which transactions were actually inserted (not duplicates).
-	// Used to filter downstream operations like metadata creation and event publishing.
+	// Used to filter downstream event publishing.
 	InsertedTransactionIDs map[string]struct{}
+
+	// MetadataFailedTransactionIDs tracks the transactions whose own metadata or whose
+	// operations' metadata was not confirmed. Their backup and write-behind entries are
+	// retained so the transaction can be reprocessed.
+	MetadataFailedTransactionIDs map[string]struct{}
 }
 
 // BulkMessageResult tracks the result for a single message in bulk processing.
@@ -86,7 +91,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	defer span.End()
 
 	result := &BulkResult{
-		InsertedTransactionIDs: make(map[string]struct{}),
+		InsertedTransactionIDs:       make(map[string]struct{}),
+		MetadataFailedTransactionIDs: make(map[string]struct{}),
 	}
 
 	if len(payloads) == 0 {
@@ -133,9 +139,9 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	// Hot balance was already updated atomically by Lua script during validation.
 	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
 
-	// Process metadata and send events only for actually-inserted transactions
-	// This ensures idempotency by skipping duplicates that were ignored during bulk insert
-	uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs)
+	// Persist metadata for every payload, clean up the backups whose metadata was
+	// confirmed, and send events only for actually-inserted transactions.
+	result.MetadataFailedTransactionIDs = uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs)
 
 	return result, nil
 }
@@ -491,17 +497,20 @@ func (uc *UseCase) individualUpdateTransactionStatus(
 	return nil
 }
 
-// processMetadataAndEvents creates metadata and sends events for payloads that were actually inserted.
-// Skips duplicate transactions (those not in insertedTxIDs) to ensure idempotency.
-// If insertedTxIDs is nil or empty, processes all payloads (fallback behavior).
+// processMetadataAndEvents creates metadata for every payload, cleans up the backup and
+// write-behind entries of payloads whose metadata was confirmed, and sends events for
+// payloads that were actually inserted.
+// Skips events for duplicate transactions (those not in insertedTxIDs) to ensure idempotency.
+// If insertedTxIDs is nil or empty, sends events for all payloads (fallback behavior).
+// Returns the IDs of the transactions whose metadata was not confirmed.
 func (uc *UseCase) processMetadataAndEvents(
 	ctx context.Context,
 	logger libLog.Logger,
 	payloads []transaction.TransactionProcessingPayload,
 	insertedTxIDs map[string]struct{},
-) {
+) map[string]struct{} {
 	// Create all metadata in bulk (reduces N round-trips to 1 per collection)
-	uc.processMetadataAndEventsBulk(ctx, logger, payloads)
+	metadataFailedTxIDs := uc.processMetadataAndEventsBulk(ctx, logger, payloads)
 
 	// Process events and cleanup for each inserted transaction
 	for _, payload := range payloads {
@@ -511,10 +520,13 @@ func (uc *UseCase) processMetadataAndEvents(
 
 		tx := payload.Transaction
 
-		// Clean up backup/write-behind entries for every payload that reached this stage,
-		// including duplicates ignored by INSERT ... ON CONFLICT DO NOTHING.
+		// Clean up backup/write-behind entries for every payload whose metadata was
+		// confirmed, including duplicates ignored by INSERT ... ON CONFLICT DO NOTHING.
+		// A payload with unconfirmed metadata keeps its backup as the repair source.
+		_, metadataFailed := metadataFailedTxIDs[tx.ID]
+
 		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
-		if err == nil {
+		if err == nil && !metadataFailed {
 			useConditionalCleanup := strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true"
 			expectedStatus := utils.ExpectedBackupStatusForCleanup(tx.Status.Code, payload.Validate)
 
@@ -604,6 +616,8 @@ func (uc *UseCase) processMetadataAndEvents(
 			wg.Wait()
 		}(phase)
 	}
+
+	return metadataFailedTxIDs
 }
 
 // fallbackToIndividualProcessing processes payloads individually when bulk fails.
