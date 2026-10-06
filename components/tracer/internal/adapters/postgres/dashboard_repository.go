@@ -39,9 +39,9 @@ var _ query.DashboardRepository = (*DashboardRepository)(nil)
 // (scripts/seed_dashboard_benchmark.sql, 365 days, PostgreSQL 17, 256MB
 // shared_buffers), median of three warm runs:
 //
-//	metrics      7d   7ms | 30d  23ms | 90d  67ms  index-only, idx_tv_dashboard
+//	metrics      7d   7ms | 30d  23ms | 90d  67ms  index-only, idx_tv_dashboard_scheme
 //	volume       7d   5ms | 30d  18ms | 90d  53ms  index-only, idx_tv_created
-//	fraud-types  7d   5ms | 30d  15ms | 90d  25ms  index-only, idx_tv_dashboard
+//	fraud-types  7d   5ms | 30d  15ms | 90d  25ms  index-only, idx_tv_dashboard_scheme
 //	top-rules    7d  29ms | 30d  46ms | 90d 106ms  index scan + HEAP
 //
 // Three of the four never touch the heap. TopRules does, and cannot be made
@@ -128,8 +128,8 @@ const windowPlanMode = pgx.QueryExecModeExec
 // two assets with equal exposure keep a stable order between reads.
 //
 // Every column the statement touches — created_at, decision, asset, amount,
-// processing_time_ms — lives in idx_tv_dashboard, which is what keeps this an
-// index-only scan.
+// processing_time_ms — lives in idx_tv_dashboard_scheme, which is what keeps
+// this an index-only scan.
 const metricsQuery = `
 	SELECT
 		GROUPING(asset) AS is_total,
@@ -168,17 +168,42 @@ const volumeQuery = `
 	GROUP BY 1
 	ORDER BY 1`
 
-// fraudTypesQuery counts flagged (DENY + REVIEW) decisions per transaction
-// type, alongside that type's total traffic so a reader can tell a rare type
-// from a clean one. Four enum values bound the group count by construction.
+// fraudTypesQuery counts flagged (DENY + REVIEW) decisions per payment scheme,
+// alongside that scheme's total traffic so a reader can tell a rare scheme
+// from a clean one. The scheme is open-ended, so the panel is bounded here:
+// the ten schemes that flag most (ties by name) are returned as they are, and
+// every other scheme is summed into one trailing OTHER row, present only when
+// there is such a remainder.
+//
+// transaction_validation_scheme(scheme, transaction_type) is evaluated over
+// the two columns idx_tv_dashboard_scheme carries, so the read stays
+// index-only; idx_transaction_validations_scheme indexes only the function
+// result and cannot serve the window filter or the decision count.
 const fraudTypesQuery = `
-	SELECT transaction_type,
-		COUNT(*) FILTER (WHERE decision IN ('DENY','REVIEW')) AS flagged,
-		COUNT(*) AS total
-	FROM transaction_validations
-	WHERE created_at >= $1 AND created_at < $2
-	GROUP BY transaction_type
-	ORDER BY flagged DESC, transaction_type ASC`
+	WITH ranked AS (
+		SELECT transaction_validation_scheme(scheme, transaction_type) AS scheme,
+			COUNT(*) FILTER (WHERE decision IN ('DENY','REVIEW')) AS flagged,
+			COUNT(*) AS total,
+			ROW_NUMBER() OVER (
+				ORDER BY COUNT(*) FILTER (WHERE decision IN ('DENY','REVIEW')) DESC,
+					transaction_validation_scheme(scheme, transaction_type) ASC
+			) AS position
+		FROM transaction_validations
+		WHERE created_at >= $1 AND created_at < $2
+		GROUP BY transaction_validation_scheme(scheme, transaction_type)
+	)
+	SELECT scheme, flagged, total
+	FROM (
+		SELECT scheme, flagged, total, position
+		FROM ranked
+		WHERE position <= 10
+		UNION ALL
+		SELECT 'OTHER', SUM(flagged)::bigint, SUM(total)::bigint, 11
+		FROM ranked
+		WHERE position > 10
+		HAVING COUNT(*) > 0
+	) slices
+	ORDER BY position`
 
 // topRulesQuery ranks the rules by how often they fired in the window.
 //

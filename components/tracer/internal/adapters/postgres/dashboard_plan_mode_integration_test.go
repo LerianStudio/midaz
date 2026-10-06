@@ -69,14 +69,14 @@ func TestDashboardReadsNeverGetAGenericPlan_Integration(t *testing.T) {
 	for _, tc := range []struct{ name, fragment, query string }{
 		{"metrics", "GROUPING SETS", metricsQuery},
 		{"volume", "AT TIME ZONE", volumeQuery},
-		{"fraud-types", "GROUP BY transaction_type", fraudTypesQuery},
+		{"fraud-types", "GROUP BY transaction_validation_scheme", fraudTypesQuery},
 		{"top-rules", "CROSS JOIN LATERAL", topRulesQuery},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Positive control, and it has to come first. The two assertions
 			// below are both "this count is zero", which a subtest that matches
-			// NOTHING satisfies perfectly: reword the query — qualify a column,
-			// say `GROUP BY v.transaction_type` — and the fragment stops
+			// NOTHING satisfies perfectly: reword the query — group by position,
+			// say `GROUP BY 1` — and the fragment stops
 			// matching, no rows come back, and the subtest passes for ever
 			// against code it is supposed to condemn. Proven by rewording this
 			// exact fragment against a build with windowPlanMode removed: the
