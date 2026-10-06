@@ -184,10 +184,10 @@ func TestIntegration_Reservation_TransactionTypeScope_TypelessReserveSkipsTypedL
 		"a typeless reserve must never count against the PIX-scoped limit")
 }
 
-// TestIntegration_Reservation_TransactionTypeScope_UnknownTypeRejected proves
-// the seam refuses a transactionType outside the enum as InvalidArgument
-// before any limit is touched.
-func TestIntegration_Reservation_TransactionTypeScope_UnknownTypeRejected(t *testing.T) {
+// TestIntegration_Reservation_TransactionTypeScope_MalformedSchemeRejected
+// proves the seam refuses a transactionType that is not a valid scheme (a space
+// is outside A-Z, 0-9, _ and -) as InvalidArgument before any limit is touched.
+func TestIntegration_Reservation_TransactionTypeScope_MalformedSchemeRejected(t *testing.T) {
 	db := testutil.SetupIntegrationDB(t)
 
 	accountID := testutil.MustDeterministicUUID(96503)
@@ -195,7 +195,7 @@ func TestIntegration_Reservation_TransactionTypeScope_UnknownTypeRejected(t *tes
 
 	const seed = 96516
 
-	got, err := reserveTyped(t, seed, accountID, "1.00", "TED")
+	got, err := reserveTyped(t, seed, accountID, "1.00", "PIX TRANSFER")
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))

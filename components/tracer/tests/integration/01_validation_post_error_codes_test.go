@@ -298,8 +298,9 @@ func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 	assert.Equal(t, "RequestId is required.", errResp.Detail)
 }
 
-// TestValidation_InvalidTransactionType_ReturnsError verifies invalid transactionType returns an error.
-// 0414: transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
+// TestValidation_InvalidTransactionType_ReturnsError verifies a transactionType that is absent or not a valid scheme
+// returns an error.
+// 0414: transactionType must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing
 func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -310,14 +311,14 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 		description     string
 	}{
 		{
-			name:            "invalid_value",
-			transactionType: "INVALID",
-			description:     "Unknown transaction type value",
+			name:            "inner_space",
+			transactionType: "PIX TRANSFER",
+			description:     "Scheme with an inner space",
 		},
 		{
-			name:            "lowercase_card",
-			transactionType: "card",
-			description:     "Lowercase transaction type",
+			name:            "symbol",
+			transactionType: "PIX!",
+			description:     "Scheme with a character outside A-Z, 0-9, _ and -",
 		},
 		{
 			name:            "empty_string",
@@ -325,9 +326,9 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 			description:     "Empty transaction type",
 		},
 		{
-			name:            "cash_type",
-			transactionType: "CASH",
-			description:     "CASH is not a valid transaction type",
+			name:            "too_long",
+			transactionType: strings.Repeat("A", 51),
+			description:     "Scheme longer than 50 characters",
 		},
 	}
 
@@ -363,10 +364,9 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// 0414 (ErrValidationInvalidTransactionType): transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
 			assert.Equal(t, "0414", errResp.Code, "Test case: %s - Expected 0414 for invalid transactionType", tc.description)
 			assert.Equal(t, "Validation Invalid Transaction Type", errResp.Title)
-			assert.Equal(t, "Invalid transactionType.", errResp.Detail)
+			assert.Equal(t, "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing", errResp.Detail)
 		})
 	}
 }

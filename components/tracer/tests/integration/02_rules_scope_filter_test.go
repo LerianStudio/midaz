@@ -327,8 +327,8 @@ func TestListRules_2_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 			expectMsg:   "merchant_id",
 		},
 		{
-			name:        "invalid transaction_type enum",
-			queryParams: "transaction_type=INVALID_TYPE",
+			name:        "invalid transaction_type scheme",
+			queryParams: "transaction_type=INVALID%20TYPE",
 			expectCode:  "0082",
 			expectMsg:   "transaction_type",
 		},
