@@ -778,14 +778,10 @@ components:
           format: uuid
           type: string
         scheme:
-          description: Payment scheme the transaction declared; absent when none.
-          enum:
-            - CARD
-            - WIRE
-            - PIX
-            - CRYPTO
+          description: Payment scheme the transaction declared, normalized to upper case; absent when none.
           examples:
             - PIX
+          maxLength: 50
           type: string
         status:
           $ref: "#/components/schemas/TransactionStatus"
@@ -1478,14 +1474,10 @@ components:
           format: uuid
           type: string
         scheme:
-          description: Optional payment scheme of the transaction. CARD covers any card payment and is never the card brand.
-          enum:
-            - CARD
-            - WIRE
-            - PIX
-            - CRYPTO
+          description: Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.
           examples:
             - PIX
+          maxLength: 50
           type: string
         skip:
           $ref: "#/components/schemas/TransactionSkip"
@@ -2038,14 +2030,10 @@ components:
           format: uuid
           type: string
         scheme:
-          description: Optional payment scheme of the transaction. CARD covers any card payment and is never the card brand.
-          enum:
-            - CARD
-            - WIRE
-            - PIX
-            - CRYPTO
+          description: Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.
           examples:
             - PIX
+          maxLength: 50
           type: string
         skip:
           $ref: "#/components/schemas/TransactionSkip"
@@ -5057,14 +5045,10 @@ components:
           format: uuid
           type: string
         scheme:
-          description: Payment scheme the transaction declared; absent when none.
-          enum:
-            - CARD
-            - WIRE
-            - PIX
-            - CRYPTO
+          description: Payment scheme the transaction declared, normalized to upper case; absent when none.
           examples:
             - PIX
+          maxLength: 50
           type: string
         status:
           $ref: "#/components/schemas/TransactionStatus"

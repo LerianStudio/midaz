@@ -96,9 +96,9 @@ type TransactionV2 struct {
 	// example: false
 	TracerSkipped bool `json:"tracerSkipped" example:"false"`
 
-	// Payment scheme the transaction declared (CARD, WIRE, PIX, CRYPTO); absent when none
+	// Payment scheme the transaction declared, normalized to upper case; absent when none
 	// example: PIX
-	Scheme string `json:"scheme,omitempty" enum:"CARD,WIRE,PIX,CRYPTO" example:"PIX" doc:"Payment scheme the transaction declared; absent when none."`
+	Scheme string `json:"scheme,omitempty" maxLength:"50" example:"PIX" doc:"Payment scheme the transaction declared, normalized to upper case; absent when none."`
 
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z

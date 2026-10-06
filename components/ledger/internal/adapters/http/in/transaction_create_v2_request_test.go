@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	nethttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // testOrgID and testLedgerID are the scope every leg of a valid test body names. They are
@@ -300,18 +301,28 @@ func TestCreateTransactionV2Request_Validation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "scheme PIX passes (oneof tag)",
+			name:    "scheme PIX passes (scheme tag)",
 			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "PIX" },
 			wantErr: false,
 		},
 		{
-			name:    "lower-case scheme fails (oneof tag, no upper-casing)",
+			name:    "lower-case scheme passes (scheme tag normalizes case)",
 			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "pix" },
+			wantErr: false,
+		},
+		{
+			name:    "scheme outside the former closed set passes (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "TED" },
+			wantErr: false,
+		},
+		{
+			name:    "scheme with punctuation fails (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "pix!" },
 			wantErr: true,
 		},
 		{
-			name:    "scheme outside the enum fails (oneof tag)",
-			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "TED" },
+			name:    "scheme over the length bound fails (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = strings.Repeat("A", scheme.MaxLength+1) },
 			wantErr: true,
 		},
 	}
@@ -1090,8 +1101,8 @@ func TestCreateTransactionV2Request_TranslateSkip(t *testing.T) {
 
 // TestCreateTransactionV2Request_DecodeScheme drives the scheme field through the real
 // singular decode pipeline (unmarshal -> unknown-field re-marshal -> struct tags), the
-// path a wire body takes before any normalizer runs. The enum is matched verbatim: a
-// case or spelling variant is a 400 at this boundary, never normalized.
+// path a wire body takes before any normalizer runs. Any value the shared scheme rule
+// accepts decodes as sent; anything it refuses is a 400 at this boundary.
 func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
 	t.Parallel()
 
@@ -1105,13 +1116,14 @@ func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "absent scheme decodes empty", scheme: "", wantScheme: ""},
-		{name: "CARD decodes verbatim", scheme: "CARD", wantScheme: "CARD"},
-		{name: "WIRE decodes verbatim", scheme: "WIRE", wantScheme: "WIRE"},
-		{name: "PIX decodes verbatim", scheme: "PIX", wantScheme: "PIX"},
-		{name: "CRYPTO decodes verbatim", scheme: "CRYPTO", wantScheme: "CRYPTO"},
-		{name: "lower-case pix is rejected", scheme: "pix", wantStatus: http.StatusBadRequest},
-		{name: "mixed-case Pix is rejected", scheme: "Pix", wantStatus: http.StatusBadRequest},
-		{name: "TED is outside the enum", scheme: "TED", wantStatus: http.StatusBadRequest},
+		{name: "CARD decodes as sent", scheme: "CARD", wantScheme: "CARD"},
+		{name: "PIX decodes as sent", scheme: "PIX", wantScheme: "PIX"},
+		{name: "lower-case pix decodes as sent", scheme: "pix", wantScheme: "pix"},
+		{name: "padded pix decodes as sent", scheme: " pix ", wantScheme: " pix "},
+		{name: "TED decodes as sent", scheme: "TED", wantScheme: "TED"},
+		{name: "punctuation is rejected", scheme: "pix!", wantStatus: http.StatusBadRequest},
+		{name: "inner whitespace is rejected", scheme: "a b", wantStatus: http.StatusBadRequest},
+		{name: "one over the length bound is rejected", scheme: strings.Repeat("A", scheme.MaxLength+1), wantStatus: http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
@@ -1143,18 +1155,22 @@ func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
 }
 
 // TestCreateTransactionV2Request_TranslateScheme locks that both v2 normalizers carry the
-// declared scheme onto the canonical transaction: the singular translator and the
-// cross-ledger one, which builds its transaction through a separate field list.
+// declared scheme onto the canonical transaction in its normalized spelling: the singular
+// translator and the cross-ledger one, which builds its transaction through a separate
+// field list.
 func TestCreateTransactionV2Request_TranslateScheme(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		scheme string
+		name       string
+		scheme     string
+		wantScheme string
 	}{
-		{name: "absent scheme stays empty", scheme: ""},
-		{name: "PIX reaches the transaction", scheme: "PIX"},
-		{name: "CARD reaches the transaction", scheme: "CARD"},
+		{name: "absent scheme stays empty", scheme: "", wantScheme: ""},
+		{name: "PIX reaches the transaction", scheme: "PIX", wantScheme: "PIX"},
+		{name: "CARD reaches the transaction", scheme: "CARD", wantScheme: "CARD"},
+		{name: "padded lower-case pix is normalized", scheme: " pix ", wantScheme: "PIX"},
+		{name: "ted is upper-cased", scheme: "ted", wantScheme: "TED"},
 	}
 
 	for _, tt := range tests {
@@ -1166,7 +1182,7 @@ func TestCreateTransactionV2Request_TranslateScheme(t *testing.T) {
 
 			tran, _, err := singular.Translate(false)
 			require.NoError(t, err)
-			assert.Equal(t, tt.scheme, tran.Scheme)
+			assert.Equal(t, tt.wantScheme, tran.Scheme)
 
 			crossLedger := validV2Input()
 			crossLedger.Scheme = tt.scheme
@@ -1175,7 +1191,7 @@ func TestCreateTransactionV2Request_TranslateScheme(t *testing.T) {
 			normalized, err := normalizeCreateCrossLedgerTransactionV2Body(crossLedger, false)
 			require.NoError(t, err)
 			require.Len(t, normalized.scopes, 2)
-			assert.Equal(t, tt.scheme, normalized.transaction.Scheme)
+			assert.Equal(t, tt.wantScheme, normalized.transaction.Scheme)
 		})
 	}
 }

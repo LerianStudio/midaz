@@ -22,7 +22,7 @@ func TestMigration000044_AddsNullableScheme(t *testing.T) {
 	require.NoError(t, err)
 
 	sql := normalizeSQLStatements(string(up))
-	assert.Contains(t, sql, "alter table transaction add column if not exists scheme varchar(16) null")
+	assert.Contains(t, sql, "alter table transaction add column if not exists scheme varchar(50) null")
 	assert.NotContains(t, sql, "not null")
 	assert.NotContains(t, sql, "default")
 	assert.NotContains(t, sql, "create index")

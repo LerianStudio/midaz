@@ -122,7 +122,7 @@ func TestIntegration_TransactionScheme_LedgerSeam(t *testing.T) {
 
 		persisted := h.persistedScheme(t, txID)
 		require.True(t, persisted.Valid, "transaction.scheme must be written for a declared scheme")
-		assert.Equal(t, schemePIX, persisted.String, "transaction.scheme must hold the declared scheme verbatim")
+		assert.Equal(t, schemePIX, persisted.String, "transaction.scheme must hold the declared scheme")
 
 		assert.Equal(t, schemePIX, resp.body["scheme"], "the /v2 response must return the declared scheme")
 	})
@@ -181,7 +181,7 @@ func TestIntegration_TransactionScheme_LedgerSeam(t *testing.T) {
 		assert.False(t, hasScheme, "the /v2 response must not publish a scheme key when none was declared: %s", string(resp.rawBody))
 	})
 
-	t.Run("v2 direct with lower-case scheme is rejected before any reserve", func(t *testing.T) {
+	t.Run("v2 direct with a malformed scheme is rejected before any reserve", func(t *testing.T) {
 		h := setupFeeHarness(t)
 		reserver := allowingCapturingReserver()
 		h.handler.Command.TracerReserver = reserver
@@ -190,10 +190,34 @@ func TestIntegration_TransactionScheme_LedgerSeam(t *testing.T) {
 		app := h.newV2App()
 		h.seedSchemeAccounts(t)
 
-		resp := h.createV2Direct(t, app, h.v2WithScheme(h.schemeTransferBody("v2 direct pix"), "pix"), nil)
-		require.Equalf(t, 400, resp.status, "a scheme outside the enum must be refused by validation: %s", string(resp.rawBody))
+		resp := h.createV2Direct(t, app, h.v2WithScheme(h.schemeTransferBody("v2 direct pix!"), "pix!"), nil)
+		require.Equalf(t, 400, resp.status, "a scheme the shared rule refuses must be rejected by validation: %s", string(resp.rawBody))
 
-		assert.Empty(t, reserver.requests, "a request refused by validation must never reach the tracer")
+		assert.Empty(t, reserver.requests, "a request refused by validation must never reserve")
+	})
+
+	t.Run("v2 direct with a padded lower-case scheme stores and reserves it normalized", func(t *testing.T) {
+		h := setupFeeHarness(t)
+		reserver := allowingCapturingReserver()
+		h.handler.Command.TracerReserver = reserver
+		h.seedEnforceClosedTracer(t)
+
+		app := h.newV2App()
+		h.seedSchemeAccounts(t)
+
+		resp := h.createV2Direct(t, app, h.v2WithScheme(h.schemeTransferBody("v2 direct padded pix"), " pix "), nil)
+		require.Equalf(t, 201, resp.status, "a scheme the shared rule normalizes must be accepted: %s", string(resp.rawBody))
+
+		txID := mustTxID(t, resp)
+
+		require.Len(t, reserver.requests, 1, "the /v2 create must reserve exactly once")
+		assert.Equal(t, schemePIX, reserver.requests[0].TransactionType, "the reserve must carry the normalized scheme")
+
+		persisted := h.persistedScheme(t, txID)
+		require.True(t, persisted.Valid, "transaction.scheme must be written for a declared scheme")
+		assert.Equal(t, schemePIX, persisted.String, "transaction.scheme must hold the normalized scheme")
+
+		assert.Equal(t, schemePIX, resp.body["scheme"], "the /v2 response must return the normalized scheme")
 	})
 
 	t.Run("v1 json naming scheme is rejected and dials nothing", func(t *testing.T) {
