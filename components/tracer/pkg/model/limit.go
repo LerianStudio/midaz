@@ -167,9 +167,10 @@ func WithResetTime(resetTime *TimeOfDay) LimitOption {
 	}
 }
 
-// UsageCounter tracks current usage for a limit within a specific scope and period.
-// CurrentUsage is expressed as a decimal value.
-// Note: Remaining amount is calculated as (Limit.MaxAmount - CurrentUsage), not stored.
+// UsageCounter tracks usage for a limit within a specific scope and period.
+// CurrentUsage is confirmed spend; ReservedUsage is capacity held by reservations
+// not yet confirmed or released; enforcement guards their sum.
+// Note: Remaining amount is calculated as (Limit.MaxAmount - CurrentUsage - ReservedUsage), not stored.
 // ScopeKey format: "acct:abc-123", "segment:gold", "portfolio:xyz"
 // PeriodKey format: "2025-12-28" for DAILY, "2025-12" for MONTHLY
 type UsageCounter struct {
@@ -178,13 +179,14 @@ type UsageCounter struct {
 	ScopeKey      string          `json:"scopeKey"`
 	PeriodKey     string          `json:"periodKey"`
 	CurrentUsage  decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00" minimum:"0"`
+	ReservedUsage decimal.Decimal `json:"reservedUsage" swaggertype:"string" example:"0.00" minimum:"0"`
 	LastUpdatedAt time.Time       `json:"lastUpdatedAt" format:"date-time"`
 }
 
 // ScanFields returns pointers to all fields for use with sql.Row.Scan or sql.Rows.Scan.
-// Field order matches: id, limit_id, scope_key, period_key, current_usage, last_updated_at.
+// Field order matches: id, limit_id, scope_key, period_key, current_usage, reserved_usage, last_updated_at.
 func (c *UsageCounter) ScanFields() []any {
-	return []any{&c.ID, &c.LimitID, &c.ScopeKey, &c.PeriodKey, &c.CurrentUsage, &c.LastUpdatedAt}
+	return []any{&c.ID, &c.LimitID, &c.ScopeKey, &c.PeriodKey, &c.CurrentUsage, &c.ReservedUsage, &c.LastUpdatedAt}
 }
 
 // IsValid validates LimitType enum
@@ -1170,11 +1172,12 @@ type ListLimitsResult struct {
 // UsageSnapshot is the usage of a limit in its current period.
 // Every scope of a limit is enforced against MaxAmount on its own, so
 // CurrentUsage is the most consumed scope of the period, never a sum across
-// scopes. For PER_TRANSACTION limits, CurrentUsage is always 0 and ResetAt is nil.
+// scopes; a scope's consumption counts its outstanding reservations.
+// For PER_TRANSACTION limits, CurrentUsage is always 0 and ResetAt is nil.
 type UsageSnapshot struct {
 	// Limit identifier
 	LimitID uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	// Usage of the most consumed scope in the current period
+	// Committed usage plus outstanding reservations of the most consumed scope in the current period
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
 	// Total limit amount (from Limit.MaxAmount)
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
@@ -1190,7 +1193,9 @@ type UsageSnapshot struct {
 const NearLimitThreshold = 80.0
 
 // NewUsageSnapshot creates a UsageSnapshot from a Limit and the usage counters
-// of its current period, one per scope. CurrentUsage is the largest of them.
+// of its current period, one per scope. CurrentUsage is committed usage plus
+// outstanding reservations of the most consumed scope in the current period,
+// the sum enforcement guards.
 // For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
 func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 	currentUsage := decimal.Zero
@@ -1198,8 +1203,9 @@ func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 	// For PER_TRANSACTION limits, currentUsage is always 0
 	if limit.LimitType != LimitTypePerTransaction {
 		for _, counter := range counters {
-			if counter.CurrentUsage.GreaterThan(currentUsage) {
-				currentUsage = counter.CurrentUsage
+			consumed := counter.CurrentUsage.Add(counter.ReservedUsage)
+			if consumed.GreaterThan(currentUsage) {
+				currentUsage = consumed
 			}
 		}
 	}
