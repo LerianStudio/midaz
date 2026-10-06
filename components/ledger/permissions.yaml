@@ -57,12 +57,139 @@
 # seed (see below).
 service: midaz
 version: 1
+partners: true
+scope:
+  dimensions:
+    - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }
+    - { name: ledgerId,           from: path, param: ledger_id,            required: false, multi: true,  collection: ledgers,            label: "ledger",
+        covers: [holders, instruments, protection], parent: organizationId }
+    - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type", parent: ledgerId }
+    - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account",
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
+    - { name: accountAlias,       from: path, param: alias,                required: false, multi: true,  collection: accounts,           label: "account alias",
+        covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
+    - { name: assetId,            from: path, param: asset_id,             required: false, multi: true,  collection: assets,             label: "asset", parent: ledgerId }
+    - { name: portfolioId,        from: path, param: portfolio_id,         required: false, multi: true,  collection: portfolios,         label: "portfolio",
+        covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
+    - { name: segmentId,          from: path, param: segment_id,           required: false, multi: true,  collection: segments,           label: "segment",
+        covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }
+    - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance", parent: accountId }
+    - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction", parent: ledgerId }
+    - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation", parent: accountId }
+    - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route", parent: ledgerId }
+    - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route", parent: ledgerId }
+    - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder",
+        covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments], parent: organizationId }
+    - { name: instrumentId,       from: path, param: instrument_id,        required: false, multi: true,  collection: instruments,        label: "instrument", parent: holderId }
+    - { name: relatedPartyId,     from: path, param: related_party_id,     required: false, multi: true,  collection: related-parties,    label: "related party", parent: instrumentId }
+    - { name: billingPackageId,   from: path, param: billing_package_id,   required: false, multi: true,  collection: billing-packages,   label: "billing package", parent: ledgerId }
+    - { name: packageId,          from: path, param: package_id,           required: false, multi: true,  collection: packages,           label: "fee package", parent: ledgerId }
+    - { name: feeDebtId,          from: path, param: fee_debt_id,          required: false, multi: true,  collection: fee-debts,          label: "fee debt", parent: ledgerId }
+  routes:
+    - method: POST
+      path: /v2/transactions/direct
+      dimensions: &v2CreateBodyDimensions
+        - { name: organizationId, from: body, field: "debits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "debits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "debits[].alias",  optional: true }
+        - { name: organizationId, from: body, field: "credits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "credits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "credits[].alias", optional: true }
+    - { method: POST, path: /v2/transactions/hold,    dimensions: *v2CreateBodyDimensions }
+    - { method: POST, path: /v2/transactions/block,   dimensions: *v2CreateBodyDimensions }
+    - { method: POST, path: /v2/transactions/unblock, dimensions: *v2CreateBodyDimensions }
+    - method: POST
+      path: /v2/transactions/batch
+      dimensions:
+        - { name: organizationId, from: body, field: "transactions[].debits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "transactions[].debits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "transactions[].debits[].alias",  optional: true }
+        - { name: organizationId, from: body, field: "transactions[].credits[].organizationId" }
+        - { name: ledgerId,       from: body, field: "transactions[].credits[].ledgerId" }
+        - { name: accountAlias,   from: body, field: "transactions[].credits[].alias", optional: true }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json
+      dimensions: &v1SourceAliasDimensions
+        - { name: accountAlias, from: body, field: "send.source.from[].accountAlias", optional: true }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation, dimensions: *v1SourceAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block,      dimensions: *v1SourceAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock,    dimensions: *v1SourceAliasDimensions }
+    - { method: POST, path: /v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow,    dimensions: *v1SourceAliasDimensions }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions
+      dimensions:
+        - { name: accountAlias, from: body, field: "exceptions[].accountAlias", optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts/collect
+      dimensions:
+        - { name: accountAlias, from: body, field: accountAlias, optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/fee-debts
+      dimensions:
+        - { name: accountAlias, from: query, field: account_alias, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/holders/:holder_id/instruments
+      dimensions:
+        - { name: ledgerId,  from: body, field: ledgerId }
+        - { name: accountId, from: body, field: accountId }
+    - method: POST
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions:
+        - { name: portfolioId, from: body, field: portfolioId,     optional: true }
+        - { name: segmentId,   from: body, field: segmentId,       optional: true }
+        - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions:
+        - { name: portfolioId, from: body, field: portfolioId,     optional: true }
+        - { name: segmentId,   from: body, field: segmentId,       optional: true }
+        - { name: holderId,    from: body, field: holderId,        optional: true }
+        - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts
+      dimensions:
+        - { name: portfolioId, from: body, field: portfolioId,     optional: true }
+        - { name: segmentId,   from: body, field: segmentId,       optional: true }
+        - { name: accountId,   from: body, field: parentAccountId, optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages
+      dimensions:
+        - { name: segmentId,   from: body, field: accountTarget.segmentId,   optional: true }
+        - { name: portfolioId, from: body, field: accountTarget.portfolioId, optional: true }
+        - { name: accountAlias, from: body, field: "accountTarget.aliases[]", optional: true }
+    - method: POST
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
+      dimensions:
+        - { name: segmentId, from: body, field: segmentId, optional: true }
+    - method: GET
+      path: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions: &accountListQueryDimensions
+        - { name: portfolioId, from: query, field: portfolio_id, optional: true }
+        - { name: segmentId,   from: query, field: segment_id,   optional: true }
+        - { name: holderId,    from: query, field: holder_id,    optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/accounts
+      dimensions: *accountListQueryDimensions
+    - method: GET
+      path: /v2/organizations/:organization_id/instruments
+      dimensions:
+        - { name: holderId,  from: query, field: holder_id,  optional: true }
+        - { name: accountId, from: query, field: account_id, optional: true }
+        - { name: ledgerId,  from: query, field: ledger_id,  optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/holders/:holder_id/accounts
+      dimensions:
+        - { name: ledgerId, from: query, field: ledger_id, optional: true }
+    - method: GET
+      path: /v2/organizations/:organization_id/ledgers/:ledger_id/packages
+      dimensions:
+        - { name: segmentId, from: query, field: segmentId, optional: true }
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
-  - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: account-types, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: account-types, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: account-types, action: delete, effect: allow, roles: [editor] }
+  - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: account-types, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: account-types, action: get,    effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: account-types, action: delete, effect: allow, roles: [editor], level: ledgerId }
 
   # account-block-exceptions (account_block_exception_routes.go
   # registerAccountBlockExceptionRoutesToApp; /v2 only)
@@ -72,40 +199,40 @@ permissions:
   # and the permission to transact: a contributor that may post transactions and
   # patch accounts still cannot mint a bypass, and viewer has no read to grant
   # (the surface is write-only — an exception is presented, never listed).
-  - { resource: account-block-exceptions, action: post, effect: allow, roles: [editor] }
+  - { resource: account-block-exceptions, action: post, effect: allow, roles: [editor], level: accountId }
 
   # accounts (account_routes.go registerAccountRoutesToApp)
-  - { resource: accounts, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: accounts, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: accounts, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: accounts, action: delete, effect: allow, roles: [editor] }
-  - { resource: accounts, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: accounts, action: post,   effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: accounts, action: patch,  effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: accounts, action: get,    effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: accounts, action: delete, effect: allow, roles: [editor], level: accountId }
+  - { resource: accounts, action: head,   effect: allow, roles: [editor, contributor, viewer], level: accountId }
 
   # asset-rates (asset_rate_routes.go registerAssetRateRoutesToApp)
-  - { resource: asset-rates, action: put, effect: allow, roles: [editor] }
-  - { resource: asset-rates, action: get, effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: asset-rates, action: put, effect: allow, roles: [editor], level: ledgerId }
+  - { resource: asset-rates, action: get, effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
 
   # assets (asset_routes.go registerAssetRoutesToApp)
-  - { resource: assets, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: assets, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: assets, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: assets, action: delete, effect: allow, roles: [editor] }
-  - { resource: assets, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: assets, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: assets, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: assets, action: get,    effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: assets, action: delete, effect: allow, roles: [editor], level: ledgerId }
+  - { resource: assets, action: head,   effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
 
   # balances (balance_routes.go registerBalanceRoutesToApp)
-  - { resource: balances, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: balances, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: balances, action: delete, effect: allow, roles: [editor] }
-  - { resource: balances, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: balances, action: get,    effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: balances, action: patch,  effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: balances, action: delete, effect: allow, roles: [editor], level: accountId }
+  - { resource: balances, action: post,   effect: allow, roles: [editor, contributor], level: accountId }
 
   # billing-calculate — billing calculate dry-run (billing_calculate_routes.go registerBillingCalculateRoutesToApp)
-  - { resource: billing-calculate, action: post, effect: allow, roles: [editor, contributor] }
+  - { resource: billing-calculate, action: post, effect: allow, roles: [editor, contributor], level: ledgerId }
 
   # billing-packages (billing_package_routes.go registerBillingPackageRoutesToApp)
-  - { resource: billing-packages, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: billing-packages, action: delete, effect: allow, roles: [editor], level: ledgerId }
 
   # dashboard (dashboard_routes.go registerDashboardRoutesToApp; /v1 and /v2)
   #
@@ -121,100 +248,100 @@ permissions:
   # whose store has not learned the resource answers 403, which is the
   # fail-closed direction; components/ledger/docs/dashboard.md states the
   # dependency for operators.
-  - { resource: dashboard, action: get, effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
 
   # encryption (encryption_routes.go registerEncryptionRoutesToApp)
-  - { resource: encryption, action: post, effect: allow, roles: [editor, contributor] }
-  - { resource: encryption, action: get,  effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: encryption, action: post, effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: encryption, action: get,  effect: allow, roles: [editor, contributor, viewer], level: organizationId }
 
   # estimates — fee estimate dry-run (fee_estimate_routes.go registerFeeEstimateRoutesToApp)
-  - { resource: estimates, action: post, effect: allow, roles: [editor, contributor] }
+  - { resource: estimates, action: post, effect: allow, roles: [editor, contributor], level: ledgerId }
 
   # fee-debts — fee debt record (fee_debt_routes.go RegisterFeeDebtV2RoutesToApp) and its
   # standalone collection (fee_debt_collect_routes.go); /v2 only. Not yet in the central seed.
-  - { resource: fee-debts, action: get,  effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: fee-debts, action: post, effect: allow, roles: [editor, contributor] }
+  - { resource: fee-debts, action: get,  effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: fee-debts, action: post, effect: allow, roles: [editor, contributor], level: accountId }
 
   # holders (holder_routes.go registerHolderRoutesToApp)
-  - { resource: holders, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: holders, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: holders, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: holders, action: delete, effect: allow, roles: [editor] }
+  - { resource: holders, action: post,   effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: holders, action: get,    effect: allow, roles: [editor, contributor, viewer], level: organizationId }
+  - { resource: holders, action: patch,  effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: holders, action: delete, effect: allow, roles: [editor], level: organizationId }
 
   # instruments (instrument_routes.go registerInstrumentRoutesToApp)
-  - { resource: instruments, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: instruments, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: instruments, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: instruments, action: delete, effect: allow, roles: [editor] }
+  - { resource: instruments, action: get,    effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: instruments, action: post,   effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: instruments, action: patch,  effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: instruments, action: delete, effect: allow, roles: [editor], level: accountId }
 
   # ledgers (ledger_routes.go registerLedgerRoutesToApp)
-  - { resource: ledgers, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: ledgers, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: ledgers, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
-  - { resource: ledgers, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: ledgers, action: post,   effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: ledgers, action: patch,  effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: ledgers, action: get,    effect: allow, roles: [editor, contributor, viewer], level: organizationId }
+  - { resource: ledgers, action: delete, effect: allow, roles: [editor], level: organizationId }
+  - { resource: ledgers, action: head,   effect: allow, roles: [editor, contributor, viewer], level: organizationId }
 
   # operation-routes (operation_route_routes.go registerOperationRouteRoutesToApp)
-  - { resource: operation-routes, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: operation-routes, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: operation-routes, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
+  - { resource: operation-routes, action: post,   effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: operation-routes, action: patch,  effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: operation-routes, action: get,    effect: allow, roles: [editor, contributor, viewer], level: organizationId }
+  - { resource: operation-routes, action: delete, effect: allow, roles: [editor], level: organizationId }
 
   # operations (operation_routes.go registerOperationRoutesToApp)
-  - { resource: operations, action: get,   effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: operations, action: patch, effect: allow, roles: [editor, contributor] }
+  - { resource: operations, action: get,   effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: operations, action: patch, effect: allow, roles: [editor, contributor], level: accountId }
 
   # organizations (organization_routes.go registerOrganizationRoutesToApp)
-  - { resource: organizations, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: organizations, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: organizations, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: organizations, action: delete, effect: allow, roles: [editor] }
-  - { resource: organizations, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: organizations, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: organizations, action: patch,  effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: organizations, action: get,    effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: organizations, action: delete, effect: allow, roles: [editor], level: tenant }
+  - { resource: organizations, action: head,   effect: allow, roles: [editor, contributor, viewer], level: tenant }
 
   # packages — fee packages (fee_package_routes.go registerPackageRoutesToApp)
-  - { resource: packages, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: packages, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: packages, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: packages, action: delete, effect: allow, roles: [editor] }
+  - { resource: packages, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: packages, action: get,    effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: packages, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: packages, action: delete, effect: allow, roles: [editor], level: ledgerId }
 
   # portfolios (portfolio_routes.go registerPortfolioRoutesToApp)
-  - { resource: portfolios, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: portfolios, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: portfolios, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: portfolios, action: delete, effect: allow, roles: [editor] }
-  - { resource: portfolios, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: portfolios, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: portfolios, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: portfolios, action: get,    effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: portfolios, action: delete, effect: allow, roles: [editor], level: ledgerId }
+  - { resource: portfolios, action: head,   effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
 
   # protection — CRM audit-trail read (audit_routes.go registerAuditRoutesToApp)
-  - { resource: protection, action: get, effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: protection, action: get, effect: allow, roles: [editor, contributor, viewer], level: organizationId }
 
   # segments (segment_routes.go registerSegmentRoutesToApp)
-  - { resource: segments, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: segments, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: segments, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: segments, action: delete, effect: allow, roles: [editor] }
-  - { resource: segments, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: segments, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: segments, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: segments, action: get,    effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: segments, action: delete, effect: allow, roles: [editor], level: ledgerId }
+  - { resource: segments, action: head,   effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
 
   # settings — entity metadata (metadata_routes.go registerMetadataIndexRoutesToApp)
-  - { resource: settings, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: settings, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: settings, action: delete, effect: allow, roles: [editor] }
+  - { resource: settings, action: post,   effect: allow, roles: [editor, contributor], level: tenant }
+  - { resource: settings, action: get,    effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: settings, action: delete, effect: allow, roles: [editor], level: tenant }
 
   # streaming-manifest — event catalog (streaming_manifest_routes.go RegisterStreamingManifestRouteToApp)
-  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer], level: tenant }
 
   # transaction-routes (transaction_route_routes.go registerTransactionRouteRoutesToApp)
-  - { resource: transaction-routes, action: post,   effect: allow, roles: [editor, contributor] }
-  - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
+  - { resource: transaction-routes, action: post,   effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor, contributor], level: organizationId }
+  - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, contributor, viewer], level: organizationId }
+  - { resource: transaction-routes, action: delete, effect: allow, roles: [editor], level: organizationId }
 
   # transactions (transaction_routes.go RegisterTransactionHumaRoutesToApp;
   # v2 at transaction_routes_v2.go RegisterTransactionV2RoutesToApp and
   # transaction_mirror_register_v2.go RegisterTransactionMirrorV2RoutesToApp)
-  - { resource: transactions, action: post,  effect: allow, roles: [editor, contributor] }
-  - { resource: transactions, action: patch, effect: allow, roles: [editor, contributor] }
-  - { resource: transactions, action: get,   effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: transactions, action: head,  effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: transactions, action: post,  effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: transactions, action: patch, effect: allow, roles: [editor, contributor], level: accountId }
+  - { resource: transactions, action: get,   effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: transactions, action: head,  effect: allow, roles: [editor, contributor, viewer], level: accountId }
 
   # ─── SEED-ONLY GRANTS: no route registers these (resource, action) pairs ───
   #
@@ -229,35 +356,35 @@ permissions:
   # decides to drop the unreachable surface can delete this section wholesale,
   # without touching a single route-backed grant.
   # account-types
-  - { resource: account-types, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: account-types, action: head,   effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
   # asset-rates
-  - { resource: asset-rates, action: delete, effect: allow, roles: [editor] }
-  - { resource: asset-rates, action: head,   effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: asset-rates, action: patch,  effect: allow, roles: [editor, contributor] }
-  - { resource: asset-rates, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: asset-rates, action: delete, effect: allow, roles: [editor], level: ledgerId }
+  - { resource: asset-rates, action: head,   effect: allow, roles: [editor, contributor, viewer], level: ledgerId }
+  - { resource: asset-rates, action: patch,  effect: allow, roles: [editor, contributor], level: ledgerId }
+  - { resource: asset-rates, action: post,   effect: allow, roles: [editor, contributor], level: ledgerId }
   # balances
-  - { resource: balances, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: balances, action: head,   effect: allow, roles: [editor, contributor, viewer], level: accountId }
   # encryption
-  - { resource: encryption, action: delete, effect: allow, roles: [editor] }
-  - { resource: encryption, action: head,   effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: encryption, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: encryption, action: delete, effect: allow, roles: [editor], level: organizationId }
+  - { resource: encryption, action: head,   effect: allow, roles: [editor, contributor, viewer], level: organizationId }
+  - { resource: encryption, action: patch,  effect: allow, roles: [editor, contributor], level: organizationId }
   # holders
-  - { resource: holders, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: holders, action: head,   effect: allow, roles: [editor, contributor, viewer], level: organizationId }
   # instruments
-  - { resource: instruments, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: instruments, action: head,   effect: allow, roles: [editor, contributor, viewer], level: accountId }
   # operation-routes
-  - { resource: operation-routes, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: operation-routes, action: head,   effect: allow, roles: [editor, contributor, viewer], level: organizationId }
   # operations
-  - { resource: operations, action: delete, effect: allow, roles: [editor] }
-  - { resource: operations, action: head,   effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: operations, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: operations, action: delete, effect: allow, roles: [editor], level: accountId }
+  - { resource: operations, action: head,   effect: allow, roles: [editor, contributor, viewer], level: accountId }
+  - { resource: operations, action: post,   effect: allow, roles: [editor, contributor], level: accountId }
   # settings
-  - { resource: settings, action: head,   effect: allow, roles: [editor, contributor, viewer] }
-  - { resource: settings, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: settings, action: head,   effect: allow, roles: [editor, contributor, viewer], level: tenant }
+  - { resource: settings, action: patch,  effect: allow, roles: [editor, contributor], level: tenant }
   # transaction-routes
-  - { resource: transaction-routes, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: transaction-routes, action: head,   effect: allow, roles: [editor, contributor, viewer], level: organizationId }
   # transactions
-  - { resource: transactions, action: delete, effect: allow, roles: [editor] }
+  - { resource: transactions, action: delete, effect: allow, roles: [editor], level: accountId }
 
 
 roles:

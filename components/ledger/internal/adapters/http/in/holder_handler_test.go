@@ -71,9 +71,9 @@ func buildHumaHolderApp(t *testing.T, handler *HolderHandler, authOK bool) *fibe
 	base := "/organizations/:organization_id/holders"
 	apiV2.Post(base, parse)
 	apiV2.Get(base, parse)
-	apiV2.Get(base+"/:id", parse)
-	apiV2.Patch(base+"/:id", parse)
-	apiV2.Delete(base+"/:id", parse)
+	apiV2.Get(base+"/:holder_id", parse)
+	apiV2.Patch(base+"/:holder_id", parse)
+	apiV2.Delete(base+"/:holder_id", parse)
 
 	RegisterHolderRoutes(hAPI, handler, v2OpSuffix)
 
@@ -361,7 +361,7 @@ func buildHumaHolderAccountsApp(t *testing.T, handler *HolderAccountsHandler) *f
 	apiV2 := f.Group("/v2")
 
 	parse := pkgHTTP.ParseUUIDPathParameters("holder")
-	apiV2.Get("/organizations/:organization_id/holders/:id/accounts", parse)
+	apiV2.Get("/organizations/:organization_id/holders/:holder_id/accounts", parse)
 
 	hAPI := openapi.New(f, apiV2, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v2"}})
 

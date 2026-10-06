@@ -415,7 +415,7 @@ func TestHuma_ErrorBodyMatchesFiberEnvelope(t *testing.T) {
 
 // TestHuma_MigratedRoutes_AuthStillEnforced proves, through the REAL NewRoutes
 // wiring, that the auth guard remains a Fiber middleware in front of the
-// migrated Huma routes: unauthenticated POST /v1/rules and GET /v1/rules/{id}
+// migrated Huma routes: unauthenticated POST /v1/rules and GET /v1/rules/{rule_id}
 // still return 401 (guard runs, short-circuits before the Huma handler), while
 // a valid API key lets the request reach the Huma handler (mock is invoked).
 // This is the end-to-end proof that mounting Huma on the /v1 group did not
@@ -1098,13 +1098,13 @@ func TestHuma_RuleRoutes_SecurityMetadata(t *testing.T) {
 		path, verb string
 	}{
 		{"/rules", http.MethodPost},
-		{"/rules/{id}", http.MethodGet},
+		{"/rules/{rule_id}", http.MethodGet},
 		{"/rules", http.MethodGet},
-		{"/rules/{id}", http.MethodPatch},
-		{"/rules/{id}", http.MethodDelete},
-		{"/rules/{id}/activate", http.MethodPost},
-		{"/rules/{id}/deactivate", http.MethodPost},
-		{"/rules/{id}/draft", http.MethodPost},
+		{"/rules/{rule_id}", http.MethodPatch},
+		{"/rules/{rule_id}", http.MethodDelete},
+		{"/rules/{rule_id}/activate", http.MethodPost},
+		{"/rules/{rule_id}/deactivate", http.MethodPost},
+		{"/rules/{rule_id}/draft", http.MethodPost},
 	}
 	for _, tc := range cases {
 		o := op(tc.path, tc.verb)

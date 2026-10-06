@@ -57,7 +57,7 @@ func buildHumaBillingPackageApp(t *testing.T, handler *BillingPackageHandler, au
 	parse := pkgHTTP.ParseUUIDPathParameters("billing-packages")
 
 	listPath := "/organizations/:organization_id/ledgers/:ledger_id/billing-packages"
-	idPath := listPath + "/:id"
+	idPath := listPath + "/:billing_package_id"
 
 	apiV2.Post(listPath, parse)
 	apiV2.Get(listPath, parse)

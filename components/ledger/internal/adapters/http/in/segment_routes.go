@@ -26,7 +26,7 @@ import (
 func RegisterSegmentRoutes(api huma.API, h *SegmentHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/segments"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{segment_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Segments"
 	)
@@ -126,7 +126,7 @@ func RegisterSegmentV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 func registerSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *SegmentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/segments"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:segment_id"
 		countPath = listPath + "/metrics/count"
 	)
 

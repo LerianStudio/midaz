@@ -89,7 +89,7 @@ func TestRuleSubTypeCaseInsensitive_Integration(t *testing.T) {
 		testutil.CleanupRule(t, ruleID)
 	})
 
-	// ----- Step 2: GET /v1/rules/{id} and assert canonical (lowercase) form.
+	// ----- Step 2: GET /v1/rules/{rule_id} and assert canonical (lowercase) form.
 	getReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
 	require.NoError(t, err)
 	getReq.Header.Set("X-API-Key", apiKey)
@@ -173,7 +173,7 @@ func TestLimitSubTypeCaseInsensitive_Integration(t *testing.T) {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// ----- Step 2: GET /v1/limits/{id} and assert canonical form ---------
+	// ----- Step 2: GET /v1/limits/{limit_id} and assert canonical form ---------
 	getReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID, nil)
 	require.NoError(t, err)
 	getReq.Header.Set("X-API-Key", apiKey)

@@ -2488,7 +2488,7 @@ func TestValidation_1_2_1_RetrievesValidationByID(t *testing.T) {
 	defer getResp.Body.Close()
 
 	require.Equal(t, http.StatusOK, getResp.StatusCode,
-		"Expected 200 OK from GET /v1/validations/{id}, got: %s", string(getBody))
+		"Expected 200 OK from GET /v1/validations/{validation_id}, got: %s", string(getBody))
 
 	var result testutil.ValidationDetailResponse
 	err = json.Unmarshal(getBody, &result)
@@ -2577,7 +2577,7 @@ func TestValidation_1_2_4_RequiresAuthentication(t *testing.T) {
 	defer getResp.Body.Close()
 
 	assert.Equal(t, http.StatusUnauthorized, getResp.StatusCode,
-		"GET /v1/validations/{id} without X-API-Key should return 401 Unauthorized")
+		"GET /v1/validations/{validation_id} without X-API-Key should return 401 Unauthorized")
 }
 
 // Test 1.2.5: Complete snapshot preserved (AccountContext verification)

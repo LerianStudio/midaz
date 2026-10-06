@@ -26,7 +26,7 @@ import (
 func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler, opSuffix string) {
 	const (
 		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios"
-		idPath    = listPath + "/{id}"
+		idPath    = listPath + "/{portfolio_id}"
 		countPath = listPath + "/metrics/count"
 		tag       = "Portfolios"
 	)
@@ -126,7 +126,7 @@ func RegisterPortfolioV2RoutesToApp(group fiber.Router, api huma.API, auth *midd
 func registerPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/portfolios"
-		idPath    = listPath + "/:id"
+		idPath    = listPath + "/:portfolio_id"
 		countPath = listPath + "/metrics/count"
 	)
 
