@@ -88,7 +88,7 @@ func (s *BillingPackageService) DetachAccountAlias(ctx context.Context, organiza
 		s.emitBillingPackageUpdatedEvent(ctx, span, logger, result)
 
 		for _, action := range detach.actions {
-			logger.Log(ctx, libLog.LevelInfo, "Detached deleted account alias from billing package",
+			logger.Log(ctx, libLog.LevelDebug, "Detached deleted account alias from billing package",
 				libLog.String("package_id", bp.ID),
 				libLog.String("action", action),
 			)

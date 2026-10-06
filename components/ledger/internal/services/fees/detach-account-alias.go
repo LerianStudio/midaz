@@ -165,7 +165,7 @@ func (uc *UseCase) detachAliasFromPack(ctx context.Context, span trace.Span, log
 			uc.emitFeesPackageUpdatedEvent(ctx, span, logger, updated, organizationID)
 
 			for _, action := range detach.actions {
-				logger.Log(ctx, libLog.LevelInfo, "Detached deleted account alias from fee package",
+				logger.Log(ctx, libLog.LevelDebug, "Detached deleted account alias from fee package",
 					libLog.String("package_id", current.ID.String()),
 					libLog.String("action", action),
 				)
