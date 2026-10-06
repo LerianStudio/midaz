@@ -101,15 +101,13 @@ func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance
 //
 // Side effects on `validate`:
 //
-// `mtransaction.ValidateBalancesRules` enforces `len(balances) ==
-// len(validate.From) + len(validate.To)` as the first check after
-// deduplication. Appending a companion op adds a fresh alias to the balance
-// list, so we MUST mirror that alias as a pseudo-entry in `validate.From`
-// (the companion is always on the source side of the transaction) to keep
-// the count invariant. The pseudo-entry re-uses the companion's amount,
-// direction, and transaction metadata; it is not billed against the user-
-// visible send total because the split happens after
-// ValidateSendSourceAndDistribute has already signed off on the totals.
+// Every companion op is mirrored as a pseudo-entry in `validate.From` (or
+// `validate.To` for a refund), keyed by its concat alias. BuildOperations reads
+// each leg's amount from those maps by that key, so a companion FromTo without
+// its entry would produce an operation record with no amount. The pseudo-entry
+// re-uses the companion's amount, direction, and transaction metadata; it is
+// not billed against the user-visible send total because the split happens
+// after ValidateSendSourceAndDistribute has already signed off on the totals.
 //
 // Return values:
 //   - enriched balanceOps (primary ops + appended companion ops)
@@ -285,9 +283,8 @@ func lookupRouteID(validate *mtransaction.Responses, primaryAlias string, isFrom
 }
 
 // registerCompanionInValidate mirrors the companion op into `validate.From`
-// and `validate.Sources` so downstream count-based invariants
-// (ValidateBalancesRules len check, alias lookup paths) treat the companion
-// as a first-class source balance.
+// and `validate.Sources` so the alias lookups that follow (operation amounts,
+// route resolution) treat the companion as a first-class source balance.
 //
 // Key-shape convention (must match user ops to avoid duplicate counters):
 //   - `validate.From` is keyed by the concat-form alias ("0#@alice#…") — so
@@ -757,9 +754,10 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 }
 
 // registerCompanionInValidateTo mirrors the refund companion op into
-// validate.To so ValidateBalancesRules sees matching counts. Follows the
-// same key-shape convention as registerCompanionInValidate: concat-form for
-// the `To` map key, bare alias-key for the `Destinations` / `Aliases` slices.
+// validate.To so the same alias lookups treat it as a first-class destination
+// balance. Follows the same key-shape convention as registerCompanionInValidate:
+// concat-form for the `To` map key, bare alias-key for the `Destinations` /
+// `Aliases` slices.
 //
 // `primaryRouteID` propagation: when non-empty we mirror it into
 // `validate.OperationRoutesTo` under the companion's concat alias — this is
