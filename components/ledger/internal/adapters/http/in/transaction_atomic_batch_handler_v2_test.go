@@ -183,12 +183,12 @@ func TestCreateAtomicTransactionBatchV2_ReplayAndConflict(t *testing.T) {
 				txRedis.AtomicTransactionBatchIdempotencyRecord,
 			) (*txRedis.AtomicTransactionBatchClaimResult, error) {
 				return &txRedis.AtomicTransactionBatchClaimResult{
-						Outcome: txRedis.AtomicTransactionBatchInProgress,
-					}, pkg.ValidateBusinessError(
-						constant.ErrIdempotencyKey,
-						constant.EntityTransaction,
-						"atomic transaction batch",
-					)
+					Outcome: txRedis.AtomicTransactionBatchInProgress,
+				}, pkg.ValidateBusinessError(
+					constant.ErrIdempotencyKey,
+					constant.EntityTransaction,
+					"atomic transaction batch",
+				)
 			},
 		}
 		handler := replayOnlyAtomicBatchHandler(repository)
