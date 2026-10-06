@@ -134,6 +134,103 @@ func TestTranslateEngineTransactionPreservesOperationTypeOverrideInProjection(t 
 	assert.Equal(t, constant.DirectionCredit, projection[1].Direction)
 }
 
+func TestTranslateEngineTransactionOverdraftRulesForBlockAndUnblock(t *testing.T) {
+	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
+
+	tests := []struct {
+		name               string
+		override           string
+		wantDrawPolicy     accounting.DrawPolicy
+		wantRepayForbidden bool
+		wantCreditCap      decimal.Decimal
+		wantRowTypes       []string
+		wantRoles          []string
+	}{
+		{
+			name:               "block never draws nor repays and builds no companion",
+			override:           constant.BLOCK,
+			wantDrawPolicy:     accounting.DrawForbidden,
+			wantRepayForbidden: true,
+			wantCreditCap:      decimal.Zero,
+			wantRowTypes:       []string{constant.BLOCK, constant.BLOCK},
+			wantRoles:          []string{accounting.RolePrimary, accounting.RolePrimary},
+		},
+		{
+			name:           "unblock keeps overdraft arithmetic and books its companions as overdraft",
+			override:       constant.UNBLOCK,
+			wantDrawPolicy: accounting.DrawAllowed,
+			wantCreditCap:  decimal.NewFromInt(5),
+			wantRowTypes:   []string{constant.UNBLOCK, constant.OVERDRAFT, constant.UNBLOCK, constant.OVERDRAFT},
+			wantRoles:      []string{accounting.RolePrimary, accounting.RoleOverdraftCompanion, accounting.RolePrimary, accounting.RoleOverdraftCompanion},
+		},
+		{
+			name:           "direct keeps overdraft arithmetic and overdraft companions",
+			wantDrawPolicy: accounting.DrawAllowed,
+			wantCreditCap:  decimal.NewFromInt(5),
+			wantRowTypes:   []string{constant.DEBIT, constant.OVERDRAFT, constant.CREDIT, constant.OVERDRAFT},
+			wantRoles:      []string{accounting.RolePrimary, accounting.RoleOverdraftCompanion, accounting.RolePrimary, accounting.RoleOverdraftCompanion},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			source := translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@source", "default")
+			sourceDebt := translationBalance(organizationID, ledgerID, "66666666-6666-4666-8666-666666666666", "@source", constant.OverdraftBalanceKey)
+			sourceDebt.AccountID = source.AccountID
+			destination := translationBalance(organizationID, ledgerID, "55555555-5555-4555-8555-555555555555", "@destination", "default")
+			destinationDebt := translationBalance(organizationID, ledgerID, "77777777-7777-4777-8777-777777777777", "@destination", constant.OverdraftBalanceKey)
+			destinationDebt.AccountID = destination.AccountID
+
+			debit := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), TransactionType: constant.CREATED}
+			credit := debit
+			credit.OverdraftAmount = decimal.NewFromInt(5)
+
+			input := EngineTranslationInput{
+				TransactionID:     uuid.MustParse("33333333-3333-4333-8333-333333333333"),
+				Action:            constant.ActionDirect,
+				TransactionStatus: constant.CREATED,
+				TransactionInput: mtransaction.Transaction{
+					OperationTypeOverride: tt.override,
+					Send: mtransaction.Send{
+						Asset:      "USD",
+						Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@source#default", BalanceKey: "default", IsFrom: true}}},
+						Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "0#@destination#default", BalanceKey: "default"}}},
+					},
+				},
+				Validate: &mtransaction.Responses{
+					From: map[string]mtransaction.Amount{"0#@source#default": debit},
+					To:   map[string]mtransaction.Amount{"0#@destination#default": credit},
+				},
+				Balances: []*mmodel.Balance{source, sourceDebt, destination, destinationDebt},
+			}
+
+			transaction, projection, err := TranslateEngineTransaction(input)
+			require.NoError(t, err)
+			require.Len(t, transaction.Postings, 2)
+
+			debitPosting, creditPosting := transaction.Postings[0], transaction.Postings[1]
+			assert.Equal(t, accounting.PostingDebit, debitPosting.Type)
+			assert.Equal(t, tt.wantDrawPolicy, debitPosting.DrawPolicy)
+			assert.False(t, debitPosting.RepayForbidden)
+			assert.Equal(t, accounting.PostingCredit, creditPosting.Type)
+			assert.Equal(t, tt.wantRepayForbidden, creditPosting.RepayForbidden)
+			assert.True(t, tt.wantCreditCap.Equal(creditPosting.OverdraftAmount), "credit overdraft cap: got %s", creditPosting.OverdraftAmount)
+
+			rowTypes := make([]string, 0, len(projection))
+			roles := make([]string, 0, len(projection))
+
+			for _, spec := range projection {
+				rowTypes = append(rowTypes, spec.RowType)
+				roles = append(roles, spec.Role)
+			}
+
+			assert.Equal(t, tt.wantRowTypes, rowTypes)
+			assert.Equal(t, tt.wantRoles, roles)
+		})
+	}
+}
+
 func TestTranslateEngineTransactionLifecyclePaths(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")

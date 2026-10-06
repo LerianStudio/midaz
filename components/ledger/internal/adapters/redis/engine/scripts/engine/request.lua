@@ -50,6 +50,9 @@ local function validPosting(posting)
     if posting.deferShortfall ~= nil and bool(posting.deferShortfall) and posting.type ~= "debit" then
         technical("invalid_protocol", "deferShortfall outside a debit")
     end
+    if posting.repayForbidden ~= nil and bool(posting.repayForbidden) and posting.type ~= "credit" then
+        technical("invalid_protocol", "repayForbidden outside a credit")
+    end
     if posting.fundedByRef ~= nil and (text(posting.fundedByRef, false) and posting.type ~= "credit") then
         technical("invalid_protocol", "fundedByRef outside a credit")
     end
@@ -69,6 +72,9 @@ local function validPosting(posting)
     canonicalMoney(posting.overdraftAmount)
     if cmp_decimal(posting.amount, "0") <= 0 or cmp_decimal(posting.overdraftAmount, "0") < 0 then
         technical("invalid_protocol", "invalid posting amount")
+    end
+    if posting.repayForbidden == true and cmp_decimal(posting.overdraftAmount, "0") ~= 0 then
+        technical("invalid_protocol", "repayForbidden with an overdraft cap")
     end
 end
 

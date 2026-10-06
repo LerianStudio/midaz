@@ -242,6 +242,7 @@ func allSentinels() map[string]error {
 		"ErrTransactionIDHasAlreadyParentTransaction": constant.ErrTransactionIDHasAlreadyParentTransaction,
 		"ErrTransactionIDIsAlreadyARevert":            constant.ErrTransactionIDIsAlreadyARevert,
 		"ErrTransactionCantRevert":                    constant.ErrTransactionCantRevert,
+		"ErrBlockUnblockNotRevertible":                constant.ErrBlockUnblockNotRevertible,
 		"ErrTransactionAmbiguous":                     constant.ErrTransactionAmbiguous,
 		"ErrParentIDSameID":                           constant.ErrParentIDSameID,
 		"ErrNoBalancesFound":                          constant.ErrNoBalancesFound,

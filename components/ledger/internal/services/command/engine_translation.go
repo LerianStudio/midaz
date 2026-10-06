@@ -170,6 +170,12 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 		return err
 	}
 
+	if input.TransactionInput.OperationTypeOverride == constant.BLOCK {
+		// A block sets money aside to be returned whole by its unblock, so it
+		// neither takes on nor settles overdraft debt.
+		plan = plan.withoutOverdraft()
+	}
+
 	if len(plan.items) == 0 {
 		return nil
 	}
@@ -197,7 +203,7 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 
 		posting := accounting.Posting{
 			Ref: postingRef, BalanceRef: balanceRef, Type: item.postingType, Amount: amount.Value,
-			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap,
+			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap, RepayForbidden: item.repayForbidden,
 		}
 		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
 		debt.bookTakeBack(&primary)
@@ -237,10 +243,11 @@ func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromT
 		description = input.TransactionInput.Description
 	}
 
-	if input.TransactionInput.OperationTypeOverride != "" {
+	if input.TransactionInput.OperationTypeOverride != "" && rowType != constant.OVERDRAFT {
 		// BLOCK/UNBLOCK are projection labels only. The posting type and
 		// direction still express the monetary debit/credit executed by the
 		// engine, while the durable operation row preserves the API contract.
+		// An overdraft companion keeps its OVERDRAFT label.
 		rowType = input.TransactionInput.OperationTypeOverride
 	}
 
