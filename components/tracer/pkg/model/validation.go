@@ -234,7 +234,8 @@ type LimitUsageDetail struct {
 	Period LimitType `json:"period" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	// CurrentUsage represents the PROJECTED usage after applying the transaction amount,
 	// not the actual persisted counter value. This is calculated as:
-	// (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
+	// (counter.CurrentUsage + counter.ReservedUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM
+	// limits, or 0 for PER_TRANSACTION.
 	// When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
 	// what the usage would have been if the transaction were allowed.
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`

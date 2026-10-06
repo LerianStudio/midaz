@@ -7,15 +7,18 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
 // Server instants of the usage snapshot scenarios, in RFC3339 for MOCK_TIME.
@@ -74,6 +77,68 @@ func TestUsageSnapshot_ReportsMostConsumedScope(t *testing.T) {
 
 		assertUsageSnapshot(t, limitID, "900", 90.0, true)
 	})
+}
+
+// TestUsageSnapshot_CountsOutstandingReservations proves the snapshot reports
+// the capacity enforcement guards: an unconfirmed reservation counts as usage
+// and is denied against, confirming it leaves the usage unchanged, and
+// releasing one returns its capacity.
+func TestUsageSnapshot_CountsOutstandingReservations(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(98104)
+	transactionID := testutil.MustDeterministicUUID(98105)
+
+	atServerTime(t, usageFirstDayNoon, func() {
+		limitID := testutil.CreateLimitWithAccountScope(t, accountID.String(), "1000.00")
+		testutil.ActivateLimit(t, limitID)
+		t.Cleanup(func() { testutil.CleanupLimit(t, limitID) })
+
+		got := reservePix(t, transactionID, accountID, "900.00")
+		require.False(t, got.GetDenied())
+		require.Equal(t, "ALLOW", got.GetDecision())
+		require.Len(t, got.GetReservationIds(), 1)
+
+		assertUsageSnapshot(t, limitID, "900", 90.0, true)
+
+		denied := validatePix(t, accountID.String(), "200.00")
+		assert.Equal(t, "DENY", denied.Decision, "900 held plus 200 exceeds the 1000 cap the snapshot reports against")
+		assertLimitUsage(t, denied, limitID, "1100.00", true)
+
+		confirmTransaction(t, transactionID)
+
+		assertUsageSnapshot(t, limitID, "900", 90.0, true)
+
+		heldID := testutil.MustDeterministicUUID(98106)
+		held := reservePix(t, heldID, accountID, "50.00")
+		require.False(t, held.GetDenied())
+
+		assertUsageSnapshot(t, limitID, "950", 95.0, true)
+
+		releaseTransaction(t, heldID)
+
+		assertUsageSnapshot(t, limitID, "900", 90.0, true)
+
+		heldAgainID := testutil.MustDeterministicUUID(98107)
+		require.False(t, reservePix(t, heldAgainID, accountID, "50.00").GetDenied())
+
+		allowed := validatePix(t, accountID.String(), "30.00")
+		assert.Equal(t, "ALLOW", allowed.Decision)
+		assertLimitUsage(t, allowed, limitID, "980.00", false)
+
+		releaseTransaction(t, heldAgainID)
+	})
+}
+
+// releaseTransaction releases the transaction's reservations, returning their
+// held capacity.
+func releaseTransaction(t *testing.T, transactionID uuid.UUID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), resetTimeReserveTimeout)
+	defer cancel()
+
+	_, err := testutil.DialReservationClient(t).ReleaseByTransaction(ctx,
+		&reservationv1.ReleaseByTransactionRequest{TransactionId: transactionID.String()})
+	require.NoError(t, err, "ReleaseByTransaction must succeed over the gRPC seam")
 }
 
 // assertUsageSnapshot asserts the usage snapshot of a limit: currentUsage,
