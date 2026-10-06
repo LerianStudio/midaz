@@ -65,6 +65,8 @@ func (m *RulePostgreSQLModel) ToEntity() (*model.Rule, error) {
 		}
 	}
 
+	fillScopeSchemes(scopes)
+
 	// Ensure scopes is never nil (return empty slice instead of null in JSON)
 	if scopes == nil {
 		scopes = []model.Scope{}
