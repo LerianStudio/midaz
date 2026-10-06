@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // ptrMatches checks if a pattern pointer matches a value pointer.
@@ -70,13 +72,12 @@ func normalizeScopeSubType(s *Scope) {
 	s.SubType = normalizeSubTypeRaw(s.SubType)
 }
 
-// cloneAndNormalizeScope returns a deep copy of s with SubType normalized to
-// its canonical form. All pointer fields (SegmentID, PortfolioID, AccountID,
-// MerchantID, TransactionType, SubType) are copied to fresh allocations so the
-// returned Scope is fully independent of the caller's memory. Used by write
-// paths (e.g. NewRule, Rule.Update) to prevent external mutation of persisted
-// state and to keep the six-field deep-copy + normalize sequence in a single
-// source of truth, eliminating drift when new Scope fields are added.
+// cloneAndNormalizeScope returns a deep copy of s with SubType and the scheme
+// alias normalized to their canonical form. All pointer fields are copied to
+// fresh allocations so the returned Scope is fully independent of the caller's
+// memory. Used by write paths (e.g. NewRule, Rule.Update) to prevent external
+// mutation of persisted state and to keep the deep-copy + normalize sequence in
+// a single source of truth.
 func cloneAndNormalizeScope(s Scope) Scope {
 	scopeCopy := s
 
@@ -105,9 +106,86 @@ func cloneAndNormalizeScope(s Scope) Scope {
 		scopeCopy.TransactionType = &transactionTypeCopy
 	}
 
+	if s.Scheme != nil {
+		schemeCopy := *s.Scheme
+		scopeCopy.Scheme = &schemeCopy
+	}
+
 	normalizeScopeSubType(&scopeCopy)
+	canonicalizeScopeScheme(&scopeCopy)
 
 	return scopeCopy
+}
+
+// canonicalizeScopeScheme rewrites TransactionType and Scheme into fresh
+// pointers holding their normalized value (an unnormalizable value is kept
+// as-is for validation to report) and fills an absent side from the present
+// one, so a valid scope always carries the same scheme in both fields.
+func canonicalizeScopeScheme(s *Scope) {
+	hasTransactionType := s.TransactionType != nil
+	hasScheme := s.Scheme != nil
+
+	if hasTransactionType {
+		value := TransactionType(normalizeSchemeLenient(string(*s.TransactionType)))
+		s.TransactionType = &value
+	}
+
+	if hasScheme {
+		value := normalizeSchemeLenient(*s.Scheme)
+		s.Scheme = &value
+	}
+
+	switch {
+	case hasTransactionType && !hasScheme:
+		value := string(*s.TransactionType)
+		s.Scheme = &value
+	case hasScheme && !hasTransactionType:
+		value := TransactionType(*s.Scheme)
+		s.TransactionType = &value
+	}
+}
+
+// validateScopeScheme rejects a scope whose scheme and transactionType carry
+// different values (ErrValidationSchemeAliasConflict) or whose scheme is not
+// canonical (invalidErr). Absent fields are accepted.
+func validateScopeScheme(s Scope, invalidErr error) error {
+	if s.TransactionType != nil && s.Scheme != nil && schemeAliasConflict(string(*s.TransactionType), *s.Scheme) {
+		return constant.ErrValidationSchemeAliasConflict
+	}
+
+	if s.TransactionType != nil && !s.TransactionType.Valid() {
+		return invalidErr
+	}
+
+	if s.Scheme != nil && !TransactionType(*s.Scheme).Valid() {
+		return invalidErr
+	}
+
+	return nil
+}
+
+// NormalizeScopes resolves the scheme/transactionType alias of every scope:
+// both are trimmed and upper-cased, and on success both carry the same value
+// in fresh pointers (the caller's pointed-to values are never written).
+// Returns ErrValidationSchemeAliasConflict when the two differ and
+// ErrLimitInvalidScope when a present value is not a valid scheme. On error
+// scopes is left untouched. Emptiness of a scope is not checked here.
+func NormalizeScopes(scopes []Scope) error {
+	normalized := make([]Scope, len(scopes))
+
+	for i, scope := range scopes {
+		canonicalizeScopeScheme(&scope)
+
+		if err := validateScopeScheme(scope, constant.ErrLimitInvalidScope); err != nil {
+			return err
+		}
+
+		normalized[i] = scope
+	}
+
+	copy(scopes, normalized)
+
+	return nil
 }
 
 // Scope represents a hierarchical scope for rules and limits.
@@ -132,9 +210,17 @@ type Scope struct {
 	// format: uuid
 	MerchantID *uuid.UUID `json:"merchantId,omitempty" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
-	// Transaction type the scope is restricted to (optional)
-	// example: CARD
-	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	// Deprecated name of scheme; on write both carry the same value. It stays the
+	// field scopes are matched and stored on.
+	// example: PIX
+	// maxLength: 50
+	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype" swaggertype:"string" maxLength:"50" example:"PIX"`
+
+	// Payment scheme the scope is restricted to (optional): 1 to 50 characters
+	// of A-Z, 0-9, _ or - after trimming and upper-casing.
+	// example: PIX
+	// maxLength: 50
+	Scheme *string `json:"scheme,omitempty" maxLength:"50" example:"PIX"`
 
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
 	// example: purchase
@@ -149,6 +235,7 @@ func (s *Scope) IsEmpty() bool {
 		s.AccountID == nil &&
 		s.MerchantID == nil &&
 		s.TransactionType == nil &&
+		s.Scheme == nil &&
 		s.SubType == nil
 }
 
@@ -187,6 +274,10 @@ func (s *Scope) ToMap() map[string]any {
 
 	if s.TransactionType != nil {
 		result["transactionType"] = s.TransactionType.String()
+	}
+
+	if s.Scheme != nil {
+		result["scheme"] = *s.Scheme
 	}
 
 	if s.SubType != nil {

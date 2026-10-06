@@ -213,7 +213,7 @@ func TestRuleAndTransactionTypeValidators(t *testing.T) {
 	})
 
 	t.Run("transactiontype accepts a model-valid type", func(t *testing.T) {
-		require.True(t, model.TransactionTypeCard.IsValid())
+		require.True(t, model.TransactionTypeCard.Valid())
 		assert.NoError(t, v.Var(string(model.TransactionTypeCard), "transactiontype"))
 	})
 

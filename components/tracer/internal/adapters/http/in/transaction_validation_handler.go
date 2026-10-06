@@ -329,7 +329,7 @@ func (i *ListTransactionValidationsInput) validateUUIDFilters() error {
 }
 
 func (i *ListTransactionValidationsInput) validateTransactionType() error {
-	if i.TransactionType != "" && !model.TransactionType(i.TransactionType).IsValid() {
+	if i.TransactionType != "" && !model.TransactionType(i.TransactionType).Valid() {
 		return pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 

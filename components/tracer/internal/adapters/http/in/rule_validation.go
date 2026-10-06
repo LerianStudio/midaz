@@ -100,7 +100,7 @@ func validateTransactionType(fl validator.FieldLevel) bool {
 	// Get the string value and check if it's a valid TransactionType
 	txType := model.TransactionType(field.String())
 
-	return txType.IsValid()
+	return txType.Valid()
 }
 
 // validateScopeNotEmpty validates that a model.Scope has at least one field set.
@@ -263,7 +263,7 @@ func (l *ListRulesInput) validateScopeFields() error {
 	// Validate transactionType enum
 	if l.TransactionType != nil && *l.TransactionType != "" {
 		txType := model.TransactionType(*l.TransactionType)
-		if !txType.IsValid() {
+		if !txType.Valid() {
 			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 		}
 	}

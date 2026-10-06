@@ -2727,7 +2727,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidTransactionType.Error(),
 			Title:      "Check Limits Invalid Transaction Type",
-			Message:    "Check limits transactionType must be valid.",
+			Message:    "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
 		},
 		constant.ErrCheckLimitsInvalidSubType: ValidationError{
 			EntityType: entityType,
@@ -2781,7 +2781,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidTransactionType.Error(),
 			Title:      "Validation Invalid Transaction Type",
-			Message:    "Invalid transactionType.",
+			Message:    "must be 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing",
+		},
+		constant.ErrValidationSchemeAliasConflict: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationSchemeAliasConflict.Error(),
+			Title:      "Scheme Alias Conflict",
+			Message:    "scheme and transactionType must carry the same value",
 		},
 		constant.ErrValidationAmountNonPositive: ValidationError{
 			EntityType: entityType,

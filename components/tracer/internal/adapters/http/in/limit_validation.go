@@ -279,7 +279,7 @@ func (i *ListLimitsInput) validateScopeFields() error {
 	// Validate transactionType enum
 	if i.TransactionType != nil && *i.TransactionType != "" {
 		txType := model.TransactionType(*i.TransactionType)
-		if !txType.IsValid() {
+		if !txType.Valid() {
 			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 		}
 	}

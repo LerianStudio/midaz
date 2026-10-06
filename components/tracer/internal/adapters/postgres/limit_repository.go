@@ -891,7 +891,7 @@ func (r *LimitRepository) scanLimitFromRows(ctx context.Context, rows *sql.Rows)
 func (r *LimitRepository) validateScopes(scopes []model.Scope) error {
 	for i, scope := range scopes {
 		// Validate TransactionType enum
-		if scope.TransactionType != nil && !scope.TransactionType.IsValid() {
+		if scope.TransactionType != nil && !scope.TransactionType.Valid() {
 			return fmt.Errorf("scope at index %d: invalid transactionType", i)
 		}
 		// Note: Scope currently only has TransactionType enum field
