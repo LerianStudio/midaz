@@ -31,6 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -506,6 +507,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("currencycode", validateCurrencyCode)
 	_ = v.RegisterValidation("isodate", validateISODate)
 	_ = v.RegisterValidation("decimalamount", validateDecimalAmount)
+	_ = v.RegisterValidation("scheme", validateScheme)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -793,6 +795,19 @@ func validateNoWhitespaces(fl validator.FieldLevel) bool {
 	match, _ := regexp.MatchString(`^\S+$`, f)
 
 	return match
+}
+
+// validateScheme accepts a field whose trimmed, upper-cased value is a valid
+// scheme; an empty value is accepted because absence is handled by omitempty.
+func validateScheme(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	_, valid := scheme.Normalize(f)
+
+	return valid
 }
 
 // validateMetadataKeyFormat validates the metadata key format for index creation.
