@@ -488,6 +488,110 @@ func TestCreateInstrument_HolderNotFound_Canonical404(t *testing.T) {
 	assert.Equal(t, constant.ErrHolderNotFound.Error(), got["code"])
 }
 
+// Scenario "Instrument com conta inexistente, retentativa com a mesma chave após
+// correção cria o instrument", driven by the holder lookup: the first create fails,
+// the retry with the same key runs the create and a third call replays it.
+func TestCreateInstrument_FailedCreateReleasesSlot(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	document := "12345678901"
+	holderType := "individual"
+
+	instrumentRepo := instrumentrepo.NewMockRepository(ctrl)
+	holderRepo := holderrepo.NewMockRepository(ctrl)
+	holderRepo.EXPECT().
+		Find(gomock.Any(), orgID.String(), holderID, false).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)).
+		Times(1)
+	holderRepo.EXPECT().
+		Find(gomock.Any(), orgID.String(), holderID, false).
+		Return(&mmodel.Holder{ID: &holderID, Document: &document, Type: &holderType}, nil).
+		Times(1)
+	instrumentRepo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, a *mmodel.Instrument) (*mmodel.Instrument, error) {
+			a.ID = &instrumentID
+			return a, nil
+		}).
+		Times(1)
+
+	slots := newFakeCRMIdempotencyRepo()
+	handler := &InstrumentHandler{Service: &services.UseCase{
+		InstrumentRepo: instrumentRepo,
+		HolderRepo:     holderRepo,
+		Idempotency:    slots,
+		Encryptor:      newTestFieldEncryptor(t),
+		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
+	}}
+
+	app := buildHumaInstrumentApp(t, handler, true)
+	path := "/v2/organizations/" + orgID.String() + "/holders/" + holderID.String() + "/instruments"
+	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
+	slotKey := services.InstrumentIdempotencyKey(orgID.String(), holderID.String(), "k1")
+
+	status, _, got := postCRMCreate(t, app, path, "k1", body)
+	assert.Equal(t, http.StatusNotFound, status)
+	assert.Equal(t, constant.ErrHolderNotFound.Error(), got["code"])
+	assert.NotContains(t, slots.store, slotKey, "a failed create must release its slot")
+
+	status, replayed, got := postCRMCreate(t, app, path, "k1", body)
+	assert.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "false", replayed, "the retry ran the create, it is not a replay")
+	assert.Equal(t, instrumentID.String(), got["id"])
+
+	status, replayed, got = postCRMCreate(t, app, path, "k1", body)
+	assert.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "true", replayed, "the successful create is replayed")
+	assert.Equal(t, instrumentID.String(), got["id"])
+}
+
+// Scenario "Instrument com conta inexistente, retentativa sem header recebe o erro
+// real": the body-derived slot is released, so the identical retry fails on its own.
+func TestCreateInstrument_RetryWithoutHeaderGetsRealError(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	document := "12345678901"
+	holderType := "individual"
+
+	// No Create expectation: an unknown account never reaches the instrument repository.
+	instrumentRepo := instrumentrepo.NewMockRepository(ctrl)
+	holderRepo := holderrepo.NewMockRepository(ctrl)
+	holderRepo.EXPECT().
+		Find(gomock.Any(), orgID.String(), holderID, false).
+		Return(&mmodel.Holder{ID: &holderID, Document: &document, Type: &holderType}, nil).
+		Times(2)
+
+	slots := newFakeCRMIdempotencyRepo()
+	handler := &InstrumentHandler{Service: &services.UseCase{
+		InstrumentRepo: instrumentRepo,
+		HolderRepo:     holderRepo,
+		Idempotency:    slots,
+		Encryptor:      newTestFieldEncryptor(t),
+		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: false},
+	}}
+
+	app := buildHumaInstrumentApp(t, handler, true)
+	path := "/v2/organizations/" + orgID.String() + "/holders/" + holderID.String() + "/instruments"
+	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		status, _, got := postCRMCreate(t, app, path, "", body)
+		assert.Equal(t, http.StatusUnprocessableEntity, status, "attempt %d", attempt)
+		assert.Equal(t, constant.ErrInstrumentAccountReferenceNotFound.Error(), got["code"], "attempt %d must get the real error, never 0084", attempt)
+	}
+
+	assert.Empty(t, slots.store, "a failed create must leave no body-derived slot behind")
+}
+
 func TestGetInstrumentByID_NotFound_Canonical404(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
