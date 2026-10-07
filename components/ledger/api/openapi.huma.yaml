@@ -1986,6 +1986,37 @@ components:
       required:
         - metadata
       type: object
+    CreateTransactionRouteInputV2:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        optionalOperationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - metadata
+      type: object
     CreateTransactionV2Input:
       additionalProperties: false
       description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct and hold actions accept multiple enabled ledgers and return an atomic group; block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
@@ -4905,6 +4936,67 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    TransactionRouteV2:
+      additionalProperties: false
+      properties:
+        createdAt:
+          examples:
+            - "2025-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2025-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            $ref: "#/components/schemas/OperationRoute"
+          type:
+            - array
+            - "null"
+        optionalOperationRoutes:
+          items:
+            $ref: "#/components/schemas/OperationRoute"
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+        updatedAt:
+          examples:
+            - "2025-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - optionalOperationRoutes
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
     TransactionSkip:
       additionalProperties: false
       properties:
@@ -5400,6 +5492,37 @@ components:
             format: uuid
             type: string
           type: array
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - metadata
+      type: object
+    UpdateTransactionRouteInputV2:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        optionalOperationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
         title:
           examples:
             - Charge Settlement
@@ -17192,14 +17315,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateTransactionRouteInput"
+              $ref: "#/components/schemas/CreateTransactionRouteInputV2"
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: Created
         "422":
           content:
@@ -17304,7 +17427,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -17330,7 +17453,7 @@ paths:
       tags:
         - Transaction Routes (v2)
     patch:
-      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time. operationRoutes (required links) and optionalOperationRoutes (links a transaction may leave unused) are each applied as a JSON merge patch: an absent or null list keeps the stored links, a present list replaces them and an empty list removes them. The resulting links are validated as a create: a route in both lists, fewer than two links, or no required source or destination is refused."
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -17358,14 +17481,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateTransactionRouteInput"
+              $ref: "#/components/schemas/UpdateTransactionRouteInputV2"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -18393,14 +18516,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateTransactionRouteInput"
+              $ref: "#/components/schemas/CreateTransactionRouteInputV2"
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: Created
         "422":
           content:
@@ -18491,7 +18614,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:
@@ -18517,7 +18640,7 @@ paths:
       tags:
         - Transaction Routes (v2)
     patch:
-      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time."
+      description: "Metadata is applied as an RFC 7396 merge patch: a body without metadata, or with an empty metadata object, leaves the stored metadata as it is; a key sent as null is deleted; any other key is added or replaced; metadata sent as null also leaves the stored metadata as it is, so keys are deleted one at a time. operationRoutes (required links) and optionalOperationRoutes (links a transaction may leave unused) are each applied as a JSON merge patch: an absent or null list keeps the stored links, a present list replaces them and an empty list removes them. The resulting links are validated as a create: a route in both lists, fewer than two links, or no required source or destination is refused."
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -18538,14 +18661,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateTransactionRouteInput"
+              $ref: "#/components/schemas/UpdateTransactionRouteInputV2"
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionRoute"
+                $ref: "#/components/schemas/TransactionRouteV2"
           description: OK
         "422":
           content:

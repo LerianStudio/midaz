@@ -340,6 +340,7 @@ func allSentinels() map[string]error {
 		"ErrInvalidRouteAction":                       constant.ErrInvalidRouteAction,
 		"ErrNoRoutesForAction":                        constant.ErrNoRoutesForAction,
 		"ErrTooManyOperationRoutes":                   constant.ErrTooManyOperationRoutes,
+		"ErrOperationRouteBothRequiredAndOptional":    constant.ErrOperationRouteBothRequiredAndOptional,
 		"ErrTenantServiceSuspended":                   constant.ErrTenantServiceSuspended,
 		"ErrTenantNotFound":                           constant.ErrTenantNotFound,
 		"ErrTenantServiceUnavailable":                 constant.ErrTenantServiceUnavailable,

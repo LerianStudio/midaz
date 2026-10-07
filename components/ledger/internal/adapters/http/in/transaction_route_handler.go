@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -205,7 +206,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionRoute, err := handler.updateTransactionRoute(ctx, orgID, id, payload)
+	transactionRoute, err := handler.updateTransactionRoute(ctx, orgID, id, payload, command.LinksFullSetV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
