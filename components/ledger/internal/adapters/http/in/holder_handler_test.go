@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -564,6 +565,147 @@ func TestCreateHolder_IdempotentReplay(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), testutils.TestLegacySearchToken(payload)),
 		"the default slot key must be the keyed hash of the body, never a plain body hash")
+}
+
+// newIdempotentHolderHandler wires a holder handler whose creates claim slots in slots.
+func newIdempotentHolderHandler(t *testing.T, repo *holderrepo.MockRepository, slots *fakeCRMIdempotencyRepo) *HolderHandler {
+	t.Helper()
+
+	return &HolderHandler{Service: &services.UseCase{
+		HolderRepo:  repo,
+		Idempotency: slots,
+		Encryptor:   newTestFieldEncryptor(t),
+	}}
+}
+
+const testHolderCreateBody = `{"type":"NATURAL_PERSON","name":"John Doe","document":"91315026015"}`
+
+// Scenarios "Holder com erro de negócio, retentativa executa o create" and
+// "Após a primeira falhar, a próxima com a mesma chave executa".
+func TestCreateHolder_BusinessErrorReleasesSlot(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	name := "John Doe"
+	document := "91315026015"
+	holderType := "NATURAL_PERSON"
+
+	repo := holderrepo.NewMockRepository(ctrl)
+	repo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrDocumentAssociationError, constant.EntityHolder)).
+		Times(2)
+	repo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
+		Times(1)
+
+	slots := newFakeCRMIdempotencyRepo()
+	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
+	path := "/v2/organizations/" + orgID.String() + "/holders"
+	slotKey := services.HolderIdempotencyKey(orgID.String(), "k2")
+
+	status, _, got := postCRMCreate(t, app, path, "k2", testHolderCreateBody)
+	assert.Equal(t, http.StatusConflict, status)
+	assert.Equal(t, constant.ErrDocumentAssociationError.Error(), got["code"])
+	assert.NotContains(t, slots.store, slotKey, "a failed create must release its slot")
+
+	status, _, got = postCRMCreate(t, app, path, "k2", testHolderCreateBody)
+	assert.Equal(t, http.StatusConflict, status)
+	assert.Equal(t, constant.ErrDocumentAssociationError.Error(), got["code"], "the retry gets the real business error, never 0084")
+	assert.NotContains(t, slots.store, slotKey)
+
+	status, replayed, got := postCRMCreate(t, app, path, "k2", testHolderCreateBody)
+	assert.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "false", replayed, "the retry ran the create, it is not a replay")
+	assert.Equal(t, holderID.String(), got["id"])
+	assert.Contains(t, slots.store, slotKey, "a successful create keeps its slot for replay")
+}
+
+// Scenario "Falha técnica da persistência libera o slot".
+func TestCreateHolder_TechnicalErrorReleasesSlot(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	name := "John Doe"
+	document := "91315026015"
+	holderType := "NATURAL_PERSON"
+
+	repo := holderrepo.NewMockRepository(ctrl)
+	repo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		Return(nil, holderInternalServerError()).
+		Times(1)
+	repo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
+		Times(1)
+
+	slots := newFakeCRMIdempotencyRepo()
+	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
+	path := "/v2/organizations/" + orgID.String() + "/holders"
+
+	status, _, got := postCRMCreate(t, app, path, "k3", testHolderCreateBody)
+	assert.Equal(t, http.StatusInternalServerError, status)
+	assert.Equal(t, "0046", got["code"])
+	assert.NotContains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), "k3"), "a technical failure must release its slot")
+
+	status, replayed, got := postCRMCreate(t, app, path, "k3", testHolderCreateBody)
+	assert.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "false", replayed)
+	assert.Equal(t, holderID.String(), got["id"])
+}
+
+// Scenario "Falha ao liberar o slot não altera a resposta do create".
+func TestCreateHolder_ReleaseFailureKeepsBusinessError(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	repo := holderrepo.NewMockRepository(ctrl)
+	repo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrDocumentAssociationError, constant.EntityHolder)).
+		Times(1)
+
+	slots := newFakeCRMIdempotencyRepo()
+	slots.delErr = errors.New("valkey unavailable")
+	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
+
+	status, _, got := postCRMCreate(t, app, "/v2/organizations/"+orgID.String()+"/holders", "k7", testHolderCreateBody)
+	assert.Equal(t, http.StatusConflict, status)
+	assert.Equal(t, constant.ErrDocumentAssociationError.Error(), got["code"], "the release failure must not replace the create error")
+	assert.Contains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), "k7"), "an unreleased slot is left to its TTL")
+}
+
+// Scenario "Requisição concorrente idêntica recebe 409 enquanto a primeira está em voo".
+func TestCreateHolder_InFlightSlotConflicts(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// No Create expectation: an in-flight slot must never reach the repository.
+	repo := holderrepo.NewMockRepository(ctrl)
+
+	slots := newFakeCRMIdempotencyRepo()
+	slotKey := services.HolderIdempotencyKey(orgID.String(), "k5")
+	slots.store[slotKey] = ""
+	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
+
+	status, _, got := postCRMCreate(t, app, "/v2/organizations/"+orgID.String()+"/holders", "k5", testHolderCreateBody)
+	assert.Equal(t, http.StatusConflict, status)
+	assert.Equal(t, constant.ErrIdempotencyKey.Error(), got["code"])
+	assert.Contains(t, slots.store, slotKey, "the conflict must not release the slot another request holds")
 }
 
 func TestGetHolderByID_IncludeDeleted(t *testing.T) {

@@ -5,11 +5,18 @@
 package in
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
@@ -24,6 +31,33 @@ func newTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	resolver := encryption.NewProtectionStateResolver(nil, metrics)
 
 	return encryption.NewFieldEncryptorAdapter(encryption.NewEncryptionService(resolver, nil, nil, testutils.SetupCrypto(t), metrics))
+}
+
+// postCRMCreate sends a CRM create to the test app, with X-Idempotency only when
+// idempotencyKey is set, and returns the status, the X-Idempotency-Replayed
+// header and the decoded body.
+func postCRMCreate(t *testing.T, app *fiber.App, path, idempotencyKey, body string) (int, string, map[string]any) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	if idempotencyKey != "" {
+		req.Header.Set("X-Idempotency", idempotencyKey)
+	}
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+
+	return resp.StatusCode, resp.Header.Get("X-Idempotency-Replayed"), got
 }
 
 // fakeCRMIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics,
