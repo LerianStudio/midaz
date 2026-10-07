@@ -67,7 +67,16 @@ type recoveryCleanupOwner interface {
 }
 
 const (
-	recoveryCleanupBatchSize              = 100
+	// recoveryCleanupBatchSize is the per-pass limit handed to the cleanup
+	// owner. It matches the repository's maximum Redis batch size.
+	recoveryCleanupBatchSize = 1000
+	// recoveryCleanupMaxPasses and recoveryCleanupDrainBudget bound one tenant's
+	// drain inside a recovery cycle. A single fixed pass per 30-minute cycle
+	// cannot keep up with production write volume, so the cleanup keeps pulling
+	// due artifacts until the schedule is drained, stops making progress, or one
+	// of these bounds is reached. Everything left over stays scheduled.
+	recoveryCleanupMaxPasses              = 200
+	recoveryCleanupDrainBudget            = 2 * time.Minute
 	transactionWriteBehindRecoveryVersion = command.TransactionWriteBehindFormatVersion
 	engineRecoveryAttemptLimit            = 3
 	engineRecoveryInitialBackoff          = 10 * time.Millisecond
@@ -146,17 +155,53 @@ func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
 		return
 	}
 
-	result, err := owner.CleanupEngineRecovery(ctx, r.clock(), recoveryCleanupBatchSize)
-	if err != nil {
-		r.logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts", libLog.Err(err))
-		return
+	var total txRedis.RecoveryCleanupResult
+
+	passes := 0
+	deadline := r.clock().Add(recoveryCleanupDrainBudget)
+
+	for passes < recoveryCleanupMaxPasses {
+		if ctx.Err() != nil {
+			break
+		}
+
+		now := r.clock()
+		if passes > 0 && !now.Before(deadline) {
+			break
+		}
+
+		result, err := owner.CleanupEngineRecovery(ctx, now, recoveryCleanupBatchSize)
+		passes++
+
+		total.Scanned += result.Scanned
+		total.Cleaned += result.Cleaned
+		total.Stale += result.Stale
+		total.Rescheduled += result.Rescheduled
+
+		if err != nil {
+			r.logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts",
+				libLog.Int("passes", passes),
+				libLog.Int("scanned_count", total.Scanned),
+				libLog.Int("cleaned_count", total.Cleaned),
+				libLog.Err(err))
+
+			return
+		}
+
+		// A short page means the due window is drained. A full page that moved
+		// nothing out of the due window would be read again unchanged, so stop
+		// instead of spinning on it.
+		if result.Scanned < recoveryCleanupBatchSize || result.Cleaned+result.Stale+result.Rescheduled == 0 {
+			break
+		}
 	}
 
 	r.logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",
-		libLog.Int("scanned_count", result.Scanned),
-		libLog.Int("cleaned_count", result.Cleaned),
-		libLog.Int("stale_count", result.Stale),
-		libLog.Int("rescheduled_count", result.Rescheduled))
+		libLog.Int("passes", passes),
+		libLog.Int("scanned_count", total.Scanned),
+		libLog.Int("cleaned_count", total.Cleaned),
+		libLog.Int("stale_count", total.Stale),
+		libLog.Int("rescheduled_count", total.Rescheduled))
 }
 
 // recoveryRecordVersion permits legacy decoding only when the discriminator is
