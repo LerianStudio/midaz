@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 type SimpleStruct struct {
@@ -564,6 +565,60 @@ func TestMetadataValidation_KeyMaxLength(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSchemeValidation_Tag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		scheme   string
+		expected bool
+	}{
+		{name: "valid - padded lowercase is normalizable", scheme: " pix ", expected: true},
+		{name: "valid - empty is absent under omitempty", scheme: "", expected: true},
+		{name: "invalid - punctuation", scheme: "pix!", expected: false},
+		{name: "invalid - over max length", scheme: string(bytes.Repeat([]byte("A"), 51)), expected: false},
+	}
+
+	v, _, err := newValidator()
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			type testStruct struct {
+				Scheme string `json:"scheme" validate:"omitempty,scheme"`
+			}
+			s := testStruct{Scheme: tc.scheme}
+			err := v.Struct(s)
+			if tc.expected {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestSchemeValidation_TranslatedFieldDetail(t *testing.T) {
+	t.Parallel()
+
+	type testStruct struct {
+		Scheme string `json:"scheme" validate:"omitempty,scheme"`
+	}
+
+	err := ValidateStruct(&testStruct{Scheme: "pix!"})
+	require.Error(t, err)
+
+	var vErr *pkg.ValidationKnownFieldsError
+	require.ErrorAs(t, err, &vErr)
+
+	detail, ok := vErr.Fields["scheme"]
+	require.True(t, ok, "fields = %v, want a scheme entry", vErr.Fields)
+	assert.Equal(t, "scheme "+scheme.FormatHint, detail)
+	assert.NotContains(t, detail, "Error:Field validation")
 }
 
 func TestMetadataValidation_ValueMaxLength(t *testing.T) {

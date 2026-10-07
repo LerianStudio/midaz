@@ -41,7 +41,7 @@ import (
 
 // createBulkChunkSize and updateBulkChunkSize bound how many rows one bulk statement
 // carries, so the parameter count stays under PostgreSQL's 65,535 ceiling. CreateBulk
-// writes every column in transactionColumnList (19 of them, so 19,000 parameters per
+// writes every column in transactionColumnList (20 of them, so 20,000 parameters per
 // chunk); UpdateBulk writes six (id, organization_id, ledger_id, status,
 // status_description, updated_at), so its larger headroom is spent on shorter
 // row-locking windows instead. Declared here rather than inside the two methods so the
@@ -71,6 +71,7 @@ var transactionColumnList = []string{
 	"route_id",
 	"fees_skipped",
 	"tracer_skipped",
+	"scheme",
 }
 
 var transactionColumnListPrefixed = []string{
@@ -93,6 +94,7 @@ var transactionColumnListPrefixed = []string{
 	"t.route_id",
 	"t.fees_skipped",
 	"t.tracer_skipped",
+	"t.scheme",
 }
 
 // operationColumnListPrefixed mirrors operation.operationColumnList with the "o."
@@ -271,7 +273,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -296,6 +298,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.RouteID,
 		record.FeesSkipped,
 		record.TracerSkipped,
+		record.Scheme,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -497,6 +500,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.RouteID,
 			record.FeesSkipped,
 			record.TracerSkipped,
+			record.Scheme,
 		)
 	}
 
@@ -825,6 +829,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.RouteID,
 			&transaction.FeesSkipped,
 			&transaction.TracerSkipped,
+			&transaction.Scheme,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -932,6 +937,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.RouteID,
 			&transaction.FeesSkipped,
 			&transaction.TracerSkipped,
+			&transaction.Scheme,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1025,6 +1031,7 @@ func (r *TransactionPostgreSQLRepository) FindByGroupID(ctx context.Context, gro
 			&record.RouteID,
 			&record.FeesSkipped,
 			&record.TracerSkipped,
+			&record.Scheme,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1107,6 +1114,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.RouteID,
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
+		&transaction.Scheme,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
@@ -1189,6 +1197,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.RouteID,
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
+		&transaction.Scheme,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No transaction found", err)
@@ -1409,6 +1418,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&tran.RouteID,
 			&tran.FeesSkipped,
 			&tran.TracerSkipped,
+			&tran.Scheme,
 			&op.ID,
 			&op.TransactionID,
 			&op.Description,
@@ -1595,6 +1605,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.RouteID,
 			&tran.FeesSkipped,
 			&tran.TracerSkipped,
+			&tran.Scheme,
 			&opID,
 			&opTransactionID,
 			&opDescription,

@@ -893,6 +893,7 @@ func atomicTransactionBatchFoundationResult(item *atomicTransactionBatchItemRun)
 		RouteID:                  item.input.RouteID,
 		FeesSkipped:              item.honoredFeeSkip,
 		TracerSkipped:            item.honoredTracerSkip,
+		Scheme:                   item.input.Scheme,
 		CreatedAt:                item.transactionDate,
 		UpdatedAt:                item.transactionUpdatedAt,
 		Metadata:                 item.input.Metadata,

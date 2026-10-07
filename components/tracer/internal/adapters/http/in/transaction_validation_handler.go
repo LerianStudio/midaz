@@ -206,6 +206,7 @@ type ListTransactionValidationsInput struct {
 	SegmentID       string `query:"segment_id"`
 	PortfolioID     string `query:"portfolio_id"`
 	TransactionType string `query:"transaction_type"`
+	Scheme          string `query:"scheme"`
 }
 
 // validateUUID checks if a string is a valid UUID format.
@@ -278,7 +279,7 @@ func (i *ListTransactionValidationsInput) Validate() error {
 		return err
 	}
 
-	return i.validateTransactionType()
+	return i.validateScheme()
 }
 
 func (i *ListTransactionValidationsInput) validateDecision() error {
@@ -328,8 +329,12 @@ func (i *ListTransactionValidationsInput) validateUUIDFilters() error {
 	return validateUUID(i.PortfolioID)
 }
 
-func (i *ListTransactionValidationsInput) validateTransactionType() error {
-	if i.TransactionType != "" && !model.TransactionType(i.TransactionType).IsValid() {
+func (i *ListTransactionValidationsInput) validateScheme() error {
+	if _, err := resolveSchemeFilter(&i.TransactionType, &i.Scheme); err != nil {
+		if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
+			return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityTransactionValidation)
+		}
+
 		return pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 
@@ -426,11 +431,12 @@ func ToTransactionValidationFilters(input *ListTransactionValidationsInput) (*mo
 		filters.PortfolioID = &portfolioID
 	}
 
-	// Parse transaction type
-	if input.TransactionType != "" {
-		transactionType := model.TransactionType(input.TransactionType)
-		filters.TransactionType = &transactionType
+	transactionType, err := resolveSchemeFilter(&input.TransactionType, &input.Scheme)
+	if err != nil {
+		return nil, err
 	}
+
+	filters.TransactionType = transactionType
 
 	return filters, nil
 }
@@ -444,7 +450,8 @@ type ValidationSummary struct {
 	Reason           string                `json:"reason" example:"All rules passed"`
 	Amount           decimal.Decimal       `json:"amount" swaggertype:"string" example:"100.00"`
 	Asset            string                `json:"asset" example:"USD"`
-	TransactionType  model.TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	TransactionType  model.TransactionType `json:"transactionType" swaggertype:"string" maxLength:"50" example:"PIX" doc:"Deprecated name of scheme; always carries the same value."`
+	Scheme           model.TransactionType `json:"scheme" swaggertype:"string" maxLength:"50" example:"PIX" doc:"Payment scheme of the validated transaction."`
 	AccountID        uuid.UUID             `json:"accountId" swaggertype:"string" format:"uuid"`
 	SegmentID        *uuid.UUID            `json:"segmentId,omitempty" swaggertype:"string" format:"uuid"`
 	PortfolioID      *uuid.UUID            `json:"portfolioId,omitempty" swaggertype:"string" format:"uuid"`
@@ -467,6 +474,7 @@ func ToValidationSummary(tv *model.TransactionValidation) *ValidationSummary {
 		Amount:           tv.Amount,
 		Asset:            tv.Asset,
 		TransactionType:  tv.TransactionType,
+		Scheme:           tv.TransactionType,
 		AccountID:        tv.Account.ID,
 		MatchedRuleIDs:   ensureUUIDSlice(tv.MatchedRuleIDs),
 		ProcessingTimeMs: tv.ProcessingTimeMs,

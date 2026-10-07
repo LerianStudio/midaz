@@ -916,6 +916,8 @@ func buildSingleScopeCondition(scope model.Scope) (string, []any) {
 		args = append(args, scope.MerchantID.String())
 	}
 
+	// Scopes are stored and matched under the transactionType key, and a
+	// canonical scope carries its scheme in TransactionType.
 	if scope.TransactionType != nil {
 		conditions = append(conditions, "(scope->>'transactionType' IS NULL OR scope->>'transactionType' = ?)")
 		args = append(args, string(*scope.TransactionType))

@@ -342,7 +342,8 @@ func TestHuma_ListTransactionValidations_InvalidParams(t *testing.T) {
 	}{
 		// ErrInvalidTransactionValidationFilters (0431)
 		{"invalid decision", "decision=INVALID", "0431"},
-		{"invalid transaction_type", "transaction_type=INVALID", "0431"},
+		{"invalid transaction_type", "transaction_type=bad%20value!", "0431"},
+		{"invalid scheme", "scheme=bad%20value!", "0431"},
 		{"invalid account_id", "account_id=not-a-uuid", "0431"},
 		// ErrInvalidSortColumn (0332)
 		{"invalid sort_by", "sort_by=priority", "0332"},

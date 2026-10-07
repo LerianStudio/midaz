@@ -10,11 +10,11 @@ import (
 )
 
 // TransactionV1 is the /v1 wire projection of a transaction: the canonical
-// transaction.Transaction with feesSkipped and tracerSkipped withheld. Those two
+// transaction.Transaction with feesSkipped, tracerSkipped and scheme withheld. Those
 // keys are /v2 ONLY, so a v1 client that already parses this body never receives a
 // field it was not written against.
 //
-// The withholding is a SHADOW, not a removal: the embedded struct still carries both
+// The withholding is a SHADOW, not a removal: the embedded struct still carries the
 // values, which is what the /v2 projection (newTransactionV2), the streaming event
 // payloads, and the idempotency replay cache read. Only this response shape hides
 // them.
@@ -22,16 +22,16 @@ import (
 // Two mechanisms have to agree, one per surface:
 //
 // BODY — encoding/json's field-conflict rule. A field at depth 0 wins over an embedded
-// field of the same JSON name at depth 1, so declaring the two names here stops the
+// field of the same JSON name at depth 1, so declaring the names here stops the
 // embedded ones being promoted. The type is `any` left nil and tagged omitempty, which
 // is what makes the winning field emit NOTHING. A `json:"-"` shadow does NOT work here:
 // that tag drops the field from consideration entirely and the embedded field is
 // promoted again.
 //
 // SCHEMA — Huma's `hidden:"true"`. Huma walks outer fields before embedded ones and
-// dedups on the GO field name, so these two suppress the embedded properties; the tag
-// then keeps the shadows themselves out of the marshalled document. Without it the
-// contract would advertise two keys the body never sends.
+// dedups on the GO field name, so these shadows suppress the embedded properties; the
+// tag then keeps the shadows themselves out of the marshalled document. Without it the
+// contract would advertise keys the body never sends.
 //
 // Every other field rides through the embed, so a new field on transaction.Transaction
 // reaches /v1 with no change here.
@@ -45,6 +45,10 @@ type TransactionV1 struct {
 	// TracerSkipped shadows the embedded tracerSkipped so the key is absent from /v1.
 	// Always nil; never set it.
 	TracerSkipped any `json:"tracerSkipped,omitempty" hidden:"true"`
+
+	// Scheme shadows the embedded scheme so the key is absent from /v1.
+	// Always nil; never set it.
+	Scheme any `json:"scheme,omitempty" hidden:"true"`
 }
 
 // newTransactionV1 wraps a transaction in the /v1 response shape. A nil transaction
@@ -58,7 +62,7 @@ func newTransactionV1(t *transaction.Transaction) *TransactionV1 {
 }
 
 // newTransactionV1Items re-projects a page of transactions onto the /v1 shape. The
-// list core is shared with the /v2 mirror read, which needs the two fields, so the
+// list core is shared with the /v2 mirror read, which needs the withheld fields, so the
 // projection happens HERE in the v1 transport rather than in getAllTransactions.
 //
 // A page whose items are not []*transaction.Transaction is returned untouched: the

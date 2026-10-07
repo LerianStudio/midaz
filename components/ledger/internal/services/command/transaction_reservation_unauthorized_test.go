@@ -160,7 +160,7 @@ func TestReserveTransaction_CredentialFailure(t *testing.T) {
 
 			out := uc.reserveTransaction(ctx, span, logger, tc.settings,
 				transactionID, decimal.RequireFromString(alreadyReleasedAmount), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp,
-				reservationTTLDefault, reservationForCreate, false)
+				reservationTTLDefault, reservationForCreate, false, "")
 
 			assert.False(t, out.Handle.Unanswered, "nothing was evaluated, so nothing is left to settle")
 			assert.Empty(t, out.Handle.ReservationIDs)
@@ -199,7 +199,7 @@ func TestReserveTransaction_CredentialRejectedIsNotUnavailable(t *testing.T) {
 	out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
 		uuid.New(), decimal.NewFromInt(10), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp,
-		reservationTTLDefault, reservationForCreate, false)
+		reservationTTLDefault, reservationForCreate, false, "")
 
 	require.Equal(t, reservationReject, out.Kind)
 
@@ -344,7 +344,7 @@ func TestReserveTransaction_AbandonedTokenWaitIsAnUnavailableTracer(t *testing.T
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
 		uuid.New(), decimal.NewFromInt(10), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp,
-		reservationTTLDefault, reservationForCreate, false)
+		reservationTTLDefault, reservationForCreate, false, "")
 
 	assert.Equal(t, reservationProceed, out.Kind)
 	assert.False(t, out.Handle.Unanswered, "nothing was sent, so nothing is left to settle")

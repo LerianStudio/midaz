@@ -915,8 +915,8 @@ func TestHandler_ListRules(t *testing.T) {
 			},
 		},
 		{
-			name:        "error - invalid transactionType enum",
-			queryParams: "?transaction_type=INVALID",
+			name:        "error - invalid transactionType",
+			queryParams: "?transaction_type=bad%20value!",
 			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
 				mockService := NewMockRuleService(ctrl)
 				return mockService

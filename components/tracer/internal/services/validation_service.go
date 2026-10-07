@@ -729,6 +729,7 @@ func buildTransactionValidation(req *model.ValidationRequest, resp *model.Valida
 
 	tv.RequestID = req.RequestID
 	tv.TransactionType = req.TransactionType
+	tv.Scheme = req.TransactionType
 	tv.SubType = req.SubType
 	tv.Amount = req.Amount
 	tv.Asset = req.Asset
@@ -769,7 +770,7 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 	}
 
 	// TransactionType must be valid
-	if !tv.TransactionType.IsValid() {
+	if !tv.TransactionType.Valid() {
 		return fmt.Errorf("invalid transaction type: %s", tv.TransactionType)
 	}
 
@@ -801,6 +802,7 @@ func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 	requestSnapshot := map[string]any{
 		"requestId":       req.RequestID.String(),
 		"transactionType": req.TransactionType,
+		"scheme":          string(req.TransactionType),
 		"subType":         req.SubType,
 		"amount":          req.Amount,
 		"asset":           req.Asset,

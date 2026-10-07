@@ -61,8 +61,16 @@ var AmountExpressions = []ExampleExpression{
 	},
 }
 
-// TransactionTypeExpressions contains expressions that check transaction types.
+// TransactionTypeExpressions contains expressions that check the payment
+// scheme. scheme and its deprecated name transactionType hold the same value,
+// always upper case.
 var TransactionTypeExpressions = []ExampleExpression{
+	{
+		Name:        "is_pix_scheme",
+		Expression:  `scheme == "PIX"`,
+		Description: "PIX transactions only, matched on the scheme (always upper case)",
+		Category:    "transaction",
+	},
 	{
 		Name:        "is_pix",
 		Expression:  `transactionType == "PIX"`,

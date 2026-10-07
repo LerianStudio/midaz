@@ -485,6 +485,10 @@ func classifyServiceError(span trace.Span, err error) error {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression cannot be modified for non-DRAFT rules", err)
 
 		return pkg.ValidateBusinessError(constant.ErrExpressionNotModifiable, constant.EntityRule)
+	case errors.Is(err, constant.ErrValidationSchemeAliasConflict):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Scheme and transactionType disagree", err)
+
+		return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityRule)
 	case errors.Is(err, constant.ErrRuleNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
 		return pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)

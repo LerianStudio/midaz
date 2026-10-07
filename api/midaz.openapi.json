@@ -21655,12 +21655,23 @@
             }
           },
           {
-            "description": "Filter by transaction type (CARD, WIRE, PIX, CRYPTO)",
+            "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
             "explode": false,
             "in": "query",
             "name": "transaction_type",
             "schema": {
-              "description": "Filter by transaction type (CARD, WIRE, PIX, CRYPTO)",
+              "deprecated": true,
+              "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
+            "explode": false,
+            "in": "query",
+            "name": "scheme",
+            "schema": {
+              "description": "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
               "type": "string"
             }
           },
@@ -21915,7 +21926,7 @@
     },
     "/v1/dashboard/fraud-types": {
       "get": {
-        "description": "Returns DENY + REVIEW decisions broken down by transaction type, with each type's share of the flagged traffic.",
+        "description": "Returns DENY + REVIEW decisions broken down by payment scheme, with each scheme's share of the flagged traffic: the ten schemes that flag most, plus one OTHER slice summing the rest.",
         "operationId": "getDashboardFraudTypes",
         "parameters": [
           {
@@ -22384,12 +22395,23 @@
             }
           },
           {
-            "description": "Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)",
+            "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
             "explode": false,
             "in": "query",
             "name": "transaction_type",
             "schema": {
-              "description": "Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)",
+              "deprecated": true,
+              "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
+            "explode": false,
+            "in": "query",
+            "name": "scheme",
+            "schema": {
+              "description": "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
               "type": "string"
             }
           },
@@ -23142,12 +23164,23 @@
             }
           },
           {
-            "description": "Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)",
+            "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
             "explode": false,
             "in": "query",
             "name": "transaction_type",
             "schema": {
-              "description": "Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)",
+              "deprecated": true,
+              "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
+            "explode": false,
+            "in": "query",
+            "name": "scheme",
+            "schema": {
+              "description": "Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
               "type": "string"
             }
           },
@@ -23879,12 +23912,23 @@
             }
           },
           {
-            "description": "Filter by transaction type (CARD, WIRE, PIX, CRYPTO)",
+            "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
             "explode": false,
             "in": "query",
             "name": "transaction_type",
             "schema": {
-              "description": "Filter by transaction type (CARD, WIRE, PIX, CRYPTO)",
+              "deprecated": true,
+              "description": "Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
+            "explode": false,
+            "in": "query",
+            "name": "scheme",
+            "schema": {
+              "description": "Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching",
               "type": "string"
             }
           }
@@ -25167,6 +25211,14 @@
             "format": "uuid",
             "type": "string"
           },
+          "scheme": {
+            "description": "Payment scheme the transaction declared, normalized to upper case; absent when none.",
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/TransactionStatus"
           },
@@ -26118,6 +26170,14 @@
             "format": "uuid",
             "type": "string"
           },
+          "scheme": {
+            "description": "Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.",
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "skip": {
             "$ref": "#/components/schemas/TransactionSkip"
           }
@@ -26886,6 +26946,14 @@
               "00000000-0000-0000-0000-000000000000"
             ],
             "format": "uuid",
+            "type": "string"
+          },
+          "scheme": {
+            "description": "Optional payment scheme of the transaction, for example PIX, WIRE, CARD or CRYPTO. Any value of up to 50 letters, digits, underscores or hyphens is accepted; it is trimmed and upper-cased. CARD covers any card payment and is never the card brand.",
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
             "type": "string"
           },
           "skip": {
@@ -31153,6 +31221,14 @@
             "format": "uuid",
             "type": "string"
           },
+          "scheme": {
+            "description": "Payment scheme the transaction declared, normalized to upper case; absent when none.",
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/TransactionStatus"
           },
@@ -32758,6 +32834,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "scheme": {
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "segmentId": {
             "examples": [
               "00000000-0000-0000-0000-000000000000"
@@ -32774,8 +32857,9 @@
           },
           "transactionType": {
             "examples": [
-              "CARD"
+              "PIX"
             ],
+            "maxLength": 50,
             "type": "string"
           }
         },
@@ -32950,6 +33034,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "scheme": {
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "segment": {
             "$ref": "#/components/schemas/SegmentContext"
           },
@@ -32976,8 +33067,9 @@
           },
           "transactionType": {
             "examples": [
-              "CARD"
+              "PIX"
             ],
+            "maxLength": 50,
             "type": "string"
           },
           "truncated": {
@@ -32998,6 +33090,7 @@
           "validationId",
           "requestId",
           "transactionType",
+          "scheme",
           "amount",
           "asset",
           "transactionTimestamp",
@@ -33227,14 +33320,24 @@
             ],
             "type": "string"
           },
+          "scheme": {
+            "description": "Payment scheme of the validated transaction.",
+            "examples": [
+              "PIX"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "segmentId": {
             "format": "uuid",
             "type": "string"
           },
           "transactionType": {
+            "description": "Deprecated name of scheme; always carries the same value.",
             "examples": [
-              "CARD"
+              "PIX"
             ],
+            "maxLength": 50,
             "type": "string"
           },
           "validationId": {
@@ -33249,6 +33352,7 @@
           "amount",
           "asset",
           "transactionType",
+          "scheme",
           "accountId",
           "matchedRuleIds",
           "exceededLimitIds",

@@ -49,6 +49,7 @@ type TransactionPostgreSQLModel struct {
 	RouteID                  *string                   // UUID of the transaction route (FK to transaction_route.id)
 	FeesSkipped              bool                      // Honored per-call fee skip (audit trail)
 	TracerSkipped            bool                      // Honored per-call tracer skip (audit trail)
+	Scheme                   *string                   // Payment scheme declared on create (nil when none)
 	Metadata                 map[string]any            // Additional custom attributes
 }
 
@@ -182,6 +183,10 @@ type Transaction struct {
 	// example: false
 	TracerSkipped bool `json:"tracerSkipped" example:"false"`
 
+	// Payment scheme declared on the transaction, absent when none was given
+	// example: PIX
+	Scheme string `json:"scheme,omitempty" example:"PIX"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -242,6 +247,10 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		transaction.Route = *t.Route
 	}
 
+	if t.Scheme != nil {
+		transaction.Scheme = *t.Scheme
+	}
+
 	if t.RouteID != nil {
 		transaction.RouteID = t.RouteID
 	}
@@ -285,6 +294,10 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 
 	if !libCommons.IsNilOrEmpty(&transaction.Route) {
 		t.Route = &transaction.Route
+	}
+
+	if transaction.Scheme != "" {
+		t.Scheme = &transaction.Scheme
 	}
 
 	if transaction.RouteID != nil {
