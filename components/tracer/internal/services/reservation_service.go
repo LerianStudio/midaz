@@ -116,7 +116,15 @@ type ReservationRepository interface {
 	// holds its capacity on the counter. replayed is true when the row already
 	// existed in RESERVED and the handle adopted its id; a row in any other status
 	// returns constant.ErrReservationAlreadySettled and moves no counter.
-	ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) (replayed bool, err error)
+	// counterExpiresAt is the limit's period-retention expiry for the counter the
+	// hold lands on; nil leaves that counter outside automatic cleanup.
+	ReserveWithTx(
+		ctx context.Context,
+		db pgdb.DB,
+		reservation *model.Reservation,
+		maxAmount decimal.Decimal,
+		counterExpiresAt *time.Time,
+	) (replayed bool, err error)
 	// ConfirmWithTx settles one reservation onto the counter and returns the row
 	// as read under the lock, in the status it had there. On a CONFIRMED or
 	// RELEASED row it returns that row together with
@@ -415,7 +423,7 @@ func (s *ReservationService) Reserve(ctx context.Context, transactionID uuid.UUI
 				return err
 			}
 
-			replayed, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount)
+			replayed, err := s.repo.ReserveWithTx(ctx, db, reservation, spec.MaxAmount, spec.CounterExpiresAt)
 			if err != nil {
 				// The reserve guard denied this limit: roll back the whole tx so no
 				// partial capacity is held, and surface the limit-exceeded decision.

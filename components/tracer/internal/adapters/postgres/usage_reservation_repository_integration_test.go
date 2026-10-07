@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -132,7 +133,7 @@ func TestIntegration_UsageReservationRepository_DoubleConfirm_Idempotent(t *test
 
 	// Reserve: seeds reserved_usage = 400, current_usage = 0.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000), nil)
 		return err
 	}))
 
@@ -210,7 +211,7 @@ func TestIntegration_UsageReservationRepository_FractionalAmount_Preserved(t *te
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(20))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(20), nil)
 		return err
 	}))
 
@@ -258,7 +259,7 @@ func TestIntegration_UsageReservationRepository_ReleaseThenConfirm_Idempotent(t 
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000), nil)
 		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
@@ -323,7 +324,7 @@ func TestIntegration_UsageReservationRepository_ByIDSettle_ReturnsLockedRow(t *t
 		require.NoError(t, err)
 
 		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-			_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
+			_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000), nil)
 			return err
 		}))
 
@@ -461,11 +462,11 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_FlipsAll(t 
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		if _, rErr := repo.ReserveWithTx(ctx, tx, resA, decimal.NewFromInt(10000)); rErr != nil {
+		if _, rErr := repo.ReserveWithTx(ctx, tx, resA, decimal.NewFromInt(10000), nil); rErr != nil {
 			return rErr
 		}
 
-		_, err := repo.ReserveWithTx(ctx, tx, resB, decimal.NewFromInt(10000))
+		_, err := repo.ReserveWithTx(ctx, tx, resB, decimal.NewFromInt(10000), nil)
 		return err
 	}))
 
@@ -545,14 +546,14 @@ func TestIntegration_UsageReservationRepository_Reserve_RowIdempotent(t *testing
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000), nil)
 		return err
 	}))
 
 	// Re-reserve the SAME row id and 4-tuple: ON CONFLICT DO NOTHING keeps a single
 	// row.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000), nil)
 		return err
 	}))
 
@@ -608,7 +609,7 @@ func TestIntegration_UsageReservationRepository_SubUnitaryAmount_Preserved(t *te
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(20))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(20), nil)
 		return err
 	}))
 
@@ -681,7 +682,7 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 
 	// First 0.50 fits under the 0.75 cap.
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res1, cap075)
+		_, err := repo.ReserveWithTx(ctx, tx, res1, cap075, nil)
 		return err
 	}))
 
@@ -692,7 +693,7 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 	// Second 0.50 would push held usage to 1.00 > 0.75 — the guard denies it, and
 	// inRealTx rolls the transaction back so no RESERVED row survives.
 	err = inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res2, cap075)
+		_, err := repo.ReserveWithTx(ctx, tx, res2, cap075, nil)
 		return err
 	})
 	require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit,
@@ -748,7 +749,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_HandleOwnsExisting
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var err error
 
-		replayed, err = repo.ReserveWithTx(ctx, tx, first, maxAmount)
+		replayed, err = repo.ReserveWithTx(ctx, tx, first, maxAmount, nil)
 
 		return err
 	}))
@@ -761,7 +762,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_HandleOwnsExisting
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var err error
 
-		replayed, err = repo.ReserveWithTx(ctx, tx, retry, maxAmount)
+		replayed, err = repo.ReserveWithTx(ctx, tx, retry, maxAmount, nil)
 
 		return err
 	}))
@@ -823,7 +824,7 @@ func TestIntegration_UsageReservationRepository_ConfirmAfterExpiry_CountsTheSpen
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(1000))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(1000), nil)
 		return err
 	}))
 
@@ -890,7 +891,7 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransactionAfterExpiry_
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(1000))
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(1000), nil)
 		return err
 	}))
 
@@ -1005,7 +1006,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoSettledRow_Rej
 			require.NoError(t, err)
 
 			require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-				_, err := repo.ReserveWithTx(ctx, tx, first, maxAmount)
+				_, err := repo.ReserveWithTx(ctx, tx, first, maxAmount, nil)
 				return err
 			}))
 			require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
@@ -1027,7 +1028,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoSettledRow_Rej
 			err = inRealTx(t, db, func(tx *sql.Tx) error {
 				var err error
 
-				replayed, err = repo.ReserveWithTx(ctx, tx, retry, maxAmount)
+				replayed, err = repo.ReserveWithTx(ctx, tx, retry, maxAmount, nil)
 
 				return err
 			})
@@ -1071,7 +1072,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoReleased_Leave
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, resA, maxAmount)
+		_, err := repo.ReserveWithTx(ctx, tx, resA, maxAmount, nil)
 		return err
 	}))
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
@@ -1083,7 +1084,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoReleased_Leave
 	require.NoError(t, err)
 
 	err = inRealTx(t, db, func(tx *sql.Tx) error {
-		_, err := repo.ReserveWithTx(ctx, tx, replayA, maxAmount)
+		_, err := repo.ReserveWithTx(ctx, tx, replayA, maxAmount, nil)
 		return err
 	})
 	require.ErrorIs(t, err, constant.ErrReservationAlreadySettled)
@@ -1096,7 +1097,7 @@ func TestIntegration_UsageReservationRepository_ReserveReplay_OntoReleased_Leave
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
 		var err error
 
-		replayed, err = repo.ReserveWithTx(ctx, tx, resB, maxAmount)
+		replayed, err = repo.ReserveWithTx(ctx, tx, resB, maxAmount, nil)
 
 		return err
 	}), "tx B must be able to take the full cap after A released and A's replay was rejected")
@@ -1141,11 +1142,11 @@ func TestIntegration_UsageReservationRepository_ConfirmByTransaction_CountsRelea
 	require.NoError(t, err)
 
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-		if _, err := repo.ReserveWithTx(ctx, tx, resA, maxAmount); err != nil {
+		if _, err := repo.ReserveWithTx(ctx, tx, resA, maxAmount, nil); err != nil {
 			return err
 		}
 
-		_, err := repo.ReserveWithTx(ctx, tx, resB, maxAmount)
+		_, err := repo.ReserveWithTx(ctx, tx, resB, maxAmount, nil)
 
 		return err
 	}))
@@ -1219,7 +1220,7 @@ func TestIntegration_UsageReservationRepository_ReleaseByTransaction_OnlyRelease
 		require.NoError(t, err)
 
 		require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
-			_, err := repo.ReserveWithTx(ctx, tx, res, capacity)
+			_, err := repo.ReserveWithTx(ctx, tx, res, capacity, nil)
 			return err
 		}))
 
@@ -1263,4 +1264,83 @@ func TestIntegration_UsageReservationRepository_ReleaseByTransaction_OnlyRelease
 
 	current, held = readCounterDecimal(t, db, confirmedLimit, confirmed.ScopeKey, periodKey)
 	assert.True(t, amount.Equal(current) && held.IsZero(), "the confirmed spend stays counted; got current=%s held=%s", current, held)
+}
+
+// TestIntegration_UsageReservationRepository_CleanupAfterReservationTTL_KeepsCounter
+// proves the reserve path keeps the reservation lifetime off the counter: the
+// counter's expires_at is the caller's period-retention expiry, so a cleanup sweep
+// that runs after the reservation expired but inside the counter's period leaves
+// the counter — and the spend confirmed onto it — in place.
+func TestIntegration_UsageReservationRepository_CleanupAfterReservationTTL_KeepsCounter(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8601)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+	scopeKey := "acct:8601-" + testutil.MustDeterministicUUID(8611).String()[:8]
+	periodKey := now.Format("2006-01-02")
+
+	reservationExpiresAt := now.Add(5 * time.Minute)
+	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
+	counterExpiresAt := nextMidnight.AddDate(0, 0, trcConstant.CounterRetentionDays)
+
+	res, err := model.NewReservation(
+		limitID,
+		testutil.MustDeterministicUUID(8621), // transactionID
+		scopeKey,
+		periodKey,
+		decimal.NewFromInt(400),
+		reservationExpiresAt,
+		now,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		_, err := repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(10000), &counterExpiresAt)
+		return err
+	}))
+
+	_, reserved := readCounter(t, db, limitID, scopeKey, periodKey)
+	require.Equal(t, int64(400), reserved, "reserve must seed reserved_usage")
+
+	var gotCounterExpiresAt, gotReservationExpiresAt time.Time
+
+	require.NoError(t, db.QueryRow(
+		`SELECT expires_at FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3`,
+		limitID, scopeKey, periodKey,
+	).Scan(&gotCounterExpiresAt))
+	require.NoError(t, db.QueryRow(
+		`SELECT reservation_expires_at FROM usage_reservations WHERE id = $1`, res.ID,
+	).Scan(&gotReservationExpiresAt))
+
+	assert.True(t, counterExpiresAt.Equal(gotCounterExpiresAt.UTC()),
+		"counter expires_at must be the period-retention expiry; want %s, got %s", counterExpiresAt, gotCounterExpiresAt)
+	assert.True(t, reservationExpiresAt.Truncate(time.Microsecond).Equal(gotReservationExpiresAt.UTC()),
+		"reservation_expires_at must keep the reservation lifetime; want %s, got %s", reservationExpiresAt, gotReservationExpiresAt)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		_, err := repo.ConfirmWithTx(ctx, tx, res.ID)
+		return err
+	}))
+
+	// A sweep after the reservation expired and before the counter's period ends.
+	_, err = repo.counterRepo.DeleteExpiredCounters(ctx, reservationExpiresAt.Add(time.Minute))
+	require.NoError(t, err)
+
+	var counters int
+
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3`,
+		limitID, scopeKey, periodKey,
+	).Scan(&counters))
+	require.Equal(t, 1, counters, "cleanup after the reservation lifetime must not delete a live counter")
+
+	current, reserved := readCounter(t, db, limitID, scopeKey, periodKey)
+	assert.Equal(t, int64(400), current, "the confirmed spend must survive the sweep")
+	assert.Equal(t, int64(0), reserved, "confirm must have drained reserved_usage")
 }

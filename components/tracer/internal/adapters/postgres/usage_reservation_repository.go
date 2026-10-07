@@ -186,6 +186,12 @@ func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context
 // maxAmount is the limit ceiling the reserve CTE guards against; it is supplied by
 // the caller (the limit it resolved) and is NOT stored on the reservation row.
 //
+// counterExpiresAt feeds usage_counters.expires_at, the deadline the cleanup sweep
+// deletes the counter by: the limit's period end plus the counter retention
+// window, supplied by the caller. nil leaves the counter outside automatic
+// cleanup. The reservation's own lifetime is written only to
+// usage_reservations.reservation_expires_at.
+//
 // Returns constant.ErrUsageCounterExceedsLimit when the combined committed +
 // outstanding usage would exceed the limit (the guard denied the reservation). The
 // caller is responsible for rolling the transaction back on any error so a denied
@@ -195,7 +201,13 @@ func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context
 // Concurrency: two simultaneous first-inserts of the same 4-tuple serialize on the
 // unique index — the second blocks until the first commits, then hits ON CONFLICT
 // and reports zero rows, so the RowsAffected gate stays correct without extra locks.
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) (bool, error) {
+func (r *UsageReservationRepository) ReserveWithTx(
+	ctx context.Context,
+	db pgdb.DB,
+	reservation *model.Reservation,
+	maxAmount decimal.Decimal,
+	counterExpiresAt *time.Time,
+) (bool, error) {
 	if db == nil {
 		return false, pgdb.ErrNilConnection
 	}
@@ -292,7 +304,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.PeriodKey,
 		reservation.Amount,
 		maxAmount,
-		&reservation.ReservationExpiresAt,
+		counterExpiresAt,
 	); err != nil {
 		return false, err
 	}
