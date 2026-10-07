@@ -205,6 +205,16 @@ func TestReleaseCRMIdempotency_RemovesClaim(t *testing.T) {
 	assert.Nil(t, second.Replay)
 }
 
+func TestReleaseCRMIdempotency_MissingKeyIsNoOp(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	uc := &UseCase{Idempotency: repo}
+
+	// A slot that expired by its TTL before the release is absent; deleting it is not an error.
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+
+	assert.Empty(t, repo.store)
+}
+
 func TestReleaseCRMIdempotency_DelFailureSwallowed(t *testing.T) {
 	repo := newFakeIdempotencyRepo()
 	repo.store[testIdempotencyKey] = ""
