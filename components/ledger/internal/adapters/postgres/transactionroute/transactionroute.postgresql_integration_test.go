@@ -351,7 +351,7 @@ func TestIntegration_TransactionRouteRepository_Update(t *testing.T) {
 	}
 
 	// Act - no operation routes to add or remove
-	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, LinkChanges{})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -383,7 +383,7 @@ func TestIntegration_TransactionRouteRepository_Update_PartialFields(t *testing.
 	}
 
 	// Act
-	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, LinkChanges{})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -413,7 +413,7 @@ func TestIntegration_TransactionRouteRepository_Update_AddOperationRoutes(t *tes
 	}
 
 	// Act - add operation routes
-	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, []uuid.UUID{opRouteID1, opRouteID2}, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, LinkChanges{Add: []OperationRouteLink{{OperationRouteID: opRouteID1}, {OperationRouteID: opRouteID2}}})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -449,7 +449,7 @@ func TestIntegration_TransactionRouteRepository_Update_RemoveOperationRoutes(t *
 	}
 
 	// Act - remove one operation route
-	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, []uuid.UUID{opRouteID2})
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, LinkChanges{Remove: []uuid.UUID{opRouteID2}})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -476,7 +476,7 @@ func TestIntegration_TransactionRouteRepository_Update_NotFound(t *testing.T) {
 	}
 
 	// Act
-	updated, err := repo.Update(ctx, orgID, nonExistentID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, nonExistentID, updateData, LinkChanges{})
 
 	// Assert
 	require.Error(t, err, "Update should return error for non-existent ID")
@@ -505,7 +505,7 @@ func TestIntegration_TransactionRouteRepository_Update_SoftDeleted(t *testing.T)
 	}
 
 	// Act
-	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, updateData, LinkChanges{})
 
 	// Assert
 	require.Error(t, err, "Update should return error for soft-deleted record")
@@ -760,10 +760,10 @@ func TestIntegration_TransactionRouteRepository_FindAll_IsolatedByOrganization(t
 }
 
 // ============================================================================
-// FindOperationRouteIDsByTransactionRouteIDs Tests (T-010)
+// FindOperationRouteLinksByTransactionRouteIDs Tests (T-010)
 // ============================================================================
 
-func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransactionRouteIDs_MultipleRoutes(t *testing.T) {
+func TestIntegration_TransactionRouteRepository_FindOperationRouteLinksByTransactionRouteIDs_MultipleRoutes(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
@@ -788,60 +788,60 @@ func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransacti
 	pgtestutil.CreateTestOperationTransactionRouteLink(t, container.DB, opRouteC, trID2)
 
 	// Act
-	result, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2, trID3})
+	result, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2, trID3})
 
 	// Assert
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs should not return error")
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs should not return error")
 	require.NotNil(t, result, "result map should not be nil")
 
 	// trID1 should have opRouteA and opRouteB
 	require.Len(t, result[trID1], 2, "trID1 should have 2 operation route links")
 	orIDs1 := make(map[uuid.UUID]bool)
 	for _, id := range result[trID1] {
-		orIDs1[id] = true
+		orIDs1[id.OperationRouteID] = true
 	}
 	assert.True(t, orIDs1[opRouteA], "trID1 should contain opRouteA")
 	assert.True(t, orIDs1[opRouteB], "trID1 should contain opRouteB")
 
 	// trID2 should have opRouteC
 	require.Len(t, result[trID2], 1, "trID2 should have 1 operation route link")
-	assert.Equal(t, opRouteC, result[trID2][0], "trID2 should contain opRouteC")
+	assert.Equal(t, opRouteC, result[trID2][0].OperationRouteID, "trID2 should contain opRouteC")
 
 	// trID3 should have no entries in the map (key absent or empty slice)
 	assert.Empty(t, result[trID3], "trID3 should have no operation route links")
 }
 
-func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransactionRouteIDs_EmptyInput(t *testing.T) {
+func TestIntegration_TransactionRouteRepository_FindOperationRouteLinksByTransactionRouteIDs_EmptyInput(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	ctx := context.Background()
 
 	// Act - pass empty slice
-	result, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{})
+	result, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{})
 
 	// Assert
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs with empty input should not return error")
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs with empty input should not return error")
 	require.NotNil(t, result, "result should be empty map, not nil")
 	assert.Empty(t, result, "result should have no entries")
 }
 
-func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransactionRouteIDs_NilInput(t *testing.T) {
+func TestIntegration_TransactionRouteRepository_FindOperationRouteLinksByTransactionRouteIDs_NilInput(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
 	ctx := context.Background()
 
 	// Act - pass nil slice
-	result, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, nil)
+	result, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, nil)
 
 	// Assert
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs with nil input should not return error")
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs with nil input should not return error")
 	require.NotNil(t, result, "result should be empty map, not nil")
 	assert.Empty(t, result, "result should have no entries")
 }
 
-func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransactionRouteIDs_NoMatchingJunctionRows(t *testing.T) {
+func TestIntegration_TransactionRouteRepository_FindOperationRouteLinksByTransactionRouteIDs_NoMatchingJunctionRows(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
@@ -855,15 +855,15 @@ func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransacti
 	trID2 := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Unlinked Route 2")
 
 	// Act
-	result, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2})
+	result, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2})
 
 	// Assert
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs should not return error for unlinked routes")
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs should not return error for unlinked routes")
 	require.NotNil(t, result, "result should be empty map, not nil")
 	assert.Empty(t, result, "result should have no entries when no junction rows exist")
 }
 
-func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransactionRouteIDs_NonExistentIDs(t *testing.T) {
+func TestIntegration_TransactionRouteRepository_FindOperationRouteLinksByTransactionRouteIDs_NonExistentIDs(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
@@ -874,15 +874,15 @@ func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransacti
 	fakeID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Act
-	result, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{fakeID1, fakeID2})
+	result, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{fakeID1, fakeID2})
 
 	// Assert
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs should not error for non-existent IDs")
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs should not error for non-existent IDs")
 	require.NotNil(t, result, "result should be empty map, not nil")
 	assert.Empty(t, result, "result should have no entries for non-existent IDs")
 }
 
-func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransactionRouteIDs_ExcludesSoftDeletedLinks(t *testing.T) {
+func TestIntegration_TransactionRouteRepository_FindOperationRouteLinksByTransactionRouteIDs_ExcludesSoftDeletedLinks(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 	repo := createRepository(t, container)
 
@@ -904,13 +904,13 @@ func TestIntegration_TransactionRouteRepository_FindOperationRouteIDsByTransacti
 	pgtestutil.SoftDeleteOperationTransactionRouteLink(t, container.DB, softDeletedLinkID)
 
 	// Act
-	result, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+	result, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
 
 	// Assert
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs should not return error")
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs should not return error")
 	require.NotNil(t, result, "result map should not be nil")
 	require.Len(t, result[trID], 1, "should only return 1 active link, soft-deleted excluded")
-	assert.Equal(t, opRouteActive, result[trID][0], "active operation route should be present")
+	assert.Equal(t, opRouteActive, result[trID][0].OperationRouteID, "active operation route should be present")
 }
 
 // ============================================================================
@@ -951,14 +951,14 @@ func TestIntegration_TransactionRouteRepository_FindAll_EnrichmentRoundTrip(t *t
 	require.NoError(t, err, "FindAll should not return error")
 	require.Len(t, routes, 2, "should return both transaction routes")
 
-	// Step 2: Use FindOperationRouteIDsByTransactionRouteIDs to enrich
+	// Step 2: Use FindOperationRouteLinksByTransactionRouteIDs to enrich
 	trIDs := make([]uuid.UUID, len(routes))
 	for i, r := range routes {
 		trIDs[i] = r.ID
 	}
 
-	junctionMap, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, trIDs)
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs should not return error")
+	junctionMap, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, trIDs)
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs should not return error")
 
 	// Step 3: Verify the junction map
 	// trID1 should have 2 operation route IDs
@@ -966,7 +966,7 @@ func TestIntegration_TransactionRouteRepository_FindAll_EnrichmentRoundTrip(t *t
 
 	orIDs := make(map[uuid.UUID]bool)
 	for _, id := range junctionMap[trID1] {
-		orIDs[id] = true
+		orIDs[id.OperationRouteID] = true
 	}
 	assert.True(t, orIDs[opRouteA], "trID1 junction should include opRouteA")
 	assert.True(t, orIDs[opRouteB], "trID1 junction should include opRouteB")
@@ -1017,16 +1017,16 @@ func TestIntegration_TransactionRouteRepository_FindAll_EnrichmentExcludesSoftDe
 	require.NoError(t, err, "FindAll should not return error")
 	require.Len(t, routes, 1, "should return the transaction route")
 
-	// Step 2: Use FindOperationRouteIDsByTransactionRouteIDs to enrich
-	junctionMap, err := repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
-	require.NoError(t, err, "FindOperationRouteIDsByTransactionRouteIDs should not return error")
+	// Step 2: Use FindOperationRouteLinksByTransactionRouteIDs to enrich
+	junctionMap, err := repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+	require.NoError(t, err, "FindOperationRouteLinksByTransactionRouteIDs should not return error")
 
 	// Assert: only 2 active links returned, soft-deleted link excluded
 	require.Len(t, junctionMap[trID], 2, "should only have 2 active junction links")
 
 	activeIDs := make(map[uuid.UUID]bool)
 	for _, id := range junctionMap[trID] {
-		activeIDs[id] = true
+		activeIDs[id.OperationRouteID] = true
 	}
 	assert.True(t, activeIDs[opRouteKeep1], "active link opRouteKeep1 should be present")
 	assert.True(t, activeIDs[opRouteKeep2], "active link opRouteKeep2 should be present")
@@ -1154,13 +1154,13 @@ func TestIntegration_TransactionRouteRepository_UpdateAndDelete_AreScopedByOrgan
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerA, "Under A")
 	ctx := context.Background()
 
-	_, err := repo.Update(ctx, otherOrgID, transactionRouteID, &mmodel.TransactionRoute{Title: "Hijacked"}, nil, nil)
+	_, err := repo.Update(ctx, otherOrgID, transactionRouteID, &mmodel.TransactionRoute{Title: "Hijacked"}, LinkChanges{})
 	require.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "another organization cannot update the route")
 
 	err = repo.Delete(ctx, otherOrgID, transactionRouteID, nil)
 	require.ErrorIs(t, err, services.ErrDatabaseItemNotFound, "another organization cannot delete the route")
 
-	updated, err := repo.Update(ctx, orgID, transactionRouteID, &mmodel.TransactionRoute{Title: "Renamed"}, nil, nil)
+	updated, err := repo.Update(ctx, orgID, transactionRouteID, &mmodel.TransactionRoute{Title: "Renamed"}, LinkChanges{})
 	require.NoError(t, err)
 	assert.Equal(t, "Renamed", updated.Title)
 	assert.Equal(t, &ledgerA, updated.LedgerID, "an update keeps the provenance ledger")

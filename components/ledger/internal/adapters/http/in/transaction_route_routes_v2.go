@@ -11,7 +11,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -39,7 +38,7 @@ func RegisterOrganizationTransactionRouteRoutes(api huma.API, h *TransactionRout
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateOrganizationTransactionRoute)
-	attachTypedRequestBody[mmodel.CreateTransactionRouteInput](api, "createOrganizationTransactionRoute"+opSuffix)
+	attachTypedRequestBody[CreateTransactionRouteInputV2](api, "createOrganizationTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listOrganizationTransactionRoutes" + opSuffix,
@@ -65,12 +64,12 @@ func RegisterOrganizationTransactionRouteRoutes(api huma.API, h *TransactionRout
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an organization Transaction Route",
-		Description:      patchMetadataDocV2,
+		Description:      patchMetadataDocV2 + " " + patchLinksDocV2,
 		Tags:             []string{tag},
 		Security:         secTransactionRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
 	}, h.UpdateOrganizationTransactionRoute)
-	attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, "updateOrganizationTransactionRoute"+opSuffix)
+	attachTypedRequestBody[UpdateTransactionRouteInputV2](api, "updateOrganizationTransactionRoute"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteOrganizationTransactionRoute" + opSuffix,

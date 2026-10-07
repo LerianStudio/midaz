@@ -557,6 +557,45 @@ by an older pod clears only the per-ledger key and leaves the newer pods' entry 
 and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
 afterwards.
 
+## Optional operation routes: registered on `/v2`, honored on both contracts
+
+A transaction route link is required or optional. A transaction may leave an optional route unused
+(a fee route when the fee does not apply), and a leg that uses one is validated like any other.
+Validation reads the link from the route cache, so it holds for `/v1` and `/v2` transactions alike;
+the flag is only **registered** through `/v2`:
+
+| Surface | `/v1` | `/v2` |
+| --- | --- | --- |
+| Create / update body | `operationRoutes` only; `optionalOperationRoutes` is an unknown field (`0053`) | `operationRoutes` (required) and `optionalOperationRoutes` (optional) |
+| Response | `operationRoutes` lists every link, optional ones included | `operationRoutes` lists the required links, `optionalOperationRoutes` the optional ones |
+| PATCH with `operationRoutes` | the full link set: a kept link keeps its optionality, a new one is required, an omitted one is removed | replaces the required links only |
+
+A `/v2` PATCH applies each list as a JSON merge patch of its own:
+
+| Body | Effect |
+| --- | --- |
+| neither list | links and optionality unchanged |
+| `operationRoutes: [...]` | replaces the required links; optional links stay |
+| `optionalOperationRoutes: [...]` | replaces the optional links; required links stay |
+| `optionalOperationRoutes: []` | removes the optional links |
+| `null` for either list | no effect, like `metadata: null` on `/v2` |
+
+The resulting links are validated as a create: a route in both lists is `0541`, fewer than two links
+`0104`, no required source or destination `0153`/`0154`, an optional `crossLedger` route `0256`. To
+move a route between the lists, send both.
+
+**Rollout:** the flag is a column of `operation_transaction_route` (`optional`, default `false`) and a
+field of the route cache entry. A pod older than this change reads every link as required, and when
+it rewrites a cache entry (a route update, an operation-route update, a cache miss) it writes the
+entry without the flag, so the route is strict again until a newer pod rewrites it. Do not mark links
+optional until every pod runs a version that knows the flag. If a link was marked during the rollout,
+delete that transaction route's `accounting_routes:{organization:route}` key once every older pod has
+stopped: the next read reloads the entry, flag included, from the database.
+
+Rolling back the schema refuses while any active link is optional (the down migration raises before
+dropping the column), because every link would become required and the transactions that leave
+those links unused would be refused. Make the links required, or remove them, before rolling back.
+
 ## Metadata on a PATCH: `null` is a `/v2` no-op
 
 Every PATCH whose body carries `metadata` applies it as an RFC 7396 merge patch: organization,

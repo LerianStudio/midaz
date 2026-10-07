@@ -281,15 +281,18 @@ func validateGroupRouteCountAndCounterparts(routes actionRoutesResult, uses []mm
 		}
 	}
 
-	sourceCount := len(routes.source)
-	destinationCount := len(routes.destination)
-	bidirectionalCount := len(routes.bidirectional)
+	sourceCount := requiredRouteCount(routes.source)
+	destinationCount := requiredRouteCount(routes.destination)
+	bidirectionalCount := requiredRouteCount(routes.bidirectional)
+
+	usedFrom := routes.requiredCount(fromRoutes)
+	usedTo := routes.requiredCount(toRoutes)
 
 	totalCacheRoutes := sourceCount + destinationCount + bidirectionalCount
-	totalUsedRoutes := len(fromRoutes) + len(toRoutes) - len(sharedBidirectionalRoutes)
+	totalUsedRoutes := usedFrom + usedTo - routes.requiredCount(sharedBidirectionalRoutes)
 
-	if !takesBack && (totalUsedRoutes != totalCacheRoutes || len(fromRoutes) < sourceCount || len(toRoutes) < destinationCount) {
-		return pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, constant.EntityTransactionRoute, len(fromRoutes), len(toRoutes), sourceCount, destinationCount, bidirectionalCount)
+	if !takesBack && (totalUsedRoutes != totalCacheRoutes || usedFrom < sourceCount || usedTo < destinationCount) {
+		return pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, constant.EntityTransactionRoute, usedFrom, usedTo, sourceCount, destinationCount, bidirectionalCount)
 	}
 
 	debited := make(map[string]bool)

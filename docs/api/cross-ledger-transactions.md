@@ -80,7 +80,8 @@ Validation runs in two steps for every operation that changes balances:
   hold, and overdraft and bridge legs carry their rubrics. Bridge legs never
   count in a template.
 - **Over the group**, once per phase: the client legs of every part together
-  must use exactly the phase's template (`0116`), and a bidirectional route used
+  must use every required route of the phase's template (`0116`; an optional
+  route may be left unused), and a bidirectional route used
   on both sides needs a debit and a credit somewhere in the group (`0151`). The
   union counts every client leg that names a route, including legs in parts
   whose ledger does not validate routes; a leg without a route in such a part
