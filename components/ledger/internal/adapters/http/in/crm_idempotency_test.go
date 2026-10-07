@@ -33,17 +33,17 @@ func newTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	return encryption.NewFieldEncryptorAdapter(encryption.NewEncryptionService(resolver, nil, nil, testutils.SetupCrypto(t), metrics))
 }
 
-// postCRMCreate sends a CRM create to the test app, with X-Idempotency only when
-// idempotencyKey is set, and returns the status, the X-Idempotency-Replayed
-// header and the decoded body.
-func postCRMCreate(t *testing.T, app *fiber.App, path, idempotencyKey, body string) (int, string, map[string]any) {
+// postCRMCreate sends a CRM create to the test app with the given request
+// headers and returns the status, the X-Idempotency-Replayed header and the
+// decoded body.
+func postCRMCreate(t *testing.T, app *fiber.App, path string, headers map[string]string, body string) (int, string, map[string]any) {
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	if idempotencyKey != "" {
-		req.Header.Set("X-Idempotency", idempotencyKey)
+	for name, value := range headers {
+		req.Header.Set(name, value)
 	}
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -60,13 +60,20 @@ func postCRMCreate(t *testing.T, app *fiber.App, path, idempotencyKey, body stri
 	return resp.StatusCode, resp.Header.Get("X-Idempotency-Replayed"), got
 }
 
+// withIdempotencyKey returns the request headers carrying X-Idempotency: key.
+func withIdempotencyKey(key string) map[string]string {
+	return map[string]string{"X-Idempotency": key}
+}
+
 // fakeCRMIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics,
 // shared by the CRM handler tests whose flows claim an idempotency slot. One
 // instance is shared across the requests of a single replay test so the second
-// request sees the first one's claim. delErr injects a release failure.
+// request sees the first one's claim. claimErr and delErr inject claim and
+// release failures.
 type fakeCRMIdempotencyRepo struct {
-	store  map[string]string
-	delErr error
+	store    map[string]string
+	claimErr error
+	delErr   error
 }
 
 func newFakeCRMIdempotencyRepo() *fakeCRMIdempotencyRepo {
@@ -74,6 +81,10 @@ func newFakeCRMIdempotencyRepo() *fakeCRMIdempotencyRepo {
 }
 
 func (f *fakeCRMIdempotencyRepo) SetNX(_ context.Context, key, value string, _ time.Duration) (bool, error) {
+	if f.claimErr != nil {
+		return false, f.claimErr
+	}
+
 	if _, ok := f.store[key]; ok {
 		return false, nil
 	}

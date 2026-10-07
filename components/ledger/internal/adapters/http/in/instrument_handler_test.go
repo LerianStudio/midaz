@@ -536,17 +536,17 @@ func TestCreateInstrument_FailedCreateReleasesSlot(t *testing.T) {
 	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
 	slotKey := services.InstrumentIdempotencyKey(orgID.String(), holderID.String(), "k1")
 
-	status, _, got := postCRMCreate(t, app, path, "k1", body)
+	status, _, got := postCRMCreate(t, app, path, withIdempotencyKey("k1"), body)
 	assert.Equal(t, http.StatusNotFound, status)
 	assert.Equal(t, constant.ErrHolderNotFound.Error(), got["code"])
 	assert.NotContains(t, slots.store, slotKey, "a failed create must release its slot")
 
-	status, replayed, got := postCRMCreate(t, app, path, "k1", body)
+	status, replayed, got := postCRMCreate(t, app, path, withIdempotencyKey("k1"), body)
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "false", replayed, "the retry ran the create, it is not a replay")
 	assert.Equal(t, instrumentID.String(), got["id"])
 
-	status, replayed, got = postCRMCreate(t, app, path, "k1", body)
+	status, replayed, got = postCRMCreate(t, app, path, withIdempotencyKey("k1"), body)
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "true", replayed, "the successful create is replayed")
 	assert.Equal(t, instrumentID.String(), got["id"])
@@ -601,17 +601,17 @@ func TestCreateInstrument_MissingAccountRetryWithSameKeyCreates(t *testing.T) {
 	}
 	slotKey := services.InstrumentIdempotencyKey(orgID.String(), holderID.String(), "k1")
 
-	status, _, got := postCRMCreate(t, app, path, "k1", bodyFor(missingAccountID))
+	status, _, got := postCRMCreate(t, app, path, withIdempotencyKey("k1"), bodyFor(missingAccountID))
 	assert.Equal(t, http.StatusUnprocessableEntity, status)
 	assert.Equal(t, constant.ErrInstrumentAccountReferenceNotFound.Error(), got["code"])
 	assert.NotContains(t, slots.store, slotKey, "a failed create must release its slot")
 
-	status, replayed, got := postCRMCreate(t, app, path, "k1", bodyFor(existingAccountID))
+	status, replayed, got := postCRMCreate(t, app, path, withIdempotencyKey("k1"), bodyFor(existingAccountID))
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "false", replayed, "the corrected retry ran the create, it is not a replay")
 	assert.Equal(t, instrumentID.String(), got["id"])
 
-	status, replayed, got = postCRMCreate(t, app, path, "k1", bodyFor(existingAccountID))
+	status, replayed, got = postCRMCreate(t, app, path, withIdempotencyKey("k1"), bodyFor(existingAccountID))
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "true", replayed, "the successful create is replayed")
 	assert.Equal(t, instrumentID.String(), got["id"])
@@ -651,7 +651,7 @@ func TestCreateInstrument_RetryWithoutHeaderGetsRealError(t *testing.T) {
 	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002"}`
 
 	for attempt := 1; attempt <= 2; attempt++ {
-		status, _, got := postCRMCreate(t, app, path, "", body)
+		status, _, got := postCRMCreate(t, app, path, nil, body)
 		assert.Equal(t, http.StatusUnprocessableEntity, status, "attempt %d", attempt)
 		assert.Equal(t, constant.ErrInstrumentAccountReferenceNotFound.Error(), got["code"], "attempt %d must get the real error, never 0084", attempt)
 	}

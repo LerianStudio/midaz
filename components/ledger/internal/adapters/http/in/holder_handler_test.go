@@ -610,17 +610,17 @@ func TestCreateHolder_BusinessErrorReleasesSlot(t *testing.T) {
 	path := "/v2/organizations/" + orgID.String() + "/holders"
 	slotKey := services.HolderIdempotencyKey(orgID.String(), "k2")
 
-	status, _, got := postCRMCreate(t, app, path, "k2", testHolderCreateBody)
+	status, _, got := postCRMCreate(t, app, path, withIdempotencyKey("k2"), testHolderCreateBody)
 	assert.Equal(t, http.StatusConflict, status)
 	assert.Equal(t, constant.ErrDocumentAssociationError.Error(), got["code"])
 	assert.NotContains(t, slots.store, slotKey, "a failed create must release its slot")
 
-	status, _, got = postCRMCreate(t, app, path, "k2", testHolderCreateBody)
+	status, _, got = postCRMCreate(t, app, path, withIdempotencyKey("k2"), testHolderCreateBody)
 	assert.Equal(t, http.StatusConflict, status)
 	assert.Equal(t, constant.ErrDocumentAssociationError.Error(), got["code"], "the retry gets the real business error, never 0084")
 	assert.NotContains(t, slots.store, slotKey)
 
-	status, replayed, got := postCRMCreate(t, app, path, "k2", testHolderCreateBody)
+	status, replayed, got := postCRMCreate(t, app, path, withIdempotencyKey("k2"), testHolderCreateBody)
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "false", replayed, "the retry ran the create, it is not a replay")
 	assert.Equal(t, holderID.String(), got["id"])
@@ -655,12 +655,12 @@ func TestCreateHolder_TechnicalErrorReleasesSlot(t *testing.T) {
 	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
 	path := "/v2/organizations/" + orgID.String() + "/holders"
 
-	status, _, got := postCRMCreate(t, app, path, "k3", testHolderCreateBody)
+	status, _, got := postCRMCreate(t, app, path, withIdempotencyKey("k3"), testHolderCreateBody)
 	assert.Equal(t, http.StatusInternalServerError, status)
 	assert.Equal(t, "0046", got["code"])
 	assert.NotContains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), "k3"), "a technical failure must release its slot")
 
-	status, replayed, got := postCRMCreate(t, app, path, "k3", testHolderCreateBody)
+	status, replayed, got := postCRMCreate(t, app, path, withIdempotencyKey("k3"), testHolderCreateBody)
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "false", replayed)
 	assert.Equal(t, holderID.String(), got["id"])
@@ -684,7 +684,7 @@ func TestCreateHolder_ReleaseFailureKeepsBusinessError(t *testing.T) {
 	slots.delErr = errors.New("valkey unavailable")
 	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
 
-	status, _, got := postCRMCreate(t, app, "/v2/organizations/"+orgID.String()+"/holders", "k7", testHolderCreateBody)
+	status, _, got := postCRMCreate(t, app, "/v2/organizations/"+orgID.String()+"/holders", withIdempotencyKey("k7"), testHolderCreateBody)
 	assert.Equal(t, http.StatusConflict, status)
 	assert.Equal(t, constant.ErrDocumentAssociationError.Error(), got["code"], "the release failure must not replace the create error")
 	assert.Contains(t, slots.store, services.HolderIdempotencyKey(orgID.String(), "k7"), "an unreleased slot is left to its TTL")
@@ -706,7 +706,7 @@ func TestCreateHolder_InFlightSlotConflicts(t *testing.T) {
 	slots.store[slotKey] = ""
 	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
 
-	status, _, got := postCRMCreate(t, app, "/v2/organizations/"+orgID.String()+"/holders", "k5", testHolderCreateBody)
+	status, _, got := postCRMCreate(t, app, "/v2/organizations/"+orgID.String()+"/holders", withIdempotencyKey("k5"), testHolderCreateBody)
 	assert.Equal(t, http.StatusConflict, status)
 	assert.Equal(t, constant.ErrIdempotencyKey.Error(), got["code"])
 	assert.Contains(t, slots.store, slotKey, "the conflict must not release the slot another request holds")

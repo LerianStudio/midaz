@@ -36,6 +36,8 @@ import (
 //     (account committed, instrument write failed) is NOT an error: the service
 //     returns a 201 body carrying a typed instrumentError block and nil error, so it
 //     rides the success path here unchanged. Errors go through pkgHTTP.HumaProblem.
+//  5. Idempotency is opt-in: only an X-Idempotency header claims a slot, and its
+//     answered 201, complete or partial, is replayed with X-Idempotency-Replayed.
 
 // secCompositionBearer advertises that the composition operation accepts a JWT
 // bearer token (Bearer-only, matching the Fiber guard chain). SPEC
@@ -55,17 +57,22 @@ type CreateHolderAccountRequest struct {
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	ID             string `path:"holder_id" doc:"Holder ID (UUID)"`
 	Authorization  string `header:"Authorization" doc:"Bearer token (forwarded to the composed account-create use case)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the composition; a retry with the same key returns the original response, a partial 201 with its instrumentError included, as first answered. Without it no idempotency slot is reserved"`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateHolderAccountResponse pins 201 and carries the composite response verbatim.
+// CreateHolderAccountResponse pins 201 and carries the composite response verbatim,
+// with the X-Idempotency-Replayed response header.
 type CreateHolderAccountResponse struct {
-	Status int
-	Body   *mmodel.HolderAccountResponse
+	Status              int
+	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
+	Body                *mmodel.HolderAccountResponse
 }
 
 // CreateHolderAccount decodes and validates the raw body imperatively, then
-// delegates to the createHolderAccount core.
+// delegates to the createHolderAccount core, projecting the replayed flag onto the
+// X-Idempotency-Replayed response header.
 func (handler *CompositionHandler) CreateHolderAccount(ctx context.Context, in *CreateHolderAccountRequest) (*CreateHolderAccountResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
@@ -82,12 +89,14 @@ func (handler *CompositionHandler) CreateHolderAccount(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	out, err := handler.createHolderAccount(ctx, orgID, ledgerID, holderID, payload, in.Authorization)
+	ttl := pkgHTTP.ParseIdempotencyTTL(in.IdempotencyTTL)
+
+	out, replayed, err := handler.createHolderAccount(ctx, orgID, ledgerID, holderID, payload, in.Authorization, in.IdempotencyKey, ttl)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &CreateHolderAccountResponse{Status: http.StatusCreated, Body: out}, nil
+	return &CreateHolderAccountResponse{Status: http.StatusCreated, IdempotencyReplayed: replayedHeader(replayed), Body: out}, nil
 }
 
 // RegisterCompositionRoutes registers the composition operation on the shared Huma
