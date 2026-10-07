@@ -310,6 +310,13 @@ var (
 		Description: "Total operations skipped (duplicates via ON CONFLICT DO NOTHING).",
 	}
 
+	// BulkRecorderMetadataFailed counts transactions whose metadata was not confirmed.
+	BulkRecorderMetadataFailed = metrics.Metric{
+		Name:        "bulk_recorder_metadata_failed_total",
+		Unit:        "1",
+		Description: "Total transactions whose metadata (own or of their operations) was not confirmed.",
+	}
+
 	// BulkRecorderBulkSize tracks the number of messages per bulk.
 	BulkRecorderBulkSize = metrics.Metric{
 		Name:        "bulk_recorder_bulk_size",
