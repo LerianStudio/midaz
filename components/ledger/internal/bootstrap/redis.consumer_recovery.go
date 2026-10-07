@@ -184,6 +184,11 @@ func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
 		total.Cleaned += result.Cleaned
 		total.Stale += result.Stale
 		total.Rescheduled += result.Rescheduled
+		total.Failed += result.Failed
+
+		if total.FirstFailure == nil {
+			total.FirstFailure = result.FirstFailure
+		}
 
 		if err != nil && ctx.Err() == nil && errors.Is(cleanupCtx.Err(), context.DeadlineExceeded) {
 			// Budget reached mid-pass; the remainder stays scheduled.
@@ -203,9 +208,14 @@ func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
 		// A short page means the due window is drained. A full page that moved
 		// nothing out of the due window would be read again unchanged, so stop
 		// instead of spinning on it.
-		if result.Scanned < recoveryCleanupBatchSize || result.Cleaned+result.Stale+result.Rescheduled == 0 {
+		if result.Scanned < recoveryCleanupBatchSize || result.Cleaned+result.Stale+result.Rescheduled+result.Failed == 0 {
 			break
 		}
+	}
+
+	if total.Failed > 0 {
+		r.logger.Log(ctx, libLog.LevelError, "Engine recovery cleanup rejected execution proofs",
+			libLog.Int("failed_count", total.Failed), libLog.Err(total.FirstFailure))
 	}
 
 	r.logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",

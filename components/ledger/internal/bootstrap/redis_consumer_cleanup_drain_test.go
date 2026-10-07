@@ -70,16 +70,17 @@ func TestRecoveryCleanupDrainsFullPagesUntilShortPage(t *testing.T) {
 	}
 }
 
-func TestRecoveryCleanupCountsRescheduledAndStaleAsProgress(t *testing.T) {
+func TestRecoveryCleanupCountsRescheduledStaleAndRejectedAsProgress(t *testing.T) {
 	queue := &drainQueue{results: []transaction.RecoveryCleanupResult{
 		{Scanned: recoveryCleanupBatchSize, Rescheduled: recoveryCleanupBatchSize},
 		{Scanned: recoveryCleanupBatchSize, Stale: recoveryCleanupBatchSize},
+		{Scanned: recoveryCleanupBatchSize, Failed: recoveryCleanupBatchSize},
 		{},
 	}}
 
 	newDrainCompleter(queue, fixedDrainClock()).cleanup(t.Context())
 
-	require.Equal(t, 3, queue.calls)
+	require.Equal(t, 4, queue.calls)
 }
 
 func TestRecoveryCleanupStopsOnFullPageWithoutProgress(t *testing.T) {
