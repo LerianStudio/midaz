@@ -63,6 +63,12 @@ func InstrumentIdempotencyKey(organizationID, holderID, key string) string {
 	return fmt.Sprintf("idempotency:crm:instrument:%s:%s:%s", organizationID, holderID, key)
 }
 
+// CompositionIdempotencyKey builds the CRM-namespaced Redis key for a holder
+// account composition, scoped by its ledger and parent holder.
+func CompositionIdempotencyKey(organizationID, ledgerID, holderID, key string) string {
+	return fmt.Sprintf("idempotency:crm:composition:%s:%s:%s:%s", organizationID, ledgerID, holderID, key)
+}
+
 // CRMIdempotencyToken derives the token that names a request body in its
 // idempotency slot key and conflict message, with the organization's keyed hash so
 // the body's personal data cannot be recovered from it. A nil Idempotency repo

@@ -220,4 +220,7 @@ func TestReleaseCRMIdempotency_DelFailureSwallowed(t *testing.T) {
 func TestCRMIdempotencyKeyBuilders(t *testing.T) {
 	assert.Equal(t, "idempotency:crm:holder:org-1:key-1", HolderIdempotencyKey("org-1", "key-1"))
 	assert.Equal(t, "idempotency:crm:instrument:org-1:holder-1:key-1", InstrumentIdempotencyKey("org-1", "holder-1", "key-1"))
+	assert.Equal(t, "idempotency:crm:composition:org-1:ledger-1:holder-1:key-1", CompositionIdempotencyKey("org-1", "ledger-1", "holder-1", "key-1"))
+	assert.NotEqual(t, CompositionIdempotencyKey("org-1", "ledger-1", "holder-1", "key-1"), CompositionIdempotencyKey("org-1", "ledger-2", "holder-1", "key-1"), "the same key on another ledger is another slot")
+	assert.NotEqual(t, CompositionIdempotencyKey("org-1", "ledger-1", "holder-1", "key-1"), CompositionIdempotencyKey("org-1", "ledger-1", "holder-2", "key-1"), "the same key on another holder is another slot")
 }
