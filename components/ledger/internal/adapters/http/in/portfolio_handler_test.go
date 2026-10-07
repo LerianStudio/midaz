@@ -442,8 +442,10 @@ func TestDeletePortfolio_204Empty(t *testing.T) {
 
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	portfolioRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, portfolioID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityPortfolio, portfolioID.String()).Return(nil).Times(1)
 
-	handler := &PortfolioHandler{Command: &command.UseCase{PortfolioRepo: portfolioRepo}}
+	handler := &PortfolioHandler{Command: &command.UseCase{PortfolioRepo: portfolioRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaPortfolioApp(t, handler, true)
 

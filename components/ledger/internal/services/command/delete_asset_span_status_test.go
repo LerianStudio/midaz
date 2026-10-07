@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -164,10 +165,16 @@ func TestDeleteAsset_SpanClassContract(t *testing.T) {
 			mockAssetRepo := asset.NewMockRepository(ctrl)
 			mockAccountRepo := account.NewMockRepository(ctrl)
 
+			// Every case fails before or at the asset row, so no metadata is touched.
+			mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+			mockMetadataRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
 			uc := &UseCase{
-				AssetRepo:      mockAssetRepo,
-				AccountRepo:    mockAccountRepo,
-				MetricsFactory: factory,
+				AssetRepo:              mockAssetRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+				metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+				MetricsFactory:         factory,
 			}
 
 			ctx, recorder := recordingContext()

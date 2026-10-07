@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
@@ -32,9 +35,16 @@ func newDeleteSegmentStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller,
 		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntitySegment, gomock.Any()).
+		Return(nil).AnyTimes()
+
 	return &UseCase{
-		SegmentRepo: mockSegmentRepo,
-		Streaming:   emitter,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+		SegmentRepo:            mockSegmentRepo,
+		Streaming:              emitter,
 	}
 }
 
@@ -118,4 +128,29 @@ func TestDeleteSegmentByID_NilStreamingDoesNotPanic(t *testing.T) {
 
 	err := uc.DeleteSegmentByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
 	require.NoError(t, err)
+}
+
+// TestDeleteSegmentByID_MetadataSoftDeleteFailureStillEmits verifies that a
+// metadata soft delete failing on every attempt neither fails the request nor
+// suppresses the deleted event.
+func TestDeleteSegmentByID_MetadataSoftDeleteFailureStillEmits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newDeleteSegmentStreamingTestUseCase(t, ctrl, mockEmitter)
+
+	failingMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	failingMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntitySegment, gomock.Any()).
+		Return(errors.New("mongo unavailable")).
+		Times(fastMetadataDeleteRetryPolicy().Attempts)
+
+	uc.OnboardingMetadataRepo = failingMetadataRepo
+
+	err := uc.DeleteSegmentByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	require.NoError(t, err, "a metadata soft delete failure must not fail the delete")
+
+	require.Len(t, mockEmitter.Events(), 1)
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "segment", "deleted")
 }

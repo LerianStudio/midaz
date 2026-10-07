@@ -52,6 +52,8 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityLedger, id.String())
+
 	deletedAt := time.Now()
 	uc.emitLedgerDeletedEvent(ctx, span, logger, id.String(), organizationID.String(), deletedAt)
 

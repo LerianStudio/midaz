@@ -403,10 +403,13 @@ func TestDeleteAsset_204Empty(t *testing.T) {
 		Return(&mmodel.Asset{ID: assetID.String(), Code: "TST"}, nil).Times(1)
 	accountRepo.EXPECT().ListExternalAccountsByAssetCode(gomock.Any(), orgID, ledgerID, "TST").Return([]*mmodel.Account{}, nil).Times(1)
 	assetRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, assetID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityAsset, assetID.String()).Return(nil).Times(1)
 
 	handler := &AssetHandler{Command: &command.UseCase{
-		AssetRepo:   assetRepo,
-		AccountRepo: accountRepo,
+		AssetRepo:              assetRepo,
+		AccountRepo:            accountRepo,
+		OnboardingMetadataRepo: metadataRepo,
 	}}
 
 	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
