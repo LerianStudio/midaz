@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -374,7 +376,7 @@ func TestIntegration_MetadataRepository_Update_UpsertsIfNotExists(t *testing.T) 
 // Delete Tests
 // ============================================================================
 
-func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
+func TestIntegration_MetadataRepository_Delete_MarksDeletedAtAndPreservesMetadata(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupReusableContainer(t)
 
@@ -382,40 +384,283 @@ func TestIntegration_MetadataRepository_Delete_RemovesMetadata(t *testing.T) {
 	ctx := context.Background()
 	collection := "account"
 
-	mongotestutil.InsertMetadata(t, container.Database, strings.ToLower(collection), mongotestutil.MetadataFixture{
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
 		EntityID:   "delete-1",
 		EntityName: "Account",
 		Data:       map[string]any{"toDelete": true},
 	})
 
-	// Verify exists before delete
-	before, err := repo.FindByEntity(ctx, collection, "delete-1")
-	require.NoError(t, err, "FindByEntity should not error during pre-delete verification")
-	require.NotNil(t, before, "document should exist before delete")
-
 	// Act
-	err = repo.Delete(ctx, collection, "delete-1")
+	err := repo.Delete(ctx, collection, "delete-1")
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")
 
+	stored := findStoredMetadata(t, container.Database, collection, "delete-1")
+	require.NotNil(t, stored.DeletedAt, "Delete should stamp deleted_at")
+	assert.True(t, stored.DeletedAt.Equal(stored.UpdatedAt), "Delete should stamp updated_at with the same instant")
+	assert.Equal(t, true, stored.Data["toDelete"], "Delete should keep the metadata keys")
+	assert.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "delete-1"}),
+		"Delete should keep the document")
+
 	after, err := repo.FindByEntity(ctx, collection, "delete-1")
 	require.NoError(t, err)
-	assert.Nil(t, after, "document should not exist after delete")
+	assert.Nil(t, after, "a soft-deleted document should be invisible to FindByEntity")
 }
 
-func TestIntegration_MetadataRepository_Delete_IsIdempotent(t *testing.T) {
+func TestIntegration_MetadataRepository_Delete_NonExistentCreatesNoDocument(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupReusableContainer(t)
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
+	collection := "account"
 
-	// Act - Delete non-existent (should not error)
-	err := repo.Delete(ctx, "account", "never-existed")
+	// Act
+	err := repo.Delete(ctx, collection, "never-existed")
 
 	// Assert
-	require.NoError(t, err, "Delete should be idempotent - no error for non-existent")
+	require.NoError(t, err, "Delete of an entity without metadata should be a no-op")
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "never-existed"}),
+		"Delete must not upsert a document")
+}
+
+func TestIntegration_MetadataRepository_Create_OmitsDeletedAt(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+
+	// Act
+	err := repo.Create(ctx, collection, &Metadata{
+		EntityID:   "create-live",
+		EntityName: "Account",
+		Data:       map[string]any{"k": "v"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, collection,
+		bson.M{"entity_id": "create-live", "deleted_at": bson.M{"$exists": false}}),
+		"Create should write a document without deleted_at")
+}
+
+func TestIntegration_MetadataRepository_Create_AfterDeleteDoesNotRevive(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+
+	_, err := container.Database.Collection(collection).Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "entity_id", Value: 1}}, Options: options.Index().SetUnique(true),
+	})
+	require.NoError(t, err)
+
+	original := &Metadata{EntityID: "revive-1", EntityName: "Account", Data: map[string]any{"g41": "probe"}, CreatedAt: now, UpdatedAt: now}
+	require.NoError(t, repo.Create(ctx, collection, original))
+	require.NoError(t, repo.Delete(ctx, collection, "revive-1"))
+
+	deletedAt := findStoredMetadata(t, container.Database, collection, "revive-1").DeletedAt
+	require.NotNil(t, deletedAt)
+
+	// Act
+	err = repo.Create(ctx, collection, &Metadata{EntityID: "revive-1", EntityName: "Account", Data: map[string]any{"g41": "revived"}, CreatedAt: now, UpdatedAt: now})
+
+	// Assert
+	require.NoError(t, err, "Create matches the marked document and leaves it untouched")
+
+	stored := findStoredMetadata(t, container.Database, collection, "revive-1")
+	require.NotNil(t, stored.DeletedAt, "Create must not clear deleted_at")
+	assert.True(t, deletedAt.Equal(*stored.DeletedAt), "Create must not change deleted_at")
+	assert.Equal(t, "probe", stored.Data["g41"], "Create must not overwrite the marked metadata")
+	assert.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "revive-1"}),
+		"Create must not add a second document for the entity")
+
+	found, err := repo.FindByEntity(ctx, collection, "revive-1")
+	require.NoError(t, err)
+	assert.Nil(t, found, "the entity should stay invisible")
+}
+
+func TestIntegration_MetadataRepository_FindList_ExcludesDeletedAndIncludesLegacy(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	mongotestutil.InsertManyMetadata(t, container.Database, collection, []mongotestutil.MetadataFixture{
+		{EntityID: "legacy-1", EntityName: "Account", Data: map[string]any{"group": "cash"}},
+		{EntityID: "deleted-1", EntityName: "Account", Data: map[string]any{"group": "cash"}},
+		{EntityID: "other-1", EntityName: "Account", Data: map[string]any{"group": "ops"}},
+	})
+
+	_, err := container.Database.Collection(collection).InsertOne(ctx, bson.M{
+		"entity_id": "explicit-null-1", "entity_name": "Account", "metadata": bson.M{"group": "cash"}, "deleted_at": nil,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, repo.Delete(ctx, collection, "deleted-1"))
+
+	metadataFilter := bson.M{"metadata.group": "cash"}
+	filter := http.QueryHeader{
+		Metadata:    &metadataFilter,
+		UseMetadata: true,
+		Limit:       10,
+		Page:        1,
+	}
+
+	// Act
+	results, err := repo.FindList(ctx, collection, filter)
+
+	// Assert
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(results))
+	for _, r := range results {
+		ids = append(ids, r.EntityID)
+	}
+
+	assert.ElementsMatch(t, []string{"legacy-1", "explicit-null-1"}, ids,
+		"FindList should skip the marked document and keep documents without deleted_at or with a null one")
+	assert.Equal(t, bson.M{"metadata.group": "cash"}, metadataFilter, "FindList must not mutate the caller's filter")
+}
+
+func TestIntegration_MetadataRepository_FindByEntity_ReturnsNilForDeleted(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
+		EntityID:   "find-deleted-1",
+		EntityName: "Account",
+		Data:       map[string]any{"k": "v"},
+	})
+
+	before, err := repo.FindByEntity(ctx, collection, "find-deleted-1")
+	require.NoError(t, err)
+	require.NotNil(t, before, "a legacy document without deleted_at should be visible")
+
+	require.NoError(t, repo.Delete(ctx, collection, "find-deleted-1"))
+
+	// Act
+	after, err := repo.FindByEntity(ctx, collection, "find-deleted-1")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Nil(t, after, "FindByEntity should return nil for a soft-deleted document")
+}
+
+func TestIntegration_MetadataRepository_FindByEntityIDs_OmitsDeleted(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	mongotestutil.InsertManyMetadata(t, container.Database, collection, []mongotestutil.MetadataFixture{
+		{EntityID: "batch-1", EntityName: "Account", Data: map[string]any{"i": 1}},
+		{EntityID: "batch-2", EntityName: "Account", Data: map[string]any{"i": 2}},
+		{EntityID: "batch-3", EntityName: "Account", Data: map[string]any{"i": 3}},
+	})
+
+	require.NoError(t, repo.Delete(ctx, collection, "batch-2"))
+
+	// Act
+	results, err := repo.FindByEntityIDs(ctx, collection, []string{"batch-1", "batch-2", "batch-3"})
+
+	// Assert
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(results))
+	for _, r := range results {
+		ids = append(ids, r.EntityID)
+	}
+
+	assert.ElementsMatch(t, []string{"batch-1", "batch-3"}, ids, "FindByEntityIDs should omit the soft-deleted document")
+}
+
+func TestIntegration_MetadataRepository_Delete_SecondCallKeepsFirstDeletedAt(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
+		EntityID:   "delete-twice-1",
+		EntityName: "Account",
+		Data:       map[string]any{"k": "v"},
+	})
+
+	require.NoError(t, repo.Delete(ctx, collection, "delete-twice-1"))
+
+	first := findStoredMetadata(t, container.Database, collection, "delete-twice-1")
+	require.NotNil(t, first.DeletedAt)
+
+	// Act
+	err := repo.Delete(ctx, collection, "delete-twice-1")
+
+	// Assert
+	require.NoError(t, err, "a second Delete should be a no-op")
+
+	second := findStoredMetadata(t, container.Database, collection, "delete-twice-1")
+	require.NotNil(t, second.DeletedAt)
+	assert.True(t, first.DeletedAt.Equal(*second.DeletedAt), "a second Delete must keep the first deleted_at")
+	assert.True(t, first.UpdatedAt.Equal(second.UpdatedAt), "a second Delete must keep the first updated_at")
+}
+
+func TestIntegration_MetadataRepository_Delete_MarksEveryLiveDuplicate(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account_duplicates"
+
+	mongotestutil.InsertManyMetadata(t, container.Database, collection, []mongotestutil.MetadataFixture{
+		{EntityID: "dup-1", EntityName: "Account", Data: map[string]any{"copy": "older"}},
+		{EntityID: "dup-1", EntityName: "Account", Data: map[string]any{"copy": "newer"}},
+	})
+
+	// Act
+	err := repo.Delete(ctx, collection, "dup-1")
+
+	// Assert
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(2), mongotestutil.CountDocuments(t, container.Database, collection,
+		bson.M{"entity_id": "dup-1", "deleted_at": bson.M{"$type": "date"}}),
+		"Delete should mark every live duplicate of the entity")
+
+	found, err := repo.FindByEntity(ctx, collection, "dup-1")
+	require.NoError(t, err)
+	assert.Nil(t, found, "no duplicate of a deleted entity should stay visible")
+}
+
+// findStoredMetadata reads the raw document of an entity, bypassing the repository's deleted_at filter.
+func findStoredMetadata(t *testing.T, db *mongo.Database, collection, entityID string) MetadataMongoDBModel {
+	t.Helper()
+
+	var stored MetadataMongoDBModel
+
+	err := db.Collection(collection).FindOne(context.Background(), bson.M{"entity_id": entityID}).Decode(&stored)
+	require.NoError(t, err, "stored metadata document should exist")
+
+	return stored
 }
 
 // ============================================================================
@@ -1317,10 +1562,10 @@ func TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenant
 	err := infra.repo.Delete(infra.ctxA, collection, "entity-shared")
 	require.NoError(t, err, "Delete on tenant A should succeed")
 
-	// -- Tenant A no longer has the document --
+	// -- Tenant A no longer sees the document --
 	afterA, err := infra.repo.FindByEntity(infra.ctxA, collection, "entity-shared")
 	require.NoError(t, err)
-	assert.Nil(t, afterA, "tenant A's document should be gone after delete")
+	assert.Nil(t, afterA, "tenant A's document should be invisible after delete")
 
 	// -- Tenant B still has its document --
 	afterB, err := infra.repo.FindByEntity(infra.ctxB, collection, "entity-shared")
@@ -1372,7 +1617,7 @@ func TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantC
 
 	deleted, err := repo.FindByEntity(ctx, collection, "static-entity-1")
 	require.NoError(t, err)
-	assert.Nil(t, deleted, "document should be gone after delete")
+	assert.Nil(t, deleted, "document should be invisible after delete")
 }
 
 // TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStaticConnection
