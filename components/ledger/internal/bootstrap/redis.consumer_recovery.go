@@ -160,8 +160,15 @@ func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
 	passes := 0
 	deadline := r.clock().Add(recoveryCleanupDrainBudget)
 
+	// The budget also bounds each pass: one page of up to 1000 script calls
+	// must not run past it. A pass interrupted between entries leaves the rest
+	// scheduled, and each entry is one atomic script, so cancellation never
+	// leaves a partially deleted execution.
+	cleanupCtx, cancel := context.WithTimeout(ctx, recoveryCleanupDrainBudget)
+	defer cancel()
+
 	for passes < recoveryCleanupMaxPasses {
-		if ctx.Err() != nil {
+		if cleanupCtx.Err() != nil {
 			break
 		}
 
@@ -170,13 +177,18 @@ func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
 			break
 		}
 
-		result, err := owner.CleanupEngineRecovery(ctx, now, recoveryCleanupBatchSize)
+		result, err := owner.CleanupEngineRecovery(cleanupCtx, now, recoveryCleanupBatchSize)
 		passes++
 
 		total.Scanned += result.Scanned
 		total.Cleaned += result.Cleaned
 		total.Stale += result.Stale
 		total.Rescheduled += result.Rescheduled
+
+		if err != nil && ctx.Err() == nil && errors.Is(cleanupCtx.Err(), context.DeadlineExceeded) {
+			// Budget reached mid-pass; the remainder stays scheduled.
+			break
+		}
 
 		if err != nil {
 			r.logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts",

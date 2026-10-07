@@ -152,3 +152,68 @@ func TestRecoveryCleanupStopsWhenContextCanceled(t *testing.T) {
 
 	require.Equal(t, 0, queue.calls)
 }
+
+// blockingDrainQueue blocks each pass until its context ends, like a pass that
+// would otherwise outlive the drain budget.
+type blockingDrainQueue struct {
+	transaction.RedisRepository
+	calls       int
+	hadDeadline bool
+}
+
+func (queue *blockingDrainQueue) CleanupEngineRecovery(ctx context.Context, _ time.Time, _ int) (transaction.RecoveryCleanupResult, error) {
+	queue.calls++
+	_, queue.hadDeadline = ctx.Deadline()
+
+	<-ctx.Done()
+
+	return transaction.RecoveryCleanupResult{Scanned: 1, Cleaned: 1}, ctx.Err()
+}
+
+func TestRecoveryCleanupBoundsEachPassByDrainBudget(t *testing.T) {
+	queue := &blockingDrainQueue{}
+	completer := newDrainCompleter(queue, fixedDrainClock())
+
+	// A parent deadline shorter than the budget keeps the test fast; the pass
+	// must observe a deadline and end when it fires instead of blocking.
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		completer.cleanup(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("cleanup pass ignored its context deadline")
+	}
+
+	require.Equal(t, 1, queue.calls)
+	require.True(t, queue.hadDeadline)
+}
+
+// deadlineDrainQueue records the deadline each pass receives.
+type deadlineDrainQueue struct {
+	transaction.RedisRepository
+	deadline    time.Time
+	hadDeadline bool
+}
+
+func (queue *deadlineDrainQueue) CleanupEngineRecovery(ctx context.Context, _ time.Time, _ int) (transaction.RecoveryCleanupResult, error) {
+	queue.deadline, queue.hadDeadline = ctx.Deadline()
+
+	return transaction.RecoveryCleanupResult{}, nil
+}
+
+func TestRecoveryCleanupPassGetsBudgetDeadlineWithoutParentDeadline(t *testing.T) {
+	queue := &deadlineDrainQueue{}
+
+	newDrainCompleter(queue, fixedDrainClock()).cleanup(context.Background())
+
+	// context deadlines run on the wall clock, so only their presence is asserted.
+	require.True(t, queue.hadDeadline)
+	require.False(t, queue.deadline.IsZero())
+}
