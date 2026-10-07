@@ -504,14 +504,16 @@ func TestCreateInstrument_FailedCreateReleasesSlot(t *testing.T) {
 
 	instrumentRepo := instrumentrepo.NewMockRepository(ctrl)
 	holderRepo := holderrepo.NewMockRepository(ctrl)
-	holderRepo.EXPECT().
-		Find(gomock.Any(), orgID.String(), holderID, false).
-		Return(nil, pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)).
-		Times(1)
-	holderRepo.EXPECT().
-		Find(gomock.Any(), orgID.String(), holderID, false).
-		Return(&mmodel.Holder{ID: &holderID, Document: &document, Type: &holderType}, nil).
-		Times(1)
+	gomock.InOrder(
+		holderRepo.EXPECT().
+			Find(gomock.Any(), orgID.String(), holderID, false).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)).
+			Times(1),
+		holderRepo.EXPECT().
+			Find(gomock.Any(), orgID.String(), holderID, false).
+			Return(&mmodel.Holder{ID: &holderID, Document: &document, Type: &holderType}, nil).
+			Times(1),
+	)
 	instrumentRepo.EXPECT().
 		Create(gomock.Any(), orgID.String(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ string, a *mmodel.Instrument) (*mmodel.Instrument, error) {
@@ -545,6 +547,71 @@ func TestCreateInstrument_FailedCreateReleasesSlot(t *testing.T) {
 	assert.Equal(t, instrumentID.String(), got["id"])
 
 	status, replayed, got = postCRMCreate(t, app, path, "k1", body)
+	assert.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "true", replayed, "the successful create is replayed")
+	assert.Equal(t, instrumentID.String(), got["id"])
+}
+
+// Scenario "Instrument com conta inexistente, retentativa com a mesma chave após
+// correção cria o instrument": the first create names an unknown account, the
+// corrected retry with the same key creates and a third call replays it.
+func TestCreateInstrument_MissingAccountRetryWithSameKeyCreates(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	missingAccountID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	existingAccountID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+	document := "12345678901"
+	holderType := "individual"
+
+	instrumentRepo := instrumentrepo.NewMockRepository(ctrl)
+	holderRepo := holderrepo.NewMockRepository(ctrl)
+	holderRepo.EXPECT().
+		Find(gomock.Any(), orgID.String(), holderID, false).
+		Return(&mmodel.Holder{ID: &holderID, Document: &document, Type: &holderType}, nil).
+		Times(2)
+	instrumentRepo.EXPECT().
+		Create(gomock.Any(), orgID.String(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, a *mmodel.Instrument) (*mmodel.Instrument, error) {
+			a.ID = &instrumentID
+			return a, nil
+		}).
+		Times(1)
+
+	slots := newFakeCRMIdempotencyRepo()
+	handler := &InstrumentHandler{Service: &services.UseCase{
+		InstrumentRepo: instrumentRepo,
+		HolderRepo:     holderRepo,
+		Idempotency:    slots,
+		Encryptor:      newTestFieldEncryptor(t),
+		LedgerAccounts: stubInstrumentLedgerAccountReader{
+			ledgerExists:     true,
+			existingAccounts: map[uuid.UUID]bool{existingAccountID: true},
+		},
+	}}
+
+	app := buildHumaInstrumentApp(t, handler, true)
+	path := "/v2/organizations/" + orgID.String() + "/holders/" + holderID.String() + "/instruments"
+	bodyFor := func(accountID uuid.UUID) string {
+		return `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"` + accountID.String() + `"}`
+	}
+	slotKey := services.InstrumentIdempotencyKey(orgID.String(), holderID.String(), "k1")
+
+	status, _, got := postCRMCreate(t, app, path, "k1", bodyFor(missingAccountID))
+	assert.Equal(t, http.StatusUnprocessableEntity, status)
+	assert.Equal(t, constant.ErrInstrumentAccountReferenceNotFound.Error(), got["code"])
+	assert.NotContains(t, slots.store, slotKey, "a failed create must release its slot")
+
+	status, replayed, got := postCRMCreate(t, app, path, "k1", bodyFor(existingAccountID))
+	assert.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "false", replayed, "the corrected retry ran the create, it is not a replay")
+	assert.Equal(t, instrumentID.String(), got["id"])
+
+	status, replayed, got = postCRMCreate(t, app, path, "k1", bodyFor(existingAccountID))
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "true", replayed, "the successful create is replayed")
 	assert.Equal(t, instrumentID.String(), got["id"])
@@ -887,17 +954,23 @@ func TestInstrumentEntityFieldContract(t *testing.T) {
 // stubInstrumentLedgerAccountReader satisfies services.LedgerAccountReader for
 // the instrument create tests. The create path treats the reader as a hard
 // dependency, so every case must inject one; the booleans drive the 422
-// referential branches at the wire layer.
+// referential branches at the wire layer. existingAccounts, when set, answers
+// AccountExists per account id instead of accountExists.
 type stubInstrumentLedgerAccountReader struct {
-	ledgerExists  bool
-	accountExists bool
+	ledgerExists     bool
+	accountExists    bool
+	existingAccounts map[uuid.UUID]bool
 }
 
 func (s stubInstrumentLedgerAccountReader) LedgerExists(_ context.Context, _, _ uuid.UUID) (bool, error) {
 	return s.ledgerExists, nil
 }
 
-func (s stubInstrumentLedgerAccountReader) AccountExists(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
+func (s stubInstrumentLedgerAccountReader) AccountExists(_ context.Context, _, _, accountID uuid.UUID) (bool, error) {
+	if s.existingAccounts != nil {
+		return s.existingAccounts[accountID], nil
+	}
+
 	return s.accountExists, nil
 }
 

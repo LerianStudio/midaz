@@ -594,14 +594,16 @@ func TestCreateHolder_BusinessErrorReleasesSlot(t *testing.T) {
 	holderType := "NATURAL_PERSON"
 
 	repo := holderrepo.NewMockRepository(ctrl)
-	repo.EXPECT().
-		Create(gomock.Any(), orgID.String(), gomock.Any()).
-		Return(nil, pkg.ValidateBusinessError(constant.ErrDocumentAssociationError, constant.EntityHolder)).
-		Times(2)
-	repo.EXPECT().
-		Create(gomock.Any(), orgID.String(), gomock.Any()).
-		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
-		Times(1)
+	gomock.InOrder(
+		repo.EXPECT().
+			Create(gomock.Any(), orgID.String(), gomock.Any()).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrDocumentAssociationError, constant.EntityHolder)).
+			Times(2),
+		repo.EXPECT().
+			Create(gomock.Any(), orgID.String(), gomock.Any()).
+			Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
+			Times(1),
+	)
 
 	slots := newFakeCRMIdempotencyRepo()
 	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
@@ -638,14 +640,16 @@ func TestCreateHolder_TechnicalErrorReleasesSlot(t *testing.T) {
 	holderType := "NATURAL_PERSON"
 
 	repo := holderrepo.NewMockRepository(ctrl)
-	repo.EXPECT().
-		Create(gomock.Any(), orgID.String(), gomock.Any()).
-		Return(nil, holderInternalServerError()).
-		Times(1)
-	repo.EXPECT().
-		Create(gomock.Any(), orgID.String(), gomock.Any()).
-		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
-		Times(1)
+	gomock.InOrder(
+		repo.EXPECT().
+			Create(gomock.Any(), orgID.String(), gomock.Any()).
+			Return(nil, holderInternalServerError()).
+			Times(1),
+		repo.EXPECT().
+			Create(gomock.Any(), orgID.String(), gomock.Any()).
+			Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document, Type: &holderType}, nil).
+			Times(1),
+	)
 
 	slots := newFakeCRMIdempotencyRepo()
 	app := buildHumaHolderApp(t, newIdempotentHolderHandler(t, repo, slots), true)
