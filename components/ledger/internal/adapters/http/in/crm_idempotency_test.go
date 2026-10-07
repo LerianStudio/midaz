@@ -29,9 +29,10 @@ func newTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 // fakeCRMIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics,
 // shared by the CRM handler tests whose flows claim an idempotency slot. One
 // instance is shared across the requests of a single replay test so the second
-// request sees the first one's claim.
+// request sees the first one's claim. delErr injects a release failure.
 type fakeCRMIdempotencyRepo struct {
-	store map[string]string
+	store  map[string]string
+	delErr error
 }
 
 func newFakeCRMIdempotencyRepo() *fakeCRMIdempotencyRepo {
@@ -59,6 +60,16 @@ func (f *fakeCRMIdempotencyRepo) Get(_ context.Context, key string) (string, err
 
 func (f *fakeCRMIdempotencyRepo) Set(_ context.Context, key, value string, _ time.Duration) error {
 	f.store[key] = value
+
+	return nil
+}
+
+func (f *fakeCRMIdempotencyRepo) Del(_ context.Context, key string) error {
+	if f.delErr != nil {
+		return f.delErr
+	}
+
+	delete(f.store, key)
 
 	return nil
 }

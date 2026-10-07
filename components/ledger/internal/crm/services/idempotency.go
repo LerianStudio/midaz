@@ -32,11 +32,12 @@ const (
 // infrastructure. It is satisfied structurally by the transaction
 // RedisConsumerRepository; the CRM use case never depends on the transaction
 // idempotency methods (those are typed to transaction.Transaction and live on
-// the money path).
+// the money path). Del releases a claimed slot whose create did not persist.
 type IdempotencyRepo interface {
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
+	Del(ctx context.Context, key string) error
 }
 
 // CRMIdempotencyResult holds the outcome of a CRM idempotency claim.

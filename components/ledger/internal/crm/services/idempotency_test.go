@@ -19,11 +19,12 @@ import (
 )
 
 // fakeIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics.
-// setErr/getErr inject failures for the error-path assertions.
+// setErr/getErr/delErr inject failures for the error-path assertions.
 type fakeIdempotencyRepo struct {
 	store  map[string]string
 	setErr error
 	getErr error
+	delErr error
 }
 
 func newFakeIdempotencyRepo() *fakeIdempotencyRepo {
@@ -63,6 +64,16 @@ func (f *fakeIdempotencyRepo) Set(_ context.Context, key, value string, _ time.D
 	}
 
 	f.store[key] = value
+
+	return nil
+}
+
+func (f *fakeIdempotencyRepo) Del(_ context.Context, key string) error {
+	if f.delErr != nil {
+		return f.delErr
+	}
+
+	delete(f.store, key)
 
 	return nil
 }
