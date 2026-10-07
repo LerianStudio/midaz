@@ -588,8 +588,13 @@ move a route between the lists, send both.
 field of the route cache entry. A pod older than this change reads every link as required, and when
 it rewrites a cache entry (a route update, an operation-route update, a cache miss) it writes the
 entry without the flag, so the route is strict again until a newer pod rewrites it. Do not mark links
-optional until every pod runs a version that knows the flag; for a link marked during the rollout,
-repeat its `/v2` PATCH afterwards or delete its `accounting_routes:{organization:route}` key.
+optional until every pod runs a version that knows the flag. If a link was marked during the rollout,
+delete that transaction route's `accounting_routes:{organization:route}` key once every older pod has
+stopped: the next read reloads the entry, flag included, from the database.
+
+Rolling back the schema refuses while any active link is optional (the down migration raises before
+dropping the column), because every link would become required and the transactions that leave
+those links unused would be refused. Make the links required, or remove them, before rolling back.
 
 ## Metadata on a PATCH: `null` is a `/v2` no-op
 
