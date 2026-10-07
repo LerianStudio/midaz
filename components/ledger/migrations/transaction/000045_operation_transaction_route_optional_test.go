@@ -25,7 +25,10 @@ func TestMigration000045_AddsRequiredByDefaultOptionalFlagToLinks(t *testing.T) 
 	assert.Contains(t, sql, "alter table operation_transaction_route add column if not exists optional boolean not null default false")
 }
 
-func TestMigration000045_DownDropsTheOptionalFlag(t *testing.T) {
+// Rolling back would turn optional links required again and refuse the
+// transactions that leave them unused, so the down refuses while any active
+// link is optional, and only then drops the column.
+func TestMigration000045_DownRefusesWhileLinksAreOptional(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
@@ -33,5 +36,13 @@ func TestMigration000045_DownDropsTheOptionalFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	sql := strings.Join(strings.Fields(strings.ToLower(string(down))), " ")
-	assert.Contains(t, sql, "alter table operation_transaction_route drop column if exists optional")
+
+	guard := strings.Index(sql, "raise exception")
+	drop := strings.Index(sql, "alter table operation_transaction_route drop column if exists optional")
+
+	assert.Contains(t, sql, "column_name = 'optional'", "the guard must tolerate a database without the column")
+	assert.Contains(t, sql, "where optional and deleted_at is null", "only active optional links block the rollback")
+	require.NotEqual(t, -1, guard, "the down must refuse while links are optional")
+	require.NotEqual(t, -1, drop, "the down must drop the column")
+	assert.Less(t, guard, drop, "the guard must run before the column is dropped")
 }
