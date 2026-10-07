@@ -40,7 +40,7 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 	}
 
 	// Step 2: Batch query junction table
-	junctionMap, err := uc.TransactionRouteRepo.FindOperationRouteIDsByTransactionRouteIDs(ctx, trIDs)
+	junctionMap, err := uc.TransactionRouteRepo.FindOperationRouteLinksByTransactionRouteIDs(ctx, trIDs)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to fetch operation route IDs from junction table", err)
 
@@ -52,9 +52,9 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 	// Step 3: Collect all unique operation route IDs
 	uniqueORIDs := make(map[uuid.UUID]struct{})
 
-	for _, orIDs := range junctionMap {
-		for _, orID := range orIDs {
-			uniqueORIDs[orID] = struct{}{}
+	for _, links := range junctionMap {
+		for _, link := range links {
+			uniqueORIDs[link.OperationRouteID] = struct{}{}
 		}
 	}
 
@@ -87,22 +87,29 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 
 	// Step 5: Assign operation routes to their parent transaction routes
 	for _, tr := range transactionRoutes {
-		orIDs, exists := junctionMap[tr.ID]
-		if !exists || len(orIDs) == 0 {
+		links, exists := junctionMap[tr.ID]
+		if !exists || len(links) == 0 {
 			tr.OperationRoutes = make([]mmodel.OperationRoute, 0)
 
 			continue
 		}
 
-		routes := make([]mmodel.OperationRoute, 0, len(orIDs))
+		routes := make([]mmodel.OperationRoute, 0, len(links))
 
-		for _, orID := range orIDs {
-			if or, ok := orMap[orID]; ok {
+		var optional []uuid.UUID
+
+		for _, link := range links {
+			if or, ok := orMap[link.OperationRouteID]; ok {
 				routes = append(routes, *or)
+
+				if link.Optional {
+					optional = append(optional, link.OperationRouteID)
+				}
 			}
 		}
 
 		tr.OperationRoutes = routes
+		tr.OptionalOperationRouteIDs = optional
 	}
 
 	logger.Log(ctx, libLog.LevelDebug, "Enriched transaction routes with operation routes",

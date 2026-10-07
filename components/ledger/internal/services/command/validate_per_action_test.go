@@ -120,7 +120,7 @@ func TestValidateOperationRouteTypes_SourceDestinationCoverage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateOperationRouteTypes(tt.opRoutes)
+			err := validateOperationRouteTypes(tt.opRoutes, nil)
 
 			if tt.expectedError == nil {
 				assert.NoError(t, err)

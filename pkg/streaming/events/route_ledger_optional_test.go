@@ -23,6 +23,7 @@ type routeEventCase struct {
 	withLedger    func() any
 	withoutLedger func() any
 	fieldsLedger  int
+	schemaVersion string
 }
 
 func routeEventCases() []routeEventCase {
@@ -47,6 +48,7 @@ func routeEventCases() []routeEventCase {
 			withLedger:    func() any { return events.NewTransactionRouteCreated(minimalTransactionRoute()) },
 			withoutLedger: func() any { return events.NewTransactionRouteCreated(orgLevelTransactionRoute()) },
 			fieldsLedger:  7,
+			schemaVersion: "1.2.0",
 		},
 		{
 			name:          "transaction_route.updated",
@@ -54,6 +56,7 @@ func routeEventCases() []routeEventCase {
 			withLedger:    func() any { return events.NewTransactionRouteUpdated(minimalTransactionRoute()) },
 			withoutLedger: func() any { return events.NewTransactionRouteUpdated(orgLevelTransactionRoute()) },
 			fieldsLedger:  6,
+			schemaVersion: "1.2.0",
 		},
 		{
 			name:       "transaction_route.deleted",
@@ -125,12 +128,19 @@ func TestRouteEvents_LedgerIDOnlyWhenTheRouteHasALedger(t *testing.T) {
 }
 
 // TestRouteEvents_SchemaVersionAnnouncesOptionalLedger locks the minor schema bump that
-// announces ledgerId as optional on every accounting-route event.
+// announces ledgerId as optional on every accounting-route event (1.1.0). The
+// transaction-route created and updated events moved on to 1.2.0, which adds the
+// optional links.
 func TestRouteEvents_SchemaVersionAnnouncesOptionalLedger(t *testing.T) {
 	for _, tc := range routeEventCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			want := tc.schemaVersion
+			if want == "" {
+				want = "1.1.0"
+			}
+
 			assert.Equal(t, tc.name, tc.definition.Key())
-			assert.Equal(t, "1.1.0", tc.definition.SchemaVersion)
+			assert.Equal(t, want, tc.definition.SchemaVersion)
 		})
 	}
 }

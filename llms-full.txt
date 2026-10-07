@@ -169,6 +169,7 @@ All models live in `pkg/mmodel/`. Key entities:
 - `accountingEntries` keys: `direct`, `hold`, `commit`, `cancel`, `revert` (transaction-route actions) plus the entry-only `overdraft`, `block`, `unblock` and `crossLedger`
 - `crossLedger` marks the cross-ledger bridge route: debit rubric = arriving from another ledger, credit rubric = leaving to another ledger, both required; the operation route must be `bidirectional` (`0162` otherwise) and carry no other entry (`0256`); it needs no `direct` entry and never counts in an action's template. A transaction route links at most one (`0256` on transaction-route create/update, and on operation-route update when a linked transaction route already has one)
 - Account rules: alias-based or account-type-based validation
+- Optional operation routes: a transaction route link is required or optional (`operation_transaction_route.optional`, default `false`). A transaction may leave an optional route unused, which is what lets a fee route stay linked when the fee does not apply; a leg that uses one is still validated like any other (`0117`, direction, account rule, overdraft, `0151`). Required links are counted as before (`0116`). The flag is registered on `/v2` only — `operationRoutes` lists the required links and `optionalOperationRoutes` the optional ones, in the request and the response — and honored by `/v1` and `/v2` transactions alike. `/v1` route bodies refuse `optionalOperationRoutes` (`0053`) and `/v1` reads list every link in `operationRoutes`. A `/v2` PATCH applies each list as a JSON merge patch (absent or `null` keeps it, `[]` removes it) and validates the result as a create: a route in both lists `0541`, fewer than two links `0104`, no required source or destination `0153`/`0154`, an optional `crossLedger` route `0256` (also on an operation-route update that gives a crossLedger entry to a route linked as optional). `transaction_route.created`/`updated` events are schema `1.2.0`: `operationRouteIds` keeps every link and `optionalOperationRouteIds` names the optional subset
 
 ### 3.8 Account Type
 - Custom account types per organization/ledger
@@ -230,7 +231,7 @@ Cross-ledger groups work on ledgers that enable `accounting.validateRoutes` when
 belongs to one organization: the request's organization-wide `routeId` covers every part, the
 bridge legs of validating parts take the transaction route's `crossLedger` operation route, each
 validating part is checked leg by leg, and the client legs of all parts of a phase together must
-use exactly that phase's template (`0116`/`0117`/`0151`; legs naming a route count even in
+use every required route of that phase's template and no route outside it (`0116`/`0117`/`0151`; optional routes may be left unused; legs naming a route count even in
 non-validating parts). A group spanning organizations with a validating participant returns
 `0251`. See the "Accounting routes" section of the cross-ledger contract.
 
@@ -744,7 +745,8 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0253` ErrCrossLedgerGroupIncomplete — the requested cross-ledger group is missing or has inconsistent intent or members (HTTP 422)
 - `0254` ErrCrossLedgerGroupNotPending — grouped commit/cancel targeted a group whose current status is not PENDING (HTTP 422)
 - `0255` ErrCrossLedgerRouteNotConfigured — a participant validates routes but the request's transaction route links no operation route with a `crossLedger` entry for the bridge leg (HTTP 422)
-- `0256` ErrInvalidCrossLedgerRoute — the bridge route does not resolve to exactly one operation route: a `crossLedger` entry combined with other entries, or more than one `crossLedger` operation route in a transaction route (HTTP 422)
+- `0256` ErrInvalidCrossLedgerRoute — the bridge route does not resolve to exactly one operation route: a `crossLedger` entry combined with other entries, more than one `crossLedger` operation route in a transaction route, or a `crossLedger` route linked as optional (HTTP 422)
+- `0541` ErrOperationRouteBothRequiredAndOptional — a transaction route create or `/v2` update would list the same operation route in `operationRoutes` and `optionalOperationRoutes` (HTTP 400)
 
 #### CRM Error Codes (all 30)
 - `CRM-0006` ErrHolderNotFound — holder not found

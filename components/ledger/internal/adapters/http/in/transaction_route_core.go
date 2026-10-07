@@ -87,7 +87,7 @@ func (handler *TransactionRouteHandler) getTransactionRouteByID(ctx context.Cont
 
 // updateTransactionRoute owns the span + service call + cache write for an
 // already-decoded payload.
-func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
+func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateTransactionRouteInput, policy command.TransactionRouteLinkPolicy) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
@@ -95,7 +95,7 @@ func (handler *TransactionRouteHandler) updateTransactionRoute(ctx context.Conte
 
 	recordSafePayloadAttributes(span, payload)
 
-	transactionRoute, err := handler.Command.UpdateTransactionRoute(ctx, organizationID, id, payload)
+	transactionRoute, err := handler.Command.UpdateTransactionRoute(ctx, organizationID, id, payload, policy)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction route", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to update transaction route", libLog.Err(err), libLog.String("transaction_route_id", id.String()))

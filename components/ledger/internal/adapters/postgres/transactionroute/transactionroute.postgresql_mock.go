@@ -104,32 +104,32 @@ func (mr *MockRepositoryMockRecorder) FindByID(ctx, organizationID, id any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), ctx, organizationID, id)
 }
 
-// FindOperationRouteIDsByTransactionRouteIDs mocks base method.
-func (m *MockRepository) FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+// FindOperationRouteLinksByTransactionRouteIDs mocks base method.
+func (m *MockRepository) FindOperationRouteLinksByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]OperationRouteLink, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOperationRouteIDsByTransactionRouteIDs", ctx, transactionRouteIDs)
-	ret0, _ := ret[0].(map[uuid.UUID][]uuid.UUID)
+	ret := m.ctrl.Call(m, "FindOperationRouteLinksByTransactionRouteIDs", ctx, transactionRouteIDs)
+	ret0, _ := ret[0].(map[uuid.UUID][]OperationRouteLink)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FindOperationRouteIDsByTransactionRouteIDs indicates an expected call of FindOperationRouteIDsByTransactionRouteIDs.
-func (mr *MockRepositoryMockRecorder) FindOperationRouteIDsByTransactionRouteIDs(ctx, transactionRouteIDs any) *gomock.Call {
+// FindOperationRouteLinksByTransactionRouteIDs indicates an expected call of FindOperationRouteLinksByTransactionRouteIDs.
+func (mr *MockRepositoryMockRecorder) FindOperationRouteLinksByTransactionRouteIDs(ctx, transactionRouteIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOperationRouteIDsByTransactionRouteIDs", reflect.TypeOf((*MockRepository)(nil).FindOperationRouteIDsByTransactionRouteIDs), ctx, transactionRouteIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOperationRouteLinksByTransactionRouteIDs", reflect.TypeOf((*MockRepository)(nil).FindOperationRouteLinksByTransactionRouteIDs), ctx, transactionRouteIDs)
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, links LinkChanges) (*mmodel.TransactionRoute, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, organizationID, id, transactionRoute, toAdd, toRemove)
+	ret := m.ctrl.Call(m, "Update", ctx, organizationID, id, transactionRoute, links)
 	ret0, _ := ret[0].(*mmodel.TransactionRoute)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, id, transactionRoute, toAdd, toRemove any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, id, transactionRoute, links any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, id, transactionRoute, toAdd, toRemove)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, id, transactionRoute, links)
 }
