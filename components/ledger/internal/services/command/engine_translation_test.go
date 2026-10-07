@@ -231,6 +231,153 @@ func TestTranslateEngineTransactionOverdraftRulesForBlockAndUnblock(t *testing.T
 	}
 }
 
+func TestTranslateEngineTransactionBlockUnblockRubric(t *testing.T) {
+	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
+	sourceRouteID := uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	destinationRouteID := uuid.MustParse("99999999-9999-4999-8999-999999999999")
+
+	debitRubric := func(code string) *mmodel.AccountingEntry {
+		return &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: code, Description: code + " description"}}
+	}
+	creditRubric := func(code string) *mmodel.AccountingEntry {
+		return &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: code, Description: code + " description"}}
+	}
+	bothRubrics := func(debit, credit string) *mmodel.AccountingEntry {
+		return &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: debit, Description: debit + " description"},
+			Credit: &mmodel.AccountingRubric{Code: credit, Description: credit + " description"},
+		}
+	}
+
+	dedicatedSource := &mmodel.AccountingEntries{Direct: debitRubric("D-SRC"), Block: debitRubric("B-SRC"), Unblock: debitRubric("U-SRC")}
+	dedicatedDestination := &mmodel.AccountingEntries{Direct: creditRubric("D-DST"), Block: creditRubric("B-DST"), Unblock: creditRubric("U-DST")}
+	directOnlySource := &mmodel.AccountingEntries{Direct: debitRubric("D-SRC")}
+	directOnlyDestination := &mmodel.AccountingEntries{Direct: creditRubric("D-DST")}
+
+	tests := []struct {
+		name                   string
+		override               string
+		sourceEntries          *mmodel.AccountingEntries
+		destinationEntries     *mmodel.AccountingEntries
+		destinationInOverdraft bool
+		wantRowTypes           []string
+		wantRouteCodes         []string
+	}{
+		{
+			name:     "block books the block rubric when the route configures it",
+			override: constant.BLOCK, sourceEntries: dedicatedSource, destinationEntries: dedicatedDestination,
+			wantRowTypes:   []string{constant.BLOCK, constant.BLOCK},
+			wantRouteCodes: []string{"B-SRC", "B-DST"},
+		},
+		{
+			name:     "unblock books the unblock rubric when the route configures it",
+			override: constant.UNBLOCK, sourceEntries: dedicatedSource, destinationEntries: dedicatedDestination,
+			wantRowTypes:   []string{constant.UNBLOCK, constant.UNBLOCK},
+			wantRouteCodes: []string{"U-SRC", "U-DST"},
+		},
+		{
+			name:     "block falls back to the direct rubric without a block entry",
+			override: constant.BLOCK, sourceEntries: directOnlySource, destinationEntries: directOnlyDestination,
+			wantRowTypes:   []string{constant.BLOCK, constant.BLOCK},
+			wantRouteCodes: []string{"D-SRC", "D-DST"},
+		},
+		{
+			name:     "unblock falls back to the direct rubric without an unblock entry",
+			override: constant.UNBLOCK, sourceEntries: directOnlySource, destinationEntries: directOnlyDestination,
+			wantRowTypes:   []string{constant.UNBLOCK, constant.UNBLOCK},
+			wantRouteCodes: []string{"D-SRC", "D-DST"},
+		},
+		{
+			name:          "direct keeps the direct rubric even when block and unblock entries exist",
+			sourceEntries: dedicatedSource, destinationEntries: dedicatedDestination,
+			wantRowTypes:   []string{constant.DEBIT, constant.CREDIT},
+			wantRouteCodes: []string{"D-SRC", "D-DST"},
+		},
+		{
+			name:     "unblock repaying overdraft books unblock on the primary and overdraft on the companion",
+			override: constant.UNBLOCK, sourceEntries: dedicatedSource,
+			destinationEntries: &mmodel.AccountingEntries{
+				Direct: creditRubric("D-DST"), Unblock: creditRubric("U-DST"), Overdraft: bothRubrics("O-DST-D", "O-DST-C"),
+			},
+			destinationInOverdraft: true,
+			wantRowTypes:           []string{constant.UNBLOCK, constant.UNBLOCK, constant.OVERDRAFT},
+			wantRouteCodes:         []string{"U-SRC", "U-DST", "O-DST-C"},
+		},
+		{
+			name:     "a cross-ledger bridge route keeps its bridge rubric under a block",
+			override: constant.BLOCK,
+			sourceEntries: &mmodel.AccountingEntries{
+				Direct: debitRubric("D-SRC"), Block: debitRubric("B-SRC"), CrossLedger: debitRubric("X-SRC"),
+			},
+			destinationEntries: dedicatedDestination,
+			wantRowTypes:       []string{constant.BLOCK, constant.BLOCK},
+			wantRouteCodes:     []string{"X-SRC", "B-DST"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			route := mmodel.TransactionRoute{OperationRoutes: []mmodel.OperationRoute{
+				{ID: sourceRouteID, OperationType: "source", AccountingEntries: tt.sourceEntries},
+				{ID: destinationRouteID, OperationType: "destination", AccountingEntries: tt.destinationEntries},
+			}}
+			routeCache := route.ToCache()
+
+			source := translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@source", "default")
+			destination := translationBalance(organizationID, ledgerID, "55555555-5555-4555-8555-555555555555", "@destination", "default")
+			balances := []*mmodel.Balance{source, destination}
+
+			debit := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), TransactionType: constant.CREATED}
+			credit := debit
+
+			if tt.destinationInOverdraft {
+				destinationDebt := translationBalance(organizationID, ledgerID, "77777777-7777-4777-8777-777777777777", "@destination", constant.OverdraftBalanceKey)
+				destinationDebt.AccountID = destination.AccountID
+				balances = append(balances, destinationDebt)
+				credit.OverdraftAmount = decimal.NewFromInt(5)
+			}
+
+			input := EngineTranslationInput{
+				TransactionID:     uuid.MustParse("33333333-3333-4333-8333-333333333333"),
+				Action:            constant.ActionDirect,
+				TransactionStatus: constant.CREATED,
+				TransactionInput: mtransaction.Transaction{
+					OperationTypeOverride: tt.override,
+					Send: mtransaction.Send{
+						Asset:      "USD",
+						Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@source#default", BalanceKey: "default", IsFrom: true}}},
+						Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "0#@destination#default", BalanceKey: "default"}}},
+					},
+				},
+				Validate: &mtransaction.Responses{
+					From:                map[string]mtransaction.Amount{"0#@source#default": debit},
+					To:                  map[string]mtransaction.Amount{"0#@destination#default": credit},
+					OperationRoutesFrom: map[string]string{"0#@source#default": sourceRouteID.String()},
+					OperationRoutesTo:   map[string]string{"0#@destination#default": destinationRouteID.String()},
+				},
+				Balances:   balances,
+				RouteCache: &routeCache,
+			}
+
+			_, projection, err := TranslateEngineTransaction(input)
+			require.NoError(t, err)
+
+			rowTypes := make([]string, 0, len(projection))
+			routeCodes := make([]string, 0, len(projection))
+
+			for _, spec := range projection {
+				rowTypes = append(rowTypes, spec.RowType)
+				routeCodes = append(routeCodes, spec.RouteCode)
+				assert.Equal(t, spec.RouteCode+" description", spec.RouteDescription, "rubric description must come from the same entry as its code")
+			}
+
+			assert.Equal(t, tt.wantRowTypes, rowTypes)
+			assert.Equal(t, tt.wantRouteCodes, routeCodes)
+		})
+	}
+}
+
 func TestTranslateEngineTransactionLifecyclePaths(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
