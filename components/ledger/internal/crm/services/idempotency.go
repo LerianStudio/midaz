@@ -183,6 +183,26 @@ func (uc *UseCase) SetCRMIdempotencyValue(ctx context.Context, organizationID, i
 	}
 }
 
+// ReleaseCRMIdempotency deletes a claimed slot whose create persisted nothing,
+// so a retry runs the create again instead of meeting the in-flight conflict.
+// A nil Idempotency repo is a no-op. A delete failure is logged and swallowed:
+// the slot then expires by its TTL and the caller's original outcome stands.
+func (uc *UseCase) ReleaseCRMIdempotency(ctx context.Context, internalKey string) {
+	if uc.Idempotency == nil {
+		return
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.release_crm_idempotency")
+	defer span.End()
+
+	if err := uc.Idempotency.Del(ctx, internalKey); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release CRM idempotency slot", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to release CRM idempotency slot", libLog.Err(err))
+	}
+}
+
 // replayFieldContext binds a stored entity's ciphertext to its tenant,
 // organization and idempotency slot.
 func replayFieldContext(ctx context.Context, organizationID, internalKey string) encryption.FieldContext {

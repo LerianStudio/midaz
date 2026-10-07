@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -176,6 +177,44 @@ func TestSetCRMIdempotencyValue_DisabledNoOp(t *testing.T) {
 
 	// Must not panic and must not error.
 	uc.SetCRMIdempotencyValue(context.Background(), testIdempotencyOrg, testIdempotencyKey, `{"id":"abc"}`, testIdempotencyTTL)
+}
+
+func TestReleaseCRMIdempotency_DisabledNoOp(t *testing.T) {
+	uc := &UseCase{Idempotency: nil}
+
+	// Must not panic.
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+}
+
+func TestReleaseCRMIdempotency_RemovesClaim(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	uc := &UseCase{Idempotency: repo}
+
+	first, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	require.NoError(t, err)
+	require.Nil(t, first.Replay)
+	require.Contains(t, repo.store, testIdempotencyKey)
+
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+
+	assert.NotContains(t, repo.store, testIdempotencyKey)
+
+	// The released slot is claimable again instead of answering in-flight.
+	second, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	require.NoError(t, err)
+	assert.Nil(t, second.Replay)
+}
+
+func TestReleaseCRMIdempotency_DelFailureSwallowed(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	repo.store[testIdempotencyKey] = ""
+	repo.delErr = errors.New("redis unavailable")
+	uc := &UseCase{Idempotency: repo}
+
+	// Returns nothing: the failure must not reach the caller.
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+
+	assert.Contains(t, repo.store, testIdempotencyKey, "a failed release leaves the slot to its TTL")
 }
 
 func TestCRMIdempotencyKeyBuilders(t *testing.T) {
