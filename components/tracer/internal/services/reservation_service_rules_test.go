@@ -100,7 +100,7 @@ func TestReservationService_Reserve_Rules(t *testing.T) {
 		deps.expectTxCommit()
 		deps.expectScopeLock()
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000)), gomock.Any()).
 			Return(false, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -154,7 +154,7 @@ func TestReservationService_Reserve_Rules(t *testing.T) {
 		deps.expectTxRollback()
 		deps.expectScopeLock()
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), gomock.Any()).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(false, constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
@@ -262,7 +262,7 @@ func TestReservationService_Reserve_Rules(t *testing.T) {
 		deps.expectTxCommit()
 		deps.expectScopeLock()
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), gomock.Any()).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(false, nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
