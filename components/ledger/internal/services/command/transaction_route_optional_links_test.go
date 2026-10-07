@@ -370,7 +370,15 @@ func TestDeleteTransactionRoute_RemovesOptionalLinksToo(t *testing.T) {
 		})
 	cache.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-	uc := &UseCase{TransactionRouteRepo: transactionRoutes, TransactionRedisRepo: cache}
+	metadata := mongodb.NewMockRepository(ctrl)
+	metadata.EXPECT().Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).Return(nil).Times(1)
+
+	uc := &UseCase{
+		TransactionRouteRepo:    transactionRoutes,
+		TransactionRedisRepo:    cache,
+		TransactionMetadataRepo: metadata,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
+	}
 
 	require.NoError(t, uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID))
 }

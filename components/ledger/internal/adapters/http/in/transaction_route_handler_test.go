@@ -327,11 +327,14 @@ func TestDeleteTransactionRoute_204Empty(t *testing.T) {
 	trRepo.EXPECT().FindByID(gomock.Any(), orgID, id).
 		Return(&mmodel.TransactionRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Settlement"}, nil).Times(1)
 	trRepo.EXPECT().Delete(gomock.Any(), orgID, id, gomock.Any()).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityTransactionRoute, id.String()).Return(nil).Times(1)
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
-		TransactionRouteRepo: trRepo,
-		TransactionRedisRepo: redisRepo,
+		TransactionRouteRepo:    trRepo,
+		TransactionRedisRepo:    redisRepo,
+		TransactionMetadataRepo: metadataRepo,
 	}}
 
 	app := buildHumaTransactionRouteApp(t, handler, true)
