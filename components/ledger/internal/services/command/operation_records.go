@@ -95,6 +95,7 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 			Amount: operation.Amount{Value: &amount}, Balance: projectedOperationBalance(before), BalanceAfter: projectedOperationBalance(after),
 			BalanceID: context.Balance.ID, AccountID: context.Balance.AccountID,
 			AccountAlias: mtransaction.SplitAlias(context.Balance.Alias), AccountType: context.Balance.AccountType, BalanceKey: context.Balance.Key,
+			Route:   legRouteLabel(payload.TransactionInput, context), //nolint:staticcheck // the /v1 leg label is persisted as sent; RouteID stays canonical
 			RouteID: routeID, RouteCode: projectedOptionalText(context.RouteCode), RouteDescription: projectedOptionalText(context.RouteDescription),
 			BalanceAffected: true, Direction: context.Direction,
 			CreatedAt: payload.TransactionDate, UpdatedAt: payload.OperationUpdatedAt, RecordedAt: recordedAt,
@@ -103,6 +104,33 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 	}
 
 	return rows, nil
+}
+
+// legRouteLabel returns the free-text route label the client sent on the leg a
+// primary row came from, verbatim. Only that leg's primary rows carry it: an
+// overdraft companion or a fee-debt row is a system movement, not a sent leg.
+// A reference that does not resolve to the same leg yields no label, because a
+// passive label must never fail the completion of an applied movement.
+func legRouteLabel(input mtransaction.Transaction, context OperationRecordSpec) string {
+	if context.Role != accounting.RolePrimary {
+		return ""
+	}
+
+	side, index, ok := parseOperationOriginRef(context.OriginRef)
+	if !ok || side != context.Side {
+		return ""
+	}
+
+	legs := input.Send.Source.From
+	if side == OperationSpecSideTo {
+		legs = input.Send.Distribute.To
+	}
+
+	if index >= len(legs) || mtransaction.SplitAliasWithKey(legs[index].AccountAlias) != context.BalanceRef {
+		return ""
+	}
+
+	return legs[index].Route //nolint:staticcheck // the /v1 leg label is persisted as sent; RouteID stays canonical
 }
 
 func projectedOperationBalance(state accounting.BalanceState) operation.Balance {

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -172,4 +173,160 @@ func TestEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *testing.T)
 	recoveredJSON, err := json.Marshal(recovered)
 	require.NoError(t, err)
 	assert.JSONEq(t, string(normalJSON), string(recoveredJSON))
+}
+
+// legRouteLabelPipeline translates a three-leg transfer whose second source leg
+// draws overdraft, and returns the frozen plan with the engine outcome it records.
+// Each leg carries the free-text route label given in labels, in leg order.
+func legRouteLabelPipeline(t *testing.T, labels [3]string) (TransactionCompletionPlan, accounting.ExecutionResult) {
+	t.Helper()
+
+	payload, _ := recoveryContractFixture(t)
+	payload.TransactionStatus = constant.CREATED
+	balance := func(alias, key string, available, version int64) *mmodel.Balance {
+		return &mmodel.Balance{
+			ID:             uuid.NewSHA1(uuid.NameSpaceOID, []byte(alias+"#"+key)).String(),
+			AccountID:      uuid.NewSHA1(uuid.NameSpaceOID, []byte(alias)).String(),
+			OrganizationID: payload.OrganizationID.String(), LedgerID: payload.LedgerID.String(),
+			Alias: alias, Key: key, AssetCode: "USD", AccountType: "deposit", Direction: constant.DirectionCredit,
+			Available: decimal.NewFromInt(available), Version: version, AllowSending: true, AllowReceiving: true,
+			CreatedAt: payload.TransactionDate, UpdatedAt: payload.TransactionDate,
+		}
+	}
+	companion := balance("@source", constant.OverdraftBalanceKey, 0, 11)
+	companion.Direction = constant.DirectionDebit
+	companion.Settings = &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeInternal}
+	balances := []*mmodel.Balance{balance("@source", constant.DefaultBalanceKey, 50, 7), balance("@target", constant.DefaultBalanceKey, 0, 4), companion}
+
+	leg := func(alias, label string, isFrom bool) mtransaction.FromTo {
+		return mtransaction.FromTo{AccountAlias: alias, BalanceKey: constant.DefaultBalanceKey, IsFrom: isFrom, Route: label}
+	}
+	payload.TransactionInput.Send = mtransaction.Send{
+		Asset: "USD", Value: decimal.NewFromInt(60),
+		Source: mtransaction.Source{From: []mtransaction.FromTo{
+			leg("0#@source#default", labels[0], true), leg("1#@source#default", labels[1], true),
+		}},
+		Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{leg("0#@target#default", labels[2], false)}},
+	}
+	payload.Validate = &mtransaction.Responses{
+		Asset: "USD", Total: decimal.NewFromInt(60),
+		From: map[string]mtransaction.Amount{
+			"0#@source#default": {Asset: "USD", Value: decimal.NewFromInt(30), Operation: constant.DEBIT},
+			"1#@source#default": {Asset: "USD", Value: decimal.NewFromInt(30), Operation: constant.DEBIT},
+		},
+		To: map[string]mtransaction.Amount{"0#@target#default": {Asset: "USD", Value: decimal.NewFromInt(60), Operation: constant.CREDIT}},
+	}
+
+	translated, projection, err := TranslateEngineTransaction(EngineTranslationInput{
+		TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
+		TransactionInput: payload.TransactionInput, Validate: payload.Validate, Balances: balances,
+	})
+	require.NoError(t, err)
+
+	payload.OperationSpecs = projection
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(EngineIntent{
+		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
+		Transactions: []EngineTransactionIntent{transactionCompletionIntent(translated, payload)},
+	})
+	require.NoError(t, err)
+
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{
+		{
+			Ref: "first", TransactionID: payload.TransactionID, PostingRef: "from:0:debit", Role: accounting.RolePrimary,
+			BalanceRef: "@source#default", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(30),
+			Before: accounting.BalanceState{Available: decimal.NewFromInt(50), Version: 7},
+			After:  accounting.BalanceState{Available: decimal.NewFromInt(20), Version: 8},
+		},
+		{
+			Ref: "second", TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: accounting.RolePrimary,
+			BalanceRef: "@source#default", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(20), OverdraftDelta: decimal.NewFromInt(10),
+			Before: accounting.BalanceState{Available: decimal.NewFromInt(20), Version: 8},
+			After:  accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(10), Version: 9},
+		},
+		{
+			Ref: movementRef(payload.TransactionID, "from:1:debit", accounting.RoleOverdraftCompanion, 0), TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: accounting.RoleOverdraftCompanion,
+			BalanceRef: "@source#overdraft", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(10),
+			Before: accounting.BalanceState{Version: 11}, After: accounting.BalanceState{Available: decimal.NewFromInt(10), Version: 12},
+		},
+		{
+			Ref: "target", TransactionID: payload.TransactionID, PostingRef: "to:0:credit", Role: accounting.RolePrimary,
+			BalanceRef: "@target#default", Type: accounting.PostingCredit, Amount: decimal.NewFromInt(60),
+			Before: accounting.BalanceState{Version: 4}, After: accounting.BalanceState{Available: decimal.NewFromInt(60), Version: 5},
+		},
+	}}
+	result.Final = recoveryContractFinal(payload, result.Movements)
+
+	return payload, result
+}
+
+func operationRouteLabels(rows []*operation.Operation) []string {
+	labels := make([]string, 0, len(rows))
+	for _, row := range rows {
+		labels = append(labels, row.Route) //nolint:staticcheck // the legacy leg label is the behavior under test
+	}
+
+	return labels
+}
+
+func TestEngineTranslationPipelineRecordsLegRouteLabelOnPrimaryRows(t *testing.T) {
+	t.Parallel()
+
+	payload, result := legRouteLabelPipeline(t, [3]string{"", "  overdrawn leg label  ", "target-label"})
+
+	rows, err := BuildOperationRecordsFromMovements(payload, result)
+	require.NoError(t, err)
+	require.Len(t, rows, 4)
+	assert.Equal(t, constant.OVERDRAFT, rows[2].Type)
+	assert.Equal(t, []string{"", "  overdrawn leg label  ", "", "target-label"}, operationRouteLabels(rows),
+		"each primary row carries its own leg's label verbatim; an unlabeled leg and the overdraft companion of a labeled leg carry none")
+
+	t.Run("a frozen plan keeps its format and recovery projects the same labels", func(t *testing.T) {
+		envelope := recoveryContractEnvelope(t, payload, result)
+		raw, err := EncodeTransactionCompletionRecord(envelope)
+		require.NoError(t, err)
+		decoded, err := DecodeTransactionCompletionRecord(raw)
+		require.NoError(t, err)
+
+		views, err := BuildTransactionEvidenceViews(*decoded)
+		require.NoError(t, err)
+
+		expected := []string{"", "  overdrawn leg label  ", "", "target-label"}
+		assert.Equal(t, expected, operationRouteLabels(views.Projection.Transaction.Operations))
+		assert.Equal(t, expected, operationRouteLabels(views.Lookup.Operations))
+		assert.Equal(t, expected, operationRouteLabels(views.InitialResponse.Operations))
+
+		var frozen struct {
+			Projection []map[string]any `json:"projection"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(envelope.Payload), &frozen))
+		require.NotEmpty(t, frozen.Projection)
+		for _, spec := range frozen.Projection {
+			assert.NotContains(t, spec, "route", "the label rides on the frozen input, never as an operation spec field")
+		}
+	})
+}
+
+func TestEngineTranslationPipelineLeavesLabelEmptyWhenOriginDoesNotResolveTheLeg(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*TransactionCompletionPlan)
+	}{
+		{"origin reference is not a leg position", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].OriginRef = "from:first" }},
+		{"origin position is past the side's legs", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].OriginRef = "from:7" }},
+		{"leg at the origin is another balance", func(p *TransactionCompletionPlan) {
+			p.TransactionInput.Send.Source.From[0].AccountAlias = "0#@elsewhere#default"
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, result := legRouteLabelPipeline(t, [3]string{"source-label", "second-label", "target-label"})
+			tc.mutate(&payload)
+
+			rows, err := BuildOperationRecordsFromMovements(payload, result)
+			require.NoError(t, err)
+			require.Len(t, rows, 4)
+			assert.Equal(t, []string{"", "second-label", "", "target-label"}, operationRouteLabels(rows))
+		})
+	}
 }
