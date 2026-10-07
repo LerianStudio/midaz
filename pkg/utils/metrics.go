@@ -191,10 +191,11 @@ var (
 	// EngineRecoveryCleanupDue is how many durable engine executions are past
 	// their retention deadline and still hold Redis artifacts, by tenant_id (empty
 	// in single-tenant). It is read after every cleanup pass, so it shows what the
-	// pass could not drain.
+	// pass could not drain. The annotation unit keeps the exported name as is; the
+	// dimensionless "1" would reach Prometheus with a misleading "_ratio" suffix.
 	EngineRecoveryCleanupDue = metrics.Metric{
 		Name:        "engine_recovery_cleanup_due",
-		Unit:        "1",
+		Unit:        "{execution}",
 		Description: "Number of engine executions past their retention deadline still awaiting cleanup.",
 	}
 
