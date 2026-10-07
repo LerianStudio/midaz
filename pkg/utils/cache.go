@@ -437,6 +437,13 @@ func RedisConsumerCycleLockKey() string {
 	return "lock:" + cachepolicy.HashTag + ":backup-consumer-cycle"
 }
 
+// EngineRecoveryCleanupLockKey returns the distributed lock key that elects one
+// engine recovery cleanup pass per tick across pods.
+// Format: "lock:{transactions}:engine-recovery-cleanup"
+func EngineRecoveryCleanupLockKey() string {
+	return "lock:" + cachepolicy.HashTag + ":engine-recovery-cleanup"
+}
+
 // LedgerSettingsInternalKey returns a key with the following format to be used on redis cluster:
 // "ledger_settings:{organizationID:ledgerID}"
 func LedgerSettingsInternalKey(organizationID, ledgerID uuid.UUID) string {
