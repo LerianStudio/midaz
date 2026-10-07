@@ -83,5 +83,5 @@ func TestRecoveryCleanupUsesInjectedClockWhenBackupQueueIsEmpty(t *testing.T) {
 
 	require.Equal(t, 1, queue.cleanupCalls)
 	require.Equal(t, fixed, queue.cleanupAt)
-	require.Equal(t, 100, queue.cleanupLimit)
+	require.Equal(t, recoveryCleanupBatchSize, queue.cleanupLimit)
 }
