@@ -64,7 +64,7 @@ func TestIntegration_TransactionRouteCache_UpdateDropsLedgerKeyAndRewritesOrgani
 	infra.uc.TransactionMetadataRepo = metadataRepo
 
 	operationRoutes := []uuid.UUID{sourceID, newDestinationID}
-	updated, err := infra.uc.UpdateTransactionRoute(ctx, orgID, txRouteID, &mmodel.UpdateTransactionRouteInput{OperationRoutes: &operationRoutes})
+	updated, err := infra.uc.UpdateTransactionRoute(ctx, orgID, txRouteID, &mmodel.UpdateTransactionRouteInput{OperationRoutes: &operationRoutes}, LinksFullSetV1)
 	require.NoError(t, err)
 	require.NoError(t, infra.uc.CreateAccountingRouteCache(ctx, updated))
 

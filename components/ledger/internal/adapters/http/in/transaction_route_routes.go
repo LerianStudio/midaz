@@ -24,9 +24,10 @@ import (
 // /v1 rationale).
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's (empty
-// for /v1, "V2" for /v2 — see v1OpSuffix). The v2 twin is a straight mirror: same handler
-// methods, same paths, same input/output types, differing only in the suffixed operation IDs so
-// the two twins do not collide as a duplicate operationId in the one shared document.
+// for /v1, "V2" for /v2 — see v1OpSuffix). Both versions serve the same paths, but /v2 links
+// operation routes in two lists (required and optional) where /v1 has one: its create, read,
+// list and update ops bind the /v2 handlers and types of transaction_route_contract_v2.go,
+// while delete is shared.
 func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes"
@@ -34,7 +35,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		tag      = "Transaction Routes"
 	)
 
-	huma.Register(api, huma.Operation{
+	create := huma.Operation{
 		OperationID: "createTransactionRoute" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
@@ -44,30 +45,26 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateTransactionRoute)
-	attachTypedRequestBody[mmodel.CreateTransactionRouteInput](api, "createTransactionRoute"+opSuffix)
-
-	huma.Register(api, huma.Operation{
+	}
+	list := huma.Operation{
 		OperationID: "listTransactionRoutes" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all Transaction Routes",
 		Tags:        []string{tag},
 		Security:    secTransactionRouteBearer,
-	}, h.GetAllTransactionRoutes)
-
-	huma.Register(api, huma.Operation{
+	}
+	get := huma.Operation{
 		OperationID: "getTransactionRouteByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Get Transaction Route by ID",
 		Tags:        []string{tag},
 		Security:    secTransactionRouteBearer,
-	}, h.GetTransactionRouteByID)
+	}
 
 	metadataNull, patchDoc := patchMetadataFor(opSuffix)
-
-	huma.Register(api, huma.Operation{
+	update := huma.Operation{
 		OperationID:      "updateTransactionRoute" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
@@ -76,8 +73,25 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler, op
 		Tags:             []string{tag},
 		Security:         secTransactionRouteBearer,
 		SkipValidateBody: true, // body validated imperatively — see file header.
-	}, withMetadataNull(metadataNull, h.UpdateTransactionRoute))
-	attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, "updateTransactionRoute"+opSuffix)
+	}
+
+	if opSuffix == v1OpSuffix {
+		huma.Register(api, create, h.CreateTransactionRoute)
+		attachTypedRequestBody[mmodel.CreateTransactionRouteInput](api, create.OperationID)
+		huma.Register(api, list, h.GetAllTransactionRoutes)
+		huma.Register(api, get, h.GetTransactionRouteByID)
+		huma.Register(api, update, withMetadataNull(metadataNull, h.UpdateTransactionRoute))
+		attachTypedRequestBody[mmodel.UpdateTransactionRouteInput](api, update.OperationID)
+	} else {
+		update.Description = patchDoc + " " + patchLinksDocV2
+
+		huma.Register(api, create, h.CreateTransactionRouteV2)
+		attachTypedRequestBody[CreateTransactionRouteInputV2](api, create.OperationID)
+		huma.Register(api, list, h.GetAllTransactionRoutesV2)
+		huma.Register(api, get, h.GetTransactionRouteByIDV2)
+		huma.Register(api, update, h.UpdateTransactionRouteV2)
+		attachTypedRequestBody[UpdateTransactionRouteInputV2](api, update.OperationID)
+	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteTransactionRoute" + opSuffix,
