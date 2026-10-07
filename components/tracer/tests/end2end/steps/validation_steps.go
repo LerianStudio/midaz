@@ -688,7 +688,7 @@ func assertMatchedRule(sc *support.ScenarioContext, nameFragment string) error {
 }
 
 // normalizeTransactionType maps business-language transaction types to valid Tracer API types.
-// Valid API types: CARD, WIRE, PIX, CRYPTO.
+// The returned values are examples of normalized schemes; the API accepts any value matching ^[A-Z0-9_-]{1,50}$.
 func normalizeTransactionType(s string) string {
 	upper := strings.ToUpper(strings.TrimSpace(s))
 

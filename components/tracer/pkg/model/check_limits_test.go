@@ -741,7 +741,7 @@ func TestCheckLimitsInput_Validate_InvalidTransactionType(t *testing.T) {
 
 	accountID := testutil.MustDeterministicUUID(1)
 	fixedTime := testutil.FixedTime()
-	invalidTxType := model.TransactionType("INVALID")
+	invalidTxType := model.TransactionType("BAD VALUE!")
 
 	input := &model.CheckLimitsInput{
 		Amount:               decimal.RequireFromString("100"),
@@ -918,6 +918,42 @@ func TestLimitPeriod_DailyResetTimeKeepsItsMinutes(t *testing.T) {
 			resetAt := limit.NextResetAt(tc.at)
 			require.NotNil(t, resetAt)
 			assert.Equal(t, tc.resetAt, *resetAt)
+		})
+	}
+}
+
+func TestNewCheckLimitsInput_TransactionType_TableCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     model.TransactionType
+		want    model.TransactionType
+		wantErr error
+	}{
+		{name: "free-form scheme is accepted", raw: "BOLETO", want: "BOLETO"},
+		{name: "lowercase padded scheme is normalized", raw: " boleto ", want: "BOLETO"},
+		{name: "punctuation is rejected", raw: "bad value!", wantErr: constant.ErrCheckLimitsInvalidTransactionType},
+		{name: "51 characters is rejected", raw: model.TransactionType(strings.Repeat("A", 51)), wantErr: constant.ErrCheckLimitsInvalidTransactionType},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := tt.raw
+
+			input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", testutil.MustDeterministicUUID(1),
+				nil, nil, nil, &raw, nil, testutil.FixedTime())
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, input.TransactionType)
+			assert.Equal(t, tt.want, *input.TransactionType)
+			assert.Equal(t, tt.raw, raw, "caller's value must not be mutated")
 		})
 	}
 }

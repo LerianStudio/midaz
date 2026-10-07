@@ -151,6 +151,8 @@ func TestRuleCache_GetActiveRules_DeepCopy(t *testing.T) {
 	rule.Rule.Scopes[0].MerchantID = testutil.UUIDPtr(merchantID)
 	txType := model.TransactionTypeCard
 	rule.Rule.Scopes[0].TransactionType = &txType
+	schemeValue := "CARD"
+	rule.Rule.Scopes[0].Scheme = &schemeValue
 	subType := "online"
 	rule.Rule.Scopes[0].SubType = &subType
 
@@ -185,6 +187,8 @@ func TestRuleCache_GetActiveRules_DeepCopy(t *testing.T) {
 	*rules1[0].Rule.Scopes[0].TransactionType = mutatedTxType
 	// Mutate scope SubType pointer
 	*rules1[0].Rule.Scopes[0].SubType = "MUTATED-SUBTYPE"
+	// Mutate scope Scheme pointer
+	*rules1[0].Rule.Scopes[0].Scheme = "MUTATED-SCHEME"
 
 	// Get again — should NOT see any mutation
 	rules2 := c.GetActiveRules(ctx, nil)
@@ -211,6 +215,8 @@ func TestRuleCache_GetActiveRules_DeepCopy(t *testing.T) {
 		"scope TransactionType pointer mutation must NOT propagate to cache")
 	assert.Equal(t, "online", *rules2[0].Rule.Scopes[0].SubType,
 		"scope SubType pointer mutation must NOT propagate to cache")
+	assert.Equal(t, "CARD", *rules2[0].Rule.Scopes[0].Scheme,
+		"scope Scheme pointer mutation must NOT propagate to cache")
 }
 
 func TestRuleCache_SetRules_PopulatesCache(t *testing.T) {
@@ -326,7 +332,8 @@ func TestRuleCache_ApplyChanges_InsertUpdateRemove(t *testing.T) {
 	updatedRule1 := newTestCachedRule(newTestRule(1))
 	updatedRule1.Rule.Name = "updated-rule-1"
 
-	c.ApplyChanges(ctx,
+	c.ApplyChanges(
+		ctx,
 		[]*cache.CachedRule{updatedRule1, rule3},
 		[]uuid.UUID{rule2.Rule.ID},
 	)

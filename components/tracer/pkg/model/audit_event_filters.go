@@ -73,7 +73,7 @@ type ListAuditEventsResult struct {
 	HasMore     bool          `json:"hasMore"`
 }
 
-// Validate checks if filters are valid.
+// Validate checks if filters are valid and canonicalizes TransactionType.
 func (f *AuditEventFilters) Validate() error {
 	if !f.StartDate.IsZero() && !f.EndDate.IsZero() {
 		if f.EndDate.Before(f.StartDate) {
@@ -98,6 +98,16 @@ func (f *AuditEventFilters) Validate() error {
 		if normalizedOrder != "ASC" && normalizedOrder != "DESC" {
 			return fmt.Errorf("%w: sort_order must be ASC or DESC", constant.ErrInvalidAuditEventFilters)
 		}
+	}
+
+	// TransactionType is canonicalized in place (trim + upper-case) once valid.
+	if f.TransactionType != nil {
+		canonical, ok := NewTransactionType(string(*f.TransactionType))
+		if !ok {
+			return fmt.Errorf("%w: invalid transaction_type", constant.ErrInvalidAuditEventFilters)
+		}
+
+		f.TransactionType = &canonical
 	}
 
 	return nil

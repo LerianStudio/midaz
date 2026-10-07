@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // =============================================================================
@@ -229,7 +230,7 @@ func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 	errorResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0414", errorResp.Code, "Error code should be 0414")
 	assert.Equal(t, "Validation Invalid Transaction Type", errorResp.Title, "Error title should match the transaction-type error")
-	assert.Equal(t, "Invalid transactionType.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
+	assert.Equal(t, "scheme (or transactionType) is required and "+scheme.FormatHint, testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_MissingTransactionTimestamp verifies 400 when transactionTimestamp is missing.

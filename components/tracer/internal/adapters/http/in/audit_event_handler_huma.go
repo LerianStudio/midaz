@@ -59,7 +59,8 @@ type ListAuditEventsInputHuma struct {
 	AccountID       string `query:"account_id" doc:"Filter by account ID (UUID)"`
 	SegmentID       string `query:"segment_id" doc:"Filter by segment ID (UUID)"`
 	PortfolioID     string `query:"portfolio_id" doc:"Filter by portfolio ID (UUID)"`
-	TransactionType string `query:"transaction_type" doc:"Filter by transaction type (CARD, WIRE, PIX, CRYPTO)"`
+	TransactionType string `query:"transaction_type" deprecated:"true" doc:"Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"`
+	Scheme          string `query:"scheme" doc:"Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"`
 	MatchedRuleID   string `query:"matched_rule_id" doc:"Filter by matched rule ID (UUID)"`
 	Limit           string `query:"limit" doc:"Max items per page (1-1000, default: 100)"`
 	Cursor          string `query:"cursor" doc:"Pagination token (empty for first page)"`
@@ -154,6 +155,7 @@ func (in *ListAuditEventsInputHuma) bindListAuditEventsInput(target any) error {
 	out.SegmentID = optStr("segment_id")
 	out.PortfolioID = optStr("portfolio_id")
 	out.TransactionType = optStr("transaction_type")
+	out.Scheme = optStr("scheme")
 	out.MatchedRuleID = optStr("matched_rule_id")
 
 	// Typed enum *pointer filters: convert string->typed on present (even empty),

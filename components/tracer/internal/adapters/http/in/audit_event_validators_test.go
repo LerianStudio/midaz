@@ -5,6 +5,7 @@
 package in
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -213,11 +214,19 @@ func TestRuleAndTransactionTypeValidators(t *testing.T) {
 	})
 
 	t.Run("transactiontype accepts a model-valid type", func(t *testing.T) {
-		require.True(t, model.TransactionTypeCard.IsValid())
+		require.True(t, model.TransactionTypeCard.Valid())
 		assert.NoError(t, v.Var(string(model.TransactionTypeCard), "transactiontype"))
 	})
 
-	t.Run("transactiontype rejects unknown type", func(t *testing.T) {
-		assert.Error(t, v.Var("CARRIER_PIGEON", "transactiontype"))
+	t.Run("transactiontype accepts any value that normalizes to a scheme", func(t *testing.T) {
+		for _, raw := range []string{"CARRIER_PIGEON", "pix", " boleto ", "TED-01"} {
+			assert.NoError(t, v.Var(raw, "transactiontype"), "%q should pass transactiontype", raw)
+		}
+	})
+
+	t.Run("transactiontype rejects a value that is not a scheme", func(t *testing.T) {
+		for _, raw := range []string{"bad value!", strings.Repeat("A", 51), "   "} {
+			assert.Error(t, v.Var(raw, "transactiontype"), "%q should fail transactiontype", raw)
+		}
 	})
 }

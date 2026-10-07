@@ -492,9 +492,9 @@ func TestVerifyTransactionPreservesAuditAndExactAmount(t *testing.T) {
 	record := frozenStoreRecord()
 	parent, emptyRoute := "88888888-8888-4888-8888-888888888888", ""
 	record.Transaction.ParentTransactionID, record.Transaction.RouteID = &parent, &emptyRoute
-	query := `SELECT status, deleted_at IS NULL, \(organization_id IS NOT DISTINCT FROM \$2 AND ledger_id IS NOT DISTINCT FROM \$3 AND parent_transaction_id IS NOT DISTINCT FROM \$4 AND amount IS NOT DISTINCT FROM \$5 AND asset_code IS NOT DISTINCT FROM \$6 AND chart_of_accounts_group_name IS NOT DISTINCT FROM \$7 AND created_at IS NOT DISTINCT FROM \$8 AND route IS NOT DISTINCT FROM \$9 AND route_id IS NOT DISTINCT FROM \$10 AND fees_skipped IS NOT DISTINCT FROM \$11 AND tracer_skipped IS NOT DISTINCT FROM \$12\) FROM transaction WHERE id = \$1 FOR UPDATE`
+	query := `SELECT status, deleted_at IS NULL, \(organization_id IS NOT DISTINCT FROM \$2 AND ledger_id IS NOT DISTINCT FROM \$3 AND parent_transaction_id IS NOT DISTINCT FROM \$4 AND amount IS NOT DISTINCT FROM \$5 AND asset_code IS NOT DISTINCT FROM \$6 AND chart_of_accounts_group_name IS NOT DISTINCT FROM \$7 AND created_at IS NOT DISTINCT FROM \$8 AND route IS NOT DISTINCT FROM \$9 AND route_id IS NOT DISTINCT FROM \$10 AND fees_skipped IS NOT DISTINCT FROM \$11 AND tracer_skipped IS NOT DISTINCT FROM \$12 AND scheme IS NOT DISTINCT FROM \$13\) FROM transaction WHERE id = \$1 FOR UPDATE`
 	mock.ExpectQuery(query).WithArgs(record.Transaction.ID, record.Transaction.OrganizationID, record.Transaction.LedgerID, parent,
-		"0.00000000000000000001", "USD", "", record.Transaction.CreatedAt, nil, "", true, true).
+		"0.00000000000000000001", "USD", "", record.Transaction.CreatedAt, nil, "", true, true, nil).
 		WillReturnRows(sqlmock.NewRows([]string{"status", "active", "matches"}).AddRow(constant.APPROVED, true, true))
 	status, exists, err := verifyTransaction(context.Background(), db, record)
 	require.NoError(t, err)

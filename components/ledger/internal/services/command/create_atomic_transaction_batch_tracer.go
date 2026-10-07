@@ -53,6 +53,7 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 			reservationTTLForStatus(item.status),
 			reservationPurposeForAction(item.action),
 			item.honoredTracerSkip,
+			item.input.Scheme,
 		)
 		item.tracerReservation = reservation.Handle
 
