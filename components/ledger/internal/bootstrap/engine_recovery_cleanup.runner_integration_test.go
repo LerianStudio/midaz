@@ -127,7 +127,7 @@ func TestIntegrationEngineRecoveryCleanupRunnerDrainsEveryTenantBacklogInOnePass
 	// Completed one millisecond later, so it is not yet due at now.
 	notDueExecution, notDueTransaction := small.acknowledge(t, client, repository, completedAt.Add(time.Millisecond))
 
-	runner := initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, repository, true, nil).
+	runner := initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, repository, true, nil, nil).
 		WithTenants(staticTenants{large.tenantID, small.tenantID}).
 		WithClock(func() time.Time { return now })
 

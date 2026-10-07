@@ -14,7 +14,11 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -94,6 +98,13 @@ type fakeCleanupRepository struct {
 	repeat    map[string]cleanupPage
 	calls     []cleanupCall
 	onCleanup func(call cleanupCall)
+	backlog   map[string]cleanupBacklog
+	backlogs  []cleanupCall
+}
+
+type cleanupBacklog struct {
+	result txRedis.RecoveryCleanupBacklog
+	err    error
 }
 
 func newFakeCleanupRepository(locks *cleanupLockStore) *fakeCleanupRepository {
@@ -101,7 +112,9 @@ func newFakeCleanupRepository(locks *cleanupLockStore) *fakeCleanupRepository {
 		locks = &cleanupLockStore{}
 	}
 
-	return &fakeCleanupRepository{cleanupLockStore: locks, pages: map[string][]cleanupPage{}, repeat: map[string]cleanupPage{}}
+	return &fakeCleanupRepository{
+		cleanupLockStore: locks, pages: map[string][]cleanupPage{}, repeat: map[string]cleanupPage{}, backlog: map[string]cleanupBacklog{},
+	}
 }
 
 func (repo *fakeCleanupRepository) CleanupEngineRecovery(ctx context.Context, now time.Time, limit int) (txRedis.RecoveryCleanupResult, error) {
@@ -123,6 +136,17 @@ func (repo *fakeCleanupRepository) CleanupEngineRecovery(ctx context.Context, no
 	}
 
 	return page.result, page.err
+}
+
+func (repo *fakeCleanupRepository) EngineRecoveryCleanupBacklog(ctx context.Context, now time.Time) (txRedis.RecoveryCleanupBacklog, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	repo.backlogs = append(repo.backlogs, cleanupCall{tenantID: tenantID, now: now})
+	backlog := repo.backlog[tenantID]
+
+	return backlog.result, backlog.err
 }
 
 func (repo *fakeCleanupRepository) recorded() []cleanupCall {
@@ -403,7 +427,7 @@ func TestInitEngineRecoveryCleanupRunnerDrainsCachedTenantsWithoutPostgres(t *te
 	cache.Set("tenant-2", &tmcore.TenantConfig{ID: "tenant-2"}, time.Hour)
 	cache.Set("tenant-1", &tmcore.TenantConfig{ID: "tenant-1"}, time.Hour)
 
-	runner := initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, repository, true, cache)
+	runner := initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, repository, true, cache, nil)
 	require.NotNil(t, runner)
 	runner.WithClock(func() time.Time { return cleanupTestTime }).pass(t.Context())
 
@@ -413,7 +437,7 @@ func TestInitEngineRecoveryCleanupRunnerDrainsCachedTenantsWithoutPostgres(t *te
 func TestInitEngineRecoveryCleanupRunnerFallsBackToSingleTenantWithoutCache(t *testing.T) {
 	repository := &cleanupRedisRepository{fakeCleanupRepository: newFakeCleanupRepository(nil)}
 
-	runner := initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, repository, true, nil)
+	runner := initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, repository, true, nil, nil)
 	require.NotNil(t, runner)
 	runner.WithClock(func() time.Time { return cleanupTestTime }).pass(t.Context())
 
@@ -421,7 +445,7 @@ func TestInitEngineRecoveryCleanupRunnerFallsBackToSingleTenantWithoutCache(t *t
 }
 
 func TestInitEngineRecoveryCleanupRunnerNeedsCleanupSupport(t *testing.T) {
-	require.Nil(t, initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, &struct{ txRedis.RedisRepository }{}, false, nil),
+	require.Nil(t, initEngineRecoveryCleanupRunner(recoveryQuietLogger{}, &struct{ txRedis.RedisRepository }{}, false, nil, nil),
 		"a repository that cannot elect a pass gets no runner")
 }
 
@@ -438,4 +462,125 @@ func (repo *cleanupRedisRepository) SetNX(ctx context.Context, key, value string
 
 func (repo *cleanupRedisRepository) DeleteIfValue(ctx context.Context, key, value string) (bool, error) {
 	return repo.fakeCleanupRepository.DeleteIfValue(ctx, key, value)
+}
+
+func newCleanupMetricsReader(t *testing.T) (*sdkmetric.ManualReader, *metrics.MetricsFactory) {
+	t.Helper()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+
+	factory, err := metrics.NewMetricsFactory(provider.Meter("engine-recovery-cleanup-test"), nil)
+	require.NoError(t, err)
+
+	return reader, factory
+}
+
+// cleanupMetricPoints returns each recorded point of the named instrument, keyed
+// by its attributes rendered as "key=value,..." in attribute order.
+func cleanupMetricPoints(t *testing.T, reader *sdkmetric.ManualReader, name string) map[string]int64 {
+	t.Helper()
+
+	var collected metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &collected))
+
+	points := map[string]int64{}
+
+	for _, scope := range collected.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name != name {
+				continue
+			}
+
+			switch data := metric.Data.(type) {
+			case metricdata.Gauge[int64]:
+				for _, point := range data.DataPoints {
+					points[renderCleanupAttributes(point.Attributes)] = point.Value
+				}
+			case metricdata.Sum[int64]:
+				for _, point := range data.DataPoints {
+					points[renderCleanupAttributes(point.Attributes)] = point.Value
+				}
+			default:
+				t.Fatalf("%s: unexpected data type %T", name, metric.Data)
+			}
+		}
+	}
+
+	return points
+}
+
+func renderCleanupAttributes(set attribute.Set) string {
+	rendered := ""
+
+	for _, kv := range set.ToSlice() {
+		if rendered != "" {
+			rendered += ","
+		}
+
+		rendered += string(kv.Key) + "=" + kv.Value.Emit()
+	}
+
+	return rendered
+}
+
+func TestEngineRecoveryCleanupRunnerReportsTheBacklogLeftAfterThePass(t *testing.T) {
+	reader, factory := newCleanupMetricsReader(t)
+	repo := newFakeCleanupRepository(nil)
+	repo.backlog["tenant-a"] = cleanupBacklog{result: txRedis.RecoveryCleanupBacklog{
+		Due: 7, OldestDueMs: cleanupTestTime.Add(-90 * time.Second).UnixMilli(),
+	}}
+
+	newTestCleanupRunner(repo, nil).WithTenants(staticTenants{"tenant-a", "tenant-b"}).WithMetricsFactory(factory).pass(t.Context())
+
+	require.Equal(t, map[string]int64{"tenant_id=tenant-a": 7, "tenant_id=tenant-b": 0},
+		cleanupMetricPoints(t, reader, utils.EngineRecoveryCleanupDue.Name))
+	require.Equal(t, map[string]int64{"tenant_id=tenant-a": 90, "tenant_id=tenant-b": 0},
+		cleanupMetricPoints(t, reader, utils.EngineRecoveryCleanupOldestOverdue.Name),
+		"an empty schedule reports zero, which clears the alert")
+	require.Equal(t, []cleanupCall{{tenantID: "tenant-a", now: cleanupTestTime}, {tenantID: "tenant-b", now: cleanupTestTime}}, repo.backlogs,
+		"the backlog is read once per tenant, after the pass drained it")
+}
+
+func TestEngineRecoveryCleanupRunnerCountsEveryOutcome(t *testing.T) {
+	reader, factory := newCleanupMetricsReader(t)
+	repo := newFakeCleanupRepository(nil)
+	repo.pages[""] = []cleanupPage{
+		{result: txRedis.RecoveryCleanupResult{Scanned: 9, Cleaned: 5, Stale: 1, Rescheduled: 2, Failed: 1, FirstFailure: errors.New("cleanup evidence differs")}},
+	}
+
+	newTestCleanupRunner(repo, nil).WithMetricsFactory(factory).pass(t.Context())
+
+	require.Equal(t, map[string]int64{
+		"outcome=cleaned,tenant_id=":     5,
+		"outcome=failed,tenant_id=":      1,
+		"outcome=rescheduled,tenant_id=": 2,
+		"outcome=stale,tenant_id=":       1,
+	}, cleanupMetricPoints(t, reader, utils.EngineRecoveryCleanupEntries.Name))
+}
+
+func TestEngineRecoveryCleanupRunnerKeepsCleaningWhenMetricsAreUnavailable(t *testing.T) {
+	t.Run("nil factory skips the backlog read", func(t *testing.T) {
+		repo := newFakeCleanupRepository(nil)
+		repo.pages[""] = []cleanupPage{fullPage()}
+
+		require.NotPanics(t, func() { newTestCleanupRunner(repo, nil).pass(t.Context()) })
+		require.Len(t, repo.recorded(), 2)
+		require.Empty(t, repo.backlogs)
+	})
+
+	t.Run("a failed backlog read leaves the gauges unset", func(t *testing.T) {
+		reader, factory := newCleanupMetricsReader(t)
+		repo := newFakeCleanupRepository(nil)
+		repo.backlog[""] = cleanupBacklog{err: errors.New("connection reset by peer")}
+		logger := &cleanupCapturingLogger{}
+
+		newTestCleanupRunner(repo, logger).WithMetricsFactory(factory).pass(t.Context())
+
+		require.Len(t, repo.recorded(), 1)
+		require.Empty(t, cleanupMetricPoints(t, reader, utils.EngineRecoveryCleanupDue.Name))
+		require.Empty(t, logger.at(libLog.LevelWarn), "metrics are best-effort")
+		require.Empty(t, logger.at(libLog.LevelError))
+	})
 }

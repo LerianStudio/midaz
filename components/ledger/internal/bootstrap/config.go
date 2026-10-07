@@ -1293,7 +1293,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		WithQuarantineRepository(txnPG.quarantineRepo).
 		WithMetricsFactory(metricsFactory)
 
-	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache)
+	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory)
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)

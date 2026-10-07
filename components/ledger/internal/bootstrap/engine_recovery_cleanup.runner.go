@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"go.opentelemetry.io/otel/attribute"
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -29,6 +30,7 @@ import (
 // the cleanup schedule itself and the distributed lock that elects one pass.
 type engineRecoveryCleanupRepository interface {
 	CleanupEngineRecovery(context.Context, time.Time, int) (txRedis.RecoveryCleanupResult, error)
+	EngineRecoveryCleanupBacklog(context.Context, time.Time) (txRedis.RecoveryCleanupBacklog, error)
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	DeleteIfValue(ctx context.Context, key, value string) (bool, error)
 }
@@ -70,6 +72,7 @@ type EngineRecoveryCleanupRunner struct {
 	interval   time.Duration
 	budget     time.Duration
 	newTicker  func(time.Duration) (<-chan time.Time, func())
+	metrics    *metrics.MetricsFactory
 	// rotation advances the first tenant of each multi-tenant pass.
 	rotation int
 }
@@ -98,6 +101,7 @@ func initEngineRecoveryCleanupRunner(
 	repository txRedis.RedisRepository,
 	multiTenantEnabled bool,
 	tenants *tenantcache.TenantCache,
+	metricsFactory *metrics.MetricsFactory,
 ) *EngineRecoveryCleanupRunner {
 	cleanup, ok := repository.(engineRecoveryCleanupRepository)
 	if !ok {
@@ -105,7 +109,7 @@ func initEngineRecoveryCleanupRunner(
 		return nil
 	}
 
-	runner := NewEngineRecoveryCleanupRunner(logger, cleanup)
+	runner := NewEngineRecoveryCleanupRunner(logger, cleanup).WithMetricsFactory(metricsFactory)
 
 	// A nil cache stays out of the interface so the runner never iterates it.
 	if multiTenantEnabled && tenants != nil {
@@ -121,6 +125,14 @@ func (r *EngineRecoveryCleanupRunner) WithTenants(tenants tenantIDSource) *Engin
 	if tenants != nil {
 		r.tenants = tenants
 	}
+
+	return r
+}
+
+// WithMetricsFactory sets the factory for the backlog gauges and the outcome
+// counter. A nil factory disables them.
+func (r *EngineRecoveryCleanupRunner) WithMetricsFactory(factory *metrics.MetricsFactory) *EngineRecoveryCleanupRunner {
+	r.metrics = factory
 
 	return r
 }
@@ -240,6 +252,7 @@ func (r *EngineRecoveryCleanupRunner) pass(ctx context.Context) {
 		cleaned += scope.result.Cleaned
 		failed += scope.result.Failed
 		r.report(ctx, scope)
+		r.observe(ctx, scope)
 	}
 
 	span.SetAttributes(
@@ -330,6 +343,69 @@ func (r *EngineRecoveryCleanupRunner) report(ctx context.Context, scope *engineR
 				libLog.Int("stale_count", scope.result.Stale),
 				libLog.Int("rescheduled_count", scope.result.Rescheduled),
 				libLog.Bool("drained", scope.drained))...)
+	}
+}
+
+// observe emits the scope's outcome counts and the backlog its schedule still
+// holds after the pass. Metrics are best-effort: a missing factory skips the
+// backlog read, and a failed read or emit is logged at Debug only.
+func (r *EngineRecoveryCleanupRunner) observe(ctx context.Context, scope *engineRecoveryCleanupScope) {
+	if r.metrics == nil {
+		return
+	}
+
+	outcomes := []struct {
+		name  string
+		count int
+	}{
+		{"cleaned", scope.result.Cleaned},
+		{"stale", scope.result.Stale},
+		{"rescheduled", scope.result.Rescheduled},
+		{"failed", scope.result.Failed},
+	}
+
+	if counter, err := r.metrics.Counter(utils.EngineRecoveryCleanupEntries); err != nil {
+		r.logger.Log(ctx, libLog.LevelDebug, "Failed to create engine recovery cleanup counter", libLog.Err(err))
+	} else {
+		for _, outcome := range outcomes {
+			if outcome.count == 0 {
+				continue
+			}
+
+			labels := map[string]string{"tenant_id": scope.tenantID, "outcome": outcome.name}
+			if err := counter.WithLabels(labels).Add(ctx, int64(outcome.count)); err != nil {
+				r.logger.Log(ctx, libLog.LevelDebug, "Failed to emit engine recovery cleanup counter", libLog.Err(err))
+			}
+		}
+	}
+
+	now := r.clock()
+
+	backlog, err := r.repository.EngineRecoveryCleanupBacklog(scope.ctx, now)
+	if err != nil {
+		r.logger.Log(ctx, libLog.LevelDebug, "Failed to read engine recovery cleanup backlog", libLog.Err(err))
+		return
+	}
+
+	overdue := int64(0)
+	if backlog.Due > 0 && backlog.OldestDueMs > 0 {
+		overdue = max(int64(now.Sub(time.UnixMilli(backlog.OldestDueMs)).Seconds()), 0)
+	}
+
+	labels := map[string]string{"tenant_id": scope.tenantID}
+	r.setGauge(ctx, utils.EngineRecoveryCleanupDue, labels, backlog.Due)
+	r.setGauge(ctx, utils.EngineRecoveryCleanupOldestOverdue, labels, overdue)
+}
+
+func (r *EngineRecoveryCleanupRunner) setGauge(ctx context.Context, metric metrics.Metric, labels map[string]string, value int64) {
+	gauge, err := r.metrics.Gauge(metric)
+	if err != nil {
+		r.logger.Log(ctx, libLog.LevelDebug, "Failed to create engine recovery cleanup gauge", libLog.String("metric", metric.Name), libLog.Err(err))
+		return
+	}
+
+	if err := gauge.WithLabels(labels).Set(ctx, value); err != nil {
+		r.logger.Log(ctx, libLog.LevelDebug, "Failed to emit engine recovery cleanup gauge", libLog.String("metric", metric.Name), libLog.Err(err))
 	}
 }
 
