@@ -152,13 +152,14 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *
 	}
 
 	// Capture "before" state for audit (after idempotency check, before mutation)
-	beforeState := LimitToMap(limit)
+	now := c.clock.Now()
+	beforeState := LimitToMap(limit, now)
 
 	// Capture original status before mutation for accurate logging
 	originalStatus := limit.Status
 
 	// Use domain model's SetStatus for transition validation
-	if err := limit.SetStatus(model.LimitStatusInactive, c.clock.Now()); err != nil {
+	if err := limit.SetStatus(model.LimitStatusInactive, now); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
 		logger.With(
 			libLog.String("operation", "service.limit.deactivate"),
@@ -170,7 +171,7 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *
 		return nil, pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit)
 	}
 
-	afterState := LimitToMap(limit)
+	afterState := LimitToMap(limit, now)
 
 	// Persist status change + audit event atomically.
 	txErr := executeInTx(ctx, c.txBeginner, func(db pgdb.DB) error {
