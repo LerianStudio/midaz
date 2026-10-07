@@ -4,7 +4,14 @@
 
 package command
 
-import "github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+import (
+	"time"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+)
+
+// auditTimeLayout is the timestamp format of every time value in an audit snapshot.
+const auditTimeLayout = "2006-01-02T15:04:05.999Z07:00"
 
 // RuleToMap converts a Rule to a map for audit context.
 // Creates an immutable snapshot by copying slices and dereferencing pointers.
@@ -31,14 +38,17 @@ func RuleToMap(rule *model.Rule) map[string]any {
 		"action":      rule.Action,
 		"scopes":      scopesCopy,
 		"status":      rule.Status,
-		"createdAt":   rule.CreatedAt.Format("2006-01-02T15:04:05.999Z07:00"),
-		"updatedAt":   rule.UpdatedAt.Format("2006-01-02T15:04:05.999Z07:00"),
+		"createdAt":   rule.CreatedAt.Format(auditTimeLayout),
+		"updatedAt":   rule.UpdatedAt.Format(auditTimeLayout),
 	}
 }
 
 // LimitToMap converts a Limit to a map for audit context.
 // Creates an immutable snapshot by copying slices and dereferencing pointers.
-func LimitToMap(limit *model.Limit) map[string]any {
+// resetAt is the end of the period that contains now, because the stored
+// ResetAt of a periodic limit is the boundary after its creation and does not
+// describe the period an event happened in.
+func LimitToMap(limit *model.Limit, now time.Time) map[string]any {
 	if limit == nil {
 		return nil
 	}
@@ -53,23 +63,43 @@ func LimitToMap(limit *model.Limit) map[string]any {
 		description = *limit.Description
 	}
 
-	// Dereference ResetAt pointer or use nil
-	var resetAt any
-	if limit.ResetAt != nil {
-		resetAt = limit.ResetAt.Format("2006-01-02T15:04:05.999Z07:00")
+	return map[string]any{
+		"id":              limit.ID.String(),
+		"name":            limit.Name,
+		"description":     description,
+		"limitType":       limit.LimitType,
+		"maxAmount":       limit.MaxAmount,
+		"asset":           limit.Asset,
+		"scopes":          scopesCopy,
+		"status":          limit.Status,
+		"activeTimeStart": timeOfDayOrNil(limit.ActiveTimeStart),
+		"activeTimeEnd":   timeOfDayOrNil(limit.ActiveTimeEnd),
+		"resetTime":       timeOfDayOrNil(limit.ResetTime),
+		"customStartDate": timeOrNil(limit.CustomStartDate),
+		"customEndDate":   timeOrNil(limit.CustomEndDate),
+		"resetAt":         timeOrNil(limit.NextResetAt(now)),
+		"createdAt":       limit.CreatedAt.Format(auditTimeLayout),
+		"updatedAt":       limit.UpdatedAt.Format(auditTimeLayout),
+	}
+}
+
+// timeOfDayOrNil returns t as "HH:MM", or an untyped nil so absent values
+// serialize as JSON null instead of an empty string.
+func timeOfDayOrNil(t *model.TimeOfDay) any {
+	if t == nil {
+		return nil
 	}
 
-	return map[string]any{
-		"id":          limit.ID.String(),
-		"name":        limit.Name,
-		"description": description,
-		"limitType":   limit.LimitType,
-		"maxAmount":   limit.MaxAmount,
-		"asset":       limit.Asset,
-		"scopes":      scopesCopy,
-		"status":      limit.Status,
-		"resetAt":     resetAt,
-		"createdAt":   limit.CreatedAt.Format("2006-01-02T15:04:05.999Z07:00"),
-		"updatedAt":   limit.UpdatedAt.Format("2006-01-02T15:04:05.999Z07:00"),
+	return t.String()
+}
+
+// timeOrNil returns t in UTC and auditTimeLayout, or an untyped nil when t is
+// absent. UTC keeps a date the client sent with an offset identical to the
+// same date read back from the database, so snapshots compare key by key.
+func timeOrNil(t *time.Time) any {
+	if t == nil {
+		return nil
 	}
+
+	return t.UTC().Format(auditTimeLayout)
 }
