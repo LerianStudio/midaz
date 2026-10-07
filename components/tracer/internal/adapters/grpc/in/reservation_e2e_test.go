@@ -229,7 +229,7 @@ func TestReservationE2E_RuleDecisionsReachTheClient(t *testing.T) {
 		e.expectTxRollback()
 		e.repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), e.tx, gomock.Any()).Return(nil)
 		e.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), e.tx, gomock.Any(), gomock.Any()).
+			ReserveWithTx(gomock.Any(), e.tx, gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(false, constant.ErrReservationAlreadySettled)
 		// No audit expectation: a settled replay writes no row.
 
@@ -290,7 +290,7 @@ func TestReservationE2E_LimitDenialReason(t *testing.T) {
 		e.expectTxRollback()
 		e.repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), e.tx, gomock.Any()).Return(nil)
 		e.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), e.tx, gomock.Any(), gomock.Any()).
+			ReserveWithTx(gomock.Any(), e.tx, gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(false, constant.ErrUsageCounterExceedsLimit)
 
 		got, err := e.client.Reserve(context.Background(), e.ledgerShapedRequest(false))

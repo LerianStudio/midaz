@@ -50,6 +50,11 @@ var validTransactionValidationDBColumns = map[string]bool{
 	"processing_time_ms": true,
 }
 
+// transactionValidationSchemeExpr is the effective scheme of a row: the scheme
+// column, or the enum column for rows that predate it. Filters must use this
+// exact expression to reach idx_transaction_validations_scheme.
+const transactionValidationSchemeExpr = "transaction_validation_scheme(scheme, transaction_type)"
+
 // transactionValidationColumns returns the complete column list for SELECT queries.
 // Returns a new slice each call to prevent accidental mutations.
 // Shared across GetByID, FindByRequestID, and List methods to ensure consistency.
@@ -57,7 +62,7 @@ func transactionValidationColumns() []string {
 	return []string{
 		"id",
 		"request_id",
-		"transaction_type",
+		transactionValidationSchemeExpr + " AS scheme",
 		"sub_type",
 		"amount",
 		"asset",
@@ -181,6 +186,7 @@ func (r *TransactionValidationRepository) insertInternal(
 			"id",
 			"request_id",
 			"transaction_type",
+			"scheme",
 			"sub_type",
 			"amount",
 			"asset",
@@ -202,6 +208,7 @@ func (r *TransactionValidationRepository) insertInternal(
 			dbModel.ID,
 			dbModel.RequestID,
 			dbModel.TransactionType,
+			dbModel.Scheme,
 			dbModel.SubType,
 			dbModel.Amount,
 			dbModel.Asset,
@@ -623,9 +630,10 @@ func (r *TransactionValidationRepository) applyFilters(qb sq.SelectBuilder, filt
 		qb = qb.Where("portfolio->>'portfolioId' = ?", filters.PortfolioID.String())
 	}
 
-	// TransactionType filter
+	// Scheme filter, over the effective scheme so rows written with either
+	// column match and the expression index serves it
 	if filters.TransactionType != nil {
-		qb = qb.Where(sq.Eq{"transaction_type": string(*filters.TransactionType)})
+		qb = qb.Where(transactionValidationSchemeExpr+" = ?", string(*filters.TransactionType))
 	}
 
 	return qb

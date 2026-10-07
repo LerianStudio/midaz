@@ -34,7 +34,7 @@ func formatOptionalTimeOfDay(t *model.TimeOfDay) *string {
 var LimitCreatedDefinition = Definition{
 	ResourceType:  "limit",
 	EventType:     "created",
-	SchemaVersion: "1.1.0",
+	SchemaVersion: "1.2.0",
 }
 
 // LimitCreatedPayload is the wire payload for limit.created. Fields are typed

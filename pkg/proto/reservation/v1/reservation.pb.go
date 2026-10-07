@@ -11,11 +11,12 @@
 package reservationv1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -96,7 +97,8 @@ type ReserveRequest struct {
 	SegmentId   string          `protobuf:"bytes,6,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	PortfolioId string          `protobuf:"bytes,7,opt,name=portfolio_id,json=portfolioId,proto3" json:"portfolio_id,omitempty"`
 	MerchantId  string          `protobuf:"bytes,8,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
-	// transaction_type is optional on reserve; the ledger leaves it empty.
+	// transaction_type is optional on reserve; the ledger forwards the scheme
+	// the /v2 body declared, empty otherwise.
 	TransactionType string `protobuf:"bytes,9,opt,name=transaction_type,json=transactionType,proto3" json:"transaction_type,omitempty"`
 	// transaction_timestamp is RFC3339; the tracer rejects a future timestamp
 	// against its injected clock.
@@ -757,21 +759,24 @@ func file_reservation_v1_reservation_proto_rawDescGZIP() []byte {
 	return file_reservation_v1_reservation_proto_rawDescData
 }
 
-var file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
-var file_reservation_v1_reservation_proto_goTypes = []any{
-	(*ReserveAccount)(nil),               // 0: lerian.midaz.reservation.v1.ReserveAccount
-	(*ReserveRequest)(nil),               // 1: lerian.midaz.reservation.v1.ReserveRequest
-	(*ReserveResult)(nil),                // 2: lerian.midaz.reservation.v1.ReserveResult
-	(*ConfirmByTransactionRequest)(nil),  // 3: lerian.midaz.reservation.v1.ConfirmByTransactionRequest
-	(*ReleaseByTransactionRequest)(nil),  // 4: lerian.midaz.reservation.v1.ReleaseByTransactionRequest
-	(*ConfirmByIdRequest)(nil),           // 5: lerian.midaz.reservation.v1.ConfirmByIdRequest
-	(*ReleaseByIdRequest)(nil),           // 6: lerian.midaz.reservation.v1.ReleaseByIdRequest
-	(*ConfirmByTransactionResponse)(nil), // 7: lerian.midaz.reservation.v1.ConfirmByTransactionResponse
-	(*ReleaseByTransactionResponse)(nil), // 8: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
-	(*ConfirmByIdResponse)(nil),          // 9: lerian.midaz.reservation.v1.ConfirmByIdResponse
-	(*ReleaseByIdResponse)(nil),          // 10: lerian.midaz.reservation.v1.ReleaseByIdResponse
-	nil,                                  // 11: lerian.midaz.reservation.v1.ReserveRequest.MetadataEntry
-}
+var (
+	file_reservation_v1_reservation_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+	file_reservation_v1_reservation_proto_goTypes  = []any{
+		(*ReserveAccount)(nil),               // 0: lerian.midaz.reservation.v1.ReserveAccount
+		(*ReserveRequest)(nil),               // 1: lerian.midaz.reservation.v1.ReserveRequest
+		(*ReserveResult)(nil),                // 2: lerian.midaz.reservation.v1.ReserveResult
+		(*ConfirmByTransactionRequest)(nil),  // 3: lerian.midaz.reservation.v1.ConfirmByTransactionRequest
+		(*ReleaseByTransactionRequest)(nil),  // 4: lerian.midaz.reservation.v1.ReleaseByTransactionRequest
+		(*ConfirmByIdRequest)(nil),           // 5: lerian.midaz.reservation.v1.ConfirmByIdRequest
+		(*ReleaseByIdRequest)(nil),           // 6: lerian.midaz.reservation.v1.ReleaseByIdRequest
+		(*ConfirmByTransactionResponse)(nil), // 7: lerian.midaz.reservation.v1.ConfirmByTransactionResponse
+		(*ReleaseByTransactionResponse)(nil), // 8: lerian.midaz.reservation.v1.ReleaseByTransactionResponse
+		(*ConfirmByIdResponse)(nil),          // 9: lerian.midaz.reservation.v1.ConfirmByIdResponse
+		(*ReleaseByIdResponse)(nil),          // 10: lerian.midaz.reservation.v1.ReleaseByIdResponse
+		nil,                                  // 11: lerian.midaz.reservation.v1.ReserveRequest.MetadataEntry
+	}
+)
+
 var file_reservation_v1_reservation_proto_depIdxs = []int32{
 	0,  // 0: lerian.midaz.reservation.v1.ReserveRequest.account:type_name -> lerian.midaz.reservation.v1.ReserveAccount
 	11, // 1: lerian.midaz.reservation.v1.ReserveRequest.metadata:type_name -> lerian.midaz.reservation.v1.ReserveRequest.MetadataEntry

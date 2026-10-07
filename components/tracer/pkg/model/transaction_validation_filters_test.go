@@ -163,7 +163,7 @@ func TestTransactionValidationFilters_Validate(t *testing.T) {
 		{
 			name: "error - invalid transactionType filter",
 			filters: &TransactionValidationFilters{
-				TransactionType: func() *TransactionType { t := TransactionType("INVALID"); return &t }(),
+				TransactionType: func() *TransactionType { t := TransactionType("BAD VALUE!"); return &t }(),
 				Limit:           100,
 			},
 			expectErr: true,
@@ -326,4 +326,16 @@ func TestTransactionValidationFilters_SetDefaults_OnlyEndDateSet(t *testing.T) {
 	assert.Equal(t, endDate, filters.EndDate)
 	// StartDate should remain zero (not set)
 	assert.True(t, filters.StartDate.IsZero())
+}
+
+func TestTransactionValidationFilters_Validate_NormalizesTransactionType(t *testing.T) {
+	t.Parallel()
+
+	raw := TransactionType(" boleto ")
+	filters := &TransactionValidationFilters{TransactionType: &raw, Limit: 10}
+
+	require.NoError(t, filters.Validate())
+	require.NotNil(t, filters.TransactionType)
+	assert.Equal(t, TransactionType("BOLETO"), *filters.TransactionType)
+	assert.Equal(t, TransactionType(" boleto "), raw, "caller's value must not be mutated")
 }

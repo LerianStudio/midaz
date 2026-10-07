@@ -272,6 +272,7 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 		RouteID:                  run.input.RouteID,
 		FeesSkipped:              run.honoredFeeSkip,
 		TracerSkipped:            run.honoredTracerSkip,
+		Scheme:                   run.input.Scheme,
 		Metadata:                 run.input.Metadata,
 		Status: transaction.Status{
 			Code:        run.status,

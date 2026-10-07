@@ -19,7 +19,7 @@ func TestRuleUpdatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "rule.updated", events.RuleUpdatedDefinition.Key())
 	assert.Equal(t, "rule", events.RuleUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.RuleUpdatedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.RuleUpdatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.RuleUpdatedDefinition.SchemaVersion)
 }
 
 func TestNewRuleUpdated_MapsMinimalRule(t *testing.T) {
@@ -103,7 +103,7 @@ func TestRuleUpdatedPayload_JSONShape(t *testing.T) {
 }
 
 // TestRuleUpdatedPayload_JSONShape_PopulatedScope locks the nested scope
-// object on the rule.updated path to exactly the six structural keys and
+// object on the rule.updated path to exactly the seven structural keys and
 // asserts no rule free-text leaks into a scope (parity with rule.created).
 func TestRuleUpdatedPayload_JSONShape_PopulatedScope(t *testing.T) {
 	txType := model.TransactionTypePix
@@ -140,6 +140,7 @@ func TestRuleUpdatedPayload_JSONShape_PopulatedScope(t *testing.T) {
 		"accountId":       {},
 		"merchantId":      {},
 		"transactionType": {},
+		"scheme":          {},
 		"subType":         {},
 	}
 
@@ -158,5 +159,5 @@ func TestRuleUpdatedPayload_JSONShape_PopulatedScope(t *testing.T) {
 		assert.Falsef(t, present, "scope must not carry %q", forbidden)
 	}
 
-	assert.Lenf(t, scope, 6, "expected 6 scope keys, got %d (drift?)", len(scope))
+	assert.Lenf(t, scope, 7, "expected 7 scope keys, got %d (drift?)", len(scope))
 }

@@ -330,6 +330,7 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		CreatedAt:                payload.TransactionCreatedAt, UpdatedAt: payload.TransactionUpdatedAt,
 		Route: payload.TransactionInput.Route, RouteID: payload.TransactionInput.RouteID, //nolint:staticcheck // Preserve the frozen legacy route column alongside its canonical ID.
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
+		Scheme:   payload.TransactionInput.Scheme,
 		Metadata: metadata, Operations: rows,
 	}
 	if payload.GroupID != nil {

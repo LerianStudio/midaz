@@ -61,6 +61,7 @@ func buildCanonicalTransactionFixture() *transaction.Transaction {
 		RouteID:                  &routeID,
 		FeesSkipped:              true,
 		TracerSkipped:            false,
+		Scheme:                   "PIX",
 		CreatedAt:                createdAt,
 		UpdatedAt:                updatedAt,
 		DeletedAt:                &deletedAt,
@@ -96,6 +97,7 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 	assert.Equal(t, canonical.RouteID, got.RouteID)
 	assert.Equal(t, canonical.FeesSkipped, got.FeesSkipped)
 	assert.Equal(t, canonical.TracerSkipped, got.TracerSkipped)
+	assert.Equal(t, canonical.Scheme, got.Scheme)
 	assert.Equal(t, canonical.CreatedAt, got.CreatedAt)
 	assert.Equal(t, canonical.UpdatedAt, got.UpdatedAt)
 	assert.Equal(t, canonical.DeletedAt, got.DeletedAt)
@@ -160,6 +162,47 @@ func TestTransactionV2_JSONUsesDebitCreditKeys(t *testing.T) {
 	assert.Contains(t, asMap, "credit", "the v2 wire body must carry the credit key")
 	assert.NotContains(t, asMap, "source", "the v2 wire body must not carry the v1 source key")
 	assert.NotContains(t, asMap, "destination", "the v2 wire body must not carry the v1 destination key")
+}
+
+// TestTransactionV2_JSONProjectsScheme proves the /v2 wire body carries the declared payment
+// scheme under `scheme` and emits NO key at all when none was declared, so a client never reads
+// an empty string as a scheme.
+func TestTransactionV2_JSONProjectsScheme(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		scheme     string
+		wantKey    bool
+		wantScheme string
+	}{
+		{name: "declared scheme is projected", scheme: "PIX", wantKey: true, wantScheme: "PIX"},
+		{name: "absent scheme emits no key", scheme: "", wantKey: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			canonical := buildCanonicalTransactionFixture()
+			canonical.Scheme = tt.scheme
+
+			raw, err := json.Marshal(newTransactionV2(canonical))
+			require.NoError(t, err)
+
+			var asMap map[string]any
+			require.NoError(t, json.Unmarshal(raw, &asMap))
+
+			if !tt.wantKey {
+				assert.NotContains(t, asMap, "scheme", "a transaction without a scheme must not publish the key")
+
+				return
+			}
+
+			require.Contains(t, asMap, "scheme", "the v2 wire body must carry the declared scheme")
+			assert.Equal(t, tt.wantScheme, asMap["scheme"])
+		})
+	}
 }
 
 func TestCreateTransactionV2Response_CrossLedgerEnvelope(t *testing.T) {

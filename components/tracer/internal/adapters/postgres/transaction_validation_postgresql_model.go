@@ -18,14 +18,20 @@ import (
 // TransactionValidationPostgreSQLModel is the database representation of a TransactionValidation entity.
 // It follows the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 // This model handles:
-// - UUID as string for database storage
-// - JSONB fields for complex nested objects (account, segment, portfolio, merchant, metadata, limit_usage_details)
-// - UUID arrays as string for PostgreSQL UUID[] type (matched_rule_ids, evaluated_rule_ids)
-// - Nullable fields using pointers for optional JSONB columns
+//   - UUID as string for database storage
+//   - JSONB fields for complex nested objects (account, segment, portfolio, merchant, metadata, limit_usage_details)
+//   - UUID arrays as string for PostgreSQL UUID[] type (matched_rule_ids, evaluated_rule_ids)
+//   - Nullable fields using pointers for optional JSONB columns
+//   - The payment scheme split over two columns: scheme holds every value and
+//     transaction_type only the values its enum can represent
 type TransactionValidationPostgreSQLModel struct {
-	ID                   string          `db:"id"`
-	RequestID            string          `db:"request_id"`
-	TransactionType      string          `db:"transaction_type"`
+	ID        string `db:"id"`
+	RequestID string `db:"request_id"`
+	// TransactionType is the enum column on write: the scheme when it is one of
+	// transaction_type_enum's labels, nil otherwise. On read it carries the
+	// effective scheme, transaction_validation_scheme(scheme, transaction_type).
+	TransactionType      *string         `db:"transaction_type"`
+	Scheme               *string         `db:"scheme"`
 	SubType              *string         `db:"sub_type"`
 	Amount               decimal.Decimal `db:"amount"`
 	Asset                string          `db:"asset"`
@@ -64,11 +70,14 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 		return nil, fmt.Errorf("invalid RequestID %q: %w", m.RequestID, err)
 	}
 
+	scheme := m.effectiveScheme()
+
 	// Build entity with basic fields
 	validation := &model.TransactionValidation{
 		ID:                   id,
 		RequestID:            requestID,
-		TransactionType:      model.TransactionType(m.TransactionType),
+		TransactionType:      scheme,
+		Scheme:               scheme,
 		SubType:              m.SubType,
 		Amount:               m.Amount,
 		Asset:                m.Asset,
@@ -148,7 +157,10 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 
 	m.ID = entity.ID.String()
 	m.RequestID = entity.RequestID.String()
-	m.TransactionType = string(entity.TransactionType)
+
+	scheme := string(entity.TransactionType)
+	m.Scheme = &scheme
+	m.TransactionType = transactionTypeEnumValue(entity.TransactionType)
 	m.SubType = entity.SubType
 	m.Amount = entity.Amount
 	m.Asset = entity.Asset
@@ -213,6 +225,42 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	m.EvaluatedRuleIds = formatUUIDArrayString(entity.EvaluatedRuleIDs)
 
 	return nil
+}
+
+// transactionTypeEnumLabels are the labels of transaction_type_enum, the only
+// values the transaction_type column accepts.
+var transactionTypeEnumLabels = map[model.TransactionType]bool{
+	model.TransactionTypeCard:   true,
+	model.TransactionTypeWire:   true,
+	model.TransactionTypePix:    true,
+	model.TransactionTypeCrypto: true,
+}
+
+// transactionTypeEnumValue returns scheme as the transaction_type column value
+// when the enum can hold it, and nil otherwise, so a free-form scheme is never
+// cast into the enum and cannot fail the insert.
+func transactionTypeEnumValue(scheme model.TransactionType) *string {
+	if !transactionTypeEnumLabels[scheme] {
+		return nil
+	}
+
+	value := string(scheme)
+
+	return &value
+}
+
+// effectiveScheme returns the scheme column when set and the enum column
+// otherwise, mirroring transaction_validation_scheme(scheme, transaction_type).
+func (m *TransactionValidationPostgreSQLModel) effectiveScheme() model.TransactionType {
+	if m.Scheme != nil {
+		return model.TransactionType(*m.Scheme)
+	}
+
+	if m.TransactionType != nil {
+		return model.TransactionType(*m.TransactionType)
+	}
+
+	return ""
 }
 
 // unmarshalJSONField unmarshals a JSONB string into dest, skipping empty strings and any provided skip values.

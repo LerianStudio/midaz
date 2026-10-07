@@ -2376,7 +2376,7 @@ func finalizeStartup(
 	// not a transient IdP problem, and must not reach a ready pod. Runtime
 	// publish failures stay fail-open inside the publisher. Wired here, where
 	// the Service is assembled, so InitServers keeps its branch count.
-	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, authHost, logger)
+	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, authHost, authClient, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wire the RI declaration publisher: %w", err)
 	}

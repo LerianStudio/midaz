@@ -84,7 +84,7 @@ func TestTenantSchemaMoneyColumnsMigration(t *testing.T) {
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err, "begin reserve transaction")
 
-		replay, err := reservationRepo.ReserveWithTx(ctx, tx, res, maxAmount)
+		replay, err := reservationRepo.ReserveWithTx(ctx, tx, res, maxAmount, nil)
 		if err != nil {
 			_ = tx.Rollback()
 		}

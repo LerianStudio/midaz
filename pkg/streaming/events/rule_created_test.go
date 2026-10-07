@@ -46,7 +46,7 @@ func TestRuleCreatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "rule.created", events.RuleCreatedDefinition.Key())
 	assert.Equal(t, "rule", events.RuleCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.RuleCreatedDefinition.EventType)
-	assert.Equal(t, "1.0.0", events.RuleCreatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.1.0", events.RuleCreatedDefinition.SchemaVersion)
 }
 
 func TestNewRuleCreated_MapsMinimalRule(t *testing.T) {
@@ -125,13 +125,13 @@ func TestRuleCreatedPayload_JSONShape(t *testing.T) {
 		assert.Falsef(t, present, "fenced field %q must NOT appear on the wire", forbidden)
 	}
 
-	// Nested scope has exactly the six structural keys, no free text.
+	// Nested scope has exactly the seven structural keys, no free text.
 	scopesRaw, ok := generic["scopes"].([]any)
 	require.True(t, ok)
 	require.Len(t, scopesRaw, 1)
 	scope, ok := scopesRaw[0].(map[string]any)
 	require.True(t, ok, "scope must serialize as an object")
-	assert.Lenf(t, scope, 6, "nested scope must have 6 keys, got %d", len(scope))
+	assert.Lenf(t, scope, 7, "nested scope must have 7 keys, got %d", len(scope))
 	for _, forbidden := range []string{"name", "description", "expression"} {
 		_, present := scope[forbidden]
 		assert.Falsef(t, present, "scope must not carry %q", forbidden)

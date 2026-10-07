@@ -1278,7 +1278,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 | github.com/LerianStudio/lib-commons/v7 | v7.14.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
 | github.com/LerianStudio/lib-observability/v4 | v4.6.1 | Logging, metrics, tracing, assertions, panic recovery, redaction |
 | github.com/LerianStudio/lib-streaming/v4 | v4.1.0 | CloudEvents/Kafka streaming producer (franz-go) |
-| github.com/LerianStudio/lib-auth/v5 | v5.4.0 | Authentication middleware |
+| github.com/LerianStudio/lib-auth/v5 | v5.5.0 | Authentication middleware |
 | github.com/danielgtaylor/huma/v2 | v2.39.1 | OpenAPI 3.1 contract + request/response validation over Fiber |
 | github.com/gofiber/fiber/v3 | v3.5.0 | HTTP framework (runtime router / middleware) |
 | github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |

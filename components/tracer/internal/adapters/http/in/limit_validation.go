@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // Validation constants define the limits for limit input fields.
@@ -116,6 +117,10 @@ func (i *CreateLimitInput) Validate() error {
 		return formatLimitValidationError(err)
 	}
 
+	if err := normalizeLimitScopes(i.Scopes); err != nil {
+		return err
+	}
+
 	// Custom validation for decimal MaxAmount (validator/v10 gt=0 doesn't work with decimal.Decimal)
 	if i.MaxAmount.LessThanOrEqual(decimal.Zero) {
 		return limitFieldValidationErr("maxAmount must be greater than 0")
@@ -147,12 +152,34 @@ func (i *UpdateLimitInput) Validate() error {
 		return formatLimitValidationError(err)
 	}
 
+	if i.Scopes != nil {
+		if err := normalizeLimitScopes(*i.Scopes); err != nil {
+			return err
+		}
+	}
+
 	// Custom validation for decimal MaxAmount
 	if i.MaxAmount != nil && i.MaxAmount.LessThanOrEqual(decimal.Zero) {
 		return limitFieldValidationErr("maxAmount must be greater than 0")
 	}
 
 	return nil
+}
+
+// normalizeLimitScopes canonicalizes the scheme of every limit scope in place.
+// A scheme that disagrees with its deprecated alias transactionType is
+// ErrValidationSchemeAliasConflict; an invalid one is a scope field error.
+func normalizeLimitScopes(scopes []model.Scope) error {
+	index, field, err := normalizeScopeSchemes(scopes)
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
+		return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityLimit)
+	}
+
+	return limitFieldValidationErr("scope at index %d: %s %s", index, field, scheme.FormatHint)
 }
 
 // IsEmpty returns true if no fields are set for update.
@@ -169,6 +196,7 @@ type ListLimitsInput struct {
 	PortfolioID     *string `query:"portfolio_id"`
 	MerchantID      *string `query:"merchant_id"`
 	TransactionType *string `query:"transaction_type"`
+	Scheme          *string `query:"scheme"`
 	SubType         *string `query:"sub_type"`
 	Limit           *int    `query:"limit"`
 	Cursor          string  `query:"cursor"`
@@ -276,12 +304,12 @@ func (i *ListLimitsInput) validateScopeFields() error {
 		}
 	}
 
-	// Validate transactionType enum
-	if i.TransactionType != nil && *i.TransactionType != "" {
-		txType := model.TransactionType(*i.TransactionType)
-		if !txType.IsValid() {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
+	if _, err := resolveSchemeFilter(i.TransactionType, i.Scheme); err != nil {
+		if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
+			return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityLimit)
 		}
+
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 	}
 
 	// Validate subType length against trimmed value so whitespace-only input
@@ -432,9 +460,8 @@ func buildLimitScopeFromInput(input *ListLimitsInput) *model.Scope {
 		hasField = true
 	}
 
-	if input.TransactionType != nil && *input.TransactionType != "" {
-		txType := model.TransactionType(*input.TransactionType)
-		scope.TransactionType = &txType
+	if txType, err := resolveSchemeFilter(input.TransactionType, input.Scheme); err == nil && txType != nil {
+		scope.TransactionType = txType
 		hasField = true
 	}
 
@@ -568,7 +595,7 @@ func formatLimitScopeFieldError(fieldError validator.FieldError) error {
 	case "oneof":
 		msg = fmt.Sprintf("%s must be one of [%s]", fieldName, fieldError.Param())
 	case "transactiontype":
-		msg = fmt.Sprintf("%s must be one of [CARD WIRE PIX CRYPTO]", fieldName)
+		msg = fmt.Sprintf("%s %s", fieldName, scheme.FormatHint)
 	case "max":
 		msg = fmt.Sprintf("%s must be a maximum of %s characters", fieldName, fieldError.Param())
 	default:
@@ -652,6 +679,8 @@ func toLimitScopeJSONFieldName(fieldName string) string {
 		return "merchantId"
 	case "TransactionType":
 		return "transactionType"
+	case "Scheme":
+		return "scheme"
 	case "SubType":
 		return "subType"
 	default:

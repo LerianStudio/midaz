@@ -140,9 +140,14 @@ type DashboardVolume struct {
 	UpdatedAt   time.Time     `json:"updatedAt"`
 }
 
-// FraudTypeSlice is one transaction type's share of the flagged traffic.
+// FraudTypeSlice is one payment scheme's share of the flagged traffic.
 type FraudTypeSlice struct {
-	// Type is the transaction type (CARD, WIRE, PIX, CRYPTO).
+	// Type is the normalized payment scheme of the validations (A-Z, 0-9, _
+	// and -, up to 50 chars), an open set rather than a fixed enum. Only the
+	// ten schemes with the most flagged decisions get a slice of their own;
+	// every other scheme in the window is summed into one trailing OTHER
+	// slice, present only when such a remainder exists. OTHER is also a valid
+	// scheme name, and a scheme literally named OTHER shares that label.
 	Type string `json:"type" example:"CARD"`
 	// Count is the number of DENY + REVIEW decisions of this type.
 	Count int64 `json:"count" example:"1287"`
@@ -154,11 +159,12 @@ type FraudTypeSlice struct {
 	Total int64 `json:"total" example:"20536"`
 }
 
-// DashboardFraudTypes is the flagged-traffic breakdown by transaction type.
+// DashboardFraudTypes is the flagged-traffic breakdown by payment scheme.
 //
-// The breakdown is by transaction_type only. sub_type is a free VARCHAR with
-// no enum behind it, so grouping on it would produce a label set that grows
-// with whatever callers happen to send — an unbounded axis on a fixed chart.
+// The scheme is an open set, so the breakdown is bounded to the ten schemes
+// that flag most plus one OTHER slice summing the rest, which keeps the chart
+// axis fixed however many schemes callers send. sub_type is not grouped on at
+// all: it is a free VARCHAR with no normalization behind it.
 type DashboardFraudTypes struct {
 	Types        []FraudTypeSlice `json:"types"`
 	TotalFlagged int64            `json:"totalFlagged" example:"4133"`
@@ -183,10 +189,10 @@ type DashboardFraudTypes struct {
 type TopRule struct {
 	// Name is the rule's name, the label the console renders.
 	Name string `json:"name" example:"high-value-wire"`
-	// ProductType is the transaction type the rule is SCOPED to (CARD, WIRE,
-	// PIX, CRYPTO), read from the rule's own scopes — never inferred from the
-	// traffic it happened to see. Empty when the rule scopes no transaction
-	// type, which means it applies to all of them.
+	// ProductType is the payment scheme the rule is SCOPED to, read from the
+	// rule's own scopes — never inferred from the traffic it happened to see.
+	// Empty when the rule scopes no scheme, which means it applies to all of
+	// them.
 	ProductType string `json:"productType,omitempty" example:"WIRE"`
 	// Matches is the number of validations in the window where the rule fired.
 	Matches int64 `json:"matches" example:"1287"`

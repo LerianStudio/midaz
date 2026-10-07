@@ -98,7 +98,7 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler) {
 
 	huma.Register(api, dashboardOp("getDashboardFraudTypes", base+"/fraud-types",
 		"Get dashboard flagged-traffic breakdown",
-		"Returns DENY + REVIEW decisions broken down by transaction type, with each type's share of the flagged traffic."),
+		"Returns DENY + REVIEW decisions broken down by payment scheme, with each scheme's share of the flagged traffic: the ten schemes that flag most, plus one OTHER slice summing the rest."),
 		h.GetFraudTypesHuma)
 
 	huma.Register(api, dashboardOp("getDashboardTopRules", base+"/top-rules",

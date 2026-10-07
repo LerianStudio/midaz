@@ -90,9 +90,11 @@ All 40 events carry `SchemaVersion = 1.0.0`, except the six accounting-route eve
 (`operation_route.*`, `transaction_route.*`), which carry `1.1.0`: accounting routes belong
 to the organization, and `ledgerId` became optional on them (omitted for a route created at
 organization level). The bump is minor: every other field is unchanged, and a route
-created under a ledger still carries `ledgerId`. The `account_type.*` events are
-intentionally NOT registered — the type label flows through `account.*` events
-as a string field.
+created under a ledger still carries `ledgerId`. An additive optional key (emitted with
+`omitempty`) does not bump `ce-schemaversion`: consumers must ignore keys they do not
+know, and the version moves only when an existing key changes meaning, type or presence.
+The `account_type.*` events are intentionally NOT registered — the type label flows
+through `account.*` events as a string field.
 
 | Event key | Resource / Event | `ce-type` | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|--------------|--------------------|
@@ -679,6 +681,7 @@ status discriminator selects the Definition:
 | `destination` | []string | `omitempty`. |
 | `route` | string | `omitempty`. Legacy field (`//nolint:staticcheck`; `routeId` is canonical). |
 | `routeId` | string \| null | `omitempty`. |
+| `scheme` | string | `omitempty`. Free-form payment scheme declared on the `/v2` create, normalized (trimmed, upper-cased, `^[A-Z0-9_-]{1,50}$`); `CARD`, `WIRE`, `PIX`, `CRYPTO` are examples, not a closed set. A revert carries the original transaction's value. |
 | `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type, plus `accountType` (see below). Always present (no omitempty). |
 | `metadata` | object | `omitempty`. |
 | `createdAt` | string | RFC3339. |

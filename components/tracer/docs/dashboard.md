@@ -13,7 +13,7 @@ plus `audit-viewer`, declared in `permissions.yaml`.
 |---|---|
 | `/metrics` | counts, decision rates, blocked volume per asset, mean latency, live active rule/limit counts |
 | `/volume` | validations per UTC day |
-| `/fraud-types` | DENY + REVIEW split by transaction type |
+| `/fraud-types` | DENY + REVIEW split by payment scheme: the ten schemes that flag most, plus one `OTHER` slice summing the rest |
 | `/top-rules` | the ten busiest rules: matches, executions, detection rate, mean latency |
 
 ## Window
@@ -58,7 +58,7 @@ fired, so a rule that guards nothing is reported with `matches: 0` rather than
 being absent — the answer an operator most needs is the one a matched-only
 query withholds. `productType` is read from the rule's own scope, never
 inferred from the traffic it saw, and is absent when the rule scopes no
-transaction type. `avgProcessingMs` is the mean end-to-end latency of the
+scheme. `avgProcessingMs` is the mean end-to-end latency of the
 validations the rule MATCHED, not the rule's own evaluation cost, which the
 trail does not record per rule.
 
@@ -83,19 +83,29 @@ and any window is one contiguous heap stretch. An earlier fixture scattered
 `created_at` (correlation -0.002) and measured a table this can never be —
 which is how `/top-rules` was first, wrongly, reported as over its budget.
 
-End-to-end **HTTP**, three runs, all inside the 200ms bound:
+At the **statement**, all inside the 200ms bound. PostgreSQL 17.11,
+`max_parallel_workers_per_gather=2`, `VACUUM (ANALYZE)` after seeding,
+migrations through `000032`; `EXPLAIN (ANALYZE, TIMING OFF)` execution time,
+median of seven warm runs. Every fixture row carries `transaction_type` alone,
+the shape of a row written before the `scheme` column. Over HTTP the handler,
+the round trip and the JSON encoding come on top:
 
 | Endpoint | 7d | 30d | 90d | Plan at 90d |
 |---|---|---|---|---|
-| `/metrics` | 7ms | 23ms | 67ms | Index Only Scan, `idx_transaction_validations_dashboard` |
-| `/volume` | 5ms | 18ms | 53ms | Index Only Scan, `idx_transaction_validations_created` |
-| `/fraud-types` | 5ms | 15ms | 25ms | Parallel Index Only Scan, `idx_transaction_validations_dashboard` |
-| `/top-rules` | 29ms | 46ms | **106ms** | Parallel Index Scan, `idx_transaction_validations_created`, + heap |
+| `/metrics` | 3ms | 11ms | 31ms | Index Only Scan, `idx_transaction_validations_dashboard_scheme` |
+| `/volume` | 2ms | 9ms | 32ms | Index Only Scan, `idx_transaction_validations_created` |
+| `/fraud-types` | 2ms | 8ms | 15ms | Parallel Index Only Scan, `idx_transaction_validations_dashboard_scheme` |
+| `/top-rules` | 14ms | 23ms | **54ms** | Parallel Index Scan, `idx_transaction_validations_created`, + heap |
+
+`/fraud-types` aggregates the window on the raw `(scheme, transaction_type)`
+pair first and evaluates `transaction_validation_scheme` once per pair, not
+once per row; evaluating it per row measured 11/21/51ms under the same
+conditions.
 
 `/top-rules` is the expensive one and always will be: `CROSS JOIN LATERAL
 unnest(evaluated_rule_ids)` turns each validation into one row per rule it
-evaluated (three in the fixture), and the arrays force a heap read — 11,823
-buffers at 90 days, ~92MB, against 1,775 for `/metrics`.
+evaluated (three in the fixture), and the arrays force a heap read — 11,818
+buffers at 90 days, ~92MB, against 2,052 for `/metrics`.
 
 ### The generic-plan trap
 
@@ -114,7 +124,8 @@ pgx.QueryExecModeExec:     104  95  94  93  95 |  94  95  96  ms
 What the generic plan discards is the **LATERAL fan-out plan** — the parallel
 scan and the Memoize over the unnested rule ids — not anything about the shared
 `created_at` predicate: `/metrics` and `/volume` do not regress at all over the
-same eight executions, and `/fraud-types` loses 1.7x. All four reads carry
+same eight executions, and `/fraud-types` loses 1.5x (21ms generic against
+14ms custom at the statement over 90 days). All four reads carry
 `windowPlanMode` (`pgx.QueryExecModeExec`) anyway, because its cost on the two
 that do not regress is zero within noise and one rule is easier to keep true
 than two exceptions.
@@ -151,9 +162,14 @@ day, not validations per day, and 340,000 is roughly 1,000,000 of those.
 
 ### Index
 
-Migration `000024` adds `idx_transaction_validations_dashboard`, a covering
-index on `created_at` INCLUDE (decision, transaction_type, asset, amount,
-processing_time_ms). Measured on this fixture:
+The dashboard reads are served by `idx_transaction_validations_dashboard_scheme`,
+a covering index on `created_at` INCLUDE (decision, transaction_type, asset,
+amount, processing_time_ms, scheme). Migration `000030` builds it and `000031`
+drops `idx_transaction_validations_dashboard`, the index migration `000024`
+added with every column but `scheme`; `/fraud-types` groups on
+`transaction_validation_scheme(scheme, transaction_type)`, so both columns must
+be covered for the read to stay index-only. The figures below were measured on
+the `000024` index, on this fixture:
 
 It costs **56MB** beside a 300MB table and **+0.6 to +0.7us** per validation
 insert, about 4% of the write's existing index maintenance. It buys **1.4-1.7x**
