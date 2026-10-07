@@ -366,6 +366,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 				func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 			)
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+			redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 			realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
@@ -521,7 +522,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 	)
 	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(2)
-	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -725,7 +726,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 			return true, nil
 		},
 	).Times(3)
-	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(3)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -809,9 +810,9 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		{ref: "@target#default", available: "50", onHold: "0", version: 4},
 	})
 
-	// A successful SetNX is the command-visible state after the expiring Go lock
-	// has disappeared. Both later commands reacquire it, but neither may cross the
-	// durable PENDING -> APPROVED engine guard a second time.
+	// A successful SetNX is the command-visible state once the Go lock is gone,
+	// whether released or expired. Both later commands reacquire it, but neither
+	// may cross the durable PENDING -> APPROVED engine guard a second time.
 	transitioned, err = uc.CommitTransactionV2(ctx, transitionInput)
 	requirePendingLifecycleLockConflict(t, err)
 	require.Nil(t, transitioned)

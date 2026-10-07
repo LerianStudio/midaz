@@ -25,6 +25,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
@@ -115,6 +116,39 @@ func (engine *integrationCountingEngine) Execute(ctx context.Context, input comm
 
 	return engine.delegate.Execute(ctx, input)
 }
+
+// answerLostAfterApplyEngine executes through the real engine and then reports
+// an indeterminate outcome, the shape of a response lost after Redis ran the
+// script.
+type answerLostAfterApplyEngine struct {
+	delegate command.Engine
+	calls    atomic.Int32
+}
+
+func (engine *answerLostAfterApplyEngine) Execute(ctx context.Context, input command.EngineExecution) (*accounting.ExecutionResult, error) {
+	engine.calls.Add(1)
+
+	if _, err := engine.delegate.Execute(ctx, input); err != nil {
+		return nil, err
+	}
+
+	return nil, lostEngineAnswer{}
+}
+
+func (engine *answerLostAfterApplyEngine) EnsureTransactionGuard(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, nextToken string) error {
+	bootstrapper, ok := engine.delegate.(command.EngineGuardBootstrapper)
+	if !ok {
+		return fmt.Errorf("engine %T does not bootstrap transaction guards", engine.delegate)
+	}
+
+	return bootstrapper.EnsureTransactionGuard(ctx, organizationID, ledgerID, transactionID, nextToken)
+}
+
+type lostEngineAnswer struct{}
+
+func (lostEngineAnswer) Error() string              { return "engine answer lost after execution" }
+func (lostEngineAnswer) EngineFailureCode() string  { return "transport" }
+func (lostEngineAnswer) OutcomeIndeterminate() bool { return true }
 
 type integrationCountingCompleter struct {
 	individual      command.AppliedTransactionCompleter
@@ -308,9 +342,9 @@ func TestIntegrationEngineWriteBehindHTTPCommitsAndCancelsBeforeProjection(t *te
 
 			repeated := infra.postTransition(t, app, testCase.version, transactionID, testCase.action)
 			require.NotEqualf(t, http.StatusCreated, repeated.status, "a second %s must be refused: %s", testCase.action, repeated.body)
-			// The pending lock still held by the first transition or the terminal
-			// status refuses the repeat; either way no second movement happens.
-			assert.Contains(t, []any{constant.ErrPendingTransactionLocked.Error(), constant.ErrCommitTransactionNotPending.Error()}, repeated.decoded["code"])
+			// The first transition released its pending lock, so the terminal
+			// status refuses the repeat and no second movement happens.
+			assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), repeated.decoded["code"])
 
 			for range 2 {
 				delivery, queued, err := infra.rabbit.Channel.Get(infra.queue, false)
@@ -333,6 +367,63 @@ func TestIntegrationEngineWriteBehindHTTPCommitsAndCancelsBeforeProjection(t *te
 			} else {
 				infra.requireBalance(t, ctx, aliases.source, 1000, 0)
 			}
+		})
+	}
+}
+
+// TestIntegrationEngineWriteBehindHTTPRetryAfterIndeterminateTransitionIsAnsweredFromState
+// loses the engine's answer to a commit that Redis did apply. The request fails,
+// but its pending lock does not outlive it: an immediate retry of either
+// transition is refused from the transaction state, and the held funds move once.
+func TestIntegrationEngineWriteBehindHTTPRetryAfterIndeterminateTransitionIsAnsweredFromState(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	infra := setupEngineWriteBehindHTTPIntegration(t)
+	producer, err := ledgerRabbitMQ.NewSingleTenantEngineWriteBehindProducer(
+		infra.rabbitConn, infra.exchange, infra.routingKey, time.Second,
+	)
+	require.NoError(t, err)
+	infra.command.TransactionWriteBehindDispatcher = engineWriteBehindDispatcher{publisher: producer}
+	app := infra.newHTTPApp("")
+
+	for _, version := range []string{"v1", "v2"} {
+		t.Run(version, func(t *testing.T) {
+			ctx := context.Background()
+			aliases := infra.seedTransfer(t, "lost-answer-"+version+"-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
+			created := infra.postPendingCreate(t, app, version, aliases)
+			require.Equalf(t, http.StatusCreated, created.status, "pending create must return 201: %s", created.body)
+			transactionID := created.transactionID(t)
+			infra.requireBalance(t, ctx, aliases.source, 900, 100)
+
+			lostAnswer := &answerLostAfterApplyEngine{delegate: infra.engine}
+			infra.command.Engine = lostAnswer
+			t.Cleanup(func() { infra.command.Engine = infra.engine })
+
+			committed := infra.postTransition(t, app, version, transactionID, "commit")
+			require.Equalf(t, http.StatusInternalServerError, committed.status, "a lost engine answer must fail the request: %s", committed.body)
+			infra.requireBalance(t, ctx, aliases.source, 900, 0)
+			infra.requireBalance(t, ctx, aliases.destination, 100, 0)
+
+			lockKey, err := tmvalkey.GetKeyContext(ctx, utils.PendingTransactionLockKey(infra.organization, infra.ledger, transactionID.String()))
+			require.NoError(t, err)
+			assert.Zero(t, infra.redis.Exists(ctx, lockKey).Val(), "the failed request must release its pending lock")
+
+			for _, action := range []string{"commit", "cancel"} {
+				retried := infra.postTransition(t, app, version, transactionID, action)
+				assert.Equalf(t, http.StatusConflict, retried.status, "retried %s: %s", action, retried.body)
+				assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), retried.decoded["code"],
+					"a retried %s must be refused from the transaction state, not the lock: %s", action, retried.body)
+			}
+
+			assert.Equal(t, int32(1), lostAnswer.calls.Load(), "the refused retries must not reach the engine")
+			infra.requireBalance(t, ctx, aliases.source, 900, 0)
+			infra.requireBalance(t, ctx, aliases.destination, 100, 0)
 		})
 	}
 }

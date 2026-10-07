@@ -33,9 +33,15 @@ func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, 
 	return tran, nil
 }
 
+// pendingTransactionUnlockTimeout bounds the lock release, which runs detached
+// from the request so a cancelled or timed-out request still frees the lock.
+const pendingTransactionUnlockTimeout = 5 * time.Second
+
 // lockPendingTransaction claims the per-transaction Redis lock that serialises
-// concurrent commit/cancel attempts. It returns the unlock closure used by engine
-// preparation and confirmed pre-commit failures; a lock already held is a 422.
+// concurrent commit/cancel attempts; a lock already held is a 409. It only
+// serialises requests: the engine's lifecycle guard is what keeps a transition
+// from applying twice, so releasing the lock never re-opens a transition that
+// already applied. The returned closure releases it.
 func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) (func(), error) {
 	lockPendingTransactionKey := utils.PendingTransactionLockKey(run.organizationID, run.ledgerID, run.tran.ID)
 
@@ -57,11 +63,14 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 		return nil, err
 	}
 
-	deleteLockOnError := func() {
-		if delErr := uc.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+	unlock := func() {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), pendingTransactionUnlockTimeout)
+		defer cancel()
+
+		if delErr := uc.TransactionRedisRepo.Del(releaseCtx, lockPendingTransactionKey); delErr != nil {
 			recordCommandError(ctx, span, logger, "Failed to delete pending transaction lock", delErr)
 		}
 	}
 
-	return deleteLockOnError, nil
+	return unlock, nil
 }

@@ -198,8 +198,11 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 	if err != nil {
 		return nil, err
 	}
+	// Released on every exit, including an indeterminate engine outcome, so a
+	// retry is answered from the transaction state instead of the lock TTL.
+	defer unlock()
 
-	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, false)
+	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, false)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
 	}
@@ -225,18 +228,19 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 	if err != nil {
 		return nil, err
 	}
+	// Released on every exit, including an indeterminate engine outcome, so a
+	// retry is answered from the transaction state instead of the lock TTL.
+	defer unlock()
 
 	// Resolve the optional commit grant immediately after acquiring the pending
-	// lock. A miss releases the lock before accounting begins.
+	// lock, before accounting begins.
 	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
 		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
 	if err != nil {
-		unlock()
-
 		return nil, err
 	}
 
-	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, true)
+	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, true)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
 	}
