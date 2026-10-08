@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -544,6 +545,10 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 	}
 }
 
+// ErrInvalidOperationDirection reports an operation whose direction is neither
+// debit nor credit.
+var ErrInvalidOperationDirection = errors.New("invalid operation direction")
+
 // validateOperationDirection checks the direction field of an operation.
 // Empty direction is allowed with a warning (v3.5.3 messages lack this field).
 // Non-empty direction must be one of the valid values ("debit", "credit").
@@ -559,6 +564,6 @@ func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper 
 	case "debit", "credit":
 		return nil
 	default:
-		return fmt.Errorf("operation %s has invalid direction %q: must be 'debit' or 'credit'", oper.ID, oper.Direction)
+		return fmt.Errorf("%w: operation %s has direction %q, must be 'debit' or 'credit'", ErrInvalidOperationDirection, oper.ID, oper.Direction)
 	}
 }

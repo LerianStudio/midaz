@@ -1142,7 +1142,11 @@ inside the ledger binary as a launcher app, not as a separate service, and depen
 - Persists via `WriteTransactionSync`, writing directly to Postgres; it never republishes
   to RabbitMQ. The transaction row and its operations commit in one database
   transaction, and the MongoDB metadata follows the commit. A failed write leaves the
-  entry for the next cycle.
+  entry for the next cycle without counting an attempt, unless the record's own content
+  makes it fail: an invalid operation direction, or a PostgreSQL data exception (SQLSTATE
+  class 22) or integrity violation (class 23 other than the idempotent `23505`). Those
+  write failures count as poison (`deterministic_write_failure`). Outages, timeouts, and
+  any unrecognized error do not.
 - A poison entry counts attempts and moves to the Postgres quarantine table after 3
   consecutive failures (`QuarantineThreshold`); cycle health is exposed via the
   `redis_backup_queue_depth`, `redis_backup_queue_oldest_age_seconds`, and

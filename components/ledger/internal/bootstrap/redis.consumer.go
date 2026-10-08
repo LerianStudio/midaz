@@ -688,6 +688,16 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	); err != nil {
 		libOpentelemetry.HandleSpanError(msgSpan, "Failed to write replayed transaction", err)
 
+		// Only a failure the record's content causes counts toward quarantine;
+		// an outage must not push sound records out of the replay.
+		if isDeterministicReplayWriteFailure(err) {
+			logger.Log(ctx, libLog.LevelError, "Replayed transaction cannot be written; routing to quarantine flow", libLog.String("key", key), libLog.Err(err))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "deterministic_write_failure")
+
+			return
+		}
+
 		logger.Log(ctx, libLog.LevelError, "Failed to write replayed transaction; record left in backup queue", libLog.String("key", key), libLog.Err(err))
 
 		return

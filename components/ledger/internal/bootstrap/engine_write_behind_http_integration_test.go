@@ -53,6 +53,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	ledgerRabbitMQ "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	transactionRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -73,6 +74,7 @@ type engineWriteBehindHTTPIntegration struct {
 	redisRepo           *transactionRedis.RedisConsumerRepository
 	command             *command.UseCase
 	query               *query.UseCase
+	quarantine          transactionquarantine.Repository
 	handler             *httpin.TransactionHandler
 	organization        uuid.UUID
 	ledger              uuid.UUID
@@ -653,6 +655,7 @@ func setupEngineWriteBehindHTTPIntegration(tb testing.TB) *engineWriteBehindHTTP
 	return &engineWriteBehindHTTPIntegration{
 		db: pgContainer.DB, mongo: mongoContainer.Database, redisRepo: redisRepo,
 		command: commandUseCase, query: queryUseCase,
+		quarantine:   transactionquarantine.NewQuarantinePostgreSQLRepository(pgClient),
 		handler:      &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase, TransactionBatchMaxSize: 50},
 		organization: organizationID, ledger: ledgerID,
 		rabbit: rabbitContainer, rabbitConn: rabbitConnection,
