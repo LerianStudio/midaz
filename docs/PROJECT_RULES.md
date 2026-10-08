@@ -1172,7 +1172,8 @@ multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
   - `RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO`
   - `RABBITMQ_CIRCUIT_BREAKER_TIMEOUT` (seconds)
 - `RABBITMQ_OPERATION_TIMEOUT` (Go duration, e.g., "5s", default 5s) bounds each confirmed
-  write-behind publish of the accounting engine; it is not a circuit breaker setting.
+  write-behind publish of the accounting engine and the broker-confirmation wait of
+  `ProducerDefault` (audit and overdraft events); it is not a circuit breaker setting.
 - States: CLOSED (healthy) -> OPEN (on failures) -> HALF-OPEN (after timeout) -> CLOSED/OPEN
 - Multi-tenant mode uses per-tenant vhost connections with LRU eviction via `tmrabbitmq.Manager`
 

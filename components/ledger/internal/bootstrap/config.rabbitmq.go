@@ -166,7 +166,7 @@ func initMultiTenantRabbitMQ(
 		return nil, fmt.Errorf("failed to initialize multi-tenant consumer: %w", err)
 	}
 
-	producer := rabbitmq.NewMultiTenantProducer(tenantRabbitMQ, logger)
+	producer := rabbitmq.NewMultiTenantProducer(tenantRabbitMQ, logger, rabbitmq.WithPublishConfirmTimeout(rabbitMQPublishConfirmTimeout(cfg)))
 
 	queueName := cfg.RabbitMQTransactionBalanceOperationQueue
 	if queueName == "" {
@@ -180,7 +180,7 @@ func initMultiTenantRabbitMQ(
 			tenantRabbitMQ,
 			cfg.RabbitMQTransactionBalanceOperationExchange,
 			cfg.RabbitMQTransactionBalanceOperationKey,
-			defaultEngineWriteBehindPublishTimeout(cfg),
+			rabbitMQPublishConfirmTimeout(cfg),
 		)
 		if err != nil {
 			return nil, err
@@ -342,7 +342,7 @@ func initSingleTenantRabbitMQ(
 		Logger:                 logger,
 	}
 
-	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection, rabbitmq.WithPublishConfirmTimeout(rabbitMQPublishConfirmTimeout(cfg)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
 	}
@@ -424,7 +424,7 @@ func initSingleTenantRabbitMQ(
 			engineConnection,
 			cfg.RabbitMQTransactionBalanceOperationExchange,
 			cfg.RabbitMQTransactionBalanceOperationKey,
-			defaultEngineWriteBehindPublishTimeout(cfg),
+			rabbitMQPublishConfirmTimeout(cfg),
 		)
 		if engineErr != nil {
 			return nil, engineErr
@@ -494,7 +494,9 @@ func initSingleTenantRabbitMQ(
 	return rmq, nil
 }
 
-func defaultEngineWriteBehindPublishTimeout(cfg *Config) time.Duration {
+// rabbitMQPublishConfirmTimeout is the ceiling on every confirmed publish:
+// the engine write-behind and ProducerDefault.
+func rabbitMQPublishConfirmTimeout(cfg *Config) time.Duration {
 	if cfg == nil || cfg.RabbitMQOperationTimeout == "" {
 		return 5 * time.Second
 	}
