@@ -25,7 +25,7 @@ local function applyCreditPosting(current, nextState, posting, transactionIndex,
     if posting.repayForbidden ~= true and current.direction ~= "debit" and current.accountType ~= "external" and cmp_decimal(current.overdraftUsed, "0") > 0 then
         local repay = min_decimal(posting.amount, current.overdraftUsed)
         if cmp_decimal(posting.overdraftAmount, "0") > 0 then repay = min_decimal(repay, posting.overdraftAmount) end
-        if posting.repayRouteDenied == true then
+        if posting.repayRouteDenied == true and cmp_decimal(repay, "0") > 0 then
             refuse("overdraft_repay_route_denied", transactionIndex, postingIndex, posting.balanceRef)
         end
         nextState.overdraftUsed = sub_decimal(current.overdraftUsed, repay)
