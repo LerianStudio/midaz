@@ -252,8 +252,7 @@ func prepareTransactionCompletion(ctx context.Context, record *TransactionComple
 	}, nil
 }
 
-// persistPreparedProjections confirms every unit's metadata, then records its fee debts, so
-// events wait for both.
+// persistPreparedProjections confirms every unit's metadata, then records its fee debts.
 func (service *TransactionCompletionService) persistPreparedProjections(ctx context.Context, prepared []preparedTransactionCompletion) error {
 	for _, unit := range prepared {
 		for _, entry := range unit.metadata {
