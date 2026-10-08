@@ -1186,8 +1186,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// the onboarding and CRM registrars already use — it composes them, it never
 	// reimplements them. The cross-store composition tenant middleware travels via
 	// routeSetup.compositionRouteOptions so it applies ONLY to the composition route.
+	// The shared CRM use case also holds the composition's X-Idempotency slots.
 	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
-	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
+	compositionHandler := &httpin.CompositionHandler{Service: compositionService, Idempotency: crmMgo.instrumentHandler.Service}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server")
 
