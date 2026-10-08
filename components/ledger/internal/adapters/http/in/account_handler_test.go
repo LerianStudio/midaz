@@ -496,8 +496,10 @@ func TestDeleteAccount_204Empty(t *testing.T) {
 		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit"}, nil).Times(1)
 	balanceRepo.EXPECT().ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).Return([]*mmodel.Balance{}, nil).Times(1)
 	accountRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), cn.EntityAccount, accountID.String()).Return(nil).Times(1)
 
-	handler := &AccountHandler{Command: &command.UseCase{AccountRepo: accountRepo, BalanceRepo: balanceRepo}}
+	handler := &AccountHandler{Command: &command.UseCase{AccountRepo: accountRepo, BalanceRepo: balanceRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaAccountApp(t, handler, true)
 

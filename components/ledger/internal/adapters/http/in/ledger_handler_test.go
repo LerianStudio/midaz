@@ -396,8 +396,10 @@ func TestDeleteLedger_204Empty(t *testing.T) {
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	ledgerRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityLedger, ledgerID.String()).Return(nil).Times(1)
 
-	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledgerRepo}}
+	handler := &LedgerHandler{Command: &command.UseCase{LedgerRepo: ledgerRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaLedgerApp(t, handler, true)
 

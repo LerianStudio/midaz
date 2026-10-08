@@ -116,6 +116,8 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityAccount, id.String())
+
 	uc.emitAccountDeletedEvent(ctx, span, logger, accFound, time.Now())
 
 	return nil

@@ -153,6 +153,8 @@ func TestDeleteAccountByID_RefusesABalanceWithOpenFeeDebt(t *testing.T) {
 	expectDeleteMarkerRelease(m.redis, protectionOrgID, protectionLedgerID, clean)
 	expectDeleteMarkerRelease(m.redis, protectionOrgID, protectionLedgerID, indebted)
 
+	m.metadata.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
 	err := m.uc.DeleteAccountByID(context.Background(), protectionOrgID, protectionLedgerID, nil, protectionAccountID, "token")
 
 	var unprocessable midazpkg.UnprocessableOperationError
@@ -282,6 +284,8 @@ func TestDeleteAccountByID_RefusesABalanceOwedAFeeDebt(t *testing.T) {
 	m.redis.EXPECT().ListBalanceByKey(gomock.Any(), protectionOrgID, protectionLedgerID, gomock.Any()).Return(nil, nil)
 	expectDeleteMarkerRelease(m.redis, protectionOrgID, protectionLedgerID, creditor)
 
+	m.metadata.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
 	err := m.uc.DeleteAccountByID(context.Background(), protectionOrgID, protectionLedgerID, nil, protectionAccountID, "token")
 
 	var unprocessable midazpkg.UnprocessableOperationError
@@ -300,6 +304,8 @@ func TestDeleteAccountByID_AnswersAnIndeterminateStateAsRetryable(t *testing.T) 
 		Return("", false, nil)
 	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID, gomock.Any()).
 		Return(false, errors.New("cache unavailable"))
+
+	m.metadata.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	err := m.uc.DeleteAccountByID(context.Background(), protectionOrgID, protectionLedgerID, nil, protectionAccountID, "token")
 

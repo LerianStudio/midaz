@@ -53,5 +53,7 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityAccountType, id.String())
+
 	return nil
 }
