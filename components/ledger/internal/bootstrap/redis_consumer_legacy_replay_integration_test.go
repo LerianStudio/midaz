@@ -16,11 +16,16 @@ import (
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	transactionMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -35,6 +40,16 @@ type unavailableTransactionRepository struct {
 
 func (unavailableTransactionRepository) Create(context.Context, *transaction.Transaction) (*transaction.Transaction, error) {
 	return nil, errors.New("transaction database unavailable")
+}
+
+// staticTenantMongo resolves every tenant to one database, or fails with err.
+type staticTenantMongo struct {
+	database *mongo.Database
+	err      error
+}
+
+func (resolver staticTenantMongo) GetDatabaseForTenant(context.Context, string) (*mongo.Database, error) {
+	return resolver.database, resolver.err
 }
 
 // TestIntegrationLegacyBackupReplayPersistsAnnotationWithoutPublishing leaves an
@@ -56,23 +71,8 @@ func TestIntegrationLegacyBackupReplayPersistsAnnotationWithoutPublishing(t *tes
 	app := infra.newHTTPApp("")
 	ctx := context.Background()
 
-	transactionRepo := infra.command.TransactionRepo
-	infra.command.TransactionRepo = unavailableTransactionRepository{Repository: transactionRepo}
-
-	aliases := infra.seedTransfer(t, "replay-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
-	created := infra.postAnnotationCreate(t, app, aliases)
-	require.Equalf(t, http.StatusInternalServerError, created.status, "a failed annotation write must not answer 201: %s", created.body)
-	assert.Equal(t, constant.ErrMessageBrokerUnavailable.Error(), created.decoded["code"])
-
-	field, entry := infra.requireSingleLegacyBackupEntry(t, ctx)
-	require.Equal(t, constant.NOTED, entry.TransactionStatus)
-	transactionID := entry.TransactionID
-
-	// The cycle replays only entries older than MessageTimeOfLife.
-	entry.TTL = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
-	aged, err := json.Marshal(entry)
-	require.NoError(t, err)
-	require.NoError(t, infra.redisRepo.AddMessageToQueue(ctx, field, aged))
+	restoreTransactionRepo := infra.failTransactionWrites()
+	transactionID := infra.leaveAnnotationInLegacyBackup(t, ctx, app)
 
 	replay := NewRedisQueueConsumer(&libLog.GoLogger{}, infra.command, infra.query).newLegacyBackupConsumer()
 
@@ -83,18 +83,122 @@ func TestIntegrationLegacyBackupReplayPersistsAnnotationWithoutPublishing(t *tes
 	infra.requireSingleLegacyBackupEntry(t, ctx)
 	assert.Zero(t, len(producer.messages), "a replay that cannot write must not publish")
 
-	infra.command.TransactionRepo = transactionRepo
+	restoreTransactionRepo()
 
 	stats = replay.Consume(ctx)
 	require.Equal(t, 1, stats.messageCount)
 	infra.requireProjection(t, ctx, transactionID, 1, 2, 1)
+	infra.requireNotedRow(t, transactionID)
+	assert.Zero(t, len(producer.messages), "the replay must write the annotation, not queue it")
+
+	infra.waitForEmptyLegacyBackupQueue(t, ctx)
+}
+
+// TestIntegrationLegacyBackupReplayResolvesTenantMongo replays a legacy
+// annotation in the context the multi-tenant cycle builds, which carries the
+// tenant but no Mongo database, against a metadata repository that requires the
+// tenant database: the replay must resolve it before writing.
+func TestIntegrationLegacyBackupReplayResolvesTenantMongo(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	const tenantID = "tenant-replay"
+
+	for _, testCase := range []struct {
+		name     string
+		resolver staticTenantMongo
+		written  bool
+	}{
+		{name: "writes with the resolved tenant database", written: true},
+		{name: "keeps the entry when the tenant database cannot be resolved", resolver: staticTenantMongo{err: errors.New("tenant mongo unavailable")}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			infra := setupEngineWriteBehindHTTPIntegration(t)
+			producer := &recordingBalanceOperationProducer{}
+			infra.command.RabbitMQRepo = producer
+			app := infra.newHTTPApp(tenantID)
+			ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
+
+			restoreTransactionRepo := infra.failTransactionWrites()
+			transactionID := infra.leaveAnnotationInLegacyBackup(t, ctx, app)
+			restoreTransactionRepo()
+
+			infra.command.TransactionMetadataRepo = transactionMongo.NewMetadataMongoDBRepository(nil, true)
+			resolver := testCase.resolver
+			if testCase.written {
+				resolver.database = infra.mongo
+			}
+
+			consumer := NewRedisQueueConsumer(&libLog.GoLogger{}, infra.command, infra.query)
+			consumer.multiTenantEnabled = true
+			consumer.tenantMongo = resolver
+
+			stats := consumer.newLegacyBackupConsumer().Consume(ctx)
+			require.Equal(t, 1, stats.messageCount)
+			assert.Zero(t, len(producer.messages), "the replay must not publish")
+
+			if !testCase.written {
+				infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+				infra.requireSingleLegacyBackupEntry(t, ctx)
+
+				return
+			}
+
+			infra.requireProjection(t, ctx, transactionID, 1, 2, 1)
+			infra.requireNotedRow(t, transactionID)
+			infra.waitForEmptyLegacyBackupQueue(t, ctx)
+		})
+	}
+}
+
+// failTransactionWrites makes every transaction insert of the command use case
+// fail until the returned function restores the real repository.
+func (infra *engineWriteBehindHTTPIntegration) failTransactionWrites() func() {
+	repository := infra.command.TransactionRepo
+	infra.command.TransactionRepo = unavailableTransactionRepository{Repository: repository}
+
+	return func() { infra.command.TransactionRepo = repository }
+}
+
+// leaveAnnotationInLegacyBackup creates an annotation whose database write
+// fails, so its only copy is the legacy backup entry, and ages that entry past
+// MessageTimeOfLife so the next cycle replays it.
+func (infra *engineWriteBehindHTTPIntegration) leaveAnnotationInLegacyBackup(tb testing.TB, ctx context.Context, app *fiber.App) uuid.UUID {
+	tb.Helper()
+	t := tb
+
+	aliases := infra.seedTransfer(t, "replay-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
+	created := infra.postAnnotationCreate(t, app, aliases)
+	require.Equalf(t, http.StatusInternalServerError, created.status, "a failed annotation write must not answer 201: %s", created.body)
+	assert.Equal(t, constant.ErrMessageBrokerUnavailable.Error(), created.decoded["code"])
+
+	field, entry := infra.requireSingleLegacyBackupEntry(t, ctx)
+	require.Equal(t, constant.NOTED, entry.TransactionStatus)
+
+	// The field read back is already tenant-scoped, so the entry is rewritten in
+	// place rather than through AddMessageToQueue, which scopes its key again.
+	entry.TTL = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	aged, err := json.Marshal(entry)
+	require.NoError(t, err)
+	queue, err := tmvalkey.GetKeyContext(ctx, txRedis.TransactionBackupQueue)
+	require.NoError(t, err)
+	require.NoError(t, infra.redis.HSet(ctx, queue, field, aged).Err())
+
+	return entry.TransactionID
+}
+
+func (infra *engineWriteBehindHTTPIntegration) requireNotedRow(tb testing.TB, transactionID uuid.UUID) {
+	tb.Helper()
+	t := tb
 
 	var projected string
 	require.NoError(t, infra.db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, transactionID).Scan(&projected))
 	assert.Equal(t, constant.NOTED, projected)
-	assert.Zero(t, len(producer.messages), "the replay must write the annotation, not queue it")
-
-	infra.waitForEmptyLegacyBackupQueue(t, ctx)
 }
 
 func (infra *engineWriteBehindHTTPIntegration) requireSingleLegacyBackupEntry(tb testing.TB, ctx context.Context) (string, mmodel.TransactionRedisQueue) {

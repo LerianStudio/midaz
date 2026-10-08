@@ -70,6 +70,7 @@ type RedisQueueConsumer struct {
 	tenantCache                 *tenantcache.TenantCache
 	pgManager                   *tmpostgres.Manager
 	appliedTransactionCompleter command.AppliedTransactionCompleter
+	tenantMongo                 recoveryMongoResolver
 	recoveryClock               func() time.Time
 }
 
@@ -78,8 +79,8 @@ type recoveryMongoResolver interface {
 }
 
 // tenantAppliedTransactionCompleter resolves metadata storage inside the
-// existing recovery timeout. Legacy records do not use this completer or
-// acquire Mongo connections.
+// existing recovery timeout. Legacy records do not use this completer; the
+// legacy replay resolves the same tenant database in processMessage.
 type tenantAppliedTransactionCompleter struct {
 	delegate           command.AppliedTransactionCompleter
 	mongoResolver      recoveryMongoResolver
@@ -137,7 +138,7 @@ func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.C
 		return ctx, nil
 	}
 
-	if tmcore.GetMBContext(ctx) != nil && tmcore.GetMBContext(ctx, constant.ModuleTransaction) != nil {
+	if hasTenantMongo(ctx) {
 		return ctx, nil
 	}
 
@@ -146,11 +147,25 @@ func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.C
 		return nil, fmt.Errorf("balance recovery requires matching authenticated tenant context")
 	}
 
-	if completer.mongoResolver == nil {
+	return contextWithTenantMongo(ctx, completer.mongoResolver, tenantID)
+}
+
+func hasTenantMongo(ctx context.Context) bool {
+	return tmcore.GetMBContext(ctx) != nil && tmcore.GetMBContext(ctx, constant.ModuleTransaction) != nil
+}
+
+// contextWithTenantMongo attaches the tenant's transaction Mongo database under
+// both the generic and the module key, the way the request and queue paths do.
+func contextWithTenantMongo(ctx context.Context, resolver recoveryMongoResolver, tenantID string) (context.Context, error) {
+	if tenantID == "" {
+		return nil, fmt.Errorf("balance recovery requires a tenant context")
+	}
+
+	if resolver == nil {
 		return nil, fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
 	}
 
-	database, err := completer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
+	database, err := resolver.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
 	}
@@ -468,6 +483,22 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		return
 	default:
+	}
+
+	// The multi-tenant cycle scopes PostgreSQL only; the direct write also needs
+	// the tenant's metadata database, so a record that cannot reach it waits for
+	// the next cycle instead of being half written.
+	if r.multiTenantEnabled && !hasTenantMongo(msgCtxWithSpan) {
+		tenantCtx, err := contextWithTenantMongo(msgCtxWithSpan, r.tenantMongo, tmcore.GetTenantIDContext(msgCtxWithSpan))
+		if err != nil {
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to resolve tenant Mongo for legacy replay", err)
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to resolve tenant Mongo for legacy replay; record left in backup queue",
+				libLog.String("key", key), libLog.Err(err))
+
+			return
+		}
+
+		msgCtxWithSpan = tenantCtx
 	}
 
 	if m.Validate == nil {
