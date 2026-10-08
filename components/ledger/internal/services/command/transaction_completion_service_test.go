@@ -520,9 +520,9 @@ func TestTransactionCompletionServiceWithEventsPublishesOnlyAfterConfirmedSQLOut
 }
 
 // Events leave as soon as SQL commits, so a metadata failure that sends the
-// completion back for retry has already published them once; the retry reports
-// noop and must not be the first, or a second, publication.
-func TestTransactionCompletionServiceWithEventsPublishesOnceWhenMetadataFailsAfterSQL(t *testing.T) {
+// completion back for retry has already published them; the retry hands the
+// publisher the noop phase its replayed SQL observed, which publishes nothing.
+func TestTransactionCompletionServiceWithEventsPublishesBeforeMetadataFailureAndRetriesAsNoop(t *testing.T) {
 	failure := errors.New("mongo unavailable")
 	ctx, envelope := finalizationFixture(t)
 	calls := []string{}
@@ -637,6 +637,29 @@ func TestEngineWriteBehindTransactionCompletionBulkRetainsFailureForRetry(t *tes
 	assert.Len(t, store.bulkRecords, 2, "SQL completion remains retryable by the retained evidence")
 	assert.Equal(t, []string{TransactionLifecyclePhaseCreated, TransactionLifecyclePhaseCreated}, publisher.phases,
 		"units whose SQL committed publish before the metadata failure sends the group back for retry")
+}
+
+func TestEngineWriteBehindTransactionCompletionBulkValidatesEveryOutcomeBeforePublishing(t *testing.T) {
+	ctx, records := bulkFinalizationFixtures(t)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		bulkOutcomes: []TransactionPersistenceOutcome{
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: "future"},
+		},
+		calls: &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+	publisher := &finalizationEventPublisherStub{calls: &calls}
+	service, err := NewTransactionCompletionServiceWithEvents(store, metadata, publisher)
+	require.NoError(t, err)
+
+	results, err := service.CompleteBulk(ctx, records)
+
+	require.ErrorIs(t, err, ErrTransactionCompletionConflict)
+	assert.Nil(t, results)
+	assert.Empty(t, publisher.phases, "a group with any invalid outcome publishes nothing, not even its valid units")
+	assert.Equal(t, []string{"sql-bulk-with-outcome"}, calls)
 }
 
 func TestEngineWriteBehindTransactionCompletionBulkRejectsUncorrelatedOutcome(t *testing.T) {

@@ -26,8 +26,9 @@ import (
 // TestIntegrationEngineWriteBehindPublishesBalanceEventsOncePerOperation drives a
 // pending create and its commit or cancel through the write-behind consumer. The
 // transition's completion re-completes the pending origin as its predecessor, and
-// a broker can redeliver either message; neither may repeat a balance.changed that
-// the completion which wrote the operation already published.
+// a broker can redeliver either message, alone or in a bulk flush; neither may
+// repeat a balance.changed that the completion which wrote the operation already
+// published.
 func TestIntegrationEngineWriteBehindPublishesBalanceEventsOncePerOperation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
@@ -47,6 +48,7 @@ func TestIntegrationEngineWriteBehindPublishesBalanceEventsOncePerOperation(t *t
 	infra.command.Streaming = recorder
 	app := infra.newHTTPApp("")
 	dispatcher := requireRabbitTransactionDispatcher(t, infra.command, rabbitEngineSingleTenant, false)
+	bulkDispatcher := requireRabbitTransactionDispatcher(t, infra.command, rabbitEngineSingleTenant, true)
 
 	for _, testCase := range []struct {
 		version string
@@ -104,6 +106,42 @@ func TestIntegrationEngineWriteBehindPublishesBalanceEventsOncePerOperation(t *t
 		assert.Equal(t, constant.APPROVED, projected)
 		infra.requireBalanceChangedOncePerOperation(t, recorder, transactionID)
 	})
+
+	t.Run("v2 commit through separate bulk flushes and a redelivered flush", func(t *testing.T) {
+		ctx := context.Background()
+		aliases := infra.seedTransfer(t, "events-bulk-commit-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
+		created := infra.postPendingCreate(t, app, "v2", aliases)
+		require.Equalf(t, http.StatusCreated, created.status, "async pending create must return 201: %s", created.body)
+		transactionID := created.transactionID(t)
+
+		createDelivery := infra.nextWriteBehindDelivery(t)
+		requireBulkFlushSucceeds(ctx, t, bulkDispatcher, createDelivery)
+		require.NoError(t, createDelivery.Ack(false))
+		infra.requireBalanceChangedOncePerOperation(t, recorder, transactionID)
+
+		transition := infra.postTransition(t, app, "v2", transactionID, "commit")
+		require.Equalf(t, http.StatusCreated, transition.status, "commit must succeed: %s", transition.body)
+
+		transitionDelivery := infra.nextWriteBehindDelivery(t)
+		requireBulkFlushSucceeds(ctx, t, bulkDispatcher, transitionDelivery)
+		require.NoError(t, transitionDelivery.Ack(false))
+		infra.requireBalanceChangedOncePerOperation(t, recorder, transactionID)
+
+		requireBulkFlushSucceeds(ctx, t, bulkDispatcher, transitionDelivery, createDelivery)
+		infra.requireBalanceChangedOncePerOperation(t, recorder, transactionID)
+	})
+}
+
+func requireBulkFlushSucceeds(ctx context.Context, t *testing.T, dispatcher *rabbitTransactionDispatcher, deliveries ...amqp.Delivery) {
+	t.Helper()
+
+	results, err := dispatcher.handleBulk(ctx, deliveries)
+	require.NoError(t, err)
+	require.Len(t, results, len(deliveries))
+
+	for _, result := range results {
+		require.True(t, result.Success, result.Error)
+	}
 }
 
 func (infra *engineWriteBehindHTTPIntegration) nextWriteBehindDelivery(t *testing.T) amqp.Delivery {
