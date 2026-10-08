@@ -180,6 +180,7 @@ func executionOutcome(request accounting.Execution, err error) (string, string) 
 		switch refusal.Code {
 		case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded,
 			accounting.FailureOverdraftNotEligible, accounting.FailureOverdraftCompanionMissing,
+			accounting.FailureOverdraftRepayRouteDenied,
 			accounting.FailureBalanceDeleted, accounting.FailureOnHoldUnderflow,
 			accounting.FailureAccountBlocked,
 			accounting.FailureBalanceMissing, accounting.FailureAssetMismatch,

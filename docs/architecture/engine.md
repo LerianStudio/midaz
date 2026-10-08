@@ -205,7 +205,7 @@ seams; they are not an operational rollout switch.
 | Authentication, tenant context, organization and ledger scoping | Go request/use-case layer |
 | Input targeting, cardinality, asset and sending/receiving validation | Go use cases over explicit transaction legs |
 | Fees, tracer, HTTP idempotency, transaction lifecycle and events | Go use cases |
-| Declarative posting-plan composition and route draw policy | Go command layer |
+| Declarative posting-plan composition and route draw and repay policy | Go command layer |
 | Live balance arithmetic, overdraft split/repayment, movement versions | Accounting engine |
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal completion and recovery |
@@ -344,7 +344,11 @@ remainder to A and generate a companion credit for the real repayment. Existing
 debt can be repaid even when future draws have been disabled. A `credit` posting
 marked `RepayForbidden` never repays: it adds the whole x to A, leaves U
 unchanged, and generates no companion movement. It is valid only on a `credit`
-with a zero `OverdraftAmount`.
+with a zero `OverdraftAmount`. A `credit` marked `RepayRouteDenied` refuses with
+`overdraft_repay_route_denied` when its repayment would be positive and applies
+unchanged otherwise; Go sets it when route validation is on and the leg's route
+has no overdraft credit rubric. It is valid only on a `credit` and never together
+with `RepayForbidden`.
 
 `release` is not a general credit operation. With a zero override, it restores A
 and decreases H without repaying debt. Only a positive override on a non-external
@@ -380,7 +384,7 @@ In this table, ON/OFF means route validation enabled/disabled.
 
 | Path | Source postings | Destination postings | Row compatibility |
 | --- | --- | --- | --- |
-| Direct / revert | Conclusive `debit` | `credit` | Apply route draw policy; use live splits |
+| Direct / revert | Conclusive `debit` | `credit` | Apply route draw and repay policy; use live splits |
 | Pending OFF | `hold` | None | One source version increment |
 | Pending ON | `debit(DrawForbidden)`, `reserve` | None | Two source increments |
 | Commit OFF | `unreserve` | `credit` | Source row remains DEBIT |
@@ -832,6 +836,7 @@ automatically repair a partially executed commit.
 | insufficient_funds | 0018, not 0025 |
 | overdraft_limit_exceeded | 0167 |
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
+| overdraft_repay_route_denied | 0492; only for a posting that carries `RepayRouteDenied` |
 | balance_deleted | 0019 |
 | account_blocked | 0502; evaluated from the live cache value inside Lua |
 | account_block_exception_invalid | 0508 on `Transaction`, correlated to the primary posting; the live grant is missing, malformed, consumed, expired, or has a divergent alias/amount; no state or grant is mutated |

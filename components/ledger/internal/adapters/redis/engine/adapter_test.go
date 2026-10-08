@@ -433,3 +433,16 @@ func TestNewAdapter_UsesEngineHardLimits(t *testing.T) {
 	}, adapter.limits)
 	require.Zero(t, provider.calls)
 }
+
+func TestValidateFailureAcceptsRepayRouteRefusal(t *testing.T) {
+	t.Parallel()
+
+	request := core.Execution{Transactions: []core.Transaction{{Postings: []core.Posting{{
+		Ref: "credit", BalanceRef: "@destination#default", Type: core.PostingCredit, RepayRouteDenied: true,
+	}}}}}
+	failure := core.Failure{Code: core.FailureOverdraftRepayRouteDenied, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@destination#default"}
+
+	if err := validateFailure(failure, request); err != nil {
+		t.Fatalf("repay route refusal must be a recognized accounting refusal: %v", err)
+	}
+}

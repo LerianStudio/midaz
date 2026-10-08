@@ -53,6 +53,9 @@ local function validPosting(posting)
     if posting.repayForbidden ~= nil and bool(posting.repayForbidden) and posting.type ~= "credit" then
         technical("invalid_protocol", "repayForbidden outside a credit")
     end
+    if posting.repayRouteDenied ~= nil and bool(posting.repayRouteDenied) and (posting.type ~= "credit" or posting.repayForbidden == true) then
+        technical("invalid_protocol", "repayRouteDenied outside a repaying credit")
+    end
     if posting.fundedByRef ~= nil and (text(posting.fundedByRef, false) and posting.type ~= "credit") then
         technical("invalid_protocol", "fundedByRef outside a credit")
     end

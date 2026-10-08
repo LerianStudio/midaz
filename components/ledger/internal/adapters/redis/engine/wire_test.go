@@ -338,6 +338,14 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 			posting.Type, posting.DrawPolicy = accounting.PostingCredit, accounting.DrawForbidden
 			posting.RepayForbidden, posting.OverdraftAmount = true, decimal.NewFromInt(10)
 		}},
+		{"repay route denied outside a credit", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			x.Execution.Transactions[0].Postings[0].RepayRouteDenied = true
+		}},
+		{"repay route denied with repay forbidden", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			posting := &x.Execution.Transactions[0].Postings[0]
+			posting.Type, posting.DrawPolicy = accounting.PostingCredit, accounting.DrawForbidden
+			posting.RepayForbidden, posting.RepayRouteDenied = true, true
+		}},
 		{"empty posting reference", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Execution.Transactions[0].Postings[0].Ref = ""
 		}},
@@ -1074,4 +1082,25 @@ func testResolvedBalanceKeys(key string) resolvedBalanceKeys {
 	return resolvedBalanceKeys{
 		Balance: key, Deleted: deleted, LegacyDeleted: key + cachepolicy.DeletionMarkerSuffix,
 	}
+}
+
+func TestPrepareExecutionCarriesRepayRouteDeniedOnlyWhenSet(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	posting := &input.Execution.Transactions[0].Postings[0]
+	posting.Type, posting.DrawPolicy = accounting.PostingCredit, accounting.DrawForbidden
+
+	plain, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+	require.NotContains(t, string(plain.Payload), `"repayRouteDenied"`, "an ordinary credit must keep its existing wire bytes")
+
+	posting.RepayRouteDenied, posting.OverdraftAmount = true, decimal.NewFromInt(10)
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.True(t, wire.Transactions[0].Postings[0].RepayRouteDenied)
+	require.Equal(t, "10", wire.Transactions[0].Postings[0].OverdraftAmount, "a capped repayment through a denied route is still a repayment")
 }

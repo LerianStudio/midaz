@@ -203,9 +203,13 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 			}
 		}
 
+		repayRouteDenied := item.postingType == accounting.PostingCredit && item.mayAffectOverdraft && !item.repayForbidden &&
+			input.RouteValidationEnabled && !translationOverdraftRubricConfigured(input.RouteCache, routeID, constant.DirectionCredit)
+
 		posting := accounting.Posting{
 			Ref: postingRef, BalanceRef: balanceRef, Type: item.postingType, Amount: amount.Value,
 			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap, RepayForbidden: item.repayForbidden,
+			RepayRouteDenied: repayRouteDenied,
 		}
 		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
 		debt.bookTakeBack(&primary)

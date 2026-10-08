@@ -722,3 +722,109 @@ func TestOperationPostingRefStaysBoundToItsOrigin(t *testing.T) {
 	assert.False(t, postingRefFromOrigin(postingRef, "to:10"))
 	assert.False(t, postingRefFromOrigin(postingRef, ""))
 }
+
+func TestTranslateEngineTransactionRepayRouteDenied(t *testing.T) {
+	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
+	sourceRouteID := "88888888-8888-4888-8888-888888888888"
+	destinationRouteID := "99999999-9999-4999-8999-999999999999"
+
+	withCredit := &mmodel.AccountingEntries{
+		Direct:    &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "DIRECT-C"}},
+		Overdraft: &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "OD-C"}},
+	}
+	withoutCredit := &mmodel.AccountingEntries{
+		Direct:    &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "DIRECT-C"}},
+		Overdraft: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "OD-D"}},
+	}
+
+	tests := []struct {
+		name                   string
+		action, status         string
+		override               string
+		entries                *mmodel.AccountingEntries
+		nilCache               bool
+		routeValidationEnabled bool
+		creditRef              string
+		wantDenied             bool
+	}{
+		{name: "direct credit through a route with overdraft credit", action: constant.ActionDirect, status: constant.CREATED, entries: withCredit, routeValidationEnabled: true, creditRef: "@destination#default"},
+		{name: "direct credit through a route without overdraft credit", action: constant.ActionDirect, status: constant.CREATED, entries: withoutCredit, routeValidationEnabled: true, creditRef: "@destination#default", wantDenied: true},
+		{name: "direct credit with an unresolved route cache", action: constant.ActionDirect, status: constant.CREATED, nilCache: true, routeValidationEnabled: true, creditRef: "@destination#default", wantDenied: true},
+		{name: "direct credit without route validation", action: constant.ActionDirect, status: constant.CREATED, entries: withoutCredit, creditRef: "@destination#default"},
+		{name: "revert credit through a route without overdraft credit", action: constant.ActionRevert, status: constant.CREATED, entries: withoutCredit, routeValidationEnabled: true, creditRef: "@destination#default", wantDenied: true},
+		{name: "block credit never repays", action: constant.ActionDirect, status: constant.CREATED, override: constant.BLOCK, entries: withoutCredit, routeValidationEnabled: true, creditRef: "@destination#default"},
+		{name: "commit credit through a route without overdraft credit", action: constant.ActionCommit, status: constant.APPROVED, entries: withoutCredit, routeValidationEnabled: true, creditRef: "@destination#default", wantDenied: true},
+		{name: "commit credit through a route with overdraft credit", action: constant.ActionCommit, status: constant.APPROVED, entries: withCredit, routeValidationEnabled: true, creditRef: "@destination#default"},
+		{name: "validated cancel credit through a route without overdraft credit", action: constant.ActionCancel, status: constant.CANCELED, entries: withoutCredit, routeValidationEnabled: true, creditRef: "@source#default", wantDenied: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			source := translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@source", "default")
+			sourceDebt := translationBalance(organizationID, ledgerID, "66666666-6666-4666-8666-666666666666", "@source", constant.OverdraftBalanceKey)
+			sourceDebt.AccountID = source.AccountID
+			destination := translationBalance(organizationID, ledgerID, "55555555-5555-4555-8555-555555555555", "@destination", "default")
+			destinationDebt := translationBalance(organizationID, ledgerID, "77777777-7777-4777-8777-777777777777", "@destination", constant.OverdraftBalanceKey)
+			destinationDebt.AccountID = destination.AccountID
+
+			amount := mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), RouteValidationEnabled: tt.routeValidationEnabled}
+
+			input := EngineTranslationInput{
+				TransactionID:          uuid.MustParse("33333333-3333-4333-8333-333333333333"),
+				Action:                 tt.action,
+				TransactionStatus:      tt.status,
+				RouteValidationEnabled: tt.routeValidationEnabled,
+				TransactionInput: mtransaction.Transaction{
+					OperationTypeOverride: tt.override,
+					Send: mtransaction.Send{
+						Asset: "USD",
+						Source: mtransaction.Source{From: []mtransaction.FromTo{{
+							AccountAlias: "0#@source#default", BalanceKey: "default", IsFrom: true, RouteID: &sourceRouteID,
+						}}},
+						Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+							AccountAlias: "0#@destination#default", BalanceKey: "default", RouteID: &destinationRouteID,
+						}}},
+					},
+				},
+				Validate: &mtransaction.Responses{
+					From:                map[string]mtransaction.Amount{"0#@source#default": amount},
+					To:                  map[string]mtransaction.Amount{"0#@destination#default": amount},
+					OperationRoutesFrom: map[string]string{"0#@source#default": sourceRouteID},
+					OperationRoutesTo:   map[string]string{"0#@destination#default": destinationRouteID},
+				},
+				Balances: []*mmodel.Balance{source, sourceDebt, destination, destinationDebt},
+			}
+
+			if !tt.nilCache {
+				route := mmodel.OperationRouteCache{AccountingEntries: tt.entries}
+				routes := map[string]mmodel.OperationRouteCache{sourceRouteID: route, destinationRouteID: route}
+				input.RouteCache = &mmodel.TransactionRouteCache{Actions: map[string]mmodel.ActionRouteCache{
+					tt.action:                {Source: routes},
+					constant.ActionOverdraft: {Source: routes},
+				}}
+			}
+
+			transaction, _, err := TranslateEngineTransaction(input)
+			require.NoError(t, err)
+
+			credits := 0
+
+			for _, posting := range transaction.Postings {
+				if posting.Type != accounting.PostingCredit {
+					assert.False(t, posting.RepayRouteDenied, "only a credit carries the repay policy")
+
+					continue
+				}
+
+				credits++
+
+				assert.Equal(t, tt.creditRef, posting.BalanceRef)
+				assert.Equal(t, tt.wantDenied, posting.RepayRouteDenied)
+				assert.False(t, posting.RepayRouteDenied && posting.RepayForbidden, "the two repay flags never coexist")
+			}
+
+			assert.Equal(t, 1, credits)
+		})
+	}
+}

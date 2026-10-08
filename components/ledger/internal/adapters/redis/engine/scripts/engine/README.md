@@ -251,8 +251,10 @@ Per transaction, omitted when empty:
 
 Per posting, each omitted when false or empty: `repayForbidden` (bool, credit
 only, with `overdraftAmount` `"0"`: the whole credit goes to available and any
-outstanding overdraft stays), `deferShortfall` (bool, debit
-only), `fundedByRef` (string, credit only), `debtRoute` (route object, on a
+outstanding overdraft stays), `repayRouteDenied` (bool, credit only, never with
+`repayForbidden`: the posting refuses with `overdraft_repay_route_denied` when it
+would repay outstanding overdraft and applies unchanged otherwise),
+`deferShortfall` (bool, debit only), `fundedByRef` (string, credit only), `debtRoute` (route object, on a
 `deferShortfall` debit or its `fundedByRef` credit: the route that leg books
 under), `items` (array of debt ids, collect only) and `refunds` (array, refund
 only). Go appends a collect posting right
@@ -293,6 +295,8 @@ and refuses with `invalid_protocol` when:
 
 - `repayForbidden` is not a boolean, is on a non-credit, or comes with a nonzero
   `overdraftAmount`;
+- `repayRouteDenied` is not a boolean, is on a non-credit, or comes with
+  `repayForbidden`;
 - `deferShortfall` is on a non-debit or in a transaction whose `action` is not
   `direct`, or its payer `(scope, balanceRef)` is not declared in `feeDebts`;
 - `fundedByRef` is on a non-credit or does not name an earlier `deferShortfall`
