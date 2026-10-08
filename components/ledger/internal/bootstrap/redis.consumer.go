@@ -434,7 +434,6 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		r.emitOldestAgeGauge(ctx, aggregate.oldestTTL)
 	}
 
-	r.cleanupEngineRecovery(ctx)
 	r.reconcileAccountClosings(ctx)
 	r.reconcileTransactionGroups(ctx)
 	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", aggregate.tooYoung))
