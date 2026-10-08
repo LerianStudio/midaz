@@ -516,6 +516,20 @@ holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/
 served on `/v2` only and are unaffected: composition exists to link a holder, so it contracts the
 seam in full.
 
+Composition accepts `X-Idempotency` and `X-TTL` and answers `X-Idempotency-Replayed`, like the
+holder and instrument creates, but claims a slot **only** when `X-Idempotency` is sent: without it
+nothing is cached, and identical calls open distinct accounts. With it, a rejected account create
+(a business error) releases the slot, so a retry with the same key runs the composition again. A
+technical failure keeps the slot until its TTL, because the account may already be persisted (a
+metadata write failure, or a default-balance failure whose compensation did not land), so a retry
+with the same key answers the in-flight conflict. Once the account is
+persisted the answered `201` is stored and replayed as answered, the partial one included (account
+persisted, `instrument` null, `instrumentError` set): the replay opens no account and does not retry
+the instrument. A partial is repaired through `POST /v2/organizations/{organization_id}/holders/{holder_id}/instruments`
+with the returned `accountId`. The release is a plain delete, as on the transaction routes, with no
+compare-and-delete: a low `X-TTL` can expire a slot while its request is still in flight, and the
+release of that request, if it fails, can delete the response another request stored in the meantime.
+
 Two account-adjacent write paths are **outside** the seam on both contracts, and stay that way. The
 implicit **external account** that asset creation opens is built and persisted directly through
 `AccountRepo`, bypassing the account-create use case, so it carries no holder — which is also what

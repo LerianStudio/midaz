@@ -142,7 +142,8 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 	}
 
 	// Capture "before" state for audit (before mutation)
-	beforeState := LimitToMap(limit)
+	now := c.clock.Now()
+	beforeState := LimitToMap(limit, now)
 
 	// Capture original status before mutation for accurate logging
 	originalStatus := limit.Status
@@ -150,7 +151,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 	// Validate transition via model.Limit.SetStatus which enforces allowed transitions:
 	// ACTIVE → DELETED and INACTIVE → DELETED are valid. See model.LimitStatus and
 	// model.Limit.SetStatus for rules.
-	if err := limit.SetStatus(model.LimitStatusDeleted, c.clock.Now()); err != nil {
+	if err := limit.SetStatus(model.LimitStatusDeleted, now); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
 		logger.With(
 			libLog.String("operation", "service.limit.delete"),

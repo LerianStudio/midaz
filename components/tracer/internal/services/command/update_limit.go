@@ -150,7 +150,8 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 	}
 
 	// Capture "before" state for audit (after no-op check, before mutation)
-	beforeState := LimitToMap(limit)
+	now := c.clock.Now()
+	beforeState := LimitToMap(limit, now)
 
 	// Parse custom period dates if provided
 	var customStartDate, customEndDate *time.Time
@@ -184,7 +185,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		normalizedInput.ActiveTimeEnd,
 		customStartDate,
 		customEndDate,
-		c.clock.Now(),
+		now,
 	); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Update validation failed", err)
 		logger.With(
@@ -222,7 +223,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 			return nil
 		}
 
-		afterState := LimitToMap(limit)
+		afterState := LimitToMap(limit, now)
 		if err := c.auditWriter.RecordLimitEventWithTx(
 			ctx,
 			db,

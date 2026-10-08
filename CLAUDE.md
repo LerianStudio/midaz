@@ -77,6 +77,7 @@ Keep the boundary exact:
 - Engine recovery uses `engine:{transactions}:recover`; the legacy writer uses
   `backup_queue:{transactions}`. Separate consumers share one scheduled runner so
   the legacy consumer can later be removed without changing engine recovery.
+  Retention cleanup has its own short-cadence runner, outside that cycle.
 
 ## Architecture
 

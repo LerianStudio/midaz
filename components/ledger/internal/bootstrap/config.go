@@ -1186,8 +1186,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// the onboarding and CRM registrars already use — it composes them, it never
 	// reimplements them. The cross-store composition tenant middleware travels via
 	// routeSetup.compositionRouteOptions so it applies ONLY to the composition route.
+	// The shared CRM use case also holds the composition's X-Idempotency slots.
 	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
-	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
+	compositionHandler := &httpin.CompositionHandler{Service: compositionService, Idempotency: crmMgo.instrumentHandler.Service}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server")
 
@@ -1293,6 +1294,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		WithQuarantineRepository(txnPG.quarantineRepo).
 		WithMetricsFactory(metricsFactory)
 
+	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory)
+
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 	balanceSyncWorker.WithMetricsFactory(metricsFactory)
@@ -1349,6 +1352,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiQueueConsumer:       rmq.multiQueueConsumer,
 		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
+		EngineRecoveryCleanup:    engineRecoveryCleanup,
 		BalanceSyncWorker:        balanceSyncWorker,
 		LegacyBalanceSyncDrainer: legacyDrainer,
 		EventListener:            eventListener,

@@ -13,11 +13,13 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -358,7 +360,6 @@ func TestPendingCommitGrantBindingFailureUnlocksBeforeEngine(t *testing.T) {
 		GetAccountBlockException(gomock.Any(), in.OrganizationID, in.LedgerID, exceptionID).
 		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@target", Amount: "10"}, nil).
 		Times(1)
-	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	_, err := uc.CommitTransactionV2(context.Background(), in)
 	require.Error(t, err)
@@ -408,25 +409,28 @@ func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T)
 	}
 }
 
-func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
-	finalizationErr := errors.New("finalization unavailable")
+func TestPendingTransitionEngineFailureBoundariesReleaseLock(t *testing.T) {
+	projectionErr := errors.New("projection unavailable")
 	indeterminate := testEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
 
 	for _, test := range []struct {
-		name        string
-		executorErr error
-		finalizeErr error
-		wantUnlock  bool
+		name            string
+		executorErr     error
+		finalizeErr     error
+		completedStatus string
+		wantErr         error
+		wantProjected   bool
 	}{
 		{
-			name: "confirmed grant refusal unlocks",
+			name: "confirmed grant refusal",
 			executorErr: &accounting.Failure{
 				Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
 			},
-			wantUnlock: true,
+			wantErr: constant.ErrAccountBlockExceptionInvalid,
 		},
-		{name: "indeterminate execution retains lock", executorErr: indeterminate},
-		{name: "finalization failure retains lock", finalizeErr: finalizationErr},
+		{name: "indeterminate execution", executorErr: indeterminate, wantErr: indeterminate},
+		{name: "projection deferred to recovery", finalizeErr: projectionErr, wantProjected: true},
+		{name: "completion confirms another status", completedStatus: constant.CANCELED, wantErr: ErrTransactionCompletionConflict, wantProjected: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
@@ -443,20 +447,25 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 				executor.before = func(EngineExecution) error { return test.executorErr }
 			}
 			finalizer.err = test.finalizeErr
-			if test.wantUnlock {
-				uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			if test.completedStatus != "" {
+				finalizer.outcome.TransactionStatus = test.completedStatus
 			}
 
 			tran, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-failure"), in)
 			require.Len(t, executor.requests, 1)
 			require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
-			if test.finalizeErr != nil {
+			if test.wantErr != nil {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.wantErr.Error())
+				assert.Nil(t, tran)
+			} else {
 				require.NoError(t, err)
 				require.NotNil(t, tran)
+			}
+			if test.wantProjected {
 				assert.Len(t, finalizer.envelopes, 1)
 				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
 			} else {
-				require.Error(t, err)
 				assert.Empty(t, finalizer.envelopes)
 				assert.Empty(t, reserver.confirmedTxns)
 			}
@@ -464,12 +473,83 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 	}
 }
 
+// TestPendingTransactionLockReleaseOutlivesTheRequestContext covers a request
+// whose context ended while the engine was answering: a cancellation is the
+// usual cause of an indeterminate outcome, and a release bound to it would leave
+// the lock in place for its whole TTL.
+func TestPendingTransactionLockReleaseOutlivesTheRequestContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, _, _ string) (bool, error) {
+		assert.NoError(t, ctx.Err(), "the release must not inherit the request cancellation")
+		assert.Equal(t, "tenant-release", tmcore.GetTenantIDContext(ctx), "the release must keep the tenant that namespaces the key")
+		_, bounded := ctx.Deadline()
+		assert.True(t, bounded, "the release must stay bounded")
+		return true, nil
+	}).Times(1)
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+
+	ctx, cancel := context.WithCancel(tmcore.ContextWithTenantID(context.Background(), "tenant-release"))
+	run := &pendingTransitionRun{
+		organizationID: uuid.New(), ledgerID: uuid.New(),
+		tran: &transaction.Transaction{ID: uuid.NewString()},
+	}
+
+	unlock, err := uc.lockPendingTransaction(ctx, trace.SpanFromContext(ctx), libLog.NewNop(), run)
+	require.NoError(t, err)
+
+	cancel()
+	unlock()
+}
+
+// TestPendingTransactionLockReleaseRemovesOnlyItsOwnLock covers a release that
+// outlives the lock TTL: by then another request may hold the key, and only a
+// release bound to the token this request stored leaves that lock in place.
+func TestPendingTransactionLockReleaseRemovesOnlyItsOwnLock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	stored := map[string]string{}
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).DoAndReturn(
+		func(_ context.Context, key, token string, _ time.Duration) (bool, error) {
+			stored[key] = token
+			return true, nil
+		},
+	).Times(2)
+	released := map[string]string{}
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, key, token string) (bool, error) {
+			released[key] = token
+			return true, nil
+		},
+	).Times(2)
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+
+	runs := []*pendingTransitionRun{
+		{organizationID: uuid.New(), ledgerID: uuid.New(), tran: &transaction.Transaction{ID: uuid.NewString()}},
+		{organizationID: uuid.New(), ledgerID: uuid.New(), tran: &transaction.Transaction{ID: uuid.NewString()}},
+	}
+	for _, run := range runs {
+		unlock, err := uc.lockPendingTransaction(context.Background(), trace.SpanFromContext(context.Background()), libLog.NewNop(), run)
+		require.NoError(t, err)
+		unlock()
+	}
+
+	require.Len(t, stored, 2)
+	tokens := map[string]bool{}
+	for key, token := range stored {
+		assert.NotEmpty(t, token, "the lock must carry an owner token")
+		assert.Equal(t, token, released[key], "the release must present the token its acquisition stored")
+		tokens[token] = true
+	}
+	assert.Len(t, tokens, 2, "each acquisition must own a distinct token")
+}
+
 func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.T) {
 	t.Run("terminal SQL wins over a pending pre-lock view", func(t *testing.T) {
 		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 		reader.persisted.Status.Code = constant.APPROVED
 		reader.persisted.Body = mtransaction.Transaction{}
-		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 		_, err := uc.CommitTransactionV1(context.Background(), in)
 		assertBusinessCode(t, err, constant.ErrCommitTransactionNotPending.Error())
@@ -482,7 +562,6 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 		executor.before = func(EngineExecution) error {
 			return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
 		}
-		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 		_, err := uc.CommitTransactionV1(context.Background(), in)
 		assertBusinessCode(t, err, constant.ErrPendingTransactionLocked.Error())
@@ -495,7 +574,6 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 		executor.before = func(EngineExecution) error {
 			return testEngineTechnicalError{code: "transaction_state_conflict", cause: errors.New("transaction state changed")}
 		}
-		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 		_, err := uc.CommitTransactionV1(context.Background(), in)
 		assertBusinessCode(t, err, constant.ErrPendingTransactionLocked.Error())
@@ -508,7 +586,6 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 		executor.before = func(EngineExecution) error {
 			return testEngineTechnicalError{code: "dependency_evidence_conflict", cause: errors.New("dependency changed")}
 		}
-		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 		_, err := uc.CommitTransactionV1(context.Background(), in)
 		assertBusinessCode(t, err, constant.ErrPendingTransactionLocked.Error())
@@ -522,7 +599,6 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 			reader.persisted.Status.Code = constant.CANCELED
 			return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
 		}
-		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 		_, err := uc.CommitTransactionV1(context.Background(), in)
 		assertBusinessCode(t, err, constant.ErrCommitTransactionNotPending.Error())
@@ -548,7 +624,6 @@ func TestPendingTransitionPreservesLargeMetadataNumbers(t *testing.T) {
 func TestPendingCancelFailsClosedWithoutPersistedOperations(t *testing.T) {
 	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.CANCELED)
 	reader.persisted.Operations = nil
-	uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	_, err := uc.CancelTransactionV2(context.Background(), in)
 	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
@@ -559,7 +634,6 @@ func TestPendingCancelFailsClosedWithoutPersistedOperations(t *testing.T) {
 func TestPendingTransitionRejectsMissingSQLConfirmation(t *testing.T) {
 	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 	reader.persisted = nil
-	uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	_, err := uc.CommitTransactionV1(context.Background(), in)
 	var notFound pkg.EntityNotFoundError
@@ -611,6 +685,9 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+	// A transition that takes the pending-transaction lock releases it exactly
+	// once, whatever its outcome.
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer,
@@ -881,7 +958,7 @@ func TestPendingTransitionRefusesUnprojectedAnnotationLikeAPersistedOne(t *testi
 				ctrl := gomock.NewController(t)
 				redisRepo := txRedis.NewMockRedisRepository(ctrl)
 				redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+				redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 				uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
 
 				_, err := test.call(uc, t.Context(), in)
@@ -1088,7 +1165,6 @@ func TestPendingGuardConflictClassifiesAgainstEngineIndex(t *testing.T) {
 				reader.indexed = &winner
 				return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
 			}
-			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 			_, err := uc.CommitTransactionV2(t.Context(), in)
 

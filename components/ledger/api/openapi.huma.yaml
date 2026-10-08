@@ -15758,6 +15758,18 @@ paths:
           schema:
             description: Bearer token (forwarded to the composed account-create use case)
             type: string
+        - description: Idempotency key to safely retry the composition; a retry with the same key returns the original response, a partial 201 with its instrumentError included, as first answered. Without it no idempotency slot is reserved
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the composition; a retry with the same key returns the original response, a partial 201 with its instrumentError included, as first answered. Without it no idempotency slot is reserved
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
       requestBody:
         content:
           application/json:
@@ -15771,6 +15783,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/HolderAccountResponse"
           description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
         "422":
           content:
             application/problem+json:
