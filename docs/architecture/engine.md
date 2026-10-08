@@ -976,9 +976,13 @@ durable completion rather than at its original EVAL.
 Once those conditions hold, ACK records `cleanupAfterMs` on the receipt and each
 transaction coordinator and adds the execution to a tenant-global, same-slot due
 index. Valkey 8.1 does not provide independent expiry for hash fields, while
-receipts and guards share hashes across executions, so the recovery consumer owns
-bounded cleanup instead of expiring a whole hash. Each consumer cycle sweeps due
-members even when either recovery hash is empty. Cleanup revalidates the exact due
+receipts and guards share hashes across executions, so a dedicated cleanup runner
+owns bounded cleanup instead of expiring a whole hash. It runs a pass at startup
+and every 10 seconds, independently of the recovery cycle and under its own lock.
+Each pass drains due members page by page within a 5-second budget, in
+round-robin turns across tenants, and needs only Redis. A due execution is
+therefore released within its retention window plus one tick and one pass.
+Cleanup revalidates the exact due
 score, receipt scope and membership, terminal acknowledgement proof, absence of
 every recovery member from both hashes, and every coordinator deadline in one atomic script. It
 removes only that receipt and its coordinator links. A transaction guard is
@@ -986,7 +990,9 @@ removed only when no other execution remains linked to that transaction, so an
 earlier deadline cannot erase a newer transition's protection; a revert's origin
 marker goes with the revert's own guard. Missing receipts
 remove only their stale due-index member; changed deadlines are rescheduled.
-Malformed or inconsistent proofs fail without artifact writes.
+Malformed or inconsistent proofs fail without artifact writes: the execution keeps
+everything, including a revert's origin marker, is rescheduled one minute later,
+and is counted as failed, so it never blocks the executions behind it.
 
 Legacy receipts never enter the due index and do not receive retroactive cleanup
 eligibility. Pending, partially acknowledged, and durably incomplete executions
@@ -1111,9 +1117,11 @@ compare-and-swap succeeded publishes.
 Immediate acknowledgment reduces the common-case cardinality of
 `recover`; it is not by itself a hard memory bound. Prolonged completion or
 Redis failures can still create a backlog, and receipt/guard/protection removal
-still depends on cleanup throughput. Bounded recovery scans, backlog age and
-cardinality monitoring, and cleanup-capacity alerts remain separate operational
-safeguards.
+still depends on cleanup throughput. The cleanup runner reports, per tenant, the
+due count (`engine_recovery_cleanup_due`), the age of the most overdue execution
+(`engine_recovery_cleanup_oldest_overdue`, exported in seconds), and handled
+executions by outcome (`engine_recovery_cleanup_entries_total`). Bounded recovery
+scans and alerts on those metrics remain separate operational safeguards.
 
 ## Compatibility changes and rollout
 

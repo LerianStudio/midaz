@@ -188,6 +188,39 @@ var (
 
 	// Redis backup-queue (poison record) observability metrics.
 
+	// EngineRecoveryCleanupDue is how many durable engine executions are past
+	// their retention deadline and still hold Redis artifacts, by tenant_id (empty
+	// in single-tenant). It is read after every cleanup pass, so it shows what the
+	// pass could not drain. The annotation unit keeps the exported name as is; the
+	// dimensionless "1" would reach Prometheus with a misleading "_ratio" suffix.
+	EngineRecoveryCleanupDue = metrics.Metric{
+		Name:        "engine_recovery_cleanup_due",
+		Unit:        "{execution}",
+		Description: "Number of engine executions past their retention deadline still awaiting cleanup.",
+	}
+
+	// EngineRecoveryCleanupOldestOverdue is how long the most overdue execution has
+	// waited past its retention deadline, by tenant_id. It reads 0 when nothing is
+	// due, which is what clears an alert.
+	//
+	// The declared name carries NO unit suffix: the OTLP-to-Prometheus translation
+	// appends one from Unit, so this reaches Mimir as
+	// `engine_recovery_cleanup_oldest_overdue_seconds`.
+	EngineRecoveryCleanupOldestOverdue = metrics.Metric{
+		Name:        "engine_recovery_cleanup_oldest_overdue",
+		Unit:        "s",
+		Description: "Seconds the most overdue engine execution has waited past its retention deadline for cleanup.",
+	}
+
+	// EngineRecoveryCleanupEntries counts scheduled executions handled by cleanup,
+	// by tenant_id and outcome: cleaned, stale (nothing left to clean),
+	// rescheduled (not yet releasable), or failed (proof rejected; retried later).
+	EngineRecoveryCleanupEntries = metrics.Metric{
+		Name:        "engine_recovery_cleanup_entries_total",
+		Unit:        "1",
+		Description: "Total scheduled engine executions handled by recovery cleanup, by outcome.",
+	}
+
 	// RedisBackupQueueDepth is the number of records currently in the backup queue.
 	RedisBackupQueueDepth = metrics.Metric{
 		Name:        "redis_backup_queue_depth",
