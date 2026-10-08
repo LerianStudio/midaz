@@ -62,21 +62,7 @@ type recoveryRecordReader interface {
 	ReadRecoveryMessage(context.Context, txRedis.RecoveryQueueSource, string) (string, error)
 }
 
-type recoveryCleanupOwner interface {
-	CleanupEngineRecovery(context.Context, time.Time, int) (txRedis.RecoveryCleanupResult, error)
-}
-
 const (
-	// recoveryCleanupBatchSize is the per-pass limit handed to the cleanup
-	// owner. It matches the repository's maximum Redis batch size.
-	recoveryCleanupBatchSize = 1000
-	// recoveryCleanupMaxPasses and recoveryCleanupDrainBudget bound one tenant's
-	// drain inside a recovery cycle. A single fixed pass per 30-minute cycle
-	// cannot keep up with production write volume, so the cleanup keeps pulling
-	// due artifacts until the schedule is drained, stops making progress, or one
-	// of these bounds is reached. Everything left over stays scheduled.
-	recoveryCleanupMaxPasses              = 200
-	recoveryCleanupDrainBudget            = 2 * time.Minute
 	transactionWriteBehindRecoveryVersion = command.TransactionWriteBehindFormatVersion
 	engineRecoveryAttemptLimit            = 3
 	engineRecoveryInitialBackoff          = 10 * time.Millisecond
@@ -138,82 +124,6 @@ func (r *RedisQueueConsumer) WithRecoveryClock(clock func() time.Time) *RedisQue
 	}
 
 	return r
-}
-
-func (r *RedisQueueConsumer) cleanupEngineRecovery(ctx context.Context) {
-	r.newRecoveryRecordCompleter().cleanup(ctx)
-}
-
-func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
-	owner, ok := r.queue.(recoveryCleanupOwner)
-	if !ok {
-		return
-	}
-
-	if r.clock == nil {
-		r.logger.Log(ctx, libLog.LevelWarn, "Engine recovery cleanup clock is not configured")
-		return
-	}
-
-	var total txRedis.RecoveryCleanupResult
-
-	passes := 0
-	deadline := r.clock().Add(recoveryCleanupDrainBudget)
-
-	// The budget also bounds each pass: one page of up to 1000 script calls
-	// must not run past it. A pass interrupted between entries leaves the rest
-	// scheduled, and each entry is one atomic script, so cancellation never
-	// leaves a partially deleted execution.
-	cleanupCtx, cancel := context.WithTimeout(ctx, recoveryCleanupDrainBudget)
-	defer cancel()
-
-	for passes < recoveryCleanupMaxPasses {
-		if cleanupCtx.Err() != nil {
-			break
-		}
-
-		now := r.clock()
-		if passes > 0 && !now.Before(deadline) {
-			break
-		}
-
-		result, err := owner.CleanupEngineRecovery(cleanupCtx, now, recoveryCleanupBatchSize)
-		passes++
-
-		total.Scanned += result.Scanned
-		total.Cleaned += result.Cleaned
-		total.Stale += result.Stale
-		total.Rescheduled += result.Rescheduled
-
-		if err != nil && ctx.Err() == nil && errors.Is(cleanupCtx.Err(), context.DeadlineExceeded) {
-			// Budget reached mid-pass; the remainder stays scheduled.
-			break
-		}
-
-		if err != nil {
-			r.logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts",
-				libLog.Int("passes", passes),
-				libLog.Int("scanned_count", total.Scanned),
-				libLog.Int("cleaned_count", total.Cleaned),
-				libLog.Err(err))
-
-			return
-		}
-
-		// A short page means the due window is drained. A full page that moved
-		// nothing out of the due window would be read again unchanged, so stop
-		// instead of spinning on it.
-		if result.Scanned < recoveryCleanupBatchSize || result.Cleaned+result.Stale+result.Rescheduled == 0 {
-			break
-		}
-	}
-
-	r.logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",
-		libLog.Int("passes", passes),
-		libLog.Int("scanned_count", total.Scanned),
-		libLog.Int("cleaned_count", total.Cleaned),
-		libLog.Int("stale_count", total.Stale),
-		libLog.Int("rescheduled_count", total.Rescheduled))
 }
 
 // recoveryRecordVersion permits legacy decoding only when the discriminator is
