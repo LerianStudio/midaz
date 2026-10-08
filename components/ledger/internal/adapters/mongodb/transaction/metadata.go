@@ -21,6 +21,7 @@ type MetadataMongoDBModel struct {
 	Data       JSON          `bson:"metadata"`
 	CreatedAt  time.Time     `bson:"created_at"`
 	UpdatedAt  time.Time     `bson:"updated_at"`
+	DeletedAt  *time.Time    `bson:"deleted_at,omitempty"`
 }
 
 // Metadata is a struct designed to encapsulate payload data.
@@ -31,6 +32,7 @@ type Metadata struct {
 	Data       JSON
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	DeletedAt  *time.Time
 }
 
 // JSON document to save on mongodb
@@ -60,6 +62,7 @@ func (mmm *MetadataMongoDBModel) ToEntity() *Metadata {
 		Data:       mmm.Data,
 		CreatedAt:  mmm.CreatedAt,
 		UpdatedAt:  mmm.UpdatedAt,
+		DeletedAt:  mmm.DeletedAt,
 	}
 }
 
@@ -71,6 +74,7 @@ func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
 	mmm.Data = md.Data
 	mmm.CreatedAt = md.CreatedAt
 	mmm.UpdatedAt = md.UpdatedAt
+	mmm.DeletedAt = md.DeletedAt
 
 	return nil
 }

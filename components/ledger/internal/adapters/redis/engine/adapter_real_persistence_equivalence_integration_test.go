@@ -9,6 +9,7 @@ package engine
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -36,6 +39,7 @@ import (
 type realPersistenceFixture struct {
 	db        *sql.DB
 	metadata  *mongodb.MetadataMongoDBRepository
+	mongo     *mongo.Database
 	finalizer command.AppliedTransactionCompleter
 }
 
@@ -73,6 +77,7 @@ func newRealPersistenceFixture(t *testing.T) realPersistenceFixture {
 	return realPersistenceFixture{
 		db:        pg.DB,
 		metadata:  metadata,
+		mongo:     mongoContainer.Database,
 		finalizer: command.NewTransactionCompletionService(store, metadata),
 	}
 }
@@ -136,11 +141,21 @@ func clearRealPersistenceRecord(t *testing.T, ctx context.Context, fixture realP
 	for _, id := range snapshot.operationIDs {
 		_, err := fixture.db.ExecContext(ctx, `DELETE FROM operation WHERE id = $1`, id)
 		require.NoError(t, err)
-		require.NoError(t, fixture.metadata.Delete(ctx, constant.EntityOperation, id))
+		hardDeleteRealPersistenceMetadata(t, ctx, fixture.mongo, constant.EntityOperation, id)
 	}
 	_, err := fixture.db.ExecContext(ctx, `DELETE FROM transaction WHERE id = $1`, transactionID)
 	require.NoError(t, err)
-	require.NoError(t, fixture.metadata.Delete(ctx, constant.EntityTransaction, transactionID))
+	hardDeleteRealPersistenceMetadata(t, ctx, fixture.mongo, constant.EntityTransaction, transactionID)
+}
+
+// hardDeleteRealPersistenceMetadata removes the metadata documents outright to
+// simulate a projection that was never written. The repository Delete keeps a
+// soft-deleted tombstone that Create does not revive, which models a deleted
+// entity rather than a missing projection.
+func hardDeleteRealPersistenceMetadata(t *testing.T, ctx context.Context, db *mongo.Database, entity, id string) {
+	t.Helper()
+	_, err := db.Collection(strings.ToLower(entity)).DeleteMany(ctx, bson.M{"entity_id": id})
+	require.NoError(t, err)
 }
 
 func resetRealPersistenceToPending(t *testing.T, ctx context.Context, fixture realPersistenceFixture, pending *postgresTransaction.Transaction, terminalOperationIDs []string) {
@@ -148,7 +163,7 @@ func resetRealPersistenceToPending(t *testing.T, ctx context.Context, fixture re
 	for _, id := range terminalOperationIDs {
 		_, err := fixture.db.ExecContext(ctx, `DELETE FROM operation WHERE id = $1`, id)
 		require.NoError(t, err)
-		require.NoError(t, fixture.metadata.Delete(ctx, constant.EntityOperation, id))
+		hardDeleteRealPersistenceMetadata(t, ctx, fixture.mongo, constant.EntityOperation, id)
 	}
 	_, err := fixture.db.ExecContext(ctx, `UPDATE transaction SET status = $1, status_description = $2, updated_at = $3 WHERE id = $4`,
 		pending.Status.Code, pending.Status.Description, pending.UpdatedAt, pending.ID)

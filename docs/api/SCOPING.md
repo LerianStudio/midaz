@@ -629,6 +629,11 @@ whose serializer writes an unset map as `null` cannot erase it by accident; `/v1
 it shipped with. Fee packages, billing packages and balances carry no `metadata` on their PATCH, and
 the asset rate is a `/v1` `PUT`.
 
+Deleting an entity hides its metadata on both contracts. The `DELETE` keeps answering `204`, a read
+by id answers `404`, and a metadata-filtered listing no longer returns the entity, whichever mount
+served the delete. The stored keys are kept, never exposed again, and cannot be revived: a PATCH on
+a deleted entity is refused by the entity lookup before any metadata is touched.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,

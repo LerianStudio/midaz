@@ -428,8 +428,10 @@ func TestDeleteAccountType_204Empty(t *testing.T) {
 
 	accountTypeRepo := accounttype.NewMockRepository(ctrl)
 	accountTypeRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, accountTypeID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityAccountType, accountTypeID.String()).Return(nil).Times(1)
 
-	handler := &AccountTypeHandler{Command: &command.UseCase{AccountTypeRepo: accountTypeRepo}}
+	handler := &AccountTypeHandler{Command: &command.UseCase{AccountTypeRepo: accountTypeRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaAccountTypeApp(t, handler, true)
 

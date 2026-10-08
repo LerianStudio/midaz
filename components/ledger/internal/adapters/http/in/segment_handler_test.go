@@ -371,8 +371,10 @@ func TestDeleteSegment_204Empty(t *testing.T) {
 
 	segmentRepo := segment.NewMockRepository(ctrl)
 	segmentRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, segmentID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntitySegment, segmentID.String()).Return(nil).Times(1)
 
-	handler := &SegmentHandler{Command: &command.UseCase{SegmentRepo: segmentRepo}}
+	handler := &SegmentHandler{Command: &command.UseCase{SegmentRepo: segmentRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaSegmentApp(t, handler, true)
 

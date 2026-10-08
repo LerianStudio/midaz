@@ -236,6 +236,10 @@ type UseCase struct {
 	// their own settles never share, or race on, one queue.
 	unansweredSettles *unansweredSettleQueue
 
+	// metadataDeleteRetry overrides the retry policy of the metadata soft delete
+	// that follows an entity delete. The zero value uses the production policy.
+	metadataDeleteRetry metadataDeleteRetryPolicy
+
 	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
 	// from it, and balance deletion and account closing read the debts owed to a balance.
 	FeeDebts FeeDebtRecorder

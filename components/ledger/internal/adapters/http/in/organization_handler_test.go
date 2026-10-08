@@ -454,8 +454,10 @@ func TestDeleteOrganization_204Empty(t *testing.T) {
 
 	orgRepo := organization.NewMockRepository(ctrl)
 	orgRepo.EXPECT().Delete(gomock.Any(), orgID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityOrganization, orgID.String()).Return(nil).Times(1)
 
-	handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: orgRepo}}
+	handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: orgRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaOrganizationApp(t, handler, true)
 

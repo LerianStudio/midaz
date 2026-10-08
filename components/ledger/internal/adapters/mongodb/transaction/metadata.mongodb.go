@@ -42,6 +42,10 @@ type Repository interface {
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 	SetKeys(ctx context.Context, collection, id string, keys map[string]any) error
 	UpdateIfUnchanged(ctx context.Context, collection, id, entityName string, metadata, guard map[string]any) (bool, error)
+	// Delete soft-deletes the entity's metadata by stamping deleted_at and updated_at on every live
+	// document of the entity, keeping its metadata keys; the readers then skip them. It never
+	// creates a document: an entity without a live document, including one already deleted, is a
+	// no-op that keeps the first deleted_at.
 	Delete(ctx context.Context, collection, id string) error
 	CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
 	FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)
@@ -341,6 +345,8 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 		mongoFilter["created_at"] = dateFilter
 	}
 
+	mongoFilter["deleted_at"] = nil
+
 	_, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
 	cur, err := coll.Find(ctx, mongoFilter, opts)
@@ -405,7 +411,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 	_, spanFindOne := tracer.Start(ctx, "mongodb.find_by_entity.find_one")
 
-	if err = coll.FindOne(ctx, bson.M{"entity_id": id}).Decode(&record); err != nil {
+	if err = coll.FindOne(ctx, bson.M{"entity_id": id, "deleted_at": nil}).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -440,7 +446,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 	coll := db.Collection(strings.ToLower(collection))
 
-	filter := bson.M{"entity_id": bson.M{"$in": entityIDs}}
+	filter := bson.M{"entity_id": bson.M{"$in": entityIDs}, "deleted_at": nil}
 
 	_, spanFind := tracer.Start(ctx, "mongodb.find_by_entity_ids.find")
 	defer spanFind.End()
@@ -529,7 +535,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	return nil
 }
 
-// Delete an metadata entity into mongodb.
+// Delete implements Repository.
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -543,20 +549,21 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	opts := options.DeleteOne()
-
 	coll := db.Collection(strings.ToLower(collection))
 
-	_, spanDelete := tracer.Start(ctx, "mongodb.delete_metadata.delete_one")
+	now := time.Now().UTC()
+	filter := bson.D{{Key: "entity_id", Value: id}, {Key: "deleted_at", Value: nil}}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: now}, {Key: "updated_at", Value: now}}}}
 
-	_, err = coll.DeleteOne(ctx, bson.D{{Key: "entity_id", Value: id}}, opts)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete metadata", err)
+	_, spanUpdate := tracer.Start(ctx, "mongodb.delete_metadata.update_many")
+	defer spanUpdate.End()
+
+	// UpdateMany marks every duplicate left on a collection that predates the unique entity_id index.
+	if _, err := coll.UpdateMany(ctx, filter, update); err != nil {
+		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to soft delete metadata", err)
 
 		return err
 	}
-
-	spanDelete.End()
 
 	return nil
 }

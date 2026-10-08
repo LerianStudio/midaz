@@ -272,8 +272,10 @@ func TestDeleteOperationRoute_204Empty(t *testing.T) {
 	orRepo.EXPECT().FindByID(gomock.Any(), orgID, id).Return(&mmodel.OperationRoute{ID: id, OrganizationID: orgID}, nil).Times(1)
 	orRepo.EXPECT().HasTransactionRouteLinks(gomock.Any(), orgID, id).Return(false, nil).Times(1)
 	orRepo.EXPECT().Delete(gomock.Any(), orgID, id).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityOperationRoute, id.String()).Return(nil).Times(1)
 
-	handler := &OperationRouteHandler{Command: &command.UseCase{OperationRouteRepo: orRepo}}
+	handler := &OperationRouteHandler{Command: &command.UseCase{OperationRouteRepo: orRepo, TransactionMetadataRepo: metadataRepo}}
 
 	app := buildHumaOperationRouteApp(t, handler, true)
 
