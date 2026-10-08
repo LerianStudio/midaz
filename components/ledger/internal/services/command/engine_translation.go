@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -188,10 +190,10 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 	}
 
 	routeID := translationRouteID(input.Validate, leg, side)
-	originRef := fmt.Sprintf("%s:%d", side, index)
+	originRef := operationOriginRef(side, index)
 
 	for _, item := range plan.items {
-		postingRef := fmt.Sprintf("%s:%s", originRef, item.postingType)
+		postingRef := operationPostingRef(originRef, item.postingType)
 
 		drawPolicy := accounting.DrawForbidden
 		if item.postingType == accounting.PostingDebit && item.allowsOverdraftDraw {
@@ -312,6 +314,40 @@ func translationRouteID(validate *mtransaction.Responses, leg mtransaction.FromT
 	}
 
 	return routeID
+}
+
+// operationOriginRef names the leg a primary spec was translated from: its side
+// and its position among that side's legs in the transaction input. The frozen
+// plan keeps the same input, so the reference finds the leg again at projection.
+func operationOriginRef(side string, index int) string {
+	return side + ":" + strconv.Itoa(index)
+}
+
+// operationPostingRef names one posting of a leg: the leg's origin reference
+// followed by the posting type, so each posting stays bound to the leg it came from.
+func operationPostingRef(originRef string, postingType accounting.PostingType) string {
+	return originRef + ":" + string(postingType)
+}
+
+// postingRefFromOrigin reports whether postingRef was built by operationPostingRef
+// from originRef.
+func postingRefFromOrigin(postingRef, originRef string) bool {
+	return strings.HasPrefix(postingRef, originRef+":")
+}
+
+// parseOperationOriginRef reads back a reference built by operationOriginRef.
+func parseOperationOriginRef(ref string) (string, int, bool) {
+	side, position, found := strings.Cut(ref, ":")
+	if !found || (side != OperationSpecSideFrom && side != OperationSpecSideTo) {
+		return "", 0, false
+	}
+
+	index, err := strconv.Atoi(position)
+	if err != nil || index < 0 || strconv.Itoa(index) != position {
+		return "", 0, false
+	}
+
+	return side, index, true
 }
 
 func translationOverdraftRubricConfigured(cache *mmodel.TransactionRouteCache, routeID, direction string) bool {

@@ -692,3 +692,33 @@ func translationBalance(organizationID, ledgerID uuid.UUID, id, alias, key strin
 		AccountType: "deposit", AllowSending: true, AllowReceiving: true,
 	}
 }
+
+func TestOperationOriginRefRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, side := range []string{OperationSpecSideFrom, OperationSpecSideTo} {
+		for _, index := range []int{0, 1, 10} {
+			gotSide, gotIndex, ok := parseOperationOriginRef(operationOriginRef(side, index))
+			require.True(t, ok)
+			assert.Equal(t, side, gotSide)
+			assert.Equal(t, index, gotIndex)
+		}
+	}
+
+	for _, ref := range []string{"", "from", "from:", "from:-1", "from:01", "from:+1", "from:1:debit", "source:0", ":0"} {
+		_, _, ok := parseOperationOriginRef(ref)
+		assert.False(t, ok, "reference %q must not resolve a leg", ref)
+	}
+}
+
+func TestOperationPostingRefStaysBoundToItsOrigin(t *testing.T) {
+	t.Parallel()
+
+	postingRef := operationPostingRef(operationOriginRef(OperationSpecSideFrom, 10), accounting.PostingDebit)
+
+	assert.Equal(t, "from:10:debit", postingRef)
+	assert.True(t, postingRefFromOrigin(postingRef, "from:10"))
+	assert.False(t, postingRefFromOrigin(postingRef, "from:1"), "a shorter position must not claim the posting")
+	assert.False(t, postingRefFromOrigin(postingRef, "to:10"))
+	assert.False(t, postingRefFromOrigin(postingRef, ""))
+}
