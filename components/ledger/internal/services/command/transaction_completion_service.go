@@ -72,8 +72,8 @@ func NewTransactionCompletionService(store TransactionWriteStore, metadata engin
 	return &TransactionCompletionService{store: store, metadata: metadata}
 }
 
-// NewTransactionCompletionServiceWithEvents enables best-effort event dispatch after
-// SQL and frozen metadata have both been confirmed.
+// NewTransactionCompletionServiceWithEvents enables best-effort event dispatch once
+// SQL commits, before frozen metadata and fee debts are projected.
 func NewTransactionCompletionServiceWithEvents(
 	store TransactionWriteStore,
 	metadata engineMetadataRepository,
@@ -91,7 +91,7 @@ func NewTransactionCompletionServiceWithEvents(
 }
 
 // WithFeeDebtRecorder sets the recorder that projects a result's fee-debt changes
-// after metadata is confirmed and before any event is published.
+// after metadata is confirmed.
 func (service *TransactionCompletionService) WithFeeDebtRecorder(recorder FeeDebtRecorder) *TransactionCompletionService {
 	service.feeDebt = recorder
 
@@ -123,24 +123,28 @@ func (service *TransactionCompletionService) complete(ctx context.Context, recor
 		return TransactionCompletionResult{}, err
 	}
 
-	if err := service.persistPreparedProjections(ctx, []preparedTransactionCompletion{prepared}); err != nil {
-		return TransactionCompletionResult{}, err
-	}
-
 	if service.publisher != nil {
 		if !validTransactionLifecyclePhase(outcome.LifecyclePhase) {
 			return TransactionCompletionResult{}, fmt.Errorf("%w: transaction write store reported unknown lifecycle phase", ErrTransactionCompletionConflict)
 		}
 
+		// Publish before the projections: a projection failure sends the record back
+		// for a retry whose SQL replay reports noop, so this is the only attempt
+		// that can publish what this commit wrote.
 		service.publisher.PublishAppliedTransactionEvents(ctx, prepared.writeSet.Transaction, outcome.LifecyclePhase)
+	}
+
+	if err := service.persistPreparedProjections(ctx, []preparedTransactionCompletion{prepared}); err != nil {
+		return TransactionCompletionResult{}, err
 	}
 
 	return TransactionCompletionResult{Record: prepared.callerWriteSet, Outcome: outcome}, nil
 }
 
 // CompleteBulk projects one same-scope group through the bulk SQL capability,
-// then verifies all frozen metadata before publishing any lifecycle event.
-// Results preserve input order even when the store reorders causal writes.
+// publishes each unit's lifecycle events once the group commits, then verifies
+// all frozen metadata. Results preserve input order even when the store reorders
+// causal writes.
 func (service *TransactionCompletionService) CompleteBulk(ctx context.Context, records []*TransactionCompletionRecord) ([]TransactionCompletionResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -187,6 +191,12 @@ func (service *TransactionCompletionService) CompleteBulk(ctx context.Context, r
 		}
 	}
 
+	if service.publisher != nil {
+		for index := range prepared {
+			service.publisher.PublishAppliedTransactionEvents(ctx, prepared[index].writeSet.Transaction, outcomes[index].LifecyclePhase)
+		}
+	}
+
 	if err := service.persistPreparedProjections(ctx, prepared); err != nil {
 		return nil, err
 	}
@@ -194,12 +204,6 @@ func (service *TransactionCompletionService) CompleteBulk(ctx context.Context, r
 	results := make([]TransactionCompletionResult, len(prepared))
 	for index := range prepared {
 		results[index] = TransactionCompletionResult{Record: prepared[index].callerWriteSet, Outcome: outcomes[index]}
-	}
-
-	if service.publisher != nil {
-		for index := range prepared {
-			service.publisher.PublishAppliedTransactionEvents(ctx, prepared[index].writeSet.Transaction, outcomes[index].LifecyclePhase)
-		}
 	}
 
 	return results, nil

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"maps"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -408,7 +409,7 @@ func TestTransactionCompletionServiceReturnsCallerOwnedProjectedRecord(t *testin
 	assert.NotEqual(t, "caller", store.records[0].Transaction.Operations[0].Metadata["purpose"])
 }
 
-func TestTransactionCompletionServiceWithEventsPublishesFrozenTransactionAfterDurability(t *testing.T) {
+func TestTransactionCompletionServiceWithEventsPublishesFrozenTransactionRightAfterSQL(t *testing.T) {
 	ctx, envelope := finalizationFixture(t)
 	calls := []string{}
 	store := &finalizationOutcomeStoreStub{
@@ -424,11 +425,11 @@ func TestTransactionCompletionServiceWithEventsPublishesFrozenTransactionAfterDu
 
 	assert.Equal(t, []string{
 		"sql-with-outcome",
+		"publish",
 		"create:" + constant.EntityTransaction,
 		"find:" + constant.EntityTransaction,
 		"create:" + constant.EntityOperation,
 		"find:" + constant.EntityOperation,
-		"publish",
 	}, calls)
 	require.Len(t, publisher.transactions, 1)
 	require.Len(t, publisher.phases, 1)
@@ -467,14 +468,13 @@ func TestTransactionCompletionServiceWithEventsRequiresPublisherAndOutcomeStore(
 	assert.Empty(t, calls)
 }
 
-func TestTransactionCompletionServiceWithEventsPublishesOnlyAfterConfirmedCompletion(t *testing.T) {
+func TestTransactionCompletionServiceWithEventsPublishesOnlyAfterConfirmedSQLOutcome(t *testing.T) {
 	failure := errors.New("durability is not confirmed")
 	tests := []struct {
-		name       string
-		outcome    TransactionPersistenceOutcome
-		storeErr   error
-		metadataFn func(*finalizationMetadataStub)
-		wantErr    error
+		name     string
+		outcome  TransactionPersistenceOutcome
+		storeErr error
+		wantErr  error
 	}{
 		{
 			name: "SQL failure",
@@ -484,15 +484,6 @@ func TestTransactionCompletionServiceWithEventsPublishesOnlyAfterConfirmedComple
 			},
 			storeErr: failure,
 			wantErr:  failure,
-		},
-		{
-			name: "metadata failure",
-			outcome: TransactionPersistenceOutcome{
-				TransactionStatus: constant.APPROVED,
-				LifecyclePhase:    TransactionLifecyclePhaseCreated,
-			},
-			metadataFn: func(metadata *finalizationMetadataStub) { metadata.createErr = failure },
-			wantErr:    failure,
 		},
 		{
 			name:    "empty phase",
@@ -515,9 +506,6 @@ func TestTransactionCompletionServiceWithEventsPublishesOnlyAfterConfirmedComple
 			calls := []string{}
 			store := &finalizationOutcomeStoreStub{outcome: test.outcome, err: test.storeErr, calls: &calls}
 			metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
-			if test.metadataFn != nil {
-				test.metadataFn(metadata)
-			}
 			publisher := &finalizationEventPublisherStub{calls: &calls}
 			finalizer, err := NewTransactionCompletionServiceWithEvents(store, metadata, publisher)
 			require.NoError(t, err)
@@ -529,6 +517,34 @@ func TestTransactionCompletionServiceWithEventsPublishesOnlyAfterConfirmedComple
 			assert.NotContains(t, calls, "publish")
 		})
 	}
+}
+
+// Events leave as soon as SQL commits, so a metadata failure that sends the
+// completion back for retry has already published them once; the retry reports
+// noop and must not be the first, or a second, publication.
+func TestTransactionCompletionServiceWithEventsPublishesOnceWhenMetadataFailsAfterSQL(t *testing.T) {
+	failure := errors.New("mongo unavailable")
+	ctx, envelope := finalizationFixture(t)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+		calls:   &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata), createErr: failure}
+	publisher := &finalizationEventPublisherStub{calls: &calls}
+	finalizer, err := NewTransactionCompletionServiceWithEvents(store, metadata, publisher)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), failure)
+	assert.Equal(t, []string{"sql-with-outcome", "publish", "create:" + constant.EntityTransaction}, calls)
+	assert.Equal(t, []string{TransactionLifecyclePhaseCreated}, publisher.phases)
+
+	store.outcome = TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseNoop}
+	metadata.createErr = nil
+
+	require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
+	assert.Equal(t, []string{TransactionLifecyclePhaseCreated, TransactionLifecyclePhaseNoop}, publisher.phases,
+		"the retry reports the noop phase its replayed SQL observed")
 }
 
 func TestTransactionCompletionServiceWithEventsUsesReportedLifecyclePhase(t *testing.T) {
@@ -585,17 +601,17 @@ func TestEngineWriteBehindTransactionCompletionBulkSharesProjectionPipeline(t *t
 	assert.Equal(t, TransactionLifecyclePhaseNoop, results[1].Outcome.LifecyclePhase)
 	assert.Equal(t, []string{TransactionLifecyclePhaseCreated, TransactionLifecyclePhaseNoop}, publisher.phases)
 	require.Len(t, publisher.transactions, 2)
-	firstPublish := -1
-	lastMetadata := -1
+	lastPublish := -1
+	firstMetadata := len(calls)
 	for index, call := range calls {
-		if call == "publish" && firstPublish == -1 {
-			firstPublish = index
+		if call == "publish" {
+			lastPublish = index
 		}
-		if call == "find:"+constant.EntityOperation {
-			lastMetadata = index
+		if strings.HasPrefix(call, "create:") && firstMetadata == len(calls) {
+			firstMetadata = index
 		}
 	}
-	require.Greater(t, firstPublish, lastMetadata, "events must wait until every unit has confirmed metadata")
+	require.Less(t, lastPublish, firstMetadata, "every unit publishes once the group's SQL commits, before any metadata write")
 }
 
 func TestEngineWriteBehindTransactionCompletionBulkRetainsFailureForRetry(t *testing.T) {
@@ -619,7 +635,8 @@ func TestEngineWriteBehindTransactionCompletionBulkRetainsFailureForRetry(t *tes
 	require.ErrorIs(t, err, failure)
 	assert.Nil(t, results)
 	assert.Len(t, store.bulkRecords, 2, "SQL completion remains retryable by the retained evidence")
-	assert.Empty(t, publisher.transactions, "no event is published for a partially projected group")
+	assert.Equal(t, []string{TransactionLifecyclePhaseCreated, TransactionLifecyclePhaseCreated}, publisher.phases,
+		"units whose SQL committed publish before the metadata failure sends the group back for retry")
 }
 
 func TestEngineWriteBehindTransactionCompletionBulkRejectsUncorrelatedOutcome(t *testing.T) {
