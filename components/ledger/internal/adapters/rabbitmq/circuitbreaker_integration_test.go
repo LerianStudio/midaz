@@ -162,7 +162,7 @@ func setupCircuitBreakerTestInfraWithPorts(t *testing.T, cbConfig CircuitBreaker
 	cbManager.RegisterStateChangeListener(stateListener)
 
 	// Create CircuitBreakerProducer
-	cbProducer, err := NewCircuitBreakerProducer(rawProducer, cbManager, logger, cbConfig.OperationTimeout)
+	cbProducer, err := NewCircuitBreakerProducer(rawProducer, cbManager, logger)
 	require.NoError(t, err, "failed to create circuit breaker producer")
 
 	// Register cleanup for AMQP resources
@@ -218,7 +218,6 @@ func aggressiveCircuitBreakerConfig() CircuitBreakerConfig {
 		Timeout:             3 * time.Second, // Very short timeout
 		HealthCheckInterval: 1 * time.Second,
 		HealthCheckTimeout:  500 * time.Millisecond,
-		OperationTimeout:    DefaultOperationTimeout, // Explicit for test clarity
 	}
 }
 
@@ -437,13 +436,9 @@ func TestIntegration_Chaos_CircuitBreaker_FastFailWhenOpen(t *testing.T) {
 
 	const numRequests = 10
 
-	// Use a CI-friendly threshold: max(200ms, operationTimeout/4)
-	// This scales with configuration and avoids flakiness under load
-	operationTimeout := aggressiveCircuitBreakerConfig().OperationTimeout
-	maxAcceptableLatency := 200 * time.Millisecond
-	if quarterTimeout := operationTimeout / 4; quarterTimeout > maxAcceptableLatency {
-		maxAcceptableLatency = quarterTimeout
-	}
+	// A CI-friendly ceiling: an open circuit answers without reaching the
+	// broker, so this only absorbs scheduler noise under load.
+	const maxAcceptableLatency = 1250 * time.Millisecond
 
 	var totalLatency time.Duration
 

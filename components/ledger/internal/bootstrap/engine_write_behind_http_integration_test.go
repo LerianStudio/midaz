@@ -954,11 +954,7 @@ type recordingBalanceOperationProducer struct {
 	messages [][]byte
 }
 
-func (producer *recordingBalanceOperationProducer) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	return producer.ProducerDefaultWithContext(ctx, exchange, key, message)
-}
-
-func (producer *recordingBalanceOperationProducer) ProducerDefaultWithContext(_ context.Context, _, _ string, message []byte) (*string, error) {
+func (producer *recordingBalanceOperationProducer) ProducerDefault(_ context.Context, _, _ string, message []byte) (*string, error) {
 	producer.messages = append(producer.messages, bytes.Clone(message))
 
 	return nil, nil

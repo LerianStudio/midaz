@@ -370,14 +370,6 @@ func initSingleTenantRabbitMQ(
 	}
 
 	// Circuit breaker configuration with safe defaults
-	operationTimeout := rabbitmq.DefaultOperationTimeout
-
-	if cfg.RabbitMQOperationTimeout != "" {
-		if parsed, err := time.ParseDuration(cfg.RabbitMQOperationTimeout); err == nil && parsed > 0 {
-			operationTimeout = parsed
-		}
-	}
-
 	cbConfig := rabbitmq.CircuitBreakerConfig{
 		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
 		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
@@ -387,7 +379,6 @@ func initSingleTenantRabbitMQ(
 		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
 		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
 		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
-		OperationTimeout:    operationTimeout,
 	}
 
 	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
@@ -403,7 +394,6 @@ func initSingleTenantRabbitMQ(
 		rawProducerRabbitMQ,
 		circuitBreakerManager.Manager,
 		logger,
-		cbConfig.OperationTimeout,
 	)
 	if err != nil {
 		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {

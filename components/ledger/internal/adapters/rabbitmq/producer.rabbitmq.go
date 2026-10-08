@@ -23,9 +23,6 @@ import (
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=producer.rabbitmq.go -destination=producer.rabbitmq_mock.go -package=rabbitmq
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
-	// ProducerDefaultWithContext sends message with explicit context timeout control.
-	// The context deadline/timeout controls how long to wait for RabbitMQ connection.
-	ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool
 	// Close releases any resources held by the producer (AMQP channel and connection).
 	// Safe to call multiple times or on nil receivers.
@@ -94,60 +91,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	// Use ChannelSnapshot to get a consistent channel reference under lock,
 	// avoiding a TOCTOU race where another goroutine's reconnection could
 	// replace the channel between EnsureChannel and Publish.
-	ch := prmq.conn.ChannelSnapshot()
-	if ch == nil {
-		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
-		libOpentelemetry.HandleSpanError(spanProducer, "Channel snapshot returned nil", err)
-
-		return nil, err
-	}
-
-	err := ch.Publish(
-		exchange,
-		key,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			DeliveryMode: amqp.Persistent,
-			Headers:      headers,
-			Body:         message,
-		},
-	)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
-
-		return nil, err
-	}
-
-	return nil, nil
-}
-
-// ProducerDefaultWithContext sends a message to RabbitMQ with context-aware timeout.
-// Uses EnsureChannelWithContext to respect context deadline for connection attempts.
-func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	// Rebind ctx: the publish span's trace context is injected into the message
-	// headers below so the consumer can continue the trace.
-	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message_with_context")
-	defer spanProducer.End()
-
-	headers := amqp.Table{
-		libConstants.HeaderID: reqId,
-	}
-
-	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
-
-	if err := prmq.conn.EnsureChannelContext(ctx); err != nil {
-		libOpentelemetry.HandleSpanError(spanProducer, "Failed to ensure channel with context", err)
-
-		return nil, err
-	}
-
-	// Use ChannelSnapshot to get a consistent channel reference under lock,
-	// avoiding a TOCTOU race where another goroutine's reconnection could
-	// replace the channel between EnsureChannelContext and Publish.
 	ch := prmq.conn.ChannelSnapshot()
 	if ch == nil {
 		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
