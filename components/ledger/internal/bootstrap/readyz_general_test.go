@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -458,12 +459,16 @@ func TestRabbitMQChecker_ProbeDoesNotExposeCredentials(t *testing.T) {
 			body, err := json.Marshal(result)
 			require.NoError(t, err)
 
-			authHeader := basicAuthHeader(testRabbitMQUser, testRabbitMQPass)
+			secrets := []struct{ name, value string }{
+				{"configured user", testRabbitMQUser},
+				{"configured password", testRabbitMQPass},
+				{"basic auth header", basicAuthHeader(testRabbitMQUser, testRabbitMQPass)},
+			}
 
-			for _, secret := range []string{testRabbitMQUser, testRabbitMQPass, authHeader} {
-				assert.NotContains(t, checker.healthCheckURL, secret)
-				assert.NotContains(t, result.Error, secret)
-				assert.NotContains(t, string(body), secret)
+			for _, secret := range secrets {
+				assert.False(t, strings.Contains(checker.healthCheckURL, secret.value), "probed URL must not contain the %s", secret.name)
+				assert.False(t, strings.Contains(result.Error, secret.value), "error must not contain the %s", secret.name)
+				assert.False(t, strings.Contains(string(body), secret.value), "check JSON must not contain the %s", secret.name)
 			}
 		})
 	}
@@ -509,14 +514,22 @@ func TestRabbitMQChecker_ProbeInvalidURLDoesNotExposeCredentials(t *testing.T) {
 			result := tt.checker.Check(context.Background())
 
 			require.Equal(t, StatusDown, result.Status)
-			assert.Equal(t, tt.wantError, result.Error)
+			assert.True(t, result.Error == tt.wantError, "error must be %q", tt.wantError)
 
 			body, err := json.Marshal(result)
 			require.NoError(t, err)
 
-			for _, secret := range []string{embeddedUser, embeddedPass, rawURL, testRabbitMQUser, testRabbitMQPass} {
-				assert.NotContains(t, result.Error, secret)
-				assert.NotContains(t, string(body), secret)
+			secrets := []struct{ name, value string }{
+				{"embedded user", embeddedUser},
+				{"embedded password", embeddedPass},
+				{"raw credentialed URL", rawURL},
+				{"configured user", testRabbitMQUser},
+				{"configured password", testRabbitMQPass},
+			}
+
+			for _, secret := range secrets {
+				assert.False(t, strings.Contains(result.Error, secret.value), "error must not contain the %s", secret.name)
+				assert.False(t, strings.Contains(string(body), secret.value), "check JSON must not contain the %s", secret.name)
 			}
 		})
 	}
@@ -557,19 +570,19 @@ func TestParseRabbitMQHealthURL(t *testing.T) {
 			gotURL, gotHasUserinfo, err := parseRabbitMQHealthURL(tt.raw)
 
 			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				assert.Empty(t, gotURL)
-				assert.NotContains(t, err.Error(), tt.raw)
-				assert.NotContains(t, err.Error(), "embedded")
-				assert.NotContains(t, err.Error(), "user")
+				require.True(t, errors.Is(err, tt.wantErr), "error must be %q", tt.wantErr)
+				assert.True(t, gotURL == "", "URL must be empty on error")
+				assert.False(t, strings.Contains(err.Error(), tt.raw), "error must not contain the raw URL")
+				assert.False(t, strings.Contains(err.Error(), "embedded"), "error must not contain the embedded credential")
+				assert.False(t, strings.Contains(err.Error(), "user"), "error must not contain the embedded user")
 
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantURL, gotURL)
+			assert.True(t, gotURL == tt.wantURL, "normalized URL must be %q", tt.wantURL)
 			assert.Equal(t, tt.wantHasUserinfo, gotHasUserinfo)
-			assert.NotContains(t, gotURL, "embedded")
+			assert.False(t, strings.Contains(gotURL, "embedded"), "normalized URL must not contain the embedded credential")
 		})
 	}
 }
@@ -632,9 +645,10 @@ func TestRabbitMQChecker_ProbeIgnoresCredentialsEmbeddedInURL(t *testing.T) {
 
 	assert.Equal(t, StatusUp, result.Status)
 	assert.Equal(t, "/api/health/checks/alarms", lastRequest().path)
-	assert.Equal(t, basicAuthHeader(testRabbitMQUser, testRabbitMQPass), lastRequest().authorization)
-	assert.NotContains(t, checker.healthCheckURL, "embedded")
-	assert.NotContains(t, checker.healthCheckURL, "@")
+	assert.True(t, lastRequest().authorization == basicAuthHeader(testRabbitMQUser, testRabbitMQPass),
+		"Authorization must carry the configured credentials, not the embedded ones")
+	assert.False(t, strings.Contains(checker.healthCheckURL, "embedded"), "probed URL must not contain the embedded credential")
+	assert.False(t, strings.Contains(checker.healthCheckURL, "@"), "probed URL must not carry userinfo")
 }
 
 func TestWarnRabbitMQHealthURL(t *testing.T) {
@@ -672,15 +686,15 @@ func TestWarnRabbitMQHealthURL(t *testing.T) {
 			for _, warning := range warnings {
 				assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL", warning.fields["variable"])
 				assert.Contains(t, warning.msg, "RabbitMQ health check URL")
-				assert.NotContains(t, warning.msg, "leaky")
+				assert.False(t, strings.Contains(warning.msg, "leaky"), "Warn message must not contain the embedded credential")
 
 				if tt.wantReason != "" {
 					assert.Equal(t, tt.wantReason, warning.fields["reason"])
 				}
 
 				for _, value := range warning.fields {
-					assert.NotContains(t, fmt.Sprint(value), "leaky")
-					assert.NotEqual(t, tt.raw, fmt.Sprint(value))
+					assert.False(t, strings.Contains(fmt.Sprint(value), "leaky"), "Warn field must not contain the embedded credential")
+					assert.False(t, fmt.Sprint(value) == tt.raw, "Warn field must not reproduce the configured URL")
 				}
 			}
 		})
